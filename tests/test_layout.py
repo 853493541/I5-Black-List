@@ -1,0 +1,134 @@
+"""Header anchor. The countdown digit is read, not fixed at 10."""
+
+from blacklist_detect.layout import (
+    COUNTDOWN_BOX,
+    MODE_BOX,
+    NAME_BOXES,
+    REF_H,
+    REF_W,
+    TITLE_BOX,
+    find_anchor,
+)
+from blacklist_detect.model import OcrLine
+
+
+def _line(text: str, frac: tuple[float, float, float, float], width=REF_W, height=REF_H) -> OcrLine:
+    left, top, right, bottom = frac
+    return OcrLine(text, 0.99, (left * width, top * height, right * width, bottom * height))
+
+
+def _header(seconds: str, extra: list[OcrLine] | None = None) -> list[OcrLine]:
+    lines = [
+        _line("推演成功", TITLE_BOX),
+        _line("模仿者狂欢（12人狂欢）", MODE_BOX),
+        _line(f"倒计时 {seconds} 秒", COUNTDOWN_BOX),
+    ]
+    if extra:
+        lines.extend(extra)
+    return lines
+
+
+def test_countdown_digit_is_not_locked_to_ten():
+    anchor = find_anchor(_header("4"), REF_W, REF_H)
+    assert anchor.found
+    assert anchor.countdown_seconds == 4
+    assert len(anchor.name_boxes) == 12
+
+    packed = find_anchor(
+        [
+            _line("推演成功", TITLE_BOX),
+            _line("模仿者狂欢（12人狂欢）", MODE_BOX),
+            _line("倒计时10秒", COUNTDOWN_BOX),
+        ],
+        REF_W,
+        REF_H,
+    )
+    assert packed.found
+    assert packed.countdown_seconds == 10
+
+
+def test_name_strips_follow_a_moved_header():
+    scale = 0.5
+    offset_x, offset_y = 120.0, 80.0
+
+    def place(frac):
+        left = offset_x + scale * frac[0] * REF_W
+        top = offset_y + scale * frac[1] * REF_H
+        right = offset_x + scale * frac[2] * REF_W
+        bottom = offset_y + scale * frac[3] * REF_H
+        return (left, top, right, bottom)
+
+    lines = [
+        OcrLine("推演成功", 0.99, place(TITLE_BOX)),
+        OcrLine("模仿者狂欢（12人狂欢）", 0.99, place(MODE_BOX)),
+        OcrLine("倒计时 7 秒", 0.99, place(COUNTDOWN_BOX)),
+    ]
+    width, height = 2000, 1200
+    anchor = find_anchor(lines, width, height)
+    assert anchor.found
+    assert anchor.countdown_seconds == 7
+    expected = place(NAME_BOXES[2])
+    got = anchor.name_boxes[2]
+    for actual, wanted in zip(got, expected):
+        assert abs(actual - wanted) <= 1
+
+
+def test_missing_mode_or_seconds_is_not_this_lobby():
+    no_mode = find_anchor(
+        [
+            _line("推演成功", TITLE_BOX),
+            _line("模仿者狂欢", MODE_BOX),
+            _line("倒计时 9 秒", COUNTDOWN_BOX),
+        ],
+        REF_W,
+        REF_H,
+    )
+    assert not no_mode.found
+
+    no_digit = find_anchor(
+        [
+            _line("推演成功", TITLE_BOX),
+            _line("模仿者狂欢（12人狂欢）", MODE_BOX),
+            _line("倒计时 秒", COUNTDOWN_BOX),
+        ],
+        REF_W,
+        REF_H,
+    )
+    assert not no_digit.found
+
+
+def test_text_beside_the_title_does_not_move_the_names():
+    title = _line("推演成功", TITLE_BOX)
+    junk = OcrLine(
+        "亚的纪念日",
+        0.9,
+        (title.box[2] + 40, title.box[1] + 50, title.box[2] + 360, title.box[1] + 110),
+    )
+    anchor = find_anchor(_header("10") + [junk], REF_W, REF_H)
+    assert anchor.found
+    assert anchor.countdown_seconds == 10
+    expected_left = round(NAME_BOXES[0][0] * REF_W)
+    assert abs(anchor.name_boxes[0][0] - expected_left) <= 2
+
+
+def test_countdown_split_into_two_tokens_still_counts():
+    left = (0.466, 0.253, 0.535, 0.296)
+    right = (0.525, 0.253, 0.604, 0.296)
+    lines = [
+        _line("推演成功", TITLE_BOX),
+        _line("模仿者狂欢（12人狂欢）", MODE_BOX),
+        _line("倒计时", left),
+        _line("3秒", right),
+    ]
+    anchor = find_anchor(lines, REF_W, REF_H)
+    assert anchor.found
+    assert anchor.countdown_seconds == 3
+
+
+def test_ready_count_is_not_a_thirteenth_name():
+    ready_box = (0.461, 0.837, 0.609, 0.878)
+    anchor = find_anchor(_header("6", [_line("准备就绪：8/12", ready_box)]), REF_W, REF_H)
+    assert anchor.found
+    assert anchor.countdown_seconds == 6
+    assert anchor.ready_count == 8
+    assert len(anchor.name_boxes) == 12

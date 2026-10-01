@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "blacklist-detect"
+version = "0.1.0"
+description = "Windows desktop check for blacklisted names on the 12-player lobby."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "PySide6>=6.7",
+  "numpy",
+  "Pillow",
+  "paddleocr>=3.0",
+]
+
+[project.optional-dependencies]
+windows = ["dxcam>=0.0.5"]
+dev = ["pytest>=8"]
+
+[project.scripts]
+blacklist-detect = "blacklist_detect.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["blacklist_detect*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
