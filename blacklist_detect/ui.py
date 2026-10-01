@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import queue
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -243,6 +244,7 @@ class MainWindow(QMainWindow):
         self.worker.done.connect(self._on_checked)
         self._closing = False
         self.warning = WarningWindow()
+        self._check_started: float | None = None
         self._build()
         self._apply_style()
         self._reload_table()
@@ -264,6 +266,16 @@ class MainWindow(QMainWindow):
         outer.addWidget(sub)
         outer.addWidget(self._blacklist_box(), 1)
         outer.addWidget(self._check_box())
+        result_row = QHBoxLayout()
+        self.time_label = QLabel("用时 —")
+        self.time_label.setObjectName("sub")
+        self.copy_button = QPushButton("复制结果")
+        self.copy_button.setEnabled(False)
+        self.copy_button.clicked.connect(self.copy_result)
+        result_row.addWidget(self.time_label)
+        result_row.addStretch(1)
+        result_row.addWidget(self.copy_button)
+        outer.addLayout(result_row)
         self.names_view = QPlainTextEdit()
         self.names_view.setReadOnly(True)
         self.names_view.setPlaceholderText("检查后，十二个名字显示在这里。")
@@ -472,6 +484,7 @@ class MainWindow(QMainWindow):
         if not self.worker.request(fn):
             self.result_label.setText("上一次检查还在进行。")
             return
+        self._check_started = time.perf_counter()
         if models_are_cached():
             self.result_label.setText("正在检查…")
         else:
@@ -485,6 +498,11 @@ class MainWindow(QMainWindow):
             return
         self.check_button.setEnabled(True)
         self.open_button.setEnabled(True)
+        elapsed = None
+        if self._check_started is not None:
+            elapsed = time.perf_counter() - self._check_started
+            self._check_started = None
+        self._show_elapsed(elapsed)
         kind, value = payload
         if kind == "err":
             text = str(value)
@@ -516,6 +534,21 @@ class MainWindow(QMainWindow):
             else:
                 lines.append(f"{seat}号  {slot.visible}")
         self.names_view.setPlainText("\n".join(lines))
+        self.copy_button.setEnabled(bool(lines))
+
+    def _show_elapsed(self, elapsed: float | None) -> None:
+        if elapsed is None:
+            self.time_label.setText("用时 —")
+            return
+        shown = f"{elapsed:.2f}" if elapsed < 10 else f"{elapsed:.1f}"
+        self.time_label.setText(f"用时 {shown} 秒")
+
+    def copy_result(self) -> None:
+        text = self.names_view.toPlainText().strip()
+        if not text:
+            return
+        QApplication.clipboard().setText(text)
+        self.result_label.setText("结果已复制。")
 
     def _save_debug(self, result: CheckResult) -> None:
         directory = self.store.root / "debug"

@@ -21,6 +21,18 @@ NAME_CONFIDENCE_MIN = 0.55
 _ENGINE: OcrEngine | None = None
 
 
+def inference_device() -> str:
+    """Run on the NVIDIA GPU when this Paddle build can see one."""
+    try:
+        import paddle
+
+        if paddle.device.is_compiled_with_cuda() and paddle.device.cuda.device_count() > 0:
+            return "gpu:0"
+    except Exception:
+        return "cpu"
+    return "cpu"
+
+
 class OcrUnavailable(RuntimeError):
     """The local Chinese model could not be loaded."""
 
@@ -113,23 +125,23 @@ class OcrEngine:
         if not prepared:
             return results
         rec = self._ensure_name_rec()
-        try:
-            batch = rec.predict(prepared)
-        except TypeError:
-            batch = rec.predict(input=prepared)
-        except Exception:
-            batch = None
-        parsed = list(batch) if isinstance(batch, (list, tuple)) else []
-        if len(parsed) != len(prepared):
-            for index, image in zip(indexes, prepared):
-                try:
-                    one = rec.predict(image)
-                except TypeError:
-                    one = rec.predict(input=image)
-                results[index] = _recognition_text(one)
+        primary = _predict_batch(rec, prepared)
+        if len(primary) != len(prepared):
+            for slot, image in zip(indexes, prepared):
+                results[slot] = _recognition_text(_predict_one(rec, image))
             return results
-        for index, item in zip(indexes, parsed):
-            results[index] = _recognition_text([item])
+        blank_slots: list[int] = []
+        for slot, first in zip(indexes, primary):
+            results[slot] = _recognition_text([first])
+            if not results[slot][0]:
+                blank_slots.append(slot)
+        if not blank_slots:
+            return results
+        alternate = _predict_batch(rec, [prepare_name_line_plain(images[slot]) for slot in blank_slots])
+        if len(alternate) != len(blank_slots):
+            return results
+        for slot, second in zip(blank_slots, alternate):
+            results[slot] = choose_name_read(results[slot], _recognition_text([second]))
         return results
 
     def _ensure(self):
@@ -150,6 +162,8 @@ class OcrEngine:
             "use_textline_orientation": False,
             "text_detection_model_name": "PP-OCRv5_mobile_det",
             "text_recognition_model_name": "PP-OCRv5_mobile_rec",
+            "text_recognition_batch_size": 16,
+            "device": inference_device(),
         }
         det, rec = model_dirs()
         if det and rec:
@@ -180,7 +194,13 @@ class OcrEngine:
                 "没有安装 PaddleOCR，不能读取名字。"
             ) from exc
         try:
-            self._name_rec = TextRecognition(model_name="PP-OCRv5_mobile_rec")
+            self._name_rec = TextRecognition(
+                model_name="PP-OCRv6_medium_rec",
+                device=inference_device(),
+            )
+            sampler = getattr(self._name_rec.paddlex_predictor, "batch_sampler", None)
+            if sampler is not None:
+                sampler.batch_size = 12
         except Exception as exc:
             raise OcrUnavailable(
                 "本地 PaddleOCR 中文识别模型没有就绪。"
@@ -346,16 +366,41 @@ def scale_lines(lines: list[OcrLine], factor: float) -> list[OcrLine]:
     return scaled
 
 
+def _bottom_text_band(rgb: np.ndarray) -> np.ndarray:
+    """Keep the name line. The portrait above it is bright too, so the first bright row is not the name."""
+    gray = rgb.max(axis=2)
+    ink = (gray >= 150).sum(axis=1)
+    need = max(4, int(rgb.shape[1] * 0.03))
+    active = ink > need
+    groups: list[tuple[int, int]] = []
+    start = None
+    for index, on in enumerate(active):
+        if on and start is None:
+            start = index
+        elif not on and start is not None:
+            if index - start >= 3:
+                groups.append((start, index))
+            start = None
+    if start is not None and len(active) - start >= 3:
+        groups.append((start, len(active)))
+    if not groups:
+        return rgb
+    top, bottom = groups[-1]
+    for begin, end in reversed(groups[:-1]):
+        if top - end <= 6:
+            top = begin
+        else:
+            break
+    top = max(0, top - 8)
+    bottom = min(rgb.shape[0], bottom + 6)
+    return rgb[top:bottom]
+
+
 def prepare_name_line(rgb: np.ndarray) -> np.ndarray:
-    """Tighten to the light text, enlarge, and raise contrast. Returns BGR."""
+    """Tighten to the name line, enlarge, and raise contrast. Returns BGR."""
     import cv2
 
-    gray = rgb.max(axis=2)
-    rows = np.where((gray >= 150).sum(axis=1) > 2)[0]
-    if len(rows):
-        top = max(0, int(rows[0]) - 2)
-        bottom = min(rgb.shape[0], int(rows[-1]) + 3)
-        rgb = rgb[top:bottom]
+    rgb = _bottom_text_band(rgb)
     height, width = rgb.shape[:2]
     enlarged = cv2.resize(
         rgb,
@@ -370,6 +415,75 @@ def prepare_name_line(rgb: np.ndarray) -> np.ndarray:
     stretched = np.clip((gray.astype(np.float32) - low) * (255.0 / (high - low)), 0, 255).astype(np.uint8)
     inverted = cv2.cvtColor(255 - stretched, cv2.COLOR_GRAY2BGR)
     return cv2.copyMakeBorder(inverted, 10, 10, 10, 10, cv2.BORDER_CONSTANT, value=(255, 255, 255))
+
+
+def prepare_name_line_plain(rgb: np.ndarray) -> np.ndarray:
+    """Read the same strip at the recognizer's height, without cutting a band out of it."""
+    import cv2
+
+    height, width = rgb.shape[:2]
+    if height < 2 or width < 2:
+        return prepare_name_line(rgb)
+    target = 48
+    scale = target / float(height)
+    enlarged = cv2.resize(
+        rgb,
+        (max(1, int(round(width * scale))), target),
+        interpolation=cv2.INTER_CUBIC,
+    )
+    gray = cv2.cvtColor(enlarged, cv2.COLOR_RGB2GRAY)
+    blur = cv2.GaussianBlur(gray, (0, 0), 0.8)
+    sharp = cv2.addWeighted(gray, 1.5, blur, -0.5, 0)
+    low = float(np.percentile(sharp, 10))
+    high = float(np.percentile(sharp, 97))
+    if high <= low + 1:
+        high = low + 1
+    stretched = np.clip((sharp.astype(np.float32) - low) * (255.0 / (high - low)), 0, 255).astype(np.uint8)
+    ink = cv2.cvtColor(255 - stretched, cv2.COLOR_GRAY2BGR)
+    return cv2.copyMakeBorder(ink, 8, 8, 12, 12, cv2.BORDER_CONSTANT, value=(255, 255, 255))
+
+
+def _letters(text: str) -> str:
+    kept = []
+    for ch in text.casefold():
+        if ch.isalnum() or "\u4e00" <= ch <= "\u9fff":
+            kept.append(ch)
+    return "".join(kept)
+
+
+def choose_name_read(primary: tuple[str, float], alternate: tuple[str, float]) -> tuple[str, float]:
+    """Keep the surer read of the same strip. A small confidence edge does not replace the primary."""
+    text_a, score_a = primary
+    text_b, score_b = alternate
+    if not text_b:
+        return primary
+    if not text_a:
+        return alternate
+    if _letters(text_a) == _letters(text_b):
+        return primary if score_a >= score_b else alternate
+    if score_b >= score_a + 0.08:
+        return alternate
+    return primary
+
+
+def _predict_one(rec, image: np.ndarray):
+    try:
+        return rec.predict(image)
+    except TypeError:
+        return rec.predict(input=image)
+
+
+def _predict_batch(rec, images: list[np.ndarray]):
+    try:
+        batch = rec.predict(images)
+    except TypeError:
+        batch = rec.predict(input=images)
+    except Exception:
+        return []
+    parsed = list(batch) if isinstance(batch, (list, tuple)) else []
+    if len(parsed) != len(images):
+        return []
+    return parsed
 
 
 def _recognition_text(result) -> tuple[str, float]:

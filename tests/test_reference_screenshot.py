@@ -20,7 +20,7 @@ EXPECTED = [
     ("谁想救人", False),
     ("坎贝尔又", True),
     ("gffdsd", False),
-    ("ElUElu", False),
+    ("EluElu", False),
     ("玩的很菜了", False),
     ("不屑讨好谁", False),
 ]
@@ -50,7 +50,7 @@ def test_reference_lobby_names():
     assert "罪" not in result.names[2].visible
     # The printed Latin name keeps the second letter the model sees.
     assert result.names[8].visible == "gffdsd"
-    assert result.names[9].visible == "ElUElu"
+    assert result.names[9].visible == "EluElu"
     assert result.names[10].visible == "玩的很菜了"
     matched = [hit.entry_name for hit in result.hits]
     assert "霁玥吉尔曼" in matched

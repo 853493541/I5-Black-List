@@ -39,6 +39,22 @@ def test_add_remove_and_mute(qapp, tmp_path, monkeypatch):
     window.close()
 
 
+def test_elapsed_and_copy_result(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    assert window.time_label.text() == "用时 —"
+    assert window.copy_button.isEnabled() is False
+    window._show_elapsed(0.254)
+    assert window.time_label.text() == "用时 0.25 秒"
+    window.names_view.setPlainText("1号  莓有橘子甜\n12号  未看清")
+    window.copy_button.setEnabled(True)
+    window.copy_result()
+    assert QApplication.clipboard().text() == "1号  莓有橘子甜\n12号  未看清"
+    assert window.result_label.text() == "结果已复制。"
+    window.close()
+
+
 def test_warning_stays_on_top_without_taking_focus(qapp):
     warning = WarningWindow()
     flags = warning.windowFlags()

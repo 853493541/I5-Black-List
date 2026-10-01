@@ -18,7 +18,9 @@ TITLE_BOX = (0.435, 0.074, 0.635, 0.187)
 MODE_BOX = (0.401, 0.199, 0.654, 0.247)
 COUNTDOWN_BOX = (0.466, 0.253, 0.604, 0.296)
 
-NAME_BOXES: tuple[tuple[float, float, float, float], ...] = (
+# Measured on the ink of the reference names. Short names made short boxes,
+# so a longer name on the same seat was cut off at both ends.
+_MEASURED_NAME_BOXES: tuple[tuple[float, float, float, float], ...] = (
     (0.136, 0.487, 0.232, 0.527),
     (0.288, 0.489, 0.366, 0.526),
     (0.417, 0.483, 0.514, 0.528),
@@ -31,6 +33,30 @@ NAME_BOXES: tuple[tuple[float, float, float, float], ...] = (
     (0.572, 0.773, 0.635, 0.815),
     (0.692, 0.777, 0.789, 0.816),
     (0.831, 0.776, 0.928, 0.816),
+)
+
+
+def _widen_name_row(
+    boxes: tuple[tuple[float, float, float, float], ...],
+    grow: float = 0.030,
+    gap: float = 0.012,
+) -> tuple[tuple[float, float, float, float], ...]:
+    """Give every seat the same side margin, stopping before the next card."""
+    widened: list[tuple[float, float, float, float]] = []
+    for index, (left, top, right, bottom) in enumerate(boxes):
+        center = (left + right) / 2.0
+        previous = 0.0 if index == 0 else (boxes[index - 1][0] + boxes[index - 1][2]) / 2.0
+        nxt = 1.0 if index + 1 == len(boxes) else (boxes[index + 1][0] + boxes[index + 1][2]) / 2.0
+        left_limit = 0.0 if index == 0 else (previous + center) / 2.0
+        right_limit = 1.0 if index + 1 == len(boxes) else (center + nxt) / 2.0
+        left = max(left - grow, left_limit + gap / 2.0)
+        right = min(right + grow, right_limit - gap / 2.0)
+        widened.append((round(left, 4), top, round(right, 4), bottom))
+    return tuple(widened)
+
+
+NAME_BOXES: tuple[tuple[float, float, float, float], ...] = (
+    _widen_name_row(_MEASURED_NAME_BOXES[:6]) + _widen_name_row(_MEASURED_NAME_BOXES[6:])
 )
 
 _COUNTDOWN_RE = re.compile(r"倒计时\s*[:：]?\s*(\d{1,3})\s*秒")

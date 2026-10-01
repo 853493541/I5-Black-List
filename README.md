@@ -41,7 +41,7 @@ On the included reference shot this prints twelve names. Ten of them match the l
 
 ## OCR model
 
-The header is found with PaddleOCR `PP-OCRv5_mobile_det` and `PP-OCRv5_server_rec`. Each name strip is read with `PP-OCRv6_medium_rec` (Chinese, local). Weights are not in this repo. The first check downloads them into the PaddleX cache (`~/.paddlex/official_models`) when the network is available.
+The header is found with PaddleOCR `PP-OCRv5_mobile_det` and `PP-OCRv5_mobile_rec`. Each name strip is read once with `PP-OCRv6_medium_rec` (Chinese, local). Both run as one GPU batch on the RTX 5080 through the CUDA 12.9 Paddle build; without that build they stay on the CPU. Weights are not in this repo. The first check downloads them into the PaddleX cache (`~/.paddlex/official_models`) when the network is available.
 
 To fetch them before opening the window:
 
