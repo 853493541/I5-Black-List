@@ -9,6 +9,7 @@ from dataclasses import dataclass
 class Entry:
     name: str
     note: str = ""
+    reasons: tuple[str, ...] = ()
     match_from_prefix: bool = False
     added_at: str = ""
 

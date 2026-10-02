@@ -17,6 +17,8 @@ REF_H = 1695
 TITLE_BOX = (0.435, 0.074, 0.635, 0.187)
 MODE_BOX = (0.401, 0.199, 0.654, 0.247)
 COUNTDOWN_BOX = (0.466, 0.253, 0.604, 0.296)
+# The light 准备案件还原 control at the bottom of the reference shot.
+BUTTON_BOX = (0.458, 0.896, 0.614, 0.980)
 
 # Measured on the ink of the reference names. Short names made short boxes,
 # so a longer name on the same seat was cut off at both ends.
@@ -71,6 +73,7 @@ class Anchor:
     ready_count: int | None = None
     scale: float = 0.0
     name_boxes: tuple[tuple[int, int, int, int], ...] = ()
+    button_box: tuple[int, int, int, int] | None = None
     title_box: tuple[float, float, float, float] | None = None
     mode_box: tuple[float, float, float, float] | None = None
     countdown_box: tuple[float, float, float, float] | None = None
@@ -278,26 +281,10 @@ def find_anchor(lines: list[OcrLine], image_width: int, image_height: int) -> An
 
     _score, title, mode, countdown, seconds, scale = best
     title_c = _center(title.box)
-    name_boxes: list[tuple[int, int, int, int]] = []
-    for frac in NAME_BOXES:
-        ref = _frac_to_px(frac, REF_W, REF_H)
-        mapped = []
-        for x, y in ((ref[0], ref[1]), (ref[2], ref[1]), (ref[0], ref[3]), (ref[2], ref[3])):
-            mapped.append(
-                (
-                    title_c[0] + (x - ref_title_c[0]) * scale,
-                    title_c[1] + (y - ref_title_c[1]) * scale,
-                )
-            )
-        left = int(round(min(point[0] for point in mapped)))
-        top = int(round(min(point[1] for point in mapped)))
-        right = int(round(max(point[0] for point in mapped)))
-        bottom = int(round(max(point[1] for point in mapped)))
-        left = max(0, min(image_width - 1, left))
-        top = max(0, min(image_height - 1, top))
-        right = max(left + 1, min(image_width, right))
-        bottom = max(top + 1, min(image_height, bottom))
-        name_boxes.append((left, top, right, bottom))
+    name_boxes = tuple(
+        _map_box(frac, title_c, ref_title_c, scale, image_width, image_height) for frac in NAME_BOXES
+    )
+    button_box = _map_box(BUTTON_BOX, title_c, ref_title_c, scale, image_width, image_height)
 
     return Anchor(
         found=True,
@@ -305,8 +292,37 @@ def find_anchor(lines: list[OcrLine], image_width: int, image_height: int) -> An
         countdown_seconds=seconds,
         ready_count=ready_count,
         scale=scale,
-        name_boxes=tuple(name_boxes),
+        name_boxes=name_boxes,
+        button_box=button_box,
         title_box=title.box,
         mode_box=mode.box,
         countdown_box=countdown.box,
     )
+
+
+def _map_box(
+    frac: tuple[float, float, float, float],
+    title_c: tuple[float, float],
+    ref_title_c: tuple[float, float],
+    scale: float,
+    image_width: int,
+    image_height: int,
+) -> tuple[int, int, int, int]:
+    """Place a reference box onto this capture, using the title as the anchor."""
+    ref = _frac_to_px(frac, REF_W, REF_H)
+    mapped = [
+        (
+            title_c[0] + (x - ref_title_c[0]) * scale,
+            title_c[1] + (y - ref_title_c[1]) * scale,
+        )
+        for x, y in ((ref[0], ref[1]), (ref[2], ref[1]), (ref[0], ref[3]), (ref[2], ref[3]))
+    ]
+    left = int(round(min(point[0] for point in mapped)))
+    top = int(round(min(point[1] for point in mapped)))
+    right = int(round(max(point[0] for point in mapped)))
+    bottom = int(round(max(point[1] for point in mapped)))
+    left = max(0, min(image_width - 1, left))
+    top = max(0, min(image_height - 1, top))
+    right = max(left + 1, min(image_width, right))
+    bottom = max(top + 1, min(image_height, bottom))
+    return (left, top, right, bottom)

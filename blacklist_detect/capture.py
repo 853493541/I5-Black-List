@@ -36,6 +36,19 @@ def capture_capability_message() -> str:
 TITLE_BAND_FRACTION = 0.40
 
 
+def virtual_origin() -> tuple[int, int]:
+    """Top-left of the desktop copy, in screen pixels."""
+    if sys.platform != "win32":
+        return (0, 0)
+    import ctypes
+
+    user32 = ctypes.windll.user32
+    return (
+        int(user32.GetSystemMetrics(_SM_XVIRTUALSCREEN)),
+        int(user32.GetSystemMetrics(_SM_YVIRTUALSCREEN)),
+    )
+
+
 def capture_displays() -> list:
     """Return one RGB uint8 frame of the whole desktop. Raises CaptureUnavailable."""
     if sys.platform != "win32":

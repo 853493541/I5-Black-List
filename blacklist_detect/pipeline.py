@@ -26,6 +26,7 @@ from blacklist_detect.ocr_engine import (
     rgb_to_bgr,
     scale_lines,
 )
+from blacklist_detect.storage import reason_text
 
 
 @dataclass
@@ -58,6 +59,7 @@ class CheckResult:
     names: list[NameSlot] = field(default_factory=list)
     hits: list[Hit] = field(default_factory=list)
     preview_rgb: np.ndarray | None = None
+    button_box: tuple[int, int, int, int] | None = None
 
 
 def load_rgb(path: str | Path) -> np.ndarray:
@@ -69,7 +71,7 @@ def check_image(path: str | Path, entries: list[Entry], engine=None) -> CheckRes
     return check_rgb(load_rgb(path), entries, engine=engine)
 
 
-def check_frames(frames: list[np.ndarray], entries: list[Entry], engine=None) -> CheckResult:
+def check_frames(frames: list[np.ndarray], entries: list[Entry], engine=None, on_lobby=None) -> CheckResult:
     """Header-scan each monitor copy and read names only on the one that matches."""
     if not frames:
         return CheckResult(False, "没有复制到画面。")
@@ -87,6 +89,8 @@ def check_frames(frames: list[np.ndarray], entries: list[Entry], engine=None) ->
         result.preview_rgb = frames[0]
         return result
     frame, anchor, _lines = chosen
+    if on_lobby is not None and anchor.button_box is not None:
+        on_lobby(anchor.button_box)
     return _read_names(reader, frame, anchor, entries)
 
 
@@ -151,13 +155,13 @@ def _read_names(engine, rgb: np.ndarray, anchor: Anchor, entries: list[Entry]) -
         )
         shown = slot.visible or visible
         for found in match_label(label, entries):
-            line = format_hit(index, shown, slot.truncated, found.entry.name, found.entry.note)
+            line = format_hit(index, shown, slot.truncated, found.entry.name, reason_text(found.entry))
             hits.append(
                 Hit(
                     index=index,
                     read_text=shown,
                     entry_name=found.entry.name,
-                    note=found.entry.note,
+                    note=reason_text(found.entry),
                     truncated=slot.truncated,
                     line=line,
                 )
@@ -171,6 +175,7 @@ def _read_names(engine, rgb: np.ndarray, anchor: Anchor, entries: list[Entry]) -
         names=slots,
         hits=hits,
         preview_rgb=rgb,
+        button_box=anchor.button_box,
     )
     return result
 

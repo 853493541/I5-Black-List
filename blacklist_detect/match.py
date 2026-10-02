@@ -131,5 +131,5 @@ def format_hit(index: int, read_text: str, truncated: bool, entry_name: str, not
     del truncated
     line = f"{seat_number(index)}号：画面是「{read_text}」，黑名单里有「{entry_name}」"
     if note.strip():
-        line += f"。备注：{note.strip()}"
+        line += f"。原因：{note.strip()}"
     return line

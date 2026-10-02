@@ -1,6 +1,7 @@
 """Header anchor. The countdown digit is read, not fixed at 10."""
 
 from blacklist_detect.layout import (
+    BUTTON_BOX,
     COUNTDOWN_BOX,
     MODE_BOX,
     NAME_BOXES,
@@ -123,6 +124,17 @@ def test_countdown_split_into_two_tokens_still_counts():
     anchor = find_anchor(lines, REF_W, REF_H)
     assert anchor.found
     assert anchor.countdown_seconds == 3
+
+
+def test_restore_button_follows_the_header():
+    anchor = find_anchor(_header("10"), REF_W, REF_H)
+    assert anchor.button_box is not None
+    left, top, right, bottom = anchor.button_box
+    assert abs(left - round(BUTTON_BOX[0] * REF_W)) <= 2
+    assert abs(top - round(BUTTON_BOX[1] * REF_H)) <= 2
+    assert abs(right - round(BUTTON_BOX[2] * REF_W)) <= 2
+    assert abs(bottom - round(BUTTON_BOX[3] * REF_H)) <= 2
+    assert right > left and bottom > top
 
 
 def test_ready_count_is_not_a_thirteenth_name():
