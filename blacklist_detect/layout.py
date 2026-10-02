@@ -198,6 +198,11 @@ def _assemble_countdown(lines: list[OcrLine]) -> tuple[OcrLine, int] | None:
     return best[1], best[2]
 
 
+def contains_title(lines: list[OcrLine]) -> bool:
+    """True when this frame shows the match-found title 推演成功."""
+    return any("推演成功" in _norm(line.text) for line in lines)
+
+
 def find_anchor(lines: list[OcrLine], image_width: int, image_height: int) -> Anchor:
     """Require 推演成功, 模仿者狂欢（12人狂欢）, and 倒计时 <seconds> 秒.
 

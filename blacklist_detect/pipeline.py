@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from blacklist_detect.layout import Anchor, find_anchor
+from blacklist_detect.layout import Anchor, contains_title, find_anchor
 from blacklist_detect.match import (
     NameLabel,
     format_hit,
@@ -92,6 +92,14 @@ def check_frames(frames: list[np.ndarray], entries: list[Entry], engine=None) ->
 
 def check_rgb(rgb: np.ndarray, entries: list[Entry], engine=None) -> CheckResult:
     return check_frames([rgb], entries, engine=engine)
+
+
+def glance_title(rgb: np.ndarray, engine=None) -> bool:
+    """Read only enough of a top-band copy to see 推演成功."""
+    reader = engine or get_engine()
+    small, _factor = downscale_rgb(rgb, max_width=960)
+    lines = reader.read_bgr(rgb_to_bgr(small))
+    return contains_title(lines)
 
 
 def _locate(engine, rgb: np.ndarray) -> tuple[Anchor, list[OcrLine]]:

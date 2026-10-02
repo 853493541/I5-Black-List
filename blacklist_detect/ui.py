@@ -8,7 +8,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QThread, Signal
+from PySide6.QtCore import Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
@@ -35,13 +35,15 @@ from PySide6.QtWidgets import (
 from blacklist_detect.capture import (
     capture_capability_message,
     capture_displays,
+    capture_top_band,
     lock_foreground,
 )
 from blacklist_detect.hotkey import GlobalHotkey, parse_hotkey
 from blacklist_detect.match import seat_number
-from blacklist_detect.pipeline import CheckResult, check_frames, check_image
+from blacklist_detect.pipeline import CheckResult, check_frames, check_image, glance_title
 from blacklist_detect.sound import chime_path, play_chime
 from blacklist_detect.storage import Store
+from blacklist_detect.watch import GLANCE_INTERVAL_MS, LobbyWatch
 
 
 def run_app() -> int:
@@ -158,24 +160,25 @@ class CheckWorker(QThread):
         self._queue: queue.Queue = queue.Queue()
         self.running_job = False
 
-    def request(self, fn) -> bool:
+    def request(self, fn, kind: str = "check") -> bool:
         if self.running_job:
             return False
         self.running_job = True
-        self._queue.put(fn)
+        self._queue.put((kind, fn))
         if not self.isRunning():
             self.start()
         return True
 
     def run(self) -> None:
         while True:
-            fn = self._queue.get()
-            if fn is None:
+            item = self._queue.get()
+            if item is None:
                 return
+            kind, fn = item
             try:
-                self.done.emit(("ok", fn()))
+                self.done.emit((kind, "ok", fn()))
             except Exception as exc:
-                self.done.emit(("err", str(exc)))
+                self.done.emit((kind, "err", str(exc)))
 
     def stop(self) -> None:
         self._queue.put(None)
@@ -265,7 +268,11 @@ class MainWindow(QMainWindow):
         self.store = Store()
         self.hotkey = GlobalHotkey(self.check_now)
         self.worker = CheckWorker()
-        self.worker.done.connect(self._on_checked)
+        self.worker.done.connect(self._on_worker)
+        self.watch = LobbyWatch()
+        self._watch_timer = QTimer(self)
+        self._watch_timer.setInterval(GLANCE_INTERVAL_MS)
+        self._watch_timer.timeout.connect(self._auto_tick)
         self._closing = False
         self.warning = WarningWindow()
         self._check_started: float | None = None
@@ -275,6 +282,8 @@ class MainWindow(QMainWindow):
         self._reload_table()
         self._reload_history()
         self._restore_hotkey()
+        if self.store.auto_capture:
+            self._watch_timer.start()
         self._set_tray("黑名单检测")
         notice = self.store.load_warning or capture_capability_message()
         if notice:
@@ -467,6 +476,10 @@ class MainWindow(QMainWindow):
         self.mute_box.setChecked(self.store.muted)
         self.mute_box.toggled.connect(self._toggle_mute)
         layout.addWidget(self.mute_box)
+        self.auto_box = QCheckBox("看到推演成功时自动检查")
+        self.auto_box.setChecked(self.store.auto_capture)
+        self.auto_box.toggled.connect(self._toggle_auto)
+        layout.addWidget(self.auto_box)
         self.settings_label = QLabel("")
         self.settings_label.setObjectName("sub")
         self.settings_label.setWordWrap(True)
@@ -661,6 +674,15 @@ class MainWindow(QMainWindow):
         self.store.muted = bool(checked)
         self.store.save_settings()
 
+    def _toggle_auto(self, checked: bool) -> None:
+        self.store.auto_capture = bool(checked)
+        self.store.save_settings()
+        if self.store.auto_capture:
+            self.watch = LobbyWatch()
+            self._watch_timer.start()
+        else:
+            self._watch_timer.stop()
+
     def choose_hotkey(self) -> None:
         dialog = HotkeyDialog(self)
         if dialog.exec() != QDialog.Accepted or dialog.spec is None:
@@ -715,16 +737,25 @@ class MainWindow(QMainWindow):
         frames = capture_displays()
         return check_frames(frames, list(self.store.entries))
 
-    def _start(self, fn) -> None:
+    def _glance_job(self) -> bool:
+        return glance_title(capture_top_band())
+
+    def _auto_tick(self) -> None:
+        if self._closing or not self.store.auto_capture:
+            return
+        self.worker.request(self._glance_job, kind="glance")
+
+    def _start(self, fn) -> bool:
         self.tabs.setCurrentIndex(0)
         if not self.worker.request(fn):
             self.result_label.setText("正在检查。")
             self._unlock_foreground()
-            return
+            return False
         self._check_started = time.perf_counter()
         self.result_label.setText("正在检查。")
         self.check_button.setEnabled(False)
         self.open_button.setEnabled(False)
+        return True
 
     def _unlock_foreground(self) -> None:
         if not self._release_foreground:
@@ -732,8 +763,42 @@ class MainWindow(QMainWindow):
         self._release_foreground = False
         lock_foreground(False)
 
-    def _on_checked(self, payload) -> None:
+    def _on_worker(self, payload) -> None:
+        job, status, value = payload
         self.worker.running_job = False
+        if self._closing:
+            return
+        if job == "glance":
+            self._on_glanced(status, value)
+            return
+        self._on_checked(status, value)
+
+    def _on_glanced(self, status: str, value) -> None:
+        if status != "ok":
+            text = str(value)
+            if text and text != getattr(self, "_glance_error", ""):
+                self._glance_error = text
+                self.result_label.setText(text)
+            return
+        self._glance_error = ""
+        if not self.store.auto_capture:
+            return
+        now = time.perf_counter()
+        if not self.watch.wants_check(bool(value), now):
+            return
+        self.watch.arm(now)
+        if not self._start(self._capture_job):
+            self.watch.retry_after(now)
+
+    def _note_watch(self, found: bool) -> None:
+        if not self.store.auto_capture:
+            return
+        if found:
+            self.watch.hold()
+        else:
+            self.watch.retry_after(time.perf_counter())
+
+    def _on_checked(self, status: str, value) -> None:
         self._unlock_foreground()
         if self._closing:
             return
@@ -744,15 +809,14 @@ class MainWindow(QMainWindow):
             elapsed = time.perf_counter() - self._check_started
             self._check_started = None
         self._show_elapsed(elapsed)
-        kind, value = payload
-        if kind == "err":
+        if status == "err":
+            self._note_watch(False)
             text = str(value)
-            if isinstance(value, str) and "DXGI" not in text and "dxcam" not in text and "截" not in text:
-                pass
             self.result_label.setText(text)
             self._set_tray(text)
             return
         result: CheckResult = value
+        self._note_watch(bool(result.header_found))
         brief = self._brief(result)
         self.result_label.setText(brief)
         self._set_tray(brief or "黑名单检测")
@@ -842,6 +906,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:  # noqa: ANN001
         self._closing = True
+        self._watch_timer.stop()
         self.warning.close()
         self.hotkey.clear()
         self.worker.stop()

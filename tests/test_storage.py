@@ -25,6 +25,10 @@ def test_blacklist_roundtrip(tmp_path):
     assert again.entries[1].match_from_prefix is True
     assert again.hotkey == "Ctrl+Shift+F8"
     assert again.muted is True
+    assert again.auto_capture is False
+    store.auto_capture = True
+    store.save_settings()
+    assert Store(tmp_path).auto_capture is True
     again.remove_at(0)
     assert [entry.name for entry in Store(tmp_path).entries] == ["无害虎皮"]
 

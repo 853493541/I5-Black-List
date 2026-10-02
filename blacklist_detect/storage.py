@@ -32,6 +32,7 @@ class Store:
         self.scans: list[dict] = []
         self.hotkey = ""
         self.muted = False
+        self.auto_capture = False
         self.save_debug_frames = False
         self.load_warning = ""
         self.load()
@@ -66,6 +67,7 @@ class Store:
                 settings = json.loads(self.settings_path.read_text(encoding="utf-8"))
                 self.hotkey = str(settings.get("hotkey", "") or "")
                 self.muted = bool(settings.get("muted", False))
+                self.auto_capture = bool(settings.get("auto_capture", False))
                 self.save_debug_frames = bool(settings.get("save_debug_frames", False))
             except (OSError, json.JSONDecodeError):
                 self.load_warning = (self.load_warning + " 设置文件无法读取。").strip()
@@ -115,6 +117,7 @@ class Store:
             {
                 "hotkey": self.hotkey,
                 "muted": self.muted,
+                "auto_capture": self.auto_capture,
                 "save_debug_frames": self.save_debug_frames,
             },
         )

@@ -31,6 +31,11 @@ def capture_capability_message() -> str:
     return ""
 
 
+# The match-found title sits in the upper part of this lobby. The watch copies
+# only that band; the full check still copies the whole desktop.
+TITLE_BAND_FRACTION = 0.40
+
+
 def capture_displays() -> list:
     """Return one RGB uint8 frame of the whole desktop. Raises CaptureUnavailable."""
     if sys.platform != "win32":
@@ -41,7 +46,17 @@ def capture_displays() -> list:
     return [frame]
 
 
-def _grab_screen() -> np.ndarray | None:
+def capture_top_band(fraction: float = TITLE_BAND_FRACTION) -> np.ndarray:
+    """Copy the top of the desktop. Raises CaptureUnavailable."""
+    if sys.platform != "win32":
+        raise CaptureUnavailable(capture_capability_message())
+    frame = _grab_screen(height_fraction=fraction)
+    if frame is None or frame.size == 0:
+        raise CaptureUnavailable("没有读到画面，请再试一次。")
+    return frame
+
+
+def _grab_screen(height_fraction: float = 1.0) -> np.ndarray | None:
     import ctypes
     from ctypes import wintypes
 
@@ -50,9 +65,12 @@ def _grab_screen() -> np.ndarray | None:
     left = int(user32.GetSystemMetrics(_SM_XVIRTUALSCREEN))
     top = int(user32.GetSystemMetrics(_SM_YVIRTUALSCREEN))
     width = int(user32.GetSystemMetrics(_SM_CXVIRTUALSCREEN))
-    height = int(user32.GetSystemMetrics(_SM_CYVIRTUALSCREEN))
-    if width <= 0 or height <= 0:
+    full_height = int(user32.GetSystemMetrics(_SM_CYVIRTUALSCREEN))
+    if width <= 0 or full_height <= 0:
         return None
+    fraction = min(1.0, max(0.05, float(height_fraction)))
+    height = max(1, int(round(full_height * fraction)))
+    height = min(height, full_height)
 
     class BITMAPINFOHEADER(ctypes.Structure):
         _fields_ = [

@@ -11,6 +11,7 @@ pytest.importorskip("PySide6")
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
+from blacklist_detect.storage import Store
 from blacklist_detect.ui import MainWindow, WarningWindow
 
 
@@ -75,6 +76,24 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     assert window.history_table.item(0, 2).text() == "已在名单"
     window._on_history_cell(0, 2)
     assert len(window.store.entries) == 1
+    window.close()
+
+
+def test_auto_capture_switch_is_off_until_checked(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    assert window.auto_box.isChecked() is False
+    assert window._watch_timer.isActive() is False
+    window._watch_timer.setInterval(60_000)
+    window.auto_box.setChecked(True)
+    assert window.store.auto_capture is True
+    assert window._watch_timer.isActive() is True
+    window._watch_timer.stop()
+    assert Store(window.store.root).auto_capture is True
+    window.auto_box.setChecked(False)
+    assert window.store.auto_capture is False
+    assert Store(window.store.root).auto_capture is False
     window.close()
 
 
