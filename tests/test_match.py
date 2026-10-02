@@ -40,6 +40,20 @@ def test_a_trailing_dot_is_the_cutoff_mark():
     assert len(match_label(two, [Entry("无害虎皮猫")])) == 1
 
 
+def test_game_ellipsis_stays_visible_and_matches_the_full_name():
+    from blacklist_detect.match import with_game_ellipsis
+
+    shown = with_game_ellipsis("你好我是", True)
+    assert shown == "你好我是..."
+    hits = match_label(
+        NameLabel(raw="你好我是...", visible=shown, truncated=True),
+        [Entry("你好我是油锅")],
+    )
+    assert len(hits) == 1
+    assert hits[0].entry.name == "你好我是油锅"
+    assert hits[0].kind == "prefix"
+
+
 def test_prefix_of_four_characters():
     hits = match_label(_label("无害虎皮…"), [Entry("无害虎皮猫")])
     assert len(hits) == 1

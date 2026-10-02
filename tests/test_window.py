@@ -43,15 +43,38 @@ def test_elapsed_and_copy_result(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
-    assert window.time_label.text() == "用时 —"
+    assert window.time_label.text() == "—"
     assert window.copy_button.isEnabled() is False
     window._show_elapsed(0.254)
-    assert window.time_label.text() == "用时 0.25 秒"
+    assert window.time_label.text() == "0.25 秒"
     window.names_view.setPlainText("1号  莓有橘子甜\n12号  未看清")
     window.copy_button.setEnabled(True)
     window.copy_result()
     assert QApplication.clipboard().text() == "1号  莓有橘子甜\n12号  未看清"
-    assert window.result_label.text() == "结果已复制。"
+    assert window.result_label.text() == "已复制。"
+    window.close()
+
+
+def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window.store.add_scan(
+        [
+            {"seat": 2, "name": "纪戴宁", "unclear": False},
+            {"seat": 12, "name": "", "unclear": True},
+        ]
+    )
+    window._reload_history()
+    assert window.tabs.tabText(window.history_tab).startswith("记录")
+    assert window.history_list.count() == 1
+    assert window.history_table.item(0, 2).text() == "加入"
+    assert window.history_table.item(1, 2).text() == ""
+    window._on_history_cell(0, 2)
+    assert window.store.entries[0].name == "纪戴宁"
+    assert window.history_table.item(0, 2).text() == "已在名单"
+    window._on_history_cell(0, 2)
+    assert len(window.store.entries) == 1
     window.close()
 
 

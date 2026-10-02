@@ -8,9 +8,9 @@ from blacklist_detect.capture import CaptureUnavailable, capture_capability_mess
 def test_missing_display_api_is_reported():
     message = capture_capability_message()
     if sys.platform == "win32":
-        assert "dxcam" in message or "显示器" in message
+        assert message == "" or "选择图片" in message
         return
-    assert "DXGI" in message
+    assert "选择图片" in message
     with pytest.raises(CaptureUnavailable) as raised:
         capture_displays()
-    assert "DXGI" in str(raised.value)
+    assert "选择图片" in str(raised.value)

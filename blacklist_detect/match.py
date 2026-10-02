@@ -36,6 +36,13 @@ def split_ellipsis(raw: str) -> tuple[str, bool]:
     return text, truncated
 
 
+def with_game_ellipsis(visible: str, truncated: bool) -> str:
+    """Keep the cutoff the lobby prints. Matching still uses the letters in front of it."""
+    if truncated and visible and not visible.endswith("..."):
+        return f"{visible}..."
+    return visible
+
+
 def strip_noise(text: str) -> str:
     """Drop punctuation and symbols. A backtick in the middle of a name is not part of it."""
     text = normalize_text(text)
@@ -122,7 +129,7 @@ def seat_number(index: int) -> int:
 
 def format_hit(index: int, read_text: str, truncated: bool, entry_name: str, note: str) -> str:
     del truncated
-    line = f"{seat_number(index)}号：读到「{read_text}」，匹配「{entry_name}」"
+    line = f"{seat_number(index)}号：画面是「{read_text}」，黑名单里有「{entry_name}」"
     if note.strip():
         line += f"。备注：{note.strip()}"
     return line

@@ -9,6 +9,7 @@ then reports that the reader is unavailable.
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -19,10 +20,48 @@ from blacklist_detect.model import OcrLine
 NAME_CONFIDENCE_MIN = 0.55
 
 _ENGINE: OcrEngine | None = None
+_CONSOLE_HIDDEN = False
+
+
+def silence_console_children() -> None:
+    """Stop Paddle's `where` lookups from opening a console window.
+
+    On Windows, the first check imports Paddle's compiler helpers, which run
+    `where ccache` and `where nvcc`. pythonw has no console, so each of those
+    opens an empty window and closes it. Those tools are not needed to read names.
+    """
+    global _CONSOLE_HIDDEN
+    if _CONSOLE_HIDDEN or sys.platform != "win32":
+        return
+    import subprocess
+
+    original_check_output = subprocess.check_output
+    original_popen = subprocess.Popen
+
+    def check_output(args, *pargs, **kwargs):
+        command = args[0] if isinstance(args, (list, tuple)) and args else args
+        name = os.path.basename(str(command)).lower()
+        if name in {"where", "where.exe", "which"}:
+            raise subprocess.CalledProcessError(1, args, output=b"")
+        return original_check_output(args, *pargs, **kwargs)
+
+    class QuietPopen(original_popen):
+        def __init__(self, args, *pargs, **kwargs):
+            kwargs["creationflags"] = int(kwargs.get("creationflags", 0)) | 0x08000000
+            info = kwargs.get("startupinfo") or subprocess.STARTUPINFO()
+            info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            info.wShowWindow = 0
+            kwargs["startupinfo"] = info
+            super().__init__(args, *pargs, **kwargs)
+
+    subprocess.check_output = check_output
+    subprocess.Popen = QuietPopen
+    _CONSOLE_HIDDEN = True
 
 
 def inference_device() -> str:
     """Run on the NVIDIA GPU when this Paddle build can see one."""
+    silence_console_children()
     try:
         import paddle
 
@@ -148,6 +187,7 @@ class OcrEngine:
         if self._ocr is not None:
             return self._ocr
         # Skip the host check once weights are on disk. A missing model still errors clearly.
+        silence_console_children()
         os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
         os.environ.setdefault("FLAGS_use_mkldnn", "0")
         try:
@@ -185,6 +225,7 @@ class OcrEngine:
     def _ensure_name_rec(self):
         if self._name_rec is not None:
             return self._name_rec
+        silence_console_children()
         os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
         os.environ.setdefault("FLAGS_use_mkldnn", "0")
         try:

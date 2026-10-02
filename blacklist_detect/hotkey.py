@@ -135,7 +135,7 @@ class GlobalHotkey:
             return True
         if sys.platform != "win32":
             self.active = ""
-            self.error = "全局热键只在 Windows 上注册。这个键已经记下，到 Windows 上会生效。"
+            self.error = "这个按键已记下。这台电脑目前还不能用快捷键检查。"
             return False
         import ctypes
         from ctypes import wintypes
@@ -145,7 +145,7 @@ class GlobalHotkey:
 
         user32 = ctypes.windll.user32
         if not user32.RegisterHotKey(None, self._id, spec.win_modifiers, spec.vk):
-            self.error = "系统没有接受这个热键，可能已经被占用。"
+            self.error = "这个按键没法使用，请换一个。"
             return False
 
         owner = self

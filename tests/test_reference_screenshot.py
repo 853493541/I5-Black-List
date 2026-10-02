@@ -11,14 +11,14 @@ FIXTURE = Path(__file__).parent / "fixtures" / "reference-lobby.png"
 # Slot 3 and slot 9 are what this model reads off the pixels. The plan's
 # labels for those two cards are 罪玥吉尔曼 and gifdsd; see the assertions.
 EXPECTED = [
-    ("无害虎皮", True),
+    ("无害虎皮...", True),
     ("栀盏灯下", False),
     ("霁玥吉尔曼", False),
-    ("小猫爆锤", True),
+    ("小猫爆锤...", True),
     ("穷不知", False),
     ("祈光君", False),
     ("谁想救人", False),
-    ("坎贝尔又", True),
+    ("坎贝尔又...", True),
     ("gffdsd", False),
     ("EluElu", False),
     ("玩的很菜了", False),

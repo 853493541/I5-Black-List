@@ -6,6 +6,9 @@ import sys
 
 
 def main(argv: list[str] | None = None) -> int:
+    from blacklist_detect.ocr_engine import silence_console_children
+
+    silence_console_children()
     args = list(sys.argv[1:] if argv is None else argv)
     if args[:1] == ["check"]:
         return _check_cli(args[1:])

@@ -16,6 +16,7 @@ from blacklist_detect.match import (
     normalize_text,
     split_ellipsis,
     strip_noise,
+    with_game_ellipsis,
 )
 from blacklist_detect.model import Entry, OcrLine
 from blacklist_detect.ocr_engine import (
@@ -122,6 +123,8 @@ def _read_names(engine, rgb: np.ndarray, anchor: Anchor, entries: list[Entry]) -
         visible, truncated = split_ellipsis(raw)
         visible = strip_noise(visible)
         unclear = confidence < NAME_CONFIDENCE_MIN or not visible
+        if not unclear:
+            visible = with_game_ellipsis(visible, truncated)
         slot = NameSlot(
             index=index,
             box=anchor.name_boxes[index],

@@ -27,3 +27,20 @@ def test_blacklist_roundtrip(tmp_path):
     assert again.muted is True
     again.remove_at(0)
     assert [entry.name for entry in Store(tmp_path).entries] == ["无害虎皮"]
+
+
+def test_scan_history_is_saved_newest_first(tmp_path):
+    store = Store(tmp_path)
+    store.add_scan(
+        [{"seat": 3, "name": "纪戴宁", "unclear": False}, {"seat": 12, "name": "", "unclear": True}],
+        0.25,
+    )
+    store.add_scan([{"seat": 1, "name": "庄园美女", "unclear": False}])
+    again = Store(tmp_path)
+    assert again.scans[0]["names"][0]["name"] == "庄园美女"
+    assert again.scans[1]["names"][0]["name"] == "纪戴宁"
+    assert again.scans[1]["names"][1]["unclear"] is True
+    assert again.scans[1]["elapsed"] == 0.25
+    assert again.contains_name("纪戴宁") is False
+    again.add("纪戴宁")
+    assert again.contains_name("纪戴宁") is True
