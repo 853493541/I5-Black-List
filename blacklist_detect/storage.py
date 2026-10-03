@@ -133,6 +133,23 @@ def _shared_names(left: list[str], right: list[str]) -> int:
     return shared
 
 
+def _same_clock_minute(stamp: str, now: datetime) -> bool:
+    try:
+        then = datetime.fromisoformat(str(stamp))
+    except ValueError:
+        return False
+    if then.tzinfo is None:
+        then = then.replace(tzinfo=now.tzinfo)
+    then = then.astimezone(now.tzinfo)
+    return (then.year, then.month, then.day, then.hour, then.minute) == (
+        now.year,
+        now.month,
+        now.day,
+        now.hour,
+        now.minute,
+    )
+
+
 def _is_same_recording(left: list[dict], right: list[dict]) -> bool:
     """Same lobby at another time, even when a few seats were read differently."""
     seen = _readable_names(left)
@@ -163,6 +180,18 @@ def _panel_pos(value) -> tuple[int, int] | None:
         return None
 
 
+def _window_size(value) -> tuple[int, int] | None:
+    if not isinstance(value, (list, tuple)) or len(value) != 2:
+        return None
+    try:
+        width, height = int(value[0]), int(value[1])
+    except (TypeError, ValueError):
+        return None
+    if width <= 0 or height <= 0:
+        return None
+    return (max(900, width), max(560, height))
+
+
 def _atomic_write(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
@@ -183,6 +212,8 @@ class Store:
         self.auto_capture = False
         self.save_debug_frames = False
         self.panel_pos: tuple[int, int] | None = None
+        self.window_size: tuple[int, int] | None = None
+        self.theme = "蓝色"
         self.load_warning = ""
         self.load()
 
@@ -221,6 +252,10 @@ class Store:
                 self.auto_capture = bool(settings.get("auto_capture", False))
                 self.save_debug_frames = bool(settings.get("save_debug_frames", False))
                 self.panel_pos = _panel_pos(settings.get("panel_pos"))
+                self.window_size = _window_size(settings.get("window_size"))
+                theme = str(settings.get("theme", "") or "")
+                if theme in ("蓝色", "棕色", "紫色", "绿色", "红色"):
+                    self.theme = theme
             except (OSError, json.JSONDecodeError):
                 self.load_warning = (self.load_warning + " 设置文件无法读取。").strip()
         self.scans = []
@@ -279,18 +314,24 @@ class Store:
                 "auto_capture": self.auto_capture,
                 "save_debug_frames": self.save_debug_frames,
                 "panel_pos": None if self.panel_pos is None else [self.panel_pos[0], self.panel_pos[1]],
+                "window_size": None if self.window_size is None else [self.window_size[0], self.window_size[1]],
+                "theme": self.theme,
             },
         )
 
     def save_scans(self) -> None:
         _atomic_write(self.history_path, {"scans": self.scans[:_MAX_SCANS]})
 
-    def add_scan(self, names: list[dict], elapsed: float | None = None) -> None:
+    def add_scan(self, names: list[dict], elapsed: float | None = None) -> str:
+        """Return added, refreshed, or skipped. A second scan in the same minute is skipped."""
+        now = datetime.now().astimezone().replace(microsecond=0)
         record = {
-            "at": datetime.now().astimezone().replace(microsecond=0).isoformat(),
+            "at": now.isoformat(),
             "elapsed": None if elapsed is None else round(float(elapsed), 2),
             "names": [_stored_seat(item) for item in names],
         }
+        if self.scans and _same_clock_minute(str(self.scans[0].get("at", "")), now):
+            return "skipped"
         key_names = record["names"]
         if _readable_names(key_names):
             for index, existing in enumerate(self.scans):
@@ -302,10 +343,11 @@ class Store:
                 self.scans.insert(0, self.scans.pop(index))
                 self.scans = _collapse(self.scans)
                 self.save_scans()
-                return
+                return "refreshed"
         self.scans.insert(0, record)
         del self.scans[_MAX_SCANS:]
         self.save_scans()
+        return "added"
 
     def remove_scan(self, index: int) -> None:
         if 0 <= index < len(self.scans):
@@ -321,6 +363,16 @@ class Store:
         if not target:
             return False
         return any(fold(entry.name) == target for entry in self.entries)
+
+    def remove_name(self, name: str) -> None:
+        target = fold(clean_stored_name(name))
+        if not target:
+            return
+        kept = [entry for entry in self.entries if fold(entry.name) != target]
+        if len(kept) == len(self.entries):
+            return
+        self.entries = kept
+        self.save_entries()
 
     def replace_entries(self, pairs: list[tuple[str, str]]) -> None:
         """Replace the list from edited lines. The same name keeps its old settings."""

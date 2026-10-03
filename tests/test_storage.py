@@ -64,10 +64,11 @@ def test_blacklist_roundtrip(tmp_path):
 
 def test_scan_history_is_saved_newest_first(tmp_path):
     store = Store(tmp_path)
-    store.add_scan(
+    assert store.add_scan(
         [{"seat": 3, "name": "纪戴宁", "unclear": False}, {"seat": 12, "name": "", "unclear": True}],
         0.25,
-    )
+    ) == "added"
+    store.scans[0]["at"] = "2020-01-01T00:00:00+00:00"
     store.add_scan([{"seat": 1, "name": "庄园美女", "unclear": False}])
     again = Store(tmp_path)
     assert again.scans[0]["names"][0]["name"] == "庄园美女"
@@ -89,19 +90,20 @@ def test_same_members_refresh_one_record(tmp_path):
     )
     store.scans[0]["at"] = "2020-01-01T00:00:00+00:00"
     store.save_scans()
-    store.add_scan(
+    assert store.add_scan(
         [
             {"seat": 4, "name": "庄园美女", "unclear": False},
             {"seat": 9, "name": "纪戴宁", "unclear": False},
             {"seat": 12, "name": "", "unclear": True},
         ],
         0.4,
-    )
+    ) == "refreshed"
     again = Store(tmp_path)
     assert len(again.scans) == 1
     assert again.scans[0]["at"] != "2020-01-01T00:00:00+00:00"
     assert again.scans[0]["elapsed"] == 0.4
     assert again.scans[0]["names"][0]["seat"] == 4
+    store.scans[0]["at"] = "2020-01-01T00:00:00+00:00"
     store.add_scan([{"seat": 1, "name": "另一个人", "unclear": False}])
     assert len(store.scans) == 2
     assert store.scans[0]["names"][0]["name"] == "另一个人"
@@ -144,9 +146,22 @@ def test_a_later_read_of_the_same_lobby_updates_the_time(tmp_path):
     assert again.scans[0]["names"][11]["name"] == "五人"
 
 
+def test_a_second_scan_inside_one_minute_overwrites(tmp_path):
+    store = Store(tmp_path)
+    assert store.add_scan([{"seat": 1, "name": "纪戴宁", "unclear": False}]) == "added"
+    assert store.add_scan([{"seat": 2, "name": "完全不同", "unclear": False}]) == "skipped"
+    assert len(store.scans) == 1
+    assert store.scans[0]["names"][0]["name"] == "纪戴宁"
+    store.scans[0]["at"] = "2020-01-01T00:00:00+00:00"
+    store.add_scan([{"seat": 1, "name": "新的一局", "unclear": False}])
+    assert len(store.scans) == 2
+    assert store.scans[0]["names"][0]["name"] == "新的一局"
+
+
 def test_history_can_be_deleted_and_cleared(tmp_path):
     store = Store(tmp_path)
     store.add_scan([{"seat": 1, "name": "纪戴宁", "unclear": False}])
+    store.scans[0]["at"] = "2020-01-01T00:00:00+00:00"
     store.add_scan([{"seat": 1, "name": "庄园美女", "unclear": False}])
     store.remove_scan(0)
     assert [scan["names"][0]["name"] for scan in store.scans] == ["纪戴宁"]

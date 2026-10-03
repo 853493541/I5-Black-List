@@ -30,7 +30,10 @@ def test_watch_checks_once_while_the_title_stays():
     watch.hold()
     assert watch.wants_check(True, 5.0) is False
     assert watch.wants_check(False, 6.0) is False
-    assert watch.wants_check(True, 7.0) is True
+    assert watch.wants_check(True, 6.4) is False
+    assert watch.wants_check(False, 8.0) is False
+    assert watch.wants_check(False, 9.0) is False
+    assert watch.wants_check(True, 9.1) is True
 
 
 def test_watch_retries_when_the_title_is_not_the_lobby_yet():
