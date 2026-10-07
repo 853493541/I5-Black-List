@@ -317,6 +317,7 @@ def _window_size(value) -> tuple[int, int] | None:
 
 # Name, tags, reason, last met. Tags fit about three short pills; the reason takes the spare width.
 DEFAULT_COLUMN_WIDTHS = [200, 176, 340, 120]
+DEFAULT_HOTKEY = "Alt+1"
 
 
 def _column_widths(value) -> list[int] | None:
@@ -349,9 +350,8 @@ class Store:
         self.history_path = self.root / "history.json"
         self.entries: list[Entry] = []
         self.scans: list[dict] = []
-        self.hotkey = ""
-        self.muted = False
-        self.auto_capture = False
+        self.hotkey = DEFAULT_HOTKEY
+        self.auto_capture = True
         self.save_debug_frames = False
         self.panel_pos: tuple[int, int] | None = None
         self.window_size: tuple[int, int] | None = None
@@ -560,7 +560,6 @@ class Store:
             self.settings_path,
             {
                 "hotkey": self.hotkey,
-                "muted": self.muted,
                 "auto_capture": self.auto_capture,
                 "save_debug_frames": self.save_debug_frames,
                 "panel_pos": None if self.panel_pos is None else [self.panel_pos[0], self.panel_pos[1]],
@@ -579,9 +578,8 @@ class Store:
             return
         try:
             settings = json.loads(self.settings_path.read_text(encoding="utf-8"))
-            self.hotkey = str(settings.get("hotkey", "") or "")
-            self.muted = bool(settings.get("muted", False))
-            self.auto_capture = bool(settings.get("auto_capture", False))
+            self.hotkey = str(settings.get("hotkey", "") or "") or DEFAULT_HOTKEY
+            self.auto_capture = bool(settings.get("auto_capture", True))
             self.save_debug_frames = bool(settings.get("save_debug_frames", False))
             self.panel_pos = _panel_pos(settings.get("panel_pos"))
             self.window_size = _window_size(settings.get("window_size"))
@@ -787,6 +785,26 @@ class Store:
     def clear_entries(self) -> None:
         self.entries = []
         self.save_entries()
+
+    def reset(self) -> None:
+        """Drop every saved name, record, and setting. The next open is a new app."""
+        self.entries = []
+        self.scans = []
+        self.hotkey = DEFAULT_HOTKEY
+        self.auto_capture = True
+        self.save_debug_frames = False
+        self.panel_pos = None
+        self.window_size = None
+        self.theme = "蓝色"
+        self.player_name = ""
+        self.custom_tags = []
+        self.hidden_tags = []
+        self.column_order = [0, 1, 2, 3]
+        self.column_widths = list(DEFAULT_COLUMN_WIDTHS)
+        self.load_warning = ""
+        self.save_entries()
+        self.save_scans()
+        self.save_settings()
 
     def set_prefix(self, index: int, enabled: bool) -> None:
         if 0 <= index < len(self.entries):

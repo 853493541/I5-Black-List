@@ -138,7 +138,6 @@ def test_blacklist_roundtrip(tmp_path):
     assert added is not None
     store.add("无害虎皮…", match_from_prefix=True)
     store.hotkey = "Ctrl+Shift+F8"
-    store.muted = True
     store.save_settings()
 
     again = Store(tmp_path)
@@ -148,8 +147,7 @@ def test_blacklist_roundtrip(tmp_path):
     assert again.entries[0].match_from_prefix is False
     assert again.entries[1].match_from_prefix is True
     assert again.hotkey == "Ctrl+Shift+F8"
-    assert again.muted is True
-    assert again.auto_capture is False
+    assert again.auto_capture is True
     store.panel_pos = (12, 34)
     store.save_settings()
     assert Store(tmp_path).panel_pos == (12, 34)
@@ -297,3 +295,29 @@ def test_history_can_be_deleted_and_cleared(tmp_path):
     assert [scan["names"][0]["name"] for scan in store.scans] == ["纪戴宁"]
     store.clear_scans()
     assert Store(tmp_path).scans == []
+
+
+def test_reset_returns_a_new_application(tmp_path):
+    store = Store(tmp_path)
+    store.add("甲", reason="常挂机", tags=("炸房",))
+    store.add_custom_tag("红名")
+    store.hidden_tags.append("贴脸")
+    store.player_name = "无害虎皮蛋糕"
+    store.hotkey = "Alt+1"
+    store.auto_capture = False
+    store.theme = "绿色"
+    store.column_order = [0, 1, 3, 2]
+    store.add_scan([{"seat": 1, "name": "甲", "unclear": False}])
+    store.save_settings()
+    store.reset()
+    again = Store(tmp_path)
+    assert again.entries == []
+    assert again.scans == []
+    assert again.player_name == ""
+    assert again.hotkey == "Alt+1"
+    assert again.auto_capture is True
+    assert again.theme == "蓝色"
+    assert again.custom_tags == []
+    assert again.hidden_tags == []
+    assert again.tag_catalog() == ("炸房", "贴脸", "挂机")
+    assert again.column_order == [0, 1, 2, 3]

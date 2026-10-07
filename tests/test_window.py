@@ -10,12 +10,21 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 pytest.importorskip("PySide6")
 
 from PySide6.QtCore import QEvent, QPointF, Qt
-from PySide6.QtGui import QMouseEvent
+from PySide6.QtGui import QFocusEvent, QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import QApplication, QLabel, QPushButton
 
 from blacklist_detect.pipeline import CheckResult, Hit, NameSlot
 from blacklist_detect.storage import Store
-from blacklist_detect.ui import AddNameDialog, HotkeyDialog, MainWindow, TagAdd, TagEditDialog, TagPill, WarningWindow
+from blacklist_detect.ui import (
+    AddNameDialog,
+    MainWindow,
+    _zh_clock,
+    TagAdd,
+    TagCreateDialog,
+    TagEditDialog,
+    TagPill,
+    WarningWindow,
+)
 
 
 @pytest.fixture(scope="module")
@@ -23,11 +32,11 @@ def qapp():
     return QApplication.instance() or QApplication([])
 
 
-def test_add_remove_and_mute(qapp, tmp_path, monkeypatch):
+def test_add_and_remove(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
-    assert window.list_hint.text() == "还没有名字，点添加"
+    assert window.list_hint.text() == "还没有名字"
     assert window.blacklist_table.isHidden() is True
     added = window.store.add("罪玥吉尔曼", tags=("炸房", "贴脸"), reason="他做了坏事")
     assert added is not None
@@ -64,12 +73,19 @@ def test_add_remove_and_mute(qapp, tmp_path, monkeypatch):
     assert window.windowTitle() == "黑名单检测"
     assert window.list_hint.isHidden() is True
     assert window.blacklist_table.isHidden() is False
-    window.mute_box.setChecked(True)
-    assert window.store.muted is True
-    assert window.hotkey_edit.text() == ""
-    assert window.tag_edit.placeholderText() == "新标签"
-    window.tag_edit.setText("红名")
-    window._add_settings_tag()
+    assert window.hotkey_edit.text() == "Alt+1"
+    assert window.hotkey_edit.isEnabled() is False
+    assert window.player_edit.maximumWidth() == window.player_edit.width()
+    assert window.player_edit.width() < 200
+    assert "点击修改" not in [label.text() for label in window.findChildren(QLabel)]
+    created = TagCreateDialog(window.store.tag_catalog(), parent=window)
+    created.name_edit.setText("红名")
+    created._accept()
+    assert created.created == "红名"
+    assert window.store.add_custom_tag(created.created)
+    window.store.save_settings()
+    window._fill_tag_settings()
+    created.close()
     assert window.store.tag_catalog() == ("炸房", "贴脸", "挂机", "红名")
     picked = AddNameDialog(catalog=window.store.tag_catalog())
     assert [pill._text for pill in picked.findChildren(TagPill)] == []
@@ -119,7 +135,7 @@ def test_blacklist_columns_can_be_dragged(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
-    assert "拖动标题换顺序，拖边缘改宽度" in [label.text() for label in window.findChildren(QLabel)]
+    assert "拖动标题换顺序，拖边缘改宽度" not in [label.text() for label in window.findChildren(QLabel)]
     header = window.blacklist_table.horizontalHeader()
     assert header.sectionsMovable() is True
     window.show()
@@ -195,8 +211,8 @@ def test_elapsed_and_copy_result(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
-    assert window.watch_label.text() == "未开启"
-    assert window.watch_label.toolTip() == "未开启"
+    assert window.watch_label.text() == "正在监控"
+    assert window.watch_label.toolTip() == "正在监控"
     window.store.add_scan([{"seat": 1, "name": "莓有橘子甜", "unclear": False}], 0.254)
     window._reload_history()
     assert "0.25" not in window.history_list.item(0).text()
@@ -204,6 +220,12 @@ def test_elapsed_and_copy_result(qapp, tmp_path, monkeypatch):
     window.copy_result()
     assert QApplication.clipboard().text() == "1号  莓有橘子甜\n12号  未看清"
     window.close()
+
+
+def test_on_the_hour_keeps_the_zero_minute():
+    assert _zh_clock(datetime(2026, 10, 6, 21, 0)) == "下午9点0分"
+    assert _zh_clock(datetime(2026, 10, 6, 9, 0)) == "上午9点0分"
+    assert _zh_clock(datetime(2026, 10, 6, 21, 5)) == "下午9点05分"
 
 
 def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
@@ -239,14 +261,15 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     assert window.history_list.item(1).isHidden() is False
     assert folder.text().startswith("▼")
     assert window.history_list.item(1).font().bold() is True
-    assert window.history_table.item(0, 0).text() == "② 纪戴宁"
-    assert window.history_table.item(0, 1).text() == "③ 庄园美女"
+    assert window.history_table.item(0, 0).text() == "纪戴宁"
+    assert window.history_table.item(0, 1).text() == "庄园美女"
     assert "..." not in window.history_table.item(0, 1).text()
     action = window.history_table.cellWidget(0, 0).findChild(QLabel, "rowAction")
     assert action.text() == "加入"
     assert action.isHidden() is True
     window._paint_history_hover(0, 0, True)
     assert action.isHidden() is False
+    assert window.history_table.cellWidget(0, 0).styleSheet() == window._history_wrap_style("#fde4e1")
     window._paint_history_hover(0, 0, False)
     assert action.isHidden() is True
     window.player_edit.setText("纪戴宁")
@@ -256,7 +279,10 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     action = window.history_table.cellWidget(0, 0).findChild(QLabel, "rowAction")
     assert action.text() == "你"
     assert action.isHidden() is False
-    assert window.history_table.item(1, 0).text() == "⑫ 未看清"
+    window._hover_history_cell(0, 0)
+    assert window.history_table.cellWidget(0, 0).styleSheet() == window._history_wrap_style("#f3fbf6")
+    assert window.history_table.viewport().cursor().shape() == Qt.ArrowCursor
+    assert window.history_table.item(1, 0).text() == "未看清"
     assert window.history_table.item(1, 0).foreground().color().name() == "#6b7280"
     assert window.history_table.item(1, 0).data(Qt.UserRole) in ("", None)
     assert window.history_table.cellWidget(1, 0).findChild(QLabel, "rowAction") is None
@@ -281,24 +307,32 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     window.close()
 
 
-def test_auto_capture_switch_is_off_until_checked(qapp, tmp_path, monkeypatch):
+def test_capture_mode_defaults_to_auto(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
-    assert window.auto_box.isChecked() is False
-    assert window._watch_timer.isActive() is False
-    window._watch_timer.setInterval(60_000)
-    assert window.watch_label.text() == "未开启"
-    window.auto_box.setChecked(True)
-    assert window.watch_label.text() == "正在监控"
+    assert window.auto_on.isChecked() is True
+    assert window.auto_off.isChecked() is False
     assert window.store.auto_capture is True
     assert window._watch_timer.isActive() is True
-    window._watch_timer.stop()
-    assert Store(window.store.root).auto_capture is True
-    window.auto_box.setChecked(False)
+    assert window.watch_label.text() == "正在监控"
+    assert window.hotkey_edit.text() == "Alt+1"
+    assert window.hotkey_edit.isEnabled() is False
+    assert window.hotkey.active == ""
+    monkeypatch.setattr(window.hotkey, "apply", lambda spec: setattr(window.hotkey, "active", spec.display) or True)
+    window.auto_off.click()
     assert window.watch_label.text() == "未开启"
     assert window.store.auto_capture is False
+    assert window._watch_timer.isActive() is False
+    assert window.hotkey_edit.isEnabled() is True
+    assert window.hotkey.active == "Alt+1"
     assert Store(window.store.root).auto_capture is False
+    window.auto_on.click()
+    assert window.watch_label.text() == "正在监控"
+    assert window.store.auto_capture is True
+    assert window.hotkey_edit.isEnabled() is False
+    assert window.hotkey.active == ""
+    window._watch_timer.stop()
     window.close()
 
 
@@ -326,7 +360,7 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     assert clear is False
     window._show_panel(CheckResult(True, "", names=[slot], hits=[hit], button_box=button))
     assert window.panel.mode == "hit"
-    assert "1号  甲" in window.panel.label.text()
+    assert window.panel.label.text() == "黑名单\n甲"
     window.close()
 
 
@@ -464,23 +498,46 @@ def test_corner_reports_refresh_and_skip(qapp, tmp_path, monkeypatch):
     window.close()
 
 
+def test_hotkey_saves_on_the_key_press(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window.show()
+    assert window.hotkey_edit.isEnabled() is False
+    monkeypatch.setattr(window.hotkey, "apply", lambda _spec: True)
+    window.auto_off.click()
+    assert window.hotkey_edit.isEnabled() is True
+    qapp.sendEvent(window.hotkey_edit, QFocusEvent(QEvent.Type.FocusIn))
+    assert window.hotkey_edit.placeholderText() == "按下热键"
+    assert window.hotkey_edit.text() == ""
+    qapp.sendEvent(
+        window.hotkey_edit,
+        QKeyEvent(QEvent.Type.KeyPress, Qt.Key_1, Qt.KeyboardModifier.AltModifier),
+    )
+    assert window.store.hotkey == "Alt+1"
+    assert window.hotkey_edit.text() == "Alt+1"
+    assert Store(window.store.root).hotkey == "Alt+1"
+    qapp.sendEvent(window.hotkey_edit, QFocusEvent(QEvent.Type.FocusIn))
+    qapp.sendEvent(window.hotkey_edit, QFocusEvent(QEvent.Type.FocusOut))
+    assert window.hotkey_edit.text() == "Alt+1"
+    assert window.store.hotkey == "Alt+1"
+    window.close()
+
+
 def test_theme_choice_persists(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
     from PySide6.QtWidgets import QPushButton
 
-    labeled = {button.text(): button for button in window.findChildren(QPushButton)}
-    assert labeled["设置"].objectName() == "primary"
-    assert window.theme_buttons["蓝色"].objectName() == "primary"
-    assert window.theme_buttons["蓝色"].icon().isNull() is False
-    dialog = HotkeyDialog()
-    assert dialog.minimumWidth() == 420
-    assert any(button.text() == "取消" for button in dialog.findChildren(QPushButton))
-    dialog.close()
+    assert all(button.text() != "清除" for button in window.findChildren(QPushButton))
+    assert all(label.text() != "热键" for label in window.findChildren(QLabel))
+    assert window.theme_buttons["蓝色"]._selected is True
+    assert window.theme_buttons["蓝色"]._color == "#12325a"
+    assert all(button.text() not in ("蓝色", "棕色", "紫色", "绿色", "红色") for button in window.findChildren(QPushButton))
     window._set_theme("红色")
-    assert window.theme_buttons["红色"].objectName() == "primary"
-    assert window.theme_buttons["蓝色"].objectName() == ""
+    assert window.theme_buttons["红色"]._selected is True
+    assert window.theme_buttons["蓝色"]._selected is False
     assert Store(window.store.root).theme == "红色"
     window._set_result("1 人在名单里", "hit", "result")
     assert window.watch_label.objectName() == "hit"
@@ -491,4 +548,39 @@ def test_theme_choice_persists(qapp, tmp_path, monkeypatch):
     assert Store(window.store.root).window_size == (window.width(), window.height())
     window.warning.apply_theme()
     window.clear_notice.apply_theme()
+    window.close()
+
+
+def test_reset_asks_before_clearing_everything(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    assert any(button.text() == "清除全部数据" for button in window.findChildren(QPushButton))
+    window.store.add("甲", tags=("炸房",))
+    window.store.add_scan([{"seat": 1, "name": "甲", "unclear": False}])
+    window.store.player_name = "纪戴宁"
+    window.store.theme = "绿色"
+    window.store.save_settings()
+    window.player_edit.setText("纪戴宁")
+    window._show_list()
+    monkeypatch.setattr("blacklist_detect.ui._confirm", lambda *_args: False)
+    window._ask_reset()
+    assert [entry.name for entry in window.store.entries] == ["甲"]
+    assert window.player_edit.text() == "纪戴宁"
+    monkeypatch.setattr("blacklist_detect.ui._confirm", lambda *_args: True)
+    window._ask_reset()
+    assert window.store.entries == []
+    assert window.store.scans == []
+    assert window.player_edit.text() == ""
+    assert window.store.player_name == ""
+    assert window.store.theme == "蓝色"
+    assert window.store.tag_catalog() == ("炸房", "贴脸", "挂机")
+    assert window.hotkey_edit.text() == "Alt+1"
+    assert window.hotkey_edit.isEnabled() is False
+    assert window.auto_on.isChecked() is True
+    again = Store(window.store.root)
+    assert again.entries == []
+    assert again.scans == []
+    assert again.player_name == ""
+    window._watch_timer.stop()
     window.close()
