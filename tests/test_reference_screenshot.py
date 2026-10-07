@@ -29,7 +29,7 @@ EXPECTED = [
 def test_reference_lobby_names():
     assert FIXTURE.is_file(), f"missing fixture {FIXTURE}"
     entries = [
-        Entry("霁玥吉尔曼", note="在这张图上"),
+        Entry("霁玥吉尔曼", reason="在这张图上"),
         Entry("罪玥吉尔曼"),
         Entry("gifdsd"),
         Entry("gffdsd"),

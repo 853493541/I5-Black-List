@@ -12,10 +12,10 @@ def _label(raw: str, truncated: bool | None = None) -> NameLabel:
 
 
 def test_exact_chinese_name():
-    hits = match_label(_label("罪玥吉尔曼"), [Entry("罪玥吉尔曼", note="代打")])
+    hits = match_label(_label("罪玥吉尔曼"), [Entry("罪玥吉尔曼", reason="代打")])
     assert len(hits) == 1
     assert hits[0].kind == "exact"
-    assert hits[0].entry.note == "代打"
+    assert hits[0].entry.reason == "代打"
 
 
 def test_first_four_characters_match_a_longer_name():

@@ -17,76 +17,160 @@ _MAX_SCANS = 40
 # A later check of this 12-player lobby still misreads a few seats.
 # Eight shared names is the same match, so the time is updated.
 _SAME_MATCH_COUNT = 8
-REASON_TAGS = ("炸房", "贴脸", "其他")
+TAGS = ("炸房", "贴脸", "挂机")
+_MAX_TAG = 12
+_MAX_CUSTOM_TAGS = 24
 
 
-def coerce_reasons(reasons: tuple[str, ...] | list[str], note: str) -> tuple[tuple[str, ...], str]:
-    """Keep the three checkboxes. A leftover note is the 其他 description."""
-    picked = [tag for tag in REASON_TAGS if tag in set(reasons or ())]
-    if picked:
-        detail = (note or "").strip() if "其他" in picked else ""
-        return tuple(picked), detail[:_MAX_NOTE]
-    return reasons_from_note(note)
+def clean_tag(raw: str) -> str:
+    """A tag is a short label. Commas would break the line format, so they are removed."""
+    text = "".join(ch for ch in str(raw).strip() if ch not in ",，、:： \t\r\n")
+    if not text or text == "其他":
+        return ""
+    return text[:_MAX_TAG]
 
 
-def reasons_from_note(note: str) -> tuple[tuple[str, ...], str]:
-    parts = [part for part in re.split(r"[,，、:：\s]+", note or "") if part]
-    found: list[str] = []
-    rest: list[str] = []
-    for part in parts:
-        if part in REASON_TAGS:
-            if part not in found:
-                found.append(part)
-        else:
-            rest.append(part)
-    if rest and "其他" not in found:
-        found.append("其他")
-    ordered = tuple(tag for tag in REASON_TAGS if tag in found)
-    detail = "".join(rest) if "其他" in ordered else ""
-    return ordered, detail[:_MAX_NOTE]
+def order_tags(tags: list[str] | tuple[str, ...], catalog: tuple[str, ...] = TAGS) -> tuple[str, ...]:
+    """Built-in tags first, then the user's own tags, in catalog order."""
+    chosen = [tag for tag in catalog if tag in tags]
+    chosen.extend(tag for tag in tags if tag not in chosen)
+    return tuple(chosen)
 
 
-def reason_text(entry: Entry) -> str:
-    reasons = entry.reasons
-    detail = entry.note
-    if not reasons and detail:
-        reasons, detail = reasons_from_note(detail)
-    bits: list[str] = []
-    for tag in REASON_TAGS:
-        if tag not in reasons:
-            continue
-        if tag == "其他" and detail:
-            bits.append(f"其他：{detail}")
-        else:
-            bits.append(tag)
-    return "、".join(bits)
+def coerce_tags(tags: tuple[str, ...] | list[str], reason: str) -> tuple[tuple[str, ...], str]:
+    """Keep each tag the user stored. 其他 is not a tag. The written reason stays text."""
+    picked: list[str] = []
+    for raw in tags or ():
+        tag = clean_tag(str(raw))
+        if tag and tag not in picked:
+            picked.append(tag)
+    return order_tags(picked), (reason or "").strip()[:_MAX_NOTE]
+
+
+def tag_text(entry: Entry) -> str:
+    return "、".join(order_tags(entry.tags))
+
+
+def describe_entry(entry: Entry) -> str:
+    """Tags, then the written reason, for a warning line."""
+    tags = tag_text(entry)
+    reason = entry.reason.strip()
+    if tags and reason:
+        return f"{tags}。原因：{reason}"
+    if reason:
+        return f"原因：{reason}"
+    return tags
 
 
 def format_blacklist(entries: list[Entry]) -> str:
-    """One line per player: name, reason."""
+    """One line per player: 名字，炸房，贴脸，挂机，原因."""
     lines: list[str] = []
     for entry in entries:
-        reason = reason_text(entry)
-        if reason:
-            lines.append(f"{entry.name}, {reason}")
-        else:
-            lines.append(entry.name)
+        bits = [entry.name]
+        bits.extend(order_tags(entry.tags))
+        if entry.reason.strip():
+            bits.append(entry.reason.strip())
+        lines.append("，".join(bits))
     return "\n".join(lines)
 
 
-def parse_blacklist(text: str) -> list[tuple[str, str]]:
-    """Each line is one player. The first comma splits the name from the reason."""
-    parsed: list[tuple[str, str]] = []
+def names_from_block(text: str) -> list[str]:
+    """Names from one paste. Spaces, tabs, and new lines separate them."""
+    found: list[str] = []
+    seen: set[str] = set()
+    for part in text.split():
+        cleaned = clean_stored_name(part)[:_MAX_NAME]
+        key = fold(cleaned)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        found.append(cleaned)
+    return found
+
+
+def tags_and_reason(text: str, catalog: tuple[str, ...] = TAGS) -> tuple[tuple[str, ...], str]:
+    """Pull known tags out of an explanation. The rest stays the reason."""
+    raw = "".join(part.strip() for part in (text or "").splitlines()).strip()
+    if not raw:
+        return (), ""
+    found: list[str] = []
+    for tag in sorted(catalog, key=len, reverse=True):
+        if tag and tag in raw and tag not in found:
+            found.append(tag)
+    ordered = order_tags(found, catalog)
+    stripped = raw
+    for tag in ordered:
+        stripped = stripped.replace(tag, "")
+    stripped = re.sub(r"[,，、:：\s]+", "", stripped)
+    if not stripped:
+        return ordered, ""
+    return ordered, raw[:_MAX_NOTE]
+
+
+def _split_names(prefix: str) -> list[str]:
+    """A comma in the friend's note is two names, not one name that contains a comma."""
+    line = prefix.strip().splitlines()[-1].strip() if prefix.strip() else ""
+    names: list[str] = []
+    seen: set[str] = set()
+    for chunk in re.split(r"[,，]", line):
+        cleaned = clean_stored_name(chunk)[:_MAX_NAME]
+        key = fold(cleaned)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        names.append(cleaned)
+    return names
+
+
+def annotated_from_block(text: str, catalog: tuple[str, ...] = TAGS) -> list[tuple[str, tuple[str, ...], str]] | None:
+    """Each 名字（说明） is one person. Commas in front of the note are more names.
+
+    A line break inside the note is still that note. Returns None when the paste
+    is not this form, so a space-separated list still works.
+    """
+    normalized = text.replace("(", "（").replace(")", "）")
+    if "（" not in normalized:
+        return None
+    found: list[tuple[str, tuple[str, ...], str]] = []
+    seen: set[str] = set()
+    for match in re.finditer(r"([^（）]*)（(.*?)）", normalized, re.DOTALL):
+        tags, reason = tags_and_reason(match.group(2), catalog)
+        for name in _split_names(match.group(1)):
+            key = fold(name)
+            if key in seen:
+                continue
+            seen.add(key)
+            found.append((name, tags, reason))
+    return found
+
+
+def parse_blacklist(text: str, catalog: tuple[str, ...] = TAGS) -> list[tuple[str, tuple[str, ...], str]]:
+    """One line is 名字，炸房，贴脸，挂机，原因. 其他:说明 is only the reason text."""
+    parsed: list[tuple[str, tuple[str, ...], str]] = []
     for raw in text.splitlines():
         line = raw.strip()
         if not line:
             continue
-        cut = next((index for index, char in enumerate(line) if char in ",，"), None)
-        if cut is None:
-            name, note = line, ""
-        else:
-            name, note = line[:cut], line[cut + 1 :]
-        parsed.append((name.strip(), note.strip()))
+        raw_parts = re.split(r"[,，]", line)
+        if not raw_parts or not raw_parts[0].strip():
+            continue
+        parts = [part.strip() for part in raw_parts if part.strip()]
+        name = clean_stored_name(parts[0])[:_MAX_NAME]
+        tags: list[str] = []
+        reason_bits: list[str] = []
+        for part in parts[1:]:
+            if part.startswith("其他"):
+                detail = re.sub(r"^其他[:：]?", "", part).strip()
+                if detail:
+                    reason_bits.append(detail)
+                continue
+            if part in catalog and part not in tags:
+                tags.append(part)
+                continue
+            reason_bits.append(part)
+        if not name:
+            continue
+        parsed.append((name, order_tags(tags, catalog), "，".join(reason_bits)[:_MAX_NOTE]))
     return parsed
 
 
@@ -96,6 +180,45 @@ def _stored_seat(item: dict) -> dict:
         "name": str(item.get("name") or "")[:_MAX_NAME],
         "unclear": bool(item.get("unclear")),
     }
+
+
+def _seat_clear(item: dict) -> bool:
+    return not item.get("unclear") and bool(str(item.get("name") or "").strip())
+
+
+def _fill_unclear(existing: list[dict], incoming: list[dict]) -> list[dict] | None:
+    """Fill blank seats from a later read of the same lobby. Keep the first clear name."""
+    if not any(not _seat_clear(item) for item in existing):
+        return None
+    old = {int(item.get("seat", 0)): item for item in existing}
+    new = {int(item.get("seat", 0)): item for item in incoming}
+    for seat, prev in old.items():
+        nxt = new.get(seat)
+        if not _seat_clear(prev) or nxt is None or not _seat_clear(nxt):
+            continue
+        left = fold(clean_stored_name(str(prev.get("name") or "")))
+        right = fold(clean_stored_name(str(nxt.get("name") or "")))
+        if left and right and not _same_person(left, right):
+            return None
+    merged: list[dict] = []
+    changed = False
+    for seat in sorted(set(old) | set(new)):
+        prev = old.get(seat)
+        nxt = new.get(seat)
+        if prev is not None and _seat_clear(prev):
+            merged.append(prev)
+            continue
+        if nxt is not None and _seat_clear(nxt):
+            merged.append(_stored_seat(nxt))
+            changed = True
+            continue
+        if prev is not None:
+            merged.append(prev)
+        elif nxt is not None:
+            merged.append(_stored_seat(nxt))
+    if not changed:
+        return None
+    return merged
 
 
 def _readable_names(names: list[dict]) -> list[str]:
@@ -192,6 +315,25 @@ def _window_size(value) -> tuple[int, int] | None:
     return (max(900, width), max(560, height))
 
 
+# Name, tags, reason, last met. Tags fit about three short pills; the reason takes the spare width.
+DEFAULT_COLUMN_WIDTHS = [200, 176, 340, 120]
+
+
+def _column_widths(value) -> list[int] | None:
+    if not isinstance(value, (list, tuple)) or len(value) != 4:
+        return None
+    widths: list[int] = []
+    for item in value:
+        try:
+            width = int(item)
+        except (TypeError, ValueError):
+            return None
+        if not 72 <= width <= 2000:
+            return None
+        widths.append(width)
+    return widths
+
+
 def _atomic_write(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
@@ -214,12 +356,116 @@ class Store:
         self.panel_pos: tuple[int, int] | None = None
         self.window_size: tuple[int, int] | None = None
         self.theme = "蓝色"
+        self.player_name = ""
+        self.custom_tags: list[str] = []
+        self.hidden_tags: list[str] = []
+        self.column_order: list[int] = [0, 1, 2, 3]
+        self.column_widths: list[int] = list(DEFAULT_COLUMN_WIDTHS)
         self.load_warning = ""
         self.load()
 
+    def _known_tags(self) -> list[str]:
+        names = [tag for tag in TAGS if tag not in self.hidden_tags]
+        for tag in self.custom_tags:
+            if tag not in names:
+                names.append(tag)
+        return names
+
+    def tag_catalog(self) -> tuple[str, ...]:
+        return tuple(self._known_tags())
+
+    def add_custom_tag(self, raw: str) -> bool:
+        tag = clean_tag(raw)
+        if not tag or tag in self.tag_catalog():
+            return False
+        if tag in TAGS:
+            self.hidden_tags.remove(tag)
+        elif len(self.custom_tags) >= _MAX_CUSTOM_TAGS:
+            return False
+        else:
+            self.custom_tags.append(tag)
+        return True
+
+    def remove_custom_tag(self, raw: str) -> bool:
+        """Drop a tag, including a default. Names that used it lose that tag."""
+        tag = clean_tag(raw)
+        if tag not in self.tag_catalog():
+            return False
+        if tag in TAGS:
+            self.hidden_tags.append(tag)
+        else:
+            self.custom_tags.remove(tag)
+        changed = False
+        for entry in self.entries:
+            if tag not in entry.tags:
+                continue
+            entry.tags = tuple(item for item in entry.tags if item != tag)
+            changed = True
+        self.save_settings()
+        if changed:
+            self.save_entries()
+        return True
+
+    def rename_tag(self, old_raw: str, new_raw: str) -> str:
+        """Rename a tag on the list and on every name. Returns renamed, same, missing, empty, or taken."""
+        old = clean_tag(old_raw)
+        new = clean_tag(new_raw)
+        if not old or old not in self.tag_catalog():
+            return "missing"
+        if not new:
+            return "empty"
+        if new == old:
+            return "same"
+        if new in self.tag_catalog():
+            return "taken"
+        if old in TAGS:
+            self.hidden_tags.append(old)
+        else:
+            self.custom_tags.remove(old)
+        if new in TAGS:
+            self.hidden_tags.remove(new)
+        elif len(self.custom_tags) >= _MAX_CUSTOM_TAGS:
+            if old in TAGS:
+                self.hidden_tags.remove(old)
+            else:
+                self.custom_tags.append(old)
+            return "taken"
+        else:
+            self.custom_tags.append(new)
+        changed = False
+        catalog = self.tag_catalog()
+        for entry in self.entries:
+            if old not in entry.tags:
+                continue
+            replaced: list[str] = []
+            for item in entry.tags:
+                name = new if item == old else item
+                if name not in replaced:
+                    replaced.append(name)
+            entry.tags = order_tags(replaced, catalog)
+            changed = True
+        self.save_settings()
+        if changed:
+            self.save_entries()
+        return "renamed"
+
+    def _remember_tags(self, tags: tuple[str, ...]) -> tuple[str, ...]:
+        changed = False
+        for tag in tags:
+            if self.add_custom_tag(tag):
+                changed = True
+        if changed:
+            self.save_settings()
+        return order_tags(tags, self.tag_catalog())
+
     def load(self) -> None:
         self.entries = []
+        self.custom_tags = []
+        self.hidden_tags = []
+        self.column_order = [0, 1, 2, 3]
+        self.column_widths = list(DEFAULT_COLUMN_WIDTHS)
         self.load_warning = ""
+        self._load_settings()
         if self.blacklist_path.exists():
             try:
                 data = json.loads(self.blacklist_path.read_text(encoding="utf-8"))
@@ -227,12 +473,15 @@ class Store:
                     name = clean_stored_name(str(item.get("name", "")))
                     if not name:
                         continue
-                    reasons, detail = coerce_reasons(item.get("reasons") or (), str(item.get("note", "")))
+                    tags, reason = coerce_tags(
+                        item.get("tags", item.get("reasons") or ()),
+                        str(item.get("reason", item.get("note", ""))),
+                    )
                     self.entries.append(
                         Entry(
                             name=name[:_MAX_NAME],
-                            note=detail,
-                            reasons=reasons,
+                            reason=reason,
+                            tags=tags,
                             match_from_prefix=bool(item.get("match_from_prefix", False)),
                             added_at=str(item.get("added_at", "")),
                         )
@@ -244,20 +493,21 @@ class Store:
                 except OSError:
                     backup = self.blacklist_path
                 self.load_warning = f"黑名单文件无法读取（{exc}），已留作 {backup.name}。"
-        if self.settings_path.exists():
-            try:
-                settings = json.loads(self.settings_path.read_text(encoding="utf-8"))
-                self.hotkey = str(settings.get("hotkey", "") or "")
-                self.muted = bool(settings.get("muted", False))
-                self.auto_capture = bool(settings.get("auto_capture", False))
-                self.save_debug_frames = bool(settings.get("save_debug_frames", False))
-                self.panel_pos = _panel_pos(settings.get("panel_pos"))
-                self.window_size = _window_size(settings.get("window_size"))
-                theme = str(settings.get("theme", "") or "")
-                if theme in ("蓝色", "棕色", "紫色", "绿色", "红色"):
-                    self.theme = theme
-            except (OSError, json.JSONDecodeError):
-                self.load_warning = (self.load_warning + " 设置文件无法读取。").strip()
+        discovered = False
+        stripped = False
+        for entry in self.entries:
+            kept = tuple(tag for tag in entry.tags if tag not in self.hidden_tags)
+            if kept != entry.tags:
+                entry.tags = kept
+                stripped = True
+            for tag in entry.tags:
+                if tag not in TAGS and self.add_custom_tag(tag):
+                    discovered = True
+            entry.tags = order_tags(entry.tags, self.tag_catalog())
+        if discovered:
+            self.save_settings()
+        if stripped:
+            self.save_entries()
         self.scans = []
         if self.history_path.exists():
             try:
@@ -295,8 +545,8 @@ class Store:
                 "entries": [
                     {
                         "name": entry.name,
-                        "note": entry.note,
-                        "reasons": list(entry.reasons),
+                        "reason": entry.reason,
+                        "tags": list(entry.tags),
                         "match_from_prefix": entry.match_from_prefix,
                         "added_at": entry.added_at,
                     }
@@ -316,14 +566,51 @@ class Store:
                 "panel_pos": None if self.panel_pos is None else [self.panel_pos[0], self.panel_pos[1]],
                 "window_size": None if self.window_size is None else [self.window_size[0], self.window_size[1]],
                 "theme": self.theme,
+                "player_name": self.player_name,
+                "custom_tags": list(self.custom_tags),
+                "hidden_tags": list(self.hidden_tags),
+                "column_order": list(self.column_order),
+                "column_widths": list(self.column_widths),
             },
         )
+
+    def _load_settings(self) -> None:
+        if not self.settings_path.exists():
+            return
+        try:
+            settings = json.loads(self.settings_path.read_text(encoding="utf-8"))
+            self.hotkey = str(settings.get("hotkey", "") or "")
+            self.muted = bool(settings.get("muted", False))
+            self.auto_capture = bool(settings.get("auto_capture", False))
+            self.save_debug_frames = bool(settings.get("save_debug_frames", False))
+            self.panel_pos = _panel_pos(settings.get("panel_pos"))
+            self.window_size = _window_size(settings.get("window_size"))
+            theme = str(settings.get("theme", "") or "")
+            if theme in ("蓝色", "棕色", "紫色", "绿色", "红色"):
+                self.theme = theme
+            self.player_name = clean_stored_name(str(settings.get("player_name", "") or ""))[:_MAX_NAME]
+            self.custom_tags = []
+            self.hidden_tags = []
+            order = settings.get("column_order")
+            if isinstance(order, list) and sorted(order) == [0, 1, 2, 3]:
+                self.column_order = [int(index) for index in order]
+            widths = _column_widths(settings.get("column_widths"))
+            if widths is not None:
+                self.column_widths = widths
+            for raw in settings.get("hidden_tags") or []:
+                tag = clean_tag(str(raw))
+                if tag in TAGS and tag not in self.hidden_tags:
+                    self.hidden_tags.append(tag)
+            for raw in settings.get("custom_tags") or []:
+                self.add_custom_tag(str(raw))
+        except (OSError, json.JSONDecodeError):
+            self.load_warning = (self.load_warning + " 设置文件无法读取。").strip()
 
     def save_scans(self) -> None:
         _atomic_write(self.history_path, {"scans": self.scans[:_MAX_SCANS]})
 
     def add_scan(self, names: list[dict], elapsed: float | None = None) -> str:
-        """Return added, refreshed, or skipped. A second scan in the same minute is skipped."""
+        """Return added, refreshed, filled, or skipped. The same minute keeps the first record."""
         now = datetime.now().astimezone().replace(microsecond=0)
         record = {
             "at": now.isoformat(),
@@ -331,7 +618,12 @@ class Store:
             "names": [_stored_seat(item) for item in names],
         }
         if self.scans and _same_clock_minute(str(self.scans[0].get("at", "")), now):
-            return "skipped"
+            merged = _fill_unclear(list(self.scans[0].get("names", [])), record["names"])
+            if merged is None:
+                return "skipped"
+            self.scans[0]["names"] = merged
+            self.save_scans()
+            return "filled"
         key_names = record["names"]
         if _readable_names(key_names):
             for index, existing in enumerate(self.scans):
@@ -390,13 +682,11 @@ class Store:
         updated: list[Entry] = []
         for key in order:
             cleaned, note = chosen[key]
-            reasons, detail = reasons_from_note(note)
             old = previous.get(key)
             updated.append(
                 Entry(
                     name=cleaned,
-                    note=detail,
-                    reasons=reasons,
+                    reason=note,
                     match_from_prefix=old.match_from_prefix if old else False,
                     added_at=old.added_at if old else datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
                 )
@@ -404,15 +694,16 @@ class Store:
         self.entries = updated
         self.save_entries()
 
-    def add(self, name: str, note: str = "", match_from_prefix: bool = False, reasons: tuple[str, ...] | list[str] = ()) -> Entry | None:
+    def add(self, name: str, reason: str = "", match_from_prefix: bool = False, tags: tuple[str, ...] | list[str] = ()) -> Entry | None:
         cleaned = clean_stored_name(name)[:_MAX_NAME]
         if not cleaned:
             return None
-        chosen, detail = coerce_reasons(reasons, note)
+        chosen, detail = coerce_tags(tags, reason)
+        chosen = self._remember_tags(chosen)
         entry = Entry(
             name=cleaned,
-            note=detail,
-            reasons=chosen,
+            reason=detail,
+            tags=chosen,
             match_from_prefix=bool(match_from_prefix),
             added_at=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         )
@@ -420,7 +711,52 @@ class Store:
         self.save_entries()
         return entry
 
-    def update_at(self, index: int, name: str, reasons: tuple[str, ...] | list[str], detail: str = "") -> bool:
+    def add_names(self, names: list[str]) -> int:
+        existing = {fold(entry.name) for entry in self.entries}
+        added = 0
+        for name in names:
+            cleaned = clean_stored_name(name)[:_MAX_NAME]
+            key = fold(cleaned)
+            if not key or key in existing:
+                continue
+            existing.add(key)
+            self.entries.append(
+                Entry(
+                    name=cleaned,
+                    added_at=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+                )
+            )
+            added += 1
+        if added:
+            self.save_entries()
+        return added
+
+    def add_annotated(self, rows: list[tuple[str, tuple[str, ...], str]]) -> int:
+        """Add 名字（说明） rows. A name already on the list is skipped."""
+        existing = {fold(entry.name) for entry in self.entries}
+        added = 0
+        for name, tags, reason in rows:
+            cleaned = clean_stored_name(name)[:_MAX_NAME]
+            key = fold(cleaned)
+            if not key or key in existing:
+                continue
+            existing.add(key)
+            chosen, detail = coerce_tags(tags, reason)
+            chosen = self._remember_tags(chosen)
+            self.entries.append(
+                Entry(
+                    name=cleaned,
+                    reason=detail,
+                    tags=chosen,
+                    added_at=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+                )
+            )
+            added += 1
+        if added:
+            self.save_entries()
+        return added
+
+    def update_at(self, index: int, name: str, tags: tuple[str, ...] | list[str], reason: str = "") -> bool:
         if not 0 <= index < len(self.entries):
             return False
         cleaned = clean_stored_name(name)[:_MAX_NAME]
@@ -430,12 +766,13 @@ class Store:
         for other_index, other in enumerate(self.entries):
             if other_index != index and fold(other.name) == key:
                 return False
-        chosen, stored_detail = coerce_reasons(reasons, detail)
+        chosen, stored_reason = coerce_tags(tags, reason)
+        chosen = self._remember_tags(chosen)
         current = self.entries[index]
         self.entries[index] = Entry(
             name=cleaned,
-            note=stored_detail,
-            reasons=chosen,
+            reason=stored_reason,
+            tags=chosen,
             match_from_prefix=current.match_from_prefix,
             added_at=current.added_at,
         )
@@ -446,6 +783,10 @@ class Store:
         if 0 <= index < len(self.entries):
             del self.entries[index]
             self.save_entries()
+
+    def clear_entries(self) -> None:
+        self.entries = []
+        self.save_entries()
 
     def set_prefix(self, index: int, enabled: bool) -> None:
         if 0 <= index < len(self.entries):

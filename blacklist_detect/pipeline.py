@@ -26,7 +26,7 @@ from blacklist_detect.ocr_engine import (
     rgb_to_bgr,
     scale_lines,
 )
-from blacklist_detect.storage import reason_text
+from blacklist_detect.storage import describe_entry
 
 
 @dataclass
@@ -155,13 +155,13 @@ def _read_names(engine, rgb: np.ndarray, anchor: Anchor, entries: list[Entry]) -
         )
         shown = slot.visible or visible
         for found in match_label(label, entries):
-            line = format_hit(index, shown, slot.truncated, found.entry.name, reason_text(found.entry))
+            line = format_hit(index, shown, slot.truncated, found.entry.name, describe_entry(found.entry))
             hits.append(
                 Hit(
                     index=index,
                     read_text=shown,
                     entry_name=found.entry.name,
-                    note=reason_text(found.entry),
+                    note=describe_entry(found.entry),
                     truncated=slot.truncated,
                     line=line,
                 )

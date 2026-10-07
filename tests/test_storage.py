@@ -4,16 +4,69 @@ from blacklist_detect.storage import Store, format_blacklist, parse_blacklist
 
 
 def test_blacklist_lines_parse_one_player_each():
-    lines = parse_blacklist("罪玥吉尔曼, 常挂机\n\n另一个，原因\n只有名字\n, 没名字")
-    assert lines == [("罪玥吉尔曼", "常挂机"), ("另一个", "原因"), ("只有名字", ""), ("", "没名字")]
+    lines = parse_blacklist("名字一，炸房，贴脸，他做了坏事\n罪玥吉尔曼, 常挂机\n只有名字\n, 没名字\n甲，其他:开黑")
+    assert lines == [
+        ("名字一", ("炸房", "贴脸"), "他做了坏事"),
+        ("罪玥吉尔曼", (), "常挂机"),
+        ("只有名字", (), ""),
+        ("甲", (), "开黑"),
+    ]
     text = format_blacklist(
         [
-            Entry("罪玥吉尔曼", note="常挂机"),
+            Entry("罪玥吉尔曼", reason="常挂机"),
             Entry("只有名字"),
-            Entry("甲", reasons=("炸房", "贴脸")),
+            Entry("甲", tags=("炸房", "贴脸")),
         ]
     )
-    assert text == "罪玥吉尔曼, 其他：常挂机\n只有名字\n甲, 炸房、贴脸"
+    assert text == "罪玥吉尔曼，常挂机\n只有名字\n甲，炸房，贴脸"
+
+
+def test_a_pasted_block_adds_each_name_once(tmp_path):
+    from blacklist_detect.storage import TAGS, names_from_block
+
+    assert TAGS == ("炸房", "贴脸", "挂机")
+    assert names_from_block("  纪戴宁   庄园美女\n纪戴宁\t无害虎皮 ") == ["纪戴宁", "庄园美女", "无害虎皮"]
+    store = Store(tmp_path)
+    store.add("纪戴宁")
+    assert store.add_names(["纪戴宁", "庄园美女", "无害虎皮"]) == 2
+    assert [entry.name for entry in Store(tmp_path).entries] == ["纪戴宁", "庄园美女", "无害虎皮"]
+    store.clear_entries()
+    assert Store(tmp_path).entries == []
+
+
+def test_a_parenthesis_note_is_one_person(tmp_path):
+    from blacklist_detect.storage import annotated_from_block
+
+    text = """这游戏有这么多神人吗
+挖野菜养你吖（纯粹的傻逼）
+好知知这就来帮（好人帮狼炸房）
+西西zo（挂机占麦）
+翻箱震慑是北城（讲了行为狼、轨迹狼、身份撞了，还给狼弃
+票，弱智来着）
+腐草为萤zzz（狼刀红名，炸房）
+诱之（轨迹差表水差被踩就情绪贴脸）
+小小丑不会输，少主薇（狼能赢的送双排顾问）
+"""
+    rows = annotated_from_block(text)
+    assert rows is not None
+    by_name = {name: (tags, reason) for name, tags, reason in rows}
+    assert by_name["挖野菜养你吖"] == ((), "纯粹的傻逼")
+    assert by_name["好知知这就来帮"][0] == ("炸房",)
+    assert by_name["西西zo"][0] == ("挂机",)
+    assert by_name["翻箱震慑是北城"][0] == ()
+    assert "还给狼弃票" in by_name["翻箱震慑是北城"][1]
+    assert by_name["腐草为萤zzz"][0] == ("炸房",)
+    assert by_name["诱之"][0] == ("贴脸",)
+    assert by_name["小小丑不会输"][1] == by_name["少主薇"][1]
+    assert "狼能赢的送双排顾问" in by_name["少主薇"][1]
+    assert annotated_from_block("甲 乙 丙") is None
+    store = Store(tmp_path)
+    assert store.add_annotated(rows) == len(rows)
+    assert store.add_annotated(rows) == 0
+    saved = {entry.name: (entry.tags, entry.reason) for entry in Store(tmp_path).entries}
+    assert saved["诱之"][0] == ("贴脸",)
+    assert saved["挖野菜养你吖"] == ((), "纯粹的傻逼")
+    assert saved["小小丑不会输"][0] == saved["少主薇"][0] == ()
 
 
 def test_windows_and_linux_dirs():
@@ -23,20 +76,65 @@ def test_windows_and_linux_dirs():
     assert linux.as_posix() == "/tmp/zhibin-config/BlackListDetect"
 
 
+def test_a_custom_tag_is_remembered(tmp_path):
+    from blacklist_detect.storage import parse_blacklist
+
+    store = Store(tmp_path)
+    assert store.add_custom_tag("红名") is True
+    assert store.add_custom_tag("红名") is False
+    assert store.add_custom_tag("炸房") is False
+    store.add("甲", tags=("红名", "贴脸"), reason="说明")
+    again = Store(tmp_path)
+    assert again.custom_tags == ["红名"]
+    assert again.entries[0].tags == ("贴脸", "红名")
+    assert again.tag_catalog() == ("炸房", "贴脸", "挂机", "红名")
+    assert parse_blacklist("乙，红名，他做了坏事", again.tag_catalog()) == [("乙", ("红名",), "他做了坏事")]
+    assert again.remove_custom_tag("红名") is True
+    saved = Store(tmp_path)
+    assert saved.custom_tags == []
+    assert saved.entries[0].tags == ("贴脸",)
+    saved.add("乙", tags=("炸房", "挂机"))
+    assert saved.remove_custom_tag("炸房") is True
+    assert saved.tag_catalog() == ("贴脸", "挂机")
+    assert saved.entries[-1].tags == ("挂机",)
+    reloaded = Store(tmp_path)
+    assert reloaded.tag_catalog() == ("贴脸", "挂机")
+    assert reloaded.entries[-1].tags == ("挂机",)
+    assert reloaded.add_custom_tag("炸房") is True
+    reloaded.save_settings()
+    assert Store(tmp_path).tag_catalog() == ("炸房", "贴脸", "挂机")
+
+
+def test_renaming_a_tag_rewrites_every_name(tmp_path):
+    store = Store(tmp_path)
+    store.add("甲", tags=("炸房", "贴脸"))
+    store.add("乙", tags=("炸房",))
+    assert store.rename_tag("炸房", "闹房") == "renamed"
+    assert store.rename_tag("闹房", "贴脸") == "taken"
+    again = Store(tmp_path)
+    assert again.tag_catalog() == ("贴脸", "挂机", "闹房")
+    assert again.entries[0].tags == ("贴脸", "闹房")
+    assert again.entries[1].tags == ("闹房",)
+    assert again.rename_tag("闹房", "炸房") == "renamed"
+    restored = Store(tmp_path)
+    assert restored.tag_catalog() == ("炸房", "贴脸", "挂机")
+    assert restored.entries[0].tags == ("炸房", "贴脸")
+
+
 def test_reasons_can_be_combined(tmp_path):
     store = Store(tmp_path)
-    store.add("甲", reasons=("贴脸", "炸房", "其他"), note="开黑")
+    store.add("甲", tags=("贴脸", "炸房", "其他"), reason="开黑")
     again = Store(tmp_path)
-    assert again.entries[0].reasons == ("炸房", "贴脸", "其他")
-    assert again.entries[0].note == "开黑"
+    assert again.entries[0].tags == ("炸房", "贴脸")
+    assert again.entries[0].reason == "开黑"
     assert again.update_at(0, "甲", ("炸房",), "") is True
-    assert Store(tmp_path).entries[0].reasons == ("炸房",)
-    assert Store(tmp_path).entries[0].note == ""
+    assert Store(tmp_path).entries[0].tags == ("炸房",)
+    assert Store(tmp_path).entries[0].reason == ""
 
 
 def test_blacklist_roundtrip(tmp_path):
     store = Store(tmp_path)
-    added = store.add("  罪玥吉尔曼  ", note="常挂机", match_from_prefix=False)
+    added = store.add("  罪玥吉尔曼  ", reason="常挂机", match_from_prefix=False)
     assert added is not None
     store.add("无害虎皮…", match_from_prefix=True)
     store.hotkey = "Ctrl+Shift+F8"
@@ -45,8 +143,8 @@ def test_blacklist_roundtrip(tmp_path):
 
     again = Store(tmp_path)
     assert [entry.name for entry in again.entries] == ["罪玥吉尔曼", "无害虎皮"]
-    assert again.entries[0].note == "常挂机"
-    assert again.entries[0].reasons == ("其他",)
+    assert again.entries[0].reason == "常挂机"
+    assert again.entries[0].tags == ()
     assert again.entries[0].match_from_prefix is False
     assert again.entries[1].match_from_prefix is True
     assert again.hotkey == "Ctrl+Shift+F8"
@@ -144,6 +242,38 @@ def test_a_later_read_of_the_same_lobby_updates_the_time(tmp_path):
     assert len(again.scans) == 1
     assert again.scans[0]["at"] != "2020-01-01T00:00:00+00:00"
     assert again.scans[0]["names"][11]["name"] == "五人"
+
+
+def test_a_rescan_in_the_same_minute_fills_only_unclear_seats(tmp_path):
+    store = Store(tmp_path)
+    store.add_scan(
+        [
+            {"seat": 1, "name": "纪戴宁", "unclear": False},
+            {"seat": 2, "name": "", "unclear": True},
+        ]
+    )
+    stamp = store.scans[0]["at"]
+    elapsed = store.scans[0]["elapsed"]
+    assert store.add_scan(
+        [
+            {"seat": 1, "name": "纪戴宁", "unclear": False},
+            {"seat": 2, "name": "庄园美女", "unclear": False},
+        ],
+        0.8,
+    ) == "filled"
+    assert len(store.scans) == 1
+    assert store.scans[0]["at"] == stamp
+    assert store.scans[0]["elapsed"] == elapsed
+    assert store.scans[0]["names"][0]["name"] == "纪戴宁"
+    assert store.scans[0]["names"][1]["name"] == "庄园美女"
+    assert store.scans[0]["names"][1]["unclear"] is False
+    assert store.add_scan(
+        [
+            {"seat": 1, "name": "完全不同", "unclear": False},
+            {"seat": 2, "name": "", "unclear": True},
+        ]
+    ) == "skipped"
+    assert store.scans[0]["names"][0]["name"] == "纪戴宁"
 
 
 def test_a_second_scan_inside_one_minute_overwrites(tmp_path):

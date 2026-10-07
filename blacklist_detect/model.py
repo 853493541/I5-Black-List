@@ -7,9 +7,11 @@ from dataclasses import dataclass
 
 @dataclass
 class Entry:
+    """One blacklist row: when it was added, the name, tags, and a written reason."""
+
     name: str
-    note: str = ""
-    reasons: tuple[str, ...] = ()
+    reason: str = ""
+    tags: tuple[str, ...] = ()
     match_from_prefix: bool = False
     added_at: str = ""
 
