@@ -6,9 +6,10 @@ import queue
 import sys
 import time
 from datetime import datetime
+from math import cos, pi, radians, sin
 
-from PySide6.QtCore import QEvent, QPoint, QRect, QSize, Qt, QThread, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPalette, QPen, QPixmap
+from PySide6.QtCore import QEasingCurve, QEvent, QPoint, QPointF, QRect, QSize, Qt, QThread, QTimer, QVariantAnimation, Signal
+from PySide6.QtGui import QColor, QCursor, QFont, QFontMetrics, QIcon, QPainter, QPainterPath, QPalette, QPen, QPixmap, QPolygon
 from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
@@ -24,7 +25,6 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMainWindow,
     QMenu,
-    QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QSizePolicy,
@@ -64,11 +64,7 @@ def run_app() -> int:
 
 
 def _zh_clock(moment: datetime) -> str:
-    period = "上午" if moment.hour < 12 else "下午"
-    hour = moment.hour % 12 or 12
-    if moment.minute == 0:
-        return f"{period}{hour}点0分"
-    return f"{period}{hour}点{moment.minute:02d}分"
+    return moment.strftime("%H:%M")
 
 
 def _local_moment(stamp: str) -> datetime | None:
@@ -269,59 +265,155 @@ class _ColumnHeader(QHeaderView):
         painter.restore()
 
 
+def _mix(start: str, end: str, amount: float) -> QColor:
+    left = QColor(start)
+    right = QColor(end)
+    amount = max(0.0, min(1.0, amount))
+    return QColor(
+        round(left.red() + (right.red() - left.red()) * amount),
+        round(left.green() + (right.green() - left.green()) * amount),
+        round(left.blue() + (right.blue() - left.blue()) * amount),
+    )
+
+
 class TagPill(QWidget):
     """A painted capsule. Stylesheets were painting flat color over the words."""
 
-    def __init__(self, text: str, on_remove=None, *, on_click=None) -> None:
+    _pad = round(8 * 1.1)
+    _extra = round(6 * 1.1)
+    _close_w = round(16 * 1.1)
+
+    def __init__(self, text: str, on_remove=None, *, on_click=None, active: bool = True) -> None:
         super().__init__()
         self._text = text
         self._on_remove = on_remove
         self._on_click = on_click
+        self._active = active
+        self._blend = 1.0 if active else 0.0
         self._wash = THEME["red_wash"]
         self._ink = THEME["red"]
+        self._anim = QVariantAnimation(self)
+        self._anim.setDuration(200)
+        self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._anim.valueChanged.connect(self._set_blend)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        face = chinese_font(9)
-        face.setWeight(QFont.Weight.DemiBold)
-        self.setFont(face)
+        self.setFont(self._face())
         if on_remove is None and on_click is None:
             self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         else:
             self.setMouseTracking(True)
             self.setCursor(Qt.PointingHandCursor)
 
+    @staticmethod
+    def _face() -> QFont:
+        face = chinese_font()
+        face.setPointSizeF(9 * 1.1)
+        face.setWeight(QFont.Weight.DemiBold)
+        return face
+
     def sizeHint(self) -> QSize:
-        metrics = QFontMetrics(self.font())
-        pad = 8
-        close = 16 if self._on_remove is not None else 0
-        width = metrics.horizontalAdvance(self._text) + pad * 2 + close
-        return QSize(width, metrics.height() + 6)
+        metrics = QFontMetrics(self._face())
+        close = self._close_w if self._on_remove is not None else 0
+        width = metrics.horizontalAdvance(self._text) + self._pad * 2 + close
+        return QSize(width, metrics.height() + self._extra)
 
     def minimumSizeHint(self) -> QSize:
         return self.sizeHint()
 
     def _close_box(self) -> QRect:
         rect = self.rect()
-        return QRect(rect.right() - 16, rect.top(), 16, rect.height())
+        return QRect(rect.right() - self._close_w, rect.top(), self._close_w, rect.height())
+
+    def set_active(self, active: bool) -> None:
+        active = bool(active)
+        self._active = active
+        target = 1.0 if active else 0.0
+        if abs(self._blend - target) < 0.001:
+            return
+        self._anim.stop()
+        self._anim.setStartValue(float(self._blend))
+        self._anim.setEndValue(target)
+        self._anim.start()
+
+    def _set_blend(self, value: float) -> None:
+        self._blend = float(value)
+        self.update()
+
+    def _running(self) -> bool:
+        return self._anim.state() == QVariantAnimation.State.Running
 
     def paintEvent(self, _event) -> None:  # noqa: ANN001
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if self._running():
+            self._paint_moving(painter)
+            return
+        self._paint_still(painter)
+
+    def _paint_still(self, painter: QPainter) -> None:
+        painter.setFont(self._face())
         body = QRect(self.rect())
         body.adjust(0, 1, -1, -1)
+        pad = self._pad
+        if not self._active:
+            painter.setPen(QPen(QColor("#9aa1ab"), 1))
+            painter.setBrush(QColor("#e4e6eb"))
+            radius = body.height() / 2
+            painter.drawRoundedRect(body.adjusted(1, 1, -1, -1), radius, radius)
+            quiet = self._face()
+            quiet.setWeight(QFont.Weight.Normal)
+            painter.setFont(quiet)
+            painter.setPen(QColor(THEME["gray"]))
+            text_box = QRect(body)
+            text_box.adjust(pad, 0, -pad, 0)
+            painter.drawText(text_box, Qt.AlignCenter, self._text)
+            return
         painter.setPen(Qt.NoPen)
         painter.setBrush(QColor(self._wash))
         radius = body.height() / 2
         painter.drawRoundedRect(body, radius, radius)
         painter.setPen(QColor(self._ink))
-        painter.setFont(self.font())
         text_box = QRect(body)
         if self._on_remove is not None:
-            text_box.adjust(8, 0, -16, 0)
+            text_box.adjust(pad, 0, -self._close_w, 0)
             painter.drawText(text_box, Qt.AlignVCenter | Qt.AlignLeft, self._text)
             painter.drawText(self._close_box(), Qt.AlignCenter, "×")
         else:
-            text_box.adjust(8, 0, -8, 0)
+            text_box.adjust(pad, 0, -pad, 0)
             painter.drawText(text_box, Qt.AlignCenter, self._text)
+
+    def _paint_moving(self, painter: QPainter) -> None:
+        amount = max(0.0, min(1.0, self._blend))
+        progress = self._anim.currentTime() / max(1, self._anim.duration())
+        pulse = sin(progress * pi)
+        scale = 1 + (0.08 if self._active else -0.06) * pulse
+        body = QRect(self.rect())
+        body.adjust(0, 1, -1, -1)
+        center = body.center()
+        painter.save()
+        painter.translate(center.x(), center.y())
+        painter.scale(scale, scale)
+        painter.translate(-center.x(), -center.y())
+        fill = _mix("#e4e6eb", self._wash, amount)
+        ink = _mix(THEME["gray"], self._ink, amount)
+        edge = _mix("#9aa1ab", self._wash, amount)
+        radius = body.height() / 2
+        if amount < 0.98:
+            painter.setPen(QPen(edge, 1))
+            painter.setBrush(fill)
+            painter.drawRoundedRect(body.adjusted(1, 1, -1, -1), radius, radius)
+        else:
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(self._wash))
+            painter.drawRoundedRect(body, radius, radius)
+        face = self._face()
+        face.setWeight(QFont.Weight.DemiBold if amount >= 0.5 else QFont.Weight.Normal)
+        painter.setFont(face)
+        painter.setPen(ink if amount < 0.98 else QColor(self._ink))
+        text_box = QRect(body)
+        text_box.adjust(self._pad, 0, -self._pad, 0)
+        painter.drawText(text_box, Qt.AlignCenter, self._text)
+        painter.restore()
 
     def mousePressEvent(self, event) -> None:  # noqa: ANN001
         if event.button() != Qt.LeftButton:
@@ -332,50 +424,6 @@ class TagPill(QWidget):
             return
         if self._on_remove is not None and self._close_box().contains(event.position().toPoint()):
             self._on_remove()
-            return
-        super().mousePressEvent(event)
-
-
-class TagAdd(QWidget):
-    """A tag that is not on this person. Plain text, so it does not look applied."""
-
-    def __init__(self, text: str, on_click) -> None:
-        super().__init__()
-        self._name = text
-        self._on_click = on_click
-        self._hover = False
-        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        self.setMouseTracking(True)
-        self.setCursor(Qt.PointingHandCursor)
-        face = chinese_font(9)
-        self.setFont(face)
-
-    def sizeHint(self) -> QSize:
-        metrics = QFontMetrics(self.font())
-        return QSize(metrics.horizontalAdvance(f"＋{self._name}") + 4, metrics.height() + 6)
-
-    def minimumSizeHint(self) -> QSize:
-        return self.sizeHint()
-
-    def enterEvent(self, event) -> None:  # noqa: ANN001
-        self._hover = True
-        self.update()
-        super().enterEvent(event)
-
-    def leaveEvent(self, event) -> None:  # noqa: ANN001
-        self._hover = False
-        self.update()
-        super().leaveEvent(event)
-
-    def paintEvent(self, _event) -> None:  # noqa: ANN001
-        painter = QPainter(self)
-        painter.setFont(self.font())
-        painter.setPen(QColor(THEME["text"] if self._hover else THEME["muted"]))
-        painter.drawText(self.rect(), Qt.AlignVCenter | Qt.AlignLeft, f"＋{self._name}")
-
-    def mousePressEvent(self, event) -> None:  # noqa: ANN001
-        if event.button() == Qt.LeftButton:
-            self._on_click()
             return
         super().mousePressEvent(event)
 
@@ -431,6 +479,79 @@ class NewTagButton(QPushButton):
         painter.drawText(text_box, Qt.AlignCenter, self.text())
 
 
+class DayFolderIcon(QWidget):
+    """Folder at rest. On hover it becomes the open or closed arrow, like Cursor."""
+
+    def __init__(self, opened: bool = True) -> None:
+        super().__init__()
+        self.setObjectName("dayMark")
+        self.setFixedSize(16, 16)
+        self._opened = opened
+        self._hover = 0.0
+        self._turn = 1.0 if opened else 0.0
+        self._hover_anim = QVariantAnimation(self)
+        self._hover_anim.setDuration(140)
+        self._hover_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._hover_anim.valueChanged.connect(self._set_hover)
+        self._turn_anim = QVariantAnimation(self)
+        self._turn_anim.setDuration(160)
+        self._turn_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._turn_anim.valueChanged.connect(self._set_turn)
+
+    def set_hovered(self, hovered: bool) -> None:
+        target = 1.0 if hovered else 0.0
+        if abs(self._hover - target) < 0.001:
+            return
+        self._hover_anim.stop()
+        self._hover_anim.setStartValue(float(self._hover))
+        self._hover_anim.setEndValue(target)
+        self._hover_anim.start()
+
+    def set_open(self, opened: bool) -> None:
+        opened = bool(opened)
+        self._opened = opened
+        target = 1.0 if opened else 0.0
+        if abs(self._turn - target) < 0.001:
+            return
+        self._turn_anim.stop()
+        self._turn_anim.setStartValue(float(self._turn))
+        self._turn_anim.setEndValue(target)
+        self._turn_anim.start()
+
+    def _set_hover(self, value: float) -> None:
+        self._hover = float(value)
+        self.update()
+
+    def _set_turn(self, value: float) -> None:
+        self._turn = float(value)
+        self.update()
+
+    def paintEvent(self, _event) -> None:  # noqa: ANN001
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        color = QColor(THEME["text"])
+        if self._hover < 0.98:
+            painter.save()
+            painter.setOpacity(1 - self._hover)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(color)
+            painter.drawRoundedRect(1, 3, 7, 4, 1, 1)
+            painter.drawRoundedRect(1, 6, 14, 8, 2, 2)
+            painter.restore()
+        if self._hover > 0.02:
+            painter.save()
+            painter.setOpacity(self._hover)
+            painter.translate(8, 8)
+            painter.rotate(self._turn * 90)
+            painter.translate(-8, -8)
+            pen = QPen(color, 1.7)
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            painter.setPen(pen)
+            painter.drawPolyline(QPolygon([QPoint(4, 3), QPoint(11, 8), QPoint(4, 13)]))
+            painter.restore()
+
+
 def _clear_layout(layout: QLayout) -> None:
     while layout.count():
         item = layout.takeAt(0)
@@ -455,29 +576,40 @@ def ui_font() -> QFont:
     return font
 
 
-# One inset for the whole window. Pages share the same gap so the tabs line up.
-PAD = 16
+def record_font() -> QFont:
+    """Record names and times, a step larger than the rest of the window."""
+    return chinese_font(13)
+
+
+# One inset and one corner for the whole window.
+PAD = 24
 GAP = 12
+DIALOG_PAD = 20
+RADIUS = 8
 
 def _palette(
+    page: str,
+    ink: str,
+    muted: str,
+    wash: str,
+    edge: str,
     accent: str,
     accent_line: str,
     accent_hover: str,
     accent_press: str,
     on_accent: str,
 ) -> dict[str, str]:
-    # Shared paper, ink, and borders. The theme swatch only changes the accent.
     return {
-        "bg": "#faf6ec",
-        "text": "#33291a",
-        "muted": "#6f6350",
-        "surface": "#fffdf7",
-        "line": "#e7dcc7",
-        "button": "#fffdf7",
-        "button_line": "#e7dcc7",
-        "selected": "#f4ead9",
-        "head": "#f4ead9",
-        "head_text": "#33291a",
+        "bg": page,
+        "text": ink,
+        "muted": muted,
+        "surface": "#ffffff",
+        "line": edge,
+        "button": "#ffffff",
+        "button_line": edge,
+        "selected": wash,
+        "head": wash,
+        "head_text": ink,
         "gold": accent,
         "gold_line": accent_line,
         "on_gold": on_accent,
@@ -492,7 +624,7 @@ def _palette(
         "gray_hover": "#e6e8ec",
         "add": accent,
         "danger": "#a33b2c",
-        "hover": "#f4ead9",
+        "hover": wash,
         "gold_hover": accent_hover,
         "gold_press": accent_press,
         "danger_hover": "#f8e6e1",
@@ -500,11 +632,11 @@ def _palette(
 
 
 THEMES = {
-    "蓝色": _palette("#12325a", "#2c6cb3", "#1a4578", "#0c243f", "#f4f8ff"),
-    "棕色": _palette("#6b4428", "#a67c52", "#7d5334", "#4a2e1a", "#fff8f2"),
-    "紫色": _palette("#4a2d73", "#7a5caf", "#5c3b8c", "#321d52", "#f8f5ff"),
-    "绿色": _palette("#1b5340", "#3d8f6e", "#24664e", "#12382b", "#f4fbf7"),
-    "红色": _palette("#a24f28", "#c46a3e", "#92471f", "#6e3416", "#fdf6ec"),
+    "蓝色": _palette("#f2f6fb", "#172033", "#5d6d82", "#e4eef8", "#d3deec", "#12325a", "#2c6cb3", "#1a4578", "#0c243f", "#f4f8ff"),
+    "棕色": _palette("#f7f3ee", "#2a2118", "#6f6256", "#f3ebe3", "#e6d9cc", "#6b4428", "#a67c52", "#7d5334", "#4a2e1a", "#fff8f2"),
+    "紫色": _palette("#f6f4fb", "#241833", "#6a5d80", "#eee8f6", "#ddd4ec", "#4a2d73", "#7a5caf", "#5c3b8c", "#321d52", "#f8f5ff"),
+    "绿色": _palette("#f3f7f4", "#17241c", "#5c6e64", "#e5f0ea", "#d2e2d8", "#1b5340", "#3d8f6e", "#24664e", "#12382b", "#f4fbf7"),
+    "红色": _palette("#fbf5f4", "#2c1818", "#7a6565", "#f6e8e6", "#ead8d4", "#a24f28", "#c46a3e", "#92471f", "#6e3416", "#fdf6ec"),
 }
 THEME = THEMES["蓝色"]
 
@@ -539,9 +671,29 @@ def _apply_theme(app: QApplication | None = None) -> None:
     app.setPalette(palette)
 
 
-def _control_hover() -> str:
+def _button_rules(family: str) -> str:
+    """Ghost buttons, filled primary, and the danger outline. Every surface uses this."""
     t = THEME
     return f"""
+            QPushButton {{
+                font-family: "{family}";
+                background: {t["button"]};
+                color: {t["text"]};
+                border: 1px solid {t["button_line"]};
+                border-radius: 8px;
+                padding: 0 16px;
+                min-height: 36px;
+            }}
+            QPushButton#primary {{
+                background: {t["gold"]};
+                border-color: {t["gold_line"]};
+                color: {t["on_gold"]};
+            }}
+            QPushButton#danger {{
+                background: {t["button"]};
+                color: {t["danger"]};
+                border-color: {t["danger"]};
+            }}
             QPushButton:hover {{
                 background: {t["hover"]};
                 border-color: {t["gold_line"]};
@@ -559,9 +711,57 @@ def _control_hover() -> str:
             QPushButton#danger:hover {{
                 background: {t["danger_hover"]};
                 color: {t["danger"]};
+                border-color: {t["danger"]};
             }}
-            QCheckBox:hover {{ color: {t["gold"]}; }}
-            QLineEdit:hover {{ border: 1px solid {t["gold_line"]}; }}
+            """
+
+
+def _input_rules(family: str) -> str:
+    t = THEME
+    return f"""
+            QLineEdit, QPlainTextEdit {{
+                font-family: "{family}";
+                background: {t["surface"]};
+                color: {t["text"]};
+                border: 1px solid {t["line"]};
+                border-radius: 8px;
+                padding: 8px 12px;
+            }}
+            QLineEdit {{
+                padding: 4px 12px;
+                min-height: 28px;
+            }}
+            QLineEdit:hover, QPlainTextEdit:hover {{
+                border: 1px solid {t["gold_line"]};
+            }}
+            QLineEdit:focus, QPlainTextEdit:focus {{
+                border: 1px solid {t["gold"]};
+            }}
+            QLineEdit:disabled {{
+                color: {t["muted"]};
+                background: {t["head"]};
+                border: 1px solid {t["line"]};
+            }}
+            """
+
+
+def _card_rules() -> str:
+    t = THEME
+    return f"""
+            QWidget#settingsCard, QWidget#recordCard, QWidget#noticeCard {{
+                background: {t["surface"]};
+                border: 1px solid {t["line"]};
+                border-radius: 12px;
+            }}
+            QWidget#settingsRow {{
+                background: transparent;
+                border: none;
+                border-bottom: 1px solid {t["line"]};
+            }}
+            QWidget#settingsRowLast {{
+                background: transparent;
+                border: none;
+            }}
             """
 
 
@@ -578,13 +778,15 @@ def _menu_style(family: str) -> str:
                 background: {t["surface"]};
                 color: {t["text"]};
                 border: 1px solid {t["line"]};
+                border-radius: 8px;
                 padding: 4px;
             }}
             QMenu::item {{
                 font-family: "{family}";
                 background: transparent;
                 color: {t["text"]};
-                padding: 6px 18px;
+                border-radius: 6px;
+                padding: 8px 14px;
             }}
             QMenu::item:selected {{ background: {t["selected"]}; }}
             """
@@ -611,6 +813,10 @@ def _window_style(family: str) -> str:
                 border-bottom: 1px solid {t["line"]};
             }}
             QWidget#tabHeader QLabel {{ background: transparent; }}
+            QWidget#tabHeader QWidget#modeCluster, QWidget#modeCycle {{
+                background: transparent;
+                border: none;
+            }}
             QLabel#sub {{ font-family: "{family}"; color: {t["muted"]}; }}
             QLabel#clear {{
                 font-family: "{family}";
@@ -640,22 +846,27 @@ def _window_style(family: str) -> str:
                 color: {t["text"]};
                 background: transparent;
             }}
-            QLineEdit {{
-                background: {t["surface"]};
-                color: {t["text"]};
-                border: 1px solid {t["line"]};
-                border-radius: 8px;
-                padding: 4px 12px;
-                min-height: 28px;
+            QLabel#watchOn {{
+                font-family: "{family}";
+                font-size: 14px;
+                font-weight: 700;
+                color: {t["green"]};
+                background: transparent;
             }}
-            QLineEdit:focus {{
-                border: 1px solid {t["gold"]};
+            QLabel#watchOff {{
+                font-family: "{family}";
+                font-size: 14px;
+                font-weight: 700;
+                color: #6b4428;
+                background: transparent;
             }}
-            QLineEdit:disabled {{
-                color: {t["muted"]};
-                background: {t["head"]};
-                border: 1px solid {t["line"]};
+            QLabel#hotkey {{
+                font-family: "{family}";
+                font-size: 14px;
+                color: #6b4428;
+                background: transparent;
             }}
+            """ + _input_rules(family) + f"""
             QPlainTextEdit, QTableWidget, QListWidget {{
                 background: {t["surface"]};
                 color: {t["text"]};
@@ -670,12 +881,24 @@ def _window_style(family: str) -> str:
                 padding: 8px 12px;
                 border: none;
             }}
-            QListWidget#history {{ padding: 0; outline: none; }}
+            QListWidget#history {{
+                font-family: "{family}";
+                font-size: 13pt;
+                padding: 0;
+                outline: none;
+                border-radius: 12px;
+            }}
             QListWidget#history:focus {{
                 border: 1px solid {t["line"]};
                 outline: none;
             }}
-            QListWidget#history::item {{ padding: 0; border: none; outline: none; }}
+            QListWidget#history::item {{
+                padding: 6px 16px;
+                margin: 2px 6px;
+                border: none;
+                border-radius: 8px;
+                outline: none;
+            }}
             QListWidget::item:hover {{ background: {t["hover"]}; }}
             QListWidget::item:selected, QListWidget::item:selected:hover {{
                 background: {t["selected"]};
@@ -698,6 +921,7 @@ def _window_style(family: str) -> str:
             }}
             QTableWidget#blacklist {{
                 background: {t["surface"]};
+                border-radius: 12px;
                 padding: 0;
                 outline: none;
             }}
@@ -725,7 +949,7 @@ def _window_style(family: str) -> str:
                 background: {t["head"]};
                 color: {t["head_text"]};
                 border: none;
-                padding: 8px 14px;
+                padding: 10px 16px;
                 font-weight: 500;
             }}
             QScrollBar:vertical, QScrollBar:horizontal {{
@@ -737,7 +961,7 @@ def _window_style(family: str) -> str:
             QScrollBar:horizontal {{ height: 10px; }}
             QScrollBar::handle:vertical, QScrollBar::handle:horizontal {{
                 background: {t["button_line"]};
-                border-radius: 4px;
+                border-radius: 5px;
                 min-height: 24px;
                 min-width: 24px;
             }}
@@ -750,48 +974,38 @@ def _window_style(family: str) -> str:
                 height: 0;
                 width: 0;
             }}
-            QWidget#tableHead {{ background: {t["head"]}; }}
+            QWidget#tableHead {{
+                background: {t["head"]};
+                border: none;
+                border-bottom: 1px solid {t["line"]};
+                border-top-left-radius: 11px;
+                border-top-right-radius: 11px;
+            }}
             QWidget#tableHead QLabel {{
                 font-family: "{family}";
                 color: {t["head_text"]};
                 background: transparent;
             }}
-            QWidget#settingsCard {{
+            QWidget#recordCard QTableWidget#recordNames {{
                 background: {t["surface"]};
-                border: 1px solid {t["line"]};
-                border-radius: 12px;
-            }}
-            QWidget#settingsRow {{
-                background: transparent;
                 border: none;
-                border-bottom: 1px solid {t["line"]};
+                border-radius: 0;
+                padding: 0;
             }}
-            QWidget#settingsRowLast {{
-                background: transparent;
-                border: none;
-            }}
-            QPushButton {{
-                background: {t["button"]};
-                color: {t["text"]};
-                border: 1px solid {t["button_line"]};
-                border-radius: 8px;
-                padding: 6px 14px;
+            """ + _card_rules() + f"""
+            QCheckBox {{
+                spacing: 8px;
                 min-height: 28px;
+                color: {t["text"]};
+                background: transparent;
             }}
-            QPushButton#primary {{
-                background: {t["gold"]};
-                border-color: {t["gold_line"]};
-                color: {t["on_gold"]};
-            }}
-            QPushButton#danger {{
-                color: {t["danger"]};
-                border-color: {t["danger"]};
-            }}
+            QCheckBox:hover {{ color: {t["gold"]}; }}
+            """ + _button_rules(family) + f"""
             QPushButton#rowDelete {{
                 background: transparent;
                 color: {t["danger"]};
                 border: none;
-                border-radius: 4px;
+                border-radius: 8px;
                 padding: 0;
                 min-height: 28px;
                 font-size: 22px;
@@ -801,21 +1015,16 @@ def _window_style(family: str) -> str:
                 background: {t["danger_hover"]};
                 color: {t["danger"]};
             }}
-            QCheckBox {{
-                spacing: 8px;
-                min-height: 28px;
-                color: {t["text"]};
-                background: transparent;
-            }}
-            """ + _control_hover() + _menu_style(family) + f"""
+            """ + _menu_style(family) + f"""
             QPushButton#tab {{
                 color: {t["muted"]};
                 background: transparent;
                 border: none;
                 border-radius: 8px;
-                padding: 6px 14px;
+                padding: 0 14px;
                 margin: 0 2px;
                 min-height: 28px;
+                max-height: 28px;
             }}
             QPushButton#tab:hover {{
                 color: {t["text"]};
@@ -853,51 +1062,39 @@ def _window_style(family: str) -> str:
 def _dialog_style(family: str) -> str:
     t = THEME
     return f"""
-            QDialog, QMessageBox, QLabel, QLineEdit, QPushButton, QCheckBox {{
+            QDialog, QMessageBox {{
                 font-family: "{family}";
                 background: {t["bg"]};
                 color: {t["text"]};
             }}
-            QLabel#sub {{ font-family: "{family}"; color: {t["muted"]}; background: transparent; }}
-            QLineEdit {{
-                background: {t["surface"]};
-                border: 1px solid {t["line"]};
-                border-radius: 8px;
-                padding: 4px 10px;
-                min-height: 28px;
+            QLabel {{
+                font-family: "{family}";
+                background: transparent;
+                color: {t["text"]};
             }}
-            QLineEdit:focus {{ border: 1px solid {t["gold"]}; }}
+            QLabel#field, QLabel#sub {{
+                font-family: "{family}";
+                color: {t["muted"]};
+                background: transparent;
+            }}
+            QLabel#error {{
+                font-family: "{family}";
+                color: {t["red"]};
+                background: transparent;
+            }}
             QCheckBox {{
+                font-family: "{family}";
                 background: transparent;
                 spacing: 8px;
                 min-height: 28px;
                 padding: 2px 4px;
-                border-radius: 4px;
-            }}
-            QPushButton {{
-                background: {t["button"]};
                 color: {t["text"]};
-                border: 1px solid {t["button_line"]};
-                border-radius: 8px;
-                padding: 6px 14px;
-                min-height: 28px;
             }}
-            QPushButton#primary {{
-                background: {t["gold"]};
-                border-color: {t["gold_line"]};
-                color: {t["on_gold"]};
-            }}
-            QPushButton#danger {{ color: {t["danger"]}; }}
-            """ + _control_hover() + f"""
             QCheckBox:hover {{
                 background: {t["hover"]};
                 color: {t["text"]};
             }}
-            QLabel#error {{
-                color: {t["red"]};
-                background: transparent;
-            }}
-            """
+            """ + _input_rules(family) + _button_rules(family)
 
 
 def _colorref(value: str):
@@ -932,6 +1129,27 @@ def _page(layout) -> None:
     layout.setSpacing(GAP)
 
 
+def _check_mark(color: str) -> QPixmap:
+    ratio = 2
+    size = 16 * ratio
+    pixmap = QPixmap(size, size)
+    pixmap.setDevicePixelRatio(ratio)
+    pixmap.fill(Qt.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+    painter.setPen(Qt.NoPen)
+    painter.setBrush(QColor(color))
+    painter.drawEllipse(0, 0, size, size)
+    pen = QPen(QColor("#ffffff"), 1.8 * ratio)
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+    painter.setPen(pen)
+    painter.drawLine(4 * ratio, 8 * ratio, 7 * ratio, 11 * ratio)
+    painter.drawLine(7 * ratio, 11 * ratio, 12 * ratio, 5 * ratio)
+    painter.end()
+    return pixmap
+
+
 def _watch_mark(color: str) -> QPixmap:
     ratio = 2
     size = 8 * ratio
@@ -949,6 +1167,109 @@ def _watch_mark(color: str) -> QPixmap:
     painter.drawEllipse(inset, inset, size - inset * 2, size - inset * 2)
     painter.end()
     return pixmap
+
+
+def _paint_cycle(painter: QPainter) -> None:
+    """Two arrows in a cycle, about 16px, stroked like the status check."""
+    painter.setRenderHint(QPainter.Antialiasing)
+    color = QColor(THEME["text"])
+    pen = QPen(color, 1.55)
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+    painter.setPen(pen)
+    painter.setBrush(Qt.NoBrush)
+    center = 8.0
+    radius = 5.15
+
+    def at(deg: float) -> QPointF:
+        rad = radians(deg)
+        return QPointF(center + radius * cos(rad), center - radius * sin(rad))
+
+    def arc(start: float, end: float) -> None:
+        path = QPainterPath()
+        steps = 16
+        path.moveTo(at(start))
+        for step in range(1, steps + 1):
+            path.lineTo(at(start + (end - start) * step / steps))
+        painter.drawPath(path)
+
+    def head(deg: float) -> None:
+        rad = radians(deg)
+        ux, uy = sin(rad), cos(rad)
+        tip = at(deg)
+        length = 2.85
+        wing = 1.6
+        px, py = -uy, ux
+        back_x = tip.x() - ux * length
+        back_y = tip.y() - uy * length
+        painter.drawLine(tip, QPointF(back_x + px * wing, back_y + py * wing))
+        painter.drawLine(tip, QPointF(back_x - px * wing, back_y - py * wing))
+
+    arc(150, 38)
+    head(38)
+    arc(-30, -142)
+    head(-142)
+
+
+class ModeCycleButton(QWidget):
+    """Cycle icon just before the capture-mode mark. Fades in on hover."""
+
+    def __init__(self, on_click) -> None:
+        super().__init__()
+        self._on_click = on_click
+        self._shown = 0.0
+        self._want = 0.0
+        self.setObjectName("modeCycle")
+        self.setFixedSize(16, 16)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFocusPolicy(Qt.NoFocus)
+        self.setAttribute(Qt.WA_NoSystemBackground, True)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setAutoFillBackground(False)
+        self._anim = QVariantAnimation(self)
+        self._anim.setDuration(140)
+        self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._anim.valueChanged.connect(self._set_shown)
+        self._anim.finished.connect(self._finish_shown)
+        self.hide()
+
+    def set_revealed(self, revealed: bool) -> None:
+        target = 1.0 if revealed else 0.0
+        if revealed:
+            self.show()
+        if abs(self._shown - target) < 0.001 and self._anim.state() != QVariantAnimation.State.Running:
+            self._want = target
+            if not revealed:
+                self.hide()
+            return
+        self._want = target
+        self._anim.stop()
+        self._anim.setStartValue(float(self._shown))
+        self._anim.setEndValue(target)
+        self._anim.start()
+
+    def _set_shown(self, value: float) -> None:
+        self._shown = float(value)
+        self.update()
+
+    def _finish_shown(self) -> None:
+        if self._want <= 0.0 and self._shown <= 0.02:
+            self.hide()
+
+    def paintEvent(self, _event) -> None:  # noqa: ANN001
+        if self._shown <= 0.02:
+            return
+        painter = QPainter(self)
+        painter.setOpacity(self._shown)
+        _paint_cycle(painter)
+        painter.end()
+
+    def mousePressEvent(self, event) -> None:  # noqa: ANN001
+        if event.button() == Qt.LeftButton:
+            self._on_click()
+            event.accept()
+            return
+        super().mousePressEvent(event)
 
 
 class ThemeSwatch(QWidget):
@@ -978,7 +1299,10 @@ class ThemeSwatch(QWidget):
     def paintEvent(self, _event) -> None:  # noqa: ANN001
         painter = QPainter(self)
         hang = self._badge // 2
-        painter.fillRect(0, hang, self._square, self._square, QColor(self._color))
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(self._color))
+        painter.drawRoundedRect(0, hang, self._square, self._square, 8, 8)
         if not self._selected:
             return
         painter.setRenderHint(QPainter.Antialiasing)
@@ -1002,21 +1326,29 @@ class ThemeSwatch(QWidget):
 
 
 def _confirm(parent, text: str) -> bool:
-    box = QMessageBox(parent)
+    box = QDialog(parent)
     box.setWindowTitle("黑名单检测")
-    box.setText(text)
-    box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-    box.setDefaultButton(QMessageBox.No)
-    yes = box.button(QMessageBox.Yes)
-    no = box.button(QMessageBox.No)
-    if yes is not None:
-        yes.setText("确定")
-    if no is not None:
-        no.setText("取消")
     box.setFont(chinese_font())
     box.setStyleSheet(_dialog_style(chinese_family()))
     _caption_color(box)
-    return box.exec() == QMessageBox.Yes
+    layout = QVBoxLayout(box)
+    layout.setContentsMargins(DIALOG_PAD, DIALOG_PAD, DIALOG_PAD, DIALOG_PAD)
+    layout.setSpacing(GAP)
+    message = QLabel(text)
+    message.setWordWrap(True)
+    layout.addWidget(message)
+    buttons = QHBoxLayout()
+    buttons.addStretch(1)
+    yes = QPushButton("确定")
+    yes.setObjectName("primary")
+    yes.setAutoDefault(True)
+    yes.setDefault(True)
+    yes.clicked.connect(box.accept)
+    buttons.addWidget(yes)
+    layout.addLayout(buttons)
+    box.setMinimumWidth(360)
+    _pointing(box)
+    return box.exec() == QDialog.Accepted
 
 
 def _icon() -> QIcon:
@@ -1049,9 +1381,11 @@ class TagEditDialog(QDialog):
         self.setStyleSheet(_dialog_style(chinese_family()))
         _caption_color(self)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(PAD, PAD, PAD, PAD)
+        layout.setContentsMargins(DIALOG_PAD, DIALOG_PAD, DIALOG_PAD, DIALOG_PAD)
         layout.setSpacing(GAP)
-        layout.addWidget(QLabel("标签"))
+        label = QLabel("标签")
+        label.setObjectName("field")
+        layout.addWidget(label)
         self.name_edit = QLineEdit(tag)
         layout.addWidget(self.name_edit)
         self.error = QLabel("")
@@ -1067,16 +1401,11 @@ class TagEditDialog(QDialog):
         remove.clicked.connect(self._delete)
         buttons.addWidget(remove)
         buttons.addStretch(1)
-        cancel = QPushButton("取消")
-        cancel.setAutoDefault(False)
-        cancel.setDefault(False)
-        cancel.clicked.connect(self.reject)
         save = QPushButton("保存")
         save.setObjectName("primary")
         save.setAutoDefault(True)
         save.setDefault(True)
         save.clicked.connect(self._accept)
-        buttons.addWidget(cancel)
         buttons.addWidget(save)
         layout.addLayout(buttons)
         self.setMinimumWidth(360)
@@ -1134,9 +1463,11 @@ class TagCreateDialog(QDialog):
         self.setStyleSheet(_dialog_style(chinese_family()))
         _caption_color(self)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(PAD, PAD, PAD, PAD)
+        layout.setContentsMargins(DIALOG_PAD, DIALOG_PAD, DIALOG_PAD, DIALOG_PAD)
         layout.setSpacing(GAP)
-        layout.addWidget(QLabel("标签"))
+        label = QLabel("标签")
+        label.setObjectName("field")
+        layout.addWidget(label)
         self.name_edit = QLineEdit()
         layout.addWidget(self.name_edit)
         self.error = QLabel("")
@@ -1146,16 +1477,11 @@ class TagCreateDialog(QDialog):
         buttons = QHBoxLayout()
         buttons.setSpacing(GAP)
         buttons.addStretch(1)
-        cancel = QPushButton("取消")
-        cancel.setAutoDefault(False)
-        cancel.setDefault(False)
-        cancel.clicked.connect(self.reject)
         add = QPushButton("添加")
         add.setObjectName("primary")
         add.setAutoDefault(True)
         add.setDefault(True)
         add.clicked.connect(self._accept)
-        buttons.addWidget(cancel)
         buttons.addWidget(add)
         layout.addLayout(buttons)
         self.setMinimumWidth(360)
@@ -1182,7 +1508,7 @@ class TagCreateDialog(QDialog):
 
 
 class AddNameDialog(QDialog):
-    """One player. Click a tag from 设置 to put it on this record."""
+    """One player. Click a tag to put it on this record, and click it again to take it off."""
 
     def __init__(
         self,
@@ -1205,42 +1531,78 @@ class AddNameDialog(QDialog):
         self.catalog = list(catalog or TAGS)
         self.picked = [tag for tag in self.catalog if tag in tags]
         self.picked.extend(tag for tag in tags if tag not in self.picked)
+        self._tag_order = list(self.picked)
+        self._tag_order.extend(tag for tag in self.catalog if tag not in self._tag_order)
         self.deleted = False
         self.setFont(chinese_font())
         self.setStyleSheet(_dialog_style(chinese_family()))
         _caption_color(self)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(PAD, PAD, PAD, PAD)
-        layout.setSpacing(GAP)
-        layout.addWidget(QLabel("名字"))
+        layout.setContentsMargins(DIALOG_PAD, DIALOG_PAD, DIALOG_PAD, DIALOG_PAD)
+        layout.setSpacing(10)
+        label_width = QFontMetrics(chinese_font()).horizontalAdvance("名字") + 8
+
+        def add_field(title: str, widget: QWidget) -> None:
+            row = QHBoxLayout()
+            row.setSpacing(12)
+            label = QLabel(title)
+            label.setObjectName("field")
+            label.setFixedWidth(label_width)
+            row.addWidget(label, 0, Qt.AlignVCenter)
+            row.addWidget(widget, 1)
+            layout.addLayout(row)
+
         self.name_edit = QLineEdit(name)
-        layout.addWidget(self.name_edit)
-        self.name_error = QLabel("")
-        self.name_error.setObjectName("error")
-        layout.addWidget(self.name_error)
-        self.name_edit.textChanged.connect(lambda _text: self.name_error.setText(""))
-        layout.addWidget(QLabel("标签"))
-        self.tag_host = _FlowHost()
-        self.tag_rows = _FlowLayout(self.tag_host, gap=6)
-        layout.addWidget(self.tag_host)
-        self.tag_empty = QLabel("还没有")
-        self.tag_empty.setObjectName("sub")
-        layout.addWidget(self.tag_empty)
-        self.add_label = QLabel("可加")
-        layout.addWidget(self.add_label)
-        self.add_host = _FlowHost()
-        self.add_rows = _FlowLayout(self.add_host, gap=10)
-        layout.addWidget(self.add_host)
-        self._refresh_tags()
-        layout.addWidget(QLabel("原因"))
-        self.detail_edit = QLineEdit(detail)
-        layout.addWidget(self.detail_edit)
         added_on = _zh_date(added_at)
         if added_on:
-            layout.addWidget(QLabel("添加时间"))
+            name_row = QHBoxLayout()
+            name_row.setSpacing(12)
+            name_label = QLabel("名字")
+            name_label.setObjectName("field")
+            name_label.setFixedWidth(label_width)
+            name_row.addWidget(name_label, 0, Qt.AlignVCenter)
+            name_row.addWidget(self.name_edit, 1)
             self.added_on = QLabel(added_on)
             self.added_on.setObjectName("sub")
-            layout.addWidget(self.added_on)
+            self.added_on.setFixedWidth(QFontMetrics(chinese_font()).horizontalAdvance(added_on) + 2)
+            name_row.addWidget(self.added_on, 0, Qt.AlignVCenter)
+            layout.addLayout(name_row)
+        else:
+            add_field("名字", self.name_edit)
+        self.name_error = QLabel("")
+        self.name_error.setObjectName("error")
+        self.name_error.hide()
+        layout.addWidget(self.name_error)
+        self.name_edit.textChanged.connect(self._clear_name_error)
+        tag_row = QHBoxLayout()
+        tag_row.setSpacing(12)
+        tag_label = QLabel("标签")
+        tag_label.setObjectName("field")
+        tag_label.setFixedWidth(label_width)
+        tag_row.addWidget(tag_label, 0, Qt.AlignVCenter)
+        self.tag_host = _FlowHost()
+        self.tag_rows = _FlowLayout(self.tag_host, gap=8)
+        tag_row.addWidget(self.tag_host, 1)
+        layout.addLayout(tag_row)
+        self._refresh_tags()
+        self.detail_edit = QPlainTextEdit()
+        self.detail_edit.setPlainText(detail)
+        self.detail_edit.setTabChangesFocus(True)
+        self.detail_edit.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
+        self.detail_edit.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.detail_edit.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.detail_edit.document().setDocumentMargin(0)
+        self.detail_edit.setFixedHeight(QFontMetrics(self.font()).lineSpacing() * 3 + 18)
+        detail_row = QHBoxLayout()
+        detail_row.setSpacing(12)
+        detail_label = QLabel("详情")
+        detail_label.setObjectName("field")
+        detail_label.setFixedWidth(label_width)
+        detail_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        detail_label.setContentsMargins(0, 8, 0, 0)
+        detail_row.addWidget(detail_label, 0, Qt.AlignTop)
+        detail_row.addWidget(self.detail_edit, 1)
+        layout.addLayout(detail_row)
         buttons = QHBoxLayout()
         buttons.setSpacing(GAP)
         remove = None
@@ -1252,22 +1614,20 @@ class AddNameDialog(QDialog):
             remove.clicked.connect(self._delete)
             buttons.addWidget(remove)
         buttons.addStretch(1)
-        cancel = QPushButton("取消")
-        cancel.setAutoDefault(False)
-        cancel.setDefault(False)
-        cancel.clicked.connect(self.reject)
         confirm = QPushButton("保存" if allow_delete else "添加")
         confirm.setObjectName("primary")
         confirm.setAutoDefault(True)
         confirm.setDefault(True)
         confirm.clicked.connect(self._accept)
-        buttons.addWidget(cancel)
         buttons.addWidget(confirm)
         layout.addLayout(buttons)
         self.setMinimumWidth(420)
         self.name_edit.returnPressed.connect(self._accept)
-        self.detail_edit.returnPressed.connect(self._accept)
         _pointing(self)
+
+    def _clear_name_error(self, _text: str) -> None:
+        self.name_error.setText("")
+        self.name_error.hide()
 
     def showEvent(self, event) -> None:  # noqa: ANN001
         super().showEvent(event)
@@ -1275,18 +1635,12 @@ class AddNameDialog(QDialog):
 
     def _refresh_tags(self) -> None:
         _clear_layout(self.tag_rows)
-        for tag in self.picked:
-            self.tag_rows.addWidget(TagPill(tag, lambda picked=tag: self._detach_tag(picked)))
+        for tag in self._tag_order:
+            self.tag_rows.addWidget(
+                TagPill(tag, on_click=lambda picked=tag: self._toggle_tag(picked), active=tag in self.picked)
+            )
         self.tag_host.updateGeometry()
-        self.tag_host.setVisible(bool(self.picked))
-        self.tag_empty.setVisible(not self.picked)
-        _clear_layout(self.add_rows)
-        spare = [tag for tag in self.catalog if tag not in self.picked]
-        for tag in spare:
-            self.add_rows.addWidget(TagAdd(tag, lambda picked=tag: self._attach_tag(picked)))
-        self.add_host.updateGeometry()
-        self.add_label.setVisible(bool(spare))
-        self.add_host.setVisible(bool(spare))
+        self.tag_host.setVisible(bool(self._tag_order))
 
     def _toggle_tag(self, tag: str) -> None:
         if tag in self.picked:
@@ -1299,11 +1653,18 @@ class AddNameDialog(QDialog):
         if not chosen or chosen in self.picked or chosen not in self.catalog:
             return
         self.picked.append(chosen)
-        self._refresh_tags()
+        self._paint_tag(chosen)
 
     def _detach_tag(self, tag: str) -> None:
         self.picked = [item for item in self.picked if item != tag]
-        self._refresh_tags()
+        self._paint_tag(tag)
+
+    def _paint_tag(self, tag: str) -> None:
+        for index in range(self.tag_rows.count()):
+            pill = self.tag_rows.itemAt(index).widget()
+            if isinstance(pill, TagPill) and pill._text == tag:
+                pill.set_active(tag in self.picked)
+                return
 
     def _chosen(self) -> tuple[str, ...]:
         ordered = [tag for tag in self.catalog if tag in self.picked]
@@ -1313,11 +1674,13 @@ class AddNameDialog(QDialog):
     def _accept(self) -> None:
         if not self.name_edit.text().strip():
             self.name_error.setText("请填写名字")
+            self.name_error.show()
             return
         self.name_error.setText("")
+        self.name_error.hide()
         self.name = self.name_edit.text()
         self.tags = self._chosen()
-        self.detail = self.detail_edit.text()
+        self.detail = self.detail_edit.toPlainText()
         self.deleted = False
         self.accept()
 
@@ -1343,9 +1706,11 @@ class BatchAddDialog(QDialog):
         self.setStyleSheet(_dialog_style(chinese_family()))
         _caption_color(self)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(PAD, PAD, PAD, PAD)
+        layout.setContentsMargins(DIALOG_PAD, DIALOG_PAD, DIALOG_PAD, DIALOG_PAD)
         layout.setSpacing(GAP)
-        layout.addWidget(QLabel("一行一个：名字，炸房，贴脸，原因"))
+        hint = QLabel("一行一个：名字，炸房，贴脸，原因")
+        hint.setObjectName("field")
+        layout.addWidget(hint)
         self.edit = QPlainTextEdit()
         self.edit.setPlaceholderText("把名字粘在这里")
         self.edit.setMinimumHeight(180)
@@ -1356,16 +1721,11 @@ class BatchAddDialog(QDialog):
         buttons = QHBoxLayout()
         buttons.setSpacing(GAP)
         buttons.addStretch(1)
-        cancel = QPushButton("取消")
-        cancel.setAutoDefault(False)
-        cancel.setDefault(False)
-        cancel.clicked.connect(self.reject)
         confirm = QPushButton("添加")
         confirm.setObjectName("primary")
         confirm.setAutoDefault(True)
         confirm.setDefault(True)
         confirm.clicked.connect(self._accept)
-        buttons.addWidget(cancel)
         buttons.addWidget(confirm)
         layout.addLayout(buttons)
         self.setMinimumWidth(420)
@@ -1435,6 +1795,75 @@ class CheckWorker(QThread):
         self._queue.put(None)
 
 
+class _DetailTip(QWidget):
+    """Small hover card for the full 详情. It does not take the click."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            None,
+            Qt.Tool | Qt.FramelessWindowHint | Qt.WindowDoesNotAcceptFocus,
+        )
+        self.setObjectName("detailTip")
+        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setFocusPolicy(Qt.NoFocus)
+        self.setMaximumWidth(320)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(0)
+        self.label = QLabel()
+        self.label.setObjectName("detailTipText")
+        self.label.setWordWrap(True)
+        self.label.setTextFormat(Qt.TextFormat.PlainText)
+        self.label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        self.label.setFont(chinese_font())
+        layout.addWidget(self.label)
+        self.apply_theme()
+
+    def apply_theme(self) -> None:
+        family = chinese_family()
+        t = THEME
+        self.setStyleSheet(
+            f"""
+            QWidget#detailTip {{
+                background: {t["surface"]};
+                color: {t["text"]};
+                border: 1px solid {t["line"]};
+                border-radius: {RADIUS}px;
+            }}
+            QLabel#detailTipText {{
+                background: transparent;
+                color: {t["text"]};
+                font-family: "{family}";
+                font-size: 12px;
+                border: none;
+            }}
+            """
+        )
+
+    def show_reason(self, text: str, anchor: QPoint) -> None:
+        self.apply_theme()
+        self.label.setFont(chinese_font())
+        self.label.setText(text)
+        metrics = QFontMetrics(self.label.font())
+        longest = max((metrics.horizontalAdvance(line) for line in text.split("\n")), default=0)
+        self.label.setFixedWidth(min(296, max(longest + 2, 48)))
+        self.adjustSize()
+        self._place(anchor)
+        self.show()
+
+    def _place(self, anchor: QPoint) -> None:
+        screen = QApplication.screenAt(anchor) or QApplication.primaryScreen()
+        area = screen.availableGeometry() if screen is not None else QRect(0, 0, 1920, 1080)
+        x = anchor.x()
+        y = anchor.y() + 6
+        if y + self.height() > area.bottom() - 8:
+            y = anchor.y() - self.height() - 6
+        if x + self.width() > area.right() - 8:
+            x = area.right() - self.width() - 8
+        self.move(max(area.left() + 8, x), max(area.top() + 8, y))
+
+
 class WarningWindow(QWidget):
     """Small topmost notice. It does not take keyboard focus."""
 
@@ -1450,7 +1879,7 @@ class WarningWindow(QWidget):
         self.setAttribute(Qt.WA_ShowWithoutActivating, True)
         self.setFocusPolicy(Qt.NoFocus)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(PAD, PAD, PAD, PAD)
+        layout.setContentsMargins(DIALOG_PAD, DIALOG_PAD, DIALOG_PAD, DIALOG_PAD)
         layout.setSpacing(GAP)
         title = QLabel("黑名单玩家")
         title.setObjectName("warnTitle")
@@ -1463,7 +1892,7 @@ class WarningWindow(QWidget):
         close = QPushButton("关闭")
         close.setFocusPolicy(Qt.NoFocus)
         close.clicked.connect(self.close)
-        layout.addWidget(close)
+        layout.addWidget(close, 0, Qt.AlignLeft)
         self.setFont(chinese_font())
         self.body.setFont(chinese_font(12))
         self.apply_theme()
@@ -1475,29 +1904,23 @@ class WarningWindow(QWidget):
         self.setStyleSheet(
             f"""
             QWidget {{ background: {t["bg"]}; color: {t["text"]}; font-family: "{family}"; }}
-            QLabel#warnTitle {{ color: {t["red"]}; font-family: "{family}"; font-size: 16px; font-weight: 600; background: transparent; }}
+            QLabel#warnTitle {{
+                color: {t["red"]};
+                font-family: "{family}";
+                font-size: 16px;
+                font-weight: 600;
+                background: transparent;
+            }}
             QPlainTextEdit {{
                 background: {t["surface"]};
                 color: {t["text"]};
                 border: 1px solid {t["line"]};
-                border-radius: 8px;
+                border-radius: 12px;
+                padding: 12px 16px;
                 font-family: "{family}";
                 font-size: 14px;
             }}
-            QPushButton {{
-                background: {t["button"]};
-                color: {t["text"]};
-                border: 1px solid {t["button_line"]};
-                border-radius: 8px;
-                padding: 6px 14px;
-                min-height: 28px;
-                font-family: "{family}";
-            }}
-            QPushButton:hover {{
-                background: {t["hover"]};
-                border-color: {t["gold_line"]};
-            }}
-            """
+            """ + _button_rules(family)
         )
 
     def present(self, lines: list[str]) -> None:
@@ -1556,16 +1979,22 @@ class ClearWindow(QWidget):
         self.setAttribute(Qt.WA_ShowWithoutActivating, True)
         self.setFocusPolicy(Qt.NoFocus)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(PAD, PAD, PAD, PAD)
+        layout.setContentsMargins(DIALOG_PAD, DIALOG_PAD, DIALOG_PAD, DIALOG_PAD)
         layout.setSpacing(GAP)
         title = QLabel("没有发现黑名单")
         title.setObjectName("clearTitle")
         layout.addWidget(title)
+        card = QWidget()
+        card.setObjectName("noticeCard")
+        card.setAttribute(Qt.WA_StyledBackground, True)
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(16, 16, 16, 16)
         self.detail = QLabel("本局没有黑名单玩家。")
         self.detail.setObjectName("clearDetail")
         self.detail.setWordWrap(True)
         self.detail.setMinimumWidth(360)
-        layout.addWidget(self.detail)
+        card_layout.addWidget(self.detail)
+        layout.addWidget(card)
         close = QPushButton("关闭")
         close.setFocusPolicy(Qt.NoFocus)
         close.clicked.connect(self.close)
@@ -1580,22 +2009,20 @@ class ClearWindow(QWidget):
         self.setStyleSheet(
             f"""
             QWidget {{ background: {t["bg"]}; color: {t["text"]}; font-family: "{family}"; }}
-            QLabel#clearTitle {{ color: {t["green"]}; font-family: "{family}"; font-size: 18px; font-weight: 600; background: transparent; }}
-            QLabel#clearDetail {{ color: {t["text"]}; font-family: "{family}"; font-size: 15px; background: transparent; }}
-            QPushButton {{
-                background: {t["button"]};
-                color: {t["text"]};
-                border: 1px solid {t["button_line"]};
-                border-radius: 8px;
-                padding: 6px 14px;
-                min-height: 28px;
+            QLabel#clearTitle {{
+                color: {t["green"]};
                 font-family: "{family}";
+                font-size: 18px;
+                font-weight: 600;
+                background: transparent;
             }}
-            QPushButton:hover {{
-                background: {t["hover"]};
-                border-color: {t["gold_line"]};
+            QLabel#clearDetail {{
+                color: {t["text"]};
+                font-family: "{family}";
+                font-size: 15px;
+                background: transparent;
             }}
-            """
+            """ + _card_rules() + _button_rules(family)
         )
 
     def present(self, detail: str) -> None:
@@ -1652,11 +2079,11 @@ class LobbyPanel(QWidget):
 
     def set_mode(self, mode: str, text: str) -> None:
         tones = {
-            "checking": ("#d06a14", "#fff8f0"),
-            "clear": ("#1e8a4a", "#f4fff7"),
-            "hit": ("#b33a2e", "#fff6f4"),
+            "checking": (THEME["gold"], THEME["selected"], THEME["gold"]),
+            "clear": (THEME["green"], THEME["green_wash"], THEME["green"]),
+            "hit": (THEME["red"], THEME["red_wash"], THEME["red"]),
         }
-        background, color = tones[mode]
+        ink, wash, border = tones[mode]
         self.mode = mode
         self.label.setText(text)
         self.label.setAlignment(Qt.AlignVCenter | (Qt.AlignLeft if mode == "hit" else Qt.AlignCenter))
@@ -1665,12 +2092,13 @@ class LobbyPanel(QWidget):
             f"""
             LobbyPanel, QWidget {{ background: transparent; }}
             QLabel {{
-                background: {background};
-                color: {color};
+                background: {wash};
+                color: {ink};
+                border: 1px solid {border};
                 font-family: "{family}";
                 font-size: 15px;
                 padding: 12px 16px;
-                border-radius: 8px;
+                border-radius: 12px;
             }}
             """
         )
@@ -1785,6 +2213,7 @@ class MainWindow(QMainWindow):
         self._rescan_active = False
         self._history_hover = (-1, -1)
         self._closed_days: set[str] = set()
+        self._day_hover = -1
         self._check_started: float | None = None
         self._release_foreground = False
         self._told_tray = False
@@ -1837,6 +2266,7 @@ class MainWindow(QMainWindow):
             button = QPushButton(self.tabs.tabText(index))
             button.setObjectName("tab")
             button.setFont(ui_font())
+            button.setFixedHeight(28)
             button.setCheckable(True)
             button.setFocusPolicy(Qt.NoFocus)
             button.setCursor(Qt.PointingHandCursor)
@@ -1845,14 +2275,29 @@ class MainWindow(QMainWindow):
             header_row.addWidget(button, 0, Qt.AlignVCenter)
         self._tab_group.idClicked.connect(self.tabs.setCurrentIndex)
         header_row.addStretch(1)
+        self.mode_cluster = QWidget()
+        self.mode_cluster.setObjectName("modeCluster")
+        self.mode_cluster.setAttribute(Qt.WA_NoSystemBackground, True)
+        self.mode_cluster.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.mode_cluster.setAutoFillBackground(False)
+        self.mode_cluster.setMouseTracking(True)
+        cluster_row = QHBoxLayout(self.mode_cluster)
+        cluster_row.setContentsMargins(0, 0, 0, 0)
+        cluster_row.setSpacing(6)
+        self.mode_cycle = ModeCycleButton(self._cycle_capture_mode)
         self.watch_mark = QLabel()
         self.watch_mark.setPixmap(_watch_mark(THEME["muted"]))
         self.watch_label = QLabel("未开启")
         self.watch_label.setObjectName("idle")
         self.watch_label.setMaximumWidth(200)
         self.watch_label.setFont(chinese_font(14))
-        header_row.addWidget(self.watch_mark, 0, Qt.AlignVCenter)
-        header_row.addWidget(self.watch_label, 0, Qt.AlignVCenter)
+        cluster_row.addWidget(self.mode_cycle, 0, Qt.AlignVCenter)
+        cluster_row.addWidget(self.watch_mark, 0, Qt.AlignVCenter)
+        cluster_row.addWidget(self.watch_label, 0, Qt.AlignVCenter)
+        for widget in (self.mode_cluster, self.mode_cycle, self.watch_mark, self.watch_label):
+            widget.setMouseTracking(True)
+            widget.installEventFilter(self)
+        header_row.addWidget(self.mode_cluster, 0, Qt.AlignVCenter)
         self._sync_tab_buttons(self.tabs.currentIndex())
         outer.addWidget(header)
         outer.addWidget(self.tabs)
@@ -1904,7 +2349,7 @@ class MainWindow(QMainWindow):
             if item is not None:
                 item.setToolTip("拖动换顺序，拖边缘改宽度")
         header = self.blacklist_table.horizontalHeader()
-        header.setStretchLastSection(False)
+        header.setStretchLastSection(True)
         for column in range(4):
             header.setSectionResizeMode(column, header.ResizeMode.Interactive)
         header.setMinimumSectionSize(72)
@@ -1925,6 +2370,9 @@ class MainWindow(QMainWindow):
         self.blacklist_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.blacklist_table.setShowGrid(False)
         self.blacklist_table.setAutoScroll(False)
+        self.blacklist_table.setWordWrap(False)
+        self.blacklist_table.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self.blacklist_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.blacklist_table.setFocusPolicy(Qt.NoFocus)
         self.blacklist_table.setItemDelegate(_PlainItemDelegate(self.blacklist_table))
         self.blacklist_table.setMouseTracking(True)
@@ -1933,6 +2381,12 @@ class MainWindow(QMainWindow):
         self.blacklist_table.setCursor(Qt.PointingHandCursor)
         self.blacklist_table.cellEntered.connect(self._hover_blacklist_row)
         self.blacklist_table.cellClicked.connect(self._edit_row)
+        self.detail_tip = _DetailTip()
+        self.detail_tip.installEventFilter(self)
+        self._detail_tip_timer = QTimer(self)
+        self._detail_tip_timer.setSingleShot(True)
+        self._detail_tip_timer.setInterval(160)
+        self._detail_tip_timer.timeout.connect(self._hide_detail_tip)
         layout.addWidget(self.blacklist_table, 1)
         layout.addLayout(add_row)
         return page
@@ -1953,6 +2407,9 @@ class MainWindow(QMainWindow):
         self.history_list.setFocusPolicy(Qt.NoFocus)
         self.history_list.setItemDelegate(_PlainItemDelegate(self.history_list))
         self.history_list.setCursor(Qt.PointingHandCursor)
+        self.history_list.setMouseTracking(True)
+        self.history_list.viewport().setMouseTracking(True)
+        self.history_list.viewport().installEventFilter(self)
         self.history_list.currentRowChanged.connect(self._on_history_picked)
         self.history_list.itemClicked.connect(self._on_history_clicked)
         side_layout.addWidget(self.history_list, 1)
@@ -1960,15 +2417,24 @@ class MainWindow(QMainWindow):
         self.clear_history_button.clicked.connect(self._ask_clear_history)
         side_layout.addWidget(self.clear_history_button)
         body.addWidget(side)
-        names = QVBoxLayout()
+        record = QWidget()
+        record.setObjectName("recordCard")
+        record.setAttribute(Qt.WA_StyledBackground, True)
+        self.record_card = record
+        names = QVBoxLayout(record)
+        names.setContentsMargins(0, 0, 0, 0)
         names.setSpacing(0)
         head_bar = QWidget()
         head_bar.setObjectName("tableHead")
+        head_bar.setAttribute(Qt.WA_StyledBackground, True)
         head = QHBoxLayout(head_bar)
-        head.setContentsMargins(12, 8, 12, 8)
+        head.setContentsMargins(16, 12, 16, 12)
         head.setSpacing(GAP)
         catalog = QLabel("模仿者游戏（12人狂欢场）")
-        catalog.setFont(chinese_font())
+        catalog.setFont(record_font())
+        catalog.setStyleSheet(
+            f'color: {THEME["text"]}; background: transparent; font-family: "{chinese_family()}"; font-size: 13pt;'
+        )
         head.addWidget(catalog)
         head.addStretch(1)
         names.addWidget(head_bar)
@@ -1981,7 +2447,7 @@ class MainWindow(QMainWindow):
             header.setSectionResizeMode(column, header.ResizeMode.Stretch)
         self.history_table.setCursor(Qt.PointingHandCursor)
         self.history_table.verticalHeader().setVisible(False)
-        self.history_table.verticalHeader().setDefaultSectionSize(40)
+        self.history_table.verticalHeader().setDefaultSectionSize(48)
         self.history_table.setSelectionMode(QTableWidget.NoSelection)
         self.history_table.setFocusPolicy(Qt.NoFocus)
         self.history_table.setItemDelegate(_PlainItemDelegate(self.history_table))
@@ -1992,7 +2458,7 @@ class MainWindow(QMainWindow):
         self.history_table.cellEntered.connect(self._hover_history_cell)
         self.history_table.cellClicked.connect(self._on_history_cell)
         names.addWidget(self.history_table, 1)
-        body.addLayout(names, 1)
+        body.addWidget(record, 1)
         self.history_empty = QLabel("没有记录")
         self.history_empty.setObjectName("sub")
         self.history_empty.setAlignment(Qt.AlignCenter)
@@ -2004,55 +2470,58 @@ class MainWindow(QMainWindow):
         page = QWidget()
         layout = QVBoxLayout(page)
         _page(layout)
+        layout.setSpacing(0)
         metrics = QFontMetrics(chinese_font())
-        label_width = metrics.horizontalAdvance("我的角色名称")
         name_width = metrics.horizontalAdvance("中" * 7) + 28
-        card = QWidget()
-        card.setObjectName("settingsCard")
-        card.setAttribute(Qt.WA_StyledBackground, True)
-        card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(0, 0, 0, 0)
-        card_layout.setSpacing(0)
+        slot = metrics.horizontalAdvance("手动截图") + 36
+        label_width = metrics.horizontalAdvance("我的角色名称") + 8
 
-        def add_row(label: str, body, *, top: bool = False, last: bool = False) -> None:
+        def add_row(last: bool = False) -> QHBoxLayout:
             host = QWidget()
             host.setObjectName("settingsRowLast" if last else "settingsRow")
             host.setAttribute(Qt.WA_StyledBackground, True)
             line = QHBoxLayout(host)
-            line.setContentsMargins(16, 14, 16, 14)
-            line.setSpacing(24)
-            text = QLabel(label)
-            text.setMinimumWidth(label_width)
-            align = Qt.AlignTop if top else Qt.AlignVCenter
-            line.addWidget(text, 0, align)
-            if isinstance(body, QLayout):
-                line.addLayout(body, 1)
-            else:
-                line.addWidget(body, 0, align)
-                line.addStretch(1)
-            card_layout.addWidget(host)
+            line.setContentsMargins(0, 16, 0, 16)
+            line.setSpacing(16)
+            layout.addWidget(host)
+            return line
 
+        def add_label(line: QHBoxLayout, text: str, align: Qt.AlignmentFlag = Qt.AlignVCenter) -> None:
+            label = QLabel(text)
+            label.setObjectName("sub")
+            label.setFixedWidth(label_width)
+            line.addWidget(label, 0, align)
+
+        name_line = add_row()
+        add_label(name_line, "我的角色名称")
         self.player_edit = QLineEdit(self.store.player_name)
         self.player_edit.setPlaceholderText("游戏里的名字")
         self.player_edit.editingFinished.connect(self._save_player_name)
         self.player_edit.setFixedWidth(name_width)
-        add_row("我的角色名称", self.player_edit)
+        name_line.addWidget(self.player_edit, 0, Qt.AlignVCenter)
+        name_line.addStretch(1)
+
+        tag_line = add_row()
+        add_label(tag_line, "我的标签", Qt.AlignTop)
         self.tag_settings = QVBoxLayout()
         self.tag_settings.setSpacing(0)
-        self.tag_settings.setContentsMargins(0, 2, 0, 0)
+        self.tag_settings.setContentsMargins(0, 0, 0, 0)
         self._fill_tag_settings()
-        add_row("我的标签", self.tag_settings, top=True)
+        tag_line.addLayout(self.tag_settings, 1)
+
+        mode_line = add_row()
+        add_label(mode_line, "检查")
         modes = QHBoxLayout()
         modes.setSpacing(GAP)
+        modes.setContentsMargins(0, 0, 0, 0)
         self.auto_on = QPushButton("自动检查")
         self.auto_off = QPushButton("手动截图")
         self.auto_group = QButtonGroup(self)
         self.auto_group.setExclusive(True)
-        mode_width = metrics.horizontalAdvance("手动截图") + 32
         for button in (self.auto_on, self.auto_off):
             button.setObjectName("mode")
             button.setCheckable(True)
-            button.setFixedWidth(mode_width)
+            button.setFixedWidth(slot)
             button.setFocusPolicy(Qt.NoFocus)
             button.setCursor(Qt.PointingHandCursor)
             button.setAutoDefault(False)
@@ -2061,25 +2530,31 @@ class MainWindow(QMainWindow):
         self.hotkey_edit = QLineEdit()
         self.hotkey_edit.setReadOnly(True)
         self.hotkey_edit.setPlaceholderText("无")
-        self.hotkey_edit.setFixedWidth(name_width)
+        self.hotkey_edit.setFixedWidth(slot)
         self.hotkey_edit.setCursor(Qt.PointingHandCursor)
         self.hotkey_edit.installEventFilter(self)
         modes.addWidget(self.hotkey_edit)
-        modes.addStretch(1)
         self.auto_on.setChecked(self.store.auto_capture)
         self.auto_off.setChecked(not self.store.auto_capture)
         self.auto_on.clicked.connect(lambda: self._toggle_auto(True))
         self.auto_off.clicked.connect(lambda: self._toggle_auto(False))
-        add_row("", modes)
-        themes = QHBoxLayout()
-        themes.setSpacing(8)
+        mode_line.addLayout(modes)
+        mode_line.addStretch(1)
+
+        theme_line = add_row()
+        add_label(theme_line, "主题")
+        swatches = QHBoxLayout()
+        swatches.setSpacing(8)
+        swatches.setContentsMargins(0, 0, 0, 0)
         self.theme_buttons: dict[str, ThemeSwatch] = {}
         for name in THEMES:
             swatch = ThemeSwatch(name, THEMES[name]["gold"], lambda picked=name: self._set_theme(picked))
             self.theme_buttons[name] = swatch
-            themes.addWidget(swatch)
-        themes.addStretch(1)
-        add_row("主题", themes)
+            swatches.addWidget(swatch, 0, Qt.AlignVCenter)
+        theme_line.addLayout(swatches)
+        theme_line.addStretch(1)
+
+        reset_line = add_row(last=True)
         reset = QPushButton("清除全部数据")
         reset.setObjectName("danger")
         reset.setFont(ui_font())
@@ -2087,8 +2562,9 @@ class MainWindow(QMainWindow):
         reset.setAutoDefault(False)
         reset.setCursor(Qt.PointingHandCursor)
         reset.clicked.connect(self._ask_reset)
-        add_row("", reset, last=True)
-        layout.addWidget(card)
+        reset_line.addWidget(reset, 0, Qt.AlignVCenter)
+        reset_line.addStretch(1)
+
         self.settings_label = QLabel("")
         self.settings_label.setObjectName("sub")
         self.settings_label.setWordWrap(True)
@@ -2221,9 +2697,13 @@ class MainWindow(QMainWindow):
             self._fill_tag_settings()
         if hasattr(self, "watch_label"):
             self._set_result(self._watch_full, self._watch_tone, self._status_kind)
+        if hasattr(self, "mode_cycle"):
+            self.mode_cycle.update()
         if hasattr(self, "warning"):
             self.warning.apply_theme()
             self.clear_notice.apply_theme()
+        if hasattr(self, "detail_tip"):
+            self.detail_tip.apply_theme()
 
     def _mark_theme_buttons(self) -> None:
         for name, swatch in self.theme_buttons.items():
@@ -2247,7 +2727,28 @@ class MainWindow(QMainWindow):
         self._reload_history(max(0, self._selected_scan()))
         self._show_list()
 
+    def _filter_mode_cluster(self, watched, event) -> None:  # noqa: ANN001
+        cycle = getattr(self, "mode_cycle", None)
+        cluster = getattr(self, "mode_cluster", None)
+        if cycle is None or cluster is None or not hasattr(self, "watch_label"):
+            return
+        if watched not in (cluster, cycle, self.watch_mark, self.watch_label):
+            return
+        kind = event.type()
+        if kind in (QEvent.Type.Enter, QEvent.Type.HoverEnter):
+            cycle.set_revealed(True)
+        elif kind in (QEvent.Type.Leave, QEvent.Type.HoverLeave) and not self._pointer_over_mode_cluster():
+            cycle.set_revealed(False)
+
+    def _pointer_over_mode_cluster(self) -> bool:
+        cluster = self.mode_cluster
+        if not cluster.isVisible():
+            return False
+        pos = cluster.mapFromGlobal(QCursor.pos())
+        return cluster.rect().adjusted(-2, -2, 2, 2).contains(pos)
+
     def eventFilter(self, watched, event) -> bool:  # noqa: ANN001
+        self._filter_mode_cluster(watched, event)
         edit = getattr(self, "hotkey_edit", None)
         if edit is not None and watched is edit:
             kind = event.type()
@@ -2263,9 +2764,29 @@ class MainWindow(QMainWindow):
         table = getattr(self, "history_table", None)
         if table is not None and watched is table.viewport() and event.type() == QEvent.Type.Leave:
             self._clear_history_hover()
+        history = getattr(self, "history_list", None)
+        if history is not None and watched is history.viewport():
+            if event.type() == QEvent.Type.Leave:
+                self._hover_day_folder(-1)
+            elif event.type() == QEvent.Type.MouseMove:
+                self._hover_day_folder(history.indexAt(event.position().toPoint()).row())
         names = getattr(self, "blacklist_table", None)
-        if names is not None and watched is names.viewport() and event.type() == QEvent.Type.Leave:
-            self._clear_blacklist_hover()
+        if names is not None and watched is names.viewport():
+            if event.type() == QEvent.Type.Leave:
+                self._clear_blacklist_hover()
+                self._schedule_detail_tip_hide()
+            elif event.type() == QEvent.Type.MouseMove:
+                index = names.indexAt(event.position().toPoint())
+                if index.isValid():
+                    self._sync_detail_tip(index.row(), index.column())
+            elif event.type() == QEvent.Type.Resize:
+                self._fit_blacklist_columns()
+        tip = getattr(self, "detail_tip", None)
+        if tip is not None and watched is tip:
+            if event.type() == QEvent.Type.Enter:
+                self._detail_tip_timer.stop()
+            elif event.type() == QEvent.Type.Leave:
+                self._schedule_detail_tip_hide()
         if watched.property("scanRow") is not None:
             button = watched.findChild(QPushButton, "rowDelete")
             kind = event.type()
@@ -2290,6 +2811,8 @@ class MainWindow(QMainWindow):
     def _tag_cell(self, tags: tuple[str, ...] | list[str]) -> QWidget:
         host = QWidget()
         host.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        host.setMinimumWidth(0)
+        host.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         row = QHBoxLayout(host)
         row.setContentsMargins(4, 0, 4, 0)
         row.setSpacing(6)
@@ -2352,12 +2875,57 @@ class MainWindow(QMainWindow):
         for logical, width in enumerate(widths):
             self.blacklist_table.setColumnWidth(logical, width)
         header.blockSignals(False)
+        self._fit_blacklist_columns()
+
+    def _fit_blacklist_columns(self) -> None:
+        table = getattr(self, "blacklist_table", None)
+        if table is None or getattr(self, "_fitting_columns", False):
+            return
+        header = table.horizontalHeader()
+        available = table.viewport().width()
+        count = header.count()
+        minimum = header.minimumSectionSize()
+        if count == 0 or available < minimum:
+            return
+        saved = self.store.column_widths
+        if len(saved) != count:
+            saved = [header.sectionSize(index) for index in range(count)]
+        logicals = [header.logicalIndex(visual) for visual in range(count)]
+        sizes = [max(minimum, saved[logical]) for logical in logicals]
+        others = sizes[:-1]
+        room = available - sum(others)
+        if room < minimum:
+            overflow = minimum - room
+            for index in range(len(others) - 1, -1, -1):
+                spare = others[index] - minimum
+                if spare <= 0:
+                    continue
+                cut = min(spare, overflow)
+                others[index] -= cut
+                overflow -= cut
+                if overflow <= 0:
+                    break
+            room = max(minimum, available - sum(others))
+        target = [*others, room]
+        self._fitting_columns = True
+        header.blockSignals(True)
+        try:
+            for logical, size in zip(logicals, target, strict=True):
+                if header.sectionSize(logical) != size:
+                    table.setColumnWidth(logical, size)
+        finally:
+            header.blockSignals(False)
+            self._fitting_columns = False
 
     def _save_column_width(self, logical: int, _old: int, new: int) -> None:
+        header = self.blacklist_table.horizontalHeader()
+        if header.visualIndex(logical) == header.count() - 1:
+            return
         if not 0 <= logical < len(self.store.column_widths) or self.store.column_widths[logical] == new:
             return
         self.store.column_widths[logical] = new
         self.store.save_settings()
+        self._fit_blacklist_columns()
 
     def _apply_column_order(self) -> None:
         header = self.blacklist_table.horizontalHeader()
@@ -2370,6 +2938,7 @@ class MainWindow(QMainWindow):
             if current != visual:
                 header.moveSection(current, visual)
         header.blockSignals(False)
+        self._fit_blacklist_columns()
 
     def _save_column_order(self, _logical: int = 0, _old: int = 0, _new: int = 0) -> None:
         header = self.blacklist_table.horizontalHeader()
@@ -2378,6 +2947,7 @@ class MainWindow(QMainWindow):
             return
         self.store.column_order = order
         self.store.save_settings()
+        self._fit_blacklist_columns()
 
     def _sort_blacklist(self, column: int) -> None:
         if column != 3:
@@ -2408,12 +2978,14 @@ class MainWindow(QMainWindow):
             self.blacklist_table.setItem(row, 0, self._list_cell(entry.name, index))
             self.blacklist_table.setItem(row, 1, self._list_cell(tag_text(entry)))
             self.blacklist_table.setCellWidget(row, 1, self._tag_cell(entry.tags))
-            self.blacklist_table.setItem(row, 2, self._list_cell(entry.reason))
+            detail = " ".join(entry.reason.split())
+            self.blacklist_table.setItem(row, 2, self._list_cell(detail))
             self.blacklist_table.setItem(row, 3, self._list_cell(self._last_met(entry)))
             self.blacklist_table.setRowHeight(row, 44)
         self._blacklist_hover = -1
         self.blacklist_table.setCurrentCell(-1, -1)
         bar.setValue(position)
+        self._hide_detail_tip()
         self._refresh_blacklist_tab()
         count = len(self.store.entries)
         if count:
@@ -2425,7 +2997,44 @@ class MainWindow(QMainWindow):
             self.list_hint.show()
             self.blacklist_table.setVisible(False)
 
-    def _hover_blacklist_row(self, row: int, _column: int = 0) -> None:
+    def _reason_for_row(self, row: int) -> str:
+        item = self.blacklist_table.item(row, 0)
+        if item is None or item.data(Qt.UserRole) is None:
+            return ""
+        index = int(item.data(Qt.UserRole))
+        if not 0 <= index < len(self.store.entries):
+            return ""
+        return self.store.entries[index].reason
+
+    def _sync_detail_tip(self, row: int, column: int) -> None:
+        text = self._reason_for_row(row) if column == 2 else ""
+        if not text.strip():
+            self._hide_detail_tip()
+            return
+        self._detail_tip_timer.stop()
+        rect = self.blacklist_table.visualRect(self.blacklist_table.model().index(row, 2))
+        anchor = self.blacklist_table.viewport().mapToGlobal(rect.bottomLeft())
+        self.detail_tip.show_reason(text, anchor)
+
+    def _schedule_detail_tip_hide(self) -> None:
+        tip = getattr(self, "detail_tip", None)
+        if tip is None or not tip.isVisible():
+            return
+        if tip.geometry().contains(QCursor.pos()):
+            self._detail_tip_timer.stop()
+            return
+        self._detail_tip_timer.start()
+
+    def _hide_detail_tip(self) -> None:
+        tip = getattr(self, "detail_tip", None)
+        if tip is None:
+            return
+        self._detail_tip_timer.stop()
+        tip.hide()
+
+    def _hover_blacklist_row(self, row: int, column: int = 0) -> None:
+        if row >= 0:
+            self._sync_detail_tip(row, column)
         if row < 0:
             return
         if row == self._blacklist_hover:
@@ -2522,8 +3131,7 @@ class MainWindow(QMainWindow):
         seen: dict[str, int] = {}
         for index, scan in enumerate(self.store.scans):
             day, clock = self._day_and_clock(str(scan.get("at", "")))
-            period = "上午" if clock.startswith("上午") else "下午" if clock.startswith("下午") else ""
-            key = f"{day} {period}".strip() if day else clock
+            key = day or clock
             if key not in seen:
                 seen[key] = len(folders)
                 folders.append((key, []))
@@ -2532,10 +3140,10 @@ class MainWindow(QMainWindow):
             closed = key in self._closed_days
             self._add_day_folder(key, closed)
             for index, clock in rows:
-                shown = clock[2:] if clock.startswith(("上午", "下午")) else clock
-                self._add_history_time(key, index, f"  {shown}", closed)
+                self._add_history_time(key, index, f"  {clock}", closed)
         count = len(self.store.scans)
         self.history_list.setVisible(count > 0)
+        self.record_card.setVisible(count > 0)
         self.history_table.setVisible(count > 0)
         self.history_empty.setVisible(count == 0)
         self.clear_history_button.setVisible(count > 0)
@@ -2558,18 +3166,21 @@ class MainWindow(QMainWindow):
         item.setData(Qt.UserRole + 1, "day")
         item.setData(Qt.UserRole + 2, day)
         item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-        item.setSizeHint(QSize(0, 36))
+        item.setSizeHint(QSize(0, 42))
         wrap = QWidget()
         wrap.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         wrap.setStyleSheet("background: transparent;")
         line = QHBoxLayout(wrap)
-        line.setContentsMargins(8, 4, 8, 4)
-        line.setSpacing(0)
-        label = QLabel(f"{'▶' if closed else '▼'}  {day}")
+        line.setContentsMargins(16, 4, 16, 4)
+        line.setSpacing(8)
+        line.addWidget(DayFolderIcon(opened=not closed), 0, Qt.AlignVCenter)
+        label = QLabel(day)
         label.setObjectName("dayFolder")
-        label.setFont(chinese_font())
+        label.setFont(record_font())
         label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-        label.setStyleSheet(f"color: {THEME['text']}; background: transparent;")
+        label.setStyleSheet(
+            f'color: {THEME["text"]}; background: transparent; font-family: "{chinese_family()}"; font-size: 13pt;'
+        )
         line.addWidget(label)
         self.history_list.addItem(item)
         self.history_list.setItemWidget(item, wrap)
@@ -2580,8 +3191,8 @@ class MainWindow(QMainWindow):
         item.setData(Qt.UserRole + 1, "time")
         item.setData(Qt.UserRole + 2, day)
         item.setForeground(QColor(THEME["text"]))
-        item.setFont(chinese_font())
-        item.setSizeHint(QSize(0, 40))
+        item.setFont(record_font())
+        item.setSizeHint(QSize(0, 48))
         self.history_list.addItem(item)
         item.setHidden(closed)
         wrap = QWidget()
@@ -2625,9 +3236,9 @@ class MainWindow(QMainWindow):
             kind = item.data(Qt.UserRole + 1)
             if kind == "day":
                 wrap = self.history_list.itemWidget(item)
-                label = wrap.findChild(QLabel, "dayFolder") if wrap is not None else None
-                if label is not None:
-                    label.setText(f"{'▶' if closed else '▼'}  {day}")
+                mark = wrap.findChild(DayFolderIcon, "dayMark") if wrap is not None else None
+                if mark is not None:
+                    mark.set_open(not closed)
             else:
                 item.setHidden(closed)
         if selected >= 0:
@@ -2637,6 +3248,19 @@ class MainWindow(QMainWindow):
                     self.history_list.setCurrentRow(row)
                     break
         self.history_list.blockSignals(False)
+
+    def _hover_day_folder(self, row: int) -> None:
+        if self._day_hover == row:
+            return
+        self._day_hover = row
+        for index in range(self.history_list.count()):
+            item = self.history_list.item(index)
+            if item.data(Qt.UserRole + 1) != "day":
+                continue
+            wrap = self.history_list.itemWidget(item)
+            mark = wrap.findChild(DayFolderIcon, "dayMark") if wrap is not None else None
+            if mark is not None:
+                mark.set_hovered(index == row)
 
     def _on_history_picked(self, list_row: int) -> None:
         index = self._scan_at(list_row)
@@ -2695,7 +3319,7 @@ class MainWindow(QMainWindow):
         self.history_table.setRowCount((len(names) + 1) // 2)
         for index, seat in enumerate(names):
             self._set_history_seat(index // 2, index % 2, seat)
-            self.history_table.setRowHeight(index // 2, 40)
+            self.history_table.setRowHeight(index // 2, 48)
 
     def _mark_selected_record(self) -> None:
         chosen = self._selected_scan()
@@ -2703,7 +3327,7 @@ class MainWindow(QMainWindow):
             item = self.history_list.item(row)
             if item.data(Qt.UserRole + 1) != "time":
                 continue
-            font = chinese_font()
+            font = record_font()
             font.setBold(item.data(Qt.UserRole) == chosen)
             item.setFont(font)
 
@@ -2723,7 +3347,7 @@ class MainWindow(QMainWindow):
         elif unclear or match is not None:
             action = ""
         else:
-            action = "加入"
+            action = "添加"
         title = stored if match is not None else shown
         if not unclear:
             title = split_ellipsis(title)[0] or title
@@ -2734,7 +3358,7 @@ class MainWindow(QMainWindow):
         name_item.setData(Qt.UserRole + 1, action)
         name_item.setData(Qt.UserRole + 2, stored)
         name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
-        name_font = chinese_font()
+        name_font = record_font()
         name_item.setFont(name_font)
         if unclear:
             tone = THEME["gray"]
@@ -2760,13 +3384,15 @@ class MainWindow(QMainWindow):
         wrap.setProperty("toneHover", hover)
         wrap.setStyleSheet(self._history_wrap_style(wash))
         line = QHBoxLayout(wrap)
-        line.setContentsMargins(4, 0, 8, 0)
+        line.setContentsMargins(16, 0, 16, 0)
         line.setSpacing(GAP)
         name_label = QLabel(label)
         name_label.setFont(name_font)
         name_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         name_color = tone
-        name_label.setStyleSheet(f"color: {name_color}; background: transparent;")
+        name_label.setStyleSheet(
+            f'color: {name_color}; background: transparent; font-family: "{chinese_family()}"; font-size: 13pt;'
+        )
         line.addWidget(name_label)
         line.addStretch(1)
         if action:
@@ -2775,17 +3401,27 @@ class MainWindow(QMainWindow):
             action_label.setFont(chinese_font())
             action_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
             if action == "你":
-                color = THEME["green"]
+                you = record_font()
+                you.setBold(True)
+                you.setItalic(True)
+                action_label.setFont(you)
+                color = THEME["gray"]
+                action_label.setStyleSheet(
+                    f'color: {color}; background: transparent; font-family: "{chinese_family()}"; font-size: 13pt; font-weight: 700; font-style: italic;'
+                )
             else:
                 color = THEME["red"]
-            action_label.setStyleSheet(f"color: {color}; background: transparent;")
-            if action == "加入":
+                action_label.setFont(record_font())
+                action_label.setStyleSheet(
+                    f'color: {color}; background: transparent; font-family: "{chinese_family()}"; font-size: 13pt;'
+                )
+            if action == "添加":
                 action_label.hide()
             line.addWidget(action_label)
         self.history_table.setCellWidget(row, column, wrap)
 
     def _history_wrap_style(self, wash: str = "") -> str:
-        return f"background: {wash or THEME['surface']};"
+        return f"background: {wash or THEME['surface']}; border-radius: 8px;"
 
     def _history_cell_is_mine(self, row: int, column: int) -> bool:
         item = self.history_table.item(row, column)
@@ -2822,7 +3458,7 @@ class MainWindow(QMainWindow):
             wash = THEME["red_hover"]
         wrap.setStyleSheet(self._history_wrap_style(wash))
         action_label = wrap.findChild(QLabel, "rowAction")
-        if action_label is not None and action_label.text() == "加入":
+        if action_label is not None and action_label.text() == "添加":
             action_label.setVisible(hot)
 
     def _on_history_cell(self, row: int, column: int) -> None:
@@ -2847,15 +3483,22 @@ class MainWindow(QMainWindow):
         self._show_list()
         self._show_history_scan(self._selected_scan())
 
+    def _cycle_capture_mode(self) -> None:
+        self._toggle_auto(not self.store.auto_capture)
+
     def _toggle_auto(self, checked: bool) -> None:
         self.store.auto_capture = bool(checked)
         self.store.save_settings()
         if self.store.auto_capture:
+            self.auto_on.setChecked(True)
             self.watch = LobbyWatch()
             self._watch_timer.start()
-        elif not self.panel.isVisible():
-            self._watch_timer.stop()
+        else:
+            self.auto_off.setChecked(True)
+            if not self.panel.isVisible():
+                self._watch_timer.stop()
         self._sync_hotkey_mode()
+        self._sync_mode_cycle_tip()
         if self._status_kind in ("idle", "watch"):
             self._sync_watch_idle()
 
@@ -2922,6 +3565,8 @@ class MainWindow(QMainWindow):
             self.hotkey_edit.clear()
             self._set_settings_note("换一个热键。")
         self.hotkey_edit.clearFocus()
+        if self._status_kind == "idle":
+            self._sync_watch_idle()
 
     def _show_hotkey(self) -> None:
         spec = parse_hotkey(self.store.hotkey)
@@ -3219,11 +3864,38 @@ class MainWindow(QMainWindow):
             parts.append(f"{unclear} 人没看清")
         return "，".join(parts), clear
 
+    def _sync_mode_cycle_tip(self) -> None:
+        cycle = getattr(self, "mode_cycle", None)
+        if cycle is None:
+            return
+        if self.store.auto_capture:
+            cycle.setToolTip("切换为手动捕捉")
+        else:
+            cycle.setToolTip("切换为自动捕捉")
+
     def _sync_watch_idle(self) -> None:
         if self.store.auto_capture:
-            self._set_result("正在监控", "clear", "watch")
+            self._set_result("自动捕捉中", "watchOn", "watch")
         else:
-            self._set_result("未开启", "idle", "idle")
+            self._set_result("手动捕捉", "watchOff", "idle")
+        self._sync_mode_cycle_tip()
+
+    def _show_status_mark(self, pixmap: QPixmap) -> None:
+        self.watch_mark.setText("")
+        self.watch_mark.setObjectName("")
+        self.watch_mark.setPixmap(pixmap)
+        self.watch_mark.show()
+        self.watch_mark.style().unpolish(self.watch_mark)
+        self.watch_mark.style().polish(self.watch_mark)
+
+    def _show_hotkey_mark(self) -> None:
+        self.watch_mark.setPixmap(QPixmap())
+        self.watch_mark.setObjectName("hotkey")
+        self.watch_mark.setFont(chinese_font(14))
+        self.watch_mark.setText(f"[{self.store.hotkey}]")
+        self.watch_mark.setVisible(bool(self.store.hotkey))
+        self.watch_mark.style().unpolish(self.watch_mark)
+        self.watch_mark.style().polish(self.watch_mark)
 
     def _set_result(self, text: str, tone: str = "status", kind: str = "result") -> None:
         self._status_kind = kind
@@ -3236,12 +3908,21 @@ class MainWindow(QMainWindow):
             "status": THEME["text"],
         }
         self.watch_label.setObjectName(tone)
+        face = chinese_font(14)
+        if kind in ("watch", "idle"):
+            face.setBold(True)
+        self.watch_label.setFont(face)
         self.watch_label.setToolTip(text)
         width = max(1, self.watch_label.maximumWidth())
         self.watch_label.setText(self.watch_label.fontMetrics().elidedText(text, Qt.TextElideMode.ElideRight, width))
         self.watch_label.style().unpolish(self.watch_label)
         self.watch_label.style().polish(self.watch_label)
-        self.watch_mark.setPixmap(_watch_mark(colors.get(tone, THEME["muted"])))
+        if kind == "watch":
+            self._show_status_mark(_check_mark(THEME["green"]))
+        elif kind == "idle":
+            self._show_hotkey_mark()
+        else:
+            self._show_status_mark(_watch_mark(colors.get(tone, THEME["muted"])))
         self._set_tray(text)
 
     def _remember_size(self) -> None:
@@ -3307,6 +3988,8 @@ class MainWindow(QMainWindow):
         self._watch_timer.stop()
         self.warning.close()
         self.clear_notice.close()
+        if hasattr(self, "detail_tip"):
+            self.detail_tip.close()
         self.panel.close()
         self.hotkey.clear()
         self.worker.stop()

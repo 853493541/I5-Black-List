@@ -10,16 +10,16 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 pytest.importorskip("PySide6")
 
 from PySide6.QtCore import QEvent, QPointF, Qt
-from PySide6.QtGui import QFocusEvent, QKeyEvent, QMouseEvent
+from PySide6.QtGui import QEnterEvent, QFocusEvent, QFontMetrics, QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import QApplication, QLabel, QPushButton
 
 from blacklist_detect.pipeline import CheckResult, Hit, NameSlot
 from blacklist_detect.storage import Store
 from blacklist_detect.ui import (
     AddNameDialog,
+    DayFolderIcon,
     MainWindow,
     _zh_clock,
-    TagAdd,
     TagCreateDialog,
     TagEditDialog,
     TagPill,
@@ -88,8 +88,12 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     created.close()
     assert window.store.tag_catalog() == ("炸房", "贴脸", "挂机", "红名")
     picked = AddNameDialog(catalog=window.store.tag_catalog())
-    assert [pill._text for pill in picked.findChildren(TagPill)] == []
-    assert [chip._name for chip in picked.findChildren(TagAdd)] == ["炸房", "贴脸", "挂机", "红名"]
+    assert [(pill._text, pill._active) for pill in picked.findChildren(TagPill)] == [
+        ("炸房", False),
+        ("贴脸", False),
+        ("挂机", False),
+        ("红名", False),
+    ]
     picked.close()
     window.store.add("甲", tags=("红名",))
     asked: list[str] = []
@@ -126,7 +130,17 @@ def test_renaming_a_tag_updates_the_edit_panel(qapp, tmp_path, monkeypatch):
     window._refresh_tag_views()
     assert window.blacklist_table.item(0, 1).text() == "贴脸、闹房"
     edited = AddNameDialog("甲", window.store.entries[0].tags, catalog=window.store.tag_catalog())
-    assert [pill._text for pill in edited.findChildren(TagPill)] == ["贴脸", "闹房"]
+    assert [(pill._text, pill._active) for pill in edited.findChildren(TagPill)] == [
+        ("贴脸", True),
+        ("闹房", True),
+        ("挂机", False),
+    ]
+    edited._detach_tag("贴脸")
+    assert [(pill._text, pill._active) for pill in edited.findChildren(TagPill)] == [
+        ("贴脸", False),
+        ("闹房", True),
+        ("挂机", False),
+    ]
     edited.close()
     window.close()
 
@@ -156,6 +170,48 @@ def test_blacklist_columns_can_be_dragged(qapp, tmp_path, monkeypatch):
     kept.close()
 
 
+def test_blacklist_detail_elides_and_explains_on_hover(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    reason = "第一行说明\n第二行还在" + "很长" * 30
+    assert window.store.add("甲", reason=reason) is not None
+    assert window.store.add("乙") is not None
+    window._show_list()
+    stored = window.store.entries[0].reason
+    cell = window.blacklist_table.item(0, 2)
+    assert cell is not None
+    assert "\n" not in cell.text()
+    assert cell.text() == " ".join(stored.split())
+    assert window.blacklist_table.horizontalHeaderItem(2).text() == "原因"
+    assert window.blacklist_table.horizontalScrollBarPolicy() == Qt.ScrollBarAlwaysOff
+    assert window.blacklist_table.textElideMode() == Qt.TextElideMode.ElideRight
+    window.resize(900, 560)
+    window.show()
+    qapp.processEvents()
+    saved = list(window.store.column_widths)
+    window._fit_blacklist_columns()
+    assert window.store.column_widths == saved
+    header = window.blacklist_table.horizontalHeader()
+    total = sum(header.sectionSize(index) for index in range(header.count()))
+    assert total <= window.blacklist_table.viewport().width() + 1
+    inner = max(1, window.blacklist_table.columnWidth(2) - 28)
+    elided = QFontMetrics(cell.font()).elidedText(cell.text(), Qt.TextElideMode.ElideRight, inner)
+    assert len(elided) < len(cell.text())
+    assert elided.endswith("…") or elided.endswith("...")
+    dialog = AddNameDialog("甲", (), stored, parent=window)
+    assert dialog.detail_edit.toPlainText() == stored
+    assert "\n" in dialog.detail_edit.toPlainText()
+    dialog.close()
+    assert window._reason_for_row(0) == stored
+    window._hover_blacklist_row(0, 2)
+    assert window.detail_tip.isVisible() is True
+    assert window.detail_tip.label.text() == stored
+    window._hover_blacklist_row(1, 2)
+    assert window.detail_tip.isVisible() is False
+    window.close()
+
+
 def test_blacklist_dates_sort_newest_first(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
@@ -182,7 +238,11 @@ def test_reason_boxes_allow_several_and_a_note(qapp):
     dialog = AddNameDialog()
     dialog.show()
     assert dialog.detail_edit.isVisible() is True
-    assert [chip._name for chip in dialog.findChildren(TagAdd)] == ["炸房", "贴脸", "挂机"]
+    assert [(pill._text, pill._active) for pill in dialog.findChildren(TagPill)] == [
+        ("炸房", False),
+        ("贴脸", False),
+        ("挂机", False),
+    ]
     dialog._attach_tag("炸房")
     dialog._attach_tag("贴脸")
     assert dialog.picked == ["炸房", "贴脸"]
@@ -190,7 +250,12 @@ def test_reason_boxes_allow_several_and_a_note(qapp):
     dialog._accept()
     assert dialog.name_error.text() == "请填写名字"
     dialog.name_edit.setText("甲")
-    dialog.detail_edit.setText("他做了坏事")
+    height = dialog.detail_edit.height()
+    assert height >= QFontMetrics(dialog.font()).lineSpacing() * 3
+    dialog.detail_edit.setPlainText("他做了坏事\n第二行\n第三行\n第四行")
+    assert dialog.detail_edit.height() == height
+    assert dialog.detail_edit.verticalScrollBarPolicy() == Qt.ScrollBarAsNeeded
+    dialog.detail_edit.setPlainText("他做了坏事")
     dialog._accept()
     assert dialog.tags == ("炸房", "贴脸")
     assert dialog.detail == "他做了坏事"
@@ -211,8 +276,8 @@ def test_elapsed_and_copy_result(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
-    assert window.watch_label.text() == "正在监控"
-    assert window.watch_label.toolTip() == "正在监控"
+    assert window.watch_label.text() == "自动捕捉中"
+    assert window.watch_label.toolTip() == "自动捕捉中"
     window.store.add_scan([{"seat": 1, "name": "莓有橘子甜", "unclear": False}], 0.254)
     window._reload_history()
     assert "0.25" not in window.history_list.item(0).text()
@@ -223,9 +288,9 @@ def test_elapsed_and_copy_result(qapp, tmp_path, monkeypatch):
 
 
 def test_on_the_hour_keeps_the_zero_minute():
-    assert _zh_clock(datetime(2026, 10, 6, 21, 0)) == "下午9点0分"
-    assert _zh_clock(datetime(2026, 10, 6, 9, 0)) == "上午9点0分"
-    assert _zh_clock(datetime(2026, 10, 6, 21, 5)) == "下午9点05分"
+    assert _zh_clock(datetime(2026, 10, 6, 13, 20)) == "13:20"
+    assert _zh_clock(datetime(2026, 10, 6, 9, 0)) == "09:00"
+    assert _zh_clock(datetime(2026, 10, 6, 21, 5)) == "21:05"
 
 
 def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
@@ -246,26 +311,30 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     assert day.data(Qt.UserRole) == -1
     assert day.data(Qt.UserRole + 1) == "day"
     folder = window.history_list.itemWidget(day).findChild(QLabel, "dayFolder")
-    assert folder.text().startswith("▼")
-    assert "上午" in folder.text() or "下午" in folder.text()
+    mark = window.history_list.itemWidget(day).findChild(DayFolderIcon, "dayMark")
+    assert "▼" not in folder.text()
+    assert "▶" not in folder.text()
+    assert mark._opened is True
+    assert "上午" not in folder.text()
+    assert "下午" not in folder.text()
     assert "transparent" in window.history_list.itemWidget(day).styleSheet()
     clock = window.history_list.item(1).text().strip()
-    assert clock.startswith("上午") is False
-    assert clock.startswith("下午") is False
-    assert "点" in clock
-    assert ":" not in clock
+    assert ":" in clock
+    assert "点" not in clock
+    assert "上午" not in clock
+    assert "下午" not in clock
     window._on_history_clicked(day)
     assert window.history_list.item(1).isHidden()
-    assert folder.text().startswith("▶")
+    assert mark._opened is False
     window._on_history_clicked(day)
     assert window.history_list.item(1).isHidden() is False
-    assert folder.text().startswith("▼")
+    assert mark._opened is True
     assert window.history_list.item(1).font().bold() is True
     assert window.history_table.item(0, 0).text() == "纪戴宁"
     assert window.history_table.item(0, 1).text() == "庄园美女"
     assert "..." not in window.history_table.item(0, 1).text()
     action = window.history_table.cellWidget(0, 0).findChild(QLabel, "rowAction")
-    assert action.text() == "加入"
+    assert action.text() == "添加"
     assert action.isHidden() is True
     window._paint_history_hover(0, 0, True)
     assert action.isHidden() is False
@@ -278,6 +347,9 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     assert Store(window.store.root).player_name == "纪戴宁"
     action = window.history_table.cellWidget(0, 0).findChild(QLabel, "rowAction")
     assert action.text() == "你"
+    assert "#6b7280" in action.styleSheet()
+    assert action.font().bold() is True
+    assert action.font().italic() is True
     assert action.isHidden() is False
     window._hover_history_cell(0, 0)
     assert window.history_table.cellWidget(0, 0).styleSheet() == window._history_wrap_style("#f3fbf6")
@@ -315,23 +387,89 @@ def test_capture_mode_defaults_to_auto(qapp, tmp_path, monkeypatch):
     assert window.auto_off.isChecked() is False
     assert window.store.auto_capture is True
     assert window._watch_timer.isActive() is True
-    assert window.watch_label.text() == "正在监控"
+    assert window.watch_label.text() == "自动捕捉中"
+    assert window.watch_mark.text() == ""
     assert window.hotkey_edit.text() == "Alt+1"
     assert window.hotkey_edit.isEnabled() is False
     assert window.hotkey.active == ""
     monkeypatch.setattr(window.hotkey, "apply", lambda spec: setattr(window.hotkey, "active", spec.display) or True)
     window.auto_off.click()
-    assert window.watch_label.text() == "未开启"
+    assert window.watch_label.text() == "手动捕捉"
+    assert window.watch_mark.text() == "[Alt+1]"
+    assert window.watch_mark.objectName() == "hotkey"
     assert window.store.auto_capture is False
     assert window._watch_timer.isActive() is False
     assert window.hotkey_edit.isEnabled() is True
     assert window.hotkey.active == "Alt+1"
     assert Store(window.store.root).auto_capture is False
     window.auto_on.click()
-    assert window.watch_label.text() == "正在监控"
+    assert window.watch_label.text() == "自动捕捉中"
     assert window.store.auto_capture is True
     assert window.hotkey_edit.isEnabled() is False
     assert window.hotkey.active == ""
+    window._watch_timer.stop()
+    window.close()
+
+
+def test_header_cycle_switches_capture_mode(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window.show()
+    cycle = window.mode_cycle
+    assert cycle is not None
+    assert cycle.objectName() == "modeCycle"
+    assert cycle.width() == 16
+    assert cycle.cursor().shape() == Qt.PointingHandCursor
+    assert cycle.isHidden()
+    assert cycle.toolTip() == "切换为手动捕捉"
+    assert window.watch_label.text() == "自动捕捉中"
+    assert cycle.parentWidget() is window.mode_cluster
+    assert window.watch_mark.parentWidget() is window.mode_cluster
+    assert window.watch_label.parentWidget() is window.mode_cluster
+    qapp.sendEvent(window.watch_label, QEnterEvent(QPointF(2, 2), QPointF(2, 2), QPointF(2, 2)))
+    qapp.processEvents()
+    assert cycle.isHidden() is False
+    assert cycle.isVisible()
+    assert cycle.x() < window.watch_mark.x()
+
+    def fake_apply(spec):
+        window.hotkey.active = spec.display
+        return True
+
+    monkeypatch.setattr(window.hotkey, "apply", fake_apply)
+
+    def click_cycle() -> None:
+        local = QPointF(cycle.rect().center())
+        press = QMouseEvent(
+            QEvent.Type.MouseButtonPress,
+            local,
+            QPointF(cycle.mapToGlobal(cycle.rect().center())),
+            Qt.LeftButton,
+            Qt.LeftButton,
+            Qt.NoModifier,
+        )
+        qapp.sendEvent(cycle, press)
+
+    click_cycle()
+    assert window.store.auto_capture is False
+    assert window.watch_label.text() == "手动捕捉"
+    assert window.watch_mark.text() == "[Alt+1]"
+    assert window.auto_off.isChecked() is True
+    assert window.auto_on.isChecked() is False
+    assert window.hotkey_edit.isEnabled() is True
+    assert window.hotkey.active == "Alt+1"
+    assert Store(window.store.root).auto_capture is False
+    assert cycle.toolTip() == "切换为自动捕捉"
+    assert window.tabs.currentIndex() == 0
+    click_cycle()
+    assert window.store.auto_capture is True
+    assert window.watch_label.text() == "自动捕捉中"
+    assert window.auto_on.isChecked() is True
+    assert window.hotkey_edit.isEnabled() is False
+    assert window.hotkey.active == ""
+    assert Store(window.store.root).auto_capture is True
+    assert cycle.toolTip() == "切换为手动捕捉"
     window._watch_timer.stop()
     window.close()
 
