@@ -9,7 +9,20 @@ from datetime import datetime
 from math import cos, pi, radians, sin
 
 from PySide6.QtCore import QEasingCurve, QEvent, QPoint, QPointF, QRect, QSize, Qt, QThread, QTimer, QVariantAnimation, Signal
-from PySide6.QtGui import QColor, QCursor, QFont, QFontMetrics, QIcon, QPainter, QPainterPath, QPalette, QPen, QPixmap, QPolygon
+from PySide6.QtGui import (
+    QBitmap,
+    QColor,
+    QCursor,
+    QFont,
+    QFontMetrics,
+    QIcon,
+    QPainter,
+    QPainterPath,
+    QPalette,
+    QPen,
+    QPixmap,
+    QPolygon,
+)
 from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
@@ -2045,9 +2058,7 @@ class ClearWindow(QWidget):
 
 
 class LobbyPanel(QWidget):
-    """Draggable color block. The first open sits beside 准备案件还原."""
-
-    moved = Signal(int, int)
+    """Pill cover sized to 准备案件还原. It sits on the button, not beside it."""
 
     def __init__(self) -> None:
         super().__init__(
@@ -2061,110 +2072,98 @@ class LobbyPanel(QWidget):
         self.setAttribute(Qt.WA_ShowWithoutActivating, True)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setFocusPolicy(Qt.NoFocus)
-        self.setCursor(Qt.OpenHandCursor)
         self.mode = ""
-        self._drag_offset = None
-        self._drag_moved = False
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self.label = QLabel("")
         self.label.setWordWrap(True)
         self.label.setAlignment(Qt.AlignCenter)
-        self.label.setMinimumWidth(168)
-        self.label.setMaximumWidth(320)
         self.label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         layout.addWidget(self.label)
         self.setFont(chinese_font(14))
         self.label.setFont(chinese_font(14))
 
     def set_mode(self, mode: str, text: str) -> None:
-        tones = {
-            "checking": (THEME["gold"], THEME["selected"], THEME["gold"]),
-            "clear": (THEME["green"], THEME["green_wash"], THEME["green"]),
-            "hit": (THEME["red"], THEME["red_wash"], THEME["red"]),
-        }
-        ink, wash, border = tones[mode]
         self.mode = mode
-        self.label.setText(text)
-        self.label.setAlignment(Qt.AlignVCenter | (Qt.AlignLeft if mode == "hit" else Qt.AlignCenter))
+        self.setToolTip(text)
+        self.label.setText("" if mode == "clear" else text)
+        radius = max(1, self.height() // 2)
         family = chinese_family()
+        if mode == "checking":
+            background = "#e8892d"
+            ink = "#fffaf3"
+            border = "none"
+        elif mode == "hit":
+            background = THEME["red"]
+            ink = "#fffaf3"
+            border = "none"
+        else:
+            background = "transparent"
+            ink = "transparent"
+            border = f"3px solid {THEME['green']}"
         self.setStyleSheet(
             f"""
             LobbyPanel, QWidget {{ background: transparent; }}
             QLabel {{
-                background: {wash};
+                background: {background};
                 color: {ink};
-                border: 1px solid {border};
+                border: {border};
                 font-family: "{family}";
                 font-size: 15px;
-                padding: 12px 16px;
-                border-radius: 12px;
+                padding: 4px 12px;
+                border-radius: {radius}px;
             }}
             """
         )
-        self.adjustSize()
 
-    def show_at(self, x: int, y: int, mode: str, text: str) -> None:
+    def show_over(self, left: float, top: float, width: float, height: float, mode: str, text: str) -> None:
+        width = max(1, int(round(width)))
+        height = max(1, int(round(height)))
+        self.setFixedSize(width, height)
+        self.move(int(round(left)), int(round(top)))
+        self._apply_input(mode == "clear")
         self.set_mode(mode, text)
-        self.move(int(x), int(y))
+        self._mask_pill()
         self.show()
         _pin_topmost(self)
 
-    def show_beside(
-        self,
-        right: float,
-        top: float,
-        bottom: float,
-        mode: str,
-        text: str,
-    ) -> None:
-        self.set_mode(mode, text)
-        gap = 16
-        x = int(round(right + gap))
-        y = int(round(top + ((bottom - top) - self.height()) / 2))
-        screen = QApplication.primaryScreen()
-        if screen is not None:
-            area = screen.availableGeometry()
-            if y + self.height() > area.bottom() - 8:
-                y = area.bottom() - self.height() - 8
-            if x + self.width() > area.right() - 8:
-                x = max(area.left() + 8, area.right() - self.width() - 8)
-            y = max(area.top() + 8, y)
-        self.move(x, y)
-        self.show()
-        _pin_topmost(self)
+    def _apply_input(self, click_through: bool) -> None:
+        flags = (
+            Qt.FramelessWindowHint
+            | Qt.Window
+            | Qt.WindowStaysOnTopHint
+            | Qt.Tool
+            | Qt.WindowDoesNotAcceptFocus
+        )
+        if click_through:
+            flags |= Qt.WindowTransparentForInput
+        self.hide()
+        self.clearMask()
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, click_through)
+        self.setWindowFlags(flags)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, click_through)
+        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setFocusPolicy(Qt.NoFocus)
+
+    def _mask_pill(self) -> None:
+        width = self.width()
+        height = self.height()
+        if width < 2 or height < 2:
+            return
+        mask = QBitmap(width, height)
+        mask.fill(Qt.color0)
+        painter = QPainter(mask)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(Qt.color1)
+        painter.drawRoundedRect(0, 0, width, height, height / 2, height / 2)
+        painter.end()
+        self.setMask(mask)
 
     def showEvent(self, event) -> None:  # noqa: ANN001
         super().showEvent(event)
+        self._mask_pill()
         _pin_topmost(self)
-
-    def mousePressEvent(self, event) -> None:  # noqa: ANN001
-        if event.button() == Qt.LeftButton:
-            self._drag_offset = event.globalPosition().toPoint() - self.pos()
-            self._drag_moved = False
-            self.setCursor(Qt.ClosedHandCursor)
-            event.accept()
-            return
-        super().mousePressEvent(event)
-
-    def mouseMoveEvent(self, event) -> None:  # noqa: ANN001
-        if self._drag_offset is not None and event.buttons() & Qt.LeftButton:
-            self.move(event.globalPosition().toPoint() - self._drag_offset)
-            self._drag_moved = True
-            event.accept()
-            return
-        super().mouseMoveEvent(event)
-
-    def mouseReleaseEvent(self, event) -> None:  # noqa: ANN001
-        if event.button() == Qt.LeftButton and self._drag_offset is not None:
-            self._drag_offset = None
-            self.setCursor(Qt.OpenHandCursor)
-            if self._drag_moved:
-                self._drag_moved = False
-                self.moved.emit(self.x(), self.y())
-            event.accept()
-            return
-        super().mouseReleaseEvent(event)
 
 
 class _PlainItemDelegate(QStyledItemDelegate):
@@ -2205,7 +2204,6 @@ class MainWindow(QMainWindow):
         self.warning = WarningWindow()
         self.clear_notice = ClearWindow()
         self.panel = LobbyPanel()
-        self.panel.moved.connect(self._save_panel_pos)
         self._panel_hide_timer = QTimer(self)
         self._panel_hide_timer.setSingleShot(True)
         self._panel_hide_timer.timeout.connect(self._hide_panel_after_title)
@@ -3780,10 +3778,6 @@ class MainWindow(QMainWindow):
                 )
         result.hits = hits
 
-    def _save_panel_pos(self, x: int, y: int) -> None:
-        self.store.panel_pos = (int(x), int(y))
-        self.store.save_settings()
-
     def _hide_panel_after_title(self) -> None:
         self._panel_hide_timer.stop()
         self.panel.hide()
@@ -3799,7 +3793,7 @@ class MainWindow(QMainWindow):
         if not self._live_check or not result.header_found:
             self._hide_panel_after_title()
             return
-        if self.store.panel_pos is None and result.button_box is None:
+        if result.button_box is None:
             self._hide_panel_after_title()
             return
         if result.hits:
@@ -3819,12 +3813,9 @@ class MainWindow(QMainWindow):
 
     def _open_panel(self, mode: str, text: str, box) -> None:
         self._panel_hide_timer.stop()
-        if self.store.panel_pos is not None:
-            self.panel.show_at(self.store.panel_pos[0], self.store.panel_pos[1], mode, text)
-        elif box is not None:
-            self._show_panel_at(box, mode, text)
-        else:
+        if box is None:
             return
+        self._show_panel_at(box, mode, text)
         if not self._watch_timer.isActive():
             self._watch_timer.start()
 
@@ -3834,11 +3825,12 @@ class MainWindow(QMainWindow):
         ratio = screen.devicePixelRatio() if screen is not None else 1.0
         if ratio <= 0:
             ratio = 1.0
-        _left, top, right, bottom = box
-        self.panel.show_beside(
-            (right + origin_x) / ratio,
+        left, top, right, bottom = box
+        self.panel.show_over(
+            (left + origin_x) / ratio,
             (top + origin_y) / ratio,
-            (bottom + origin_y) / ratio,
+            (right - left) / ratio,
+            (bottom - top) / ratio,
             mode,
             text,
         )

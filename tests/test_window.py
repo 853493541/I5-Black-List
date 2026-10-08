@@ -487,7 +487,9 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     assert window.panel.x() > 0
     window._on_checked("ok", CheckResult(True, "", button_box=button))
     assert window.panel.mode == "clear"
-    assert window.panel.label.text() == "没有黑名单"
+    assert window.panel.label.text() == ""
+    assert window.panel.toolTip() == "没有黑名单"
+    assert window.panel.windowFlags() & Qt.WindowTransparentForInput
     assert window.panel.windowFlags() & Qt.WindowStaysOnTopHint
     assert window.panel.windowFlags() & Qt.WindowDoesNotAcceptFocus
     assert window.panel.windowFlags() & Qt.FramelessWindowHint
@@ -499,49 +501,35 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     window._show_panel(CheckResult(True, "", names=[slot], hits=[hit], button_box=button))
     assert window.panel.mode == "hit"
     assert window.panel.label.text() == "黑名单\n甲"
+    assert not (window.panel.windowFlags() & Qt.WindowTransparentForInput)
     window.close()
 
 
-def test_panel_reopens_where_it_was_dragged(qapp, tmp_path, monkeypatch):
+def test_panel_covers_the_accept_button(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
     window._live_check = True
-    window.panel.show_at(30, 40, "clear", "没有黑名单")
-    origin = window.panel.mapToGlobal(window.panel.rect().center())
-    local = QPointF(window.panel.rect().center())
-    press = QMouseEvent(
-        QEvent.Type.MouseButtonPress,
-        local,
-        QPointF(origin),
-        Qt.LeftButton,
-        Qt.LeftButton,
-        Qt.NoModifier,
-    )
-    move = QMouseEvent(
-        QEvent.Type.MouseMove,
-        local + QPointF(80, 25),
-        QPointF(origin) + QPointF(80, 25),
-        Qt.LeftButton,
-        Qt.LeftButton,
-        Qt.NoModifier,
-    )
-    release = QMouseEvent(
-        QEvent.Type.MouseButtonRelease,
-        local + QPointF(80, 25),
-        QPointF(origin) + QPointF(80, 25),
-        Qt.LeftButton,
-        Qt.NoButton,
-        Qt.NoModifier,
-    )
-    QApplication.sendEvent(window.panel, press)
-    QApplication.sendEvent(window.panel, move)
-    QApplication.sendEvent(window.panel, release)
-    assert window.store.panel_pos == (window.panel.x(), window.panel.y())
-    assert window.panel.x() != 30 or window.panel.y() != 40
-    saved = window.store.panel_pos
-    window._show_panel(CheckResult(True, "", button_box=(100, 400, 280, 460)))
-    assert (window.panel.x(), window.panel.y()) == saved
+    window.store.panel_pos = (12, 12)
+    button = (100, 400, 280, 460)
+    window._on_lobby_placed(button)
+    screen = QApplication.primaryScreen()
+    ratio = screen.devicePixelRatio() if screen is not None else 1.0
+    if ratio <= 0:
+        ratio = 1.0
+    from blacklist_detect.capture import virtual_origin
+
+    origin_x, origin_y = virtual_origin()
+    assert window.panel.x() == round((100 + origin_x) / ratio)
+    assert window.panel.y() == round((400 + origin_y) / ratio)
+    assert window.panel.width() == round(180 / ratio)
+    assert window.panel.height() == round(60 / ratio)
+    assert f"border-radius: {window.panel.height() // 2}px" in window.panel.styleSheet()
+    assert "#e8892d" in window.panel.styleSheet()
+    window._show_panel(CheckResult(True, "", button_box=button))
+    assert window.panel.mode == "clear"
+    assert window.panel.x() == round((100 + origin_x) / ratio)
+    assert window.panel.y() == round((400 + origin_y) / ratio)
     window._on_glanced("ok", False)
     assert window.panel.isVisible() is False
     assert window._panel_hide_timer.isActive() is False
