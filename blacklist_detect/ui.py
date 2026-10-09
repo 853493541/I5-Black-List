@@ -48,7 +48,17 @@ from blacklist_detect.logs import log, log_dir, on_uncaught, setup_logging
 from blacklist_detect.match import NameLabel, fold, format_hit, match_label, seat_number, split_ellipsis
 from blacklist_detect.model import Entry
 from blacklist_detect.ocr_engine import OcrUnavailable, get_engine
-from blacklist_detect.pipeline import CheckResult, Hit, NameSlot, check_frames, check_image, glance_title
+from blacklist_detect.paths import instance_key
+from blacklist_detect.pipeline import (
+    CheckResult,
+    Hit,
+    NameSlot,
+    band_signature,
+    check_frames,
+    check_image,
+    glance_title,
+    same_band,
+)
 from blacklist_detect.storage import Store, describe_entry, tag_text
 from blacklist_detect.ui_dialogs import (
     SAMPLE_LOBBY,
@@ -170,7 +180,7 @@ def run_app() -> int:
         where = f"\n\n详情在 {log_path}" if log_path else ""
         QMessageBox.critical(None, "黑名单检测", f"程序没能打开：{exc}{where}")
         return 1
-    window.instance_server = listen_for_instances(key, window._show_from_tray)
+    window.instance_server = listen_for_instances(key, window._show_from_tray, window.quit_app)
     on_uncaught(window.report_uncaught)
     window.show()
     window.start_warmup()
@@ -178,18 +188,6 @@ def run_app() -> int:
     code = app.exec()
     log.info("Exit %s", code)
     return code
-
-
-def instance_key() -> str:
-    """One name per Windows user, so a second copy can find the first."""
-    import getpass
-    import hashlib
-
-    try:
-        user = getpass.getuser()
-    except Exception:
-        user = "user"
-    return "BlackListDetect-" + hashlib.sha1(user.encode("utf-8")).hexdigest()[:12]
 
 
 def notify_running_instance(key: str) -> bool:
@@ -207,8 +205,12 @@ def notify_running_instance(key: str) -> bool:
     return True
 
 
-def listen_for_instances(key: str, on_show):
-    """Show this window when the app is opened a second time. Two copies would overwrite each other's files."""
+def listen_for_instances(key: str, on_show, on_quit=None):  # noqa: ANN001
+    """Answer a second copy of the app, or the local installer.
+
+    "show" (or nothing) brings this window forward, because two copies would
+    overwrite each other's files. "quit" closes the app so its files can be updated.
+    """
     from PySide6.QtNetwork import QLocalServer
 
     QLocalServer.removeServer(key)
@@ -218,9 +220,15 @@ def listen_for_instances(key: str, on_show):
     def accept() -> None:
         while server.hasPendingConnections():
             connection = server.nextPendingConnection()
+            if not connection.bytesAvailable():
+                connection.waitForReadyRead(300)
+            message = bytes(connection.readAll()).strip()
             connection.disconnectFromServer()
             connection.deleteLater()
-            on_show()
+            if message == b"quit" and on_quit is not None:
+                on_quit()
+            else:
+                on_show()
 
     server.newConnection.connect(accept)
     return server
@@ -312,6 +320,9 @@ class MainWindow(QMainWindow):
         self._warm_started: float | None = None
         self._picture_pending = ""
         self._picture_dialog = None
+        # The last glance, kept by the worker thread to skip a screen that has not changed.
+        self._last_band = None
+        self._last_glance: bool | None = None
         self.instance_server = None
         self._status_kind = "idle"
         self._watch_tone = "idle"
@@ -760,6 +771,12 @@ class MainWindow(QMainWindow):
         reset.setCursor(Qt.PointingHandCursor)
         reset.clicked.connect(self._ask_reset)
         reset_line.addWidget(reset, 0, Qt.AlignVCenter)
+        self.data_button = QPushButton("打开数据文件夹")
+        self.data_button.setToolTip("名单、设置、每天的备份 backups 和日志 logs 都在这里")
+        self.data_button.setAutoDefault(False)
+        self.data_button.setCursor(Qt.PointingHandCursor)
+        self.data_button.clicked.connect(self.open_data_folder)
+        reset_line.addWidget(self.data_button, 0, Qt.AlignVCenter)
         reset_line.addStretch(1)
 
         version_line = add_row(last=True)
@@ -2098,7 +2115,15 @@ class MainWindow(QMainWindow):
         return check_frames(frames, list(self.store.entries), on_lobby=self.worker.placed.emit)
 
     def _glance_job(self) -> bool:
-        return glance_title(capture_top_band())
+        """Runs on the worker thread. An unchanged screen keeps the last answer without reading it again."""
+        band = capture_top_band()
+        signature = band_signature(band)
+        if self._last_glance is not None and same_band(self._last_band, signature):
+            return self._last_glance
+        found = glance_title(band)
+        self._last_band = signature
+        self._last_glance = found
+        return found
 
     def _auto_tick(self) -> None:
         if self._closing:
@@ -2489,6 +2514,20 @@ class MainWindow(QMainWindow):
     def _set_tray(self, text: str) -> None:
         if self.tray is not None:
             self.tray.setToolTip(text[:120])
+
+    def open_data_folder(self) -> bool:
+        """Show the folder with the list, settings, backups, and logs, for sending a log or restoring a backup."""
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+
+        self.store.root.mkdir(parents=True, exist_ok=True)
+        return QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.store.root)))
+
+    def quit_app(self) -> None:
+        """Close for real, as 退出 in the tray menu does. The local installer asks for this before an update."""
+        log.info("Asked to quit.")
+        self.close()
+        QApplication.quit()
 
     def _show_from_tray(self) -> None:
         self.show()

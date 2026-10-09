@@ -88,12 +88,35 @@ python build/make_release.py
 
 It copies the runtime without the files the app never loads (unused Qt modules,
 pip, test suites, headers, dxcam, and other PaddleX extras), runs the copy once
-on the reference lobby, and writes two zips to `dist\release\`:
+on the reference lobby, and writes two zips to `distelease\`:
 
-- `BlackListDetect-<version>-full.exe` for a first install. It is the `.7z` with 7-Zip's self-extractor in front, so it unpacks with a double-click. Made only when 7-Zip is installed.
-- `BlackListDetect-<version>-full.7z`, the same files for people with 7-Zip, Bandizip, or WinRAR.
-- `BlackListDetect-<version>-full.zip`, the same files again, about 100 MB larger, for anyone who can only open `.zip`.
-- `BlackListDetect-<version>-update.zip` with only the app code. Unzip it over the old folder. If `launcher.py` changed, send the full zip instead.
+- `BlackListDetect-<version>-full.zip` for a first install. Right-click, Extract All, then run `黑名单检测.exe` in the folder.
+- `BlackListDetect-<version>-update.zip` with only the app code. Extract it over the old folder. If `launcher.py` changed, send the full zip instead.
+
+## Run the newest code on this PC
+
+```bash
+python build/install_local.py
+```
+
+The first run installs the app to `%LOCALAPPDATA%\Programs\BlackListDetect` and
+puts a 黑名单检测 shortcut on the Desktop and in the Start menu. Every later run
+asks the open app to quit, copies only the files that changed (a few seconds),
+and starts it again, so the shortcut always opens the newest version. Add
+`--verify` to read the reference lobby with the installed copy. Only one copy of
+the app runs at a time; if another unzipped copy is open, the script says which
+one to close.
+
+## Lobby glance
+
+Auto check copies the top 40% of the screen about twice a second and looks for
+「推演成功」. It finds every text line (cheap), keeps lines shaped like a
+four-character title, and reads only the four tallest; reading every line of a
+text-heavy desktop took five seconds a glance on a CPU. A screen that has not
+changed since the last glance is not read again. Measured on the CPU build for
+30 seconds: 64 glances, half of one CPU core, 770 MB of memory (before: 6
+glances, four and a half cores, 1.35 GB). The full lobby check and the name
+reading are unchanged.
 
 Paddle cannot open model files under a path with Chinese characters. The app
 reaches such a folder by its Windows short name, or copies the models once to

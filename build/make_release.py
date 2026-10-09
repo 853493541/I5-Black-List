@@ -8,8 +8,11 @@ Python against the reference lobby, and is zipped only if it still reads the
 same twelve names.
 
 Output in dist/release/:
-    BlackListDetect-<version>-full.zip    first install: runtime, models, app
+    BlackListDetect-<version>-full.zip    first install: extract, then run 黑名单检测.exe
     BlackListDetect-<version>-update.zip  later versions: the app code only
+
+To run the newest code on this PC without unzipping anything, use
+build/install_local.py instead.
 
 The top folder is ASCII on purpose. Paddle cannot open model files under a
 path with Chinese characters, so a 黑名单检测 folder breaks every check.
@@ -312,37 +315,7 @@ def main() -> int:
     print(f"Folder: {_size(stage) / 1e6:.0f} MB unpacked (source runtime {_size(args.runtime) / 1e6:.0f} MB)")
     print(f"  {full.name}: {full.stat().st_size / 1e6:.1f} MB")
     print(f"  {update.name}: {update.stat().st_size / 1e3:.0f} KB (unzip over the old folder)")
-    seven = _seven_zip()
-    if seven is None:
-        print("7-Zip not found, so no .7z or self-extracting .exe was made.")
-        return 0
-    packed = args.out / f"{FOLDER}-{version}-full.7z"
-    sfx = args.out / f"{FOLDER}-{version}-full.exe"
-    print("Packing with 7-Zip ...")
-    packed.unlink(missing_ok=True)
-    subprocess.run(
-        [str(seven), "a", "-t7z", "-mx=9", "-m0=LZMA2", "-md=256m", "-mmt=on", "-bso0", "-bsp0", str(packed), FOLDER],
-        cwd=args.out,
-        check=True,
-    )
-    # 7z.sfx in front of the archive is a plain self-extractor. It asks where to unpack.
-    with open(sfx, "wb") as handle:
-        handle.write((seven.parent / "7z.sfx").read_bytes())
-        with open(packed, "rb") as source:
-            shutil.copyfileobj(source, handle)
-    print(f"  {packed.name}: {packed.stat().st_size / 1e6:.1f} MB (needs 7-Zip, Bandizip, or WinRAR)")
-    print(f"  {sfx.name}: {sfx.stat().st_size / 1e6:.1f} MB (double-click to unpack, nothing to install)")
     return 0
-
-
-def _seven_zip() -> Path | None:
-    for candidate in (
-        shutil.which("7z"),
-        os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"), "7-Zip", "7z.exe"),
-    ):
-        if candidate and Path(candidate).is_file() and (Path(candidate).parent / "7z.sfx").is_file():
-            return Path(candidate)
-    return None
 
 
 if __name__ == "__main__":

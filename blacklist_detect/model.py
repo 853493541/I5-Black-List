@@ -12,7 +12,6 @@ class Entry:
     name: str
     reason: str = ""
     tags: tuple[str, ...] = ()
-    match_from_prefix: bool = False
     added_at: str = ""
 
 

@@ -103,11 +103,27 @@ def check_rgb(rgb: np.ndarray, entries: list[Entry], engine=None) -> CheckResult
 
 
 def glance_title(rgb: np.ndarray, engine=None) -> bool:
-    """Read only enough of a top-band copy to see 推演成功."""
+    """Read only enough of a top-band copy to see 推演成功: the tallest few text lines."""
     reader = engine or get_engine()
     small, _factor = downscale_rgb(rgb, max_width=960)
-    lines = reader.read_bgr(rgb_to_bgr(small))
+    bgr = rgb_to_bgr(small)
+    tallest = getattr(reader, "read_tallest_lines", None)
+    lines = tallest(bgr) if tallest is not None else reader.read_bgr(bgr)
     return contains_title(lines)
+
+
+def band_signature(rgb: np.ndarray) -> np.ndarray:
+    """A tiny gray copy of a band, to tell whether the screen changed since the last glance."""
+    step_y = max(1, rgb.shape[0] // 36)
+    step_x = max(1, rgb.shape[1] // 160)
+    return rgb[::step_y, ::step_x].mean(axis=2, dtype=np.float32)
+
+
+def same_band(previous: np.ndarray | None, current: np.ndarray, tolerance: float = 1.0) -> bool:
+    """True when the band is unchanged, so the last glance still holds. A title appearing changes it a lot."""
+    if previous is None or previous.shape != current.shape:
+        return False
+    return float(np.abs(previous - current).mean()) < tolerance
 
 
 def _locate(engine, rgb: np.ndarray) -> tuple[Anchor, list[OcrLine]]:

@@ -74,3 +74,11 @@ def test_the_bundled_sample_reads_like_the_reference():
     result = check_image(SAMPLE_LOBBY, [])
     assert result.header_found
     assert [(slot.visible, slot.truncated) for slot in result.names] == EXPECTED
+
+
+def test_the_glance_sees_the_title_in_the_reference_band():
+    from blacklist_detect.pipeline import glance_title, load_rgb
+
+    rgb = load_rgb(FIXTURE)
+    assert glance_title(rgb[: int(rgb.shape[0] * 0.4)]) is True
+    assert glance_title(rgb[int(rgb.shape[0] * 0.5) :]) is False

@@ -558,7 +558,6 @@ class Store:
                             name=name[:_MAX_NAME],
                             reason=reason,
                             tags=tags,
-                            match_from_prefix=bool(item.get("match_from_prefix", False)),
                             added_at=str(item.get("added_at", "")),
                         )
                     )
@@ -621,7 +620,6 @@ class Store:
                         "name": entry.name,
                         "reason": entry.reason,
                         "tags": list(entry.tags),
-                        "match_from_prefix": entry.match_from_prefix,
                         "added_at": entry.added_at,
                     }
                     for entry in self.entries
@@ -752,7 +750,7 @@ class Store:
             self.save_entries()
         return changed
 
-    def add(self, name: str, reason: str = "", match_from_prefix: bool = False, tags: tuple[str, ...] | list[str] = ()) -> Entry | None:
+    def add(self, name: str, reason: str = "", tags: tuple[str, ...] | list[str] = ()) -> Entry | None:
         """Add one name. Returns None when it has no letters or digits, or is already on the list."""
         cleaned = clean_stored_name(name)[:_MAX_NAME]
         if not cleaned or self.contains_name(cleaned):
@@ -763,7 +761,6 @@ class Store:
             name=cleaned,
             reason=detail,
             tags=chosen,
-            match_from_prefix=bool(match_from_prefix),
             added_at=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         )
         self.entries.append(entry)
@@ -832,7 +829,6 @@ class Store:
             name=cleaned,
             reason=stored_reason,
             tags=chosen,
-            match_from_prefix=current.match_from_prefix,
             added_at=current.added_at,
         )
         self.save_entries()
@@ -846,13 +842,13 @@ class Store:
     def restore_entries(self, entries: list[Entry]) -> None:
         """Put back the list as it was before an add, delete, or clear. Used by 撤销."""
         self.entries = [
-            Entry(entry.name, entry.reason, tuple(entry.tags), entry.match_from_prefix, entry.added_at)
+            Entry(entry.name, entry.reason, tuple(entry.tags), entry.added_at)
             for entry in entries
         ]
         self.save_entries()
 
     def snapshot_entries(self) -> list[Entry]:
-        return [Entry(entry.name, entry.reason, tuple(entry.tags), entry.match_from_prefix, entry.added_at) for entry in self.entries]
+        return [Entry(entry.name, entry.reason, tuple(entry.tags), entry.added_at) for entry in self.entries]
 
     def clear_entries(self) -> None:
         self.entries = []

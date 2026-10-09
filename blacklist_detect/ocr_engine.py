@@ -19,6 +19,10 @@ from blacklist_detect.model import OcrLine
 
 # A read below this is 未看清 and is not matched.
 NAME_CONFIDENCE_MIN = 0.55
+# The 推演成功 glance reads only the tallest few lines shaped like the title. See read_tallest_lines.
+TITLE_CANDIDATES = 4
+# Four characters measure about 3 to 3.5 times as wide as tall at any window size.
+TITLE_SHAPE = (2.0, 6.0)
 
 _ENGINE: OcrEngine | None = None
 _CONSOLE_HIDDEN = False
@@ -228,6 +232,51 @@ class OcrEngine:
         else:
             result = engine.ocr(bgr, cls=False)
         return parse_ocr_output(result)
+
+    def read_tallest_lines(self, bgr: np.ndarray, keep: int = TITLE_CANDIDATES) -> list[OcrLine]:
+        """Find every text line, but read only the tallest ones. For the 推演成功 glance.
+
+        Finding lines is cheap; reading them is not. A desktop full of text has
+        dozens of lines and took five seconds a glance on a CPU. The title is the
+        tallest title-shaped line on the screen whenever the full read can see
+        it at all (tried with the lobby in windows from 960 px to full screen on
+        a busy 4K desktop), so reading the tallest few such lines is enough.
+        Lines are found, sorted, and cropped exactly as PaddleOCR's own pipeline
+        does, so a line that is read gives the same text as the full read.
+        """
+        engine = self._ensure()
+        inner = getattr(getattr(engine, "paddlex_pipeline", None), "_pipeline", None)
+        det = getattr(inner, "text_det_model", None)
+        rec = getattr(inner, "text_rec_model", None)
+        sort_boxes = getattr(inner, "_sort_boxes", None)
+        crop = getattr(inner, "_crop_by_polys", None)
+        if det is None or rec is None or sort_boxes is None or crop is None:
+            return self.read_bgr(bgr)
+        found = next(iter(det([bgr], **inner.get_text_det_params())))
+        polys = list(sort_boxes(found["dt_polys"]))
+        if not polys:
+            return []
+        crops = list(crop(bgr, polys))
+        candidates = []
+        for poly, sub in zip(polys, crops, strict=False):
+            box = _as_box(poly)
+            if box is None or sub.size == 0:
+                continue
+            width, height = box[2] - box[0], box[3] - box[1]
+            # Single characters and long sentences are never the title, and long ones are slow to read.
+            if height <= 0 or not TITLE_SHAPE[0] <= width / height <= TITLE_SHAPE[1]:
+                continue
+            candidates.append((height, box, sub))
+        candidates.sort(key=lambda item: item[0], reverse=True)
+        chosen = candidates[:keep]
+        if not chosen:
+            return []
+        lines: list[OcrLine] = []
+        for (_height, box, _sub), result in zip(chosen, rec([item[2] for item in chosen]), strict=False):
+            text, score = _recognition_text([result])
+            if text and score >= inner.text_rec_score_thresh:
+                lines.append(OcrLine(text, score, box))
+        return lines
 
     def read_name(self, rgb: np.ndarray) -> tuple[str, float]:
         """Read one name strip. Recognition only, on a tightened line."""

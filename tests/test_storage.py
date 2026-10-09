@@ -137,9 +137,9 @@ def test_reasons_can_be_combined(tmp_path):
 
 def test_blacklist_roundtrip(tmp_path):
     store = Store(tmp_path)
-    added = store.add("  罪玥吉尔曼  ", reason="常挂机", match_from_prefix=False)
+    added = store.add("  罪玥吉尔曼  ", reason="常挂机")
     assert added is not None
-    store.add("无害虎皮…", match_from_prefix=True)
+    store.add("无害虎皮…")
     store.hotkey = "Ctrl+Shift+F8"
     store.save_settings()
 
@@ -147,8 +147,6 @@ def test_blacklist_roundtrip(tmp_path):
     assert [entry.name for entry in again.entries] == ["罪玥吉尔曼", "无害虎皮"]
     assert again.entries[0].reason == "常挂机"
     assert again.entries[0].tags == ()
-    assert again.entries[0].match_from_prefix is False
-    assert again.entries[1].match_from_prefix is True
     assert again.hotkey == "Ctrl+Shift+F8"
     assert again.auto_capture is True
     store.panel_pos = (12, 34)

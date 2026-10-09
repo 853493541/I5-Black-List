@@ -107,7 +107,7 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     window.store.scans[0]["at"] = seen.isoformat()
     window._show_list()
     assert window.blacklist_table.item(0, 3).text() == "3小时前"
-    assert window.windowTitle() == "黑名单检测 v0.1.5"
+    assert window.windowTitle() == "黑名单检测 v0.1.6"
     assert window.list_empty.isHidden() is True
     assert window.clear_list_button.isHidden() is False
     assert window.blacklist_table.isHidden() is False
@@ -1235,4 +1235,51 @@ def test_clicking_a_theme_swatch_chooses_it(qapp, tmp_path, monkeypatch):
     assert window.store.theme == "绿色"
     assert window.theme_buttons["绿色"]._selected is True
     _click(qapp, window.theme_buttons["蓝色"])
+    window.close()
+
+
+def test_the_installer_can_ask_the_open_copy_to_quit(qapp):
+    import sys
+    import threading
+
+    from blacklist_detect.paths import message_running_copy
+    from blacklist_detect.ui import instance_key, listen_for_instances
+
+    if sys.platform != "win32":
+        pytest.skip("named pipes are Windows only")
+    key = instance_key() + "-quit-test"
+    assert message_running_copy(b"quit", key) is False
+    heard: list[str] = []
+    server = listen_for_instances(key, lambda: heard.append("show"), lambda: heard.append("quit"))
+
+    def send(message: bytes, want: int) -> bool:
+        # The pipe has no buffer: the write waits for the app to read, as it would from another process.
+        sent: list[bool] = []
+        sender = threading.Thread(target=lambda: sent.append(message_running_copy(message, key)))
+        sender.start()
+        for _ in range(300):
+            qapp.processEvents()
+            if len(heard) >= want and not sender.is_alive():
+                break
+            sender.join(0.01)
+        sender.join(2)
+        return bool(sent and sent[0])
+
+    assert send(b"quit", 1) is True
+    assert heard == ["quit"]
+    assert send(b"show", 2) is True
+    assert heard == ["quit", "show"]
+    server.close()
+
+
+def test_the_data_folder_button_opens_the_settings_folder(qapp, tmp_path, monkeypatch):
+    from PySide6.QtGui import QDesktopServices
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    opened = []
+    monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened.append(url.toLocalFile()) or True)
+    window = MainWindow()
+    window.data_button.click()
+    assert opened and opened[0].replace("/", "\\").rstrip("\\").endswith("BlackListDetect")
     window.close()
