@@ -59,6 +59,33 @@ PYTHONPATH=. python -m pytest
 
 The match-rule tests do not open a window. The reference-lobby test runs anchor detection and OCR on `tests/fixtures/reference-lobby.png`.
 
-## Later
+## Release
 
-An `.exe` (PyInstaller or Nuitka) is not part of this first slice. Other lobby layouts are not part of it either.
+Friends get a folder with its own Python, so they do not install anything:
+
+```
+BlackListDetect\
+  黑名单检测.exe          launcher (build/launcher.spec), starts runtime\pythonw.exe
+  runtime\               embeddable Python 3.12 with the packages installed
+  blacklist_detect\      the app, plus models\ with the three PaddleOCR folders
+```
+
+Make the zips from an assembled `dist\黑名单检测\runtime`:
+
+```bash
+python build/make_release.py
+```
+
+It copies the runtime without the files the app never loads (unused Qt modules,
+pip, test suites, headers, dxcam, and other PaddleX extras), runs the copy once
+on the reference lobby, and writes two zips to `dist\release\`:
+
+- `BlackListDetect-<version>-full.exe` for a first install. It is the `.7z` with 7-Zip's self-extractor in front, so it unpacks with a double-click. Made only when 7-Zip is installed.
+- `BlackListDetect-<version>-full.7z`, the same files for people with 7-Zip, Bandizip, or WinRAR.
+- `BlackListDetect-<version>-full.zip`, the same files again, about 100 MB larger, for anyone who can only open `.zip`.
+- `BlackListDetect-<version>-update.zip` with only the app code. Unzip it over the old folder. If `launcher.py` changed, send the full zip instead.
+
+Keep the top folder name in English letters. Paddle cannot open model files when
+the path has Chinese characters in it, so every check fails in such a folder.
+
+Other lobby layouts are not part of this first slice.

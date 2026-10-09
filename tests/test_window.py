@@ -108,7 +108,7 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     window.store.scans[0]["at"] = seen.isoformat()
     window._show_list()
     assert window.blacklist_table.item(0, 3).text() == "3小时前"
-    assert window.windowTitle() == "黑名单检测"
+    assert window.windowTitle() == "黑名单检测 v0.1.2"
     assert window.list_empty.isHidden() is True
     assert window.clear_list_button.isHidden() is False
     assert window.blacklist_table.isHidden() is False
