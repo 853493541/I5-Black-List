@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QDialog,
     QFileDialog,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -70,6 +71,7 @@ from blacklist_detect.ui_dialogs import (
     TagEditDialog,
     _confirm,
 )
+from blacklist_detect.ui_kit import Switch, TabButton
 from blacklist_detect.ui_overlay import (
     _COVER_OUTSET,
     ClearMark,
@@ -117,7 +119,6 @@ from blacklist_detect.ui_widgets import (
     _icon,
     _local_moment,
     _PlainItemDelegate,
-    _reload_icon,
     _TagRow,
     _watch_mark,
     _zh_ago,
@@ -374,55 +375,42 @@ class MainWindow(QMainWindow):
         header.setObjectName("tabHeader")
         header.setAttribute(Qt.WA_StyledBackground, True)
         header_row = QHBoxLayout(header)
-        header_row.setContentsMargins(0, 0, 0, 8)
-        header_row.setSpacing(6)
-        self._tab_buttons: list[QPushButton] = []
+        header_row.setContentsMargins(0, 0, 0, 0)
+        header_row.setSpacing(4)
+        self._tab_buttons: list[TabButton] = []
         self._tab_group = QButtonGroup(self)
         self._tab_group.setExclusive(True)
         for index in range(self.tabs.count()):
-            button = QPushButton(self.tabs.tabText(index))
-            button.setObjectName("tab")
-            button.setFont(ui_font())
-            button.setFixedHeight(28)
-            button.setCheckable(True)
-            button.setFocusPolicy(Qt.NoFocus)
-            button.setCursor(Qt.PointingHandCursor)
+            button = TabButton(self.tabs.tabText(index))
             self._tab_group.addButton(button, index)
             self._tab_buttons.append(button)
-            header_row.addWidget(button, 0, Qt.AlignVCenter)
+            header_row.addWidget(button, 0, Qt.AlignBottom)
         self._tab_group.idClicked.connect(self.tabs.setCurrentIndex)
         header_row.addStretch(1)
+        # The status says what the last check found; the switch beside it sets the mode.
         self.mode_cluster = QWidget()
         self.mode_cluster.setObjectName("modeCluster")
-        self.mode_cluster.setAttribute(Qt.WA_NoSystemBackground, True)
-        self.mode_cluster.setAttribute(Qt.WA_TranslucentBackground, True)
-        self.mode_cluster.setAutoFillBackground(False)
-        self.mode_cluster.setMouseTracking(True)
-        self.mode_cluster.setCursor(Qt.PointingHandCursor)
         cluster_row = QHBoxLayout(self.mode_cluster)
         cluster_row.setContentsMargins(0, 0, 0, 0)
         cluster_row.setSpacing(6)
-        self.mode_cycle = QLabel()
-        self.mode_cycle.setObjectName("modeCycle")
-        self.mode_cycle.setFixedSize(16, 16)
-        self.mode_cycle.setPixmap(_reload_icon())
-        self.mode_cycle.setCursor(Qt.PointingHandCursor)
-        self.mode_cycle.hide()
         self.watch_mark = QLabel()
         self.watch_mark.setPixmap(_watch_mark(THEME["muted"]))
-        self.watch_mark.setCursor(Qt.PointingHandCursor)
         self.watch_label = QLabel("未开启")
         self.watch_label.setObjectName("idle")
         self.watch_label.setMaximumWidth(200)
         self.watch_label.setFont(chinese_font(BODY_PT))
-        self.watch_label.setCursor(Qt.PointingHandCursor)
-        cluster_row.addWidget(self.mode_cycle, 0, Qt.AlignVCenter)
         cluster_row.addWidget(self.watch_label, 0, Qt.AlignVCenter)
         cluster_row.addWidget(self.watch_mark, 0, Qt.AlignVCenter)
-        for widget in (self.mode_cluster, self.mode_cycle, self.watch_mark, self.watch_label):
-            widget.setMouseTracking(True)
-            widget.installEventFilter(self)
         header_row.addWidget(self.mode_cluster, 0, Qt.AlignVCenter)
+        divider = QFrame()
+        divider.setObjectName("headerDivider")
+        divider.setFixedSize(1, 16)
+        header_row.addSpacing(GAP)
+        header_row.addWidget(divider, 0, Qt.AlignVCenter)
+        header_row.addSpacing(GAP)
+        self.auto_switch = Switch(self.store.auto_capture, text="自动检查")
+        self.auto_switch.toggled.connect(self._toggle_auto)
+        header_row.addWidget(self.auto_switch, 0, Qt.AlignVCenter)
         self._sync_tab_buttons(self.tabs.currentIndex())
         outer.addWidget(header)
         outer.addWidget(self.tabs)
@@ -943,7 +931,9 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(_window_style(chinese_family()))
         self.setFont(chinese_font())
         for button in getattr(self, "_tab_buttons", []):
-            button.setFont(ui_font())
+            button.update()
+        if hasattr(self, "auto_switch"):
+            self.auto_switch.update()
         if getattr(self, "reset_button", None) is not None:
             self.reset_button.setFont(ui_font())
         _pointing(self)
@@ -952,8 +942,6 @@ class MainWindow(QMainWindow):
             self._fill_tag_settings()
         if hasattr(self, "watch_label"):
             self._set_result(self._watch_full, self._watch_tone, self._status_kind, self._watch_tip)
-        if hasattr(self, "mode_cycle"):
-            self.mode_cycle.setPixmap(_reload_icon())
         if hasattr(self, "detail_tip"):
             self.detail_tip.apply_theme()
 
@@ -1005,36 +993,10 @@ class MainWindow(QMainWindow):
         self._reload_history(max(0, self._selected_scan()))
         self._show_list()
 
-    def _filter_mode_cluster(self, watched, event) -> bool:  # noqa: ANN001
-        cycle = getattr(self, "mode_cycle", None)
-        cluster = getattr(self, "mode_cluster", None)
-        if cycle is None or cluster is None or not hasattr(self, "watch_label"):
-            return False
-        if watched not in (cluster, cycle, self.watch_mark, self.watch_label):
-            return False
-        kind = event.type()
-        if kind in (QEvent.Type.Enter, QEvent.Type.HoverEnter):
-            cycle.show()
-        elif kind in (QEvent.Type.Leave, QEvent.Type.HoverLeave) and not self._pointer_over_mode_cluster():
-            cycle.hide()
-        elif kind == QEvent.Type.MouseButtonPress and event.button() == Qt.LeftButton:
-            self._cycle_capture_mode()
-            return True
-        return False
-
-    def _pointer_over_mode_cluster(self) -> bool:
-        cluster = self.mode_cluster
-        if not cluster.isVisible():
-            return False
-        pos = cluster.mapFromGlobal(QCursor.pos())
-        return cluster.rect().adjusted(-2, -2, 2, 2).contains(pos)
-
     def eventFilter(self, watched, event) -> bool:  # noqa: ANN001
         if getattr(self, "_closing", False):
             # Child widgets are being torn down. Touching them now raises.
             return False
-        if self._filter_mode_cluster(watched, event):
-            return True
         edit = getattr(self, "hotkey_edit", None)
         if edit is not None and watched is edit:
             kind = event.type()
@@ -1397,10 +1359,12 @@ class MainWindow(QMainWindow):
         self.blacklist_table.setCurrentCell(-1, -1)
         bar.setValue(position)
 
-    def _set_tab_title(self, index: int, text: str) -> None:
-        self.tabs.setTabText(index, text)
-        if 0 <= index < len(self._tab_buttons):
-            self._tab_buttons[index].setText(text)
+    def _set_tab_count(self, index: int, count: int) -> None:
+        if not 0 <= index < len(self._tab_buttons):
+            return
+        button = self._tab_buttons[index]
+        button.set_count(count)
+        self.tabs.setTabText(index, f"{button.name()}  {count}" if count else button.name())
 
     def _sync_tab_buttons(self, index: int) -> None:
         for button_index, button in enumerate(self._tab_buttons):
@@ -1408,7 +1372,7 @@ class MainWindow(QMainWindow):
 
     def _refresh_blacklist_tab(self) -> None:
         count = len(self.store.entries)
-        self._set_tab_title(self.blacklist_tab, f"黑名单  {count}" if count else "黑名单")
+        self._set_tab_count(self.blacklist_tab, count)
 
     def _clear_confirm_pair(self, on_cancel, on_confirm) -> QWidget:
         host = QWidget()
@@ -1574,7 +1538,7 @@ class MainWindow(QMainWindow):
         self.history_empty.setVisible(count == 0)
         self.clear_history_pair.hide()
         self.clear_history_button.setVisible(count > 0)
-        self._set_tab_title(self.history_tab, f"记录  {count}" if count else "记录")
+        self._set_tab_count(self.history_tab, count)
         chosen = -1
         if count:
             chosen = max(0, min(select, count - 1))
@@ -1944,12 +1908,13 @@ class MainWindow(QMainWindow):
         self._show_list()
         self._show_history_scan(self._selected_scan())
 
-    def _cycle_capture_mode(self) -> None:
-        self._toggle_auto(not self.store.auto_capture)
-
     def _toggle_auto(self, checked: bool) -> None:
         self.store.auto_capture = bool(checked)
         self.store.save_settings()
+        if self.auto_switch.isChecked() != self.store.auto_capture:
+            self.auto_switch.blockSignals(True)
+            self.auto_switch.setChecked(self.store.auto_capture)
+            self.auto_switch.blockSignals(False)
         if self.store.auto_capture:
             self.auto_on.setChecked(True)
             self.watch = LobbyWatch()
@@ -1959,7 +1924,6 @@ class MainWindow(QMainWindow):
             if not self.panel.isVisible():
                 self._watch_timer.stop()
         self._sync_hotkey_mode()
-        self._sync_mode_cycle_tip()
         if self._status_kind in ("idle", "watch"):
             self._sync_watch_idle()
 
@@ -2485,21 +2449,11 @@ class MainWindow(QMainWindow):
         widget.show()
         _pin_topmost(widget)
 
-    def _sync_mode_cycle_tip(self) -> None:
-        cycle = getattr(self, "mode_cycle", None)
-        if cycle is None:
-            return
-        tip = "切换为手动检查" if self.store.auto_capture else "切换为自动检查"
-        self.mode_cycle.setToolTip(tip)
-        self.mode_cluster.setToolTip(tip)
-        self.watch_mark.setToolTip(tip)
-
     def _sync_watch_idle(self) -> None:
         if self.store.auto_capture:
             self._set_result("自动检查中", "watchOn", "watch")
         else:
             self._set_result("手动检查", "watchOff", "idle")
-        self._sync_mode_cycle_tip()
 
     def _show_status_mark(self, pixmap: QPixmap) -> None:
         self.watch_mark.setText("")

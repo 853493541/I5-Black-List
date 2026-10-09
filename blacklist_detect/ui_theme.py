@@ -548,8 +548,12 @@ def _window_style(family: str) -> str:
                 border-bottom: 1px solid {t["border"]};
             }}
             QWidget#tabHeader QLabel {{ background: transparent; }}
-            QWidget#tabHeader QWidget#modeCluster, QWidget#modeCycle {{
+            QWidget#tabHeader QWidget#modeCluster {{
                 background: transparent;
+                border: none;
+            }}
+            QFrame#headerDivider {{
+                background: {t["border"]};
                 border: none;
             }}
             QLabel#sub {{
@@ -737,32 +741,6 @@ def _window_style(family: str) -> str:
                 padding: 0 8px;
             }}
             """ + _menu_style(family) + f"""
-            QPushButton#tab {{
-                color: {t["muted"]};
-                background: transparent;
-                border: none;
-                border-radius: {RADIUS}px;
-                padding: 0 12px;
-                margin: 0 2px;
-                min-height: 28px;
-                max-height: 28px;
-            }}
-            QPushButton#tab:hover {{
-                color: {t["text"]};
-                background: {t["hover"]};
-                border: none;
-            }}
-            QPushButton#tab:checked,
-            QPushButton#tab:checked:hover,
-            QPushButton#tab:checked:pressed {{
-                color: {t["accent_line"] if is_dark() else t["accent"]};
-                background: {t["selected"]};
-                border: none;
-            }}
-            QPushButton#tab:pressed {{
-                background: {t["hover"]};
-                border: none;
-            }}
             QPushButton#mode:checked,
             QPushButton#mode:checked:hover {{
                 background: {t["accent"]};

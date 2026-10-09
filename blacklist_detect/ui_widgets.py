@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from math import cos, pi, radians, sin
+from math import pi, sin
 from pathlib import Path
 
 from PySide6.QtCore import QEasingCurve, QPoint, QPointF, QRect, QRectF, QSize, Qt, QVariantAnimation, Signal
@@ -665,23 +665,6 @@ def _check_icon() -> QPixmap:
         painter.drawLine(QPointF(6.6, 11.8), QPointF(12.8, 4.5))
 
     return _line_icon(draw, THEME["green"])
-
-
-def _reload_icon() -> QPixmap:
-    def draw(painter: QPainter) -> None:
-        cx, cy, radius = 8.0, 8.2, 5.0
-        painter.drawArc(QRectF(cx - radius, cy - radius, radius * 2, radius * 2), 60 * 16, -300 * 16)
-        end = radians(60)
-        tip = QPointF(cx + radius * cos(end), cy - radius * sin(end))
-        tx, ty = -sin(end), -cos(end)
-        back, wing = 2.7, 1.7
-        nx, ny = -ty, tx
-        left = QPointF(tip.x() - tx * back + nx * wing, tip.y() - ty * back + ny * wing)
-        right = QPointF(tip.x() - tx * back - nx * wing, tip.y() - ty * back - ny * wing)
-        painter.drawLine(tip, left)
-        painter.drawLine(tip, right)
-
-    return _line_icon(draw, THEME["muted"])
 
 
 def _watch_mark(color: str) -> QPixmap:

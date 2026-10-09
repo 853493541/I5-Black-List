@@ -21,7 +21,7 @@ from PySide6.QtCore import (
     QVariantAnimation,
     Signal,
 )
-from PySide6.QtGui import QColor, QPainter, QPen
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractButton,
     QButtonGroup,
@@ -44,6 +44,7 @@ from blacklist_detect.ui_theme import (
     DIALOG_PAD,
     GAP,
     SECTION_PT,
+    SMALL_PT,
     THEME,
     _caption_color,
     _dialog_style,
@@ -53,15 +54,44 @@ from blacklist_detect.ui_theme import (
     chinese_font,
 )
 
+_KEYBOARD_FOCUS = (Qt.FocusReason.TabFocusReason, Qt.FocusReason.BacktabFocusReason, Qt.FocusReason.ShortcutFocusReason)
 
-class Switch(QAbstractButton):
-    """An on/off switch for a setting that takes effect at once."""
+
+class _KeyboardRing:
+    """Shows a focus ring only when focus came from the keyboard, the way Windows does,
+    so a click or the window opening never leaves a ring behind.
+    """
+
+    _ring = False
+
+    def focusInEvent(self, event) -> None:  # noqa: ANN001
+        self._ring = event.reason() in _KEYBOARD_FOCUS
+        super().focusInEvent(event)
+        self.update()
+
+    def focusOutEvent(self, event) -> None:  # noqa: ANN001
+        self._ring = False
+        super().focusOutEvent(event)
+        self.update()
+
+    def show_ring(self) -> bool:
+        return self._ring and self.hasFocus()
+
+
+class Switch(_KeyboardRing, QAbstractButton):
+    """An on/off switch for a setting that takes effect at once. With text, the words sit
+    on its left and clicking them toggles it too.
+    """
 
     _W = 40
     _H = 22
+    _TEXT_GAP = 8
 
-    def __init__(self, checked: bool = False, parent: QWidget | None = None) -> None:
+    def __init__(self, checked: bool = False, parent: QWidget | None = None, *, text: str = "") -> None:
         super().__init__(parent)
+        self.setText(text)
+        if text:
+            self.setAccessibleName(text)
         self.setCheckable(True)
         self.setChecked(checked)
         self.setCursor(Qt.PointingHandCursor)
@@ -74,8 +104,19 @@ class Switch(QAbstractButton):
         self._anim.valueChanged.connect(self._set_pos)
         self.toggled.connect(self._slide)
 
+    def _text_width(self) -> int:
+        if not self.text():
+            return 0
+        return QFontMetrics(chinese_font(BODY_PT)).horizontalAdvance(self.text()) + self._TEXT_GAP
+
     def sizeHint(self) -> QSize:
-        return QSize(self._W + 4, self._H + 4)
+        return QSize(self._text_width() + self._W + 4, self._H + 4)
+
+    def minimumSizeHint(self) -> QSize:
+        return self.sizeHint()
+
+    def hitButton(self, pos) -> bool:  # noqa: ANN001
+        return self.rect().contains(pos)
 
     def _set_pos(self, value: float) -> None:
         self._pos = float(value)
@@ -90,7 +131,13 @@ class Switch(QAbstractButton):
     def paintEvent(self, _event) -> None:  # noqa: ANN001
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        track = QRectF(2, 2, self._W, self._H)
+        left = self._text_width()
+        top = (self.height() - self._H) / 2
+        if left:
+            painter.setFont(chinese_font(BODY_PT))
+            painter.setPen(QColor(THEME["text"] if self.isEnabled() else THEME["muted"]))
+            painter.drawText(QRectF(0, 0, left, self.height()), Qt.AlignLeft | Qt.AlignVCenter, self.text())
+        track = QRectF(left + 2, top, self._W, self._H)
         off = THEME["chip_off_line"]
         on = THEME["accent_line"] if THEME.get("scheme") == "dark" else THEME["accent"]
         color = _mix(off, on, self._pos)
@@ -101,12 +148,128 @@ class Switch(QAbstractButton):
         painter.drawRoundedRect(track, self._H / 2, self._H / 2)
         knob = self._H - 6
         x = track.left() + 3 + self._pos * (self._W - knob - 6)
-        painter.setBrush(QColor("#ffffff"))
+        # Dark mode puts a dark knob on the bright track, as Windows 11 does, so it stays visible.
+        dark_on = THEME.get("scheme") == "dark" and self.isEnabled()
+        painter.setBrush(_mix("#ffffff", THEME["on_accent"], self._pos) if dark_on else QColor("#ffffff"))
         painter.drawEllipse(QRectF(x, track.top() + 3, knob, knob))
-        if self.hasFocus():
+        if self.show_ring():
             painter.setBrush(Qt.NoBrush)
             painter.setPen(QPen(QColor(THEME["accent_line"]), 1.5))
             painter.drawRoundedRect(track.adjusted(-1.5, -1.5, 1.5, 1.5), self._H / 2 + 1.5, self._H / 2 + 1.5)
+
+
+class TabButton(_KeyboardRing, QPushButton):
+    """One page tab: its name, a count badge when there is something to count, and an
+    accent underline while it is the open page. Painted here so all of it follows the theme.
+    """
+
+    _PAD = 12
+    _HEIGHT = 36
+    _BADGE_H = 18
+
+    def __init__(self, name: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("tabButton")
+        self.setCheckable(True)
+        self.setFocusPolicy(Qt.TabFocus)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setAttribute(Qt.WA_Hover, True)
+        self._name = name
+        self._count = 0
+        self.setAccessibleName(name)
+        self.setFixedHeight(self._HEIGHT)
+
+    def name(self) -> str:
+        return self._name
+
+    def count(self) -> int:
+        return self._count
+
+    def set_name(self, name: str) -> None:
+        if name != self._name:
+            self._name = name
+            self.setAccessibleName(name)
+            self.updateGeometry()
+            self.update()
+
+    def set_count(self, count: int) -> None:
+        if count != self._count:
+            self._count = max(0, int(count))
+            self.updateGeometry()
+            self.update()
+
+    @staticmethod
+    def _label_font(bold: bool) -> QFont:
+        font = chinese_font(BODY_PT)
+        if bold:
+            font.setWeight(QFont.Weight.DemiBold)
+        return font
+
+    def _badge_text(self) -> str:
+        return "99+" if self._count > 99 else str(self._count)
+
+    def _badge_width(self) -> int:
+        if not self._count:
+            return 0
+        metrics = QFontMetrics(chinese_font(SMALL_PT))
+        return max(self._BADGE_H, metrics.horizontalAdvance(self._badge_text()) + 10)
+
+    def sizeHint(self) -> QSize:
+        # Measure bold, so the label never clips when this becomes the open page.
+        metrics = QFontMetrics(self._label_font(True))
+        width = metrics.horizontalAdvance(self._name) + self._PAD * 2
+        if self._count:
+            width += 6 + self._badge_width()
+        return QSize(width, self._HEIGHT)
+
+    def minimumSizeHint(self) -> QSize:
+        return self.sizeHint()
+
+    def enterEvent(self, event) -> None:  # noqa: ANN001
+        super().enterEvent(event)
+        self.update()
+
+    def leaveEvent(self, event) -> None:  # noqa: ANN001
+        super().leaveEvent(event)
+        self.update()
+
+    def paintEvent(self, _event) -> None:  # noqa: ANN001
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        dark = THEME.get("scheme") == "dark"
+        accent = THEME["accent_line"] if dark else THEME["accent"]
+        if self.isChecked():
+            ink = accent
+        elif self.underMouse():
+            ink = THEME["text"]
+        else:
+            ink = THEME["muted"]
+        font = self._label_font(self.isChecked())
+        painter.setFont(font)
+        metrics = QFontMetrics(font)
+        text_width = metrics.horizontalAdvance(self._name)
+        middle = (self.height() - 2) / 2
+        painter.setPen(QColor(ink))
+        painter.drawText(QRectF(self._PAD, 0, text_width + 2, self.height() - 2), Qt.AlignLeft | Qt.AlignVCenter, self._name)
+        right = self._PAD + text_width
+        if self._count:
+            badge_w = self._badge_width()
+            badge = QRectF(right + 6, middle - self._BADGE_H / 2, badge_w, self._BADGE_H)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(THEME["accent_wash"] if self.isChecked() else THEME["chip_bg"]))
+            painter.drawRoundedRect(badge, self._BADGE_H / 2, self._BADGE_H / 2)
+            painter.setFont(chinese_font(SMALL_PT))
+            painter.setPen(QColor(accent if self.isChecked() else THEME["muted"]))
+            painter.drawText(badge, Qt.AlignCenter, self._badge_text())
+            right = badge.right()
+        if self.isChecked():
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(accent))
+            painter.drawRoundedRect(QRectF(self._PAD - 2, self.height() - 2.5, right - self._PAD + 4, 2.5), 1.2, 1.2)
+        if self.show_ring():
+            painter.setBrush(Qt.NoBrush)
+            painter.setPen(QPen(QColor(THEME["accent_line"]), 1.2))
+            painter.drawRoundedRect(QRectF(2, 3, self.width() - 4, self.height() - 8), 5, 5)
 
 
 class SegmentedControl(QWidget):

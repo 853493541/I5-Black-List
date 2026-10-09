@@ -8,7 +8,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 pytest.importorskip("PySide6")
 
-from PySide6.QtCore import Qt  # noqa: E402
+from PySide6.QtCore import QPoint, Qt  # noqa: E402
 from PySide6.QtGui import QKeyEvent  # noqa: E402
 from PySide6.QtWidgets import QApplication, QDialog, QLabel, QPushButton, QWidget  # noqa: E402
 from test_theme import contrast  # noqa: E402
@@ -21,6 +21,7 @@ from blacklist_detect.ui_kit import (  # noqa: E402
     SegmentedControl,
     SettingsSection,
     Switch,
+    TabButton,
     Toast,
 )
 from blacklist_detect.ui_theme import THEME, _palette  # noqa: E402
@@ -56,6 +57,51 @@ def test_the_switch_toggles_by_click_and_by_space(qapp):
     assert seen == [True, False]
     assert switch.focusPolicy() == Qt.StrongFocus
     assert switch.grab().width() > 0
+
+
+def test_a_switch_with_text_toggles_from_its_words(qapp):
+    plain = Switch(False)
+    labelled = Switch(False, text="自动检查")
+    assert labelled.accessibleName() == "自动检查"
+    assert labelled.sizeHint().width() > plain.sizeHint().width()
+    labelled.resize(labelled.sizeHint())
+    assert labelled.hitButton(QPoint(4, labelled.height() // 2))
+    labelled.click()
+    assert labelled.isChecked()
+
+
+def test_a_tab_button_grows_a_badge_for_its_count(qapp):
+    tab = TabButton("黑名单")
+    bare = tab.sizeHint().width()
+    tab.set_count(3)
+    assert tab.count() == 3
+    assert tab.sizeHint().width() > bare
+    assert tab.accessibleName() == "黑名单"
+    tab.set_count(250)
+    assert tab._badge_text() == "99+"
+    tab.set_count(0)
+    assert tab.sizeHint().width() == bare
+    tab.setChecked(True)
+    tab.resize(tab.sizeHint())
+    assert not tab.grab().isNull()
+
+
+def test_focus_rings_show_for_the_keyboard_only(qapp):
+    host = QWidget()
+    tab = TabButton("记录", host)
+    switch = Switch(True, host)
+    host.show()
+    for widget in (tab, switch):
+        widget.setFocus(Qt.FocusReason.MouseFocusReason)
+        _settle(qapp)
+        assert widget.hasFocus() or not host.isActiveWindow()
+        assert widget.show_ring() is False
+        widget.clearFocus()
+        _settle(qapp)
+        widget.setFocus(Qt.FocusReason.TabFocusReason)
+        _settle(qapp)
+        assert widget.show_ring() is widget.hasFocus()
+    host.close()
 
 
 def test_a_segmented_control_keeps_one_choice(qapp):

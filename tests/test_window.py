@@ -10,7 +10,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 pytest.importorskip("PySide6")
 
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
-from PySide6.QtGui import QEnterEvent, QFocusEvent, QFontMetrics, QKeyEvent, QMouseEvent
+from PySide6.QtGui import QFocusEvent, QFontMetrics, QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import QApplication, QDialog, QHBoxLayout, QLabel, QPushButton
 
 from blacklist_detect.pipeline import CheckResult, Hit, NameSlot
@@ -473,6 +473,7 @@ def test_capture_mode_defaults_to_auto(qapp, tmp_path, monkeypatch):
     window = MainWindow()
     assert window.auto_on.isChecked() is True
     assert window.auto_off.isChecked() is False
+    assert window.auto_switch.isChecked() is True
     assert window.store.auto_capture is True
     assert window._watch_timer.isActive() is True
     assert window.watch_label.text() == "自动检查中"
@@ -482,6 +483,7 @@ def test_capture_mode_defaults_to_auto(qapp, tmp_path, monkeypatch):
     assert window.hotkey.active == ""
     monkeypatch.setattr(window.hotkey, "apply", lambda spec: setattr(window.hotkey, "active", spec.display) or True)
     window.auto_off.click()
+    assert window.auto_switch.isChecked() is False
     assert window.watch_label.text() == "手动检查"
     assert window.watch_mark.text() == "[Alt+1]"
     assert window.watch_mark.objectName() == "hotkey"
@@ -499,27 +501,19 @@ def test_capture_mode_defaults_to_auto(qapp, tmp_path, monkeypatch):
     window.close()
 
 
-def test_header_cycle_switches_capture_mode(qapp, tmp_path, monkeypatch):
+def test_header_switch_sets_capture_mode(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
     window.show()
-    cycle = window.mode_cycle
-    assert cycle is not None
-    assert cycle.objectName() == "modeCycle"
-    assert cycle.width() == 16
-    assert cycle.cursor().shape() == Qt.PointingHandCursor
-    assert cycle.isHidden()
-    assert cycle.toolTip() == "切换为手动检查"
+    switch = window.auto_switch
+    assert switch.text() == "自动检查"
+    assert switch.isChecked() is True
     assert window.watch_label.text() == "自动检查中"
-    assert cycle.parentWidget() is window.mode_cluster
-    assert window.watch_mark.parentWidget() is window.mode_cluster
     assert window.watch_label.parentWidget() is window.mode_cluster
-    qapp.sendEvent(window.watch_label, QEnterEvent(QPointF(2, 2), QPointF(2, 2), QPointF(2, 2)))
-    qapp.processEvents()
-    assert cycle.isHidden() is False
-    assert cycle.isVisible()
-    assert cycle.x() < window.watch_label.x() < window.watch_mark.x()
+    assert window.watch_label.x() < window.watch_mark.x()
+    assert window.mode_cluster.geometry().right() < switch.geometry().left()
+    assert not hasattr(window, "mode_cycle")
 
     def fake_apply(spec):
         window.hotkey.active = spec.display
@@ -527,19 +521,20 @@ def test_header_cycle_switches_capture_mode(qapp, tmp_path, monkeypatch):
 
     monkeypatch.setattr(window.hotkey, "apply", fake_apply)
 
-    def click(widget) -> None:
-        local = QPointF(widget.rect().center())
-        press = QMouseEvent(
-            QEvent.Type.MouseButtonPress,
-            local,
-            QPointF(widget.mapToGlobal(widget.rect().center())),
-            Qt.LeftButton,
-            Qt.LeftButton,
-            Qt.NoModifier,
-        )
-        qapp.sendEvent(widget, press)
+    # Clicking the status text no longer changes anything; only the switch does.
+    local = QPointF(window.watch_label.rect().center())
+    press = QMouseEvent(
+        QEvent.Type.MouseButtonPress,
+        local,
+        QPointF(window.watch_label.mapToGlobal(window.watch_label.rect().center())),
+        Qt.LeftButton,
+        Qt.LeftButton,
+        Qt.NoModifier,
+    )
+    qapp.sendEvent(window.watch_label, press)
+    assert window.store.auto_capture is True
 
-    click(window.watch_label)
+    switch.click()
     assert window.store.auto_capture is False
     assert window.watch_label.text() == "手动检查"
     assert window.watch_mark.text() == "[Alt+1]"
@@ -548,17 +543,41 @@ def test_header_cycle_switches_capture_mode(qapp, tmp_path, monkeypatch):
     assert window.hotkey_edit.isEnabled() is True
     assert window.hotkey.active == "Alt+1"
     assert Store(window.store.root).auto_capture is False
-    assert cycle.toolTip() == "切换为自动检查"
     assert window.tabs.currentIndex() == 0
-    click(window.watch_mark)
+    # The settings page buttons and the header switch stay in step both ways.
+    window.auto_on.click()
+    assert switch.isChecked() is True
     assert window.store.auto_capture is True
     assert window.watch_label.text() == "自动检查中"
-    assert window.auto_on.isChecked() is True
     assert window.hotkey_edit.isEnabled() is False
     assert window.hotkey.active == ""
     assert Store(window.store.root).auto_capture is True
-    assert cycle.toolTip() == "切换为手动检查"
     window._watch_timer.stop()
+    window.close()
+
+
+def test_tabs_show_counts_as_badges(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    tabs = window._tab_buttons
+    assert [tab.name() for tab in tabs] == ["记录", "黑名单", "设置"]
+    assert [tab.count() for tab in tabs] == [0, 0, 0]
+    narrow = tabs[window.blacklist_tab].sizeHint().width()
+    window.store.add("甲")
+    window.store.add("乙")
+    window._show_list()
+    assert tabs[window.blacklist_tab].count() == 2
+    assert tabs[window.blacklist_tab].name() == "黑名单"
+    assert tabs[window.blacklist_tab].sizeHint().width() > narrow
+    assert window.tabs.tabText(window.blacklist_tab) == "黑名单  2"
+    tabs[2].click()
+    assert window.tabs.currentIndex() == 2
+    assert [tab.isChecked() for tab in tabs] == [False, False, True]
+    window.tabs.setCurrentIndex(window.blacklist_tab)
+    assert tabs[window.blacklist_tab].isChecked()
+    assert tabs[0].focusPolicy() == Qt.TabFocus
     window.close()
 
 
