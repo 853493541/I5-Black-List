@@ -16,8 +16,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-windows = ["dxcam>=0.0.5"]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "ruff>=0.6"]
 
 [project.scripts]
 blacklist-detect = "blacklist_detect.__main__:main"
@@ -27,3 +26,15 @@ include = ["blacklist_detect*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 130
+extend-exclude = ["dist", "HunyuanOCR", "_crops"]
+
+[tool.ruff.lint]
+# Syntax errors, pyflakes (unused or undefined names), import order, and common bug patterns.
+select = ["E9", "F", "I", "B"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["blacklist_detect"]

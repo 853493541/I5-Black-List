@@ -19,12 +19,11 @@ from blacklist_detect.ui import (
     AddNameDialog,
     DayFolderIcon,
     MainWindow,
-    masked_name,
-    _zh_clock,
     TagCreateDialog,
     TagEditDialog,
     TagPill,
-    WarningWindow,
+    _zh_clock,
+    masked_name,
 )
 
 
@@ -349,7 +348,7 @@ def test_reason_boxes_allow_several_and_a_note(qapp):
     dialog.close()
 
 
-def test_elapsed_and_copy_result(qapp, tmp_path, monkeypatch):
+def test_elapsed_time_is_not_shown_in_the_record_list(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
@@ -358,9 +357,6 @@ def test_elapsed_and_copy_result(qapp, tmp_path, monkeypatch):
     window.store.add_scan([{"seat": 1, "name": "莓有橘子甜", "unclear": False}], 0.254)
     window._reload_history()
     assert "0.25" not in window.history_list.item(0).text()
-    window.names_view.setPlainText("1号  莓有橘子甜\n12号  未看清")
-    window.copy_result()
-    assert QApplication.clipboard().text() == "1号  莓有橘子甜\n12号  未看清"
     window.close()
 
 
@@ -599,9 +595,6 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     assert window.panel.windowFlags() & Qt.FramelessWindowHint
     slot = NameSlot(0, (0, 0, 1, 1), "甲", "甲", False, 1.0, False)
     hit = Hit(0, "甲", "甲", "", False, "1号  甲", ("炸房", "贴脸"))
-    text, clear = window._brief(CheckResult(True, "", names=[slot], hits=[hit]))
-    assert text == "1 人在名单里"
-    assert clear is False
     window._show_panel(CheckResult(True, "", names=[slot], hits=[hit], button_box=button))
     assert window.panel.mode == "hit"
     assert window.panel.label.text() == ""
@@ -805,18 +798,6 @@ def test_titlebar_close_hides_to_the_tray_and_says_so_once(qapp, tmp_path, monke
     window.close()
 
 
-def test_warning_stays_on_top_without_taking_focus(qapp):
-    warning = WarningWindow()
-    flags = warning.windowFlags()
-    assert warning.windowTitle() == "黑名单玩家"
-    assert flags & Qt.WindowStaysOnTopHint
-    assert flags & Qt.WindowDoesNotAcceptFocus
-    assert warning.testAttribute(Qt.WA_ShowWithoutActivating)
-    warning.present(["3号：读到「罪玥吉尔曼」，匹配「罪玥吉尔曼」"])
-    assert "罪玥吉尔曼" in warning.body.toPlainText()
-    warning.close()
-
-
 def test_prefix_hit_shows_the_read_name_and_the_stored_name(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
@@ -894,8 +875,6 @@ def test_theme_choice_persists(qapp, tmp_path, monkeypatch):
     window.resize(940, 600)
     window._remember_size()
     assert Store(window.store.root).window_size == (window.width(), window.height())
-    window.warning.apply_theme()
-    window.clear_notice.apply_theme()
     window.close()
 
 

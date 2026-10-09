@@ -14,7 +14,6 @@ python -m pip install -U pip
 python -m pip install paddlepaddle-gpu==3.3.0 -i https://www.paddlepaddle.org.cn/packages/stable/cu129/
 if errorlevel 1 python -m pip install paddlepaddle==3.2.0 -i https://www.paddlepaddle.org.cn/packages/stable/cpu/
 python -m pip install -r requirements.txt
-python -m pip install "dxcam>=0.0.5"
 set "PYTHONPATH=%CD%"
 python -m blacklist_detect
 if errorlevel 1 pause

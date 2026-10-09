@@ -248,11 +248,11 @@ class OcrEngine:
         rec = self._ensure_name_rec()
         primary = _predict_batch(rec, prepared)
         if len(primary) != len(prepared):
-            for slot, image in zip(indexes, prepared):
+            for slot, image in zip(indexes, prepared, strict=False):
                 results[slot] = _recognition_text(_predict_one(rec, image))
             return results
         blank_slots: list[int] = []
-        for slot, first in zip(indexes, primary):
+        for slot, first in zip(indexes, primary, strict=False):
             results[slot] = _recognition_text([first])
             if not results[slot][0]:
                 blank_slots.append(slot)
@@ -261,7 +261,7 @@ class OcrEngine:
         alternate = _predict_batch(rec, [prepare_name_line_plain(images[slot]) for slot in blank_slots])
         if len(alternate) != len(blank_slots):
             return results
-        for slot, second in zip(blank_slots, alternate):
+        for slot, second in zip(blank_slots, alternate, strict=False):
             results[slot] = choose_name_read(results[slot], _recognition_text([second]))
         return results
 

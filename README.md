@@ -4,7 +4,7 @@ Windows desktop app for one lobby: **推演成功** / **模仿者狂欢（12人�
 
 It does not click **准备案件还原**, does not read game memory, and does not send the hotkey into the lobby.
 
-This machine can edit the list and check a screenshot. DXGI Desktop Duplication and the global hotkey exist only on Windows. If that API is missing, the window says so.
+Any machine can edit the list and check a screenshot. The live screen copy (one GDI BitBlt) and the global hotkey exist only on Windows; elsewhere the window says so.
 
 ## Run
 
@@ -17,12 +17,6 @@ python -m pip install -U pip
 python -m pip install paddlepaddle==3.2.0 -i https://www.paddlepaddle.org.cn/packages/stable/cpu/
 python -m pip install -r requirements.txt
 PYTHONPATH=. python -m blacklist_detect
-```
-
-On Windows, also install the capture binding:
-
-```bash
-python -m pip install "dxcam>=0.0.5"
 ```
 
 The blacklist is `%APPDATA%\BlackListDetect\blacklist.json` on Windows, and `$XDG_CONFIG_HOME/BlackListDetect/blacklist.json` (or `~/.config/BlackListDetect/blacklist.json`) elsewhere. The hotkey, check mode, theme, and debug-frame switch are in `settings.json` in that same folder.
@@ -63,7 +57,17 @@ If you already have the model folders, set `BLACKLIST_DETECT_MODEL_DIR` to the d
 PYTHONPATH=. python -m pytest
 ```
 
-The match-rule tests do not open a window. The reference-lobby test runs anchor detection and OCR on `tests/fixtures/reference-lobby.png`.
+The match-rule tests do not open a window. The reference-lobby tests run anchor detection and OCR on `tests/fixtures/reference-lobby.png` and on the bundled 测试一下 picture; they skip when PaddleOCR is not installed.
+
+Lint with ruff (rules in `pyproject.toml`):
+
+```bash
+python -m ruff check .
+```
+
+GitHub Actions runs both on every push (`.github/workflows/tests.yml`), on Windows, without Paddle.
+
+The window code is split by job: `ui.py` (main window and check loop), `ui_dialogs.py`, `ui_overlay.py` (the marks over the game), `ui_widgets.py`, and `ui_theme.py`.
 
 ## Release
 

@@ -76,7 +76,7 @@ def test_name_strips_follow_a_moved_header():
     assert anchor.countdown_seconds == 7
     expected = place(NAME_BOXES[2])
     got = anchor.name_boxes[2]
-    for actual, wanted in zip(got, expected):
+    for actual, wanted in zip(got, expected, strict=False):
         assert abs(actual - wanted) <= 1
 
 

@@ -1,6 +1,5 @@
-from blacklist_detect.model import Entry
 from blacklist_detect.paths import app_dir
-from blacklist_detect.storage import Store, format_blacklist, parse_blacklist
+from blacklist_detect.storage import Store, parse_blacklist
 
 
 def test_blacklist_lines_parse_one_player_each():
@@ -11,14 +10,6 @@ def test_blacklist_lines_parse_one_player_each():
         ("只有名字", (), ""),
         ("甲", (), "开黑"),
     ]
-    text = format_blacklist(
-        [
-            Entry("罪玥吉尔曼", reason="常挂机"),
-            Entry("只有名字"),
-            Entry("甲", tags=("炸房", "贴脸")),
-        ]
-    )
-    assert text == "罪玥吉尔曼，常挂机\n只有名字\n甲，炸房，贴脸"
 
 
 def test_a_pasted_block_adds_each_name_once(tmp_path):

@@ -3,6 +3,3 @@ numpy
 Pillow
 paddleocr>=3.0
 pytest>=8
-
-# Windows display capture. Do not install this on Linux; dxcam imports DXGI.
-# pip install dxcam>=0.0.5

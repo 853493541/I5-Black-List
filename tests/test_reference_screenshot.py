@@ -2,8 +2,13 @@
 
 from pathlib import Path
 
+import pytest
+
 from blacklist_detect.model import Entry
 from blacklist_detect.pipeline import check_image
+
+# CI has no Paddle and no models. The release build runs this check on the bundled runtime instead.
+pytest.importorskip("paddleocr", reason="PaddleOCR is not installed")
 
 FIXTURE = Path(__file__).parent / "fixtures" / "reference-lobby.png"
 

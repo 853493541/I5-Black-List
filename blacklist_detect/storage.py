@@ -7,9 +7,9 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
+from blacklist_detect.match import MIN_PREFIX_CHARS, clean_stored_name, fold
 from blacklist_detect.model import Entry
 from blacklist_detect.paths import app_dir
-from blacklist_detect.match import MIN_PREFIX_CHARS, clean_stored_name, fold
 
 _MAX_NAME = 64
 _MAX_NOTE = 200
@@ -60,18 +60,6 @@ def describe_entry(entry: Entry) -> str:
     if reason:
         return f"原因：{reason}"
     return tags
-
-
-def format_blacklist(entries: list[Entry]) -> str:
-    """One line per player: 名字，炸房，贴脸，挂机，原因."""
-    lines: list[str] = []
-    for entry in entries:
-        bits = [entry.name]
-        bits.extend(order_tags(entry.tags))
-        if entry.reason.strip():
-            bits.append(entry.reason.strip())
-        lines.append("，".join(bits))
-    return "\n".join(lines)
 
 
 # First line of a list copied with 分享. 批量添加 reads such a paste with parse_shared.
@@ -744,44 +732,6 @@ class Store:
             return False
         return any(fold(entry.name) == target for entry in self.entries)
 
-    def remove_name(self, name: str) -> None:
-        target = fold(clean_stored_name(name))
-        if not target:
-            return
-        kept = [entry for entry in self.entries if fold(entry.name) != target]
-        if len(kept) == len(self.entries):
-            return
-        self.entries = kept
-        self.save_entries()
-
-    def replace_entries(self, pairs: list[tuple[str, str]]) -> None:
-        """Replace the list from edited lines. The same name keeps its old settings."""
-        previous = {fold(entry.name): entry for entry in self.entries}
-        order: list[str] = []
-        chosen: dict[str, tuple[str, str]] = {}
-        for name, note in pairs:
-            cleaned = clean_stored_name(name)[:_MAX_NAME]
-            if not cleaned:
-                continue
-            key = fold(cleaned)
-            if key not in chosen:
-                order.append(key)
-            chosen[key] = (cleaned, (note or "").strip()[:_MAX_NOTE])
-        updated: list[Entry] = []
-        for key in order:
-            cleaned, note = chosen[key]
-            old = previous.get(key)
-            updated.append(
-                Entry(
-                    name=cleaned,
-                    reason=note,
-                    match_from_prefix=old.match_from_prefix if old else False,
-                    added_at=old.added_at if old else datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
-                )
-            )
-        self.entries = updated
-        self.save_entries()
-
     def recheck_tags(self) -> int:
         """Add any current tag whose word is already in a saved reason. Existing tags stay."""
         catalog = self.tag_catalog()
@@ -930,7 +880,3 @@ class Store:
         self.save_scans()
         self.save_settings()
 
-    def set_prefix(self, index: int, enabled: bool) -> None:
-        if 0 <= index < len(self.entries):
-            self.entries[index].match_from_prefix = bool(enabled)
-            self.save_entries()
