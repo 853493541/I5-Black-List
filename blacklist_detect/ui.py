@@ -3548,6 +3548,7 @@ class MainWindow(QMainWindow):
     def _set_history_seat(self, row: int, column: int, seat: dict) -> None:
         unclear = bool(seat.get("unclear")) or not str(seat.get("name") or "")
         shown = "未看清" if unclear else str(seat.get("name"))
+        visible = "未知" if unclear else shown
         match = None if unclear else self._history_match(shown)
         stored = match.entry.name if match is not None else ""
         mine = not unclear and match is None and self._is_my_name(shown)
@@ -3571,7 +3572,7 @@ class MainWindow(QMainWindow):
         name_item.setFont(name_font)
         if unclear:
             tone = THEME["gray"]
-            wash = THEME["gray_wash"]
+            wash = ""
             hover = ""
         elif match is not None:
             tone = THEME["red"]
@@ -3595,12 +3596,17 @@ class MainWindow(QMainWindow):
         line = QHBoxLayout(wrap)
         line.setContentsMargins(16, 0, 16, 0)
         line.setSpacing(GAP)
-        name_label = QLabel(label)
+        name_label = QLabel(visible if unclear else label)
         name_label.setFont(name_font)
         name_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         name_color = tone
+        if unclear:
+            missed = record_font()
+            missed.setItalic(True)
+            name_label.setFont(missed)
         name_label.setStyleSheet(
             f'color: {name_color}; background: transparent; font-family: "{chinese_family()}"; font-size: 13pt;'
+            + (" font-style: italic;" if unclear else "")
         )
         line.addWidget(name_label)
         line.addStretch(1)

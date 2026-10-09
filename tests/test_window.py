@@ -366,9 +366,13 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     assert window.history_table.cellWidget(0, 0).styleSheet() == window._history_wrap_style("#f3fbf6")
     assert window.history_table.viewport().cursor().shape() == Qt.ArrowCursor
     assert window.history_table.item(1, 0).text() == "未看清"
-    unclear_wash = window.history_table.cellWidget(1, 0).styleSheet()
+    missed = window.history_table.cellWidget(1, 0).findChild(QLabel)
+    assert missed.text() == "未知"
+    assert missed.font().italic() is True
+    assert "italic" in missed.styleSheet()
+    assert window.history_table.cellWidget(1, 0).styleSheet() == window._history_wrap_style("")
     window._hover_history_cell(1, 0)
-    assert window.history_table.cellWidget(1, 0).styleSheet() == unclear_wash
+    assert window.history_table.cellWidget(1, 0).styleSheet() == window._history_wrap_style("")
     assert window.history_table.viewport().cursor().shape() == Qt.ArrowCursor
     assert window.history_table.item(1, 0).foreground().color().name() == "#6b7280"
     assert window.history_table.item(1, 0).data(Qt.UserRole) in ("", None)
