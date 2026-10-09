@@ -491,11 +491,20 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     assert "border: none" in window.panel.styleSheet()
     assert not (window.panel.windowFlags() & Qt.WindowTransparentForInput)
     assert window.hit_card.isVisible() is False
+    assert window.clear_mark.isVisible() is False
     assert window.panel.x() > 0
     window._on_checked("ok", CheckResult(True, "", button_box=button))
     assert window.panel.mode == "clear"
     assert window.panel.label.text() == ""
     assert window.panel.toolTip() == "没有黑名单"
+    assert window.clear_mark.isVisible() is True
+    assert window.clear_mark.height() == max(16, round(window.panel.height() * 0.6))
+    assert window.clear_mark.width() == window.clear_mark.height()
+    centered = window.panel.y() + (window.panel.height() - window.clear_mark.height()) // 2
+    assert window.clear_mark.y() == centered
+    mark_right = window.clear_mark.x() + window.clear_mark.width()
+    mark_beside = window.clear_mark.x() >= window.panel.x() + window.panel.width() or mark_right <= window.panel.x()
+    assert mark_beside
     assert window.panel.windowFlags() & Qt.WindowTransparentForInput
     assert window.panel.windowFlags() & Qt.WindowStaysOnTopHint
     assert window.panel.windowFlags() & Qt.WindowDoesNotAcceptFocus
@@ -511,6 +520,7 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     assert "6px solid #c23b2e" in window.panel.styleSheet()
     assert not (window.panel.windowFlags() & Qt.WindowTransparentForInput)
     assert window.hit_card.isVisible() is True
+    assert window.clear_mark.isVisible() is False
     centered = window.panel.y() + (window.panel.height() - window.hit_card.height()) // 2
     assert window.hit_card.y() == centered
     assert "border: none" in window.hit_card.styleSheet()
@@ -563,6 +573,7 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     window._show_panel(CheckResult(True, "", button_box=button))
     assert window.panel.mode == "clear"
     assert window.hit_card.isVisible() is False
+    assert window.clear_mark.isVisible() is True
     window.close()
 
 

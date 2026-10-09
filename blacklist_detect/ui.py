@@ -2169,6 +2169,55 @@ class HitCard(QWidget):
         _pin_topmost(self)
 
 
+class ClearMark(QWidget):
+    """Green badge with a white check, shown beside a clear accept button."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            None,
+            Qt.FramelessWindowHint
+            | Qt.Window
+            | Qt.WindowStaysOnTopHint
+            | Qt.Tool
+            | Qt.WindowDoesNotAcceptFocus
+            | Qt.WindowTransparentForInput,
+        )
+        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self.setFocusPolicy(Qt.NoFocus)
+
+    def set_size(self, height: int) -> None:
+        side = max(16, round(int(height) * 0.6))
+        self.setFixedSize(side, side)
+
+    def paintEvent(self, _event) -> None:  # noqa: ANN001
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(THEME["green"]))
+        painter.drawEllipse(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5))
+        pen = QPen(QColor("#ffffff"), max(2.0, self.height() * 0.07))
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(pen)
+        painter.setBrush(Qt.NoBrush)
+        width = float(self.width())
+        height = float(self.height())
+
+        def point(x: float, y: float) -> QPointF:
+            scale = 0.72
+            return QPointF((8 + (x - 8) * scale) / 16 * width, (8 + (y - 8) * scale) / 16 * height)
+
+        painter.drawLine(point(3.2, 8.4), point(6.6, 11.8))
+        painter.drawLine(point(6.6, 11.8), point(12.8, 4.5))
+        painter.end()
+
+    def showEvent(self, event) -> None:  # noqa: ANN001
+        super().showEvent(event)
+        _pin_topmost(self)
+
+
 class LobbyPanel(QWidget):
     """Rounded cover sized to 准备案件还原. It sits on the button, not beside it."""
 
@@ -2319,6 +2368,7 @@ class MainWindow(QMainWindow):
         self.clear_notice = ClearWindow()
         self.panel = LobbyPanel()
         self.hit_card = HitCard()
+        self.clear_mark = ClearMark()
         self._panel_hide_timer = QTimer(self)
         self._panel_hide_timer.setSingleShot(True)
         self._panel_hide_timer.timeout.connect(self._hide_panel_after_title)
@@ -2789,6 +2839,7 @@ class MainWindow(QMainWindow):
         self._panel_hide_timer.stop()
         self.panel.hide()
         self.hit_card.hide()
+        self.clear_mark.hide()
         self._reload_history()
 
     def _save_player_name(self) -> None:
@@ -3739,6 +3790,7 @@ class MainWindow(QMainWindow):
             self._panel_hide_timer.stop()
             self.panel.set_mode("checking", "请等待")
             self.hit_card.hide()
+            self.clear_mark.hide()
         if not self.worker.request(fn):
             if not quiet:
                 self._set_result("正在检查", "status", "check")
@@ -3915,6 +3967,7 @@ class MainWindow(QMainWindow):
         self._panel_hide_timer.stop()
         self.panel.hide()
         self.hit_card.hide()
+        self.clear_mark.hide()
         if not self.store.auto_capture:
             self._watch_timer.stop()
 
@@ -3926,6 +3979,7 @@ class MainWindow(QMainWindow):
             return
         self._open_panel("checking", "请等待", box)
         self.hit_card.hide()
+        self.clear_mark.hide()
 
     def _show_panel(self, result: CheckResult) -> None:
         if not self._live_check or not result.header_found:
@@ -3935,6 +3989,7 @@ class MainWindow(QMainWindow):
             self._hide_panel_after_title()
             return
         if result.hits:
+            self.clear_mark.hide()
             self._open_panel("hit", "", result.button_box)
             self._show_hit_card(result.hits)
             return
@@ -3944,6 +3999,7 @@ class MainWindow(QMainWindow):
         if unclear:
             text += f"\n{unclear} 人没看清"
         self._open_panel("clear", text, result.button_box)
+        self._show_clear_mark()
 
     def _open_panel(self, mode: str, text: str, box) -> None:
         self._panel_hide_timer.stop()
@@ -3981,25 +4037,30 @@ class MainWindow(QMainWindow):
             people.append(person)
         if not people:
             self.hit_card.hide()
+            self.clear_mark.hide()
             return
         self.hit_card.set_people(people, self.panel.height())
-        self._place_side_card()
+        self._place_beside(self.hit_card)
 
-    def _place_side_card(self) -> None:
+    def _show_clear_mark(self) -> None:
+        self.clear_mark.set_size(self.panel.height())
+        self._place_beside(self.clear_mark)
+
+    def _place_beside(self, widget: QWidget) -> None:
         gap = 12
         panel = self.panel
         x = panel.x() + panel.width() + gap
-        y = panel.y() + (panel.height() - self.hit_card.height()) // 2
+        y = panel.y() + (panel.height() - widget.height()) // 2
         screen = QApplication.screenAt(panel.pos()) or QApplication.primaryScreen()
         if screen is not None:
             area = screen.availableGeometry()
-            if x + self.hit_card.width() > area.right() - 8:
-                x = panel.x() - gap - self.hit_card.width()
-            x = max(area.left() + 8, min(x, area.right() - self.hit_card.width() - 8))
-            y = max(area.top() + 8, min(y, area.bottom() - self.hit_card.height() - 8))
-        self.hit_card.move(int(x), int(y))
-        self.hit_card.show()
-        _pin_topmost(self.hit_card)
+            if x + widget.width() > area.right() - 8:
+                x = panel.x() - gap - widget.width()
+            x = max(area.left() + 8, min(x, area.right() - widget.width() - 8))
+            y = max(area.top() + 8, min(y, area.bottom() - widget.height() - 8))
+        widget.move(int(x), int(y))
+        widget.show()
+        _pin_topmost(widget)
 
     def _show_result(self, result: CheckResult) -> None:
         lines = []
@@ -4150,6 +4211,7 @@ class MainWindow(QMainWindow):
             self.detail_tip.close()
         self.panel.close()
         self.hit_card.close()
+        self.clear_mark.close()
         self.hotkey.clear()
         self.worker.stop()
         self.worker.wait(1500)
