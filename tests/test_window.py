@@ -1413,3 +1413,122 @@ def test_the_cover_fades_in_once_and_does_not_blink_on_the_result(qapp):
     assert panel.mode == "hit"
     panel.hide()
     panel.close()
+
+
+def _press(qapp, widget, key, modifiers=Qt.NoModifier) -> None:
+    qapp.sendEvent(widget, QKeyEvent(QKeyEvent.Type.KeyPress, key, modifiers))
+
+
+def test_keyboard_reaches_every_page_and_list(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    # Ctrl+1/2/3 open the pages; Ctrl+F lands on 黑名单.
+    window.shortcuts["Ctrl+3"].activated.emit()
+    assert window.tabs.currentIndex() == 2
+    window.shortcuts["Ctrl+1"].activated.emit()
+    assert window.tabs.currentIndex() == window.history_tab
+    window.store.add("甲")
+    window.store.add("乙")
+    window._show_list()
+    window.shortcuts["Ctrl+F"].activated.emit()
+    assert window.tabs.currentIndex() == window.blacklist_tab
+    opened: list[str] = []
+    monkeypatch.setattr(window, "_add_by_dialog", lambda: opened.append("add"))
+    monkeypatch.setattr(window, "_add_many_by_dialog", lambda: opened.append("batch"))
+    window._add_shortcuts()
+    window.shortcuts["Ctrl+N"].activated.emit()
+    window.shortcuts["Ctrl+I"].activated.emit()
+    assert opened == ["add", "batch"]
+    # Enter opens the current row, Delete removes it (and 撤销 brings it back).
+    table = window.blacklist_table
+    assert table.focusPolicy() == Qt.StrongFocus
+    edited: list[int] = []
+    monkeypatch.setattr(window, "_edit_entry", lambda index: edited.append(index))
+    table.setCurrentCell(1, 0)
+    _press(qapp, table, Qt.Key_Return)
+    assert edited == [1]
+    table.setCurrentCell(1, 0)
+    _press(qapp, table, Qt.Key_Delete)
+    assert [entry.name for entry in window.store.entries] == ["甲"]
+    assert window.toast.text.text() == "已删除「乙」"
+    window.toast.action.click()
+    assert [entry.name for entry in window.store.entries] == ["甲", "乙"]
+    # In 记录, Space folds a day and Delete removes the current record.
+    window.store.add_scan([{"seat": 1, "name": "丙", "unclear": False}])
+    window._reload_history()
+    records = window.history_list
+    day = records.item(0)
+    records.setCurrentItem(day)
+    _press(qapp, records, Qt.Key_Space)
+    assert records.item(1).isHidden()
+    _press(qapp, records, Qt.Key_Space)
+    assert records.item(1).isHidden() is False
+    records.setCurrentRow(1)
+    _press(qapp, records, Qt.Key_Delete)
+    assert window.store.scans == []
+    window.close()
+
+
+def test_controls_take_keyboard_focus_and_have_names(qapp, tmp_path, monkeypatch):
+    from blacklist_detect.ui_kit import IconButton, Switch, TabButton
+    from blacklist_detect.ui_widgets import NewTagButton, ThemeSwatch
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    # Buttons take focus from Tab, never from a click, so no ring follows the mouse.
+    buttons = [b for b in window.findChildren(QPushButton) if b.objectName() not in ("rowDelete", "toastAction")]
+    assert buttons and all(b.focusPolicy() == Qt.TabFocus for b in buttons)
+    for kind in (IconButton, Switch, TabButton, ThemeSwatch):
+        for control in window.findChildren(kind):
+            assert control.accessibleName(), (kind.__name__, control)
+    assert window.findChild(NewTagButton).focusPolicy() == Qt.TabFocus
+    assert all(pill.focusPolicy() == Qt.TabFocus for pill in window.findChildren(TagPill) if pill._clickable)
+    # A theme swatch is chosen with Enter, the way a click chooses it.
+    swatch = window.theme_buttons["绿色"]
+    _press(qapp, swatch, Qt.Key_Return)
+    assert window.store.theme == "绿色"
+    # Tab starts at the header: the page tabs and the switch come before the page itself.
+    chain = []
+    widget = window._tab_buttons[0]
+    for _ in range(400):
+        chain.append(widget)
+        widget = widget.nextInFocusChain()
+        if widget is window._tab_buttons[0]:
+            break
+    assert chain.index(window.auto_switch) < chain.index(window.history_list)
+    assert chain.index(window._tab_buttons[2]) < chain.index(window.list_search)
+    window.close()
+
+
+def test_a_clickable_tag_is_pressed_with_the_keyboard(qapp):
+    pill = TagPill("炸房", clickable=True)
+    seen: list[str] = []
+    pill.clicked.connect(seen.append)
+    _press(qapp, pill, Qt.Key_Space)
+    _press(qapp, pill, Qt.Key_Return)
+    assert seen == ["炸房", "炸房"]
+    assert pill.accessibleName() == "炸房"
+    plain = TagPill("挂机")
+    assert plain.focusPolicy() == Qt.NoFocus
+
+
+def test_a_button_shows_its_focus_ring_only_while_focused(qapp, tmp_path, monkeypatch):
+    from blacklist_detect.ui_theme import _FocusRing
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    button = window.test_button
+    ring = button.findChild(_FocusRing)
+    assert ring is not None and ring.isHidden()
+    qapp.sendEvent(button, QFocusEvent(QEvent.Type.FocusIn, Qt.TabFocusReason))
+    assert ring.isVisibleTo(button)
+    assert ring.geometry() == button.rect()
+    qapp.sendEvent(button, QFocusEvent(QEvent.Type.FocusOut, Qt.TabFocusReason))
+    assert ring.isHidden()
+    window.close()

@@ -351,6 +351,7 @@ class MainWindow(QMainWindow):
         self._blacklist_sort: tuple[int, bool] | None = None
         self._blacklist_hover = -1
         self._build()
+        self._add_shortcuts()
         self._apply_style()
         _caption_color(self)
         self._show_list()
@@ -392,6 +393,7 @@ class MainWindow(QMainWindow):
         self._tab_group.setExclusive(True)
         for index in range(self.tabs.count()):
             button = TabButton(self.tabs.tabText(index))
+            button.setToolTip(f"Ctrl+{index + 1}")
             self._tab_group.addButton(button, index)
             self._tab_buttons.append(button)
             header_row.addWidget(button, 0, Qt.AlignBottom)
@@ -451,13 +453,17 @@ class MainWindow(QMainWindow):
         self.list_search.setPlaceholderText("搜索名字、标签或原因")
         self.list_search.setClearButtonEnabled(True)
         self.list_search.setMaximumWidth(360)
+        self.list_search.setAccessibleName("搜索名字、标签或原因")
+        self.list_search.setToolTip("Ctrl+F")
         self.list_search.textChanged.connect(self._on_search_text)
         toolbar.addWidget(self.list_search, 1)
         toolbar.addStretch(1)
         batch = QPushButton("批量添加")
+        batch.setToolTip("Ctrl+I")
         batch.clicked.connect(self._add_many_by_dialog)
         add = QPushButton("添加")
         add.setObjectName("primary")
+        add.setToolTip("Ctrl+N")
         add.clicked.connect(self._add_by_dialog)
         toolbar.addWidget(batch)
         toolbar.addWidget(add)
@@ -506,7 +512,9 @@ class MainWindow(QMainWindow):
         self.blacklist_table.setWordWrap(False)
         self.blacklist_table.setTextElideMode(Qt.TextElideMode.ElideRight)
         self.blacklist_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.blacklist_table.setFocusPolicy(Qt.NoFocus)
+        self.blacklist_table.setFocusPolicy(Qt.StrongFocus)
+        self.blacklist_table.setAccessibleName("黑名单")
+        self.blacklist_table.installEventFilter(self)
         self.blacklist_table.setItemDelegate(_PlainItemDelegate(self.blacklist_table))
         self.blacklist_table.setMouseTracking(True)
         self.blacklist_table.viewport().setMouseTracking(True)
@@ -543,7 +551,9 @@ class MainWindow(QMainWindow):
         side_layout.setSpacing(GAP)
         self.history_list = QListWidget()
         self.history_list.setObjectName("history")
-        self.history_list.setFocusPolicy(Qt.NoFocus)
+        self.history_list.setFocusPolicy(Qt.StrongFocus)
+        self.history_list.setAccessibleName("记录")
+        self.history_list.installEventFilter(self)
         self.history_list.setItemDelegate(_PlainItemDelegate(self.history_list))
         self.history_list.setCursor(Qt.PointingHandCursor)
         self.history_list.setMouseTracking(True)
@@ -592,7 +602,10 @@ class MainWindow(QMainWindow):
         self.history_table.verticalHeader().setVisible(False)
         self.history_table.verticalHeader().setDefaultSectionSize(ROW_H + 4)
         self.history_table.setSelectionMode(QTableWidget.NoSelection)
-        self.history_table.setFocusPolicy(Qt.NoFocus)
+        self.history_table.setFocusPolicy(Qt.StrongFocus)
+        self.history_table.setAccessibleName("模仿者游戏（12人狂欢场）")
+        self.history_table.installEventFilter(self)
+        self.history_table.currentCellChanged.connect(self._on_seat_current)
         self.history_table.setItemDelegate(_PlainItemDelegate(self.history_table))
         self.history_table.setShowGrid(False)
         self.history_table.setMouseTracking(True)
@@ -647,6 +660,7 @@ class MainWindow(QMainWindow):
         self.player_edit.setPlaceholderText("游戏里的名字")
         self.player_edit.editingFinished.connect(self._save_player_name)
         self.player_edit.setFixedWidth(name_width)
+        self.player_edit.setAccessibleName("角色名称")
         general.add_row("角色名称", self.player_edit)
 
         check = section("检查")
@@ -662,6 +676,7 @@ class MainWindow(QMainWindow):
         self.hotkey_edit.setFixedWidth(slot)
         self.hotkey_edit.setCursor(Qt.PointingHandCursor)
         self.hotkey_edit.installEventFilter(self)
+        self.hotkey_edit.setAccessibleName("热键")
         check.add_row("方式", self.auto_mode, self.hotkey_edit)
         # Hotkey problems show right under the hotkey they are about.
         self.settings_label = QLabel("")
@@ -937,6 +952,8 @@ class MainWindow(QMainWindow):
         if getattr(self, "_closing", False):
             # Child widgets are being torn down. Touching them now raises.
             return False
+        if event.type() == QEvent.Type.KeyPress and self._list_key(watched, event):
+            return True
         edit = getattr(self, "hotkey_edit", None)
         if edit is not None and watched is edit:
             kind = event.type()
@@ -1342,6 +1359,74 @@ class MainWindow(QMainWindow):
             self.toast.show_message(text, ms=4000)
         else:
             self.toast.show_message(text, "撤销", undo, ms=8000)
+
+    def _list_key(self, watched, event) -> bool:  # noqa: ANN001
+        """Enter opens what is current, Delete removes it, and Space or Enter folds a day."""
+        key = event.key()
+        enter = key in (Qt.Key_Return, Qt.Key_Enter)
+        if watched is getattr(self, "blacklist_table", None):
+            item = self.blacklist_table.item(self.blacklist_table.currentRow(), 0)
+            if item is None or item.data(Qt.UserRole) is None:
+                return False
+            if enter:
+                self._edit_entry(int(item.data(Qt.UserRole)))
+                return True
+            if key == Qt.Key_Delete:
+                self._delete_entry(int(item.data(Qt.UserRole)))
+                return True
+        elif watched is getattr(self, "history_table", None):
+            row, column = self.history_table.currentRow(), self.history_table.currentColumn()
+            if enter and row >= 0 and column >= 0:
+                self._on_history_cell(row, column)
+                return True
+        elif watched is getattr(self, "history_list", None):
+            item = self.history_list.currentItem()
+            if item is None:
+                return False
+            kind = item.data(Qt.UserRole + 1)
+            if kind == "day" and (enter or key == Qt.Key_Space):
+                self._on_history_clicked(item)
+                return True
+            if kind == "time" and key == Qt.Key_Delete:
+                self._delete_scan(int(item.data(Qt.UserRole)))
+                return True
+        return False
+
+    def _on_seat_current(self, row: int, column: int, *_previous) -> None:
+        # Moving through the seats with the arrow keys lights them up the way the pointer does.
+        if self.history_table.hasFocus() and row >= 0 and column >= 0:
+            self._hover_history_cell(row, column)
+
+    def _add_shortcuts(self) -> None:
+        from PySide6.QtGui import QKeySequence, QShortcut
+
+        self.shortcuts: dict[str, QShortcut] = {}
+        for keys, slot in (
+            ("Ctrl+1", self._show_records_page),
+            ("Ctrl+2", self._show_blacklist_page),
+            ("Ctrl+3", self._show_settings_page),
+            ("Ctrl+F", self._focus_search),
+            ("Ctrl+N", self._add_by_dialog),
+            ("Ctrl+I", self._add_many_by_dialog),
+        ):
+            shortcut = QShortcut(QKeySequence(keys), self)
+            shortcut.activated.connect(slot)
+            self.shortcuts[keys] = shortcut
+
+    def _show_records_page(self) -> None:
+        self.tabs.setCurrentIndex(self.history_tab)
+
+    def _show_blacklist_page(self) -> None:
+        self.tabs.setCurrentIndex(self.blacklist_tab)
+
+    def _show_settings_page(self) -> None:
+        self.tabs.setCurrentIndex(2)
+
+    def _focus_search(self) -> None:
+        self._show_blacklist_page()
+        if not self.list_search.isHidden():
+            self.list_search.setFocus(Qt.ShortcutFocusReason)
+            self.list_search.selectAll()
 
     def _on_search_text(self, _text: str) -> None:
         self._show_list()

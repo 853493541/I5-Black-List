@@ -16,16 +16,19 @@ from __future__ import annotations
 
 import sys
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, QRectF, Qt
 from PySide6.QtGui import (
     QColor,
     QFont,
+    QPainter,
     QPalette,
+    QPen,
 )
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QPushButton,
+    QWidget,
 )
 
 
@@ -332,6 +335,10 @@ def _button_rules(family: str) -> str:
                 color: {t["accent_hover"]};
                 text-decoration: underline;
             }}
+            QPushButton#link:focus {{
+                border: none;
+                text-decoration: underline;
+            }}
             """
 
 
@@ -388,9 +395,52 @@ def _card_rules() -> str:
             """
 
 
+class _FocusRing(QWidget):
+    """The keyboard focus ring of one button, painted over it just inside its edge.
+
+    A stylesheet cannot draw it: Qt puts a :focus outline around the label, and a
+    thicker border moves the label. This child is painted last, so it sits on the fill.
+    """
+
+    def __init__(self, button: QPushButton) -> None:
+        super().__init__(button)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self.setAttribute(Qt.WA_NoSystemBackground, True)
+        self.setFocusPolicy(Qt.NoFocus)
+        self.hide()
+        button.installEventFilter(self)
+
+    def eventFilter(self, watched, event) -> bool:  # noqa: ANN001
+        kind = event.type()
+        if kind == QEvent.Type.FocusIn:
+            self.setGeometry(watched.rect())
+            self.show()
+            self.raise_()
+        elif kind == QEvent.Type.FocusOut:
+            self.hide()
+        elif kind == QEvent.Type.Resize:
+            self.setGeometry(watched.rect())
+        return False
+
+    def paintEvent(self, _event) -> None:  # noqa: ANN001
+        button = self.parentWidget()
+        filled = button.objectName() == "primary" or (button.objectName() == "segment" and button.isChecked())
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setBrush(Qt.NoBrush)
+        painter.setPen(QPen(QColor(THEME["on_accent"] if filled else THEME["text"]), 2))
+        painter.drawRoundedRect(QRectF(self.rect()).adjusted(3, 3, -3, -3), RADIUS - 2, RADIUS - 2)
+
+
 def _pointing(root) -> None:
+    """Buttons show a hand, and take focus from Tab but not from a click, like Windows buttons."""
     for widget in (*root.findChildren(QPushButton), *root.findChildren(QCheckBox)):
         widget.setCursor(Qt.PointingHandCursor)
+        if widget.focusPolicy() == Qt.NoFocus:
+            continue
+        widget.setFocusPolicy(Qt.TabFocus)
+        if isinstance(widget, QPushButton) and widget.findChild(_FocusRing) is None and widget.objectName() != "link":
+            _FocusRing(widget)
 
 
 def _menu_style(family: str) -> str:

@@ -57,6 +57,11 @@ from blacklist_detect.ui_theme import (
 _KEYBOARD_FOCUS = (Qt.FocusReason.TabFocusReason, Qt.FocusReason.BacktabFocusReason, Qt.FocusReason.ShortcutFocusReason)
 
 
+def activates(event) -> bool:  # noqa: ANN001
+    """Space or Enter presses a focused control, as on a button."""
+    return event.key() in (Qt.Key_Space, Qt.Key_Return, Qt.Key_Enter) and not event.modifiers() & ~Qt.KeypadModifier
+
+
 class _KeyboardRing:
     """Shows a focus ring only when focus came from the keyboard, the way Windows does,
     so a click or the window opening never leaves a ring behind.

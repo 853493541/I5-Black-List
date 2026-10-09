@@ -102,6 +102,7 @@ def main() -> int:
     window._hover_blacklist_row(1, 0)
     snap("blacklist_hover")
     window._clear_blacklist_hover()
+    _focus_scene(app, window, snap)
     window.tabs.setCurrentIndex(0)
     window._hover_history_cell(1, 0)
     snap("records_hover")
@@ -147,6 +148,28 @@ def main() -> int:
     _contact_sheet(out, args.label, shots)
     print(f"{len(shots)} pictures in {out}")
     os._exit(0)
+
+
+def _focus_scene(app, window, snap) -> None:  # noqa: ANN001
+    """Keyboard focus rings, as Tab would leave them."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QPushButton
+
+    window.activateWindow()
+    window.tabs.setCurrentIndex(1)
+    for button in window.findChildren(QPushButton):
+        if button.text() == "添加" and button.isVisible():
+            button.setFocus(Qt.FocusReason.TabFocusReason)
+            break
+    snap("focus_primary")
+    window._tab_buttons[2].setFocus(Qt.FocusReason.TabFocusReason)
+    snap("focus_tab")
+    window.tabs.setCurrentIndex(2)
+    window.theme_buttons["绿色"].setFocus(Qt.FocusReason.TabFocusReason)
+    snap("focus_swatch")
+    window.test_button.setFocus(Qt.FocusReason.TabFocusReason)
+    snap("focus_secondary")
+    window.setFocus()
 
 
 def _kit_scenes(window, snap) -> None:  # noqa: ANN001

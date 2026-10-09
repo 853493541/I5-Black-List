@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
 )
 
 from blacklist_detect.ui_icons import pixmap as line_pixmap
+from blacklist_detect.ui_kit import _KeyboardRing, activates
 from blacklist_detect.ui_theme import (
     RADIUS,
     SMALL_PT,
@@ -260,7 +261,16 @@ class _ColumnHeader(QHeaderView):
         painter.restore()
 
 
-class TagPill(QWidget):
+def _paint_ring(painter: QPainter, rect: QRectF, radius: float) -> None:
+    """The keyboard focus ring, in the text color the way Windows draws it."""
+    painter.save()
+    painter.setBrush(Qt.NoBrush)
+    painter.setPen(QPen(QColor(THEME["text"]), 1.5))
+    painter.drawRoundedRect(rect, radius, radius)
+    painter.restore()
+
+
+class TagPill(_KeyboardRing, QWidget):
     """A painted capsule. Stylesheets were painting flat color over the words.
 
     A clickable pill emits clicked(text). It does not hold a callback: a lambda
@@ -303,9 +313,11 @@ class TagPill(QWidget):
         self._anim.valueChanged.connect(self._set_blend)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.setFont(self._face())
+        self.setAccessibleName(text)
         if clickable:
             self.setMouseTracking(True)
             self.setCursor(Qt.PointingHandCursor)
+            self.setFocusPolicy(Qt.TabFocus)
         else:
             self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
 
@@ -357,8 +369,16 @@ class TagPill(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         if self._running():
             self._paint_moving(painter)
+        else:
+            self._paint_still(painter)
+        if self.show_ring():
+            _paint_ring(painter, QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), (self.height() - 1) / 2)
+
+    def keyPressEvent(self, event) -> None:  # noqa: ANN001
+        if self._clickable and activates(event):
+            self.clicked.emit(self._text)
             return
-        self._paint_still(painter)
+        super().keyPressEvent(event)
 
     def _paint_still(self, painter: QPainter) -> None:
         painter.setFont(self._face())
@@ -490,13 +510,13 @@ class _TagRow(QWidget):
         self.arrange()
 
 
-class NewTagButton(QPushButton):
+class NewTagButton(_KeyboardRing, QPushButton):
     """Sits after the tag pills and opens the new-tag dialog."""
 
     def __init__(self) -> None:
         super().__init__("新标签")
         self.setObjectName("tagNew")
-        self.setFocusPolicy(Qt.NoFocus)
+        self.setFocusPolicy(Qt.TabFocus)
         self.setCursor(Qt.PointingHandCursor)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.setFont(self._face())
@@ -537,6 +557,8 @@ class NewTagButton(QPushButton):
         text_box = QRect(body)
         text_box.adjust(8, 0, -8, 0)
         painter.drawText(text_box, Qt.AlignCenter, self.text())
+        if self.show_ring():
+            _paint_ring(painter, QRectF(body).adjusted(0.5, 0.5, -0.5, -0.5), body.height() / 2)
 
 
 class DayFolderIcon(QWidget):
@@ -670,7 +692,7 @@ def _watch_mark(color: str) -> QPixmap:
     return pixmap
 
 
-class ThemeSwatch(QWidget):
+class ThemeSwatch(_KeyboardRing, QWidget):
     """One theme, shown as its color only. A click emits chosen(name)."""
 
     chosen = Signal(str)
@@ -686,8 +708,9 @@ class ThemeSwatch(QWidget):
         hang = self._badge // 2
         self.setFixedSize(self._square + hang, self._square + hang)
         self.setCursor(Qt.PointingHandCursor)
-        self.setFocusPolicy(Qt.NoFocus)
+        self.setFocusPolicy(Qt.TabFocus)
         self.setToolTip(name)
+        self.setAccessibleName(name)
         self.setAttribute(Qt.WA_NoSystemBackground, True)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
 
@@ -702,6 +725,8 @@ class ThemeSwatch(QWidget):
         painter.setPen(Qt.NoPen)
         painter.setBrush(QColor(self._color))
         painter.drawRoundedRect(0, hang, self._square, self._square, 8, 8)
+        if self.show_ring():
+            _paint_ring(painter, QRectF(1, hang + 1, self._square - 2, self._square - 2), 7)
         if not self._selected:
             return
         painter.setRenderHint(QPainter.Antialiasing)
@@ -722,6 +747,12 @@ class ThemeSwatch(QWidget):
             self.chosen.emit(self._name)
             return
         super().mousePressEvent(event)
+
+    def keyPressEvent(self, event) -> None:  # noqa: ANN001
+        if activates(event):
+            self.chosen.emit(self._name)
+            return
+        super().keyPressEvent(event)
 
 
 def _icon() -> QIcon:
