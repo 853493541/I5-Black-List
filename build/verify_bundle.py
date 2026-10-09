@@ -35,6 +35,10 @@ def main() -> int:
     window.panel.grab()
     window.hit_card.set_people([("名字", ("炸房",))], 60)
     window.hit_card.grab()
+    key = ui.instance_key() + "-verify"
+    server = ui.listen_for_instances(key, lambda: None)
+    single_instance = ui.notify_running_instance(key)
+    server.close()
 
     from blacklist_detect.capture import capture_top_band
     from blacklist_detect.model import Entry
@@ -55,6 +59,7 @@ def main() -> int:
         "names": [(slot.visible, slot.truncated) for slot in result.names],
         "hits": [hit.entry_name for hit in result.hits],
         "glance": glanced,
+        "single_instance": single_instance,
         "modules": sorted({getattr(m, "__file__", None) or "" for m in list(sys.modules.values())} - {""}),
         "dlls": sorted({item.path for item in psutil.Process().memory_maps()}),
     }

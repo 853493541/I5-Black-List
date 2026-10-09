@@ -55,6 +55,7 @@ from PySide6.QtWidgets import (
 
 from blacklist_detect import __version__
 from blacklist_detect.capture import (
+    CaptureUnavailable,
     capture_capability_message,
     capture_displays,
     capture_top_band,
@@ -62,8 +63,10 @@ from blacklist_detect.capture import (
     virtual_origin,
 )
 from blacklist_detect.hotkey import GlobalHotkey, parse_hotkey
-from blacklist_detect.match import NameLabel, format_hit, match_label, seat_number, split_ellipsis
+from blacklist_detect.logs import log, log_dir, on_uncaught, setup_logging
+from blacklist_detect.match import NameLabel, clean_stored_name, fold, format_hit, match_label, seat_number, split_ellipsis
 from blacklist_detect.model import Entry
+from blacklist_detect.ocr_engine import OcrUnavailable, get_engine
 from blacklist_detect.pipeline import CheckResult, Hit, NameSlot, check_frames, glance_title
 from blacklist_detect.storage import Store, describe_entry, tag_text
 from blacklist_detect.watch import GLANCE_INTERVAL_MS, LobbyWatch
@@ -79,16 +82,81 @@ def _claim_windows_app() -> None:
 
 
 def run_app() -> int:
+    log_path = setup_logging()
+    log.info("Start %s, Python %s, %s", __version__, sys.version.split()[0], sys.platform)
     _claim_windows_app()
     app = QApplication(sys.argv)
     app.setApplicationName("黑名单检测")
     app.setApplicationVersion(__version__)
+    key = instance_key()
+    if notify_running_instance(key):
+        log.info("Already running. Brought the open window forward.")
+        return 0
     app.setWindowIcon(_icon())
     app.setFont(chinese_font())
     _apply_theme(app)
-    window = MainWindow()
+    try:
+        window = MainWindow()
+    except Exception as exc:
+        log.critical("The window could not open", exc_info=True)
+        from PySide6.QtWidgets import QMessageBox
+
+        where = f"\n\n详情在 {log_path}" if log_path else ""
+        QMessageBox.critical(None, "黑名单检测", f"程序没能打开：{exc}{where}")
+        return 1
+    window.instance_server = listen_for_instances(key, window._show_from_tray)
+    on_uncaught(window.report_uncaught)
     window.show()
-    return app.exec()
+    window.start_warmup()
+    code = app.exec()
+    log.info("Exit %s", code)
+    return code
+
+
+def instance_key() -> str:
+    """One name per Windows user, so a second copy can find the first."""
+    import getpass
+    import hashlib
+
+    try:
+        user = getpass.getuser()
+    except Exception:
+        user = "user"
+    return "BlackListDetect-" + hashlib.sha1(user.encode("utf-8")).hexdigest()[:12]
+
+
+def notify_running_instance(key: str) -> bool:
+    """Ask a copy that is already open to show its window. False when none is open."""
+    from PySide6.QtNetwork import QLocalSocket
+
+    socket = QLocalSocket()
+    socket.connectToServer(key)
+    if not socket.waitForConnected(300):
+        return False
+    socket.write(b"show")
+    socket.flush()
+    socket.waitForBytesWritten(300)
+    socket.disconnectFromServer()
+    return True
+
+
+def listen_for_instances(key: str, on_show):
+    """Show this window when the app is opened a second time. Two copies would overwrite each other's files."""
+    from PySide6.QtNetwork import QLocalServer
+
+    QLocalServer.removeServer(key)
+    server = QLocalServer()
+    server.listen(key)
+
+    def accept() -> None:
+        while server.hasPendingConnections():
+            connection = server.nextPendingConnection()
+            connection.disconnectFromServer()
+            connection.deleteLater()
+            on_show()
+
+    server.newConnection.connect(accept)
+    return server
 
 
 def _zh_clock(moment: datetime) -> str:
@@ -1608,11 +1676,14 @@ class AddNameDialog(QDialog):
         catalog: tuple[str, ...] = (),
         added_at: str = "",
         parent=None,
+        taken: frozenset[str] | set[str] = frozenset(),
     ) -> None:
         super().__init__(parent)
         from blacklist_detect.storage import TAGS
 
         self.setWindowTitle(title)
+        # Folded names already on the list. Saving one of them again would make a second row.
+        self.taken = frozenset(taken)
         self.name = name
         self.tags: tuple[str, ...] = tuple(tags)
         self.detail = detail
@@ -1760,8 +1831,17 @@ class AddNameDialog(QDialog):
         return tuple(ordered)
 
     def _accept(self) -> None:
+        key = fold(clean_stored_name(self.name_edit.text()))
         if not self.name_edit.text().strip():
-            self.name_error.setText("请填写名字")
+            problem = "请填写名字"
+        elif not key:
+            problem = "名字里要有文字或数字"
+        elif key in self.taken:
+            problem = "黑名单里已经有这个名字"
+        else:
+            problem = ""
+        if problem:
+            self.name_error.setText(problem)
             self.name_error.show()
             return
         self.name_error.setText("")
@@ -1875,7 +1955,7 @@ class CheckWorker(QThread):
             try:
                 self.done.emit((kind, "ok", fn()))
             except Exception as exc:
-                self.done.emit((kind, "err", str(exc)))
+                self.done.emit((kind, "err", exc))
 
     def stop(self) -> None:
         self._queue.put(None)
@@ -2457,8 +2537,11 @@ class _PlainItemDelegate(QStyledItemDelegate):
 
 
 class MainWindow(QMainWindow):
+    uncaught = Signal(str)
+
     def __init__(self) -> None:
         super().__init__()
+        self.uncaught.connect(self._show_uncaught)
         self.setWindowTitle(f"黑名单检测 {__version__}")
         self.store = Store()
         use_theme(self.store.theme)
@@ -2491,9 +2574,16 @@ class MainWindow(QMainWindow):
         self._check_started: float | None = None
         self._release_foreground = False
         self._told_tray = False
+        self._manual_check = False
+        self._problem = ""
+        self._told_problems: set[str] = set()
+        self._glance_pause_until = 0.0
+        self._warm_started: float | None = None
+        self.instance_server = None
         self._status_kind = "idle"
         self._watch_tone = "idle"
         self._watch_full = "未开启"
+        self._watch_tip = ""
         self._blacklist_sort: tuple[int, bool] | None = None
         self._blacklist_hover = -1
         self._build()
@@ -3003,7 +3093,7 @@ class MainWindow(QMainWindow):
         if hasattr(self, "tag_settings"):
             self._fill_tag_settings()
         if hasattr(self, "watch_label"):
-            self._set_result(self._watch_full, self._watch_tone, self._status_kind)
+            self._set_result(self._watch_full, self._watch_tone, self._status_kind, self._watch_tip)
         if hasattr(self, "mode_cycle"):
             self.mode_cycle.setPixmap(_reload_icon())
         if hasattr(self, "warning"):
@@ -3059,6 +3149,9 @@ class MainWindow(QMainWindow):
         return cluster.rect().adjusted(-2, -2, 2, 2).contains(pos)
 
     def eventFilter(self, watched, event) -> bool:  # noqa: ANN001
+        if getattr(self, "_closing", False):
+            # Child widgets are being torn down. Touching them now raises.
+            return False
         if self._filter_mode_cluster(watched, event):
             return True
         edit = getattr(self, "hotkey_edit", None)
@@ -3446,7 +3539,7 @@ class MainWindow(QMainWindow):
         self._show_history_scan(self._selected_scan())
 
     def _add_by_dialog(self) -> None:
-        dialog = AddNameDialog(catalog=self.store.tag_catalog(), parent=self)
+        dialog = AddNameDialog(catalog=self.store.tag_catalog(), parent=self, taken=self._taken_names())
         if dialog.exec() != QDialog.Accepted or dialog.deleted:
             return
         if self.store.add(dialog.name, dialog.detail, tags=dialog.tags) is None:
@@ -3467,6 +3560,9 @@ class MainWindow(QMainWindow):
         self._show_list()
         self._show_history_scan(self._selected_scan())
 
+    def _taken_names(self, skip: int = -1) -> frozenset[str]:
+        return frozenset(fold(entry.name) for index, entry in enumerate(self.store.entries) if index != skip)
+
     def _edit_row(self, row: int, _column: int = 0) -> None:
         item = self.blacklist_table.item(row, 0)
         if item is None or item.data(Qt.UserRole) is None:
@@ -3486,6 +3582,7 @@ class MainWindow(QMainWindow):
             catalog=self.store.tag_catalog(),
             added_at=entry.added_at,
             parent=self,
+            taken=self._taken_names(skip=index),
         )
         if dialog.exec() != QDialog.Accepted:
             return
@@ -3733,9 +3830,12 @@ class MainWindow(QMainWindow):
             action = ""
         else:
             action = "添加"
-        title = stored if match is not None else shown
+        # The name as read off the screen. A match shows the list's spelling beside it,
+        # so a cut-off or near name that matched can be told apart from an exact one.
+        title = shown
         if not unclear:
             title = split_ellipsis(title)[0] or title
+        listed = stored if match is not None and fold(stored) != fold(title) else ""
         # Lobby order is not the player's number. Show the name until a later stage.
         label = title
         name_item = QTableWidgetItem(label)
@@ -3785,6 +3885,16 @@ class MainWindow(QMainWindow):
         )
         line.addWidget(name_label)
         line.addStretch(1)
+        if listed:
+            listed_label = QLabel(f"名单：{listed}")
+            listed_label.setObjectName("rowListed")
+            listed_label.setFont(chinese_font(SMALL_PT))
+            listed_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+            listed_label.setStyleSheet(
+                f'color: {THEME["red"]}; background: transparent; font-family: "{chinese_family()}";'
+            )
+            name_item.setToolTip(f"画面是「{title}」，黑名单里是「{listed}」")
+            line.addWidget(listed_label)
         if action:
             action_label = QLabel(action)
             action_label.setObjectName("rowAction")
@@ -3870,7 +3980,7 @@ class MainWindow(QMainWindow):
                     self._edit_entry(index)
                     return
             return
-        dialog = AddNameDialog(shown, title="添加", catalog=self.store.tag_catalog(), parent=self)
+        dialog = AddNameDialog(shown, title="添加", catalog=self.store.tag_catalog(), parent=self, taken=self._taken_names())
         if dialog.exec() != QDialog.Accepted or dialog.deleted:
             return
         if self.store.add(dialog.name, dialog.detail, tags=dialog.tags) is None:
@@ -3978,7 +4088,63 @@ class MainWindow(QMainWindow):
         self._release_foreground = True
         self._rescan_active = False
         lock_foreground(True)
-        self._start(self._capture_job, live=True)
+        if self._start(self._capture_job, live=True):
+            self._manual_check = True
+        elif self._status_kind == "loading":
+            self._notify("识别模型还在加载", "请过几秒再按一次快捷键。")
+
+    def start_warmup(self) -> None:
+        """Load the OCR models now, so the first lobby check does not wait for them."""
+        if not self.worker.request(get_engine().warmup, kind="warmup"):
+            return
+        self._warm_started = time.perf_counter()
+        self._set_result("正在加载识别模型", "idle", "loading")
+
+    def report_uncaught(self, text: str) -> None:
+        """Any thread may call this. The window is updated on its own thread."""
+        self.uncaught.emit(text)
+
+    def _show_uncaught(self, text: str) -> None:
+        tip = f"{text}\n\n日志：{log_dir(self.store.root) / 'app.log'}"
+        self._set_result("程序出错了", "hit", "error", tip=tip)
+
+    def _report_problem(self, problem) -> None:  # noqa: ANN001
+        """Say what went wrong in the header and the tray. A check that silently stops is worse than an error."""
+        if isinstance(problem, OcrUnavailable):
+            label = "识别模型没有就绪"
+        elif isinstance(problem, CaptureUnavailable):
+            label = "无法读取屏幕"
+        else:
+            label = "检查出错"
+        detail = str(problem).strip() or label
+        if detail != self._problem:
+            trace = (type(problem), problem, problem.__traceback__) if isinstance(problem, BaseException) else None
+            expected = isinstance(problem, (OcrUnavailable, CaptureUnavailable))
+            log.warning("%s: %s", label, detail, exc_info=None if expected else trace)
+        if self._status_kind != "error" or detail != self._problem:
+            tip = f"{detail}\n\n日志：{log_dir(self.store.root) / 'app.log'}"
+            self._set_result(label, "hit", "error", tip=tip)
+        self._problem = detail
+        if label not in self._told_problems:
+            self._told_problems.add(label)
+            self._notify(label, detail[:200])
+
+    def _clear_problem(self) -> None:
+        if not self._problem:
+            return
+        self._problem = ""
+        log.info("Checks work again.")
+        if self._status_kind == "error":
+            self._sync_watch_idle()
+
+    def _notify(self, title: str, text: str, warning: bool = True) -> None:
+        """A Windows notification from the tray icon. The window is usually hidden behind the game."""
+        if self.tray is None or not self.tray.isVisible():
+            return
+        from PySide6.QtWidgets import QSystemTrayIcon
+
+        icon = QSystemTrayIcon.MessageIcon.Warning if warning else QSystemTrayIcon.MessageIcon.Information
+        self.tray.showMessage(title, text, icon, 5000)
 
     def _capture_job(self) -> CheckResult:
         frames = capture_displays()
@@ -3992,6 +4158,8 @@ class MainWindow(QMainWindow):
             return
         if not self.store.auto_capture and not self.panel.isVisible():
             self._watch_timer.stop()
+            return
+        if time.perf_counter() < self._glance_pause_until:
             return
         self.worker.request(self._glance_job, kind="glance")
 
@@ -4020,17 +4188,34 @@ class MainWindow(QMainWindow):
         self.worker.running_job = False
         if self._closing:
             return
+        if job == "warmup":
+            self._on_warmed(status, value)
+            return
         if job == "glance":
             self._on_glanced(status, value)
             return
         self._on_checked(status, value)
 
+    def _on_warmed(self, status: str, value) -> None:
+        if status != "ok":
+            self._report_problem(value)
+            return
+        if self._warm_started is not None:
+            log.info("OCR ready in %.1f s", time.perf_counter() - self._warm_started)
+        if self._status_kind == "loading":
+            self._sync_watch_idle()
+
     def _on_glanced(self, status: str, value) -> None:
         if status != "ok":
+            self._report_problem(value)
+            # Do not reload a missing model or retry a dead screen copy every 0.4 seconds.
+            pause = 15.0 if isinstance(value, OcrUnavailable) else 5.0
+            self._glance_pause_until = time.perf_counter() + pause
             return
         was_error = self._status_kind == "error"
-        self._glance_error = ""
-        if was_error:
+        if self._problem:
+            self._clear_problem()
+        elif was_error:
             self._sync_watch_idle()
         if not value:
             if self.panel.isVisible():
@@ -4065,9 +4250,12 @@ class MainWindow(QMainWindow):
         if self._check_started is not None:
             elapsed = time.perf_counter() - self._check_started
             self._check_started = None
+        manual = self._manual_check
         if status == "err":
             if not rescan and self._live_check and self._rescan_now():
                 return
+            self._manual_check = False
+            self._report_problem(value)
             if self.store.auto_capture:
                 self.watch.retry_after(time.perf_counter())
             self._hide_panel_after_title()
@@ -4076,10 +4264,22 @@ class MainWindow(QMainWindow):
         if not result.header_found:
             if not rescan and self._live_check and self._rescan_now():
                 return
+            self._manual_check = False
+            log.info("No lobby on screen: %s", result.message)
+            if manual:
+                self._notify("没有看到大厅", "按快捷键时，「推演成功」的画面要在屏幕上。")
             if self.store.auto_capture:
                 self.watch.retry_after(time.perf_counter())
             self._hide_panel_after_title()
             return
+        self._manual_check = False
+        self._clear_problem()
+        log.info(
+            "Checked the lobby: %d on the list, %d unclear, %.2f s",
+            len(result.hits),
+            sum(1 for slot in result.names if slot.unclear),
+            elapsed or 0.0,
+        )
         self._note_watch(bool(result.header_found))
         if result.header_found and result.names:
             outcome = self.store.add_scan(
@@ -4308,10 +4508,11 @@ class MainWindow(QMainWindow):
         self.watch_mark.style().unpolish(self.watch_mark)
         self.watch_mark.style().polish(self.watch_mark)
 
-    def _set_result(self, text: str, tone: str = "status", kind: str = "result") -> None:
+    def _set_result(self, text: str, tone: str = "status", kind: str = "result", tip: str = "") -> None:
         self._status_kind = kind
         self._watch_tone = tone
         self._watch_full = text
+        self._watch_tip = tip
         colors = {
             "clear": THEME["green"],
             "hit": THEME["red"],
@@ -4320,7 +4521,7 @@ class MainWindow(QMainWindow):
         }
         self.watch_label.setObjectName(tone)
         self.watch_label.setFont(chinese_font(READ_PT))
-        self.watch_label.setToolTip(text)
+        self.watch_label.setToolTip(tip or text)
         width = max(1, self.watch_label.maximumWidth())
         self.watch_label.setText(self.watch_label.fontMetrics().elidedText(text, Qt.TextElideMode.ElideRight, width))
         self.watch_label.style().unpolish(self.watch_label)
@@ -4383,14 +4584,16 @@ class MainWindow(QMainWindow):
             self._show_from_tray()
 
     def closeEvent(self, event) -> None:  # noqa: ANN001
-        if event.spontaneous():
+        if event.spontaneous() and self.tray is not None and self.tray.isVisible():
+            # Keep checking from the tray. Without a tray icon there would be no way back, so X quits.
             event.ignore()
             self.hide()
             if not self._told_tray:
                 self._told_tray = True
-                self._set_tray("已缩到托盘，右键可退出")
+                self._notify("黑名单检测仍在运行", "它会继续检查大厅。在右下角的托盘图标上右键可以退出。", warning=False)
             return
         self._remember_size()
+        self.hide()
         self._closing = True
         self._panel_hide_timer.stop()
         self._watch_timer.stop()
@@ -4403,7 +4606,13 @@ class MainWindow(QMainWindow):
         self.clear_mark.close()
         self.hotkey.clear()
         self.worker.stop()
-        self.worker.wait(1500)
+        # A check or a model load cannot be interrupted. Ending the thread under it crashes on exit.
+        if not self.worker.wait(20_000):
+            log.warning("The check thread was still running at exit.")
+        if self.instance_server is not None:
+            self.instance_server.close()
+        if self.tray is not None:
+            self.tray.hide()
         super().closeEvent(event)
 
 

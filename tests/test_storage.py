@@ -333,3 +333,48 @@ def test_reset_returns_a_new_application(tmp_path):
     assert again.hidden_tags == []
     assert again.tag_catalog() == ("炸房", "贴脸", "挂机", "场外", "不尊重底牌")
     assert again.column_order == [0, 1, 2, 3]
+
+
+def test_the_same_name_is_not_added_twice(tmp_path):
+    store = Store(tmp_path)
+    assert store.add("霁玥吉尔曼") is not None
+    assert store.add(" 霁玥吉尔曼 ") is None
+    assert store.add("★☆★") is None
+    assert [entry.name for entry in store.entries] == ["霁玥吉尔曼"]
+
+
+def test_a_list_file_of_the_wrong_shape_does_not_stop_the_app(tmp_path):
+    (tmp_path / "blacklist.json").write_text('{"entries": 5}', encoding="utf-8")
+    store = Store(tmp_path)
+    assert store.entries == []
+    assert "无法读取" in store.load_warning
+    aside = list(tmp_path.glob("blacklist.unreadable-*.json"))
+    assert len(aside) == 1
+    assert aside[0].read_text(encoding="utf-8") == '{"entries": 5}'
+
+
+def test_settings_of_the_wrong_shape_keep_the_defaults(tmp_path):
+    (tmp_path / "settings.json").write_text("[1, 2]", encoding="utf-8")
+    store = Store(tmp_path)
+    assert store.hotkey == "Alt+1"
+    assert "设置文件无法读取" in store.load_warning
+
+
+def test_the_list_is_copied_once_a_day_before_it_changes(tmp_path):
+    store = Store(tmp_path)
+    store.add("甲")
+    assert list((tmp_path / "backups").glob("*.json")) == []
+    store.add("乙")
+    copies = list((tmp_path / "backups").glob("blacklist-*.json"))
+    assert len(copies) == 1
+    assert "甲" in copies[0].read_text(encoding="utf-8")
+    assert "乙" not in copies[0].read_text(encoding="utf-8")
+    store.clear_entries()
+    assert len(list((tmp_path / "backups").glob("blacklist-*.json"))) == 1
+    for day in range(1, 10):
+        (tmp_path / "backups" / f"blacklist-2020-01-{day:02d}.json").write_text("{}", encoding="utf-8")
+    (copies[0]).unlink()
+    store.add("丙")
+    kept = sorted(path.name for path in (tmp_path / "backups").glob("blacklist-*.json"))
+    assert len(kept) == 7
+    assert kept[0] == "blacklist-2020-01-04.json"

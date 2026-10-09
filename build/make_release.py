@@ -51,7 +51,7 @@ DROP_PACKAGES = {
     "fsspec": "fsspec-",
 }
 
-# PySide6 is the full Qt. The app uses widgets only.
+# PySide6 is the full Qt. The app uses widgets, plus QtNetwork's local socket so only one copy runs.
 PYSIDE_KEEP_FILES = {
     "__init__.py",
     "_config.py",
@@ -63,10 +63,12 @@ PYSIDE_KEEP_FILES = {
     "Qt6Core.dll",
     "Qt6Gui.dll",
     "Qt6Widgets.dll",
+    "Qt6Network.dll",
     "Qt6Svg.dll",
     "QtCore.pyd",
     "QtGui.pyd",
     "QtWidgets.pyd",
+    "QtNetwork.pyd",
     "QtSvg.pyd",
     "concrt140.dll",
     "msvcp140.dll",
@@ -223,6 +225,8 @@ def _verify(stage: Path) -> None:
         problems.append("lobby title not found")
     if data["hits"] != ["gffdsd"]:
         problems.append(f"hits differ: {data['hits']}")
+    if not data.get("single_instance"):
+        problems.append("a second copy could not reach the first (QtNetwork)")
     if data["platform"] != "windows" or not data["icon"]:
         problems.append(f"Qt platform {data['platform']!r}, icon loaded {data['icon']}")
     root = str(stage).lower()

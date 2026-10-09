@@ -25,7 +25,13 @@ On Windows, also install the capture binding:
 python -m pip install "dxcam>=0.0.5"
 ```
 
-The blacklist is `%APPDATA%\BlackListDetect\blacklist.json` on Windows, and `$XDG_CONFIG_HOME/BlackListDetect/blacklist.json` (or `~/.config/BlackListDetect/blacklist.json`) elsewhere. The hotkey, mute switch, and debug-frame switch are in `settings.json` in that same folder.
+The blacklist is `%APPDATA%\BlackListDetect\blacklist.json` on Windows, and `$XDG_CONFIG_HOME/BlackListDetect/blacklist.json` (or `~/.config/BlackListDetect/blacklist.json`) elsewhere. The hotkey, check mode, theme, and debug-frame switch are in `settings.json` in that same folder.
+
+That folder also holds:
+
+- `backups\` — a copy of the list from each of the last 7 days it changed.
+- `logs\app.log` — what the app did and any error, without player names. `logs\crash.log` catches a hard crash.
+- `blacklist.unreadable-<time>.json` — a list file that could not be read, set aside instead of overwritten.
 
 ## Check a screenshot
 
@@ -85,7 +91,9 @@ on the reference lobby, and writes two zips to `dist\release\`:
 - `BlackListDetect-<version>-full.zip`, the same files again, about 100 MB larger, for anyone who can only open `.zip`.
 - `BlackListDetect-<version>-update.zip` with only the app code. Unzip it over the old folder. If `launcher.py` changed, send the full zip instead.
 
-Keep the top folder name in English letters. Paddle cannot open model files when
-the path has Chinese characters in it, so every check fails in such a folder.
+Paddle cannot open model files under a path with Chinese characters. The app
+reaches such a folder by its Windows short name, or copies the models once to
+`%LOCALAPPDATA%\BlackListDetect\models`. The release folder is still named in
+English letters so neither is usually needed.
 
 Other lobby layouts are not part of this first slice.

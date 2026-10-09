@@ -108,7 +108,7 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     window.store.scans[0]["at"] = seen.isoformat()
     window._show_list()
     assert window.blacklist_table.item(0, 3).text() == "3小时前"
-    assert window.windowTitle() == "黑名单检测 v0.1.2"
+    assert window.windowTitle() == "黑名单检测 v0.1.3"
     assert window.list_empty.isHidden() is True
     assert window.clear_list_button.isHidden() is False
     assert window.blacklist_table.isHidden() is False
@@ -746,11 +746,30 @@ def test_auto_check_does_not_leave_the_current_tab(qapp, tmp_path, monkeypatch):
     window.close()
 
 
-def test_titlebar_close_hides_and_tray_can_quit(qapp, tmp_path, monkeypatch):
+def test_titlebar_close_hides_to_the_tray_and_says_so_once(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
     window.show()
+    if window.tray is not None:
+        labels = [action.text() for action in window.tray.contextMenu().actions()]
+        assert labels == ["打开", "退出"]
+
+    class Tray:
+        def __init__(self):
+            self.messages = []
+
+        def isVisible(self):
+            return True
+
+        def showMessage(self, title, text, *args):
+            self.messages.append(title)
+
+        def setToolTip(self, text):
+            pass
+
+        def hide(self):
+            pass
 
     class TitleBarClose:
         def spontaneous(self):
@@ -759,18 +778,16 @@ def test_titlebar_close_hides_and_tray_can_quit(qapp, tmp_path, monkeypatch):
         def ignore(self):
             self.ignored = True
 
+    real_tray, window.tray = window.tray, Tray()
     event = TitleBarClose()
     window.closeEvent(event)
     assert event.ignored is True
     assert window.isHidden() is True
     assert window._closing is False
-    if window.tray is not None:
-        labels = [action.text() for action in window.tray.contextMenu().actions()]
-        assert labels == ["打开", "退出"]
-        assert window.tray.toolTip() == "已缩到托盘，右键可退出"
-        again = TitleBarClose()
-        window.closeEvent(again)
-        assert window.tray.toolTip() == "已缩到托盘，右键可退出"
+    assert window.tray.messages == ["黑名单检测仍在运行"]
+    window.closeEvent(TitleBarClose())
+    assert window.tray.messages == ["黑名单检测仍在运行"]
+    window.tray = real_tray
     window.close()
 
 
@@ -786,16 +803,17 @@ def test_warning_stays_on_top_without_taking_focus(qapp):
     warning.close()
 
 
-def test_prefix_hit_shows_the_stored_name(qapp, tmp_path, monkeypatch):
+def test_prefix_hit_shows_the_read_name_and_the_stored_name(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
     window.store.add("无害虎皮吉尔曼", tags=("炸房",))
     window.store.add_scan([{"seat": 1, "name": "无害虎皮", "unclear": False}])
     window._reload_history()
-    text = window.history_table.item(0, 0).text()
-    assert "无害虎皮吉尔曼" in text
-    assert "炸房" not in text
+    assert window.history_table.item(0, 0).text() == "无害虎皮"
+    listed = window.history_table.cellWidget(0, 0).findChild(QLabel, "rowListed")
+    assert listed.text() == "名单：无害虎皮吉尔曼"
+    assert "炸房" not in listed.text()
     assert window.history_table.cellWidget(0, 0).findChild(QLabel, "rowAction") is None
     window.close()
 
@@ -937,3 +955,116 @@ def test_clear_buttons_split_into_cancel_and_confirm(qapp, tmp_path, monkeypatch
     assert window.store.scans == []
     assert asked == []
     window.close()
+
+
+def test_the_add_dialog_refuses_a_name_already_on_the_list(qapp):
+    dialog = AddNameDialog(taken=frozenset({"霁玥吉尔曼", "gffdsd"}))
+    dialog.name_edit.setText(" GFFDSD ")
+    dialog._accept()
+    assert dialog.result() != QDialog.Accepted
+    assert dialog.name_error.text() == "黑名单里已经有这个名字"
+    dialog.name_edit.setText("★☆★")
+    dialog._accept()
+    assert dialog.name_error.text() == "名字里要有文字或数字"
+    dialog.name_edit.setText("新名字")
+    dialog._accept()
+    assert dialog.result() == QDialog.Accepted
+    dialog.close()
+
+
+def test_editing_a_name_may_keep_its_own_spelling(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window.store.add("甲")
+    window.store.add("乙")
+    assert window._taken_names(skip=0) == frozenset({"乙"})
+    assert window._taken_names() == frozenset({"甲", "乙"})
+    window.close()
+
+
+def test_history_shows_the_name_as_read_beside_the_list_spelling(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window.store.add("小猫爆锤大王")
+    window.store.add("纪戴宁")
+    window.store.add_scan(
+        [
+            {"seat": 1, "name": "小猫爆锤...", "unclear": False},
+            {"seat": 2, "name": "纪戴宁", "unclear": False},
+        ]
+    )
+    window._reload_history()
+    assert window.history_table.item(0, 0).text() == "小猫爆锤"
+    listed = window.history_table.cellWidget(0, 0).findChild(QLabel, "rowListed")
+    assert listed.text() == "名单：小猫爆锤大王"
+    assert window.history_table.item(0, 0).foreground().color().name() == "#c23b2e"
+    assert window.history_table.cellWidget(0, 1).findChild(QLabel, "rowListed") is None
+    opened: list[int] = []
+    monkeypatch.setattr(window, "_edit_entry", lambda index: opened.append(index))
+    window._on_history_cell(0, 0)
+    assert opened == [0]
+    window.close()
+
+
+def test_a_failed_check_is_shown_and_clears_when_checks_work(qapp, tmp_path, monkeypatch):
+    from blacklist_detect.ocr_engine import OcrUnavailable
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    window._on_worker(("glance", "err", OcrUnavailable("本地 PaddleOCR 中文模型没有就绪。")))
+    assert window.watch_label.text() == "识别模型没有就绪"
+    assert "PaddleOCR" in window.watch_label.toolTip()
+    assert "app.log" in window.watch_label.toolTip()
+    assert window._glance_pause_until > 0
+    window._on_worker(("check", "err", RuntimeError("坏了")))
+    assert window.watch_label.text() == "检查出错"
+    window._on_worker(("glance", "ok", False))
+    assert window.watch_label.text() == "自动捕捉中"
+    window.close()
+
+
+def test_the_model_load_is_shown_until_it_finishes(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    window.worker.request = lambda *args, **kwargs: True
+    window.start_warmup()
+    assert window.watch_label.text() == "正在加载识别模型"
+    window._on_worker(("warmup", "ok", None))
+    assert window.watch_label.text() == "自动捕捉中"
+    window.close()
+
+
+def test_closing_without_a_tray_icon_quits(qapp, tmp_path, monkeypatch):
+    from PySide6.QtGui import QCloseEvent
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window.tray = None
+    event = QCloseEvent()
+    monkeypatch.setattr(event, "spontaneous", lambda: True)
+    window.closeEvent(event)
+    assert window._closing is True
+    assert event.isAccepted()
+
+
+def test_a_second_copy_reaches_the_first(qapp):
+    from blacklist_detect.ui import instance_key, listen_for_instances, notify_running_instance
+
+    key = instance_key() + "-test"
+    assert notify_running_instance(key) is False
+    shown: list[bool] = []
+    server = listen_for_instances(key, lambda: shown.append(True))
+    assert notify_running_instance(key) is True
+    for _ in range(50):
+        qapp.processEvents()
+        if shown:
+            break
+    assert shown == [True]
+    server.close()

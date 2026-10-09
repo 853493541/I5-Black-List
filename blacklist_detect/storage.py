@@ -342,6 +342,38 @@ def _atomic_write(path: Path, payload: object) -> None:
     temporary.replace(path)
 
 
+# One copy of the list per day it changed, so a wrong 清空 or a bad edit can be undone by hand.
+_BACKUP_DAYS = 7
+
+
+def _daily_backup(path: Path) -> None:
+    """Copy the list as it was before today's first change. Keeps the last week of copies."""
+    if not path.exists():
+        return
+    folder = path.parent / "backups"
+    target = folder / f"{path.stem}-{datetime.now():%Y-%m-%d}{path.suffix}"
+    if target.exists():
+        return
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(path.read_bytes())
+        for old in sorted(folder.glob(f"{path.stem}-*{path.suffix}"))[:-_BACKUP_DAYS]:
+            old.unlink()
+    except OSError:
+        pass
+
+
+def _set_aside(path: Path) -> Path:
+    """Move an unreadable file out of the way under a new name. Earlier ones are never overwritten."""
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    target = path.with_name(f"{path.stem}.unreadable-{stamp}{path.suffix}")
+    try:
+        path.replace(target)
+    except OSError:
+        return path
+    return target
+
+
 class Store:
     def __init__(self, root: Path | None = None) -> None:
         self.root = root or app_dir()
@@ -487,12 +519,9 @@ class Store:
                             added_at=str(item.get("added_at", "")),
                         )
                     )
-            except (OSError, json.JSONDecodeError, AttributeError) as exc:
-                backup = self.blacklist_path.with_name("blacklist.json.bak")
-                try:
-                    self.blacklist_path.replace(backup)
-                except OSError:
-                    backup = self.blacklist_path
+            except (OSError, ValueError, AttributeError, TypeError) as exc:
+                self.entries = []
+                backup = _set_aside(self.blacklist_path)
                 self.load_warning = f"黑名单文件无法读取（{exc}），已留作 {backup.name}。"
         discovered = False
         stripped = False
@@ -540,6 +569,7 @@ class Store:
             self.scans = collapsed
 
     def save_entries(self) -> None:
+        _daily_backup(self.blacklist_path)
         _atomic_write(
             self.blacklist_path,
             {
@@ -604,8 +634,8 @@ class Store:
                     self.hidden_tags.append(tag)
             for raw in settings.get("custom_tags") or []:
                 self.add_custom_tag(str(raw))
-        except (OSError, json.JSONDecodeError):
-            self.load_warning = (self.load_warning + " 设置文件无法读取。").strip()
+        except (OSError, ValueError, AttributeError, TypeError):
+            self.load_warning = (self.load_warning + " 设置文件无法读取，没读到的设置用了默认值。").strip()
 
     def save_scans(self) -> None:
         _atomic_write(self.history_path, {"scans": self.scans[:_MAX_SCANS]})
@@ -716,8 +746,9 @@ class Store:
         return changed
 
     def add(self, name: str, reason: str = "", match_from_prefix: bool = False, tags: tuple[str, ...] | list[str] = ()) -> Entry | None:
+        """Add one name. Returns None when it has no letters or digits, or is already on the list."""
         cleaned = clean_stored_name(name)[:_MAX_NAME]
-        if not cleaned:
+        if not cleaned or self.contains_name(cleaned):
             return None
         chosen, detail = coerce_tags(tags, reason)
         chosen = self._remember_tags(chosen)

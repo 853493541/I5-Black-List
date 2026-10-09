@@ -9,6 +9,7 @@ then reports that the reader is unavailable.
 from __future__ import annotations
 
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -107,6 +108,72 @@ def bundled_model(name: str) -> Path | None:
         if candidate.is_dir():
             return candidate
     return None
+
+
+def _short_path(path: Path) -> Path:
+    """Windows' 8.3 name for a folder. Some disks have 8.3 names turned off; then the path comes back unchanged."""
+    if sys.platform != "win32":
+        return path
+    import ctypes
+
+    buffer = ctypes.create_unicode_buffer(32768)
+    if ctypes.windll.kernel32.GetShortPathNameW(str(path), buffer, len(buffer)):
+        return Path(buffer.value)
+    return path
+
+
+def _ascii_cache_roots() -> list[Path]:
+    """Where a copy of the models may go. A Chinese user name is reached by its short name."""
+    roots: list[Path] = []
+    for key in ("LOCALAPPDATA", "PROGRAMDATA"):
+        value = os.environ.get(key)
+        if value and Path(value).is_dir():
+            roots.append(_short_path(Path(value)) / "BlackListDetect" / "models")
+    return roots
+
+
+# Download bookkeeping from the model hub. Paddle does not read it, and its paths are the deepest.
+_SKIP_IN_COPY = ".cache"
+
+
+def _same_files(source: Path, target: Path) -> bool:
+    if not target.is_dir():
+        return False
+    for item in source.rglob("*"):
+        if _SKIP_IN_COPY in item.relative_to(source).parts:
+            continue
+        if item.is_file():
+            copy = target / item.relative_to(source)
+            if not copy.is_file() or copy.stat().st_size != item.stat().st_size:
+                return False
+    return True
+
+
+def paddle_safe_dir(folder: Path, cache_roots: list[Path] | None = None) -> Path:
+    """A path to this model folder that Paddle can open.
+
+    Paddle cannot open model files under a path with Chinese characters in it,
+    for example a 黑名单检测 folder or a Chinese Windows user name. Such a folder
+    is reached by its 8.3 short name, or else copied once to an ASCII folder.
+    """
+    if str(folder).isascii():
+        return folder
+    short = _short_path(folder)
+    if str(short).isascii() and short.is_dir():
+        return short
+    for root in cache_roots if cache_roots is not None else _ascii_cache_roots():
+        target = root / folder.name
+        if not str(target).isascii():
+            continue
+        try:
+            if not _same_files(folder, target):
+                if target.exists():
+                    shutil.rmtree(target)
+                shutil.copytree(folder, target, ignore=shutil.ignore_patterns(_SKIP_IN_COPY))
+        except OSError:
+            continue
+        return target
+    return folder
 
 
 def models_are_cached() -> bool:
@@ -222,8 +289,8 @@ class OcrEngine:
         }
         det, rec = model_dirs()
         if det and rec:
-            kwargs["text_detection_model_dir"] = str(det)
-            kwargs["text_recognition_model_dir"] = str(rec)
+            kwargs["text_detection_model_dir"] = str(paddle_safe_dir(det))
+            kwargs["text_recognition_model_dir"] = str(paddle_safe_dir(rec))
         try:
             self._ocr = PaddleOCR(**kwargs)
         except TypeError:
@@ -256,7 +323,7 @@ class OcrEngine:
             }
             local_rec = bundled_model("PP-OCRv6_medium_rec")
             if local_rec is not None:
-                name_kwargs["model_dir"] = str(local_rec)
+                name_kwargs["model_dir"] = str(paddle_safe_dir(local_rec))
             self._name_rec = TextRecognition(**name_kwargs)
             sampler = getattr(self._name_rec.paddlex_predictor, "batch_sampler", None)
             if sampler is not None:
