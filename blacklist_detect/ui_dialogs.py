@@ -483,40 +483,40 @@ class GuideDialog(QDialog):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.wants_test = False
-        self.setWindowTitle("欢迎使用黑名单检测")
-        self.setFont(chinese_font())
-        self.setStyleSheet(_dialog_style(chinese_family()))
-        _caption_color(self)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(DIALOG_PAD, DIALOG_PAD, DIALOG_PAD, DIALOG_PAD)
-        layout.setSpacing(GAP)
+        layout = _frame(self, "欢迎使用黑名单检测")
         intro = QLabel("进入「推演成功」大厅时，它会读出十二个名字，并标出黑名单里的人。只读屏幕，不碰游戏。")
         intro.setWordWrap(True)
         layout.addWidget(intro)
+        layout.addSpacing(4)
         steps = (
-            "1. 在「设置」里填上你的角色名称，记录里会标出你自己。",
-            "2. 在「黑名单」里添加名字，或用「批量添加」粘贴朋友分享的名单。",
-            "3. 进游戏就好。有黑名单的人时，「准备案件还原」按钮会被标红，旁边列出名字。",
+            ("settings", "1. 在「设置」里填上你的角色名称，记录里会标出你自己。"),
+            ("users", "2. 在「黑名单」里添加名字，或用「批量添加」粘贴朋友分享的名单。"),
+            ("check", "3. 进游戏就好。有黑名单的人时，「准备案件还原」按钮会被标红，旁边列出名字。"),
         )
-        for text in steps:
+        accent = THEME["accent_line"] if THEME.get("scheme") == "dark" else THEME["accent"]
+        self.steps: list[QLabel] = []
+        for icon_name, text in steps:
+            row = QHBoxLayout()
+            row.setSpacing(GAP)
+            tile = QLabel()
+            tile.setObjectName("stepIcon")
+            tile.setFixedSize(36, 36)
+            tile.setAlignment(Qt.AlignCenter)
+            tile.setPixmap(line_pixmap(icon_name, 20, accent))
+            tile.setStyleSheet(f'background: {THEME["accent_wash"]}; border-radius: 8px;')
+            row.addWidget(tile, 0, Qt.AlignTop)
             step = QLabel(text)
-            step.setObjectName("sub")
             step.setWordWrap(True)
-            layout.addWidget(step)
-        buttons = QHBoxLayout()
-        buttons.setSpacing(GAP)
-        buttons.addStretch(1)
+            step.setMinimumHeight(36)
+            step.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            row.addWidget(step, 1)
+            layout.addLayout(row)
+            self.steps.append(step)
         test = QPushButton("测试一下")
         test.setAutoDefault(False)
         test.setToolTip("用自带的大厅截图试一次识别")
         test.clicked.connect(self._test)
-        buttons.addWidget(test)
-        start = QPushButton("开始使用")
-        start.setObjectName("primary")
-        start.setDefault(True)
-        start.clicked.connect(self.accept)
-        buttons.addWidget(start)
-        layout.addLayout(buttons)
+        _footer(layout, test, _primary("开始使用", self.accept))
         self.setMinimumWidth(600)
         _pointing(self)
 
