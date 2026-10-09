@@ -451,7 +451,7 @@ class MainWindow(QMainWindow):
         self.list_search.setPlaceholderText("搜索名字、标签或原因")
         self.list_search.setClearButtonEnabled(True)
         self.list_search.setMaximumWidth(360)
-        self.list_search.textChanged.connect(lambda _text: self._show_list())
+        self.list_search.textChanged.connect(self._on_search_text)
         toolbar.addWidget(self.list_search, 1)
         toolbar.addStretch(1)
         batch = QPushButton("批量添加")
@@ -655,7 +655,7 @@ class MainWindow(QMainWindow):
         )
         self.auto_on = self.auto_mode.buttons["auto"]
         self.auto_off = self.auto_mode.buttons["manual"]
-        self.auto_mode.changed.connect(lambda key: self._toggle_auto(key == "auto"))
+        self.auto_mode.changed.connect(self._on_auto_mode)
         self.hotkey_edit = QLineEdit()
         self.hotkey_edit.setReadOnly(True)
         self.hotkey_edit.setPlaceholderText("无")
@@ -1343,6 +1343,9 @@ class MainWindow(QMainWindow):
         else:
             self.toast.show_message(text, "撤销", undo, ms=8000)
 
+    def _on_search_text(self, _text: str) -> None:
+        self._show_list()
+
     def _blacklist_menu(self, pos) -> None:  # noqa: ANN001
         row = self.blacklist_table.rowAt(pos.y())
         item = self.blacklist_table.item(row, 0) if row >= 0 else None
@@ -1353,13 +1356,35 @@ class MainWindow(QMainWindow):
         menu.popup(self.blacklist_table.viewport().mapToGlobal(pos))
 
     def _row_menu(self, index: int) -> QMenu:
+        return self._menu((("修改", ("edit", index)), ("复制名字", ("copy_entry", index)), None, ("删除", ("delete", index))))
+
+    def _menu(self, items) -> QMenu:  # noqa: ANN001
         menu = QMenu(self)
-        menu.addAction("修改", lambda: self._edit_entry(index))
-        menu.addAction("复制名字", lambda: self._copy_name(index))
-        menu.addSeparator()
-        menu.addAction("删除", lambda: self._delete_entry(index))
+        for item in items:
+            if item is None:
+                menu.addSeparator()
+                continue
+            text, data = item
+            menu.addAction(text).setData(data)
+        menu.triggered.connect(self._on_menu_action)
         menu.aboutToHide.connect(menu.deleteLater)
         return menu
+
+    def _on_menu_action(self, action) -> None:  # noqa: ANN001
+        data = action.data()
+        if not isinstance(data, tuple) or not data:
+            return
+        kind, *args = data
+        if kind == "edit":
+            self._edit_entry(*args)
+        elif kind == "copy_entry":
+            self._copy_name(*args)
+        elif kind == "delete":
+            self._delete_entry(*args)
+        elif kind == "seat":
+            self._on_history_cell(*args)
+        elif kind == "copy_text":
+            self._copy_text(*args)
 
     def _copy_name(self, index: int) -> None:
         if 0 <= index < len(self.store.entries):
@@ -1835,14 +1860,13 @@ class MainWindow(QMainWindow):
         if not shown:
             return None
         action = str(item.data(Qt.UserRole + 1) or "")
-        menu = QMenu(self)
+        items = []
         if item.data(Qt.UserRole + 2):
-            menu.addAction("修改", lambda: self._on_history_cell(row, column))
+            items.append(("修改", ("seat", row, column)))
         elif action == "添加":
-            menu.addAction("添加", lambda: self._on_history_cell(row, column))
-        menu.addAction("复制名字", lambda: self._copy_text(shown))
-        menu.aboutToHide.connect(menu.deleteLater)
-        return menu
+            items.append(("添加", ("seat", row, column)))
+        items.append(("复制名字", ("copy_text", shown)))
+        return self._menu(items)
 
     def _copy_text(self, text: str) -> None:
         QApplication.clipboard().setText(text)
@@ -1884,6 +1908,9 @@ class MainWindow(QMainWindow):
         self._sync_hotkey_mode()
         if self._status_kind in ("idle", "watch"):
             self._sync_watch_idle()
+
+    def _on_auto_mode(self, key: str) -> None:
+        self._toggle_auto(key == "auto")
 
     def _sync_auto_controls(self) -> None:
         """The header switch and the 方式 choice both show the saved mode."""

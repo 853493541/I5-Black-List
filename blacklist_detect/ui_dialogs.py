@@ -144,12 +144,15 @@ class TagEditDialog(QDialog):
         layout = _frame(self, "修改标签")
         self.name_edit = QLineEdit(tag)
         self.error = _field(layout, "标签", self.name_edit)
-        self.name_edit.textChanged.connect(lambda _text: _say_error(self.error, ""))
+        self.name_edit.textChanged.connect(self._clear_error)
         # The destructive button stands apart on the left, away from 保存.
         _footer(layout, _cancel_button(self), _primary("保存", self._accept), left=_danger("删除", self._delete))
         self.setMinimumWidth(380)
         self.name_edit.returnPressed.connect(self._accept)
         _pointing(self)
+
+    def _clear_error(self, *_args) -> None:
+        _say_error(self.error, "")
 
     def showEvent(self, event) -> None:  # noqa: ANN001
         super().showEvent(event)
@@ -185,11 +188,14 @@ class TagCreateDialog(QDialog):
         layout = _frame(self, "新标签")
         self.name_edit = QLineEdit()
         self.error = _field(layout, "标签", self.name_edit)
-        self.name_edit.textChanged.connect(lambda _text: _say_error(self.error, ""))
+        self.name_edit.textChanged.connect(self._clear_error)
         _footer(layout, _cancel_button(self), _primary("添加", self._accept))
         self.setMinimumWidth(380)
         self.name_edit.returnPressed.connect(self._accept)
         _pointing(self)
+
+    def _clear_error(self, *_args) -> None:
+        _say_error(self.error, "")
 
     def showEvent(self, event) -> None:  # noqa: ANN001
         super().showEvent(event)
@@ -364,10 +370,13 @@ class BatchAddDialog(QDialog):
         self.error.setObjectName("error")
         self.error.hide()
         layout.addWidget(self.error)
-        self.edit.textChanged.connect(lambda: _say_error(self.error, ""))
+        self.edit.textChanged.connect(self._clear_error)
         _footer(layout, _cancel_button(self), _primary("添加", self._accept))
         self.setMinimumWidth(460)
         _pointing(self)
+
+    def _clear_error(self, *_args) -> None:
+        _say_error(self.error, "")
 
     def showEvent(self, event) -> None:  # noqa: ANN001
         super().showEvent(event)
