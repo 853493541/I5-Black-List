@@ -528,6 +528,11 @@ class EmptyState(QWidget):
         self.hint.setText(hint)
         self.hint.setVisible(bool(hint))
 
+    def set_icon(self, name: str) -> None:
+        if name != self._icon_name:
+            self._icon_name = name
+            self.refresh()
+
     def refresh(self) -> None:
         self.icon.setPixmap(line_pixmap(self._icon_name, 40, THEME["muted"]))
 

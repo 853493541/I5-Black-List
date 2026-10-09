@@ -92,7 +92,16 @@ def main() -> int:
     say = getattr(window, "_say", None)
     if say is not None:
         say("已添加 3 人", undo=lambda: None)
+    toast = getattr(window, "toast", None)
+    if toast is not None:
+        toast._anim.stop()
+        toast._fade.setOpacity(1.0)
     snap("blacklist_notice")
+    if toast is not None:
+        toast.hide()
+    window._hover_blacklist_row(1, 0)
+    snap("blacklist_hover")
+    window._clear_blacklist_hover()
     window._on_worker(("glance", "err", ui.OcrUnavailable("本地 PaddleOCR 中文模型没有就绪。")))
     snap("status_error")
 

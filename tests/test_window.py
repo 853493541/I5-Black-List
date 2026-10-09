@@ -70,7 +70,7 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     window = MainWindow()
     assert window.list_hint.text() == "还没有名字"
     assert window.list_empty.isHidden() is False
-    assert window.clear_list_button.isHidden() is True
+    assert window.more_button.isHidden() is True
     assert window.blacklist_table.isHidden() is True
     assert window.history_hint.text() == "还没有记录"
     assert window.history_empty.isHidden() is False
@@ -91,7 +91,7 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     assert window.blacklist_table.currentRow() == -1
     labels = [button.text() for button in window.findChildren(QPushButton)]
     assert "批量添加" in labels
-    assert "清空列表" in labels
+    assert [action.text() for action in window.more_menu.actions() if action.text()] == ["分享", "清空列表"]
     assert window.blacklist_table.columnCount() == 4
     assert window.blacklist_table.item(0, 3).text() == ""
     edited = AddNameDialog(
@@ -110,7 +110,7 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     assert window.blacklist_table.item(0, 3).text() == "3小时前"
     assert window.windowTitle() == "黑名单检测 v0.1.7"
     assert window.list_empty.isHidden() is True
-    assert window.clear_list_button.isHidden() is False
+    assert window.more_button.isHidden() is False
     assert window.blacklist_table.isHidden() is False
     assert window.hotkey_edit.text() == "Alt+1"
     assert window.hotkey_edit.isEnabled() is False
@@ -943,19 +943,22 @@ def test_clear_buttons_split_into_cancel_and_confirm(qapp, tmp_path, monkeypatch
     window._show_list()
     window.store.add_scan([{"seat": 1, "name": "甲", "unclear": False}])
     window._reload_history()
-    window.clear_list_button.click()
-    assert window.clear_list_button.isHidden()
-    assert window.clear_list_pair.isHidden() is False
-    cancel, confirm = window.clear_list_pair.findChildren(QPushButton)
-    assert cancel.text() == "取消"
-    assert confirm.text() == "确认清空"
-    cancel.click()
-    assert window.clear_list_button.isHidden() is False
+    # 清空列表 asks in a dialog whose safe answer is the default.
+    answers = [False, True]
+    questions: list[tuple[str, str, bool]] = []
+
+    def ask(_parent, title, body, confirm, *, danger=False):
+        questions.append((title, confirm, danger))
+        assert "1 个名字" in body
+        return answers.pop(0)
+
+    monkeypatch.setattr("blacklist_detect.ui.ConfirmDialog.ask", ask)
+    window.clear_list_action.trigger()
     assert window.store.entries
-    window.clear_list_button.click()
-    window.clear_list_pair.findChildren(QPushButton)[1].click()
+    window.clear_list_action.trigger()
+    assert questions == [("清空列表", "确认清空", True)] * 2
     assert window.store.entries == []
-    assert window.clear_list_button.isHidden() is True
+    assert window.more_button.isHidden() is True
     assert window.list_empty.isHidden() is False
     window.clear_history_button.click()
     assert window.clear_history_button.isHidden()
@@ -1113,11 +1116,57 @@ def test_clearing_the_list_can_be_undone(qapp, tmp_path, monkeypatch):
     window._show_list()
     window._confirm_clear_list()
     assert window.store.entries == []
-    assert window.list_notice_text.text() == "已清空 2 人"
-    assert window.list_undo.isHidden() is False
-    window._undo_last()
+    assert window.toast.text.text() == "已清空 2 人"
+    assert window.toast.action.text() == "撤销"
+    assert window.toast.action.isHidden() is False
+    window.toast.action.click()
     assert [entry.name for entry in window.store.entries] == ["甲", "乙"]
     assert window.blacklist_table.rowCount() == 2
+    assert window.toast.text.text() == "已撤销"
+    assert window.toast.action.isHidden()
+    window.close()
+
+
+def test_a_blacklist_row_has_a_menu_to_edit_copy_and_delete(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window.store.add("甲")
+    window.store.add("乙", reason="原因")
+    window._show_list()
+    menu = window._row_menu(1)
+    actions = {action.text(): action for action in menu.actions() if action.text()}
+    assert list(actions) == ["修改", "复制名字", "删除"]
+    opened: list[int] = []
+    monkeypatch.setattr(window, "_edit_entry", lambda index: opened.append(index))
+    actions["修改"].trigger()
+    assert opened == [1]
+    actions["复制名字"].trigger()
+    assert QApplication.clipboard().text() == "乙"
+    assert window.toast.text.text() == "已复制「乙」"
+    actions["删除"].trigger()
+    assert [entry.name for entry in window.store.entries] == ["甲"]
+    assert window.toast.text.text() == "已删除「乙」"
+    window.toast.action.click()
+    assert [entry.name for entry in window.store.entries] == ["甲", "乙"]
+    assert window.store.entries[1].reason == "原因"
+    assert window.blacklist_table.contextMenuPolicy() == Qt.CustomContextMenu
+    window.close()
+
+
+def test_the_blacklist_empty_state_tells_none_yet_from_no_match(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    assert window.list_empty._icon_name == "users"
+    assert window.list_search.isHidden()
+    window.store.add("甲")
+    window._show_list()
+    window.list_search.setText("乙")
+    assert window.list_empty._icon_name == "search"
+    assert window.list_hint.text() == "没有找到「乙」"
+    window.list_search.clear()
+    assert window.list_empty.isHidden()
     window.close()
 
 

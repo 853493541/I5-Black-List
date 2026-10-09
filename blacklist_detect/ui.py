@@ -7,7 +7,7 @@ import sys
 import time
 from datetime import datetime
 
-from PySide6.QtCore import QEvent, QSize, Qt, QThread, QTimer, Signal
+from PySide6.QtCore import QEvent, QPoint, QSize, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import (
     QColor,
     QCursor,
@@ -71,7 +71,7 @@ from blacklist_detect.ui_dialogs import (
     TagEditDialog,
     _confirm,
 )
-from blacklist_detect.ui_kit import Switch, TabButton
+from blacklist_detect.ui_kit import ConfirmDialog, EmptyState, IconButton, Switch, TabButton, Toast
 from blacklist_detect.ui_overlay import (
     _COVER_OUTSET,
     ClearMark,
@@ -414,6 +414,7 @@ class MainWindow(QMainWindow):
         self._sync_tab_buttons(self.tabs.currentIndex())
         outer.addWidget(header)
         outer.addWidget(self.tabs)
+        self.toast = Toast(root)
 
         self.tray = None
         if QSystemTrayIcon_available():
@@ -434,46 +435,31 @@ class MainWindow(QMainWindow):
         page = QWidget()
         layout = QVBoxLayout(page)
         _page(layout)
-        add_row = QHBoxLayout()
-        add_row.setSpacing(GAP)
-        # A short report after a change, with 撤销 when the change can be taken back.
-        self.list_notice = QWidget()
-        notice_row = QHBoxLayout(self.list_notice)
-        notice_row.setContentsMargins(0, 0, 0, 0)
-        notice_row.setSpacing(8)
-        self.list_notice_text = QLabel("")
-        self.list_notice_text.setObjectName("sub")
-        notice_row.addWidget(self.list_notice_text)
-        self.list_undo = QPushButton("撤销")
-        self.list_undo.setObjectName("recheck")
-        self.list_undo.setFont(chinese_font(SMALL_PT))
-        self.list_undo.setAutoDefault(False)
-        self.list_undo.setCursor(Qt.PointingHandCursor)
-        self.list_undo.clicked.connect(self._undo_last)
-        notice_row.addWidget(self.list_undo)
-        self.list_notice.hide()
-        self._undo = None
-        self._notice_timer = QTimer(self)
-        self._notice_timer.setSingleShot(True)
-        self._notice_timer.timeout.connect(self._hide_list_notice)
-        add_row.addWidget(self.list_notice, 0, Qt.AlignVCenter)
-        add_row.addStretch(1)
-        self.share_button = QPushButton("分享")
-        self.share_button.setToolTip("复制整个名单。朋友在「批量添加」里粘贴即可。")
-        self.share_button.clicked.connect(self._share_list)
-        add_row.addWidget(self.share_button)
-        self.clear_list_button = QPushButton("清空列表")
-        self.clear_list_button.clicked.connect(self._arm_clear_list)
-        add_row.addWidget(self.clear_list_button)
-        self.clear_list_pair = self._clear_confirm_pair(self._cancel_clear_list, self._confirm_clear_list)
-        add_row.addWidget(self.clear_list_pair)
+        toolbar = QHBoxLayout()
+        toolbar.setSpacing(8)
+        self.list_search = QLineEdit()
+        self.list_search.setPlaceholderText("搜索名字、标签或原因")
+        self.list_search.setClearButtonEnabled(True)
+        self.list_search.setMaximumWidth(360)
+        self.list_search.textChanged.connect(lambda _text: self._show_list())
+        toolbar.addWidget(self.list_search, 1)
+        toolbar.addStretch(1)
         batch = QPushButton("批量添加")
         batch.clicked.connect(self._add_many_by_dialog)
         add = QPushButton("添加")
         add.setObjectName("primary")
         add.clicked.connect(self._add_by_dialog)
-        add_row.addWidget(batch)
-        add_row.addWidget(add)
+        toolbar.addWidget(batch)
+        toolbar.addWidget(add)
+        # 分享 and 清空列表 are used now and then, so they wait under 更多 instead of beside 添加.
+        self.more_button = IconButton("more", "更多")
+        self.more_menu = QMenu(self)
+        self.share_action = self.more_menu.addAction("分享", self._share_list)
+        self.share_action.setToolTip("复制整个名单。朋友在「批量添加」里粘贴即可。")
+        self.more_menu.addSeparator()
+        self.clear_list_action = self.more_menu.addAction("清空列表", self._clear_list)
+        self.more_button.clicked.connect(self._open_more_menu)
+        toolbar.addWidget(self.more_button)
         self.blacklist_table = QTableWidget(0, 4)
         self.blacklist_table.setObjectName("blacklist")
         name_header = _ColumnHeader(self.blacklist_table)
@@ -518,21 +504,19 @@ class MainWindow(QMainWindow):
         self.blacklist_table.setCursor(Qt.PointingHandCursor)
         self.blacklist_table.cellEntered.connect(self._hover_blacklist_row)
         self.blacklist_table.cellClicked.connect(self._edit_row)
+        self.blacklist_table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.blacklist_table.customContextMenuRequested.connect(self._blacklist_menu)
         self.detail_tip = _DetailTip()
         self.detail_tip.installEventFilter(self)
         self._detail_tip_timer = QTimer(self)
         self._detail_tip_timer.setSingleShot(True)
         self._detail_tip_timer.setInterval(160)
         self._detail_tip_timer.timeout.connect(self._hide_detail_tip)
-        self.list_empty, self.list_hint = _empty_block("还没有名字")
-        self.list_search = QLineEdit()
-        self.list_search.setPlaceholderText("搜索名字、标签或原因")
-        self.list_search.setClearButtonEnabled(True)
-        self.list_search.textChanged.connect(lambda _text: self._show_list())
-        layout.addWidget(self.list_search)
+        self.list_empty = EmptyState("users", "还没有名字")
+        self.list_hint = self.list_empty.title
+        layout.addLayout(toolbar)
         layout.addWidget(self.blacklist_table, 1)
         layout.addWidget(self.list_empty, 1)
-        layout.addLayout(add_row)
         return page
 
     def _history_page(self) -> QWidget:
@@ -944,6 +928,9 @@ class MainWindow(QMainWindow):
             self._set_result(self._watch_full, self._watch_tone, self._status_kind, self._watch_tip)
         if hasattr(self, "detail_tip"):
             self.detail_tip.apply_theme()
+        if hasattr(self, "list_empty"):
+            self.list_empty.refresh()
+            self.more_button.refresh()
 
     def _mark_theme_buttons(self) -> None:
         for name, swatch in self.theme_buttons.items():
@@ -1275,24 +1262,20 @@ class MainWindow(QMainWindow):
         self._refresh_blacklist_tab()
         count = len(self.store.entries)
         self.list_search.setVisible(count > 0 or bool(self._search_text()))
-        self.share_button.setVisible(count > 0)
+        self.more_button.setVisible(count > 0)
         if count and rows:
             self.list_empty.hide()
             self.blacklist_table.setVisible(True)
-            if self.clear_list_pair.isHidden():
-                self.clear_list_button.show()
         elif count:
-            self.list_hint.setText(f"没有找到「{self._search_text()}」")
+            self.list_empty.set_icon("search")
+            self.list_empty.set_text(f"没有找到「{self._search_text()}」")
             self.list_empty.show()
             self.blacklist_table.setVisible(False)
-            if self.clear_list_pair.isHidden():
-                self.clear_list_button.show()
         else:
-            self.list_hint.setText("还没有名字")
+            self.list_empty.set_icon("users")
+            self.list_empty.set_text("还没有名字")
             self.list_empty.show()
             self.blacklist_table.setVisible(False)
-            self.clear_list_button.hide()
-            self.clear_list_pair.hide()
 
     def _reason_for_row(self, row: int) -> str:
         item = self.blacklist_table.item(row, 0)
@@ -1395,16 +1378,18 @@ class MainWindow(QMainWindow):
         host.hide()
         return host
 
-    def _arm_clear_list(self) -> None:
-        self.clear_list_button.hide()
-        self.clear_list_pair.show()
+    def _open_more_menu(self) -> None:
+        button = self.more_button
+        self.more_menu.popup(button.mapToGlobal(button.rect().bottomRight()) - QPoint(self.more_menu.sizeHint().width(), -4))
 
-    def _cancel_clear_list(self) -> None:
-        self.clear_list_pair.hide()
-        self.clear_list_button.show()
+    def _clear_list(self) -> None:
+        count = len(self.store.entries)
+        if not count:
+            return
+        if ConfirmDialog.ask(self, "清空列表", f"名单里的 {count} 个名字会被删除。", "确认清空", danger=True):
+            self._confirm_clear_list()
 
     def _confirm_clear_list(self) -> None:
-        self._cancel_clear_list()
         before = self.store.snapshot_entries()
         self.store.clear_entries()
         self._list_changed()
@@ -1420,22 +1405,44 @@ class MainWindow(QMainWindow):
         self._say("已撤销")
 
     def _say(self, text: str, undo=None) -> None:  # noqa: ANN001
-        """Report a change under the list. 撤销 stays for eight seconds."""
-        self._undo = undo
-        self.list_notice_text.setText(text)
-        self.list_undo.setVisible(undo is not None)
-        self.list_notice.show()
-        self._notice_timer.start(8000 if undo is not None else 4000)
+        """Report a change in a toast. 撤销 stays for eight seconds."""
+        if undo is None:
+            self.toast.show_message(text, ms=4000)
+        else:
+            self.toast.show_message(text, "撤销", undo, ms=8000)
 
-    def _hide_list_notice(self) -> None:
-        self._undo = None
-        self.list_notice.hide()
+    def _blacklist_menu(self, pos) -> None:  # noqa: ANN001
+        row = self.blacklist_table.rowAt(pos.y())
+        item = self.blacklist_table.item(row, 0) if row >= 0 else None
+        if item is None or item.data(Qt.UserRole) is None:
+            return
+        index = int(item.data(Qt.UserRole))
+        menu = self._row_menu(index)
+        menu.popup(self.blacklist_table.viewport().mapToGlobal(pos))
 
-    def _undo_last(self) -> None:
-        undo = self._undo
-        self._hide_list_notice()
-        if undo is not None:
-            undo()
+    def _row_menu(self, index: int) -> QMenu:
+        menu = QMenu(self)
+        menu.addAction("修改", lambda: self._edit_entry(index))
+        menu.addAction("复制名字", lambda: self._copy_name(index))
+        menu.addSeparator()
+        menu.addAction("删除", lambda: self._delete_entry(index))
+        menu.aboutToHide.connect(menu.deleteLater)
+        return menu
+
+    def _copy_name(self, index: int) -> None:
+        if 0 <= index < len(self.store.entries):
+            name = self.store.entries[index].name
+            QApplication.clipboard().setText(name)
+            self._say(f"已复制「{name}」")
+
+    def _delete_entry(self, index: int) -> None:
+        if not 0 <= index < len(self.store.entries):
+            return
+        name = self.store.entries[index].name
+        before = self.store.snapshot_entries()
+        self.store.remove_at(index)
+        self._list_changed()
+        self._say(f"已删除「{name}」", undo=lambda: self._put_back(before))
 
     def _share_list(self) -> None:
         """Copy the whole list in the 批量添加 line format, so a friend can paste it."""
@@ -1504,11 +1511,8 @@ class MainWindow(QMainWindow):
         )
         if dialog.exec() != QDialog.Accepted:
             return
-        before = self.store.snapshot_entries()
         if dialog.deleted:
-            self.store.remove_at(index)
-            self._list_changed()
-            self._say(f"已删除「{entry.name}」", undo=lambda: self._put_back(before))
+            self._delete_entry(index)
             return
         self.store.update_at(index, dialog.name, dialog.tags, dialog.detail)
         self._list_changed()

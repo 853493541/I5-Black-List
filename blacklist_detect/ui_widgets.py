@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from blacklist_detect.ui_icons import pixmap as line_pixmap
 from blacklist_detect.ui_theme import (
     RADIUS,
     SMALL_PT,
@@ -842,3 +843,10 @@ class _PlainItemDelegate(QStyledItemDelegate):
             return
         option.state = option.state & ~QStyle.State_HasFocus
         super().paint(painter, option, index)
+        if isinstance(view, QTableWidget) and view.objectName() == "blacklist" and option.state & QStyle.State_Selected:
+            header = view.horizontalHeader()
+            if index.column() == header.logicalIndex(header.count() - 1):
+                # The row under the pointer is selected; a pencil says a click opens 修改.
+                mark = line_pixmap("edit", 16, THEME["muted"])
+                rect = option.rect
+                painter.drawPixmap(rect.right() - 16 - 12, rect.center().y() - 8, mark)
