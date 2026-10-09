@@ -7,6 +7,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
+from blacklist_detect import ui_text as T
 from blacklist_detect.match import MIN_PREFIX_CHARS, clean_stored_name, fold
 from blacklist_detect.model import Entry
 from blacklist_detect.paths import app_dir
@@ -561,10 +562,10 @@ class Store:
                             added_at=str(item.get("added_at", "")),
                         )
                     )
-            except (OSError, ValueError, AttributeError, TypeError) as exc:
+            except (OSError, ValueError, AttributeError, TypeError):
                 self.entries = []
                 backup = _set_aside(self.blacklist_path)
-                self.load_warning = f"黑名单文件无法读取（{exc}），已留作 {backup.name}。"
+                self.load_warning = T.list_unreadable(backup.name)
         discovered = False
         stripped = False
         for entry in self.entries:
@@ -678,7 +679,7 @@ class Store:
             for raw in settings.get("custom_tags") or []:
                 self.add_custom_tag(str(raw))
         except (OSError, ValueError, AttributeError, TypeError):
-            self.load_warning = (self.load_warning + " 设置文件无法读取，没读到的设置用了默认值。").strip()
+            self.load_warning = (self.load_warning + " " + T.STORE_SETTINGS_UNREADABLE).strip()
 
     def save_scans(self) -> None:
         _atomic_write(self.history_path, {"scans": self.scans[:_MAX_SCANS]})

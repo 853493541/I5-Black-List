@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
+from blacklist_detect import ui_text as T
 from blacklist_detect.layout import Anchor, contains_title, find_anchor, snap_button_box
 from blacklist_detect.match import (
     NameLabel,
@@ -75,10 +76,10 @@ def check_image(path: str | Path, entries: list[Entry], engine=None) -> CheckRes
 def check_frames(frames: list[np.ndarray], entries: list[Entry], engine=None, on_lobby=None) -> CheckResult:
     """Header-scan each monitor copy and read names only on the one that matches."""
     if not frames:
-        return CheckResult(False, "没有复制到画面。")
+        return CheckResult(False, T.NO_FRAME)
     reader = engine or get_engine()
     chosen: tuple[np.ndarray, Anchor, list[OcrLine]] | None = None
-    last_reason = "没有找到这间大厅。"
+    last_reason = T.NO_LOBBY
     for frame in frames:
         anchor, _lines = _locate(reader, frame)
         if anchor.found:
@@ -202,16 +203,5 @@ def _read_names(engine, rgb: np.ndarray, anchor: Anchor, entries: list[Entry]) -
 
 
 def _message(anchor: Anchor, slots: list[NameSlot], hits: list[Hit]) -> str:
-    parts: list[str] = []
-    if anchor.countdown_seconds is not None:
-        parts.append(f"倒计时 {anchor.countdown_seconds} 秒")
-    if anchor.ready_count is not None:
-        parts.append(f"准备就绪 {anchor.ready_count}/12")
-    if hits:
-        parts.append(f"发现 {len(hits)} 条黑名单匹配")
-    else:
-        parts.append("黑名单里没有这些人")
     unclear = sum(1 for slot in slots if slot.unclear)
-    if unclear:
-        parts.append(f"{unclear} 个名字没看清")
-    return "已检查这间大厅：" + "，".join(parts) + "。"
+    return T.lobby_summary(anchor.countdown_seconds, anchor.ready_count, len(hits), unclear)

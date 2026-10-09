@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from blacklist_detect import ui_text as T
 from blacklist_detect.match import clean_stored_name, fold, split_ellipsis
 from blacklist_detect.pipeline import CheckResult
 from blacklist_detect.ui_theme import (
@@ -41,7 +42,7 @@ from blacklist_detect.ui_widgets import (
 
 def _cancel_button(dialog: QDialog) -> QPushButton:
     """Close without saving. Esc does the same."""
-    cancel = QPushButton("取消")
+    cancel = QPushButton(T.CANCEL)
     cancel.setAutoDefault(False)
     cancel.setDefault(False)
     cancel.clicked.connect(dialog.reject)
@@ -50,7 +51,7 @@ def _cancel_button(dialog: QDialog) -> QPushButton:
 
 def _confirm(parent, text: str) -> bool:
     box = QDialog(parent)
-    box.setWindowTitle("黑名单检测")
+    box.setWindowTitle(T.APP_NAME)
     box.setFont(chinese_font())
     box.setStyleSheet(_dialog_style(chinese_family()))
     _caption_color(box)
@@ -62,7 +63,7 @@ def _confirm(parent, text: str) -> bool:
     layout.addWidget(message)
     buttons = QHBoxLayout()
     buttons.addStretch(1)
-    yes = QPushButton("确定")
+    yes = QPushButton(T.OK)
     yes.setObjectName("primary")
     yes.setAutoDefault(True)
     yes.setDefault(True)
@@ -84,14 +85,14 @@ class TagEditDialog(QDialog):
         self.catalog = catalog
         self.renamed = tag
         self.deleted = False
-        self.setWindowTitle("修改标签")
+        self.setWindowTitle(T.EDIT_TAG)
         self.setFont(chinese_font())
         self.setStyleSheet(_dialog_style(chinese_family()))
         _caption_color(self)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(DIALOG_PAD, DIALOG_PAD, DIALOG_PAD, DIALOG_PAD)
         layout.setSpacing(GAP)
-        label = QLabel("标签")
+        label = QLabel(T.TAG_NAME)
         label.setObjectName("field")
         layout.addWidget(label)
         self.name_edit = QLineEdit(tag)
@@ -102,7 +103,7 @@ class TagEditDialog(QDialog):
         self.name_edit.textChanged.connect(lambda _text: self.error.setText(""))
         buttons = QHBoxLayout()
         buttons.setSpacing(GAP)
-        remove = QPushButton("删除")
+        remove = QPushButton(T.DELETE)
         remove.setObjectName("danger")
         remove.setAutoDefault(False)
         remove.setDefault(False)
@@ -110,7 +111,7 @@ class TagEditDialog(QDialog):
         # The destructive button stands apart on the left, away from 保存.
         buttons.addWidget(remove)
         buttons.addStretch(1)
-        save = QPushButton("保存")
+        save = QPushButton(T.SAVE)
         save.setObjectName("primary")
         save.setAutoDefault(True)
         save.setDefault(True)
@@ -131,10 +132,10 @@ class TagEditDialog(QDialog):
 
         renamed = clean_tag(self.name_edit.text())
         if not renamed:
-            self.error.setText("请填写标签")
+            self.error.setText(T.TAG_NAME_NEEDED)
             return
         if renamed != self.original and renamed in self.catalog:
-            self.error.setText("已有这个标签")
+            self.error.setText(T.TAG_EXISTS)
             return
         self.error.setText("")
         self.renamed = renamed
@@ -153,14 +154,14 @@ class TagCreateDialog(QDialog):
         super().__init__(parent)
         self.catalog = catalog
         self.created = ""
-        self.setWindowTitle("新标签")
+        self.setWindowTitle(T.NEW_TAG)
         self.setFont(chinese_font())
         self.setStyleSheet(_dialog_style(chinese_family()))
         _caption_color(self)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(DIALOG_PAD, DIALOG_PAD, DIALOG_PAD, DIALOG_PAD)
         layout.setSpacing(GAP)
-        label = QLabel("标签")
+        label = QLabel(T.TAG_NAME)
         label.setObjectName("field")
         layout.addWidget(label)
         self.name_edit = QLineEdit()
@@ -172,7 +173,7 @@ class TagCreateDialog(QDialog):
         buttons = QHBoxLayout()
         buttons.setSpacing(GAP)
         buttons.addStretch(1)
-        add = QPushButton("添加")
+        add = QPushButton(T.CREATE)
         add.setObjectName("primary")
         add.setAutoDefault(True)
         add.setDefault(True)
@@ -193,10 +194,10 @@ class TagCreateDialog(QDialog):
 
         tag = clean_tag(self.name_edit.text())
         if not tag:
-            self.error.setText("请填写标签")
+            self.error.setText(T.TAG_NAME_NEEDED)
             return
         if tag in self.catalog:
-            self.error.setText("已有这个标签")
+            self.error.setText(T.TAG_EXISTS)
             return
         self.error.setText("")
         self.created = tag
@@ -211,7 +212,7 @@ class AddNameDialog(QDialog):
         name: str = "",
         tags: tuple[str, ...] = (),
         detail: str = "",
-        title: str = "添加",
+        title: str = T.ADD_PLAYER,
         allow_delete: bool = False,
         catalog: tuple[str, ...] = (),
         added_at: str = "",
@@ -239,7 +240,7 @@ class AddNameDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(DIALOG_PAD, DIALOG_PAD, DIALOG_PAD, DIALOG_PAD)
         layout.setSpacing(10)
-        label_width = QFontMetrics(chinese_font()).horizontalAdvance("名字") + 8
+        label_width = QFontMetrics(chinese_font()).horizontalAdvance(T.FIELD_NAME) + 8
 
         def add_field(title: str, widget: QWidget) -> None:
             row = QHBoxLayout()
@@ -256,7 +257,7 @@ class AddNameDialog(QDialog):
         if added_on:
             name_row = QHBoxLayout()
             name_row.setSpacing(12)
-            name_label = QLabel("名字")
+            name_label = QLabel(T.FIELD_NAME)
             name_label.setObjectName("field")
             name_label.setFixedWidth(label_width)
             name_row.addWidget(name_label, 0, Qt.AlignVCenter)
@@ -267,7 +268,7 @@ class AddNameDialog(QDialog):
             name_row.addWidget(self.added_on, 0, Qt.AlignVCenter)
             layout.addLayout(name_row)
         else:
-            add_field("名字", self.name_edit)
+            add_field(T.FIELD_NAME, self.name_edit)
         self.name_error = QLabel("")
         self.name_error.setObjectName("error")
         self.name_error.hide()
@@ -275,7 +276,7 @@ class AddNameDialog(QDialog):
         self.name_edit.textChanged.connect(self._clear_name_error)
         tag_row = QHBoxLayout()
         tag_row.setSpacing(12)
-        tag_label = QLabel("标签")
+        tag_label = QLabel(T.FIELD_TAGS)
         tag_label.setObjectName("field")
         tag_label.setFixedWidth(label_width)
         tag_row.addWidget(tag_label, 0, Qt.AlignVCenter)
@@ -293,7 +294,7 @@ class AddNameDialog(QDialog):
         self.detail_edit.setFixedHeight(QFontMetrics(self.font()).lineSpacing() * 3 + 18)
         detail_row = QHBoxLayout()
         detail_row.setSpacing(12)
-        detail_label = QLabel("详情")
+        detail_label = QLabel(T.FIELD_REASON)
         detail_label.setObjectName("field")
         detail_label.setFixedWidth(label_width)
         detail_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
@@ -305,7 +306,7 @@ class AddNameDialog(QDialog):
         buttons.setSpacing(GAP)
         remove = None
         if allow_delete:
-            remove = QPushButton("删除")
+            remove = QPushButton(T.REMOVE_PLAYER)
             remove.setObjectName("danger")
             remove.setAutoDefault(False)
             remove.setDefault(False)
@@ -313,7 +314,7 @@ class AddNameDialog(QDialog):
             # The destructive button stands apart on the left, away from 保存.
             buttons.addWidget(remove)
         buttons.addStretch(1)
-        confirm = QPushButton("保存" if allow_delete else "添加")
+        confirm = QPushButton(T.SAVE if allow_delete else T.ADD)
         confirm.setObjectName("primary")
         confirm.setAutoDefault(True)
         confirm.setDefault(True)
@@ -373,11 +374,11 @@ class AddNameDialog(QDialog):
     def _accept(self) -> None:
         key = fold(clean_stored_name(self.name_edit.text()))
         if not self.name_edit.text().strip():
-            problem = "请填写名字"
+            problem = T.NAME_NEEDED
         elif not key:
-            problem = "名字里要有文字或数字"
+            problem = T.NAME_NEEDS_TEXT
         elif key in self.taken:
-            problem = "黑名单里已经有这个名字"
+            problem = T.NAME_LISTED
         else:
             problem = ""
         if problem:
@@ -404,7 +405,7 @@ class BatchAddDialog(QDialog):
         super().__init__(parent)
         from blacklist_detect.storage import TAGS
 
-        self.setWindowTitle("批量添加")
+        self.setWindowTitle(T.BATCH_IMPORT)
         self.names: list[str] = []
         self.annotated: list[tuple[str, tuple[str, ...], str]] | None = None
         self.catalog = catalog or TAGS
@@ -414,17 +415,11 @@ class BatchAddDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(DIALOG_PAD, DIALOG_PAD, DIALOG_PAD, DIALOG_PAD)
         layout.setSpacing(GAP)
-        hint = QLabel(
-            "可以这样粘贴：\n"
-            "· 一行一个：名字，炸房，贴脸，原因\n"
-            "· 名字（说明），说明里的标签会自动选上\n"
-            "· 只有名字，用空格或换行隔开\n"
-            "· 朋友用「分享」复制的名单"
-        )
+        hint = QLabel(T.IMPORT_HINT)
         hint.setObjectName("field")
         layout.addWidget(hint)
         self.edit = QPlainTextEdit()
-        self.edit.setPlaceholderText("把名字粘在这里")
+        self.edit.setPlaceholderText(T.IMPORT_PLACEHOLDER)
         self.edit.setMinimumHeight(180)
         layout.addWidget(self.edit)
         self.error = QLabel("")
@@ -433,7 +428,7 @@ class BatchAddDialog(QDialog):
         buttons = QHBoxLayout()
         buttons.setSpacing(GAP)
         buttons.addStretch(1)
-        confirm = QPushButton("添加")
+        confirm = QPushButton(T.IMPORT)
         confirm.setObjectName("primary")
         confirm.setAutoDefault(True)
         confirm.setDefault(True)
@@ -457,7 +452,7 @@ class BatchAddDialog(QDialog):
             self.annotated = parse_shared(text)
             self.names = [name for name, _tags, _reason in self.annotated]
             if not self.names:
-                self.error.setText("没有名字")
+                self.error.setText(T.IMPORT_EMPTY)
                 return
             self.accept()
             return
@@ -469,7 +464,7 @@ class BatchAddDialog(QDialog):
         else:
             self.names = [name for name, _tags, _reason in self.annotated]
         if not self.names:
-            self.error.setText("没有名字")
+            self.error.setText(T.IMPORT_EMPTY)
             return
         self.accept()
 
@@ -494,18 +489,18 @@ class PictureResultDialog(QDialog):
         layout.addWidget(self.summary)
         self.seats: list[QLabel] = []
         if error:
-            self.summary.setText(f"没能检查：{error}")
+            self.summary.setText(T.picture_failed(error))
         elif result is None or not result.header_found:
             reason = result.message if result is not None else ""
-            self.summary.setText(f"{reason}\n截图里要有「推演成功」大厅的画面。".strip())
+            self.summary.setText(f"{reason}\n{T.PICTURE_NEEDS_LOBBY}".strip())
         else:
             if result.hits:
-                head = f"{len(result.hits)} 人在黑名单里"
+                head = T.picture_hits(len(result.hits))
             else:
-                head = "这间大厅里没有黑名单"
+                head = T.PICTURE_CLEAR
             unclear = sum(1 for slot in result.names if slot.unclear)
             if unclear:
-                head += f"，{unclear} 人没看清"
+                head += T.unread_after(unclear)
             self.summary.setText(head)
             hits = {}
             for hit in result.hits:
@@ -518,12 +513,12 @@ class PictureResultDialog(QDialog):
                 cell.setMinimumWidth(200)
                 base = f'font-family: "{chinese_family()}"; border-radius: 8px; padding: 8px 12px;'
                 if slot.unclear:
-                    cell.setText("未看清")
+                    cell.setText(T.UNREAD)
                     cell.setStyleSheet(base + f' color: {THEME["gray"]}; background: {THEME["surface"]}; font-style: italic;')
                 elif slot.index in hits:
                     hit = hits[slot.index]
                     shown = split_ellipsis(slot.visible)[0] or slot.visible
-                    listed = "" if fold(hit.entry_name) == fold(shown) else f"　名单：{hit.entry_name}"
+                    listed = "" if fold(hit.entry_name) == fold(shown) else "　" + T.matched(hit.entry_name)
                     cell.setText(shown + listed)
                     cell.setStyleSheet(base + f' color: {THEME["red"]}; background: {THEME["red_wash"]};')
                 else:
@@ -534,7 +529,7 @@ class PictureResultDialog(QDialog):
             layout.addLayout(grid)
         buttons = QHBoxLayout()
         buttons.addStretch(1)
-        close = QPushButton("关闭")
+        close = QPushButton(T.CLOSE)
         close.setObjectName("primary")
         close.setDefault(True)
         close.clicked.connect(self.accept)
@@ -554,21 +549,17 @@ class GuideDialog(QDialog):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self.wants_test = False
-        self.setWindowTitle("欢迎使用黑名单检测")
+        self.setWindowTitle(T.GUIDE_TITLE)
         self.setFont(chinese_font())
         self.setStyleSheet(_dialog_style(chinese_family()))
         _caption_color(self)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(DIALOG_PAD, DIALOG_PAD, DIALOG_PAD, DIALOG_PAD)
         layout.setSpacing(GAP)
-        intro = QLabel("进入「推演成功」大厅时，它会读出十二个名字，并标出黑名单里的人。只读屏幕，不碰游戏。")
+        intro = QLabel(T.GUIDE_INTRO)
         intro.setWordWrap(True)
         layout.addWidget(intro)
-        steps = (
-            "1. 在「设置」里填上你的角色名称，记录里会标出你自己。",
-            "2. 在「黑名单」里添加名字，或用「批量添加」粘贴朋友分享的名单。",
-            "3. 进游戏就好。有黑名单的人时，「准备案件还原」按钮会被标红，旁边列出名字。",
-        )
+        steps = T.GUIDE_STEPS
         for text in steps:
             step = QLabel(text)
             step.setObjectName("sub")
@@ -577,12 +568,12 @@ class GuideDialog(QDialog):
         buttons = QHBoxLayout()
         buttons.setSpacing(GAP)
         buttons.addStretch(1)
-        test = QPushButton("测试一下")
+        test = QPushButton(T.TEST_RECOGNITION)
         test.setAutoDefault(False)
-        test.setToolTip("用自带的大厅截图试一次识别")
+        test.setToolTip(T.GUIDE_TEST_TIP)
         test.clicked.connect(self._test)
         buttons.addWidget(test)
-        start = QPushButton("开始使用")
+        start = QPushButton(T.START)
         start.setObjectName("primary")
         start.setDefault(True)
         start.clicked.connect(self.accept)

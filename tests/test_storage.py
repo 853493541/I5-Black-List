@@ -336,7 +336,7 @@ def test_a_list_file_of_the_wrong_shape_does_not_stop_the_app(tmp_path):
     (tmp_path / "blacklist.json").write_text('{"entries": 5}', encoding="utf-8")
     store = Store(tmp_path)
     assert store.entries == []
-    assert "无法读取" in store.load_warning
+    assert "已损坏" in store.load_warning
     aside = list(tmp_path.glob("blacklist.unreadable-*.json"))
     assert len(aside) == 1
     assert aside[0].read_text(encoding="utf-8") == '{"entries": 5}'
@@ -346,7 +346,7 @@ def test_settings_of_the_wrong_shape_keep_the_defaults(tmp_path):
     (tmp_path / "settings.json").write_text("[1, 2]", encoding="utf-8")
     store = Store(tmp_path)
     assert store.hotkey == "Alt+1"
-    assert "设置文件无法读取" in store.load_warning
+    assert "设置文件读取失败" in store.load_warning
 
 
 def test_the_list_is_copied_once_a_day_before_it_changes(tmp_path):

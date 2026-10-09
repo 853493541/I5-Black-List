@@ -14,12 +14,12 @@ from blacklist_detect.capture import (
 def test_missing_display_api_is_reported():
     message = capture_capability_message()
     if sys.platform == "win32":
-        assert message == "" or "选择图片" in message
+        assert message == "" or "检测截图" in message
         return
-    assert "选择图片" in message
+    assert "检测截图" in message
     with pytest.raises(CaptureUnavailable) as raised:
         capture_displays()
-    assert "选择图片" in str(raised.value)
+    assert "检测截图" in str(raised.value)
 
 
 def test_top_band_is_the_upper_part_of_the_desktop():
