@@ -94,6 +94,21 @@ def model_dirs() -> tuple[Path | None, Path | None]:
     return None, None
 
 
+def bundled_model(name: str) -> Path | None:
+    """A model folder shipped beside the app, so a check does not need to download it."""
+    roots: list[Path] = []
+    env = os.environ.get("BLACKLIST_DETECT_MODEL_DIR")
+    if env:
+        roots.append(Path(env))
+    roots.append(Path(__file__).resolve().parent / "models")
+    roots.append(Path.cwd() / "models")
+    for root in roots:
+        candidate = root / name
+        if candidate.is_dir():
+            return candidate
+    return None
+
+
 def models_are_cached() -> bool:
     det, rec = model_dirs()
     if det and rec:
@@ -235,10 +250,14 @@ class OcrEngine:
                 "没有安装 PaddleOCR，不能读取名字。"
             ) from exc
         try:
-            self._name_rec = TextRecognition(
-                model_name="PP-OCRv6_medium_rec",
-                device=inference_device(),
-            )
+            name_kwargs: dict = {
+                "model_name": "PP-OCRv6_medium_rec",
+                "device": inference_device(),
+            }
+            local_rec = bundled_model("PP-OCRv6_medium_rec")
+            if local_rec is not None:
+                name_kwargs["model_dir"] = str(local_rec)
+            self._name_rec = TextRecognition(**name_kwargs)
             sampler = getattr(self._name_rec.paddlex_predictor, "batch_sampler", None)
             if sampler is not None:
                 sampler.batch_size = 12

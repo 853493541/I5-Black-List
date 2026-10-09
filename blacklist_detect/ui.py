@@ -6,6 +6,7 @@ import queue
 import sys
 import time
 from datetime import datetime
+from pathlib import Path
 from math import cos, pi, radians, sin
 
 from PySide6.QtCore import QEasingCurve, QEvent, QPoint, QPointF, QRect, QRectF, QSize, Qt, QThread, QTimer, QVariantAnimation, Signal
@@ -52,6 +53,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from blacklist_detect import __version__
 from blacklist_detect.capture import (
     capture_capability_message,
     capture_displays,
@@ -67,9 +69,21 @@ from blacklist_detect.storage import Store, describe_entry, tag_text
 from blacklist_detect.watch import GLANCE_INTERVAL_MS, LobbyWatch
 
 
+def _claim_windows_app() -> None:
+    """Tell Windows this is its own app, so the taskbar uses our icon instead of Python's."""
+    if sys.platform != "win32":
+        return
+    import ctypes
+
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Local.BlackListDetect")
+
+
 def run_app() -> int:
+    _claim_windows_app()
     app = QApplication(sys.argv)
     app.setApplicationName("黑名单检测")
+    app.setApplicationVersion(__version__)
+    app.setWindowIcon(_icon())
     app.setFont(chinese_font())
     _apply_theme(app)
     window = MainWindow()
@@ -1438,6 +1452,9 @@ def _confirm(parent, text: str) -> bool:
 
 
 def _icon() -> QIcon:
+    path = Path(__file__).resolve().parent / "assets" / "app.ico"
+    if path.is_file():
+        return QIcon(str(path))
     pixmap = QPixmap(64, 64)
     pixmap.fill(Qt.transparent)
     painter = QPainter(pixmap)
@@ -2442,7 +2459,7 @@ class _PlainItemDelegate(QStyledItemDelegate):
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("黑名单检测")
+        self.setWindowTitle(f"黑名单检测 {__version__}")
         self.store = Store()
         use_theme(self.store.theme)
         self.setMinimumSize(900, 560)
@@ -2575,7 +2592,7 @@ class MainWindow(QMainWindow):
             from PySide6.QtWidgets import QSystemTrayIcon
 
             self.tray = QSystemTrayIcon(_icon(), self)
-            self.tray.setToolTip("黑名单检测")
+            self.tray.setToolTip(f"黑名单检测 {__version__}")
             self.tray_menu = QMenu()
             self.tray_menu.setFont(chinese_font())
             self.tray_menu.setStyleSheet(_menu_style(chinese_family()))
@@ -2831,7 +2848,7 @@ class MainWindow(QMainWindow):
         recheck.clicked.connect(self._recheck_tags)
         tag_line.addWidget(recheck, 0, Qt.AlignTop)
 
-        reset_line = add_row(last=True)
+        reset_line = add_row()
         add_label(reset_line, "控制")
         reset = QPushButton("清除数据且复原")
         reset.setObjectName("danger")
@@ -2842,6 +2859,12 @@ class MainWindow(QMainWindow):
         reset.clicked.connect(self._ask_reset)
         reset_line.addWidget(reset, 0, Qt.AlignVCenter)
         reset_line.addStretch(1)
+
+        version_line = add_row(last=True)
+        add_label(version_line, "版本")
+        version = QLabel(__version__)
+        version_line.addWidget(version, 0, Qt.AlignVCenter)
+        version_line.addStretch(1)
 
         self.settings_label = QLabel("")
         self.settings_label.setObjectName("sub")
