@@ -1,0 +1,8 @@
+# What GitHub Actions installs. Pinned to the versions in the shipped runtime
+# (dist/黑名单检测/runtime), so a library update is a deliberate change.
+PySide6==6.12.0
+numpy==2.3.5
+Pillow==12.1.0
+opencv-python-headless==4.10.0.84
+pytest==9.1.1
+ruff==0.6.9

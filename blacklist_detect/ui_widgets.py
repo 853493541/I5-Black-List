@@ -6,7 +6,7 @@ from datetime import datetime
 from math import cos, pi, radians, sin
 from pathlib import Path
 
-from PySide6.QtCore import QEasingCurve, QPoint, QPointF, QRect, QRectF, QSize, Qt, QVariantAnimation
+from PySide6.QtCore import QEasingCurve, QPoint, QPointF, QRect, QRectF, QSize, Qt, QVariantAnimation, Signal
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -23,7 +23,6 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLayout,
-    QLayoutItem,
     QPushButton,
     QSizePolicy,
     QStyle,
@@ -89,100 +88,73 @@ def _zh_ago(stamp: str) -> str:
     return f"{days // 365}年前"
 
 
-class _FlowLayout(QLayout):
-    """Pills sit on a row and wrap onto the next line."""
-
-    def __init__(self, parent=None, gap: int = 8) -> None:
-        super().__init__(parent)
-        self._items: list[QLayoutItem] = []
-        self._gap = gap
-        self.setContentsMargins(0, 0, 0, 0)
-
-    def addItem(self, item) -> None:  # noqa: ANN001
-        self._items.append(item)
-
-    def count(self) -> int:
-        return len(self._items)
-
-    def itemAt(self, index: int):  # noqa: ANN201
-        if 0 <= index < len(self._items):
-            return self._items[index]
-        return None
-
-    def takeAt(self, index: int):  # noqa: ANN201
-        if 0 <= index < len(self._items):
-            return self._items.pop(index)
-        return None
-
-    def expandingDirections(self):  # noqa: ANN201
-        return Qt.Orientation(0)
-
-    def hasHeightForWidth(self) -> bool:
-        return True
-
-    def heightForWidth(self, width: int) -> int:
-        return self._arrange(width)
-
-    def setGeometry(self, rect) -> None:  # noqa: ANN001
-        super().setGeometry(rect)
-        self._arrange(rect.width(), rect.topLeft())
-
-    def sizeHint(self) -> QSize:
-        width = 0
-        height = 0
-        for item in self._items:
-            hint = item.sizeHint()
-            width += hint.width()
-            height = max(height, hint.height())
-        if self._items:
-            width += self._gap * (len(self._items) - 1)
-        margins = self.contentsMargins()
-        return QSize(width + margins.left() + margins.right(), height + margins.top() + margins.bottom())
-
-    def minimumSize(self) -> QSize:
-        return self.sizeHint()
-
-    def _arrange(self, width: int, origin: QPoint | None = None) -> int:
-        margins = self.contentsMargins()
-        x = margins.left()
-        y = margins.top()
-        line_height = 0
-        limit = max(0, width - margins.right())
-        for item in self._items:
-            hint = item.sizeHint()
-            if x > margins.left() and x + hint.width() > limit:
-                x = margins.left()
-                y += line_height + self._gap
-                line_height = 0
-            if origin is not None:
-                item.setGeometry(QRect(origin + QPoint(x, y), hint))
-            x += hint.width() + self._gap
-            line_height = max(line_height, hint.height())
-        return y + line_height + margins.bottom()
-
-
 class _FlowHost(QWidget):
-    """Gives a wrapping pill row a real height so the next control is not covered."""
+    """Pills on a row that wrap onto the next line. It places its children itself.
 
-    def __init__(self) -> None:
+    This used to be a Python QLayout subclass. That kept Qt's layout items in a
+    Python list, and when a dialog closed they were freed after their pills,
+    which crashed with PySide6 6.12.
+    """
+
+    def __init__(self, gap: int = 8) -> None:
         super().__init__()
+        self._gap = gap
+        self._widgets: list[QWidget] = []
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
+    def addWidget(self, widget: QWidget) -> None:
+        widget.setParent(self)
+        self._widgets.append(widget)
+        widget.show()
+        self.updateGeometry()
+        self._arrange(self.width(), place=True)
+
+    def clear(self) -> None:
+        for widget in self._widgets:
+            widget.hide()
+            widget.setParent(None)
+            widget.deleteLater()
+        self._widgets = []
+        self.updateGeometry()
+
+    def widgets(self) -> list[QWidget]:
+        return list(self._widgets)
+
     def hasHeightForWidth(self) -> bool:
         return True
 
     def heightForWidth(self, width: int) -> int:
-        layout = self.layout()
-        if layout is None:
-            return 0
-        return layout.heightForWidth(width)
+        return self._arrange(width, place=False)
 
     def sizeHint(self) -> QSize:
-        layout = self.layout()
-        if layout is None:
-            return super().sizeHint()
-        hint = layout.sizeHint()
-        return QSize(max(hint.width(), 1), self.heightForWidth(max(hint.width(), 1)))
+        hints = [widget.sizeHint() for widget in self._widgets]
+        width = sum(hint.width() for hint in hints) + self._gap * max(0, len(hints) - 1)
+        width = max(width, 1)
+        return QSize(width, self.heightForWidth(width))
+
+    def minimumSizeHint(self) -> QSize:
+        widest = max((widget.sizeHint().width() for widget in self._widgets), default=1)
+        return QSize(widest, self.heightForWidth(max(self.width(), widest)))
+
+    def resizeEvent(self, event) -> None:  # noqa: ANN001
+        super().resizeEvent(event)
+        self._arrange(self.width(), place=True)
+
+    def _arrange(self, width: int, place: bool) -> int:
+        x = 0
+        y = 0
+        line_height = 0
+        for widget in self._widgets:
+            hint = widget.sizeHint()
+            if x > 0 and x + hint.width() > width:
+                x = 0
+                y += line_height + self._gap
+                line_height = 0
+            if place:
+                widget.setGeometry(QRect(QPoint(x, y), hint))
+            x += hint.width() + self._gap
+            line_height = max(line_height, hint.height())
+        return y + line_height
 
 
 def masked_name(name: str) -> str:
@@ -289,25 +261,29 @@ class _ColumnHeader(QHeaderView):
 
 
 class TagPill(QWidget):
-    """A painted capsule. Stylesheets were painting flat color over the words."""
+    """A painted capsule. Stylesheets were painting flat color over the words.
+
+    A clickable pill emits clicked(text). It does not hold a callback: a lambda
+    that refers back to its dialog makes a reference cycle, and PySide6 6.12
+    crashed when the garbage collector broke it.
+    """
+
+    clicked = Signal(str)
 
     _pad = round(8 * 1.1)
     _extra = round(6 * 1.1)
-    _close_w = round(16 * 1.1)
 
     def __init__(
         self,
         text: str,
-        on_remove=None,
         *,
-        on_click=None,
+        clickable: bool = False,
         active: bool = True,
         point_size: float | None = None,
     ) -> None:
         super().__init__()
         self._text = text
-        self._on_remove = on_remove
-        self._on_click = on_click
+        self._clickable = clickable
         self._active = active
         self._point_size = point_size
         self._blend = 1.0 if active else 0.0
@@ -319,11 +295,11 @@ class TagPill(QWidget):
         self._anim.valueChanged.connect(self._set_blend)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.setFont(self._face())
-        if on_remove is None and on_click is None:
-            self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-        else:
+        if clickable:
             self.setMouseTracking(True)
             self.setCursor(Qt.PointingHandCursor)
+        else:
+            self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
 
     def _face(self) -> QFont:
         face = chinese_font(SMALL_PT)
@@ -344,16 +320,11 @@ class TagPill(QWidget):
 
     def sizeHint(self) -> QSize:
         metrics = QFontMetrics(self._face())
-        close = self._close_w if self._on_remove is not None else 0
-        width = metrics.horizontalAdvance(self._text) + self._pad_now() * 2 + close
+        width = metrics.horizontalAdvance(self._text) + self._pad_now() * 2
         return QSize(width, metrics.height() + self._extra_now())
 
     def minimumSizeHint(self) -> QSize:
         return self.sizeHint()
-
-    def _close_box(self) -> QRect:
-        rect = self.rect()
-        return QRect(rect.right() - self._close_w, rect.top(), self._close_w, rect.height())
 
     def set_active(self, active: bool) -> None:
         active = bool(active)
@@ -402,13 +373,8 @@ class TagPill(QWidget):
         painter.drawRoundedRect(body, radius, radius)
         painter.setPen(QColor(self._ink))
         text_box = QRect(body)
-        if self._on_remove is not None:
-            text_box.adjust(pad, 0, -self._close_w, 0)
-            painter.drawText(text_box, Qt.AlignVCenter | Qt.AlignLeft, self._text)
-            painter.drawText(self._close_box(), Qt.AlignCenter, "×")
-        else:
-            text_box.adjust(pad, 0, -pad, 0)
-            painter.drawText(text_box, Qt.AlignCenter, self._text)
+        text_box.adjust(pad, 0, -pad, 0)
+        painter.drawText(text_box, Qt.AlignCenter, self._text)
 
     def _paint_moving(self, painter: QPainter) -> None:
         amount = max(0.0, min(1.0, self._blend))
@@ -445,11 +411,8 @@ class TagPill(QWidget):
         if event.button() != Qt.LeftButton:
             super().mousePressEvent(event)
             return
-        if self._on_click is not None:
-            self._on_click()
-            return
-        if self._on_remove is not None and self._close_box().contains(event.position().toPoint()):
-            self._on_remove()
+        if self._clickable:
+            self.clicked.emit(self._text)
             return
         super().mousePressEvent(event)
 
@@ -733,16 +696,17 @@ def _watch_mark(color: str) -> QPixmap:
 
 
 class ThemeSwatch(QWidget):
-    """One theme, shown as its color only."""
+    """One theme, shown as its color only. A click emits chosen(name)."""
+
+    chosen = Signal(str)
 
     _square = 28
     _badge = 16
 
-    def __init__(self, name: str, color: str, on_click) -> None:
+    def __init__(self, name: str, color: str) -> None:
         super().__init__()
         self._name = name
         self._color = color
-        self._on_click = on_click
         self._selected = False
         hang = self._badge // 2
         self.setFixedSize(self._square + hang, self._square + hang)
@@ -780,7 +744,7 @@ class ThemeSwatch(QWidget):
 
     def mousePressEvent(self, event) -> None:  # noqa: ANN001
         if event.button() == Qt.LeftButton:
-            self._on_click()
+            self.chosen.emit(self._name)
             return
         super().mousePressEvent(event)
 

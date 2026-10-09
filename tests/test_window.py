@@ -1195,3 +1195,44 @@ def test_a_second_monitor_uses_its_own_scaling(qapp):
     assert native_to_logical(100, 200, [primary, right]) == (100, 200, 1.0)
     x, y, ratio = native_to_logical(1920 + 300, 600, [primary, right])
     assert (x, y, ratio) == (1920 + 200, 400, 1.5)
+
+
+def _click(qapp, widget) -> None:
+    local = QPointF(widget.rect().center())
+    press = QMouseEvent(
+        QEvent.Type.MouseButtonPress,
+        local,
+        QPointF(widget.mapToGlobal(widget.rect().center())),
+        Qt.LeftButton,
+        Qt.LeftButton,
+        Qt.NoModifier,
+    )
+    qapp.sendEvent(widget, press)
+
+
+def test_clicking_a_tag_pill_toggles_it_and_the_dialog_can_be_freed(qapp):
+    """A pill used to hold a lambda back to its dialog. PySide6 6.12 crashed freeing that cycle."""
+    import gc
+
+    dialog = AddNameDialog("甲", ("炸房",))
+    pills = {pill._text: pill for pill in dialog.tag_host.widgets()}
+    _click(qapp, pills["贴脸"])
+    assert dialog.picked == ["炸房", "贴脸"]
+    _click(qapp, pills["炸房"])
+    assert dialog.picked == ["贴脸"]
+    dialog.close()
+    del dialog, pills
+    for _ in range(3):
+        gc.collect()
+        qapp.processEvents()
+
+
+def test_clicking_a_theme_swatch_chooses_it(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    _click(qapp, window.theme_buttons["绿色"])
+    assert window.store.theme == "绿色"
+    assert window.theme_buttons["绿色"]._selected is True
+    _click(qapp, window.theme_buttons["蓝色"])
+    window.close()

@@ -27,7 +27,6 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMenu,
     QPushButton,
-    QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -100,7 +99,6 @@ from blacklist_detect.ui_widgets import (
     _DetailTip,
     _empty_block,
     _FlowHost,
-    _FlowLayout,
     _icon,
     _local_moment,
     _PlainItemDelegate,
@@ -730,7 +728,8 @@ class MainWindow(QMainWindow):
         swatches.setContentsMargins(0, 0, 0, 0)
         self.theme_buttons: dict[str, ThemeSwatch] = {}
         for name in THEMES:
-            swatch = ThemeSwatch(name, THEMES[name]["gold"], lambda picked=name: self._set_theme(picked))
+            swatch = ThemeSwatch(name, THEMES[name]["gold"])
+            swatch.chosen.connect(self._set_theme)
             self.theme_buttons[name] = swatch
             swatches.addWidget(swatch, 0, Qt.AlignVCenter)
         theme_line.addLayout(swatches)
@@ -785,14 +784,14 @@ class MainWindow(QMainWindow):
                 widget.hide()
                 widget.setParent(None)
                 widget.deleteLater()
-        host = _FlowHost()
-        host.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-        flow = _FlowLayout(host, gap=6)
+        host = _FlowHost(gap=6)
         for tag in self.store.tag_catalog():
-            flow.addWidget(TagPill(tag, on_click=lambda picked=tag: self._edit_settings_tag(picked)))
+            pill = TagPill(tag, clickable=True)
+            pill.clicked.connect(self._edit_settings_tag)
+            host.addWidget(pill)
         create = NewTagButton()
         create.clicked.connect(self._create_settings_tag)
-        flow.addWidget(create)
+        host.addWidget(create)
         self.tag_settings.addWidget(host)
 
     def _recheck_tags(self) -> None:

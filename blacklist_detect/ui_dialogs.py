@@ -34,9 +34,7 @@ from blacklist_detect.ui_theme import (
 )
 from blacklist_detect.ui_widgets import (
     TagPill,
-    _clear_layout,
     _FlowHost,
-    _FlowLayout,
     _zh_date,
 )
 
@@ -281,8 +279,7 @@ class AddNameDialog(QDialog):
         tag_label.setObjectName("field")
         tag_label.setFixedWidth(label_width)
         tag_row.addWidget(tag_label, 0, Qt.AlignVCenter)
-        self.tag_host = _FlowHost()
-        self.tag_rows = _FlowLayout(self.tag_host, gap=8)
+        self.tag_host = _FlowHost(gap=8)
         tag_row.addWidget(self.tag_host, 1)
         layout.addLayout(tag_row)
         self._refresh_tags()
@@ -337,11 +334,11 @@ class AddNameDialog(QDialog):
         _caption_color(self)
 
     def _refresh_tags(self) -> None:
-        _clear_layout(self.tag_rows)
+        self.tag_host.clear()
         for tag in self._tag_order:
-            self.tag_rows.addWidget(
-                TagPill(tag, on_click=lambda picked=tag: self._toggle_tag(picked), active=tag in self.picked)
-            )
+            pill = TagPill(tag, clickable=True, active=tag in self.picked)
+            pill.clicked.connect(self._toggle_tag)
+            self.tag_host.addWidget(pill)
         self.tag_host.updateGeometry()
         self.tag_host.setVisible(bool(self._tag_order))
 
@@ -363,8 +360,7 @@ class AddNameDialog(QDialog):
         self._paint_tag(tag)
 
     def _paint_tag(self, tag: str) -> None:
-        for index in range(self.tag_rows.count()):
-            pill = self.tag_rows.itemAt(index).widget()
+        for pill in self.tag_host.widgets():
             if isinstance(pill, TagPill) and pill._text == tag:
                 pill.set_active(tag in self.picked)
                 return
