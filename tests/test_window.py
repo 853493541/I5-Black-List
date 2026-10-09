@@ -632,7 +632,8 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     centered = window.panel.y() + (window.panel.height() - window.hit_card.height()) // 2
     assert window.hit_card.y() == centered
     assert "border: none" in window.hit_card.styleSheet()
-    assert window.hit_card.findChild(QLabel, "hitBullet").text() == "•"
+    # A warning mark, not only a red dot, so color is not the only sign.
+    assert not window.hit_card.findChild(QLabel, "hitBullet").pixmap().isNull()
     name = window.hit_card.findChild(QLabel, "hitName")
     assert name.text() == "甲"
     assert isinstance(name.parentWidget().layout(), QHBoxLayout)
@@ -1394,3 +1395,21 @@ def test_settings_are_grouped_into_titled_cards(qapp, tmp_path, monkeypatch):
     assert window.store.auto_capture is False
     window._watch_timer.stop()
     window.close()
+
+
+def test_the_cover_fades_in_once_and_does_not_blink_on_the_result(qapp):
+    from blacklist_detect.ui_overlay import LobbyPanel
+
+    panel = LobbyPanel()
+    panel.show_over(40, 40, 240, 60, "checking", "请等待")
+    assert panel._fade_anim.startValue() == 0.0
+    assert panel._fade_anim.endValue() == 1.0
+    panel._fade_anim.stop()
+    panel.setWindowOpacity(1.0)
+    started = panel._fade_anim.state()
+    panel.show_over(40, 40, 240, 60, "hit", "")
+    assert panel._fade_anim.state() == started
+    assert panel.windowOpacity() == 1.0
+    assert panel.mode == "hit"
+    panel.hide()
+    panel.close()

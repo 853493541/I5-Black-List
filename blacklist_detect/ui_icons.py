@@ -202,8 +202,8 @@ DRAWINGS: dict[str, Callable[[QPainter], None]] = {
 }
 
 
-def pixmap(name: str, size: int = 16, color: str | None = None, ratio: float = 2.0) -> QPixmap:
-    """One icon at size × size logical pixels, sharp on high-DPI screens."""
+def pixmap(name: str, size: int = 16, color: str | None = None, ratio: float = 2.0, stroke: float | None = None) -> QPixmap:
+    """One icon at size × size logical pixels, sharp on high-DPI screens. stroke overrides the line width in pixels."""
     draw = DRAWINGS[name]
     side = max(1, round(size * ratio))
     image = QPixmap(side, side)
@@ -213,7 +213,7 @@ def pixmap(name: str, size: int = 16, color: str | None = None, ratio: float = 2
     painter.setRenderHint(QPainter.Antialiasing)
     painter.scale(size / 24.0, size / 24.0)
     # Keep the drawn line about the same thickness at every size: 1.4 px small, 2 px large.
-    line_px = 1.4 if size <= 20 else 2.0
+    line_px = stroke or (1.4 if size <= 20 else 2.0)
     width = line_px * 24.0 / size * (2.4 if name == "more" else 1.0)
     pen = QPen(QColor(color or THEME["muted"]), width)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)

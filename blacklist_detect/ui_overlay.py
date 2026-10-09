@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QEasingCurve, QPointF, QPropertyAnimation, QRectF, Qt
 from PySide6.QtGui import (
     QBitmap,
     QColor,
@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from blacklist_detect.ui_icons import pixmap as line_pixmap
 from blacklist_detect.ui_theme import (
     BODY_PT,
     OVERLAY_PT,
@@ -90,6 +91,21 @@ _COVER_BORDER = 6
 _COVER_OUTSET = 3
 
 
+def _fade_in(widget: QWidget, ms: int = 120) -> None:
+    """Ease a mark in over the game instead of letting it pop."""
+    anim = getattr(widget, "_fade_anim", None)
+    if anim is None:
+        anim = QPropertyAnimation(widget, b"windowOpacity", widget)
+        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        widget._fade_anim = anim
+    anim.stop()
+    anim.setDuration(ms)
+    anim.setStartValue(0.0)
+    anim.setEndValue(1.0)
+    widget.setWindowOpacity(0.0)
+    anim.start()
+
+
 def _cover_radius(height: int) -> int:
     """准备案件还原 is a rounded rectangle, not a pill."""
     return max(4, round(height * 0.14))
@@ -144,6 +160,8 @@ class HitCard(QWidget):
         mark = THEME["red"]
         name_font = chinese_font(OVERLAY_PT)
         name_width = 0
+        warn_side = max(14, round(QFontMetrics(name_font).height() * 0.78))
+        warn = line_pixmap("warning", warn_side, mark, stroke=1.8)
         if people:
             metrics = QFontMetrics(name_font)
             name_width = max(metrics.horizontalAdvance(name) for name, _tags in people)
@@ -154,13 +172,10 @@ class HitCard(QWidget):
             row.setContentsMargins(0, 0, 0, 0)
             row.setSpacing(6)
             row.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            bullet = QLabel("•")
+            bullet = QLabel()
             bullet.setObjectName("hitBullet")
-            bullet.setFont(name_font)
-            bullet.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            bullet.setStyleSheet(
-                f'color: {mark}; background: transparent; font-family: "{family}"; font-size: {name_pt}pt; font-weight: 400;'
-            )
+            bullet.setPixmap(warn)
+            bullet.setStyleSheet("background: transparent;")
             row.addWidget(bullet, 0, Qt.AlignVCenter)
             label = QLabel(name)
             label.setObjectName("hitName")
@@ -234,6 +249,7 @@ class HitCard(QWidget):
     def showEvent(self, event) -> None:  # noqa: ANN001
         super().showEvent(event)
         _pin_topmost(self)
+        _fade_in(self)
 
 
 class ClearMark(QWidget):
@@ -283,6 +299,7 @@ class ClearMark(QWidget):
     def showEvent(self, event) -> None:  # noqa: ANN001
         super().showEvent(event)
         _pin_topmost(self)
+        _fade_in(self)
 
 
 class LobbyPanel(QWidget):
@@ -348,6 +365,9 @@ class LobbyPanel(QWidget):
     def show_over(self, left: float, top: float, width: float, height: float, mode: str, text: str) -> None:
         width = max(1, int(round(width)))
         height = max(1, int(round(height)))
+        # Changing the input flags hides the window; only a cover that was not up yet fades in,
+        # so 请等待 turning into the result does not blink.
+        appearing = not self.isVisible()
         self.setFixedSize(width, height)
         self.move(int(round(left)), int(round(top)))
         self._apply_input(mode == "clear")
@@ -355,6 +375,10 @@ class LobbyPanel(QWidget):
         self._mask_pill()
         self.show()
         _pin_topmost(self)
+        if appearing:
+            _fade_in(self)
+        else:
+            self.setWindowOpacity(1.0)
 
     def _apply_input(self, click_through: bool) -> None:
         flags = (
