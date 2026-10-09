@@ -129,9 +129,67 @@ def main() -> int:
     window.hit_card.set_people([("霁玥吉尔曼", ("炸房", "贴脸")), ("gffdsd", ("挂机",))], 64)
     snap("overlay_hit_card", window.hit_card)
 
+    _kit_scenes(window, snap)
     _contact_sheet(out, args.label, shots)
     print(f"{len(shots)} pictures in {out}")
     os._exit(0)
+
+
+def _kit_scenes(window, snap) -> None:  # noqa: ANN001
+    """The standard controls on their own, once the kit exists."""
+    try:
+        from blacklist_detect import ui_kit
+        from blacklist_detect.ui_icons import DRAWINGS
+    except ImportError:
+        return
+    from PySide6.QtWidgets import QHBoxLayout, QPushButton, QVBoxLayout, QWidget
+
+    from blacklist_detect.ui_theme import _window_style, chinese_family
+
+    board = QWidget()
+    board.setObjectName("root")
+    board.setStyleSheet(_window_style(chinese_family()))
+    board.resize(760, 640)
+    column = QVBoxLayout(board)
+    column.setContentsMargins(24, 24, 24, 24)
+    column.setSpacing(16)
+    row = QHBoxLayout()
+    row.addWidget(ui_kit.Switch(True))
+    row.addWidget(ui_kit.Switch(False))
+    row.addWidget(ui_kit.SegmentedControl([("light", "浅色"), ("dark", "深色"), ("system", "跟随系统")], "dark"))
+    for name in ("add", "edit", "delete", "more"):
+        row.addWidget(ui_kit.IconButton(name, name))
+    primary = QPushButton("添加")
+    primary.setObjectName("primary")
+    row.addWidget(primary)
+    row.addWidget(QPushButton("批量添加"))
+    danger = QPushButton("清空列表")
+    danger.setObjectName("danger")
+    row.addWidget(danger)
+    row.addStretch(1)
+    column.addLayout(row)
+    icons = QHBoxLayout()
+    for name in DRAWINGS:
+        icons.addWidget(ui_kit.IconButton(name, name, tone="text"))
+    icons.addStretch(1)
+    column.addLayout(icons)
+    section = ui_kit.SettingsSection("检查", 72)
+    section.add_row("自动检查", ui_kit.Switch(True), hint="进入「推演成功」大厅时自动检查。")
+    section.add_row("提示音", ui_kit.Switch(False))
+    column.addWidget(section)
+    empty = ui_kit.EmptyState("records", "还没有记录", "进入「推演成功」大厅时会自动检查，并记在这里。")
+    empty.add_action(QPushButton("测试一下"))
+    column.addWidget(empty, 1)
+    toast = ui_kit.Toast(board)
+    board.show()
+    toast.show_message("已删除「霁玥吉尔曼」", "撤销", lambda: None, ms=60000)
+    toast._fade.setOpacity(1.0)
+    snap("kit", board)
+    board.close()
+    dialog = ui_kit.ConfirmDialog(window, "清空列表？", "将删除黑名单里的全部 3 个名字。", "清空", danger=True)
+    dialog.show()
+    snap("kit_confirm", dialog)
+    dialog.close()
 
 
 def _contact_sheet(folder: Path, label: str, shots: list[tuple[str, Path]]) -> None:

@@ -156,6 +156,9 @@ def _palette(name: str, dark: bool) -> dict[str, str]:
             "chip_text": "#d5d9e0",
             "chip_off_bg": "#22262d",
             "chip_off_line": "#4a505c",
+            "toast_bg": "#e7e9ee",
+            "toast_text": "#15171b",
+            "toast_action": _LIGHT[name][5],
         }
     else:
         page, ink, muted, wash, border, accent, accent_line, accent_hover, accent_press, on_accent = _LIGHT[name]
@@ -190,6 +193,9 @@ def _palette(name: str, dark: bool) -> dict[str, str]:
             "chip_text": "#3f4654",
             "chip_off_bg": "#f7f8fa",
             "chip_off_line": "#c5cad3",
+            "toast_bg": "#1f2633",
+            "toast_text": "#f3f5f8",
+            "toast_action": _DARK[name][0],
         }
     colors["scheme"] = "dark" if dark else "light"
     return colors
@@ -410,6 +416,91 @@ def _menu_style(family: str) -> str:
             """
 
 
+def _kit_rules(family: str) -> str:
+    """Switch-free parts of the control kit in ui_kit.py: segments, icon buttons, toasts, cards."""
+    t = THEME
+    return f"""
+            QPushButton#segment {{
+                border-radius: 0;
+                margin: 0;
+                padding: 0 14px;
+            }}
+            QPushButton#segment[place="first"] {{
+                border-top-left-radius: {RADIUS}px;
+                border-bottom-left-radius: {RADIUS}px;
+            }}
+            QPushButton#segment[place="middle"] {{ border-left: none; }}
+            QPushButton#segment[place="last"] {{
+                border-left: none;
+                border-top-right-radius: {RADIUS}px;
+                border-bottom-right-radius: {RADIUS}px;
+            }}
+            QPushButton#segment[place="only"] {{ border-radius: {RADIUS}px; }}
+            QPushButton#segment:checked, QPushButton#segment:checked:hover {{
+                background: {t["accent"]};
+                border-color: {t["accent"]};
+                color: {t["on_accent"]};
+            }}
+            QPushButton#iconButton {{
+                background: transparent;
+                border: none;
+                border-radius: {RADIUS}px;
+                padding: 0;
+                min-height: 0;
+            }}
+            QPushButton#iconButton:hover {{ background: {t["hover"]}; }}
+            QPushButton#iconButton:pressed {{ background: {t["selected"]}; }}
+            QWidget#toast {{
+                background: {t["toast_bg"]};
+                border-radius: {CARD_RADIUS}px;
+            }}
+            QLabel#toastText {{
+                font-family: "{family}";
+                font-size: {BODY_PT}pt;
+                color: {t["toast_text"]};
+                background: transparent;
+            }}
+            QPushButton#toastAction {{
+                font-family: "{family}";
+                font-size: {BODY_PT}pt;
+                font-weight: 600;
+                color: {t["toast_action"]};
+                background: transparent;
+                border: none;
+                padding: 0 6px;
+                min-height: 0;
+            }}
+            QPushButton#toastAction:hover {{ background: transparent; text-decoration: underline; }}
+            QFrame#section {{
+                background: {t["surface"]};
+                border: 1px solid {t["border"]};
+                border-radius: {CARD_RADIUS}px;
+            }}
+            QLabel#sectionTitle, QLabel#dialogTitle {{
+                font-family: "{family}";
+                font-size: {SECTION_PT}pt;
+                font-weight: 600;
+                color: {t["text"]};
+                background: transparent;
+            }}
+            QFrame#sectionLine {{ background: {t["border"]}; border: none; }}
+            QWidget#sectionRow {{ background: transparent; }}
+            QLabel#rowLabel {{
+                font-family: "{family}";
+                font-size: {BODY_PT}pt;
+                color: {t["text"]};
+                background: transparent;
+            }}
+            QLabel#rowHint, QLabel#emptyHint {{
+                font-family: "{family}";
+                font-size: {SMALL_PT}pt;
+                color: {t["muted"]};
+                background: transparent;
+            }}
+            QLabel#emptyIcon {{ background: transparent; }}
+            """
+
+
 def _status_rules(family: str) -> str:
     """The header status line. Each tone is one color; size and face are shared."""
     t = THEME
@@ -474,7 +565,7 @@ def _window_style(family: str) -> str:
                 color: {t["text"]};
                 background: transparent;
             }}
-            """ + _status_rules(family) + _input_rules(family) + f"""
+            """ + _status_rules(family) + _kit_rules(family) + _input_rules(family) + f"""
             QPlainTextEdit, QTableWidget, QListWidget {{
                 background: {t["surface"]};
                 color: {t["text"]};
@@ -738,7 +829,7 @@ def _dialog_style(family: str) -> str:
                 border: 1px solid {t["border"]};
                 padding: 4px 8px;
             }}
-            """ + _input_rules(family) + _button_rules(family)
+            """ + _input_rules(family) + _button_rules(family) + _kit_rules(family)
 
 
 def _colorref(value: str):
