@@ -392,8 +392,9 @@ class TagPill(QWidget):
             self.setCursor(Qt.PointingHandCursor)
 
     def _face(self) -> QFont:
-        face = chinese_font()
-        face.setPointSizeF(self._point_size if self._point_size else 9 * 1.1)
+        face = chinese_font(SMALL_PT)
+        if self._point_size:
+            face.setPointSizeF(self._point_size)
         face.setWeight(QFont.Weight.DemiBold)
         return face
 
@@ -456,9 +457,6 @@ class TagPill(QWidget):
             painter.setBrush(QColor("#e4e6eb"))
             radius = body.height() / 2
             painter.drawRoundedRect(body.adjusted(1, 1, -1, -1), radius, radius)
-            quiet = self._face()
-            quiet.setWeight(QFont.Weight.Normal)
-            painter.setFont(quiet)
             painter.setPen(QColor(THEME["gray"]))
             text_box = QRect(body)
             text_box.adjust(pad, 0, -pad, 0)
@@ -502,9 +500,7 @@ class TagPill(QWidget):
             painter.setPen(Qt.NoPen)
             painter.setBrush(QColor(self._wash))
             painter.drawRoundedRect(body, radius, radius)
-        face = self._face()
-        face.setWeight(QFont.Weight.DemiBold if amount >= 0.5 else QFont.Weight.Normal)
-        painter.setFont(face)
+        painter.setFont(self._face())
         painter.setPen(ink if amount < 0.98 else QColor(self._ink))
         text_box = QRect(body)
         text_box.adjust(self._pad_now(), 0, -self._pad_now(), 0)
@@ -538,9 +534,7 @@ class NewTagButton(QPushButton):
 
     @staticmethod
     def _face() -> QFont:
-        face = chinese_font(9)
-        face.setWeight(QFont.Weight.DemiBold)
-        return face
+        return chinese_font(SMALL_PT)
 
     def sizeHint(self) -> QSize:
         metrics = QFontMetrics(self._face())
@@ -662,7 +656,12 @@ def _clear_layout(layout: QLayout) -> None:
             widget.deleteLater()
 
 
-def chinese_font(point_size: int = 11) -> QFont:
+READ_PT = 13
+SMALL_PT = 11
+TITLE_PT = 15
+
+
+def chinese_font(point_size: int = READ_PT) -> QFont:
     font = QFont(chinese_family())
     font.setPointSize(point_size)
     font.setWeight(QFont.Weight.Normal)
@@ -672,15 +671,13 @@ def chinese_font(point_size: int = 11) -> QFont:
 
 
 def ui_font() -> QFont:
-    """The same Chinese face as the page, at full weight so the strokes stay together."""
-    font = chinese_font()
-    font.setWeight(QFont.Weight.Bold)
-    return font
+    """Buttons use the same size and weight as the names."""
+    return chinese_font(READ_PT)
 
 
 def record_font() -> QFont:
-    """Record names and times, a step larger than the rest of the window."""
-    return chinese_font(13)
+    """Record names and times, the same reading size as the rest of the window."""
+    return chinese_font(READ_PT)
 
 
 # One inset and one corner for the whole window.
@@ -779,6 +776,8 @@ def _button_rules(family: str) -> str:
     return f"""
             QPushButton {{
                 font-family: "{family}";
+                font-size: 13pt;
+                font-weight: 400;
                 background: {t["button"]};
                 color: {t["text"]};
                 border: 1px solid {t["button_line"]};
@@ -815,6 +814,24 @@ def _button_rules(family: str) -> str:
                 color: {t["danger"]};
                 border-color: {t["danger"]};
             }}
+            QPushButton#recheck {{
+                font-size: 11pt;
+                background: {t["gold"]};
+                border-color: {t["gold_line"]};
+                color: {t["on_gold"]};
+                border-radius: 8px;
+                padding: 0 10px;
+                min-height: 26px;
+            }}
+            QPushButton#recheck:hover {{
+                background: {t["gold_hover"]};
+                border-color: {t["gold_line"]};
+                color: {t["on_gold"]};
+            }}
+            QPushButton#recheck:pressed {{
+                background: {t["gold_press"]};
+                color: {t["on_gold"]};
+            }}
             """
 
 
@@ -823,6 +840,8 @@ def _input_rules(family: str) -> str:
     return f"""
             QLineEdit, QPlainTextEdit {{
                 font-family: "{family}";
+                font-size: 13pt;
+                font-weight: 400;
                 background: {t["surface"]};
                 color: {t["text"]};
                 border: 1px solid {t["line"]};
@@ -919,58 +938,65 @@ def _window_style(family: str) -> str:
                 background: transparent;
                 border: none;
             }}
-            QLabel#sub {{ font-family: "{family}"; color: {t["muted"]}; }}
+            QLabel#sub {{
+                font-family: "{family}";
+                font-size: 11pt;
+                font-weight: 400;
+                color: {t["muted"]};
+            }}
             QLabel#emptyTitle {{
                 font-family: "{family}";
-                font-size: 16pt;
+                font-size: 15pt;
+                font-weight: 400;
                 color: {t["text"]};
                 background: transparent;
             }}
             QLabel#clear {{
                 font-family: "{family}";
-                font-size: 14px;
-                font-weight: 500;
+                font-size: 13pt;
+                font-weight: 400;
                 color: {t["green"]};
                 background: transparent;
             }}
             QLabel#hit {{
                 font-family: "{family}";
-                font-size: 14px;
-                font-weight: 500;
+                font-size: 13pt;
+                font-weight: 400;
                 color: {t["red"]};
                 background: transparent;
             }}
             QLabel#idle {{
                 font-family: "{family}";
-                font-size: 14px;
-                font-weight: 500;
+                font-size: 13pt;
+                font-weight: 400;
                 color: {t["muted"]};
                 background: transparent;
             }}
             QLabel#status {{
                 font-family: "{family}";
-                font-size: 14px;
-                font-weight: 500;
+                font-size: 13pt;
+                font-weight: 400;
                 color: {t["text"]};
                 background: transparent;
             }}
             QLabel#watchOn {{
                 font-family: "{family}";
-                font-size: 14px;
-                font-weight: 700;
+                font-size: 13pt;
+                font-weight: 400;
                 color: {t["green"]};
                 background: transparent;
             }}
             QLabel#watchOff {{
                 font-family: "{family}";
-                font-size: 14px;
-                font-weight: 700;
+                font-size: 13pt;
+                font-weight: 400;
                 color: #6b4428;
                 background: transparent;
             }}
             QLabel#hotkey {{
                 font-family: "{family}";
-                font-size: 14px;
+                font-size: 13pt;
+                font-weight: 400;
                 color: #6b4428;
                 background: transparent;
             }}
@@ -1066,7 +1092,8 @@ def _window_style(family: str) -> str:
                 color: {t["head_text"]};
                 border: none;
                 padding: 10px 16px;
-                font-weight: 500;
+                font-size: 13pt;
+                font-weight: 400;
             }}
             QScrollBar:vertical, QScrollBar:horizontal {{
                 background: {t["surface"]};
@@ -1126,8 +1153,8 @@ def _window_style(family: str) -> str:
                 min-width: 0;
                 min-height: 0;
                 max-height: 22px;
-                font-size: 16px;
-                font-weight: 700;
+                font-size: 13pt;
+                font-weight: 400;
             }}
             QPushButton#rowDelete:hover {{
                 background: {t["danger_hover"]};
@@ -1176,6 +1203,8 @@ def _window_style(family: str) -> str:
                 margin: 0;
                 min-width: 0;
                 min-height: 0;
+                font-size: 11pt;
+                font-weight: 400;
             }}
             """
 
@@ -1195,6 +1224,8 @@ def _dialog_style(family: str) -> str:
             }}
             QLabel#field, QLabel#sub {{
                 font-family: "{family}";
+                font-size: 11pt;
+                font-weight: 400;
                 color: {t["muted"]};
                 background: transparent;
             }}
@@ -1260,7 +1291,7 @@ def _empty_block(title: str) -> tuple[QWidget, QLabel]:
     heading = QLabel(title)
     heading.setObjectName("emptyTitle")
     heading.setAlignment(Qt.AlignCenter)
-    heading.setFont(chinese_font(16))
+    heading.setFont(chinese_font(TITLE_PT))
     column.addWidget(heading)
     column.addStretch(1)
     return host, heading
@@ -1873,7 +1904,7 @@ class _DetailTip(QWidget):
                 background: transparent;
                 color: {t["text"]};
                 font-family: "{family}";
-                font-size: 12px;
+                font-size: 11pt;
                 border: none;
             }}
             """
@@ -1932,7 +1963,7 @@ class WarningWindow(QWidget):
         close.clicked.connect(self.close)
         layout.addWidget(close, 0, Qt.AlignLeft)
         self.setFont(chinese_font())
-        self.body.setFont(chinese_font(12))
+        self.body.setFont(chinese_font(READ_PT))
         self.apply_theme()
         _pointing(self)
 
@@ -1945,8 +1976,8 @@ class WarningWindow(QWidget):
             QLabel#warnTitle {{
                 color: {t["red"]};
                 font-family: "{family}";
-                font-size: 16px;
-                font-weight: 600;
+                font-size: 15pt;
+                font-weight: 400;
                 background: transparent;
             }}
             QPlainTextEdit {{
@@ -1956,7 +1987,7 @@ class WarningWindow(QWidget):
                 border-radius: 12px;
                 padding: 12px 16px;
                 font-family: "{family}";
-                font-size: 14px;
+                font-size: 13pt;
             }}
             """ + _button_rules(family)
         )
@@ -2050,14 +2081,14 @@ class ClearWindow(QWidget):
             QLabel#clearTitle {{
                 color: {t["green"]};
                 font-family: "{family}";
-                font-size: 18px;
-                font-weight: 600;
+                font-size: 15pt;
+                font-weight: 400;
                 background: transparent;
             }}
             QLabel#clearDetail {{
                 color: {t["text"]};
                 font-family: "{family}";
-                font-size: 15px;
+                font-size: 13pt;
                 background: transparent;
             }}
             """ + _card_rules() + _button_rules(family)
@@ -2130,8 +2161,7 @@ class HitCard(QWidget):
         body_layout.addWidget(self.scroll)
 
     def set_people(self, people: list[tuple[str, tuple[str, ...]]], height: int) -> None:
-        name_pt = 14 * 0.9
-        tag_pt = 9 * 1.1 * 0.9
+        name_pt = READ_PT
         self.rows.setContentsMargins(12, 8, 12, 8)
         self.rows.setSpacing(6)
         self.rows.setAlignment(Qt.AlignLeft | Qt.AlignTop)
@@ -2139,8 +2169,7 @@ class HitCard(QWidget):
         family = chinese_family()
         ink = THEME["text"]
         mark = THEME["red"]
-        name_font = chinese_font()
-        name_font.setPointSizeF(name_pt)
+        name_font = chinese_font(READ_PT)
         name_width = 0
         if people:
             metrics = QFontMetrics(name_font)
@@ -2157,7 +2186,7 @@ class HitCard(QWidget):
             bullet.setFont(name_font)
             bullet.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             bullet.setStyleSheet(
-                f'color: {mark}; background: transparent; font-family: "{family}"; font-size: {name_pt:.1f}pt; font-weight: 400;'
+                f'color: {mark}; background: transparent; font-family: "{family}"; font-size: {name_pt}pt; font-weight: 400;'
             )
             row.addWidget(bullet, 0, Qt.AlignVCenter)
             label = QLabel(name)
@@ -2166,11 +2195,11 @@ class HitCard(QWidget):
             label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             label.setFixedWidth(name_width)
             label.setStyleSheet(
-                f'color: {ink}; background: transparent; font-family: "{family}"; font-size: {name_pt:.1f}pt; font-weight: 400;'
+                f'color: {ink}; background: transparent; font-family: "{family}"; font-size: {name_pt}pt; font-weight: 400;'
             )
             row.addWidget(label, 0, Qt.AlignVCenter)
             for tag in tags[:3]:
-                row.addWidget(TagPill(tag, point_size=tag_pt), 0, Qt.AlignVCenter)
+                row.addWidget(TagPill(tag), 0, Qt.AlignVCenter)
             row.addStretch(1)
             self.rows.addWidget(person)
             person.setVisible(True)
@@ -2306,8 +2335,8 @@ class LobbyPanel(QWidget):
         self.label.setAlignment(Qt.AlignCenter)
         self.label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         layout.addWidget(self.label)
-        self.setFont(chinese_font(14))
-        self.label.setFont(chinese_font(14))
+        self.setFont(chinese_font(READ_PT))
+        self.label.setFont(chinese_font(READ_PT))
 
     def set_mode(self, mode: str, text: str) -> None:
         self.mode = mode
@@ -2525,7 +2554,7 @@ class MainWindow(QMainWindow):
         self.watch_label = QLabel("未开启")
         self.watch_label.setObjectName("idle")
         self.watch_label.setMaximumWidth(200)
-        self.watch_label.setFont(chinese_font(14))
+        self.watch_label.setFont(chinese_font(READ_PT))
         self.watch_label.setCursor(Qt.PointingHandCursor)
         cluster_row.addWidget(self.mode_cycle, 0, Qt.AlignVCenter)
         cluster_row.addWidget(self.watch_label, 0, Qt.AlignVCenter)
@@ -2794,6 +2823,13 @@ class MainWindow(QMainWindow):
         self.tag_settings.setContentsMargins(0, 0, 0, 0)
         self._fill_tag_settings()
         tag_line.addLayout(self.tag_settings, 1)
+        recheck = QPushButton("按原因补标签")
+        recheck.setObjectName("recheck")
+        recheck.setFont(chinese_font(SMALL_PT))
+        recheck.setAutoDefault(False)
+        recheck.setCursor(Qt.PointingHandCursor)
+        recheck.clicked.connect(self._recheck_tags)
+        tag_line.addWidget(recheck, 0, Qt.AlignTop)
 
         reset_line = add_row(last=True)
         add_label(reset_line, "控制")
@@ -2832,11 +2868,6 @@ class MainWindow(QMainWindow):
         create.clicked.connect(self._create_settings_tag)
         flow.addWidget(create)
         self.tag_settings.addWidget(host)
-        recheck = QPushButton("重新检查")
-        recheck.setAutoDefault(False)
-        recheck.setCursor(Qt.PointingHandCursor)
-        recheck.clicked.connect(self._recheck_tags)
-        self.tag_settings.addWidget(recheck, 0, Qt.AlignLeft)
 
     def _recheck_tags(self) -> None:
         self.store.recheck_tags()
@@ -3075,16 +3106,14 @@ class MainWindow(QMainWindow):
         row.setContentsMargins(4, 0, 4, 0)
         row.setSpacing(6)
         for tag in list(tags)[:3]:
-            row.addWidget(TagPill(tag, point_size=9 * 1.1 * 0.9))
+            row.addWidget(TagPill(tag))
         row.addStretch(1)
         return host
 
     def _list_cell(self, text: str, store_index: int | None = None) -> QTableWidgetItem:
         item = QTableWidgetItem(text)
         item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-        face = chinese_font()
-        face.setPointSizeF(11 * 0.9)
-        item.setFont(face)
+        item.setFont(chinese_font(READ_PT))
         item.setForeground(QColor(THEME["text"]))
         item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         if store_index is not None:
@@ -3535,8 +3564,7 @@ class MainWindow(QMainWindow):
         remove = QPushButton("×")
         remove.setObjectName("rowDelete")
         remove.setFixedSize(22, 22)
-        mark = chinese_font(16)
-        mark.setBold(True)
+        mark = chinese_font(READ_PT)
         remove.setFont(mark)
         remove.setCursor(Qt.PointingHandCursor)
         remove.setFocusPolicy(Qt.NoFocus)
@@ -4251,7 +4279,7 @@ class MainWindow(QMainWindow):
     def _show_hotkey_mark(self) -> None:
         self.watch_mark.setPixmap(QPixmap())
         self.watch_mark.setObjectName("hotkey")
-        self.watch_mark.setFont(chinese_font(14))
+        self.watch_mark.setFont(chinese_font(READ_PT))
         self.watch_mark.setText(f"[{self.store.hotkey}]")
         self.watch_mark.setVisible(bool(self.store.hotkey))
         self.watch_mark.style().unpolish(self.watch_mark)
@@ -4268,10 +4296,7 @@ class MainWindow(QMainWindow):
             "status": THEME["text"],
         }
         self.watch_label.setObjectName(tone)
-        face = chinese_font(14)
-        if kind in ("watch", "idle"):
-            face.setBold(True)
-        self.watch_label.setFont(face)
+        self.watch_label.setFont(chinese_font(READ_PT))
         self.watch_label.setToolTip(text)
         width = max(1, self.watch_label.maximumWidth())
         self.watch_label.setText(self.watch_label.fontMetrics().elidedText(text, Qt.TextElideMode.ElideRight, width))

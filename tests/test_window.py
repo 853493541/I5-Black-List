@@ -40,7 +40,7 @@ def test_recheck_button_applies_a_later_tag(qapp, tmp_path, monkeypatch):
     window.store.add("甲", tags=("炸房",), reason="这人场外说话")
     window._show_list()
     assert window.blacklist_table.item(0, 1).text() == "炸房"
-    button = next(item for item in window.findChildren(QPushButton) if item.text() == "重新检查")
+    button = next(item for item in window.findChildren(QPushButton) if item.text() == "按原因补标签")
     button.click()
     assert window.blacklist_table.item(0, 1).text() == "炸房、场外"
     window.close()
@@ -303,6 +303,8 @@ def test_reason_boxes_allow_several_and_a_note(qapp):
         ("炸房", False),
         ("贴脸", False),
         ("挂机", False),
+        ("场外", False),
+        ("不尊重底牌", False),
     ]
     dialog._attach_tag("炸房")
     dialog._attach_tag("贴脸")
@@ -330,7 +332,14 @@ def test_reason_boxes_allow_several_and_a_note(qapp):
     assert labeled["保存"].isDefault() is True
     assert labeled["删除"].isDefault() is False
     assert labeled["删除"].autoDefault() is False
-    row = labeled["保存"].parentWidget().layout()
+    row = None
+    root = dialog.layout()
+    for index in range(root.count()):
+        nested = root.itemAt(index).layout()
+        if nested is not None and nested.indexOf(labeled["保存"]) >= 0:
+            row = nested
+            break
+    assert row is not None
     assert row.indexOf(labeled["删除"]) == row.indexOf(labeled["保存"]) - 1
     dialog._delete()
     assert dialog.deleted is True
@@ -609,7 +618,7 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     assert window.hit_card.findChild(QLabel, "hitMore") is None
     listed = window._tag_cell(("炸房", "贴脸", "挂机", "场外"))
     assert [pill._text for pill in listed.findChildren(TagPill)] == ["炸房", "贴脸", "挂机"]
-    assert abs(listed.findChildren(TagPill)[0]._point_size - 9 * 1.1 * 0.9) < 0.01
+    assert listed.findChildren(TagPill)[0].font().pointSize() == 11
     window.hit_card.set_people(
         [
             ("国服园丁", ("123",)),
@@ -628,8 +637,8 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
         "贴脸",
         "挂机",
     ]
-    assert abs(window.hit_card.findChildren(TagPill)[0]._point_size - 9 * 1.1 * 0.9) < 0.01
-    assert "12.6pt" in window.hit_card.findChild(QLabel, "hitName").styleSheet()
+    assert window.hit_card.findChildren(TagPill)[0].font().pointSize() == 11
+    assert "13pt" in window.hit_card.findChild(QLabel, "hitName").styleSheet()
     assert window.hit_card.findChild(QLabel, "hitMore") is None
     assert window.hit_card.findChild(QLabel, "hitExtra") is None
     assert window.hit_card.scroll.verticalScrollBar().maximum() == 0
