@@ -138,7 +138,7 @@ def test_a_toast_shows_offers_an_action_and_goes_away(qapp):
     host.show()
     toast = Toast(host)
     undone: list[bool] = []
-    toast.show_message("已删除「甲」", "撤销", lambda: undone.append(True), ms=50)
+    toast.show_message("已删除「甲」", "撤销", lambda: undone.append(True), ms=60_000)
     _settle(qapp)
     assert toast.isVisible()
     assert toast.text.text() == "已删除「甲」"
@@ -147,6 +147,11 @@ def test_a_toast_shows_offers_an_action_and_goes_away(qapp):
     toast.action.click()
     assert undone == [True]
     assert not toast.isVisible()
+    # Still fading out: 撤销 must still work, however slow the machine is.
+    toast.show_message("已删除「乙」", "撤销", lambda: undone.append(True), ms=60_000)
+    toast.dismiss()
+    toast.action.click()
+    assert undone == [True, True]
     toast.show_message("已复制", ms=30)
     assert toast.action.isHidden()
     import time

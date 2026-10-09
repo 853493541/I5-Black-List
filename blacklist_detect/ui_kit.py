@@ -402,7 +402,7 @@ class Toast(QWidget):
         if not self.isVisible():
             return
         self._timer.stop()
-        self._callback = None
+        # 撤销 keeps working while the toast fades; the action is dropped once it is gone.
         self._hiding = True
         self._anim.stop()
         self._anim.setStartValue(self._fade.opacity())
@@ -413,6 +413,7 @@ class Toast(QWidget):
         if self._hiding:
             self.hide()
             self._hiding = False
+            self._callback = None
 
     def _act(self) -> None:
         callback = self._callback
