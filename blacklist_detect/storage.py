@@ -17,7 +17,7 @@ _MAX_SCANS = 40
 # A later check of this 12-player lobby still misreads a few seats.
 # Eight shared names is the same match, so the time is updated.
 _SAME_MATCH_COUNT = 8
-TAGS = ("炸房", "贴脸", "挂机")
+TAGS = ("炸房", "贴脸", "挂机", "场外", "不尊重底牌")
 _MAX_TAG = 12
 _MAX_CUSTOM_TAGS = 24
 
@@ -361,6 +361,7 @@ class Store:
         self.hidden_tags: list[str] = []
         self.column_order: list[int] = [0, 1, 2, 3]
         self.column_widths: list[int] = list(DEFAULT_COLUMN_WIDTHS)
+        self.names_hidden = False
         self.load_warning = ""
         self.load()
 
@@ -570,6 +571,7 @@ class Store:
                 "hidden_tags": list(self.hidden_tags),
                 "column_order": list(self.column_order),
                 "column_widths": list(self.column_widths),
+                "names_hidden": self.names_hidden,
             },
         )
 
@@ -595,6 +597,7 @@ class Store:
             widths = _column_widths(settings.get("column_widths"))
             if widths is not None:
                 self.column_widths = widths
+            self.names_hidden = bool(settings.get("names_hidden", False))
             for raw in settings.get("hidden_tags") or []:
                 tag = clean_tag(str(raw))
                 if tag in TAGS and tag not in self.hidden_tags:
@@ -691,6 +694,26 @@ class Store:
             )
         self.entries = updated
         self.save_entries()
+
+    def recheck_tags(self) -> int:
+        """Add any current tag whose word is already in a saved reason. Existing tags stay."""
+        catalog = self.tag_catalog()
+        changed = 0
+        for entry in self.entries:
+            found, _kept = tags_and_reason(entry.reason, catalog)
+            merged = list(entry.tags)
+            grew = False
+            for tag in found:
+                if tag not in merged:
+                    merged.append(tag)
+                    grew = True
+            if not grew:
+                continue
+            entry.tags = order_tags(merged, catalog)
+            changed += 1
+        if changed:
+            self.save_entries()
+        return changed
 
     def add(self, name: str, reason: str = "", match_from_prefix: bool = False, tags: tuple[str, ...] | list[str] = ()) -> Entry | None:
         cleaned = clean_stored_name(name)[:_MAX_NAME]
@@ -801,6 +824,7 @@ class Store:
         self.hidden_tags = []
         self.column_order = [0, 1, 2, 3]
         self.column_widths = list(DEFAULT_COLUMN_WIDTHS)
+        self.names_hidden = False
         self.load_warning = ""
         self.save_entries()
         self.save_scans()

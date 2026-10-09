@@ -19,6 +19,7 @@ from blacklist_detect.ui import (
     AddNameDialog,
     DayFolderIcon,
     MainWindow,
+    masked_name,
     _zh_clock,
     TagCreateDialog,
     TagEditDialog,
@@ -32,12 +33,49 @@ def qapp():
     return QApplication.instance() or QApplication([])
 
 
+def test_recheck_button_applies_a_later_tag(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window.store.add("甲", tags=("炸房",), reason="这人场外说话")
+    window._show_list()
+    assert window.blacklist_table.item(0, 1).text() == "炸房"
+    button = next(item for item in window.findChildren(QPushButton) if item.text() == "重新检查")
+    button.click()
+    assert window.blacklist_table.item(0, 1).text() == "炸房、场外"
+    window.close()
+
+
+def test_the_name_eye_hides_list_names(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    assert masked_name("怪物名字啊") == "怪****"
+    assert masked_name("甲") == "甲"
+    window = MainWindow()
+    window.store.add("怪物名字啊")
+    window._show_list()
+    assert window.blacklist_table.item(0, 0).text() == "怪物名字啊"
+    window._toggle_name_hiding(True)
+    assert window.blacklist_table.item(0, 0).text() == "怪****"
+    assert window.store.names_hidden is True
+    assert Store(window.store.root).names_hidden is True
+    window._toggle_name_hiding(False)
+    assert window.blacklist_table.item(0, 0).text() == "怪物名字啊"
+    window.close()
+
+
 def test_add_and_remove(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
     assert window.list_hint.text() == "还没有名字"
+    assert window.list_empty.isHidden() is False
+    assert window.clear_list_button.isHidden() is True
     assert window.blacklist_table.isHidden() is True
+    assert window.history_hint.text() == "还没有记录"
+    assert window.history_empty.isHidden() is False
+    assert window.history_side.isHidden() is True
+    assert window.record_card.isHidden() is True
     added = window.store.add("罪玥吉尔曼", tags=("炸房", "贴脸"), reason="他做了坏事")
     assert added is not None
     window._show_list()
@@ -71,7 +109,8 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     window._show_list()
     assert window.blacklist_table.item(0, 3).text() == "3小时前"
     assert window.windowTitle() == "黑名单检测"
-    assert window.list_hint.isHidden() is True
+    assert window.list_empty.isHidden() is True
+    assert window.clear_list_button.isHidden() is False
     assert window.blacklist_table.isHidden() is False
     assert window.hotkey_edit.text() == "Alt+1"
     assert window.hotkey_edit.isEnabled() is False
@@ -86,12 +125,14 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     window.store.save_settings()
     window._fill_tag_settings()
     created.close()
-    assert window.store.tag_catalog() == ("炸房", "贴脸", "挂机", "红名")
+    assert window.store.tag_catalog() == ("炸房", "贴脸", "挂机", "场外", "不尊重底牌", "红名")
     picked = AddNameDialog(catalog=window.store.tag_catalog())
     assert [(pill._text, pill._active) for pill in picked.findChildren(TagPill)] == [
         ("炸房", False),
         ("贴脸", False),
         ("挂机", False),
+        ("场外", False),
+        ("不尊重底牌", False),
         ("红名", False),
     ]
     picked.close()
@@ -134,12 +175,16 @@ def test_renaming_a_tag_updates_the_edit_panel(qapp, tmp_path, monkeypatch):
         ("贴脸", True),
         ("闹房", True),
         ("挂机", False),
+        ("场外", False),
+        ("不尊重底牌", False),
     ]
     edited._detach_tag("贴脸")
     assert [(pill._text, pill._active) for pill in edited.findChildren(TagPill)] == [
         ("贴脸", False),
         ("闹房", True),
         ("挂机", False),
+        ("场外", False),
+        ("不尊重底牌", False),
     ]
     edited.close()
     window.close()
@@ -167,6 +212,22 @@ def test_blacklist_columns_can_be_dragged(qapp, tmp_path, monkeypatch):
     again.close()
     kept = MainWindow()
     assert kept.blacklist_table.columnWidth(0) == 220
+    kept.resize(900, 560)
+    kept.show()
+    qapp.processEvents()
+    table = kept.blacklist_table
+    header = table.horizontalHeader()
+    available = table.viewport().width()
+    last = header.logicalIndex(header.count() - 1)
+    before_last = header.sectionSize(last)
+    first = header.logicalIndex(0)
+    header.resizeSection(first, header.sectionSize(first) + 160)
+    qapp.processEvents()
+    sizes = [header.sectionSize(header.logicalIndex(visual)) for visual in range(header.count())]
+    assert sum(sizes) <= available + 1
+    right = header.sectionViewportPosition(last) + header.sectionSize(last)
+    assert right <= available + 1
+    assert header.sectionSize(last) <= before_last
     kept.close()
 
 
@@ -546,6 +607,9 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     assert isinstance(name.parentWidget().layout(), QHBoxLayout)
     assert [pill._text for pill in window.hit_card.findChildren(TagPill)] == ["炸房", "贴脸"]
     assert window.hit_card.findChild(QLabel, "hitMore") is None
+    listed = window._tag_cell(("炸房", "贴脸", "挂机", "场外"))
+    assert [pill._text for pill in listed.findChildren(TagPill)] == ["炸房", "贴脸", "挂机"]
+    assert abs(listed.findChildren(TagPill)[0]._point_size - 9 * 1.1 * 0.9) < 0.01
     window.hit_card.set_people(
         [
             ("国服园丁", ("123",)),
@@ -564,7 +628,9 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
         "贴脸",
         "挂机",
     ]
-    assert window.hit_card.findChild(QLabel, "hitMore").text() == "3+"
+    assert abs(window.hit_card.findChildren(TagPill)[0]._point_size - 9 * 1.1 * 0.9) < 0.01
+    assert "12.6pt" in window.hit_card.findChild(QLabel, "hitName").styleSheet()
+    assert window.hit_card.findChild(QLabel, "hitMore") is None
     assert window.hit_card.findChild(QLabel, "hitExtra") is None
     assert window.hit_card.scroll.verticalScrollBar().maximum() == 0
     assert window.hit_card.height() > window.panel.height()
@@ -815,7 +881,7 @@ def test_reset_asks_before_clearing_everything(qapp, tmp_path, monkeypatch):
     assert window.player_edit.text() == ""
     assert window.store.player_name == ""
     assert window.store.theme == "蓝色"
-    assert window.store.tag_catalog() == ("炸房", "贴脸", "挂机")
+    assert window.store.tag_catalog() == ("炸房", "贴脸", "挂机", "场外", "不尊重底牌")
     assert window.hotkey_edit.text() == "Alt+1"
     assert window.hotkey_edit.isEnabled() is False
     assert window.auto_on.isChecked() is True
@@ -849,7 +915,8 @@ def test_clear_buttons_split_into_cancel_and_confirm(qapp, tmp_path, monkeypatch
     window.clear_list_button.click()
     window.clear_list_pair.findChildren(QPushButton)[1].click()
     assert window.store.entries == []
-    assert window.clear_list_button.isHidden() is False
+    assert window.clear_list_button.isHidden() is True
+    assert window.list_empty.isHidden() is False
     window.clear_history_button.click()
     assert window.clear_history_button.isHidden()
     history_buttons = window.clear_history_pair.findChildren(QPushButton)

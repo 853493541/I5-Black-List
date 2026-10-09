@@ -240,14 +240,36 @@ class _FlowHost(QWidget):
         return QSize(max(hint.width(), 1), self.heightForWidth(max(hint.width(), 1)))
 
 
+def masked_name(name: str) -> str:
+    """First character, then a star for every character after it."""
+    if not name:
+        return ""
+    return name[0] + ("*" * (len(name) - 1))
+
+
 class _ColumnHeader(QHeaderView):
     """Arrow on a title means drag to reorder. A left-right arrow on the edge means resize."""
 
     def __init__(self, parent=None) -> None:
         super().__init__(Qt.Horizontal, parent)
         self.setMouseTracking(True)
+        self.names_hidden = False
+        self.on_eye = None
+
+    def _eye_box(self, rect: QRect) -> QRect:
+        size = 16
+        return QRect(rect.right() - 14 - size, rect.top() + (rect.height() - size) // 2, size, size)
+
+    def _eye_at(self, pos: QPoint) -> bool:
+        left = self.sectionViewportPosition(0)
+        if self.sectionSize(0) <= 0:
+            return False
+        rect = QRect(left, 0, self.sectionSize(0), self.height())
+        return self._eye_box(rect).contains(pos)
 
     def _cursor_at(self, pos: int) -> Qt.CursorShape:
+        if self._eye_at(QPoint(pos, self.height() // 2)):
+            return Qt.PointingHandCursor
         logical = self.logicalIndexAt(pos)
         if logical < 0:
             return Qt.ArrowCursor
@@ -260,10 +282,25 @@ class _ColumnHeader(QHeaderView):
     def mouseMoveEvent(self, event) -> None:  # noqa: ANN001
         super().mouseMoveEvent(event)
         pos = int(event.position().x())
+        point = event.position().toPoint()
+        if self._eye_at(point):
+            self.setToolTip("显示名字" if self.names_hidden else "隐藏名字")
+        else:
+            self.setToolTip("")
         if event.buttons() & Qt.LeftButton and self._cursor_at(pos) != Qt.SplitHCursor:
             self.setCursor(Qt.ClosedHandCursor)
             return
         self.setCursor(self._cursor_at(pos))
+
+    def mousePressEvent(self, event) -> None:  # noqa: ANN001
+        if event.button() == Qt.LeftButton and self._eye_at(event.position().toPoint()):
+            self.names_hidden = not self.names_hidden
+            if self.on_eye is not None:
+                self.on_eye(self.names_hidden)
+            self.viewport().update()
+            event.accept()
+            return
+        super().mousePressEvent(event)
 
     def leaveEvent(self, event) -> None:  # noqa: ANN001
         self.unsetCursor()
@@ -271,11 +308,38 @@ class _ColumnHeader(QHeaderView):
 
     def paintSection(self, painter, rect, logicalIndex) -> None:  # noqa: ANN001
         super().paintSection(painter, rect, logicalIndex)
+        if logicalIndex == 0:
+            self._paint_eye(painter, self._eye_box(rect))
         if self.visualIndex(logicalIndex) == self.count() - 1:
             return
         painter.save()
         painter.setPen(QColor(THEME["line"]))
         painter.drawLine(rect.right(), rect.top() + 6, rect.right(), rect.bottom() - 6)
+        painter.restore()
+
+    def _paint_eye(self, painter, box: QRect) -> None:  # noqa: ANN001
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing)
+        pen = QPen(QColor("#6b7280"), 1.5)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(pen)
+        painter.setBrush(Qt.NoBrush)
+        center_x = box.center().x()
+        center_y = box.center().y()
+        path = QPainterPath()
+        path.moveTo(box.left() + 1, center_y)
+        path.quadTo(center_x, box.top() + 2, box.right() - 1, center_y)
+        path.quadTo(center_x, box.bottom() - 2, box.left() + 1, center_y)
+        painter.drawPath(path)
+        if self.names_hidden:
+            painter.drawLine(
+                QPointF(box.left() + 2, box.bottom() - 3),
+                QPointF(box.right() - 2, box.top() + 3),
+            )
+        else:
+            painter.setBrush(QColor("#6b7280"))
+            painter.drawEllipse(QPointF(center_x, center_y), 1.7, 1.7)
         painter.restore()
 
 
@@ -856,6 +920,12 @@ def _window_style(family: str) -> str:
                 border: none;
             }}
             QLabel#sub {{ font-family: "{family}"; color: {t["muted"]}; }}
+            QLabel#emptyTitle {{
+                font-family: "{family}";
+                font-size: 16pt;
+                color: {t["text"]};
+                background: transparent;
+            }}
             QLabel#clear {{
                 font-family: "{family}";
                 font-size: 14px;
@@ -1178,6 +1248,22 @@ def _caption_color(widget) -> None:
 def _page(layout) -> None:
     layout.setContentsMargins(0, GAP, 0, 0)
     layout.setSpacing(GAP)
+
+
+def _empty_block(title: str) -> tuple[QWidget, QLabel]:
+    """One centered line, for a page that has nothing to list."""
+    host = QWidget()
+    column = QVBoxLayout(host)
+    column.setContentsMargins(24, 0, 24, 0)
+    column.setSpacing(0)
+    column.addStretch(1)
+    heading = QLabel(title)
+    heading.setObjectName("emptyTitle")
+    heading.setAlignment(Qt.AlignCenter)
+    heading.setFont(chinese_font(16))
+    column.addWidget(heading)
+    column.addStretch(1)
+    return host, heading
 
 
 def _line_icon(draw, color: str) -> QPixmap:
@@ -2044,7 +2130,8 @@ class HitCard(QWidget):
         body_layout.addWidget(self.scroll)
 
     def set_people(self, people: list[tuple[str, tuple[str, ...]]], height: int) -> None:
-        name_pt = 14
+        name_pt = 14 * 0.9
+        tag_pt = 9 * 1.1 * 0.9
         self.rows.setContentsMargins(12, 8, 12, 8)
         self.rows.setSpacing(6)
         self.rows.setAlignment(Qt.AlignLeft | Qt.AlignTop)
@@ -2052,7 +2139,8 @@ class HitCard(QWidget):
         family = chinese_family()
         ink = THEME["text"]
         mark = THEME["red"]
-        name_font = chinese_font(name_pt)
+        name_font = chinese_font()
+        name_font.setPointSizeF(name_pt)
         name_width = 0
         if people:
             metrics = QFontMetrics(name_font)
@@ -2069,7 +2157,7 @@ class HitCard(QWidget):
             bullet.setFont(name_font)
             bullet.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             bullet.setStyleSheet(
-                f'color: {mark}; background: transparent; font-family: "{family}"; font-size: {name_pt}pt; font-weight: 400;'
+                f'color: {mark}; background: transparent; font-family: "{family}"; font-size: {name_pt:.1f}pt; font-weight: 400;'
             )
             row.addWidget(bullet, 0, Qt.AlignVCenter)
             label = QLabel(name)
@@ -2078,20 +2166,11 @@ class HitCard(QWidget):
             label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             label.setFixedWidth(name_width)
             label.setStyleSheet(
-                f'color: {ink}; background: transparent; font-family: "{family}"; font-size: {name_pt}pt; font-weight: 400;'
+                f'color: {ink}; background: transparent; font-family: "{family}"; font-size: {name_pt:.1f}pt; font-weight: 400;'
             )
             row.addWidget(label, 0, Qt.AlignVCenter)
             for tag in tags[:3]:
-                row.addWidget(TagPill(tag), 0, Qt.AlignVCenter)
-            if len(tags) > 3:
-                more = QLabel("3+")
-                more.setObjectName("hitMore")
-                more.setFont(chinese_font(10))
-                more.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-                more.setStyleSheet(
-                    f'color: {mark}; background: transparent; font-family: "{family}"; font-size: 10pt; font-weight: 400;'
-                )
-                row.addWidget(more, 0, Qt.AlignVCenter)
+                row.addWidget(TagPill(tag, point_size=tag_pt), 0, Qt.AlignVCenter)
             row.addStretch(1)
             self.rows.addWidget(person)
             person.setVisible(True)
@@ -2483,9 +2562,6 @@ class MainWindow(QMainWindow):
         _page(layout)
         add_row = QHBoxLayout()
         add_row.setSpacing(GAP)
-        self.list_hint = QLabel("还没有名字")
-        self.list_hint.setObjectName("sub")
-        add_row.addWidget(self.list_hint, 0, Qt.AlignVCenter)
         add_row.addStretch(1)
         self.clear_list_button = QPushButton("清空列表")
         self.clear_list_button.clicked.connect(self._arm_clear_list)
@@ -2501,7 +2577,10 @@ class MainWindow(QMainWindow):
         add_row.addWidget(add)
         self.blacklist_table = QTableWidget(0, 4)
         self.blacklist_table.setObjectName("blacklist")
-        self.blacklist_table.setHorizontalHeader(_ColumnHeader(self.blacklist_table))
+        name_header = _ColumnHeader(self.blacklist_table)
+        name_header.names_hidden = self.store.names_hidden
+        name_header.on_eye = self._toggle_name_hiding
+        self.blacklist_table.setHorizontalHeader(name_header)
         self.blacklist_table.setHorizontalHeaderLabels(["名字", "标签", "原因", "最后遇到"])
         for column in range(4):
             item = self.blacklist_table.horizontalHeaderItem(column)
@@ -2546,7 +2625,9 @@ class MainWindow(QMainWindow):
         self._detail_tip_timer.setSingleShot(True)
         self._detail_tip_timer.setInterval(160)
         self._detail_tip_timer.timeout.connect(self._hide_detail_tip)
+        self.list_empty, self.list_hint = _empty_block("还没有名字")
         layout.addWidget(self.blacklist_table, 1)
+        layout.addWidget(self.list_empty, 1)
         layout.addLayout(add_row)
         return page
 
@@ -2558,6 +2639,7 @@ class MainWindow(QMainWindow):
         body.setSpacing(GAP)
         side = QWidget()
         side.setFixedWidth(168)
+        self.history_side = side
         side_layout = QVBoxLayout(side)
         side_layout.setContentsMargins(0, 0, 0, 0)
         side_layout.setSpacing(GAP)
@@ -2620,9 +2702,7 @@ class MainWindow(QMainWindow):
         self.history_table.cellClicked.connect(self._on_history_cell)
         names.addWidget(self.history_table, 1)
         body.addWidget(record, 1)
-        self.history_empty = QLabel("没有记录")
-        self.history_empty.setObjectName("sub")
-        self.history_empty.setAlignment(Qt.AlignCenter)
+        self.history_empty, self.history_hint = _empty_block("还没有记录")
         body.addWidget(self.history_empty, 1)
         layout.addLayout(body, 1)
         return page
@@ -2752,6 +2832,15 @@ class MainWindow(QMainWindow):
         create.clicked.connect(self._create_settings_tag)
         flow.addWidget(create)
         self.tag_settings.addWidget(host)
+        recheck = QPushButton("重新检查")
+        recheck.setAutoDefault(False)
+        recheck.setCursor(Qt.PointingHandCursor)
+        recheck.clicked.connect(self._recheck_tags)
+        self.tag_settings.addWidget(recheck, 0, Qt.AlignLeft)
+
+    def _recheck_tags(self) -> None:
+        self.store.recheck_tags()
+        self._show_list()
 
     def _create_settings_tag(self) -> None:
         dialog = TagCreateDialog(self.store.tag_catalog(), parent=self)
@@ -2985,15 +3074,17 @@ class MainWindow(QMainWindow):
         row = QHBoxLayout(host)
         row.setContentsMargins(4, 0, 4, 0)
         row.setSpacing(6)
-        for tag in tags:
-            row.addWidget(TagPill(tag))
+        for tag in list(tags)[:3]:
+            row.addWidget(TagPill(tag, point_size=9 * 1.1 * 0.9))
         row.addStretch(1)
         return host
 
     def _list_cell(self, text: str, store_index: int | None = None) -> QTableWidgetItem:
         item = QTableWidgetItem(text)
         item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-        item.setFont(chinese_font())
+        face = chinese_font()
+        face.setPointSizeF(11 * 0.9)
+        item.setFont(face)
         item.setForeground(QColor(THEME["text"]))
         item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         if store_index is not None:
@@ -3046,7 +3137,8 @@ class MainWindow(QMainWindow):
         header.blockSignals(False)
         self._fit_blacklist_columns()
 
-    def _fit_blacklist_columns(self) -> None:
+    def _fit_blacklist_columns(self, prefer: int | None = None) -> None:
+        """Keep every column inside the list. Extra width comes out of the last column."""
         table = getattr(self, "blacklist_table", None)
         if table is None or getattr(self, "_fitting_columns", False):
             return
@@ -3056,15 +3148,23 @@ class MainWindow(QMainWindow):
         minimum = header.minimumSectionSize()
         if count == 0 or available < minimum:
             return
-        saved = self.store.column_widths
-        if len(saved) != count:
-            saved = [header.sectionSize(index) for index in range(count)]
         logicals = [header.logicalIndex(visual) for visual in range(count)]
-        sizes = [max(minimum, saved[logical]) for logical in logicals]
+        if prefer is None:
+            saved = self.store.column_widths
+            if len(saved) != count:
+                saved = [header.sectionSize(index) for index in range(count)]
+            sizes = [max(minimum, saved[logical]) for logical in logicals]
+        else:
+            sizes = [max(minimum, header.sectionSize(logical)) for logical in logicals]
         others = sizes[:-1]
-        room = available - sum(others)
-        if room < minimum:
-            overflow = minimum - room
+        overflow = sum(others) + minimum - available
+        if overflow > 0 and prefer is not None and prefer in logicals[:-1]:
+            index = logicals.index(prefer)
+            spare = others[index] - minimum
+            cut = min(max(spare, 0), overflow)
+            others[index] -= cut
+            overflow -= cut
+        if overflow > 0:
             for index in range(len(others) - 1, -1, -1):
                 spare = others[index] - minimum
                 if spare <= 0:
@@ -3074,27 +3174,38 @@ class MainWindow(QMainWindow):
                 overflow -= cut
                 if overflow <= 0:
                     break
-            room = max(minimum, available - sum(others))
-        target = [*others, room]
+        room = available - sum(others)
+        if room < minimum:
+            room = minimum
+        target = [*others, max(minimum, room)]
         self._fitting_columns = True
         header.blockSignals(True)
         try:
             for logical, size in zip(logicals, target, strict=True):
                 if header.sectionSize(logical) != size:
                     table.setColumnWidth(logical, size)
+                visual = header.visualIndex(logical)
+                if (
+                    prefer is not None
+                    and visual != count - 1
+                    and 0 <= logical < len(self.store.column_widths)
+                ):
+                    self.store.column_widths[logical] = size
         finally:
             header.blockSignals(False)
             self._fitting_columns = False
 
     def _save_column_width(self, logical: int, _old: int, new: int) -> None:
         header = self.blacklist_table.horizontalHeader()
+        if getattr(self, "_fitting_columns", False):
+            return
         if header.visualIndex(logical) == header.count() - 1:
             return
         if not 0 <= logical < len(self.store.column_widths) or self.store.column_widths[logical] == new:
             return
         self.store.column_widths[logical] = new
+        self._fit_blacklist_columns(prefer=logical)
         self.store.save_settings()
-        self._fit_blacklist_columns()
 
     def _apply_column_order(self) -> None:
         header = self.blacklist_table.horizontalHeader()
@@ -3144,7 +3255,8 @@ class MainWindow(QMainWindow):
         position = bar.value()
         self.blacklist_table.setRowCount(len(rows))
         for row, (index, entry) in enumerate(rows):
-            self.blacklist_table.setItem(row, 0, self._list_cell(entry.name, index))
+            shown = masked_name(entry.name) if self.store.names_hidden else entry.name
+            self.blacklist_table.setItem(row, 0, self._list_cell(shown, index))
             self.blacklist_table.setItem(row, 1, self._list_cell(tag_text(entry)))
             self.blacklist_table.setCellWidget(row, 1, self._tag_cell(entry.tags))
             detail = " ".join(entry.reason.split())
@@ -3158,13 +3270,15 @@ class MainWindow(QMainWindow):
         self._refresh_blacklist_tab()
         count = len(self.store.entries)
         if count:
-            self.list_hint.hide()
+            self.list_empty.hide()
             self.blacklist_table.setVisible(True)
+            if self.clear_list_pair.isHidden():
+                self.clear_list_button.show()
         else:
-            self.list_hint.setText("还没有名字")
-            self.list_hint.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            self.list_hint.show()
+            self.list_empty.show()
             self.blacklist_table.setVisible(False)
+            self.clear_list_button.hide()
+            self.clear_list_pair.hide()
 
     def _reason_for_row(self, row: int) -> str:
         item = self.blacklist_table.item(row, 0)
@@ -3174,6 +3288,15 @@ class MainWindow(QMainWindow):
         if not 0 <= index < len(self.store.entries):
             return ""
         return self.store.entries[index].reason
+
+    def _toggle_name_hiding(self, hidden: bool) -> None:
+        self.store.names_hidden = bool(hidden)
+        header = self.blacklist_table.horizontalHeader()
+        if isinstance(header, _ColumnHeader):
+            header.names_hidden = self.store.names_hidden
+            header.viewport().update()
+        self.store.save_settings()
+        self._show_list()
 
     def _sync_detail_tip(self, row: int, column: int) -> None:
         text = self._reason_for_row(row) if column == 2 else ""
@@ -3339,6 +3462,7 @@ class MainWindow(QMainWindow):
             self._add_day_folder(key, closed)
             for index, clock in rows:
                 self._add_history_time(key, index, clock, closed)
+        self.history_side.setVisible(count > 0)
         self.history_list.setVisible(count > 0)
         self.record_card.setVisible(count > 0)
         self.history_table.setVisible(count > 0)

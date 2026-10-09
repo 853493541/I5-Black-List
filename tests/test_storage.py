@@ -24,7 +24,7 @@ def test_blacklist_lines_parse_one_player_each():
 def test_a_pasted_block_adds_each_name_once(tmp_path):
     from blacklist_detect.storage import TAGS, names_from_block
 
-    assert TAGS == ("炸房", "贴脸", "挂机")
+    assert TAGS == ("炸房", "贴脸", "挂机", "场外", "不尊重底牌")
     assert names_from_block("  纪戴宁   庄园美女\n纪戴宁\t无害虎皮 ") == ["纪戴宁", "庄园美女", "无害虎皮"]
     store = Store(tmp_path)
     store.add("纪戴宁")
@@ -87,7 +87,7 @@ def test_a_custom_tag_is_remembered(tmp_path):
     again = Store(tmp_path)
     assert again.custom_tags == ["红名"]
     assert again.entries[0].tags == ("贴脸", "红名")
-    assert again.tag_catalog() == ("炸房", "贴脸", "挂机", "红名")
+    assert again.tag_catalog() == ("炸房", "贴脸", "挂机", "场外", "不尊重底牌", "红名")
     assert parse_blacklist("乙，红名，他做了坏事", again.tag_catalog()) == [("乙", ("红名",), "他做了坏事")]
     assert again.remove_custom_tag("红名") is True
     saved = Store(tmp_path)
@@ -95,14 +95,14 @@ def test_a_custom_tag_is_remembered(tmp_path):
     assert saved.entries[0].tags == ("贴脸",)
     saved.add("乙", tags=("炸房", "挂机"))
     assert saved.remove_custom_tag("炸房") is True
-    assert saved.tag_catalog() == ("贴脸", "挂机")
+    assert saved.tag_catalog() == ("贴脸", "挂机", "场外", "不尊重底牌")
     assert saved.entries[-1].tags == ("挂机",)
     reloaded = Store(tmp_path)
-    assert reloaded.tag_catalog() == ("贴脸", "挂机")
+    assert reloaded.tag_catalog() == ("贴脸", "挂机", "场外", "不尊重底牌")
     assert reloaded.entries[-1].tags == ("挂机",)
     assert reloaded.add_custom_tag("炸房") is True
     reloaded.save_settings()
-    assert Store(tmp_path).tag_catalog() == ("炸房", "贴脸", "挂机")
+    assert Store(tmp_path).tag_catalog() == ("炸房", "贴脸", "挂机", "场外", "不尊重底牌")
 
 
 def test_renaming_a_tag_rewrites_every_name(tmp_path):
@@ -112,13 +112,25 @@ def test_renaming_a_tag_rewrites_every_name(tmp_path):
     assert store.rename_tag("炸房", "闹房") == "renamed"
     assert store.rename_tag("闹房", "贴脸") == "taken"
     again = Store(tmp_path)
-    assert again.tag_catalog() == ("贴脸", "挂机", "闹房")
+    assert again.tag_catalog() == ("贴脸", "挂机", "场外", "不尊重底牌", "闹房")
     assert again.entries[0].tags == ("贴脸", "闹房")
     assert again.entries[1].tags == ("闹房",)
     assert again.rename_tag("闹房", "炸房") == "renamed"
     restored = Store(tmp_path)
-    assert restored.tag_catalog() == ("炸房", "贴脸", "挂机")
+    assert restored.tag_catalog() == ("炸房", "贴脸", "挂机", "场外", "不尊重底牌")
     assert restored.entries[0].tags == ("炸房", "贴脸")
+
+
+def test_recheck_adds_a_tag_that_already_sits_in_the_reason(tmp_path):
+    store = Store(tmp_path)
+    store.add("甲", tags=("炸房",), reason="玩的时候不尊重底牌，还挂机")
+    store.add("乙", tags=("贴脸",), reason="没有这些字")
+    assert store.recheck_tags() == 1
+    again = Store(tmp_path)
+    assert again.entries[0].tags == ("炸房", "挂机", "不尊重底牌")
+    assert again.entries[0].reason == "玩的时候不尊重底牌，还挂机"
+    assert again.entries[1].tags == ("贴脸",)
+    assert again.recheck_tags() == 0
 
 
 def test_reasons_can_be_combined(tmp_path):
@@ -319,5 +331,5 @@ def test_reset_returns_a_new_application(tmp_path):
     assert again.theme == "蓝色"
     assert again.custom_tags == []
     assert again.hidden_tags == []
-    assert again.tag_catalog() == ("炸房", "贴脸", "挂机")
+    assert again.tag_catalog() == ("炸房", "贴脸", "挂机", "场外", "不尊重底牌")
     assert again.column_order == [0, 1, 2, 3]
