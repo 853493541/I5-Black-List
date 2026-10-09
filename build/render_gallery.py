@@ -102,6 +102,11 @@ def main() -> int:
     window._hover_blacklist_row(1, 0)
     snap("blacklist_hover")
     window._clear_blacklist_hover()
+    window.tabs.setCurrentIndex(0)
+    window._hover_history_cell(1, 0)
+    snap("records_hover")
+    window._clear_history_hover()
+    window.tabs.setCurrentIndex(1)
     window._on_worker(("glance", "err", ui.OcrUnavailable("本地 PaddleOCR 中文模型没有就绪。")))
     snap("status_error")
 

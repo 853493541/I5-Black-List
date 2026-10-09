@@ -38,7 +38,6 @@ from blacklist_detect.ui_theme import (
     RADIUS,
     SMALL_PT,
     THEME,
-    TITLE_PT,
     _mix,
     chinese_family,
     chinese_font,
@@ -627,22 +626,6 @@ def _clear_layout(layout: QLayout) -> None:
             widget.deleteLater()
 
 
-def _empty_block(title: str) -> tuple[QWidget, QLabel]:
-    """One centered line, for a page that has nothing to list."""
-    host = QWidget()
-    column = QVBoxLayout(host)
-    column.setContentsMargins(24, 0, 24, 0)
-    column.setSpacing(0)
-    column.addStretch(1)
-    heading = QLabel(title)
-    heading.setObjectName("emptyTitle")
-    heading.setAlignment(Qt.AlignCenter)
-    heading.setFont(chinese_font(TITLE_PT))
-    column.addWidget(heading)
-    column.addStretch(1)
-    return host, heading
-
-
 def _line_icon(draw, color: str) -> QPixmap:
     ratio = 2
     pixmap = QPixmap(16 * ratio, 16 * ratio)
@@ -834,7 +817,9 @@ class _PlainItemDelegate(QStyledItemDelegate):
 
     def paint(self, painter, option, index) -> None:  # noqa: ANN001
         view = self.parent()
-        if isinstance(view, QTableWidget) and view.objectName() == "blacklist" and index.column() == 1:
+        # Cells that carry a widget of their own: draw only the background, never the text under it.
+        widget_cell = view.objectName() == "recordNames" or (view.objectName() == "blacklist" and index.column() == 1)
+        if isinstance(view, QTableWidget) and widget_cell:
             drawn = QStyleOptionViewItem(option)
             self.initStyleOption(drawn, index)
             drawn.state = drawn.state & ~QStyle.State_HasFocus

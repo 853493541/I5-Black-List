@@ -71,6 +71,7 @@ from blacklist_detect.ui_dialogs import (
     TagEditDialog,
     _confirm,
 )
+from blacklist_detect.ui_icons import pixmap as line_pixmap
 from blacklist_detect.ui_kit import ConfirmDialog, EmptyState, IconButton, Switch, TabButton, Toast
 from blacklist_detect.ui_overlay import (
     _COVER_OUTSET,
@@ -114,7 +115,6 @@ from blacklist_detect.ui_widgets import (
     _check_icon,
     _ColumnHeader,
     _DetailTip,
-    _empty_block,
     _FlowHost,
     _icon,
     _local_moment,
@@ -543,17 +543,16 @@ class MainWindow(QMainWindow):
         self.history_list.itemClicked.connect(self._on_history_clicked)
         side_layout.addWidget(self.history_list, 1)
         self.clear_history_button = QPushButton("清空记录")
-        self.clear_history_button.clicked.connect(self._arm_clear_history)
+        self.clear_history_button.clicked.connect(self._ask_clear_history)
         side_layout.addWidget(self.clear_history_button)
-        self.clear_history_pair = self._clear_confirm_pair(self._cancel_clear_history, self._confirm_clear_history)
-        side_layout.addWidget(self.clear_history_pair)
         body.addWidget(side)
         record = QWidget()
         record.setObjectName("recordCard")
         record.setAttribute(Qt.WA_StyledBackground, True)
         self.record_card = record
         names = QVBoxLayout(record)
-        names.setContentsMargins(0, 0, 0, 0)
+        # Inset by the border so the card's outline and rounded foot stay visible.
+        names.setContentsMargins(1, 1, 1, 6)
         names.setSpacing(0)
         head_bar = QWidget()
         head_bar.setObjectName("tableHead")
@@ -568,6 +567,9 @@ class MainWindow(QMainWindow):
         )
         head.addWidget(catalog)
         head.addStretch(1)
+        self.record_time = QLabel("")
+        self.record_time.setObjectName("sub")
+        head.addWidget(self.record_time)
         names.addWidget(head_bar)
         self.history_table = QTableWidget(0, 2)
         self.history_table.setObjectName("recordNames")
@@ -588,22 +590,17 @@ class MainWindow(QMainWindow):
         self.history_table.viewport().installEventFilter(self)
         self.history_table.cellEntered.connect(self._hover_history_cell)
         self.history_table.cellClicked.connect(self._on_history_cell)
+        self.history_table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.history_table.customContextMenuRequested.connect(self._history_menu)
         names.addWidget(self.history_table, 1)
         body.addWidget(record, 1)
-        self.history_empty, self.history_hint = _empty_block("还没有记录")
-        empty_column = self.history_empty.layout()
-        explain = QLabel("进入「推演成功」大厅时会自动检查，并记在这里。")
-        explain.setObjectName("sub")
-        explain.setAlignment(Qt.AlignCenter)
-        explain.setWordWrap(True)
-        empty_column.insertSpacing(2, 8)
-        empty_column.insertWidget(3, explain)
+        self.history_empty = EmptyState("records", "还没有记录", "进入「推演成功」大厅时会自动检查，并记在这里。")
+        self.history_hint = self.history_empty.title
         self.history_test_button = QPushButton("测试一下")
         self.history_test_button.setToolTip("用自带的大厅截图试一次识别，不用进游戏")
         self.history_test_button.setAutoDefault(False)
         self.history_test_button.clicked.connect(self.test_recognition)
-        empty_column.insertSpacing(4, GAP)
-        empty_column.insertWidget(5, self.history_test_button, 0, Qt.AlignHCenter)
+        self.history_empty.add_action(self.history_test_button)
         body.addWidget(self.history_empty, 1)
         layout.addLayout(body, 1)
         return page
@@ -931,6 +928,8 @@ class MainWindow(QMainWindow):
         if hasattr(self, "list_empty"):
             self.list_empty.refresh()
             self.more_button.refresh()
+        if hasattr(self, "history_empty"):
+            self.history_empty.refresh()
 
     def _mark_theme_buttons(self) -> None:
         for name, swatch in self.theme_buttons.items():
@@ -1357,27 +1356,6 @@ class MainWindow(QMainWindow):
         count = len(self.store.entries)
         self._set_tab_count(self.blacklist_tab, count)
 
-    def _clear_confirm_pair(self, on_cancel, on_confirm) -> QWidget:
-        host = QWidget()
-        row = QHBoxLayout(host)
-        row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(8)
-        cancel = QPushButton("取消")
-        cancel.setProperty("clearPair", True)
-        cancel.setAutoDefault(False)
-        cancel.setCursor(Qt.PointingHandCursor)
-        cancel.clicked.connect(on_cancel)
-        confirm = QPushButton("确认清空")
-        confirm.setObjectName("danger")
-        confirm.setProperty("clearPair", True)
-        confirm.setAutoDefault(False)
-        confirm.setCursor(Qt.PointingHandCursor)
-        confirm.clicked.connect(on_confirm)
-        row.addWidget(cancel)
-        row.addWidget(confirm)
-        host.hide()
-        return host
-
     def _open_more_menu(self) -> None:
         button = self.more_button
         self.more_menu.popup(button.mapToGlobal(button.rect().bottomRight()) - QPoint(self.more_menu.sizeHint().width(), -4))
@@ -1431,9 +1409,7 @@ class MainWindow(QMainWindow):
 
     def _copy_name(self, index: int) -> None:
         if 0 <= index < len(self.store.entries):
-            name = self.store.entries[index].name
-            QApplication.clipboard().setText(name)
-            self._say(f"已复制「{name}」")
+            self._copy_text(self.store.entries[index].name)
 
     def _delete_entry(self, index: int) -> None:
         if not 0 <= index < len(self.store.entries):
@@ -1540,7 +1516,6 @@ class MainWindow(QMainWindow):
         self.record_card.setVisible(count > 0)
         self.history_table.setVisible(count > 0)
         self.history_empty.setVisible(count == 0)
-        self.clear_history_pair.hide()
         self.clear_history_button.setVisible(count > 0)
         self._set_tab_count(self.history_tab, count)
         chosen = -1
@@ -1694,17 +1669,10 @@ class MainWindow(QMainWindow):
     def _delete_history(self) -> None:
         self._delete_scan(self._selected_scan())
 
-    def _arm_clear_history(self) -> None:
-        self.clear_history_button.hide()
-        self.clear_history_pair.show()
-
-    def _cancel_clear_history(self) -> None:
-        self.clear_history_pair.hide()
-        self.clear_history_button.show()
-
-    def _confirm_clear_history(self) -> None:
-        self._cancel_clear_history()
-        self._clear_history()
+    def _ask_clear_history(self) -> None:
+        count = len(self.store.scans)
+        if count and ConfirmDialog.ask(self, "清空记录", f"{count} 条记录会被删除。", "确认清空", danger=True):
+            self._clear_history()
 
     def _clear_history(self) -> None:
         self.store.clear_scans()
@@ -1722,7 +1690,10 @@ class MainWindow(QMainWindow):
         self._mark_selected_record()
         self.history_table.setRowCount(0)
         if row < 0 or row >= len(self.store.scans):
+            self.record_time.setText("")
             return
+        day, clock = self._day_and_clock(str(self.store.scans[row].get("at", "")))
+        self.record_time.setText(f"{day} {clock}".strip())
         names = self.store.scans[row].get("names", [])
         self.history_table.setRowCount((len(names) + 1) // 2)
         for index, seat in enumerate(names):
@@ -1784,7 +1755,7 @@ class MainWindow(QMainWindow):
         else:
             tone = THEME["text"]
             wash = ""
-            hover = THEME["red_hover"]
+            hover = THEME["hover"]
         name_item.setForeground(QColor(tone))
         self.history_table.setItem(row, column, name_item)
         wrap = QWidget()
@@ -1792,9 +1763,23 @@ class MainWindow(QMainWindow):
         wrap.setProperty("toneWash", wash)
         wrap.setProperty("toneHover", hover)
         wrap.setStyleSheet(self._history_wrap_style(wash))
-        line = QHBoxLayout(wrap)
-        line.setContentsMargins(16, 0, 16, 0)
-        line.setSpacing(GAP)
+        inset = QHBoxLayout(wrap)
+        inset.setContentsMargins(6, 3, 6, 3)
+        tile = QFrame()
+        tile.setObjectName("seat")
+        tile.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        inset.addWidget(tile)
+        line = QHBoxLayout(tile)
+        line.setContentsMargins(12, 0, 12, 0)
+        line.setSpacing(8)
+        if match is not None:
+            # Red is not the only sign of a hit: the warning mark says it too.
+            warn = QLabel()
+            warn.setObjectName("seatWarn")
+            warn.setPixmap(line_pixmap("warning", 16, THEME["red"]))
+            warn.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+            warn.setStyleSheet("background: transparent;")
+            line.addWidget(warn)
         name_label = QLabel(visible if unclear else label)
         name_label.setFont(name_font)
         name_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
@@ -1818,34 +1803,31 @@ class MainWindow(QMainWindow):
                 f'color: {THEME["red"]}; background: transparent; font-family: "{chinese_family()}";'
             )
             name_item.setToolTip(f"画面是「{title}」，黑名单里是「{listed}」")
-            line.addWidget(listed_label)
+            line.addWidget(listed_label, 0, Qt.AlignVCenter)
         if action:
             action_label = QLabel(action)
             action_label.setObjectName("rowAction")
             action_label.setFont(chinese_font())
             action_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+            action_label.setFont(chinese_font(SMALL_PT))
             if action == "你":
-                you = record_font()
-                you.setBold(True)
-                you.setItalic(True)
-                action_label.setFont(you)
-                color = THEME["gray"]
                 action_label.setStyleSheet(
-                    f'color: {color}; background: transparent; font-family: "{chinese_family()}"; font-size: {BODY_PT}pt; font-weight: 700; font-style: italic;'
+                    f'color: {THEME["chip_text"]}; background: {THEME["chip_bg"]}; border: 1px solid {THEME["chip_bg"]}; border-radius: 9px;'
+                    f' padding: 1px 8px; font-family: "{chinese_family()}"; font-size: {SMALL_PT}pt;'
                 )
             else:
-                color = THEME["red"]
-                action_label.setFont(record_font())
+                accent = THEME["accent_line"] if is_dark() else THEME["accent"]
                 action_label.setStyleSheet(
-                    f'color: {color}; background: transparent; font-family: "{chinese_family()}"; font-size: {BODY_PT}pt;'
+                    f'color: {accent}; background: {THEME["surface"]}; border: 1px solid {THEME["accent_line"]};'
+                    f' border-radius: 6px; padding: 1px 10px; font-family: "{chinese_family()}"; font-size: {SMALL_PT}pt;'
                 )
             if action == "添加":
                 action_label.hide()
-            line.addWidget(action_label)
+            line.addWidget(action_label, 0, Qt.AlignVCenter)
         self.history_table.setCellWidget(row, column, wrap)
 
     def _history_wrap_style(self, wash: str = "") -> str:
-        return f"background: {wash or THEME['surface']}; border-radius: 8px;"
+        return f"QFrame#seat {{ background: {wash or THEME['surface']}; border-radius: 6px; }}"
 
     def _history_cell_is_mine(self, row: int, column: int) -> bool:
         item = self.history_table.item(row, column)
@@ -1882,12 +1864,35 @@ class MainWindow(QMainWindow):
             hot = False
         hover = str(wrap.property("toneHover") or "")
         wash = hover if hot and hover else str(wrap.property("toneWash") or "")
-        if hot and not hover:
-            wash = THEME["red_hover"]
         wrap.setStyleSheet(self._history_wrap_style(wash))
         action_label = wrap.findChild(QLabel, "rowAction")
         if action_label is not None and action_label.text() == "添加":
             action_label.setVisible(hot)
+
+    def _history_menu(self, pos) -> None:  # noqa: ANN001
+        index = self.history_table.indexAt(pos)
+        menu = self._seat_menu(index.row(), index.column()) if index.isValid() else None
+        if menu is not None:
+            menu.popup(self.history_table.viewport().mapToGlobal(pos))
+
+    def _seat_menu(self, row: int, column: int) -> QMenu | None:
+        item = self.history_table.item(row, column)
+        shown = str(item.data(Qt.UserRole) or "") if item is not None else ""
+        if not shown:
+            return None
+        action = str(item.data(Qt.UserRole + 1) or "")
+        menu = QMenu(self)
+        if item.data(Qt.UserRole + 2):
+            menu.addAction("修改", lambda: self._on_history_cell(row, column))
+        elif action == "添加":
+            menu.addAction("添加", lambda: self._on_history_cell(row, column))
+        menu.addAction("复制名字", lambda: self._copy_text(shown))
+        menu.aboutToHide.connect(menu.deleteLater)
+        return menu
+
+    def _copy_text(self, text: str) -> None:
+        QApplication.clipboard().setText(text)
+        self._say(f"已复制「{text}」")
 
     def _on_history_cell(self, row: int, column: int) -> None:
         item = self.history_table.item(row, column)

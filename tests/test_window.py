@@ -418,7 +418,8 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     assert action.isHidden() is True
     window._paint_history_hover(0, 0, True)
     assert action.isHidden() is False
-    assert window.history_table.cellWidget(0, 0).styleSheet() == window._history_wrap_style("#fde4e1")
+    assert window.history_table.cellWidget(0, 0).styleSheet() == window._history_wrap_style(THEME["hover"])
+    assert window.record_time.text().endswith(clock)
     window._paint_history_hover(0, 0, False)
     assert action.isHidden() is True
     window.player_edit.setText("纪戴宁")
@@ -427,9 +428,8 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     assert Store(window.store.root).player_name == "纪戴宁"
     action = window.history_table.cellWidget(0, 0).findChild(QLabel, "rowAction")
     assert action.text() == "你"
-    assert "#6b7280" in action.styleSheet()
-    assert action.font().bold() is True
-    assert action.font().italic() is True
+    assert THEME["chip_bg"] in action.styleSheet()
+    assert action.font().italic() is False
     assert action.isHidden() is False
     window._hover_history_cell(0, 0)
     assert window.history_table.cellWidget(0, 0).styleSheet() == window._history_wrap_style(THEME["green_wash"])
@@ -450,6 +450,13 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     window._reload_history()
     assert window.history_table.item(0, 0).foreground().color().name() == "#c23b2e"
     assert window.history_table.cellWidget(0, 0).findChild(QLabel, "rowAction") is None
+    # A hit carries a warning mark, so red is not the only sign.
+    assert window.history_table.cellWidget(0, 0).findChild(QLabel, "seatWarn") is not None
+    assert window.history_table.cellWidget(0, 1).findChild(QLabel, "seatWarn") is None
+    hit_menu = [a.text() for a in window._seat_menu(0, 0).actions() if a.text()]
+    assert hit_menu == ["修改", "复制名字"]
+    assert [a.text() for a in window._seat_menu(0, 1).actions() if a.text()] == ["添加", "复制名字"]
+    assert window._seat_menu(1, 0) is None
     opened: list[int] = []
     monkeypatch.setattr(window, "_edit_entry", lambda index: opened.append(index))
     window._on_history_cell(0, 0)
@@ -943,13 +950,13 @@ def test_clear_buttons_split_into_cancel_and_confirm(qapp, tmp_path, monkeypatch
     window._show_list()
     window.store.add_scan([{"seat": 1, "name": "甲", "unclear": False}])
     window._reload_history()
-    # 清空列表 asks in a dialog whose safe answer is the default.
-    answers = [False, True]
+    # 清空列表 and 清空记录 ask in a dialog whose safe answer is the default.
+    answers = [False, True, False, True]
     questions: list[tuple[str, str, bool]] = []
 
     def ask(_parent, title, body, confirm, *, danger=False):
         questions.append((title, confirm, danger))
-        assert "1 个名字" in body
+        assert "1 个名字" in body or "1 条记录" in body
         return answers.pop(0)
 
     monkeypatch.setattr("blacklist_detect.ui.ConfirmDialog.ask", ask)
@@ -961,14 +968,11 @@ def test_clear_buttons_split_into_cancel_and_confirm(qapp, tmp_path, monkeypatch
     assert window.more_button.isHidden() is True
     assert window.list_empty.isHidden() is False
     window.clear_history_button.click()
-    assert window.clear_history_button.isHidden()
-    history_buttons = window.clear_history_pair.findChildren(QPushButton)
-    assert [button.text() for button in history_buttons] == ["取消", "确认清空"]
-    history_buttons[0].click()
     assert window.store.scans
     window.clear_history_button.click()
-    window.clear_history_pair.findChildren(QPushButton)[1].click()
+    assert questions[2:] == [("清空记录", "确认清空", True)] * 2
     assert window.store.scans == []
+    assert window.clear_history_button.isHidden()
     assert asked == []
     window.close()
 
