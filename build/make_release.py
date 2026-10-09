@@ -221,6 +221,8 @@ def _verify(stage: Path) -> None:
     problems: list[str] = []
     if data["names"] != _expected_names():
         problems.append(f"names differ: {data['names']}")
+    if data.get("sample_names") != _expected_names():
+        problems.append(f"the 测试一下 sample reads differently: {data.get('sample_names')}")
     if not data["header"] or not data["glance"]:
         problems.append("lobby title not found")
     if data["hits"] != ["gffdsd"]:

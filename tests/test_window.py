@@ -108,7 +108,7 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     window.store.scans[0]["at"] = seen.isoformat()
     window._show_list()
     assert window.blacklist_table.item(0, 3).text() == "3小时前"
-    assert window.windowTitle() == "黑名单检测 v0.1.3"
+    assert window.windowTitle() == "黑名单检测 v0.1.4"
     assert window.list_empty.isHidden() is True
     assert window.clear_list_button.isHidden() is False
     assert window.blacklist_table.isHidden() is False
@@ -340,7 +340,9 @@ def test_reason_boxes_allow_several_and_a_note(qapp):
             row = nested
             break
     assert row is not None
-    assert row.indexOf(labeled["删除"]) == row.indexOf(labeled["保存"]) - 1
+    assert row.indexOf(labeled["删除"]) == 0
+    assert row.indexOf(labeled["取消"]) == row.indexOf(labeled["保存"]) - 1
+    assert row.indexOf(labeled["保存"]) == row.count() - 1
     dialog._delete()
     assert dialog.deleted is True
     assert dialog.result() == QDialog.Accepted
@@ -351,8 +353,8 @@ def test_elapsed_and_copy_result(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
-    assert window.watch_label.text() == "自动捕捉中"
-    assert window.watch_label.toolTip() == "自动捕捉中"
+    assert window.watch_label.text() == "自动检查中"
+    assert window.watch_label.toolTip() == "自动检查中"
     window.store.add_scan([{"seat": 1, "name": "莓有橘子甜", "unclear": False}], 0.254)
     window._reload_history()
     assert "0.25" not in window.history_list.item(0).text()
@@ -476,14 +478,14 @@ def test_capture_mode_defaults_to_auto(qapp, tmp_path, monkeypatch):
     assert window.auto_off.isChecked() is False
     assert window.store.auto_capture is True
     assert window._watch_timer.isActive() is True
-    assert window.watch_label.text() == "自动捕捉中"
+    assert window.watch_label.text() == "自动检查中"
     assert window.watch_mark.text() == ""
     assert window.hotkey_edit.text() == "Alt+1"
     assert window.hotkey_edit.isEnabled() is False
     assert window.hotkey.active == ""
     monkeypatch.setattr(window.hotkey, "apply", lambda spec: setattr(window.hotkey, "active", spec.display) or True)
     window.auto_off.click()
-    assert window.watch_label.text() == "手动捕捉"
+    assert window.watch_label.text() == "手动检查"
     assert window.watch_mark.text() == "[Alt+1]"
     assert window.watch_mark.objectName() == "hotkey"
     assert window.store.auto_capture is False
@@ -492,7 +494,7 @@ def test_capture_mode_defaults_to_auto(qapp, tmp_path, monkeypatch):
     assert window.hotkey.active == "Alt+1"
     assert Store(window.store.root).auto_capture is False
     window.auto_on.click()
-    assert window.watch_label.text() == "自动捕捉中"
+    assert window.watch_label.text() == "自动检查中"
     assert window.store.auto_capture is True
     assert window.hotkey_edit.isEnabled() is False
     assert window.hotkey.active == ""
@@ -511,8 +513,8 @@ def test_header_cycle_switches_capture_mode(qapp, tmp_path, monkeypatch):
     assert cycle.width() == 16
     assert cycle.cursor().shape() == Qt.PointingHandCursor
     assert cycle.isHidden()
-    assert cycle.toolTip() == "切换为手动捕捉"
-    assert window.watch_label.text() == "自动捕捉中"
+    assert cycle.toolTip() == "切换为手动检查"
+    assert window.watch_label.text() == "自动检查中"
     assert cycle.parentWidget() is window.mode_cluster
     assert window.watch_mark.parentWidget() is window.mode_cluster
     assert window.watch_label.parentWidget() is window.mode_cluster
@@ -542,23 +544,23 @@ def test_header_cycle_switches_capture_mode(qapp, tmp_path, monkeypatch):
 
     click(window.watch_label)
     assert window.store.auto_capture is False
-    assert window.watch_label.text() == "手动捕捉"
+    assert window.watch_label.text() == "手动检查"
     assert window.watch_mark.text() == "[Alt+1]"
     assert window.auto_off.isChecked() is True
     assert window.auto_on.isChecked() is False
     assert window.hotkey_edit.isEnabled() is True
     assert window.hotkey.active == "Alt+1"
     assert Store(window.store.root).auto_capture is False
-    assert cycle.toolTip() == "切换为自动捕捉"
+    assert cycle.toolTip() == "切换为自动检查"
     assert window.tabs.currentIndex() == 0
     click(window.watch_mark)
     assert window.store.auto_capture is True
-    assert window.watch_label.text() == "自动捕捉中"
+    assert window.watch_label.text() == "自动检查中"
     assert window.auto_on.isChecked() is True
     assert window.hotkey_edit.isEnabled() is False
     assert window.hotkey.active == ""
     assert Store(window.store.root).auto_capture is True
-    assert cycle.toolTip() == "切换为手动捕捉"
+    assert cycle.toolTip() == "切换为手动检查"
     window._watch_timer.stop()
     window.close()
 
@@ -617,8 +619,20 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     assert [pill._text for pill in window.hit_card.findChildren(TagPill)] == ["炸房", "贴脸"]
     assert window.hit_card.findChild(QLabel, "hitMore") is None
     listed = window._tag_cell(("炸房", "贴脸", "挂机", "场外"))
-    assert [pill._text for pill in listed.findChildren(TagPill)] == ["炸房", "贴脸", "挂机"]
-    assert listed.findChildren(TagPill)[0].font().pointSize() == 11
+    assert [pill._text for pill in listed.pills] == ["炸房", "贴脸", "挂机", "场外"]
+    assert listed.pills[0].font().pointSize() == 11
+    listed.resize(2000, 40)
+    assert listed.arrange() == 4
+    assert listed.more.isHidden()
+    two = listed.pills[0].sizeHint().width() + listed.pills[1].sizeHint().width()
+    listed.resize(two + 6 * 2 + listed._more_width(2) + 8 + 2, 40)
+    assert listed.arrange() == 2
+    assert listed.more.isHidden() is False
+    assert listed.more._text == "+2"
+    assert listed.more.geometry().right() < listed.width()
+    listed.resize(10, 40)
+    assert listed.arrange() == 0
+    assert listed.more._text == "+4"
     window.hit_card.set_people(
         [
             ("国服园丁", ("123",)),
@@ -740,7 +754,7 @@ def test_auto_check_does_not_leave_the_current_tab(qapp, tmp_path, monkeypatch):
     window.tabs.setCurrentIndex(settings)
     window._start(lambda: None, live=True)
     assert window.tabs.currentIndex() == settings
-    assert window.watch_label.text() == "自动捕捉中"
+    assert window.watch_label.text() == "自动检查中"
     window._start(window._capture_job, live=True)
     assert window.tabs.currentIndex() == settings
     window.close()
@@ -825,10 +839,10 @@ def test_corner_reports_refresh_and_skip(qapp, tmp_path, monkeypatch):
     seat = NameSlot(0, (0, 0, 1, 1), "纪戴宁", "纪戴宁", False, 1.0, False)
     window.store.add_scan([{"seat": 1, "name": "纪戴宁", "unclear": False}])
     window._on_checked("ok", CheckResult(True, "", names=[seat]))
-    assert window.watch_label.text() == "自动捕捉中"
+    assert window.watch_label.text() == "自动检查中"
     window.store.scans[0]["at"] = "2020-01-01T00:00:00+00:00"
     window._on_checked("ok", CheckResult(True, "", names=[seat]))
-    assert window.watch_label.text() == "自动捕捉中"
+    assert window.watch_label.text() == "自动检查中"
     window.close()
 
 
@@ -1023,7 +1037,7 @@ def test_a_failed_check_is_shown_and_clears_when_checks_work(qapp, tmp_path, mon
     window._on_worker(("check", "err", RuntimeError("坏了")))
     assert window.watch_label.text() == "检查出错"
     window._on_worker(("glance", "ok", False))
-    assert window.watch_label.text() == "自动捕捉中"
+    assert window.watch_label.text() == "自动检查中"
     window.close()
 
 
@@ -1036,7 +1050,7 @@ def test_the_model_load_is_shown_until_it_finishes(qapp, tmp_path, monkeypatch):
     window.start_warmup()
     assert window.watch_label.text() == "正在加载识别模型"
     window._on_worker(("warmup", "ok", None))
-    assert window.watch_label.text() == "自动捕捉中"
+    assert window.watch_label.text() == "自动检查中"
     window.close()
 
 
@@ -1068,3 +1082,137 @@ def test_a_second_copy_reaches_the_first(qapp):
             break
     assert shown == [True]
     server.close()
+
+
+def test_search_filters_the_list_and_says_when_nothing_matches(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window.store.add("霁玥吉尔曼", tags=("炸房",))
+    window.store.add("gffdsd", reason="常挂机")
+    window._show_list()
+    window.list_search.setText("GFF")
+    assert window.blacklist_table.rowCount() == 1
+    window.list_search.setText("炸房")
+    assert window.blacklist_table.item(0, 0).text() == "霁玥吉尔曼"
+    window.list_search.setText("挂机")
+    assert window.blacklist_table.item(0, 0).text() == "gffdsd"
+    window.list_search.setText("没有这个")
+    assert window.blacklist_table.isHidden()
+    assert window.list_hint.text() == "没有找到「没有这个」"
+    window.list_search.clear()
+    assert window.blacklist_table.rowCount() == 2
+    window.close()
+
+
+def test_clearing_the_list_can_be_undone(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window.store.add("甲")
+    window.store.add("乙")
+    window._show_list()
+    window._confirm_clear_list()
+    assert window.store.entries == []
+    assert window.list_notice_text.text() == "已清空 2 人"
+    assert window.list_undo.isHidden() is False
+    window._undo_last()
+    assert [entry.name for entry in window.store.entries] == ["甲", "乙"]
+    assert window.blacklist_table.rowCount() == 2
+    window.close()
+
+
+def test_share_copies_a_list_that_batch_add_reads_back(qapp, tmp_path, monkeypatch):
+    from blacklist_detect.ui import BatchAddDialog
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window.store.add("甲", tags=("炸房",), reason="说明，带逗号")
+    window._show_list()
+    window._share_list()
+    text = QApplication.clipboard().text()
+    assert text.startswith("#黑名单检测 名单 1人")
+    dialog = BatchAddDialog(window.store.tag_catalog())
+    dialog.edit.setPlainText(text)
+    dialog._accept()
+    assert dialog.annotated == [("甲", ("炸房",), "说明，带逗号")]
+    dialog.close()
+    window.close()
+
+
+def test_a_picture_check_opens_its_result(qapp, tmp_path, monkeypatch):
+    from blacklist_detect.ui import PictureResultDialog
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    asked = []
+    window.worker.request = lambda fn, kind="check": asked.append(kind) or True
+    window.test_recognition()
+    assert asked == ["picture"]
+    assert window.test_button.isEnabled() is False
+    assert window.history_test_button.isEnabled() is False
+    names = [NameSlot(index, (0, 0, 1, 1), f"名{index}", f"名{index}", False, 0.9, False) for index in range(12)]
+    names[3] = NameSlot(3, (0, 0, 1, 1), "", "", False, 0.1, True)
+    hit = Hit(0, "名0", "名0大王", "", True, "")
+    window._on_worker(("picture", "ok", CheckResult(True, "", names=names, hits=[hit])))
+    shown = window._picture_dialog
+    assert isinstance(shown, PictureResultDialog)
+    assert shown.windowTitle() == "识别测试"
+    assert shown.summary.text() == "1 人在黑名单里，1 人没看清"
+    assert shown.seats[0].text() == "名0　名单：名0大王"
+    assert shown.seats[3].text() == "未看清"
+    assert window.test_button.isEnabled() is True
+    shown.close()
+    window._run_picture("x.png", "截图检查")
+    window._on_worker(("picture", "ok", CheckResult(False, "没有找到这间大厅。")))
+    assert "推演成功" in window._picture_dialog.summary.text()
+    window._picture_dialog.close()
+    window.close()
+
+
+def test_a_match_rings_only_when_the_sound_is_on(qapp, tmp_path, monkeypatch):
+    from blacklist_detect import ui
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    rings = []
+    monkeypatch.setattr(ui, "_play_hit_sound", lambda: rings.append(1))
+    window = MainWindow()
+    window._watch_timer.stop()
+    window._live_check = True
+    seat = NameSlot(0, (0, 0, 1, 1), "甲", "甲", False, 0.9, False)
+    hit = Hit(0, "甲", "甲", "", False, "")
+    window._on_checked("ok", CheckResult(True, "", names=[seat], hits=[hit], button_box=(0, 0, 50, 20)))
+    assert rings == []
+    window._set_hit_sound(True)
+    assert rings == [1]
+    window.store.scans[0]["at"] = "2020-01-01T00:00:00+00:00"
+    window._live_check = True
+    window._on_checked("ok", CheckResult(True, "", names=[seat], hits=[hit], button_box=(0, 0, 50, 20)))
+    assert rings == [1, 1]
+    window.close()
+
+
+def test_a_second_monitor_uses_its_own_scaling(qapp):
+    from PySide6.QtCore import QRect
+
+    from blacklist_detect.ui import native_to_logical
+
+    class Screen:
+        def __init__(self, rect, ratio):
+            self._rect, self._ratio = rect, ratio
+
+        def geometry(self):
+            return self._rect
+
+        def devicePixelRatio(self):
+            return self._ratio
+
+    primary = Screen(QRect(0, 0, 1920, 1080), 1.0)
+    right = Screen(QRect(1920, 0, 2560, 1440), 1.5)
+    assert native_to_logical(100, 200, [primary, right]) == (100, 200, 1.0)
+    x, y, ratio = native_to_logical(1920 + 300, 600, [primary, right])
+    assert (x, y, ratio) == (1920 + 200, 400, 1.5)

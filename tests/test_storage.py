@@ -378,3 +378,45 @@ def test_the_list_is_copied_once_a_day_before_it_changes(tmp_path):
     kept = sorted(path.name for path in (tmp_path / "backups").glob("blacklist-*.json"))
     assert len(kept) == 7
     assert kept[0] == "blacklist-2020-01-04.json"
+
+
+def test_a_shared_list_keeps_custom_tags_and_reasons(tmp_path):
+    from blacklist_detect.storage import is_shared, parse_shared, share_text
+
+    sender = Store(tmp_path / "a")
+    sender.add("霁玥吉尔曼", reason="开局就炸房，还骂人", tags=("炸房", "开麦骂人"))
+    sender.add("gffdsd")
+    text = share_text(sender.entries)
+    assert text.splitlines()[0] == "#黑名单检测 名单 2人"
+    assert is_shared(text)
+    rows = parse_shared(text)
+    assert rows == [
+        ("霁玥吉尔曼", ("炸房", "开麦骂人"), "开局就炸房，还骂人"),
+        ("gffdsd", (), ""),
+    ]
+    friend = Store(tmp_path / "b")
+    assert friend.add_annotated(rows) == 2
+    assert friend.entries[0].tags == ("炸房", "开麦骂人")
+    assert "开麦骂人" in friend.tag_catalog()
+    assert friend.entries[0].reason == "开局就炸房，还骂人"
+
+
+def test_first_run_and_the_hit_sound_setting(tmp_path):
+    store = Store(tmp_path)
+    assert store.first_run is True
+    assert store.hit_sound is False
+    store.hit_sound = True
+    store.save_settings()
+    again = Store(tmp_path)
+    assert again.first_run is False
+    assert again.hit_sound is True
+
+
+def test_a_snapshot_puts_the_list_back(tmp_path):
+    store = Store(tmp_path)
+    store.add("甲", tags=("炸房",), reason="说明")
+    before = store.snapshot_entries()
+    store.clear_entries()
+    store.restore_entries(before)
+    again = Store(tmp_path)
+    assert [(e.name, e.tags, e.reason) for e in again.entries] == [("甲", ("炸房",), "说明")]

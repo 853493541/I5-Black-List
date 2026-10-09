@@ -74,6 +74,58 @@ def format_blacklist(entries: list[Entry]) -> str:
     return "\n".join(lines)
 
 
+# First line of a list copied with 分享. 批量添加 reads such a paste with parse_shared.
+SHARE_MARK = "#黑名单检测 名单"
+_REASON_MARK = "原因："
+
+
+def share_text(entries: list[Entry]) -> str:
+    """名字，炸房，贴脸，原因：说明 — one line per player, under SHARE_MARK.
+
+    The reason is marked, so a friend's own tags are kept as tags even when the
+    receiving list has never seen them.
+    """
+    lines = [f"{SHARE_MARK} {len(entries)}人"]
+    for entry in entries:
+        bits = [entry.name, *order_tags(entry.tags)]
+        reason = " ".join(entry.reason.split())
+        if reason:
+            bits.append(_REASON_MARK + reason)
+        lines.append("，".join(bits))
+    return "\n".join(lines)
+
+
+def is_shared(text: str) -> bool:
+    return any(line.strip().startswith(SHARE_MARK) for line in (text or "").splitlines())
+
+
+def parse_shared(text: str) -> list[tuple[str, tuple[str, ...], str]]:
+    """Read a 分享 paste. Every part before 原因： is a tag."""
+    rows: list[tuple[str, tuple[str, ...], str]] = []
+    seen: set[str] = set()
+    for raw in (text or "").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = [part.strip() for part in re.split(r"[,，]", line)]
+        name = clean_stored_name(parts[0])[:_MAX_NAME]
+        key = fold(name)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        tags: list[str] = []
+        reason = ""
+        for index, part in enumerate(parts[1:], start=1):
+            if part.startswith(_REASON_MARK):
+                reason = "，".join([part[len(_REASON_MARK):], *parts[index + 1 :]]).strip()
+                break
+            tag = clean_tag(part)
+            if tag and tag not in tags:
+                tags.append(tag)
+        rows.append((name, tuple(tags), reason[:_MAX_NOTE]))
+    return rows
+
+
 def names_from_block(text: str) -> list[str]:
     """Names from one paste. Spaces, tabs, and new lines separate them."""
     found: list[str] = []
@@ -394,7 +446,10 @@ class Store:
         self.column_order: list[int] = [0, 1, 2, 3]
         self.column_widths: list[int] = list(DEFAULT_COLUMN_WIDTHS)
         self.names_hidden = False
+        self.hit_sound = False
         self.load_warning = ""
+        # No settings file yet: this PC has not opened the app before (or it was reset).
+        self.first_run = not self.settings_path.exists()
         self.load()
 
     def _known_tags(self) -> list[str]:
@@ -602,6 +657,7 @@ class Store:
                 "column_order": list(self.column_order),
                 "column_widths": list(self.column_widths),
                 "names_hidden": self.names_hidden,
+                "hit_sound": self.hit_sound,
             },
         )
 
@@ -628,6 +684,7 @@ class Store:
             if widths is not None:
                 self.column_widths = widths
             self.names_hidden = bool(settings.get("names_hidden", False))
+            self.hit_sound = bool(settings.get("hit_sound", False))
             for raw in settings.get("hidden_tags") or []:
                 tag = clean_tag(str(raw))
                 if tag in TAGS and tag not in self.hidden_tags:
@@ -836,6 +893,17 @@ class Store:
             del self.entries[index]
             self.save_entries()
 
+    def restore_entries(self, entries: list[Entry]) -> None:
+        """Put back the list as it was before an add, delete, or clear. Used by 撤销."""
+        self.entries = [
+            Entry(entry.name, entry.reason, tuple(entry.tags), entry.match_from_prefix, entry.added_at)
+            for entry in entries
+        ]
+        self.save_entries()
+
+    def snapshot_entries(self) -> list[Entry]:
+        return [Entry(entry.name, entry.reason, tuple(entry.tags), entry.match_from_prefix, entry.added_at) for entry in self.entries]
+
     def clear_entries(self) -> None:
         self.entries = []
         self.save_entries()
@@ -856,6 +924,7 @@ class Store:
         self.column_order = [0, 1, 2, 3]
         self.column_widths = list(DEFAULT_COLUMN_WIDTHS)
         self.names_hidden = False
+        self.hit_sound = False
         self.load_warning = ""
         self.save_entries()
         self.save_scans()

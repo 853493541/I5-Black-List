@@ -35,7 +35,7 @@ That folder also holds:
 
 ## Check a screenshot
 
-**打开截图** in the window runs the same anchor and name pipeline on a picture you pick. **立即检查** copies the display on Windows. On Linux it reports that DXGI Desktop Duplication is not available.
+In **设置 → 识别**, **检查截图** runs the same lobby and name check on a picture you pick, and **测试一下** runs it on the bundled `blacklist_detect/assets/sample-lobby.jpg`, so a friend can see recognition work without opening the game. Both show the twelve seats, with blacklist matches in red. The live check copies the screen with one GDI BitBlt on Windows; elsewhere only pictures can be checked.
 
 From a terminal, with no window:
 

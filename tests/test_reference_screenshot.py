@@ -60,3 +60,12 @@ def test_reference_lobby_names():
     assert "gifdsd" not in matched
     assert "雾玥吉尔曼" not in matched
     assert "准备就绪" not in matched
+
+
+def test_the_bundled_sample_reads_like_the_reference():
+    from blacklist_detect.ui import SAMPLE_LOBBY
+
+    assert SAMPLE_LOBBY.is_file()
+    result = check_image(SAMPLE_LOBBY, [])
+    assert result.header_found
+    assert [(slot.visible, slot.truncated) for slot in result.names] == EXPECTED

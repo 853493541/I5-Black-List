@@ -45,6 +45,7 @@ def main() -> int:
     from blacklist_detect.pipeline import check_image, glance_title, load_rgb
 
     result = check_image(fixture, [Entry("gffdsd")])
+    sample = check_image(ui.SAMPLE_LOBBY, [])
     rgb = load_rgb(fixture)
     glanced = glance_title(rgb[: int(rgb.shape[0] * 0.4)])
     capture_top_band()
@@ -57,6 +58,7 @@ def main() -> int:
         "icon": not app.windowIcon().isNull(),
         "header": result.header_found,
         "names": [(slot.visible, slot.truncated) for slot in result.names],
+        "sample_names": [(slot.visible, slot.truncated) for slot in sample.names],
         "hits": [hit.entry_name for hit in result.hits],
         "glance": glanced,
         "single_instance": single_instance,
