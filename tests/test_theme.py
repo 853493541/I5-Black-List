@@ -57,16 +57,20 @@ def test_text_meets_wcag_aa(name, dark):
     assert contrast(t["on_accent"], t["accent"]) >= 4.5, "text on the primary button"
     assert contrast(t["chip_text"], t["chip_bg"]) >= 4.5, "tag chips"
     assert contrast(t["muted"], t["surface"]) >= 3.0
-    assert contrast(t["red"], t["red_wash"]) >= 3.0
+    assert contrast(t["red"], t["red_wash"]) >= 4.5, "red tag pills"
     assert contrast(t["green"], t["green_wash"]) >= 3.0
     assert contrast(t["danger"], t["surface"]) >= 4.5
 
 
-def test_red_is_kept_for_danger_and_hits():
+def test_tags_are_red_pills_in_both_modes(qapp):
+    from blacklist_detect.ui import TagPill
+
     for dark in (False, True):
-        t = _palette("蓝色", dark)
-        assert t["chip_bg"] != t["red_wash"]
-        assert t["chip_text"] != t["red"]
+        ui_theme.use_theme("蓝色", "dark" if dark else "light")
+        pill = TagPill("炸房")
+        assert pill._wash == ui_theme.THEME["red_wash"]
+        assert pill._ink == ui_theme.THEME["red"]
+    ui_theme.use_theme("蓝色", "light")
 
 
 def test_the_appearance_is_saved(tmp_path):
@@ -93,9 +97,7 @@ def test_dark_switches_the_window_and_back(qapp, tmp_path, monkeypatch):
     assert ui_theme.THEME["bg"] in window.styleSheet()
     assert window.theme_buttons["蓝色"]._color == ui_theme.accent_of("蓝色") == _palette("蓝色", True)["accent"]
     chip = TagPill("炸房")
-    assert chip._wash == ui_theme.THEME["chip_bg"]
-    picked = TagPill("炸房", clickable=True, tone="accent")
-    assert picked._wash == ui_theme.THEME["accent_wash"]
+    assert chip._wash == ui_theme.THEME["red_wash"]
     window.appearance_buttons["light"].click()
     assert ui_theme.is_dark() is False
     assert window.theme_buttons["蓝色"]._color == _palette("蓝色", False)["accent"]

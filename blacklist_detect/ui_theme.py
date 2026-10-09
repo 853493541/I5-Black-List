@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import sys
 
-from PySide6.QtCore import QEvent, QRectF, Qt
+from PySide6.QtCore import QEvent, QObject, QRectF, Qt
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -395,6 +395,56 @@ def _card_rules() -> str:
             """
 
 
+_NAVIGATION_KEYS = (Qt.Key_Tab, Qt.Key_Backtab, Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down)
+
+
+class _InputMode(QObject):
+    """Focus rings show only while the keyboard is in use, as on Windows.
+
+    Not when a window opens and Qt hands its first control the focus, and not after
+    a click: Tab or an arrow key turns them on, a mouse press turns them off.
+    """
+
+    def __init__(self, app: QApplication) -> None:
+        super().__init__(app)
+        self.keyboard = False
+        app.installEventFilter(self)
+
+    def eventFilter(self, watched, event) -> bool:  # noqa: ANN001
+        kind = event.type()
+        if kind == QEvent.Type.KeyPress and event.key() in _NAVIGATION_KEYS:
+            self.set_keyboard(True)
+        elif kind == QEvent.Type.MouseButtonPress:
+            self.set_keyboard(False)
+        return False
+
+    def set_keyboard(self, on: bool) -> None:
+        if on == self.keyboard:
+            return
+        self.keyboard = on
+        focused = QApplication.focusWidget()
+        if focused is not None:
+            focused.update()
+            for ring in focused.findChildren(_FocusRing, options=Qt.FindChildOption.FindDirectChildrenOnly):
+                ring.setVisible(on)
+
+
+_input: _InputMode | None = None
+
+
+def input_mode() -> _InputMode | None:
+    global _input
+    app = QApplication.instance()
+    if _input is None and app is not None:
+        _input = _InputMode(app)
+    return _input
+
+
+def keyboard_in_use() -> bool:
+    mode = input_mode()
+    return mode is not None and mode.keyboard
+
+
 class _FocusRing(QWidget):
     """The keyboard focus ring of one button, painted over it just inside its edge.
 
@@ -414,7 +464,7 @@ class _FocusRing(QWidget):
         kind = event.type()
         if kind == QEvent.Type.FocusIn:
             self.setGeometry(watched.rect())
-            self.show()
+            self.setVisible(keyboard_in_use())
             self.raise_()
         elif kind == QEvent.Type.FocusOut:
             self.hide()
@@ -434,6 +484,7 @@ class _FocusRing(QWidget):
 
 def _pointing(root) -> None:
     """Buttons show a hand, and take focus from Tab but not from a click, like Windows buttons."""
+    input_mode()
     for widget in (*root.findChildren(QPushButton), *root.findChildren(QCheckBox)):
         widget.setCursor(Qt.PointingHandCursor)
         if widget.focusPolicy() == Qt.NoFocus:
@@ -598,7 +649,7 @@ def _window_style(family: str) -> str:
                 border-bottom: 1px solid {t["border"]};
             }}
             QWidget#tabHeader QLabel {{ background: transparent; }}
-            QWidget#tabHeader QWidget#modeCluster {{
+            QWidget#tabHeader QWidget#modeCluster, QWidget#modeCycle {{
                 background: transparent;
                 border: none;
             }}

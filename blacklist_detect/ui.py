@@ -129,6 +129,7 @@ from blacklist_detect.ui_widgets import (
     _icon,
     _local_moment,
     _PlainItemDelegate,
+    _reload_icon,
     _TagRow,
     _watch_mark,
     _zh_ago,
@@ -399,30 +400,37 @@ class MainWindow(QMainWindow):
             header_row.addWidget(button, 0, Qt.AlignBottom)
         self._tab_group.idClicked.connect(self.tabs.setCurrentIndex)
         header_row.addStretch(1)
-        # The status says what the last check found; the switch beside it sets the mode.
         self.mode_cluster = QWidget()
         self.mode_cluster.setObjectName("modeCluster")
+        self.mode_cluster.setAttribute(Qt.WA_NoSystemBackground, True)
+        self.mode_cluster.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.mode_cluster.setAutoFillBackground(False)
+        self.mode_cluster.setMouseTracking(True)
+        self.mode_cluster.setCursor(Qt.PointingHandCursor)
         cluster_row = QHBoxLayout(self.mode_cluster)
         cluster_row.setContentsMargins(0, 0, 0, 0)
         cluster_row.setSpacing(6)
+        self.mode_cycle = QLabel()
+        self.mode_cycle.setObjectName("modeCycle")
+        self.mode_cycle.setFixedSize(16, 16)
+        self.mode_cycle.setPixmap(_reload_icon())
+        self.mode_cycle.setCursor(Qt.PointingHandCursor)
+        self.mode_cycle.hide()
         self.watch_mark = QLabel()
         self.watch_mark.setPixmap(_watch_mark(THEME["muted"]))
+        self.watch_mark.setCursor(Qt.PointingHandCursor)
         self.watch_label = QLabel("未开启")
         self.watch_label.setObjectName("idle")
         self.watch_label.setMaximumWidth(200)
         self.watch_label.setFont(chinese_font(BODY_PT))
+        self.watch_label.setCursor(Qt.PointingHandCursor)
+        cluster_row.addWidget(self.mode_cycle, 0, Qt.AlignVCenter)
         cluster_row.addWidget(self.watch_label, 0, Qt.AlignVCenter)
         cluster_row.addWidget(self.watch_mark, 0, Qt.AlignVCenter)
+        for widget in (self.mode_cluster, self.mode_cycle, self.watch_mark, self.watch_label):
+            widget.setMouseTracking(True)
+            widget.installEventFilter(self)
         header_row.addWidget(self.mode_cluster, 0, Qt.AlignVCenter)
-        divider = QFrame()
-        divider.setObjectName("headerDivider")
-        divider.setFixedSize(1, 16)
-        header_row.addSpacing(GAP)
-        header_row.addWidget(divider, 0, Qt.AlignVCenter)
-        header_row.addSpacing(GAP)
-        self.auto_switch = Switch(self.store.auto_capture, text="自动检查")
-        self.auto_switch.toggled.connect(self._toggle_auto)
-        header_row.addWidget(self.auto_switch, 0, Qt.AlignVCenter)
         self._sync_tab_buttons(self.tabs.currentIndex())
         outer.addWidget(header)
         outer.addWidget(self.tabs)
@@ -651,7 +659,6 @@ class MainWindow(QMainWindow):
 
         def section(title: str) -> SettingsSection:
             card = SettingsSection(title, label_width)
-            card.setMaximumWidth(760)
             column.addWidget(card)
             return card
 
@@ -682,8 +689,10 @@ class MainWindow(QMainWindow):
         self.settings_label = QLabel("")
         self.settings_label.setObjectName("rowHint")
         self.settings_label.setWordWrap(True)
+        self.settings_label.setAlignment(Qt.AlignRight)
+        self.settings_label.setContentsMargins(0, 0, 0, 8)
         self.settings_label.hide()
-        check.add_widget(self.settings_label, separated=False, indent=True)
+        check.add_widget(self.settings_label, separated=False)
         self.test_button = QPushButton("测试一下")
         self.test_button.setToolTip("用自带的大厅截图试一次识别，不用进游戏")
         self.test_button.setAutoDefault(False)
@@ -882,8 +891,6 @@ class MainWindow(QMainWindow):
         self.setFont(chinese_font())
         for button in getattr(self, "_tab_buttons", []):
             button.update()
-        if hasattr(self, "auto_switch"):
-            self.auto_switch.update()
         if getattr(self, "reset_button", None) is not None:
             self.reset_button.setFont(ui_font())
         _pointing(self)
@@ -892,6 +899,8 @@ class MainWindow(QMainWindow):
             self._fill_tag_settings()
         if hasattr(self, "watch_label"):
             self._set_result(self._watch_full, self._watch_tone, self._status_kind, self._watch_tip)
+        if hasattr(self, "mode_cycle"):
+            self.mode_cycle.setPixmap(_reload_icon())
         if hasattr(self, "detail_tip"):
             self.detail_tip.apply_theme()
         if hasattr(self, "list_empty"):
@@ -948,11 +957,37 @@ class MainWindow(QMainWindow):
         self._reload_history(max(0, self._selected_scan()))
         self._show_list()
 
+    def _filter_mode_cluster(self, watched, event) -> bool:  # noqa: ANN001
+        cycle = getattr(self, "mode_cycle", None)
+        cluster = getattr(self, "mode_cluster", None)
+        if cycle is None or cluster is None or not hasattr(self, "watch_label"):
+            return False
+        if watched not in (cluster, cycle, self.watch_mark, self.watch_label):
+            return False
+        kind = event.type()
+        if kind in (QEvent.Type.Enter, QEvent.Type.HoverEnter):
+            cycle.show()
+        elif kind in (QEvent.Type.Leave, QEvent.Type.HoverLeave) and not self._pointer_over_mode_cluster():
+            cycle.hide()
+        elif kind == QEvent.Type.MouseButtonPress and event.button() == Qt.LeftButton:
+            self._cycle_capture_mode()
+            return True
+        return False
+
+    def _pointer_over_mode_cluster(self) -> bool:
+        cluster = self.mode_cluster
+        if not cluster.isVisible():
+            return False
+        pos = cluster.mapFromGlobal(QCursor.pos())
+        return cluster.rect().adjusted(-2, -2, 2, 2).contains(pos)
+
     def eventFilter(self, watched, event) -> bool:  # noqa: ANN001
         if getattr(self, "_closing", False):
             # Child widgets are being torn down. Touching them now raises.
             return False
         if event.type() == QEvent.Type.KeyPress and self._list_key(watched, event):
+            return True
+        if self._filter_mode_cluster(watched, event):
             return True
         edit = getattr(self, "hotkey_edit", None)
         if edit is not None and watched is edit:
@@ -1994,17 +2029,16 @@ class MainWindow(QMainWindow):
         if self._status_kind in ("idle", "watch"):
             self._sync_watch_idle()
 
+    def _cycle_capture_mode(self) -> None:
+        self._toggle_auto(not self.store.auto_capture)
+
     def _on_auto_mode(self, key: str) -> None:
         self._toggle_auto(key == "auto")
 
     def _sync_auto_controls(self) -> None:
-        """The header switch and the 方式 choice both show the saved mode."""
-        auto = self.store.auto_capture
-        self.auto_mode.set_current("auto" if auto else "manual")
-        if self.auto_switch.isChecked() != auto:
-            self.auto_switch.blockSignals(True)
-            self.auto_switch.setChecked(auto)
-            self.auto_switch.blockSignals(False)
+        """The 方式 choice and the header's tooltip both follow the saved mode."""
+        self.auto_mode.set_current("auto" if self.store.auto_capture else "manual")
+        self._sync_mode_cycle_tip()
 
     def _begin_hotkey(self) -> None:
         self._set_settings_note("")
@@ -2531,11 +2565,21 @@ class MainWindow(QMainWindow):
         widget.show()
         _pin_topmost(widget)
 
+    def _sync_mode_cycle_tip(self) -> None:
+        cycle = getattr(self, "mode_cycle", None)
+        if cycle is None:
+            return
+        tip = "切换为手动检查" if self.store.auto_capture else "切换为自动检查"
+        self.mode_cycle.setToolTip(tip)
+        self.mode_cluster.setToolTip(tip)
+        self.watch_mark.setToolTip(tip)
+
     def _sync_watch_idle(self) -> None:
         if self.store.auto_capture:
             self._set_result("自动检查中", "watchOn", "watch")
         else:
             self._set_result("手动检查", "watchOff", "idle")
+        self._sync_mode_cycle_tip()
 
     def _show_status_mark(self, pixmap: QPixmap) -> None:
         self.watch_mark.setText("")

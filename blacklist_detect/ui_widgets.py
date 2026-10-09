@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from math import pi, sin
+from math import cos, pi, radians, sin
 from pathlib import Path
 
 from PySide6.QtCore import QEasingCurve, QPoint, QPointF, QRect, QRectF, QSize, Qt, QVariantAnimation, Signal
@@ -13,7 +13,6 @@ from PySide6.QtGui import (
     QFontMetrics,
     QIcon,
     QPainter,
-    QPainterPath,
     QPen,
     QPixmap,
     QPolygon,
@@ -173,10 +172,16 @@ class _ColumnHeader(QHeaderView):
         self.setMouseTracking(True)
         self.names_hidden = False
         self.on_eye = None
+        self._eye_hot = False
+
+    # The eye sits right after the 名字 title, in a 28 px target that lights up under the pointer.
+    _EYE = 28
 
     def _eye_box(self, rect: QRect) -> QRect:
-        size = 16
-        return QRect(rect.right() - 14 - size, rect.top() + (rect.height() - size) // 2, size, size)
+        title = self.model().headerData(0, Qt.Horizontal) if self.model() is not None else ""
+        text_width = QFontMetrics(chinese_font(SMALL_PT)).horizontalAdvance(str(title or ""))
+        left = min(rect.left() + 14 + text_width + 4, rect.right() - self._EYE - 4)
+        return QRect(left, rect.top() + (rect.height() - self._EYE) // 2, self._EYE, self._EYE)
 
     def _eye_at(self, pos: QPoint) -> bool:
         left = self.sectionViewportPosition(0)
@@ -201,7 +206,11 @@ class _ColumnHeader(QHeaderView):
         super().mouseMoveEvent(event)
         pos = int(event.position().x())
         point = event.position().toPoint()
-        if self._eye_at(point):
+        hot = self._eye_at(point)
+        if hot != self._eye_hot:
+            self._eye_hot = hot
+            self.viewport().update()
+        if hot:
             self.setToolTip("显示名字" if self.names_hidden else "隐藏名字")
         else:
             self.setToolTip("")
@@ -222,6 +231,9 @@ class _ColumnHeader(QHeaderView):
 
     def leaveEvent(self, event) -> None:  # noqa: ANN001
         self.unsetCursor()
+        if self._eye_hot:
+            self._eye_hot = False
+            self.viewport().update()
         super().leaveEvent(event)
 
     def paintSection(self, painter, rect, logicalIndex) -> None:  # noqa: ANN001
@@ -238,26 +250,13 @@ class _ColumnHeader(QHeaderView):
     def _paint_eye(self, painter, box: QRect) -> None:  # noqa: ANN001
         painter.save()
         painter.setRenderHint(QPainter.Antialiasing)
-        pen = QPen(QColor(THEME["muted"]), 1.5)
-        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-        painter.setPen(pen)
-        painter.setBrush(Qt.NoBrush)
-        center_x = box.center().x()
-        center_y = box.center().y()
-        path = QPainterPath()
-        path.moveTo(box.left() + 1, center_y)
-        path.quadTo(center_x, box.top() + 2, box.right() - 1, center_y)
-        path.quadTo(center_x, box.bottom() - 2, box.left() + 1, center_y)
-        painter.drawPath(path)
-        if self.names_hidden:
-            painter.drawLine(
-                QPointF(box.left() + 2, box.bottom() - 3),
-                QPointF(box.right() - 2, box.top() + 3),
-            )
-        else:
-            painter.setBrush(QColor(THEME["muted"]))
-            painter.drawEllipse(QPointF(center_x, center_y), 1.7, 1.7)
+        if self._eye_hot:
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(THEME["hover"]))
+            painter.drawRoundedRect(QRectF(box), 6, 6)
+        name = "eye_off" if self.names_hidden else "eye"
+        mark = line_pixmap(name, 18, THEME["text"] if self._eye_hot else THEME["muted"], stroke=1.6)
+        painter.drawPixmap(box.center().x() - 9 + 1, box.center().y() - 9 + 1, mark)
         painter.restore()
 
 
@@ -277,8 +276,7 @@ class TagPill(_KeyboardRing, QWidget):
     that refers back to its dialog makes a reference cycle, and PySide6 6.12
     crashed when the garbage collector broke it.
 
-    Tags are neutral chips. tone="accent" is for a pill that shows a choice, like
-    the picked tags in the add dialog. Red is kept for blacklist hits.
+    Tags are red pills: a tag is why someone is on the blacklist.
     """
 
     clicked = Signal(str)
@@ -293,7 +291,6 @@ class TagPill(_KeyboardRing, QWidget):
         clickable: bool = False,
         active: bool = True,
         point_size: float | None = None,
-        tone: str = "neutral",
     ) -> None:
         super().__init__()
         self._text = text
@@ -301,12 +298,8 @@ class TagPill(_KeyboardRing, QWidget):
         self._active = active
         self._point_size = point_size
         self._blend = 1.0 if active else 0.0
-        if tone == "accent":
-            self._wash = THEME["accent_wash"]
-            self._ink = THEME["accent_line"] if THEME.get("scheme") == "dark" else THEME["accent"]
-        else:
-            self._wash = THEME["chip_bg"]
-            self._ink = THEME["chip_text"]
+        self._wash = THEME["red_wash"]
+        self._ink = THEME["red"]
         self._anim = QVariantAnimation(self)
         self._anim.setDuration(200)
         self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
@@ -671,6 +664,23 @@ def _check_icon() -> QPixmap:
         painter.drawLine(QPointF(6.6, 11.8), QPointF(12.8, 4.5))
 
     return _line_icon(draw, THEME["green"])
+
+
+def _reload_icon() -> QPixmap:
+    def draw(painter: QPainter) -> None:
+        cx, cy, radius = 8.0, 8.2, 5.0
+        painter.drawArc(QRectF(cx - radius, cy - radius, radius * 2, radius * 2), 60 * 16, -300 * 16)
+        end = radians(60)
+        tip = QPointF(cx + radius * cos(end), cy - radius * sin(end))
+        tx, ty = -sin(end), -cos(end)
+        back, wing = 2.7, 1.7
+        nx, ny = -ty, tx
+        left = QPointF(tip.x() - tx * back + nx * wing, tip.y() - ty * back + ny * wing)
+        right = QPointF(tip.x() - tx * back - nx * wing, tip.y() - ty * back - ny * wing)
+        painter.drawLine(tip, left)
+        painter.drawLine(tip, right)
+
+    return _line_icon(draw, THEME["muted"])
 
 
 def _watch_mark(color: str) -> QPixmap:

@@ -52,6 +52,7 @@ from blacklist_detect.ui_theme import (
     _pointing,
     chinese_family,
     chinese_font,
+    keyboard_in_use,
 )
 
 _KEYBOARD_FOCUS = (Qt.FocusReason.TabFocusReason, Qt.FocusReason.BacktabFocusReason, Qt.FocusReason.ShortcutFocusReason)
@@ -80,7 +81,7 @@ class _KeyboardRing:
         self.update()
 
     def show_ring(self) -> bool:
-        return self._ring and self.hasFocus()
+        return self._ring and self.hasFocus() and keyboard_in_use()
 
 
 class Switch(_KeyboardRing, QAbstractButton):
@@ -583,30 +584,33 @@ class SettingsSection(QFrame):
         self._rows.addWidget(line)
 
     def add_row(self, label: str, *widgets: QWidget, hint: str = "", stretch: bool = True) -> QHBoxLayout:
+        """The setting's name, with its hint under it, on the left; its controls on the right.
+
+        stretch=False keeps the controls right after the name instead.
+        """
         if self._count:
             self._line()
         self._count += 1
         host = QWidget()
         host.setObjectName("sectionRow")
-        column = QVBoxLayout(host)
-        column.setContentsMargins(0, 10, 0, 10)
-        column.setSpacing(4)
-        row = QHBoxLayout()
+        row = QHBoxLayout(host)
+        row.setContentsMargins(0, 10, 0, 10)
         row.setSpacing(12)
+        words = QVBoxLayout()
+        words.setSpacing(2)
         name = QLabel(label)
         name.setObjectName("rowLabel")
-        name.setFixedWidth(self._label_width)
-        row.addWidget(name, 0, Qt.AlignVCenter)
-        for widget in widgets:
-            row.addWidget(widget, 0, Qt.AlignVCenter)
-        if stretch:
-            row.addStretch(1)
-        column.addLayout(row)
+        name.setMinimumWidth(self._label_width)
+        words.addWidget(name)
         if hint:
             note = QLabel(hint)
             note.setObjectName("rowHint")
             note.setWordWrap(True)
-            note.setContentsMargins(self._label_width + 12, 0, 0, 0)
-            column.addWidget(note)
+            words.addWidget(note)
+        row.addLayout(words)
+        if stretch:
+            row.addStretch(1)
+        for widget in widgets:
+            row.addWidget(widget, 0, Qt.AlignVCenter)
         self._rows.addWidget(host)
         return row

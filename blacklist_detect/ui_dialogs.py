@@ -283,7 +283,7 @@ class AddNameDialog(QDialog):
     def _refresh_tags(self) -> None:
         self.tag_host.clear()
         for tag in self._tag_order:
-            pill = TagPill(tag, clickable=True, active=tag in self.picked, tone="accent")
+            pill = TagPill(tag, clickable=True, active=tag in self.picked)
             pill.clicked.connect(self._toggle_tag)
             self.tag_host.addWidget(pill)
         self.tag_host.updateGeometry()
