@@ -12,8 +12,6 @@ import sys
 
 import numpy as np
 
-from blacklist_detect import ui_text as T
-
 _SRCCOPY = 0x00CC0020
 _BI_RGB = 0
 _DIB_RGB_COLORS = 0
@@ -29,7 +27,7 @@ class CaptureUnavailable(RuntimeError):
 
 def capture_capability_message() -> str:
     if sys.platform != "win32":
-        return T.CAPTURE_UNSUPPORTED
+        return "这台电脑不能直接检查游戏画面。请用「选择图片」。"
     return ""
 
 
@@ -57,7 +55,7 @@ def capture_displays() -> list:
         raise CaptureUnavailable(capture_capability_message())
     frame = _grab_screen()
     if frame is None or frame.size == 0:
-        raise CaptureUnavailable(T.CAPTURE_FAILED)
+        raise CaptureUnavailable("没有读到画面，请再试一次。")
     return [frame]
 
 
@@ -67,7 +65,7 @@ def capture_top_band(fraction: float = TITLE_BAND_FRACTION) -> np.ndarray:
         raise CaptureUnavailable(capture_capability_message())
     frame = _grab_screen(height_fraction=fraction)
     if frame is None or frame.size == 0:
-        raise CaptureUnavailable(T.CAPTURE_FAILED)
+        raise CaptureUnavailable("没有读到画面，请再试一次。")
     return frame
 
 

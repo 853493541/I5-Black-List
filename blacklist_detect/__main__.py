@@ -52,7 +52,7 @@ def _download_models() -> int:
     try:
         get_engine().warmup()
     except OcrUnavailable as exc:
-        print(f"{exc} {exc.detail}".strip(), file=sys.stderr)
+        print(str(exc), file=sys.stderr)
         return 1
     print("PaddleOCR 中文模型已在本机可用。")
     return 0

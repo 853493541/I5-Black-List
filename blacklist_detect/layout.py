@@ -6,7 +6,6 @@ import re
 import unicodedata
 from dataclasses import dataclass
 
-from blacklist_detect import ui_text as T
 from blacklist_detect.model import OcrLine
 
 # The reference shot is 3270×1695. Boxes are fractions of that shot:
@@ -234,7 +233,7 @@ def find_anchor(lines: list[OcrLine], image_width: int, image_height: int) -> An
         missing.append("倒计时 … 秒")
     if missing:
         joined = "、".join(f"「{item}」" for item in missing)
-        return Anchor(False, T.lobby_missing(joined), ready_count=ready_count)
+        return Anchor(False, f"没有找到这间大厅，还缺{joined}。", ready_count=ready_count)
 
     assert title is not None and mode is not None and countdown is not None
     countdown_line, seconds = countdown
@@ -247,7 +246,7 @@ def find_anchor(lines: list[OcrLine], image_width: int, image_height: int) -> An
     ref_title_c = _center(ref_title)
     ref_dy = _center(ref_count)[1] - ref_title_c[1]
     if ref_dy <= 0:
-        return Anchor(False, T.LOBBY_LAYOUT_BROKEN)
+        return Anchor(False, "参考布局的标题和倒计时重叠，无法对齐。")
 
     best: tuple[float, OcrLine, OcrLine, OcrLine, int, float] | None = None
     for title in titles:
@@ -276,7 +275,7 @@ def find_anchor(lines: list[OcrLine], image_width: int, image_height: int) -> An
     if best is None:
         return Anchor(
             False,
-            T.LOBBY_SCATTERED,
+            "看到了标题、模式或倒计时，但三者不在同一块区域。",
             ready_count=ready_count,
         )
 

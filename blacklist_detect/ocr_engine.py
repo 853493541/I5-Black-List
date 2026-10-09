@@ -15,7 +15,6 @@ from pathlib import Path
 
 import numpy as np
 
-from blacklist_detect import ui_text as T
 from blacklist_detect.model import OcrLine
 
 # A read below this is 未看清 and is not matched.
@@ -79,14 +78,7 @@ def inference_device() -> str:
 
 
 class OcrUnavailable(RuntimeError):
-    """The local Chinese model could not be loaded.
-
-    str() is the sentence shown in the window. detail is the technical cause, for the log.
-    """
-
-    def __init__(self, message: str, detail: str = "") -> None:
-        super().__init__(message)
-        self.detail = detail
+    """The local Chinese model could not be loaded."""
 
 
 def model_dirs() -> tuple[Path | None, Path | None]:
@@ -332,7 +324,9 @@ class OcrEngine:
         try:
             from paddleocr import PaddleOCR
         except ImportError as exc:
-            raise OcrUnavailable(T.OCR_MISSING, f"PaddleOCR is not installed: {exc}") from exc
+            raise OcrUnavailable(
+                "没有安装 PaddleOCR。按 README 安装 paddlepaddle 和 paddleocr 后再检查名字。"
+            ) from exc
         kwargs: dict = {
             "use_doc_orientation_classify": False,
             "use_doc_unwarping": False,
@@ -352,9 +346,10 @@ class OcrEngine:
             self._ocr = PaddleOCR(use_angle_cls=False, lang="ch", show_log=False)
         except Exception as exc:
             raise OcrUnavailable(
-                T.MODEL_MISSING,
-                "The PP-OCRv5 lobby models did not load. Run python -m blacklist_detect download-models "
-                f"or set BLACKLIST_DETECT_MODEL_DIR. {exc}",
+                "本地 PaddleOCR 中文模型没有就绪。"
+                "联网时运行 python -m blacklist_detect download-models，"
+                "或把模型目录放到环境变量 BLACKLIST_DETECT_MODEL_DIR。"
+                f" 详情：{exc}"
             ) from exc
         return self._ocr
 
@@ -367,7 +362,9 @@ class OcrEngine:
         try:
             from paddleocr import TextRecognition
         except ImportError as exc:
-            raise OcrUnavailable(T.OCR_MISSING, f"PaddleOCR is not installed: {exc}") from exc
+            raise OcrUnavailable(
+                "没有安装 PaddleOCR，不能读取名字。"
+            ) from exc
         try:
             name_kwargs: dict = {
                 "model_name": "PP-OCRv6_medium_rec",
@@ -382,8 +379,9 @@ class OcrEngine:
                 sampler.batch_size = 12
         except Exception as exc:
             raise OcrUnavailable(
-                T.MODEL_MISSING,
-                f"The PP-OCRv6 name model did not load. Run python -m blacklist_detect download-models. {exc}",
+                "本地 PaddleOCR 中文识别模型没有就绪。"
+                "联网时运行 python -m blacklist_detect download-models。"
+                f" 详情：{exc}"
             ) from exc
         return self._name_rec
 

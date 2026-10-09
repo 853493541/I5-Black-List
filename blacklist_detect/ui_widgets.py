@@ -33,7 +33,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from blacklist_detect import ui_text as T
 from blacklist_detect.ui_theme import (
     RADIUS,
     SMALL_PT,
@@ -202,7 +201,7 @@ class _ColumnHeader(QHeaderView):
         pos = int(event.position().x())
         point = event.position().toPoint()
         if self._eye_at(point):
-            self.setToolTip(T.SHOW_NAMES if self.names_hidden else T.HIDE_NAMES)
+            self.setToolTip("显示名字" if self.names_hidden else "隐藏名字")
         else:
             self.setToolTip("")
         if event.buttons() & Qt.LeftButton and self._cursor_at(pos) != Qt.SplitHCursor:
@@ -487,7 +486,7 @@ class NewTagButton(QPushButton):
     """Sits after the tag pills and opens the new-tag dialog."""
 
     def __init__(self) -> None:
-        super().__init__(T.NEW_TAG)
+        super().__init__("新标签")
         self.setObjectName("tagNew")
         self.setFocusPolicy(Qt.NoFocus)
         self.setCursor(Qt.PointingHandCursor)

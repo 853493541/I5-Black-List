@@ -35,7 +35,6 @@ from PySide6.QtWidgets import (
 )
 
 from blacklist_detect import __version__
-from blacklist_detect import ui_text as T
 from blacklist_detect.capture import (
     CaptureUnavailable,
     capture_capability_message,
@@ -163,7 +162,7 @@ def run_app() -> int:
     log.info("Start %s, Python %s, %s", __version__, sys.version.split()[0], sys.platform)
     _claim_windows_app()
     app = QApplication(sys.argv)
-    app.setApplicationName(T.APP_NAME)
+    app.setApplicationName("黑名单检测")
     app.setApplicationVersion(__version__)
     key = instance_key()
     if notify_running_instance(key):
@@ -178,7 +177,8 @@ def run_app() -> int:
         log.critical("The window could not open", exc_info=True)
         from PySide6.QtWidgets import QMessageBox
 
-        QMessageBox.critical(None, T.APP_NAME, T.start_failed(exc, log_path))
+        where = f"\n\n详情在 {log_path}" if log_path else ""
+        QMessageBox.critical(None, "黑名单检测", f"程序没能打开：{exc}{where}")
         return 1
     window.instance_server = listen_for_instances(key, window._show_from_tray, window.quit_app)
     on_uncaught(window.report_uncaught)
@@ -283,7 +283,7 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.uncaught.connect(self._show_uncaught)
-        self.setWindowTitle(f"{T.APP_NAME} {__version__}")
+        self.setWindowTitle(f"黑名单检测 {__version__}")
         self.store = Store()
         use_theme(self.store.theme)
         self.setMinimumSize(900, 560)
@@ -326,7 +326,7 @@ class MainWindow(QMainWindow):
         self.instance_server = None
         self._status_kind = "idle"
         self._watch_tone = "idle"
-        self._watch_full = T.STATUS_OFF
+        self._watch_full = "未开启"
         self._watch_tip = ""
         self._blacklist_sort: tuple[int, bool] | None = None
         self._blacklist_hover = -1
@@ -356,9 +356,9 @@ class MainWindow(QMainWindow):
 
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
-        self.history_tab = self.tabs.addTab(self._history_page(), T.TAB_RECORDS)
-        self.blacklist_tab = self.tabs.addTab(self._list_page(), T.TAB_BLACKLIST)
-        self.tabs.addTab(self._settings_page(), T.TAB_SETTINGS)
+        self.history_tab = self.tabs.addTab(self._history_page(), "记录")
+        self.blacklist_tab = self.tabs.addTab(self._list_page(), "黑名单")
+        self.tabs.addTab(self._settings_page(), "设置")
         self.tabs.tabBar().hide()
         self.tabs.currentChanged.connect(self._sync_tab_buttons)
         header = QWidget()
@@ -402,7 +402,7 @@ class MainWindow(QMainWindow):
         self.watch_mark = QLabel()
         self.watch_mark.setPixmap(_watch_mark(THEME["muted"]))
         self.watch_mark.setCursor(Qt.PointingHandCursor)
-        self.watch_label = QLabel(T.STATUS_OFF)
+        self.watch_label = QLabel("未开启")
         self.watch_label.setObjectName("idle")
         self.watch_label.setMaximumWidth(200)
         self.watch_label.setFont(chinese_font(READ_PT))
@@ -423,12 +423,12 @@ class MainWindow(QMainWindow):
             from PySide6.QtWidgets import QSystemTrayIcon
 
             self.tray = QSystemTrayIcon(_icon(), self)
-            self.tray.setToolTip(f"{T.APP_NAME} {__version__}")
+            self.tray.setToolTip(f"黑名单检测 {__version__}")
             self.tray_menu = QMenu()
             self.tray_menu.setFont(chinese_font())
             self.tray_menu.setStyleSheet(_menu_style(chinese_family()))
-            self.tray_menu.addAction(T.TRAY_SHOW, self._show_from_tray)
-            self.tray_menu.addAction(T.TRAY_QUIT, self.close)
+            self.tray_menu.addAction("打开", self._show_from_tray)
+            self.tray_menu.addAction("退出", self.close)
             self.tray.setContextMenu(self.tray_menu)
             self.tray.activated.connect(self._on_tray)
             self.tray.show()
@@ -447,7 +447,7 @@ class MainWindow(QMainWindow):
         self.list_notice_text = QLabel("")
         self.list_notice_text.setObjectName("sub")
         notice_row.addWidget(self.list_notice_text)
-        self.list_undo = QPushButton(T.UNDO)
+        self.list_undo = QPushButton("撤销")
         self.list_undo.setObjectName("recheck")
         self.list_undo.setFont(chinese_font(SMALL_PT))
         self.list_undo.setAutoDefault(False)
@@ -461,18 +461,18 @@ class MainWindow(QMainWindow):
         self._notice_timer.timeout.connect(self._hide_list_notice)
         add_row.addWidget(self.list_notice, 0, Qt.AlignVCenter)
         add_row.addStretch(1)
-        self.share_button = QPushButton(T.COPY_LIST)
-        self.share_button.setToolTip(T.COPY_LIST_TIP)
+        self.share_button = QPushButton("分享")
+        self.share_button.setToolTip("复制整个名单。朋友在「批量添加」里粘贴即可。")
         self.share_button.clicked.connect(self._share_list)
         add_row.addWidget(self.share_button)
-        self.clear_list_button = QPushButton(T.CLEAR_LIST)
+        self.clear_list_button = QPushButton("清空列表")
         self.clear_list_button.clicked.connect(self._arm_clear_list)
         add_row.addWidget(self.clear_list_button)
         self.clear_list_pair = self._clear_confirm_pair(self._cancel_clear_list, self._confirm_clear_list)
         add_row.addWidget(self.clear_list_pair)
-        batch = QPushButton(T.BATCH_IMPORT)
+        batch = QPushButton("批量添加")
         batch.clicked.connect(self._add_many_by_dialog)
-        add = QPushButton(T.ADD_PLAYER)
+        add = QPushButton("添加")
         add.setObjectName("primary")
         add.clicked.connect(self._add_by_dialog)
         add_row.addWidget(batch)
@@ -483,11 +483,11 @@ class MainWindow(QMainWindow):
         name_header.names_hidden = self.store.names_hidden
         name_header.on_eye = self._toggle_name_hiding
         self.blacklist_table.setHorizontalHeader(name_header)
-        self.blacklist_table.setHorizontalHeaderLabels([T.COL_NAME, T.COL_TAGS, T.COL_REASON, T.COL_LAST_MET])
+        self.blacklist_table.setHorizontalHeaderLabels(["名字", "标签", "原因", "最后遇到"])
         for column in range(4):
             item = self.blacklist_table.horizontalHeaderItem(column)
             if item is not None:
-                item.setToolTip(T.COLUMN_TIP)
+                item.setToolTip("拖动换顺序，拖边缘改宽度")
         header = self.blacklist_table.horizontalHeader()
         header.setStretchLastSection(True)
         for column in range(4):
@@ -527,9 +527,9 @@ class MainWindow(QMainWindow):
         self._detail_tip_timer.setSingleShot(True)
         self._detail_tip_timer.setInterval(160)
         self._detail_tip_timer.timeout.connect(self._hide_detail_tip)
-        self.list_empty, self.list_hint = _empty_block(T.LIST_EMPTY)
+        self.list_empty, self.list_hint = _empty_block("还没有名字")
         self.list_search = QLineEdit()
-        self.list_search.setPlaceholderText(T.SEARCH_PLACEHOLDER)
+        self.list_search.setPlaceholderText("搜索名字、标签或原因")
         self.list_search.setClearButtonEnabled(True)
         self.list_search.textChanged.connect(lambda _text: self._show_list())
         layout.addWidget(self.list_search)
@@ -561,7 +561,7 @@ class MainWindow(QMainWindow):
         self.history_list.currentRowChanged.connect(self._on_history_picked)
         self.history_list.itemClicked.connect(self._on_history_clicked)
         side_layout.addWidget(self.history_list, 1)
-        self.clear_history_button = QPushButton(T.CLEAR_RECORDS)
+        self.clear_history_button = QPushButton("清空记录")
         self.clear_history_button.clicked.connect(self._arm_clear_history)
         side_layout.addWidget(self.clear_history_button)
         self.clear_history_pair = self._clear_confirm_pair(self._cancel_clear_history, self._confirm_clear_history)
@@ -580,7 +580,7 @@ class MainWindow(QMainWindow):
         head = QHBoxLayout(head_bar)
         head.setContentsMargins(16, 12, 16, 12)
         head.setSpacing(GAP)
-        catalog = QLabel(T.LOBBY_MODE)
+        catalog = QLabel("模仿者游戏（12人狂欢场）")
         catalog.setFont(record_font())
         catalog.setStyleSheet(
             f'color: {THEME["text"]}; background: transparent; font-family: "{chinese_family()}"; font-size: 13pt;'
@@ -609,16 +609,16 @@ class MainWindow(QMainWindow):
         self.history_table.cellClicked.connect(self._on_history_cell)
         names.addWidget(self.history_table, 1)
         body.addWidget(record, 1)
-        self.history_empty, self.history_hint = _empty_block(T.RECORDS_EMPTY)
+        self.history_empty, self.history_hint = _empty_block("还没有记录")
         empty_column = self.history_empty.layout()
-        explain = QLabel(T.RECORDS_EMPTY_HINT)
+        explain = QLabel("进入「推演成功」大厅时会自动检查，并记在这里。")
         explain.setObjectName("sub")
         explain.setAlignment(Qt.AlignCenter)
         explain.setWordWrap(True)
         empty_column.insertSpacing(2, 8)
         empty_column.insertWidget(3, explain)
-        self.history_test_button = QPushButton(T.TEST_RECOGNITION)
-        self.history_test_button.setToolTip(T.TEST_RECOGNITION_TIP)
+        self.history_test_button = QPushButton("测试一下")
+        self.history_test_button.setToolTip("用自带的大厅截图试一次识别，不用进游戏")
         self.history_test_button.setAutoDefault(False)
         self.history_test_button.clicked.connect(self.test_recognition)
         empty_column.insertSpacing(4, GAP)
@@ -634,8 +634,8 @@ class MainWindow(QMainWindow):
         layout.setSpacing(0)
         metrics = QFontMetrics(chinese_font())
         name_width = metrics.horizontalAdvance("中" * 7) + 28
-        slot = metrics.horizontalAdvance(T.MODE_HOTKEY) + 36
-        label_width = metrics.horizontalAdvance(T.MY_NAME) + 8
+        slot = metrics.horizontalAdvance("手动检查") + 36
+        label_width = metrics.horizontalAdvance("角色名称") + 8
 
         def add_row(last: bool = False) -> QHBoxLayout:
             host = QWidget()
@@ -654,21 +654,21 @@ class MainWindow(QMainWindow):
             line.addWidget(label, 0, align)
 
         name_line = add_row()
-        add_label(name_line, T.MY_NAME)
+        add_label(name_line, "角色名称")
         self.player_edit = QLineEdit(self.store.player_name)
-        self.player_edit.setPlaceholderText(T.MY_NAME_PLACEHOLDER)
+        self.player_edit.setPlaceholderText("游戏里的名字")
         self.player_edit.editingFinished.connect(self._save_player_name)
         self.player_edit.setFixedWidth(name_width)
         name_line.addWidget(self.player_edit, 0, Qt.AlignVCenter)
         name_line.addStretch(1)
 
         mode_line = add_row()
-        add_label(mode_line, T.CHECK_MODE)
+        add_label(mode_line, "检查")
         modes = QHBoxLayout()
         modes.setSpacing(GAP)
         modes.setContentsMargins(0, 0, 0, 0)
-        self.auto_on = QPushButton(T.MODE_AUTO)
-        self.auto_off = QPushButton(T.MODE_HOTKEY)
+        self.auto_on = QPushButton("自动检查")
+        self.auto_off = QPushButton("手动检查")
         self.auto_group = QButtonGroup(self)
         self.auto_group.setExclusive(True)
         for button in (self.auto_on, self.auto_off):
@@ -682,7 +682,7 @@ class MainWindow(QMainWindow):
             modes.addWidget(button)
         self.hotkey_edit = QLineEdit()
         self.hotkey_edit.setReadOnly(True)
-        self.hotkey_edit.setPlaceholderText(T.HOTKEY_NONE)
+        self.hotkey_edit.setPlaceholderText("无")
         self.hotkey_edit.setFixedWidth(slot)
         self.hotkey_edit.setCursor(Qt.PointingHandCursor)
         self.hotkey_edit.installEventFilter(self)
@@ -695,14 +695,14 @@ class MainWindow(QMainWindow):
         mode_line.addStretch(1)
 
         read_line = add_row()
-        add_label(read_line, T.RECOGNITION)
-        self.test_button = QPushButton(T.TEST_RECOGNITION)
-        self.test_button.setToolTip(T.TEST_RECOGNITION_TIP)
+        add_label(read_line, "识别")
+        self.test_button = QPushButton("测试一下")
+        self.test_button.setToolTip("用自带的大厅截图试一次识别，不用进游戏")
         self.test_button.setFixedWidth(slot)
         self.test_button.setAutoDefault(False)
         self.test_button.clicked.connect(self.test_recognition)
-        self.picture_button = QPushButton(T.CHECK_PICTURE)
-        self.picture_button.setToolTip(T.CHECK_PICTURE_TIP)
+        self.picture_button = QPushButton("检查截图")
+        self.picture_button.setToolTip("选一张大厅截图，看看里面有没有黑名单")
         self.picture_button.setFixedWidth(slot)
         self.picture_button.setAutoDefault(False)
         self.picture_button.clicked.connect(self.check_picture)
@@ -711,9 +711,9 @@ class MainWindow(QMainWindow):
         read_line.addStretch(1)
 
         sound_line = add_row()
-        add_label(sound_line, T.SOUND)
-        self.sound_on = QPushButton(T.ON)
-        self.sound_off = QPushButton(T.OFF)
+        add_label(sound_line, "提示音")
+        self.sound_on = QPushButton("开")
+        self.sound_off = QPushButton("关")
         self.sound_group = QButtonGroup(self)
         self.sound_group.setExclusive(True)
         for button in (self.sound_on, self.sound_off):
@@ -725,7 +725,7 @@ class MainWindow(QMainWindow):
             button.setAutoDefault(False)
             self.sound_group.addButton(button)
             sound_line.addWidget(button, 0, Qt.AlignVCenter)
-        self.sound_on.setToolTip(T.SOUND_TIP)
+        self.sound_on.setToolTip("发现黑名单时响一声")
         self.sound_on.setChecked(self.store.hit_sound)
         self.sound_off.setChecked(not self.store.hit_sound)
         self.sound_on.clicked.connect(lambda: self._set_hit_sound(True))
@@ -733,7 +733,7 @@ class MainWindow(QMainWindow):
         sound_line.addStretch(1)
 
         theme_line = add_row()
-        add_label(theme_line, T.THEME_LABEL)
+        add_label(theme_line, "主题")
         swatches = QHBoxLayout()
         swatches.setSpacing(8)
         swatches.setContentsMargins(0, 0, 0, 0)
@@ -747,14 +747,13 @@ class MainWindow(QMainWindow):
         theme_line.addStretch(1)
 
         tag_line = add_row()
-        add_label(tag_line, T.TAGS_LABEL, Qt.AlignTop)
+        add_label(tag_line, "标签", Qt.AlignTop)
         self.tag_settings = QVBoxLayout()
         self.tag_settings.setSpacing(0)
         self.tag_settings.setContentsMargins(0, 0, 0, 0)
         self._fill_tag_settings()
         tag_line.addLayout(self.tag_settings, 1)
-        recheck = QPushButton(T.RECHECK_TAGS)
-        recheck.setToolTip(T.RECHECK_TAGS_TIP)
+        recheck = QPushButton("按原因补标签")
         recheck.setObjectName("recheck")
         recheck.setFont(chinese_font(SMALL_PT))
         recheck.setAutoDefault(False)
@@ -763,8 +762,8 @@ class MainWindow(QMainWindow):
         tag_line.addWidget(recheck, 0, Qt.AlignTop)
 
         reset_line = add_row()
-        add_label(reset_line, T.DATA_LABEL)
-        reset = QPushButton(T.RESET_ALL)
+        add_label(reset_line, "控制")
+        reset = QPushButton("清除数据且复原")
         reset.setObjectName("danger")
         reset.setFont(ui_font())
         self.reset_button = reset
@@ -772,8 +771,8 @@ class MainWindow(QMainWindow):
         reset.setCursor(Qt.PointingHandCursor)
         reset.clicked.connect(self._ask_reset)
         reset_line.addWidget(reset, 0, Qt.AlignVCenter)
-        self.data_button = QPushButton(T.OPEN_DATA)
-        self.data_button.setToolTip(T.OPEN_DATA_TIP)
+        self.data_button = QPushButton("打开数据文件夹")
+        self.data_button.setToolTip("名单、设置、每天的备份 backups 和日志 logs 都在这里")
         self.data_button.setAutoDefault(False)
         self.data_button.setCursor(Qt.PointingHandCursor)
         self.data_button.clicked.connect(self.open_data_folder)
@@ -781,7 +780,7 @@ class MainWindow(QMainWindow):
         reset_line.addStretch(1)
 
         version_line = add_row(last=True)
-        add_label(version_line, T.VERSION_LABEL)
+        add_label(version_line, "版本")
         version = QLabel(__version__)
         version_line.addWidget(version, 0, Qt.AlignVCenter)
         version_line.addStretch(1)
@@ -846,12 +845,12 @@ class MainWindow(QMainWindow):
     def _remove_settings_tag(self, tag: str) -> None:
         names = [entry.name for entry in self.store.entries if tag in entry.tags]
         if not names:
-            text = T.delete_unused_tag(tag)
+            text = f"没有名字使用「{tag}」。确定删除？"
         else:
             shown = "、".join(names[:6])
             if len(names) > 6:
-                shown += T.NAMES_ETC
-            text = T.delete_used_tag(tag, len(names), shown)
+                shown += "等"
+            text = f"{len(names)} 个名字使用「{tag}」：{shown}。确定删除？"
         if not _confirm(self, text):
             return
         if not self.store.remove_custom_tag(tag):
@@ -863,7 +862,7 @@ class MainWindow(QMainWindow):
         self.settings_label.setVisible(bool(text))
 
     def _ask_reset(self) -> None:
-        if not _confirm(self, T.RESET_CONFIRM):
+        if not _confirm(self, "清除数据且复原会清空角色名称、记录、黑名单和设置。确定清除？"):
             return
         self.store.reset()
         self.hotkey.clear()
@@ -1263,13 +1262,13 @@ class MainWindow(QMainWindow):
             if self.clear_list_pair.isHidden():
                 self.clear_list_button.show()
         elif count:
-            self.list_hint.setText(T.search_empty(self._search_text()))
+            self.list_hint.setText(f"没有找到「{self._search_text()}」")
             self.list_empty.show()
             self.blacklist_table.setVisible(False)
             if self.clear_list_pair.isHidden():
                 self.clear_list_button.show()
         else:
-            self.list_hint.setText(T.LIST_EMPTY)
+            self.list_hint.setText("还没有名字")
             self.list_empty.show()
             self.blacklist_table.setVisible(False)
             self.clear_list_button.hide()
@@ -1351,19 +1350,19 @@ class MainWindow(QMainWindow):
 
     def _refresh_blacklist_tab(self) -> None:
         count = len(self.store.entries)
-        self._set_tab_title(self.blacklist_tab, f"{T.TAB_BLACKLIST}  {count}" if count else T.TAB_BLACKLIST)
+        self._set_tab_title(self.blacklist_tab, f"黑名单  {count}" if count else "黑名单")
 
     def _clear_confirm_pair(self, on_cancel, on_confirm) -> QWidget:
         host = QWidget()
         row = QHBoxLayout(host)
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(8)
-        cancel = QPushButton(T.CANCEL)
+        cancel = QPushButton("取消")
         cancel.setProperty("clearPair", True)
         cancel.setAutoDefault(False)
         cancel.setCursor(Qt.PointingHandCursor)
         cancel.clicked.connect(on_cancel)
-        confirm = QPushButton(T.CONFIRM_CLEAR)
+        confirm = QPushButton("确认清空")
         confirm.setObjectName("danger")
         confirm.setProperty("clearPair", True)
         confirm.setAutoDefault(False)
@@ -1387,7 +1386,7 @@ class MainWindow(QMainWindow):
         before = self.store.snapshot_entries()
         self.store.clear_entries()
         self._list_changed()
-        self._say(T.cleared_players(len(before)), undo=lambda: self._put_back(before))
+        self._say(f"已清空 {len(before)} 人", undo=lambda: self._put_back(before))
 
     def _list_changed(self) -> None:
         self._show_list()
@@ -1396,7 +1395,7 @@ class MainWindow(QMainWindow):
     def _put_back(self, entries: list[Entry]) -> None:
         self.store.restore_entries(entries)
         self._refresh_tag_views()
-        self._say(T.UNDONE)
+        self._say("已撤销")
 
     def _say(self, text: str, undo=None) -> None:  # noqa: ANN001
         """Report a change under the list. 撤销 stays for eight seconds."""
@@ -1424,7 +1423,7 @@ class MainWindow(QMainWindow):
         if not count:
             return
         QApplication.clipboard().setText(share_text(self.store.entries))
-        self._say(T.copied_players(count))
+        self._say(f"已复制 {count} 人。朋友在「批量添加」里粘贴即可。")
 
     def _add_by_dialog(self) -> None:
         dialog = AddNameDialog(catalog=self.store.tag_catalog(), parent=self, taken=self._taken_names())
@@ -1435,7 +1434,7 @@ class MainWindow(QMainWindow):
         if entry is None:
             return
         self._list_changed()
-        self._say(T.added_player(entry.name), undo=lambda: self._put_back(before))
+        self._say(f"已添加「{entry.name}」", undo=lambda: self._put_back(before))
 
     def _add_many_by_dialog(self) -> None:
         dialog = BatchAddDialog(self.store.tag_catalog(), parent=self)
@@ -1448,11 +1447,13 @@ class MainWindow(QMainWindow):
             added = self.store.add_annotated(dialog.annotated)
         skipped = len(dialog.names) - added
         if added == 0:
-            self._say(T.all_already_listed(skipped))
+            self._say(f"这 {skipped} 个名字都已经在名单里")
             return
         # A shared list may bring tags this list has not seen. They now show in 设置.
         self._refresh_tag_views()
-        text = T.imported_players(added, skipped)
+        text = f"已添加 {added} 人"
+        if skipped:
+            text += f"，{skipped} 个已在名单里没有重复添加"
         self._say(text, undo=lambda: self._put_back(before))
 
     def _taken_names(self, skip: int = -1) -> frozenset[str]:
@@ -1472,7 +1473,7 @@ class MainWindow(QMainWindow):
             entry.name,
             entry.tags,
             entry.reason,
-            title=T.EDIT_PLAYER,
+            title="修改",
             allow_delete=True,
             catalog=self.store.tag_catalog(),
             added_at=entry.added_at,
@@ -1485,7 +1486,7 @@ class MainWindow(QMainWindow):
         if dialog.deleted:
             self.store.remove_at(index)
             self._list_changed()
-            self._say(T.removed_player(entry.name), undo=lambda: self._put_back(before))
+            self._say(f"已删除「{entry.name}」", undo=lambda: self._put_back(before))
             return
         self.store.update_at(index, dialog.name, dialog.tags, dialog.detail)
         self._list_changed()
@@ -1515,7 +1516,7 @@ class MainWindow(QMainWindow):
         self.history_empty.setVisible(count == 0)
         self.clear_history_pair.hide()
         self.clear_history_button.setVisible(count > 0)
-        self._set_tab_title(self.history_tab, f"{T.TAB_RECORDS}  {count}" if count else T.TAB_RECORDS)
+        self._set_tab_title(self.history_tab, f"记录  {count}" if count else "记录")
         chosen = -1
         if count:
             chosen = max(0, min(select, count - 1))
@@ -1716,17 +1717,17 @@ class MainWindow(QMainWindow):
 
     def _set_history_seat(self, row: int, column: int, seat: dict) -> None:
         unclear = bool(seat.get("unclear")) or not str(seat.get("name") or "")
-        shown = T.UNREAD if unclear else str(seat.get("name"))
-        visible = T.UNREAD if unclear else shown
+        shown = "未看清" if unclear else str(seat.get("name"))
+        visible = "未知" if unclear else shown
         match = None if unclear else self._history_match(shown)
         stored = match.entry.name if match is not None else ""
         mine = not unclear and match is None and self._is_my_name(shown)
         if mine:
-            action = T.ME
+            action = "你"
         elif unclear or match is not None:
             action = ""
         else:
-            action = T.BLOCK
+            action = "添加"
         # The name as read off the screen. A match shows the list's spelling beside it,
         # so a cut-off or near name that matched can be told apart from an exact one.
         title = shown
@@ -1783,21 +1784,21 @@ class MainWindow(QMainWindow):
         line.addWidget(name_label)
         line.addStretch(1)
         if listed:
-            listed_label = QLabel(T.matched(listed))
+            listed_label = QLabel(f"名单：{listed}")
             listed_label.setObjectName("rowListed")
             listed_label.setFont(chinese_font(SMALL_PT))
             listed_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
             listed_label.setStyleSheet(
                 f'color: {THEME["red"]}; background: transparent; font-family: "{chinese_family()}";'
             )
-            name_item.setToolTip(T.matched_tip(title, listed))
+            name_item.setToolTip(f"画面是「{title}」，黑名单里是「{listed}」")
             line.addWidget(listed_label)
         if action:
             action_label = QLabel(action)
             action_label.setObjectName("rowAction")
             action_label.setFont(chinese_font())
             action_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-            if action == T.ME:
+            if action == "你":
                 you = record_font()
                 you.setBold(True)
                 you.setItalic(True)
@@ -1812,7 +1813,7 @@ class MainWindow(QMainWindow):
                 action_label.setStyleSheet(
                     f'color: {color}; background: transparent; font-family: "{chinese_family()}"; font-size: 13pt;'
                 )
-            if action == T.BLOCK:
+            if action == "添加":
                 action_label.hide()
             line.addWidget(action_label)
         self.history_table.setCellWidget(row, column, wrap)
@@ -1822,11 +1823,11 @@ class MainWindow(QMainWindow):
 
     def _history_cell_is_mine(self, row: int, column: int) -> bool:
         item = self.history_table.item(row, column)
-        return item is not None and str(item.data(Qt.UserRole + 1) or "") == T.ME
+        return item is not None and str(item.data(Qt.UserRole + 1) or "") == "你"
 
     def _history_cell_is_unclear(self, row: int, column: int) -> bool:
         item = self.history_table.item(row, column)
-        return item is not None and item.text() == T.UNREAD
+        return item is not None and item.text() == "未看清"
 
     def _hover_history_cell(self, row: int, column: int) -> None:
         if self._history_cell_is_mine(row, column) or self._history_cell_is_unclear(row, column):
@@ -1851,7 +1852,7 @@ class MainWindow(QMainWindow):
         wrap = self.history_table.cellWidget(row, column)
         if item is None or wrap is None:
             return
-        if hot and str(item.data(Qt.UserRole + 1) or "") == T.ME:
+        if hot and str(item.data(Qt.UserRole + 1) or "") == "你":
             hot = False
         hover = str(wrap.property("toneHover") or "")
         wash = hover if hot and hover else str(wrap.property("toneWash") or "")
@@ -1859,7 +1860,7 @@ class MainWindow(QMainWindow):
             wash = THEME["red_hover"]
         wrap.setStyleSheet(self._history_wrap_style(wash))
         action_label = wrap.findChild(QLabel, "rowAction")
-        if action_label is not None and action_label.text() == T.BLOCK:
+        if action_label is not None and action_label.text() == "添加":
             action_label.setVisible(hot)
 
     def _on_history_cell(self, row: int, column: int) -> None:
@@ -1868,7 +1869,7 @@ class MainWindow(QMainWindow):
             return
         shown = str(item.data(Qt.UserRole) or "")
         shown = split_ellipsis(shown)[0] or shown
-        if not shown or str(item.data(Qt.UserRole + 1) or "") == T.ME:
+        if not shown or str(item.data(Qt.UserRole + 1) or "") == "你":
             return
         stored = str(item.data(Qt.UserRole + 2) or "")
         if stored:
@@ -1877,7 +1878,7 @@ class MainWindow(QMainWindow):
                     self._edit_entry(index)
                     return
             return
-        dialog = AddNameDialog(shown, title=T.ADD_PLAYER, catalog=self.store.tag_catalog(), parent=self, taken=self._taken_names())
+        dialog = AddNameDialog(shown, title="添加", catalog=self.store.tag_catalog(), parent=self, taken=self._taken_names())
         if dialog.exec() != QDialog.Accepted or dialog.deleted:
             return
         if self.store.add(dialog.name, dialog.detail, tags=dialog.tags) is None:
@@ -1908,10 +1909,10 @@ class MainWindow(QMainWindow):
         self._set_settings_note("")
         self.hotkey.clear()
         self.hotkey_edit.clear()
-        self.hotkey_edit.setPlaceholderText(T.HOTKEY_PRESS)
+        self.hotkey_edit.setPlaceholderText("按下热键")
 
     def _end_hotkey(self) -> None:
-        self.hotkey_edit.setPlaceholderText(T.HOTKEY_NONE)
+        self.hotkey_edit.setPlaceholderText("无")
         self._show_hotkey()
         self._sync_hotkey_mode()
 
@@ -1937,7 +1938,7 @@ class MainWindow(QMainWindow):
             return
         key = _qt_key_name(event.key())
         if key is None:
-            self._set_settings_note(T.HOTKEY_KEY_NEEDED)
+            self._set_settings_note("请按字母、数字，或 F1 到 F12。")
             return
         modifiers = []
         flags = event.modifiers()
@@ -1951,7 +1952,7 @@ class MainWindow(QMainWindow):
             modifiers.append("Win")
         spec = parse_hotkey("+".join([*modifiers, key]))
         if spec is None:
-            self._set_settings_note(T.HOTKEY_UNUSABLE)
+            self._set_settings_note("这个组合不能用。")
             return
         registered = self.hotkey.apply(spec)
         self.store.hotkey = spec.display
@@ -1960,12 +1961,12 @@ class MainWindow(QMainWindow):
         if registered:
             self._set_settings_note("")
         elif sys.platform != "win32":
-            self._set_settings_note(T.HOTKEY_UNSUPPORTED)
+            self._set_settings_note("这台电脑不能用热键。")
         else:
             self.store.hotkey = ""
             self.store.save_settings()
             self.hotkey_edit.clear()
-            self._set_settings_note(T.HOTKEY_TAKEN)
+            self._set_settings_note("换一个热键。")
         self.hotkey_edit.clearFocus()
         if self._status_kind == "idle":
             self._sync_watch_idle()
@@ -1988,14 +1989,14 @@ class MainWindow(QMainWindow):
         if self._start(self._capture_job, live=True):
             self._manual_check = True
         elif self._status_kind == "loading":
-            self._notify(T.NOTE_LOADING, T.NOTE_LOADING_TEXT)
+            self._notify("识别模型还在加载", "请过几秒再按一次快捷键。")
 
     def start_warmup(self) -> None:
         """Load the OCR models now, so the first lobby check does not wait for them."""
         if not self.worker.request(get_engine().warmup, kind="warmup"):
             return
         self._warm_started = time.perf_counter()
-        self._set_result(T.STATUS_LOADING, "idle", "loading")
+        self._set_result("正在加载识别模型", "idle", "loading")
 
     def show_first_run_guide(self) -> None:
         """Once per PC: the app opened with no settings file yet."""
@@ -2009,12 +2010,12 @@ class MainWindow(QMainWindow):
 
     def test_recognition(self) -> None:
         """Read the bundled lobby picture, so a friend can see recognition work without the game."""
-        self._run_picture(str(SAMPLE_LOBBY), T.TEST_TITLE)
+        self._run_picture(str(SAMPLE_LOBBY), "识别测试")
 
     def check_picture(self) -> None:
-        path, _filter = QFileDialog.getOpenFileName(self, T.PICK_PICTURE, "", T.PICTURE_FILTER)
+        path, _filter = QFileDialog.getOpenFileName(self, "选择大厅截图", "", "图片 (*.png *.jpg *.jpeg *.bmp *.webp)")
         if path:
-            self._run_picture(path, T.PICTURE_TITLE)
+            self._run_picture(path, "截图检查")
 
     def _run_picture(self, path: str, title: str, tries: int = 0) -> None:
         if self._picture_pending and tries == 0:
@@ -2035,17 +2036,17 @@ class MainWindow(QMainWindow):
             return
         self._picture_pending = ""
         self._sync_picture_buttons()
-        self._picture_dialog = PictureResultDialog(title, error=T.READER_BUSY, parent=self)
+        self._picture_dialog = PictureResultDialog(title, error="识别一直在忙，请稍后再试。", parent=self)
         self._picture_dialog.open()
 
     def _sync_picture_buttons(self) -> None:
         busy = bool(self._picture_pending)
         for button in (self.test_button, self.picture_button, self.history_test_button):
             button.setEnabled(not busy)
-        self.test_button.setText(T.RECOGNIZING if busy else T.TEST_RECOGNITION)
+        self.test_button.setText("正在识别" if busy else "测试一下")
 
     def _on_picture(self, status: str, value) -> None:  # noqa: ANN001
-        title = self._picture_pending or T.PICTURE_TITLE
+        title = self._picture_pending or "截图检查"
         self._picture_pending = ""
         self._sync_picture_buttons()
         if status != "ok":
@@ -2068,25 +2069,24 @@ class MainWindow(QMainWindow):
         self.uncaught.emit(text)
 
     def _show_uncaught(self, text: str) -> None:
-        tip = T.problem_tip(text, log_dir(self.store.root) / "app.log")
-        self._set_result(T.STATUS_CRASHED, "hit", "error", tip=tip)
+        tip = f"{text}\n\n日志：{log_dir(self.store.root) / 'app.log'}"
+        self._set_result("程序出错了", "hit", "error", tip=tip)
 
     def _report_problem(self, problem) -> None:  # noqa: ANN001
         """Say what went wrong in the header and the tray. A check that silently stops is worse than an error."""
         if isinstance(problem, OcrUnavailable):
-            label = T.STATUS_MODEL_MISSING
+            label = "识别模型没有就绪"
         elif isinstance(problem, CaptureUnavailable):
-            label = T.STATUS_SCREEN_FAILED
+            label = "无法读取屏幕"
         else:
-            label = T.STATUS_CHECK_FAILED
+            label = "检查出错"
         detail = str(problem).strip() or label
         if detail != self._problem:
             trace = (type(problem), problem, problem.__traceback__) if isinstance(problem, BaseException) else None
             expected = isinstance(problem, (OcrUnavailable, CaptureUnavailable))
-            technical = getattr(problem, "detail", "")
-            log.warning("%s: %s %s", label, detail, technical, exc_info=None if expected else trace)
+            log.warning("%s: %s", label, detail, exc_info=None if expected else trace)
         if self._status_kind != "error" or detail != self._problem:
-            tip = T.problem_tip(detail, log_dir(self.store.root) / "app.log")
+            tip = f"{detail}\n\n日志：{log_dir(self.store.root) / 'app.log'}"
             self._set_result(label, "hit", "error", tip=tip)
         self._problem = detail
         if label not in self._told_problems:
@@ -2140,7 +2140,7 @@ class MainWindow(QMainWindow):
         quiet = self._rescan_active
         if live and self.panel.isVisible() and not quiet:
             self._panel_hide_timer.stop()
-            self.panel.set_mode("checking", T.OVERLAY_CHECKING)
+            self.panel.set_mode("checking", "请等待")
             self.hit_card.hide()
             self.clear_mark.hide()
         if not self.worker.request(fn):
@@ -2242,7 +2242,7 @@ class MainWindow(QMainWindow):
             self._manual_check = False
             log.info("No lobby on screen: %s", result.message)
             if manual:
-                self._notify(T.NOTE_NO_LOBBY, T.NOTE_NO_LOBBY_TEXT)
+                self._notify("没有看到大厅", "按快捷键时，「推演成功」的画面要在屏幕上。")
             if self.store.auto_capture:
                 self.watch.retry_after(time.perf_counter())
             self._hide_panel_after_title()
@@ -2345,7 +2345,7 @@ class MainWindow(QMainWindow):
         # A finished cover stays put. A second pass must not turn it yellow again.
         if self.panel.isVisible() and self.panel.mode in ("clear", "hit"):
             return
-        self._open_panel("checking", T.OVERLAY_CHECKING, box)
+        self._open_panel("checking", "请等待", box)
         self.hit_card.hide()
         self.clear_mark.hide()
 
@@ -2362,10 +2362,10 @@ class MainWindow(QMainWindow):
             self._show_hit_card(result.hits)
             return
         self.hit_card.hide()
-        text = T.OVERLAY_CLEAR
+        text = "没有黑名单"
         unclear = sum(1 for slot in result.names if slot.unclear)
         if unclear:
-            text += "\n" + T.unread_count(unclear)
+            text += f"\n{unclear} 人没看清"
         self._open_panel("clear", text, result.button_box)
         self._show_clear_mark()
 
@@ -2431,16 +2431,16 @@ class MainWindow(QMainWindow):
         cycle = getattr(self, "mode_cycle", None)
         if cycle is None:
             return
-        tip = T.SWITCH_TO_HOTKEY if self.store.auto_capture else T.SWITCH_TO_AUTO
+        tip = "切换为手动检查" if self.store.auto_capture else "切换为自动检查"
         self.mode_cycle.setToolTip(tip)
         self.mode_cluster.setToolTip(tip)
         self.watch_mark.setToolTip(tip)
 
     def _sync_watch_idle(self) -> None:
         if self.store.auto_capture:
-            self._set_result(T.STATUS_AUTO, "watchOn", "watch")
+            self._set_result("自动检查中", "watchOn", "watch")
         else:
-            self._set_result(T.STATUS_HOTKEY, "watchOff", "idle")
+            self._set_result("手动检查", "watchOff", "idle")
         self._sync_mode_cycle_tip()
 
     def _show_status_mark(self, pixmap: QPixmap) -> None:
@@ -2550,7 +2550,7 @@ class MainWindow(QMainWindow):
             self.hide()
             if not self._told_tray:
                 self._told_tray = True
-                self._notify(T.NOTE_IN_TRAY, T.NOTE_IN_TRAY_TEXT, warning=False)
+                self._notify("黑名单检测仍在运行", "它会继续检查大厅。在右下角的托盘图标上右键可以退出。", warning=False)
             return
         self._remember_size()
         self.hide()

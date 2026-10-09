@@ -5,8 +5,6 @@ from __future__ import annotations
 import sys
 from dataclasses import dataclass
 
-from blacklist_detect import ui_text as T
-
 # Virtual-key codes used by RegisterHotKey.
 _MOD_ALT = 0x0001
 _MOD_CONTROL = 0x0002
@@ -137,7 +135,7 @@ class GlobalHotkey:
             return True
         if sys.platform != "win32":
             self.active = ""
-            self.error = T.HOTKEY_SAVED_UNSUPPORTED
+            self.error = "这个按键已记下。这台电脑目前还不能用快捷键检查。"
             return False
         import ctypes
         from ctypes import wintypes
@@ -147,7 +145,7 @@ class GlobalHotkey:
 
         user32 = ctypes.windll.user32
         if not user32.RegisterHotKey(None, self._id, spec.win_modifiers, spec.vk):
-            self.error = T.HOTKEY_TAKEN
+            self.error = "这个按键没法使用，请换一个。"
             return False
 
         owner = self
