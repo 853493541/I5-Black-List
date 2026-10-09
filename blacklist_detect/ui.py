@@ -8,7 +8,7 @@ import time
 from datetime import datetime
 from math import cos, pi, radians, sin
 
-from PySide6.QtCore import QEasingCurve, QEvent, QPoint, QPointF, QRect, QSize, Qt, QThread, QTimer, QVariantAnimation, Signal
+from PySide6.QtCore import QEasingCurve, QEvent, QPoint, QPointF, QRect, QRectF, QSize, Qt, QThread, QTimer, QVariantAnimation, Signal
 from PySide6.QtGui import (
     QBitmap,
     QColor,
@@ -40,6 +40,7 @@ from PySide6.QtWidgets import (
     QMenu,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QStyle,
     QStyleOptionViewItem,
@@ -296,12 +297,21 @@ class TagPill(QWidget):
     _extra = round(6 * 1.1)
     _close_w = round(16 * 1.1)
 
-    def __init__(self, text: str, on_remove=None, *, on_click=None, active: bool = True) -> None:
+    def __init__(
+        self,
+        text: str,
+        on_remove=None,
+        *,
+        on_click=None,
+        active: bool = True,
+        point_size: float | None = None,
+    ) -> None:
         super().__init__()
         self._text = text
         self._on_remove = on_remove
         self._on_click = on_click
         self._active = active
+        self._point_size = point_size
         self._blend = 1.0 if active else 0.0
         self._wash = THEME["red_wash"]
         self._ink = THEME["red"]
@@ -317,18 +327,27 @@ class TagPill(QWidget):
             self.setMouseTracking(True)
             self.setCursor(Qt.PointingHandCursor)
 
-    @staticmethod
-    def _face() -> QFont:
+    def _face(self) -> QFont:
         face = chinese_font()
-        face.setPointSizeF(9 * 1.1)
+        face.setPointSizeF(self._point_size if self._point_size else 9 * 1.1)
         face.setWeight(QFont.Weight.DemiBold)
         return face
+
+    def _pad_now(self) -> int:
+        if self._point_size:
+            return max(4, round(self._point_size * 0.65))
+        return self._pad
+
+    def _extra_now(self) -> int:
+        if self._point_size:
+            return max(2, round(self._point_size * 0.4))
+        return self._extra
 
     def sizeHint(self) -> QSize:
         metrics = QFontMetrics(self._face())
         close = self._close_w if self._on_remove is not None else 0
-        width = metrics.horizontalAdvance(self._text) + self._pad * 2 + close
-        return QSize(width, metrics.height() + self._extra)
+        width = metrics.horizontalAdvance(self._text) + self._pad_now() * 2 + close
+        return QSize(width, metrics.height() + self._extra_now())
 
     def minimumSizeHint(self) -> QSize:
         return self.sizeHint()
@@ -367,7 +386,7 @@ class TagPill(QWidget):
         painter.setFont(self._face())
         body = QRect(self.rect())
         body.adjust(0, 1, -1, -1)
-        pad = self._pad
+        pad = self._pad_now()
         if not self._active:
             painter.setPen(QPen(QColor("#9aa1ab"), 1))
             painter.setBrush(QColor("#e4e6eb"))
@@ -424,7 +443,7 @@ class TagPill(QWidget):
         painter.setFont(face)
         painter.setPen(ink if amount < 0.98 else QColor(self._ink))
         text_box = QRect(body)
-        text_box.adjust(self._pad, 0, -self._pad, 0)
+        text_box.adjust(self._pad_now(), 0, -self._pad_now(), 0)
         painter.drawText(text_box, Qt.AlignCenter, self._text)
         painter.restore()
 
@@ -542,14 +561,19 @@ class DayFolderIcon(QWidget):
     def paintEvent(self, _event) -> None:  # noqa: ANN001
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        color = QColor(THEME["text"])
+        ink = QColor(THEME["text"])
         if self._hover < 0.98:
             painter.save()
             painter.setOpacity(1 - self._hover)
+            pen = QPen(ink, 1.15)
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            painter.setPen(pen)
+            painter.setBrush(QColor("#f4f5f7"))
+            painter.drawRoundedRect(QRectF(1.5, 5.4, 13.0, 8.0), 1.4, 1.4)
+            painter.drawRoundedRect(QRectF(1.5, 3.2, 6.0, 3.6), 1.0, 1.0)
             painter.setPen(Qt.NoPen)
-            painter.setBrush(color)
-            painter.drawRoundedRect(1, 3, 7, 4, 1, 1)
-            painter.drawRoundedRect(1, 6, 14, 8, 2, 2)
+            painter.drawRect(QRectF(2.6, 4.8, 4.0, 2.0))
             painter.restore()
         if self._hover > 0.02:
             painter.save()
@@ -557,7 +581,7 @@ class DayFolderIcon(QWidget):
             painter.translate(8, 8)
             painter.rotate(self._turn * 90)
             painter.translate(-8, -8)
-            pen = QPen(color, 1.7)
+            pen = QPen(ink, 1.5)
             pen.setCapStyle(Qt.PenCapStyle.RoundCap)
             pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
             painter.setPen(pen)
@@ -570,6 +594,7 @@ def _clear_layout(layout: QLayout) -> None:
         item = layout.takeAt(0)
         widget = item.widget()
         if widget is not None:
+            widget.setParent(None)
             widget.deleteLater()
 
 
@@ -897,6 +922,8 @@ def _window_style(family: str) -> str:
             QListWidget#history {{
                 font-family: "{family}";
                 font-size: 13pt;
+                font-weight: 400;
+                color: {t["text"]};
                 padding: 0;
                 outline: none;
                 border-radius: 12px;
@@ -906,11 +933,17 @@ def _window_style(family: str) -> str:
                 outline: none;
             }}
             QListWidget#history::item {{
-                padding: 6px 16px;
-                margin: 2px 6px;
+                padding: 2px 8px;
+                margin: 1px 4px;
                 border: none;
                 border-radius: 8px;
                 outline: none;
+                font-weight: 400;
+                color: {t["text"]};
+            }}
+            QListWidget#history::item:selected, QListWidget#history::item:selected:hover {{
+                color: {t["text"]};
+                font-weight: 400;
             }}
             QListWidget::item:hover {{ background: {t["hover"]}; }}
             QListWidget::item:selected, QListWidget::item:selected:hover {{
@@ -1018,10 +1051,12 @@ def _window_style(family: str) -> str:
                 background: transparent;
                 color: {t["danger"]};
                 border: none;
-                border-radius: 8px;
+                border-radius: 6px;
                 padding: 0;
-                min-height: 28px;
-                font-size: 22px;
+                min-width: 0;
+                min-height: 0;
+                max-height: 22px;
+                font-size: 16px;
                 font-weight: 700;
             }}
             QPushButton#rowDelete:hover {{
@@ -1142,25 +1177,46 @@ def _page(layout) -> None:
     layout.setSpacing(GAP)
 
 
-def _check_mark(color: str) -> QPixmap:
+def _line_icon(draw, color: str) -> QPixmap:
     ratio = 2
-    size = 16 * ratio
-    pixmap = QPixmap(size, size)
+    pixmap = QPixmap(16 * ratio, 16 * ratio)
     pixmap.setDevicePixelRatio(ratio)
     pixmap.fill(Qt.transparent)
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.Antialiasing)
-    painter.setPen(Qt.NoPen)
-    painter.setBrush(QColor(color))
-    painter.drawEllipse(0, 0, size, size)
-    pen = QPen(QColor("#ffffff"), 1.8 * ratio)
+    pen = QPen(QColor(color), 1.5)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
     painter.setPen(pen)
-    painter.drawLine(4 * ratio, 8 * ratio, 7 * ratio, 11 * ratio)
-    painter.drawLine(7 * ratio, 11 * ratio, 12 * ratio, 5 * ratio)
+    painter.setBrush(Qt.NoBrush)
+    draw(painter)
     painter.end()
     return pixmap
+
+
+def _check_icon() -> QPixmap:
+    def draw(painter: QPainter) -> None:
+        painter.drawLine(QPointF(3.2, 8.4), QPointF(6.6, 11.8))
+        painter.drawLine(QPointF(6.6, 11.8), QPointF(12.8, 4.5))
+
+    return _line_icon(draw, THEME["green"])
+
+
+def _reload_icon() -> QPixmap:
+    def draw(painter: QPainter) -> None:
+        cx, cy, radius = 8.0, 8.2, 5.0
+        painter.drawArc(QRectF(cx - radius, cy - radius, radius * 2, radius * 2), 60 * 16, -300 * 16)
+        end = radians(60)
+        tip = QPointF(cx + radius * cos(end), cy - radius * sin(end))
+        tx, ty = -sin(end), -cos(end)
+        back, wing = 2.7, 1.7
+        nx, ny = -ty, tx
+        left = QPointF(tip.x() - tx * back + nx * wing, tip.y() - ty * back + ny * wing)
+        right = QPointF(tip.x() - tx * back - nx * wing, tip.y() - ty * back - ny * wing)
+        painter.drawLine(tip, left)
+        painter.drawLine(tip, right)
+
+    return _line_icon(draw, "#6b7280")
 
 
 def _watch_mark(color: str) -> QPixmap:
@@ -1180,109 +1236,6 @@ def _watch_mark(color: str) -> QPixmap:
     painter.drawEllipse(inset, inset, size - inset * 2, size - inset * 2)
     painter.end()
     return pixmap
-
-
-def _paint_cycle(painter: QPainter) -> None:
-    """Two arrows in a cycle, about 16px, stroked like the status check."""
-    painter.setRenderHint(QPainter.Antialiasing)
-    color = QColor(THEME["text"])
-    pen = QPen(color, 1.55)
-    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-    painter.setPen(pen)
-    painter.setBrush(Qt.NoBrush)
-    center = 8.0
-    radius = 5.15
-
-    def at(deg: float) -> QPointF:
-        rad = radians(deg)
-        return QPointF(center + radius * cos(rad), center - radius * sin(rad))
-
-    def arc(start: float, end: float) -> None:
-        path = QPainterPath()
-        steps = 16
-        path.moveTo(at(start))
-        for step in range(1, steps + 1):
-            path.lineTo(at(start + (end - start) * step / steps))
-        painter.drawPath(path)
-
-    def head(deg: float) -> None:
-        rad = radians(deg)
-        ux, uy = sin(rad), cos(rad)
-        tip = at(deg)
-        length = 2.85
-        wing = 1.6
-        px, py = -uy, ux
-        back_x = tip.x() - ux * length
-        back_y = tip.y() - uy * length
-        painter.drawLine(tip, QPointF(back_x + px * wing, back_y + py * wing))
-        painter.drawLine(tip, QPointF(back_x - px * wing, back_y - py * wing))
-
-    arc(150, 38)
-    head(38)
-    arc(-30, -142)
-    head(-142)
-
-
-class ModeCycleButton(QWidget):
-    """Cycle icon just before the capture-mode mark. Fades in on hover."""
-
-    def __init__(self, on_click) -> None:
-        super().__init__()
-        self._on_click = on_click
-        self._shown = 0.0
-        self._want = 0.0
-        self.setObjectName("modeCycle")
-        self.setFixedSize(16, 16)
-        self.setCursor(Qt.PointingHandCursor)
-        self.setFocusPolicy(Qt.NoFocus)
-        self.setAttribute(Qt.WA_NoSystemBackground, True)
-        self.setAttribute(Qt.WA_TranslucentBackground, True)
-        self.setAutoFillBackground(False)
-        self._anim = QVariantAnimation(self)
-        self._anim.setDuration(140)
-        self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
-        self._anim.valueChanged.connect(self._set_shown)
-        self._anim.finished.connect(self._finish_shown)
-        self.hide()
-
-    def set_revealed(self, revealed: bool) -> None:
-        target = 1.0 if revealed else 0.0
-        if revealed:
-            self.show()
-        if abs(self._shown - target) < 0.001 and self._anim.state() != QVariantAnimation.State.Running:
-            self._want = target
-            if not revealed:
-                self.hide()
-            return
-        self._want = target
-        self._anim.stop()
-        self._anim.setStartValue(float(self._shown))
-        self._anim.setEndValue(target)
-        self._anim.start()
-
-    def _set_shown(self, value: float) -> None:
-        self._shown = float(value)
-        self.update()
-
-    def _finish_shown(self) -> None:
-        if self._want <= 0.0 and self._shown <= 0.02:
-            self.hide()
-
-    def paintEvent(self, _event) -> None:  # noqa: ANN001
-        if self._shown <= 0.02:
-            return
-        painter = QPainter(self)
-        painter.setOpacity(self._shown)
-        _paint_cycle(painter)
-        painter.end()
-
-    def mousePressEvent(self, event) -> None:  # noqa: ANN001
-        if event.button() == Qt.LeftButton:
-            self._on_click()
-            event.accept()
-            return
-        super().mousePressEvent(event)
 
 
 class ThemeSwatch(QWidget):
@@ -2057,8 +2010,167 @@ class ClearWindow(QWidget):
         _pin_topmost(self)
 
 
+_COVER_BORDER = 6
+_COVER_OUTSET = 3
+
+
+def _cover_radius(height: int) -> int:
+    """准备案件还原 is a rounded rectangle, not a pill."""
+    return max(4, round(height * 0.14))
+
+
+class HitCard(QWidget):
+    """Name and tags beside the red border. It does not cover the button."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            None,
+            Qt.FramelessWindowHint
+            | Qt.Window
+            | Qt.WindowStaysOnTopHint
+            | Qt.Tool
+            | Qt.WindowDoesNotAcceptFocus,
+        )
+        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setFocusPolicy(Qt.NoFocus)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        self.body = QWidget()
+        self.body.setObjectName("hitCard")
+        self.body.setAttribute(Qt.WA_StyledBackground, True)
+        outer.addWidget(self.body)
+        body_layout = QVBoxLayout(self.body)
+        body_layout.setContentsMargins(0, 0, 0, 0)
+        self.scroll = QScrollArea()
+        self.scroll.setObjectName("hitScroll")
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFocusPolicy(Qt.NoFocus)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll.setFrameShape(QScrollArea.NoFrame)
+        self.content = QWidget()
+        self.content.setObjectName("hitRows")
+        self.rows = QVBoxLayout(self.content)
+        self.rows.setContentsMargins(12, 8, 12, 8)
+        self.rows.setSpacing(6)
+        self.scroll.setWidget(self.content)
+        body_layout.addWidget(self.scroll)
+
+    def set_people(self, people: list[tuple[str, tuple[str, ...]]], height: int) -> None:
+        name_pt = 14
+        self.rows.setContentsMargins(12, 8, 12, 8)
+        self.rows.setSpacing(6)
+        self.rows.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        _clear_layout(self.rows)
+        family = chinese_family()
+        ink = THEME["text"]
+        mark = THEME["red"]
+        name_font = chinese_font(name_pt)
+        name_width = 0
+        if people:
+            metrics = QFontMetrics(name_font)
+            name_width = max(metrics.horizontalAdvance(name) for name, _tags in people)
+        for name, tags in people:
+            person = QWidget()
+            person.setStyleSheet("background: transparent;")
+            row = QHBoxLayout(person)
+            row.setContentsMargins(0, 0, 0, 0)
+            row.setSpacing(6)
+            row.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            bullet = QLabel("•")
+            bullet.setObjectName("hitBullet")
+            bullet.setFont(name_font)
+            bullet.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            bullet.setStyleSheet(
+                f'color: {mark}; background: transparent; font-family: "{family}"; font-size: {name_pt}pt; font-weight: 400;'
+            )
+            row.addWidget(bullet, 0, Qt.AlignVCenter)
+            label = QLabel(name)
+            label.setObjectName("hitName")
+            label.setFont(name_font)
+            label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            label.setFixedWidth(name_width)
+            label.setStyleSheet(
+                f'color: {ink}; background: transparent; font-family: "{family}"; font-size: {name_pt}pt; font-weight: 400;'
+            )
+            row.addWidget(label, 0, Qt.AlignVCenter)
+            for tag in tags[:3]:
+                row.addWidget(TagPill(tag), 0, Qt.AlignVCenter)
+            if len(tags) > 3:
+                more = QLabel("3+")
+                more.setObjectName("hitMore")
+                more.setFont(chinese_font(10))
+                more.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+                more.setStyleSheet(
+                    f'color: {mark}; background: transparent; font-family: "{family}"; font-size: 10pt; font-weight: 400;'
+                )
+                row.addWidget(more, 0, Qt.AlignVCenter)
+            row.addStretch(1)
+            self.rows.addWidget(person)
+            person.setVisible(True)
+        self._apply_style(_cover_radius(max(28, int(height))))
+        self.setMinimumSize(0, 0)
+        self.setMaximumSize(16777215, 16777215)
+        self.content.setMinimumSize(0, 0)
+        self.content.setMaximumSize(16777215, 16777215)
+        self.rows.invalidate()
+        self.rows.activate()
+        count = self.rows.count()
+        row_heights = [self.rows.itemAt(i).widget().sizeHint().height() for i in range(count)]
+        margins = self.rows.contentsMargins()
+        spacing = self.rows.spacing()
+        full = margins.top() + margins.bottom() + sum(row_heights) + spacing * max(0, count - 1)
+        visible_n = min(3, count)
+        visible = margins.top() + margins.bottom() + sum(row_heights[:visible_n]) + spacing * max(0, visible_n - 1)
+        content_w = max(self.rows.sizeHint().width(), 1)
+        bar = 10 if count > 3 else 0
+        self.content.setMinimumSize(content_w, max(full, 1))
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded if count > 3 else Qt.ScrollBarAlwaysOff)
+        self.scroll.setFixedHeight(max(visible, 1))
+        self.scroll.verticalScrollBar().setValue(0)
+        self.setFixedSize(content_w + bar, max(visible, 1))
+
+    def _apply_style(self, radius: int) -> None:
+        t = THEME
+        self.setStyleSheet(
+            f"""
+            QWidget#hitCard {{
+                background: {t["surface"]};
+                border: none;
+                border-radius: {radius}px;
+            }}
+            QScrollArea#hitScroll, QScrollArea#hitScroll QWidget {{
+                background: transparent;
+                border: none;
+            }}
+            QScrollBar:vertical {{
+                background: transparent;
+                width: 8px;
+                margin: 6px 2px 6px 0;
+            }}
+            QScrollBar::handle:vertical {{
+                background: {t["button_line"]};
+                border-radius: 4px;
+                min-height: 24px;
+            }}
+            QScrollBar::add-line, QScrollBar::sub-line,
+            QScrollBar::add-page, QScrollBar::sub-page {{
+                background: transparent;
+                height: 0;
+                width: 0;
+            }}
+            """
+        )
+        self.scroll.viewport().setAutoFillBackground(False)
+
+    def showEvent(self, event) -> None:  # noqa: ANN001
+        super().showEvent(event)
+        _pin_topmost(self)
+
+
 class LobbyPanel(QWidget):
-    """Pill cover sized to 准备案件还原. It sits on the button, not beside it."""
+    """Rounded cover sized to 准备案件还原. It sits on the button, not beside it."""
 
     def __init__(self) -> None:
         super().__init__(
@@ -2086,21 +2198,22 @@ class LobbyPanel(QWidget):
     def set_mode(self, mode: str, text: str) -> None:
         self.mode = mode
         self.setToolTip(text)
-        self.label.setText("" if mode == "clear" else text)
-        radius = max(1, self.height() // 2)
+        self.label.setText(text if mode == "checking" else "")
+        radius = _cover_radius(self.height())
         family = chinese_family()
+        label_px = max(12, min(22, round(self.height() * 0.32)))
         if mode == "checking":
             background = "#e8892d"
             ink = "#fffaf3"
             border = "none"
         elif mode == "hit":
-            background = THEME["red"]
-            ink = "#fffaf3"
-            border = "none"
+            background = "transparent"
+            ink = "transparent"
+            border = f"{_COVER_BORDER}px solid {THEME['red']}"
         else:
             background = "transparent"
             ink = "transparent"
-            border = f"3px solid {THEME['green']}"
+            border = f"{_COVER_BORDER}px solid {THEME['green']}"
         self.setStyleSheet(
             f"""
             LobbyPanel, QWidget {{ background: transparent; }}
@@ -2109,7 +2222,7 @@ class LobbyPanel(QWidget):
                 color: {ink};
                 border: {border};
                 font-family: "{family}";
-                font-size: 15px;
+                font-size: {label_px}px;
                 padding: 4px 12px;
                 border-radius: {radius}px;
             }}
@@ -2156,7 +2269,8 @@ class LobbyPanel(QWidget):
         painter = QPainter(mask)
         painter.setPen(Qt.NoPen)
         painter.setBrush(Qt.color1)
-        painter.drawRoundedRect(0, 0, width, height, height / 2, height / 2)
+        radius = _cover_radius(height)
+        painter.drawRoundedRect(0, 0, width, height, radius, radius)
         painter.end()
         self.setMask(mask)
 
@@ -2204,6 +2318,7 @@ class MainWindow(QMainWindow):
         self.warning = WarningWindow()
         self.clear_notice = ClearWindow()
         self.panel = LobbyPanel()
+        self.hit_card = HitCard()
         self._panel_hide_timer = QTimer(self)
         self._panel_hide_timer.setSingleShot(True)
         self._panel_hide_timer.timeout.connect(self._hide_panel_after_title)
@@ -2279,16 +2394,24 @@ class MainWindow(QMainWindow):
         self.mode_cluster.setAttribute(Qt.WA_TranslucentBackground, True)
         self.mode_cluster.setAutoFillBackground(False)
         self.mode_cluster.setMouseTracking(True)
+        self.mode_cluster.setCursor(Qt.PointingHandCursor)
         cluster_row = QHBoxLayout(self.mode_cluster)
         cluster_row.setContentsMargins(0, 0, 0, 0)
         cluster_row.setSpacing(6)
-        self.mode_cycle = ModeCycleButton(self._cycle_capture_mode)
+        self.mode_cycle = QLabel()
+        self.mode_cycle.setObjectName("modeCycle")
+        self.mode_cycle.setFixedSize(16, 16)
+        self.mode_cycle.setPixmap(_reload_icon())
+        self.mode_cycle.setCursor(Qt.PointingHandCursor)
+        self.mode_cycle.hide()
         self.watch_mark = QLabel()
         self.watch_mark.setPixmap(_watch_mark(THEME["muted"]))
+        self.watch_mark.setCursor(Qt.PointingHandCursor)
         self.watch_label = QLabel("未开启")
         self.watch_label.setObjectName("idle")
         self.watch_label.setMaximumWidth(200)
         self.watch_label.setFont(chinese_font(14))
+        self.watch_label.setCursor(Qt.PointingHandCursor)
         cluster_row.addWidget(self.mode_cycle, 0, Qt.AlignVCenter)
         cluster_row.addWidget(self.watch_mark, 0, Qt.AlignVCenter)
         cluster_row.addWidget(self.watch_label, 0, Qt.AlignVCenter)
@@ -2472,7 +2595,7 @@ class MainWindow(QMainWindow):
         metrics = QFontMetrics(chinese_font())
         name_width = metrics.horizontalAdvance("中" * 7) + 28
         slot = metrics.horizontalAdvance("手动截图") + 36
-        label_width = metrics.horizontalAdvance("我的角色名称") + 8
+        label_width = metrics.horizontalAdvance("角色名称") + 8
 
         def add_row(last: bool = False) -> QHBoxLayout:
             host = QWidget()
@@ -2491,21 +2614,13 @@ class MainWindow(QMainWindow):
             line.addWidget(label, 0, align)
 
         name_line = add_row()
-        add_label(name_line, "我的角色名称")
+        add_label(name_line, "角色名称")
         self.player_edit = QLineEdit(self.store.player_name)
         self.player_edit.setPlaceholderText("游戏里的名字")
         self.player_edit.editingFinished.connect(self._save_player_name)
         self.player_edit.setFixedWidth(name_width)
         name_line.addWidget(self.player_edit, 0, Qt.AlignVCenter)
         name_line.addStretch(1)
-
-        tag_line = add_row()
-        add_label(tag_line, "我的标签", Qt.AlignTop)
-        self.tag_settings = QVBoxLayout()
-        self.tag_settings.setSpacing(0)
-        self.tag_settings.setContentsMargins(0, 0, 0, 0)
-        self._fill_tag_settings()
-        tag_line.addLayout(self.tag_settings, 1)
 
         mode_line = add_row()
         add_label(mode_line, "检查")
@@ -2552,8 +2667,17 @@ class MainWindow(QMainWindow):
         theme_line.addLayout(swatches)
         theme_line.addStretch(1)
 
+        tag_line = add_row()
+        add_label(tag_line, "标签", Qt.AlignTop)
+        self.tag_settings = QVBoxLayout()
+        self.tag_settings.setSpacing(0)
+        self.tag_settings.setContentsMargins(0, 0, 0, 0)
+        self._fill_tag_settings()
+        tag_line.addLayout(self.tag_settings, 1)
+
         reset_line = add_row(last=True)
-        reset = QPushButton("清除全部数据")
+        add_label(reset_line, "控制")
+        reset = QPushButton("清除数据且复原")
         reset.setObjectName("danger")
         reset.setFont(ui_font())
         self.reset_button = reset
@@ -2636,7 +2760,7 @@ class MainWindow(QMainWindow):
         self.settings_label.setVisible(bool(text))
 
     def _ask_reset(self) -> None:
-        if not _confirm(self, "清除全部数据会清空我的角色名称、记录、黑名单和设置。确定清除？"):
+        if not _confirm(self, "清除数据且复原会清空角色名称、记录、黑名单和设置。确定清除？"):
             return
         self.store.reset()
         self.hotkey.clear()
@@ -2664,6 +2788,7 @@ class MainWindow(QMainWindow):
         self._apply_column_order()
         self._panel_hide_timer.stop()
         self.panel.hide()
+        self.hit_card.hide()
         self._reload_history()
 
     def _save_player_name(self) -> None:
@@ -2696,7 +2821,7 @@ class MainWindow(QMainWindow):
         if hasattr(self, "watch_label"):
             self._set_result(self._watch_full, self._watch_tone, self._status_kind)
         if hasattr(self, "mode_cycle"):
-            self.mode_cycle.update()
+            self.mode_cycle.setPixmap(_reload_icon())
         if hasattr(self, "warning"):
             self.warning.apply_theme()
             self.clear_notice.apply_theme()
@@ -2725,18 +2850,22 @@ class MainWindow(QMainWindow):
         self._reload_history(max(0, self._selected_scan()))
         self._show_list()
 
-    def _filter_mode_cluster(self, watched, event) -> None:  # noqa: ANN001
+    def _filter_mode_cluster(self, watched, event) -> bool:  # noqa: ANN001
         cycle = getattr(self, "mode_cycle", None)
         cluster = getattr(self, "mode_cluster", None)
         if cycle is None or cluster is None or not hasattr(self, "watch_label"):
-            return
+            return False
         if watched not in (cluster, cycle, self.watch_mark, self.watch_label):
-            return
+            return False
         kind = event.type()
         if kind in (QEvent.Type.Enter, QEvent.Type.HoverEnter):
-            cycle.set_revealed(True)
+            cycle.show()
         elif kind in (QEvent.Type.Leave, QEvent.Type.HoverLeave) and not self._pointer_over_mode_cluster():
-            cycle.set_revealed(False)
+            cycle.hide()
+        elif kind == QEvent.Type.MouseButtonPress and event.button() == Qt.LeftButton:
+            self._cycle_capture_mode()
+            return True
+        return False
 
     def _pointer_over_mode_cluster(self) -> bool:
         cluster = self.mode_cluster
@@ -2746,7 +2875,8 @@ class MainWindow(QMainWindow):
         return cluster.rect().adjusted(-2, -2, 2, 2).contains(pos)
 
     def eventFilter(self, watched, event) -> bool:  # noqa: ANN001
-        self._filter_mode_cluster(watched, event)
+        if self._filter_mode_cluster(watched, event):
+            return True
         edit = getattr(self, "hotkey_edit", None)
         if edit is not None and watched is edit:
             kind = event.type()
@@ -3138,7 +3268,7 @@ class MainWindow(QMainWindow):
             closed = key in self._closed_days
             self._add_day_folder(key, closed)
             for index, clock in rows:
-                self._add_history_time(key, index, f"  {clock}", closed)
+                self._add_history_time(key, index, clock, closed)
         count = len(self.store.scans)
         self.history_list.setVisible(count > 0)
         self.record_card.setVisible(count > 0)
@@ -3164,12 +3294,12 @@ class MainWindow(QMainWindow):
         item.setData(Qt.UserRole + 1, "day")
         item.setData(Qt.UserRole + 2, day)
         item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
-        item.setSizeHint(QSize(0, 42))
+        item.setSizeHint(QSize(0, 30))
         wrap = QWidget()
         wrap.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         wrap.setStyleSheet("background: transparent;")
         line = QHBoxLayout(wrap)
-        line.setContentsMargins(16, 4, 16, 4)
+        line.setContentsMargins(0, 0, 8, 0)
         line.setSpacing(8)
         line.addWidget(DayFolderIcon(opened=not closed), 0, Qt.AlignVCenter)
         label = QLabel(day)
@@ -3177,20 +3307,19 @@ class MainWindow(QMainWindow):
         label.setFont(record_font())
         label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         label.setStyleSheet(
-            f'color: {THEME["text"]}; background: transparent; font-family: "{chinese_family()}"; font-size: 13pt;'
+            f'color: {THEME["text"]}; background: transparent; font-family: "{chinese_family()}"; font-size: 13pt; font-weight: 400;'
         )
         line.addWidget(label)
         self.history_list.addItem(item)
         self.history_list.setItemWidget(item, wrap)
 
     def _add_history_time(self, day: str, index: int, text: str, closed: bool) -> None:
-        item = QListWidgetItem(text)
+        item = QListWidgetItem("")
         item.setData(Qt.UserRole, index)
         item.setData(Qt.UserRole + 1, "time")
         item.setData(Qt.UserRole + 2, day)
-        item.setForeground(QColor(THEME["text"]))
         item.setFont(record_font())
-        item.setSizeHint(QSize(0, 48))
+        item.setSizeHint(QSize(0, 30))
         self.history_list.addItem(item)
         item.setHidden(closed)
         wrap = QWidget()
@@ -3198,12 +3327,20 @@ class MainWindow(QMainWindow):
         wrap.setStyleSheet("background: transparent;")
         wrap.installEventFilter(self)
         line = QHBoxLayout(wrap)
-        line.setContentsMargins(0, 0, 4, 0)
+        line.setContentsMargins(24, 0, 4, 0)
         line.setSpacing(0)
+        clock = QLabel(text)
+        clock.setObjectName("recordTime")
+        clock.setFont(record_font())
+        clock.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        clock.setStyleSheet(
+            f'color: {THEME["text"]}; background: transparent; font-family: "{chinese_family()}"; font-size: 13pt; font-weight: 400;'
+        )
+        line.addWidget(clock, 0, Qt.AlignVCenter)
         line.addStretch(1)
         remove = QPushButton("×")
         remove.setObjectName("rowDelete")
-        remove.setFixedSize(32, 32)
+        remove.setFixedSize(22, 22)
         mark = chinese_font(16)
         mark.setBold(True)
         remove.setFont(mark)
@@ -3211,7 +3348,7 @@ class MainWindow(QMainWindow):
         remove.setFocusPolicy(Qt.NoFocus)
         remove.hide()
         remove.clicked.connect(lambda _checked=False, scan=index: self._delete_scan(scan))
-        line.addWidget(remove)
+        line.addWidget(remove, 0, Qt.AlignVCenter)
         self.history_list.setItemWidget(item, wrap)
 
     def _on_history_clicked(self, item: QListWidgetItem) -> None:
@@ -3320,14 +3457,11 @@ class MainWindow(QMainWindow):
             self.history_table.setRowHeight(index // 2, 48)
 
     def _mark_selected_record(self) -> None:
-        chosen = self._selected_scan()
         for row in range(self.history_list.count()):
             item = self.history_list.item(row)
             if item.data(Qt.UserRole + 1) != "time":
                 continue
-            font = record_font()
-            font.setBold(item.data(Qt.UserRole) == chosen)
-            item.setFont(font)
+            item.setFont(record_font())
 
     def _history_match(self, shown: str):
         label = NameLabel(raw=shown, visible=shown, truncated=False)
@@ -3603,7 +3737,8 @@ class MainWindow(QMainWindow):
         quiet = self._rescan_active
         if live and self.panel.isVisible() and not quiet:
             self._panel_hide_timer.stop()
-            self.panel.set_mode("checking", "正在检查")
+            self.panel.set_mode("checking", "请等待")
+            self.hit_card.hide()
         if not self.worker.request(fn):
             if not quiet:
                 self._set_result("正在检查", "status", "check")
@@ -3716,9 +3851,6 @@ class MainWindow(QMainWindow):
                 brief = f"{brief}，已更新这条记录"
             elif outcome == "skipped" and not rescan:
                 brief = f"{brief}，这一分钟已经记过"
-            unclear = any(slot.unclear for slot in result.names)
-            if self._live_check and unclear and not rescan and outcome != "skipped":
-                self._rescan_now()
         self._set_result(brief, "clear" if clear else "hit", "result")
         self._show_result(result)
         self._show_panel(result)
@@ -3774,6 +3906,7 @@ class MainWindow(QMainWindow):
                         note=note,
                         truncated=slot.truncated,
                         line=format_hit(slot.index, slot.visible, slot.truncated, found.entry.name, note),
+                        tags=tuple(found.entry.tags),
                     )
                 )
         result.hits = hits
@@ -3781,13 +3914,18 @@ class MainWindow(QMainWindow):
     def _hide_panel_after_title(self) -> None:
         self._panel_hide_timer.stop()
         self.panel.hide()
+        self.hit_card.hide()
         if not self.store.auto_capture:
             self._watch_timer.stop()
 
     def _on_lobby_placed(self, box) -> None:
         if self._closing or not self._live_check:
             return
-        self._open_panel("checking", "正在检查", box)
+        # A finished cover stays put. A second pass must not turn it yellow again.
+        if self.panel.isVisible() and self.panel.mode in ("clear", "hit"):
+            return
+        self._open_panel("checking", "请等待", box)
+        self.hit_card.hide()
 
     def _show_panel(self, result: CheckResult) -> None:
         if not self._live_check or not result.header_found:
@@ -3797,14 +3935,10 @@ class MainWindow(QMainWindow):
             self._hide_panel_after_title()
             return
         if result.hits:
-            lines = ["黑名单"]
-            for hit in result.hits:
-                line = hit.entry_name
-                if hit.note.strip():
-                    line += f"  {hit.note.strip()}"
-                lines.append(line)
-            self._open_panel("hit", "\n".join(lines), result.button_box)
+            self._open_panel("hit", "", result.button_box)
+            self._show_hit_card(result.hits)
             return
+        self.hit_card.hide()
         text = "没有黑名单"
         unclear = sum(1 for slot in result.names if slot.unclear)
         if unclear:
@@ -3826,14 +3960,46 @@ class MainWindow(QMainWindow):
         if ratio <= 0:
             ratio = 1.0
         left, top, right, bottom = box
+        outset = _COVER_OUTSET
         self.panel.show_over(
-            (left + origin_x) / ratio,
-            (top + origin_y) / ratio,
-            (right - left) / ratio,
-            (bottom - top) / ratio,
+            (left + origin_x) / ratio - outset,
+            (top + origin_y) / ratio - outset,
+            (right - left) / ratio + outset * 2,
+            (bottom - top) / ratio + outset * 2,
             mode,
             text,
         )
+
+    def _show_hit_card(self, hits: list[Hit]) -> None:
+        people: list[tuple[str, tuple[str, ...]]] = []
+        seen: set[tuple[str, tuple[str, ...]]] = set()
+        for hit in hits:
+            person = (hit.entry_name, tuple(hit.tags))
+            if person in seen:
+                continue
+            seen.add(person)
+            people.append(person)
+        if not people:
+            self.hit_card.hide()
+            return
+        self.hit_card.set_people(people, self.panel.height())
+        self._place_side_card()
+
+    def _place_side_card(self) -> None:
+        gap = 12
+        panel = self.panel
+        x = panel.x() + panel.width() + gap
+        y = panel.y() + (panel.height() - self.hit_card.height()) // 2
+        screen = QApplication.screenAt(panel.pos()) or QApplication.primaryScreen()
+        if screen is not None:
+            area = screen.availableGeometry()
+            if x + self.hit_card.width() > area.right() - 8:
+                x = panel.x() - gap - self.hit_card.width()
+            x = max(area.left() + 8, min(x, area.right() - self.hit_card.width() - 8))
+            y = max(area.top() + 8, min(y, area.bottom() - self.hit_card.height() - 8))
+        self.hit_card.move(int(x), int(y))
+        self.hit_card.show()
+        _pin_topmost(self.hit_card)
 
     def _show_result(self, result: CheckResult) -> None:
         lines = []
@@ -3860,10 +4026,10 @@ class MainWindow(QMainWindow):
         cycle = getattr(self, "mode_cycle", None)
         if cycle is None:
             return
-        if self.store.auto_capture:
-            cycle.setToolTip("切换为手动捕捉")
-        else:
-            cycle.setToolTip("切换为自动捕捉")
+        tip = "切换为手动捕捉" if self.store.auto_capture else "切换为自动捕捉"
+        self.mode_cycle.setToolTip(tip)
+        self.mode_cluster.setToolTip(tip)
+        self.watch_mark.setToolTip(tip)
 
     def _sync_watch_idle(self) -> None:
         if self.store.auto_capture:
@@ -3910,7 +4076,7 @@ class MainWindow(QMainWindow):
         self.watch_label.style().unpolish(self.watch_label)
         self.watch_label.style().polish(self.watch_label)
         if kind == "watch":
-            self._show_status_mark(_check_mark(THEME["green"]))
+            self._show_status_mark(_check_icon())
         elif kind == "idle":
             self._show_hotkey_mark()
         else:
@@ -3983,6 +4149,7 @@ class MainWindow(QMainWindow):
         if hasattr(self, "detail_tip"):
             self.detail_tip.close()
         self.panel.close()
+        self.hit_card.close()
         self.hotkey.clear()
         self.worker.stop()
         self.worker.wait(1500)

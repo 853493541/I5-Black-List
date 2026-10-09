@@ -1,5 +1,10 @@
 """Header anchor. The countdown digit is read, not fixed at 10."""
 
+from pathlib import Path
+
+import numpy as np
+from PIL import Image
+
 from blacklist_detect.layout import (
     BUTTON_BOX,
     COUNTDOWN_BOX,
@@ -9,6 +14,7 @@ from blacklist_detect.layout import (
     REF_W,
     TITLE_BOX,
     find_anchor,
+    snap_button_box,
 )
 from blacklist_detect.model import OcrLine
 
@@ -135,6 +141,26 @@ def test_restore_button_follows_the_header():
     assert abs(right - round(BUTTON_BOX[2] * REF_W)) <= 2
     assert abs(bottom - round(BUTTON_BOX[3] * REF_H)) <= 2
     assert right > left and bottom > top
+
+
+def test_button_box_snaps_onto_the_pale_control():
+    image = np.asarray(Image.open(Path(__file__).parent / "fixtures" / "reference-lobby.png").convert("RGB"))
+    guessed = (
+        round(BUTTON_BOX[0] * REF_W),
+        round(BUTTON_BOX[1] * REF_H),
+        round(BUTTON_BOX[2] * REF_W),
+        round(BUTTON_BOX[3] * REF_H),
+    )
+    shifted = (guessed[0] - 38, guessed[1] - 34, guessed[2] - 48, guessed[3] - 41)
+    snapped = snap_button_box(image, shifted)
+    assert snapped == snap_button_box(image, guessed)
+    assert snapped is not None
+    assert abs(snapped[0] - 1498) <= 2
+    assert abs(snapped[1] - 1518) <= 2
+    assert abs(snapped[2] - 2010) <= 2
+    assert abs(snapped[3] - 1667) <= 2
+    dark = np.zeros((200, 400, 3), dtype=np.uint8)
+    assert snap_button_box(dark, (40, 40, 160, 90)) == (40, 40, 160, 90)
 
 
 def test_ready_count_is_not_a_thirteenth_name():

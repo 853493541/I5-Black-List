@@ -326,3 +326,76 @@ def _map_box(
     right = max(left + 1, min(image_width, right))
     bottom = max(top + 1, min(image_height, bottom))
     return (left, top, right, bottom)
+
+
+def snap_button_box(rgb, predicted: tuple[int, int, int, int] | None) -> tuple[int, int, int, int] | None:
+    """Move a guessed 准备案件还原 box onto the pale button in this capture."""
+    if predicted is None:
+        return None
+    import numpy as np
+
+    left, top, right, bottom = (int(value) for value in predicted)
+    width, height = right - left, bottom - top
+    image_height, image_width = rgb.shape[:2]
+    if width < 8 or height < 8:
+        return predicted
+    pad_x = max(16, int(width * 0.5))
+    pad_y = max(16, int(height * 0.6))
+    x0 = max(0, left - pad_x)
+    y0 = max(0, top - pad_y)
+    x1 = min(image_width, right + pad_x)
+    y1 = min(image_height, bottom + pad_y)
+    view = rgb[y0:y1, x0:x1].astype(np.int16)
+    if view.size == 0:
+        return predicted
+    lum = view.mean(axis=2)
+    spread = view.max(axis=2) - view.min(axis=2)
+    face = (lum >= 118) & (spread <= 52)
+    counts = face.sum(axis=1)
+    if int(counts.max()) < width * 0.45:
+        return predicted
+    core = np.nonzero(counts >= float(counts.max()) * 0.80)[0]
+    if len(core) < 3:
+        return predicted
+
+    def run(row: int) -> tuple[int, int] | None:
+        xs = np.nonzero(face[row])[0]
+        if len(xs) == 0:
+            return None
+        return int(xs[0]), int(xs[-1])
+
+    edges = [item for item in (run(int(row)) for row in core) if item is not None]
+    if len(edges) < 3:
+        return predicted
+    core_left = int(np.median([item[0] for item in edges]))
+    core_right = int(np.median([item[1] for item in edges]))
+    middle = (core_left + core_right) / 2
+    min_run = (core_right - core_left) * 0.30
+
+    def overlaps(row: int) -> bool:
+        item = run(row)
+        if item is None or item[1] - item[0] < min_run:
+            return False
+        return item[0] <= middle <= item[1]
+
+    top_index = int(core[0])
+    bottom_index = int(core[-1])
+    while top_index > 0 and overlaps(top_index - 1):
+        top_index -= 1
+    last = face.shape[0] - 1
+    while bottom_index < last and overlaps(bottom_index + 1):
+        bottom_index += 1
+    straight_need = float(counts.max()) - max(8, width * 0.015)
+    straight = [row for row in range(top_index, bottom_index + 1) if counts[row] >= straight_need]
+    use = straight or list(range(top_index, bottom_index + 1))
+    lefts = [item[0] for item in (run(row) for row in use) if item is not None]
+    rights = [item[1] for item in (run(row) for row in use) if item is not None]
+    if not lefts or not rights:
+        return predicted
+    snapped_left = x0 + int(np.percentile(lefts, 8))
+    snapped_right = x0 + int(np.percentile(rights, 92)) + 1
+    snapped_top = y0 + top_index
+    snapped_bottom = y0 + bottom_index + 1
+    if snapped_right <= snapped_left or snapped_bottom <= snapped_top:
+        return predicted
+    return (snapped_left, snapped_top, snapped_right, snapped_bottom)

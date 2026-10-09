@@ -9,9 +9,9 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 pytest.importorskip("PySide6")
 
-from PySide6.QtCore import QEvent, QPointF, Qt
+from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
 from PySide6.QtGui import QEnterEvent, QFocusEvent, QFontMetrics, QKeyEvent, QMouseEvent
-from PySide6.QtWidgets import QApplication, QLabel, QPushButton
+from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel, QPushButton
 
 from blacklist_detect.pipeline import CheckResult, Hit, NameSlot
 from blacklist_detect.storage import Store
@@ -318,7 +318,10 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     assert "上午" not in folder.text()
     assert "下午" not in folder.text()
     assert "transparent" in window.history_list.itemWidget(day).styleSheet()
-    clock = window.history_list.item(1).text().strip()
+    clock_label = window.history_list.itemWidget(window.history_list.item(1)).findChild(QLabel, "recordTime")
+    clock = clock_label.text()
+    assert "#6b7280" not in clock_label.styleSheet()
+    assert "#6b7280" not in folder.styleSheet()
     assert ":" in clock
     assert "点" not in clock
     assert "上午" not in clock
@@ -329,7 +332,7 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     window._on_history_clicked(day)
     assert window.history_list.item(1).isHidden() is False
     assert mark._opened is True
-    assert window.history_list.item(1).font().bold() is True
+    assert window.history_list.item(1).font().bold() is False
     assert window.history_table.item(0, 0).text() == "纪戴宁"
     assert window.history_table.item(0, 1).text() == "庄园美女"
     assert "..." not in window.history_table.item(0, 1).text()
@@ -439,19 +442,19 @@ def test_header_cycle_switches_capture_mode(qapp, tmp_path, monkeypatch):
 
     monkeypatch.setattr(window.hotkey, "apply", fake_apply)
 
-    def click_cycle() -> None:
-        local = QPointF(cycle.rect().center())
+    def click(widget) -> None:
+        local = QPointF(widget.rect().center())
         press = QMouseEvent(
             QEvent.Type.MouseButtonPress,
             local,
-            QPointF(cycle.mapToGlobal(cycle.rect().center())),
+            QPointF(widget.mapToGlobal(widget.rect().center())),
             Qt.LeftButton,
             Qt.LeftButton,
             Qt.NoModifier,
         )
-        qapp.sendEvent(cycle, press)
+        qapp.sendEvent(widget, press)
 
-    click_cycle()
+    click(window.watch_label)
     assert window.store.auto_capture is False
     assert window.watch_label.text() == "手动捕捉"
     assert window.watch_mark.text() == "[Alt+1]"
@@ -462,7 +465,7 @@ def test_header_cycle_switches_capture_mode(qapp, tmp_path, monkeypatch):
     assert Store(window.store.root).auto_capture is False
     assert cycle.toolTip() == "切换为自动捕捉"
     assert window.tabs.currentIndex() == 0
-    click_cycle()
+    click(window.watch_mark)
     assert window.store.auto_capture is True
     assert window.watch_label.text() == "自动捕捉中"
     assert window.auto_on.isChecked() is True
@@ -483,7 +486,11 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     window._on_lobby_placed(button)
     assert window.panel.isVisible() is True
     assert window.panel.mode == "checking"
-    assert window.panel.label.text() == "正在检查"
+    assert window.panel.label.text() == "请等待"
+    assert "#e8892d" in window.panel.styleSheet()
+    assert "border: none" in window.panel.styleSheet()
+    assert not (window.panel.windowFlags() & Qt.WindowTransparentForInput)
+    assert window.hit_card.isVisible() is False
     assert window.panel.x() > 0
     window._on_checked("ok", CheckResult(True, "", button_box=button))
     assert window.panel.mode == "clear"
@@ -494,14 +501,68 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     assert window.panel.windowFlags() & Qt.WindowDoesNotAcceptFocus
     assert window.panel.windowFlags() & Qt.FramelessWindowHint
     slot = NameSlot(0, (0, 0, 1, 1), "甲", "甲", False, 1.0, False)
-    hit = Hit(0, "甲", "甲", "", False, "1号  甲")
+    hit = Hit(0, "甲", "甲", "", False, "1号  甲", ("炸房", "贴脸"))
     text, clear = window._brief(CheckResult(True, "", names=[slot], hits=[hit]))
     assert text == "1 人在名单里"
     assert clear is False
     window._show_panel(CheckResult(True, "", names=[slot], hits=[hit], button_box=button))
     assert window.panel.mode == "hit"
-    assert window.panel.label.text() == "黑名单\n甲"
+    assert window.panel.label.text() == ""
+    assert "6px solid #c23b2e" in window.panel.styleSheet()
     assert not (window.panel.windowFlags() & Qt.WindowTransparentForInput)
+    assert window.hit_card.isVisible() is True
+    centered = window.panel.y() + (window.panel.height() - window.hit_card.height()) // 2
+    assert window.hit_card.y() == centered
+    assert "border: none" in window.hit_card.styleSheet()
+    assert window.hit_card.findChild(QLabel, "hitBullet").text() == "•"
+    name = window.hit_card.findChild(QLabel, "hitName")
+    assert name.text() == "甲"
+    assert isinstance(name.parentWidget().layout(), QHBoxLayout)
+    assert [pill._text for pill in window.hit_card.findChildren(TagPill)] == ["炸房", "贴脸"]
+    assert window.hit_card.findChild(QLabel, "hitMore") is None
+    window.hit_card.set_people(
+        [
+            ("国服园丁", ("123",)),
+            ("紫花地丁o", ("炸房", "贴脸", "挂机", "第四")),
+            ("亿萌", ("贴脸", "挂机")),
+        ],
+        window.panel.height(),
+    )
+    names = [label.text() for label in window.hit_card.findChildren(QLabel, "hitName")]
+    assert names == ["国服园丁", "紫花地丁o", "亿萌"]
+    assert [pill._text for pill in window.hit_card.findChildren(TagPill)] == [
+        "123",
+        "炸房",
+        "贴脸",
+        "挂机",
+        "贴脸",
+        "挂机",
+    ]
+    assert window.hit_card.findChild(QLabel, "hitMore").text() == "3+"
+    assert window.hit_card.findChild(QLabel, "hitExtra") is None
+    assert window.hit_card.scroll.verticalScrollBar().maximum() == 0
+    assert window.hit_card.height() > window.panel.height()
+    three_height = window.hit_card.height()
+    window.hit_card.set_people(
+        [
+            ("国服园丁", ("123",)),
+            ("紫花地丁o", ("炸房", "贴脸", "挂机", "第四")),
+            ("亿萌", ("贴脸", "挂机")),
+            ("第四人", ("挂机",)),
+        ],
+        window.panel.height(),
+    )
+    names = [label.text() for label in window.hit_card.findChildren(QLabel, "hitName")]
+    assert names == ["国服园丁", "紫花地丁o", "亿萌", "第四人"]
+    assert window.hit_card.findChild(QLabel, "hitExtra") is None
+    assert window.hit_card.height() == three_height
+    assert window.hit_card.scroll.verticalScrollBar().maximum() > 0
+    card_right = window.hit_card.x() + window.hit_card.width()
+    beside = window.hit_card.x() >= window.panel.x() + window.panel.width() or card_right <= window.panel.x()
+    assert beside
+    window._show_panel(CheckResult(True, "", button_box=button))
+    assert window.panel.mode == "clear"
+    assert window.hit_card.isVisible() is False
     window.close()
 
 
@@ -520,21 +581,49 @@ def test_panel_covers_the_accept_button(qapp, tmp_path, monkeypatch):
     from blacklist_detect.capture import virtual_origin
 
     origin_x, origin_y = virtual_origin()
-    assert window.panel.x() == round((100 + origin_x) / ratio)
-    assert window.panel.y() == round((400 + origin_y) / ratio)
-    assert window.panel.width() == round(180 / ratio)
-    assert window.panel.height() == round(60 / ratio)
-    assert f"border-radius: {window.panel.height() // 2}px" in window.panel.styleSheet()
+    from blacklist_detect.ui import _COVER_OUTSET, _cover_radius
+
+    outset = _COVER_OUTSET
+    assert window.panel.x() == round((100 + origin_x) / ratio) - outset
+    assert window.panel.y() == round((400 + origin_y) / ratio) - outset
+    assert window.panel.width() == round(180 / ratio) + outset * 2
+    assert window.panel.height() == round(60 / ratio) + outset * 2
+    radius = _cover_radius(window.panel.height())
+    assert radius < window.panel.height() // 2
+    assert f"border-radius: {radius}px" in window.panel.styleSheet()
+    assert window.panel.mask().contains(QPoint(window.panel.height() // 4, 2))
     assert "#e8892d" in window.panel.styleSheet()
     window._show_panel(CheckResult(True, "", button_box=button))
     assert window.panel.mode == "clear"
-    assert window.panel.x() == round((100 + origin_x) / ratio)
-    assert window.panel.y() == round((400 + origin_y) / ratio)
+    assert window.panel.x() == round((100 + origin_x) / ratio) - outset
+    assert window.panel.y() == round((400 + origin_y) / ratio) - outset
     window._on_glanced("ok", False)
     assert window.panel.isVisible() is False
     assert window._panel_hide_timer.isActive() is False
     window._on_glanced("ok", True)
     assert window._panel_hide_timer.isActive() is False
+    window.close()
+
+
+def test_a_finished_lobby_is_not_checked_again(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    window._live_check = True
+    calls = []
+    window.worker.request = lambda *args, **kwargs: calls.append(args) or True
+    button = (100, 400, 280, 460)
+    names = [
+        NameSlot(0, (0, 0, 1, 1), "甲", "甲", False, 0.9, False),
+        NameSlot(1, (0, 0, 1, 1), "", "", False, 0.1, True),
+    ]
+    window._on_checked("ok", CheckResult(True, "", names=names, button_box=button))
+    assert calls == []
+    assert window.panel.mode == "clear"
+    assert window._rescan_active is False
+    window._on_lobby_placed(button)
+    assert window.panel.mode == "clear"
     window.close()
 
 
@@ -681,7 +770,7 @@ def test_reset_asks_before_clearing_everything(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
-    assert any(button.text() == "清除全部数据" for button in window.findChildren(QPushButton))
+    assert any(button.text() == "清除数据且复原" for button in window.findChildren(QPushButton))
     window.store.add("甲", tags=("炸房",))
     window.store.add_scan([{"seat": 1, "name": "甲", "unclear": False}])
     window.store.player_name = "纪戴宁"

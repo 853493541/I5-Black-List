@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from blacklist_detect.layout import Anchor, contains_title, find_anchor
+from blacklist_detect.layout import Anchor, contains_title, find_anchor, snap_button_box
 from blacklist_detect.match import (
     NameLabel,
     format_hit,
@@ -48,6 +48,7 @@ class Hit:
     note: str
     truncated: bool
     line: str
+    tags: tuple[str, ...] = ()
 
 
 @dataclass
@@ -89,9 +90,12 @@ def check_frames(frames: list[np.ndarray], entries: list[Entry], engine=None, on
         result.preview_rgb = frames[0]
         return result
     frame, anchor, _lines = chosen
-    if on_lobby is not None and anchor.button_box is not None:
-        on_lobby(anchor.button_box)
-    return _read_names(reader, frame, anchor, entries)
+    button = snap_button_box(frame, anchor.button_box)
+    if on_lobby is not None and button is not None:
+        on_lobby(button)
+    result = _read_names(reader, frame, anchor, entries)
+    result.button_box = button
+    return result
 
 
 def check_rgb(rgb: np.ndarray, entries: list[Entry], engine=None) -> CheckResult:
@@ -164,6 +168,7 @@ def _read_names(engine, rgb: np.ndarray, anchor: Anchor, entries: list[Entry]) -
                     note=describe_entry(found.entry),
                     truncated=slot.truncated,
                     line=line,
+                    tags=tuple(found.entry.tags),
                 )
             )
     message = _message(anchor, slots, hits)
