@@ -11,7 +11,7 @@ pytest.importorskip("PySide6")
 
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
 from PySide6.QtGui import QEnterEvent, QFocusEvent, QFontMetrics, QKeyEvent, QMouseEvent
-from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel, QPushButton
+from PySide6.QtWidgets import QApplication, QDialog, QHBoxLayout, QLabel, QPushButton
 
 from blacklist_detect.pipeline import CheckResult, Hit, NameSlot
 from blacklist_detect.storage import Store
@@ -269,6 +269,11 @@ def test_reason_boxes_allow_several_and_a_note(qapp):
     assert labeled["保存"].isDefault() is True
     assert labeled["删除"].isDefault() is False
     assert labeled["删除"].autoDefault() is False
+    row = labeled["保存"].parentWidget().layout()
+    assert row.indexOf(labeled["删除"]) == row.indexOf(labeled["保存"]) - 1
+    dialog._delete()
+    assert dialog.deleted is True
+    assert dialog.result() == QDialog.Accepted
     dialog.close()
 
 
@@ -317,6 +322,8 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     assert mark._opened is True
     assert "上午" not in folder.text()
     assert "下午" not in folder.text()
+    moment = datetime.fromisoformat(str(window.store.scans[0]["at"]))
+    assert folder.text() == f"{moment.month}月{moment.day}日"
     assert "transparent" in window.history_list.itemWidget(day).styleSheet()
     clock_label = window.history_list.itemWidget(window.history_list.item(1)).findChild(QLabel, "recordTime")
     clock = clock_label.text()
@@ -336,6 +343,7 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     assert window.history_table.item(0, 0).text() == "纪戴宁"
     assert window.history_table.item(0, 1).text() == "庄园美女"
     assert "..." not in window.history_table.item(0, 1).text()
+    assert "..." not in str(window.history_table.item(0, 1).data(Qt.UserRole))
     action = window.history_table.cellWidget(0, 0).findChild(QLabel, "rowAction")
     assert action.text() == "添加"
     assert action.isHidden() is True
@@ -358,6 +366,10 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     assert window.history_table.cellWidget(0, 0).styleSheet() == window._history_wrap_style("#f3fbf6")
     assert window.history_table.viewport().cursor().shape() == Qt.ArrowCursor
     assert window.history_table.item(1, 0).text() == "未看清"
+    unclear_wash = window.history_table.cellWidget(1, 0).styleSheet()
+    window._hover_history_cell(1, 0)
+    assert window.history_table.cellWidget(1, 0).styleSheet() == unclear_wash
+    assert window.history_table.viewport().cursor().shape() == Qt.ArrowCursor
     assert window.history_table.item(1, 0).foreground().color().name() == "#6b7280"
     assert window.history_table.item(1, 0).data(Qt.UserRole) in ("", None)
     assert window.history_table.cellWidget(1, 0).findChild(QLabel, "rowAction") is None
@@ -434,7 +446,7 @@ def test_header_cycle_switches_capture_mode(qapp, tmp_path, monkeypatch):
     qapp.processEvents()
     assert cycle.isHidden() is False
     assert cycle.isVisible()
-    assert cycle.x() < window.watch_mark.x()
+    assert cycle.x() < window.watch_label.x() < window.watch_mark.x()
 
     def fake_apply(spec):
         window.hotkey.active = spec.display
@@ -649,7 +661,7 @@ def test_auto_check_does_not_leave_the_current_tab(qapp, tmp_path, monkeypatch):
     window.tabs.setCurrentIndex(settings)
     window._start(lambda: None, live=True)
     assert window.tabs.currentIndex() == settings
-    assert window.watch_label.text() == "正在检查"
+    assert window.watch_label.text() == "自动捕捉中"
     window._start(window._capture_job, live=True)
     assert window.tabs.currentIndex() == settings
     window.close()
@@ -716,11 +728,10 @@ def test_corner_reports_refresh_and_skip(qapp, tmp_path, monkeypatch):
     seat = NameSlot(0, (0, 0, 1, 1), "纪戴宁", "纪戴宁", False, 1.0, False)
     window.store.add_scan([{"seat": 1, "name": "纪戴宁", "unclear": False}])
     window._on_checked("ok", CheckResult(True, "", names=[seat]))
-    assert "这一分钟已经记过" in window.watch_label.toolTip()
+    assert window.watch_label.text() == "自动捕捉中"
     window.store.scans[0]["at"] = "2020-01-01T00:00:00+00:00"
     window._on_checked("ok", CheckResult(True, "", names=[seat]))
-    assert "已更新这条记录" in window.watch_label.toolTip()
-    assert window.watch_label.text() == "没有发现黑名单" or "没有发现黑名单" in window.watch_label.toolTip()
+    assert window.watch_label.text() == "自动捕捉中"
     window.close()
 
 
@@ -809,4 +820,40 @@ def test_reset_asks_before_clearing_everything(qapp, tmp_path, monkeypatch):
     assert again.scans == []
     assert again.player_name == ""
     window._watch_timer.stop()
+    window.close()
+
+
+def test_clear_buttons_split_into_cancel_and_confirm(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    asked: list[str] = []
+    monkeypatch.setattr("blacklist_detect.ui._confirm", lambda _parent, text: asked.append(text) or False)
+    window.store.add("甲")
+    window._show_list()
+    window.store.add_scan([{"seat": 1, "name": "甲", "unclear": False}])
+    window._reload_history()
+    window.clear_list_button.click()
+    assert window.clear_list_button.isHidden()
+    assert window.clear_list_pair.isHidden() is False
+    cancel, confirm = window.clear_list_pair.findChildren(QPushButton)
+    assert cancel.text() == "取消"
+    assert confirm.text() == "确认清空"
+    cancel.click()
+    assert window.clear_list_button.isHidden() is False
+    assert window.store.entries
+    window.clear_list_button.click()
+    window.clear_list_pair.findChildren(QPushButton)[1].click()
+    assert window.store.entries == []
+    assert window.clear_list_button.isHidden() is False
+    window.clear_history_button.click()
+    assert window.clear_history_button.isHidden()
+    history_buttons = window.clear_history_pair.findChildren(QPushButton)
+    assert [button.text() for button in history_buttons] == ["取消", "确认清空"]
+    history_buttons[0].click()
+    assert window.store.scans
+    window.clear_history_button.click()
+    window.clear_history_pair.findChildren(QPushButton)[1].click()
+    assert window.store.scans == []
+    assert asked == []
     window.close()

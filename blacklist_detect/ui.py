@@ -1063,6 +1063,9 @@ def _window_style(family: str) -> str:
                 background: {t["danger_hover"]};
                 color: {t["danger"]};
             }}
+            QPushButton[clearPair="true"] {{
+                padding: 0 8px;
+            }}
             """ + _menu_style(family) + f"""
             QPushButton#tab {{
                 color: {t["muted"]};
@@ -1360,13 +1363,13 @@ class TagEditDialog(QDialog):
         self.name_edit.textChanged.connect(lambda _text: self.error.setText(""))
         buttons = QHBoxLayout()
         buttons.setSpacing(GAP)
+        buttons.addStretch(1)
         remove = QPushButton("删除")
         remove.setObjectName("danger")
         remove.setAutoDefault(False)
         remove.setDefault(False)
         remove.clicked.connect(self._delete)
         buttons.addWidget(remove)
-        buttons.addStretch(1)
         save = QPushButton("保存")
         save.setObjectName("primary")
         save.setAutoDefault(True)
@@ -1398,21 +1401,6 @@ class TagEditDialog(QDialog):
         self.accept()
 
     def _delete(self) -> None:
-        names = []
-        parent = self.parent()
-        entries = getattr(getattr(parent, "store", None), "entries", ())
-        for entry in entries:
-            if self.original in entry.tags:
-                names.append(entry.name)
-        if not names:
-            text = f"没有名字使用「{self.original}」。确定删除？"
-        else:
-            shown = "、".join(names[:6])
-            if len(names) > 6:
-                shown += "等"
-            text = f"{len(names)} 个名字使用「{self.original}」：{shown}。确定删除？"
-        if not _confirm(self, text):
-            return
         self.deleted = True
         self.accept()
 
@@ -1571,6 +1559,7 @@ class AddNameDialog(QDialog):
         layout.addLayout(detail_row)
         buttons = QHBoxLayout()
         buttons.setSpacing(GAP)
+        buttons.addStretch(1)
         remove = None
         if allow_delete:
             remove = QPushButton("删除")
@@ -1579,7 +1568,6 @@ class AddNameDialog(QDialog):
             remove.setDefault(False)
             remove.clicked.connect(self._delete)
             buttons.addWidget(remove)
-        buttons.addStretch(1)
         confirm = QPushButton("保存" if allow_delete else "添加")
         confirm.setObjectName("primary")
         confirm.setAutoDefault(True)
@@ -1651,8 +1639,6 @@ class AddNameDialog(QDialog):
         self.accept()
 
     def _delete(self) -> None:
-        if not _confirm(self, "删除这一名？"):
-            return
         self.deleted = True
         self.accept()
 
@@ -2463,8 +2449,8 @@ class MainWindow(QMainWindow):
         self.watch_label.setFont(chinese_font(14))
         self.watch_label.setCursor(Qt.PointingHandCursor)
         cluster_row.addWidget(self.mode_cycle, 0, Qt.AlignVCenter)
-        cluster_row.addWidget(self.watch_mark, 0, Qt.AlignVCenter)
         cluster_row.addWidget(self.watch_label, 0, Qt.AlignVCenter)
+        cluster_row.addWidget(self.watch_mark, 0, Qt.AlignVCenter)
         for widget in (self.mode_cluster, self.mode_cycle, self.watch_mark, self.watch_label):
             widget.setMouseTracking(True)
             widget.installEventFilter(self)
@@ -2501,9 +2487,11 @@ class MainWindow(QMainWindow):
         self.list_hint.setObjectName("sub")
         add_row.addWidget(self.list_hint, 0, Qt.AlignVCenter)
         add_row.addStretch(1)
-        clear = QPushButton("清空列表")
-        clear.clicked.connect(self._ask_clear_list)
-        add_row.addWidget(clear)
+        self.clear_list_button = QPushButton("清空列表")
+        self.clear_list_button.clicked.connect(self._arm_clear_list)
+        add_row.addWidget(self.clear_list_button)
+        self.clear_list_pair = self._clear_confirm_pair(self._cancel_clear_list, self._confirm_clear_list)
+        add_row.addWidget(self.clear_list_pair)
         batch = QPushButton("批量添加")
         batch.clicked.connect(self._add_many_by_dialog)
         add = QPushButton("添加")
@@ -2585,8 +2573,10 @@ class MainWindow(QMainWindow):
         self.history_list.itemClicked.connect(self._on_history_clicked)
         side_layout.addWidget(self.history_list, 1)
         self.clear_history_button = QPushButton("清空记录")
-        self.clear_history_button.clicked.connect(self._ask_clear_history)
+        self.clear_history_button.clicked.connect(self._arm_clear_history)
         side_layout.addWidget(self.clear_history_button)
+        self.clear_history_pair = self._clear_confirm_pair(self._cancel_clear_history, self._confirm_clear_history)
+        side_layout.addWidget(self.clear_history_pair)
         body.addWidget(side)
         record = QWidget()
         record.setObjectName("recordCard")
@@ -3245,9 +3235,37 @@ class MainWindow(QMainWindow):
         count = len(self.store.entries)
         self._set_tab_title(self.blacklist_tab, f"黑名单  {count}" if count else "黑名单")
 
-    def _ask_clear_list(self) -> None:
-        if not _confirm(self, "清空列表？"):
-            return
+    def _clear_confirm_pair(self, on_cancel, on_confirm) -> QWidget:
+        host = QWidget()
+        row = QHBoxLayout(host)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(8)
+        cancel = QPushButton("取消")
+        cancel.setProperty("clearPair", True)
+        cancel.setAutoDefault(False)
+        cancel.setCursor(Qt.PointingHandCursor)
+        cancel.clicked.connect(on_cancel)
+        confirm = QPushButton("确认清空")
+        confirm.setObjectName("danger")
+        confirm.setProperty("clearPair", True)
+        confirm.setAutoDefault(False)
+        confirm.setCursor(Qt.PointingHandCursor)
+        confirm.clicked.connect(on_confirm)
+        row.addWidget(cancel)
+        row.addWidget(confirm)
+        host.hide()
+        return host
+
+    def _arm_clear_list(self) -> None:
+        self.clear_list_button.hide()
+        self.clear_list_pair.show()
+
+    def _cancel_clear_list(self) -> None:
+        self.clear_list_pair.hide()
+        self.clear_list_button.show()
+
+    def _confirm_clear_list(self) -> None:
+        self._cancel_clear_list()
         self.store.clear_entries()
         self._show_list()
         self._show_history_scan(self._selected_scan())
@@ -3315,16 +3333,17 @@ class MainWindow(QMainWindow):
                 seen[key] = len(folders)
                 folders.append((key, []))
             folders[seen[key]][1].append((index, clock))
+        count = len(self.store.scans)
         for key, rows in folders:
             closed = key in self._closed_days
             self._add_day_folder(key, closed)
             for index, clock in rows:
                 self._add_history_time(key, index, clock, closed)
-        count = len(self.store.scans)
         self.history_list.setVisible(count > 0)
         self.record_card.setVisible(count > 0)
         self.history_table.setVisible(count > 0)
         self.history_empty.setVisible(count == 0)
+        self.clear_history_pair.hide()
         self.clear_history_button.setVisible(count > 0)
         self._set_tab_title(self.history_tab, f"记录  {count}" if count else "记录")
         chosen = -1
@@ -3479,9 +3498,16 @@ class MainWindow(QMainWindow):
     def _delete_history(self) -> None:
         self._delete_scan(self._selected_scan())
 
-    def _ask_clear_history(self) -> None:
-        if not _confirm(self, "清空记录？"):
-            return
+    def _arm_clear_history(self) -> None:
+        self.clear_history_button.hide()
+        self.clear_history_pair.show()
+
+    def _cancel_clear_history(self) -> None:
+        self.clear_history_pair.hide()
+        self.clear_history_button.show()
+
+    def _confirm_clear_history(self) -> None:
+        self._cancel_clear_history()
         self._clear_history()
 
     def _clear_history(self) -> None:
@@ -3493,7 +3519,7 @@ class MainWindow(QMainWindow):
             moment = datetime.fromisoformat(stamp)
         except ValueError:
             return "", stamp
-        return moment.strftime("%m-%d"), _zh_clock(moment)
+        return f"{moment.month}月{moment.day}日", _zh_clock(moment)
 
     def _show_history_scan(self, row: int) -> None:
         self._history_hover = (-1, -1)
@@ -3537,7 +3563,7 @@ class MainWindow(QMainWindow):
         # Lobby order is not the player's number. Show the name until a later stage.
         label = title
         name_item = QTableWidgetItem(label)
-        name_item.setData(Qt.UserRole, "" if unclear else shown)
+        name_item.setData(Qt.UserRole, "" if unclear else title)
         name_item.setData(Qt.UserRole + 1, action)
         name_item.setData(Qt.UserRole + 2, stored)
         name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
@@ -3546,7 +3572,7 @@ class MainWindow(QMainWindow):
         if unclear:
             tone = THEME["gray"]
             wash = THEME["gray_wash"]
-            hover = THEME["gray_hover"]
+            hover = ""
         elif match is not None:
             tone = THEME["red"]
             wash = THEME["red_wash"]
@@ -3610,8 +3636,12 @@ class MainWindow(QMainWindow):
         item = self.history_table.item(row, column)
         return item is not None and str(item.data(Qt.UserRole + 1) or "") == "你"
 
+    def _history_cell_is_unclear(self, row: int, column: int) -> bool:
+        item = self.history_table.item(row, column)
+        return item is not None and item.text() == "未看清"
+
     def _hover_history_cell(self, row: int, column: int) -> None:
-        if self._history_cell_is_mine(row, column):
+        if self._history_cell_is_mine(row, column) or self._history_cell_is_unclear(row, column):
             self._clear_history_hover()
             self.history_table.viewport().setCursor(Qt.ArrowCursor)
             return
@@ -3649,6 +3679,7 @@ class MainWindow(QMainWindow):
         if item is None:
             return
         shown = str(item.data(Qt.UserRole) or "")
+        shown = split_ellipsis(shown)[0] or shown
         if not shown or str(item.data(Qt.UserRole + 1) or "") == "你":
             return
         stored = str(item.data(Qt.UserRole + 2) or "")
@@ -3792,13 +3823,9 @@ class MainWindow(QMainWindow):
             self.hit_card.hide()
             self.clear_mark.hide()
         if not self.worker.request(fn):
-            if not quiet:
-                self._set_result("正在检查", "status", "check")
             self._unlock_foreground()
             return False
         self._check_started = time.perf_counter()
-        if not quiet:
-            self._set_result("正在检查", "status", "check")
         return True
 
     def _unlock_foreground(self) -> None:
@@ -3819,10 +3846,6 @@ class MainWindow(QMainWindow):
 
     def _on_glanced(self, status: str, value) -> None:
         if status != "ok":
-            text = str(value)
-            if text and text != getattr(self, "_glance_error", ""):
-                self._glance_error = text
-                self._set_result(text, "hit", "error")
             return
         was_error = self._status_kind == "error"
         self._glance_error = ""
@@ -3862,7 +3885,6 @@ class MainWindow(QMainWindow):
             elapsed = time.perf_counter() - self._check_started
             self._check_started = None
         if status == "err":
-            self._set_result(str(value), "hit", "error")
             if not rescan and self._live_check and self._rescan_now():
                 return
             if self.store.auto_capture:
@@ -3871,8 +3893,6 @@ class MainWindow(QMainWindow):
             return
         result: CheckResult = value
         if not result.header_found:
-            brief, _clear = self._brief(result)
-            self._set_result(brief, "hit", "result")
             if not rescan and self._live_check and self._rescan_now():
                 return
             if self.store.auto_capture:
@@ -3880,7 +3900,6 @@ class MainWindow(QMainWindow):
             self._hide_panel_after_title()
             return
         self._note_watch(bool(result.header_found))
-        brief, clear = self._brief(result)
         if result.header_found and result.names:
             outcome = self.store.add_scan(
                 [
@@ -3895,15 +3914,7 @@ class MainWindow(QMainWindow):
             )
             if outcome == "filled":
                 self._apply_filled(result)
-                brief, clear = self._brief(result)
             self._reload_history()
-            if outcome == "filled":
-                brief = f"{brief}，补上了没看清的名字"
-            elif outcome == "refreshed":
-                brief = f"{brief}，已更新这条记录"
-            elif outcome == "skipped" and not rescan:
-                brief = f"{brief}，这一分钟已经记过"
-        self._set_result(brief, "clear" if clear else "hit", "result")
         self._show_result(result)
         self._show_panel(result)
         if self.store.save_debug_frames and result.preview_rgb is not None:
