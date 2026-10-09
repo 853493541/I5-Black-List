@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMenu,
     QPushButton,
+    QScrollArea,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -72,7 +73,16 @@ from blacklist_detect.ui_dialogs import (
     _confirm,
 )
 from blacklist_detect.ui_icons import pixmap as line_pixmap
-from blacklist_detect.ui_kit import ConfirmDialog, EmptyState, IconButton, Switch, TabButton, Toast
+from blacklist_detect.ui_kit import (
+    ConfirmDialog,
+    EmptyState,
+    IconButton,
+    SegmentedControl,
+    SettingsSection,
+    Switch,
+    TabButton,
+    Toast,
+)
 from blacklist_detect.ui_overlay import (
     _COVER_OUTSET,
     ClearMark,
@@ -609,130 +619,79 @@ class MainWindow(QMainWindow):
         page = QWidget()
         layout = QVBoxLayout(page)
         _page(layout)
-        layout.setSpacing(0)
+        scroll = QScrollArea()
+        scroll.setObjectName("settingsScroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        body = QWidget()
+        body.setObjectName("settingsBody")
+        column = QVBoxLayout(body)
+        column.setContentsMargins(0, 0, GAP, GAP)
+        column.setSpacing(GAP)
+        scroll.setWidget(body)
+        layout.addWidget(scroll, 1)
         metrics = QFontMetrics(chinese_font())
         name_width = metrics.horizontalAdvance("中" * 7) + 28
         slot = metrics.horizontalAdvance("手动检查") + 36
         label_width = metrics.horizontalAdvance("角色名称") + 8
 
-        def add_row(last: bool = False) -> QHBoxLayout:
-            host = QWidget()
-            host.setObjectName("settingsRowLast" if last else "settingsRow")
-            host.setAttribute(Qt.WA_StyledBackground, True)
-            line = QHBoxLayout(host)
-            line.setContentsMargins(0, 16, 0, 16)
-            line.setSpacing(16)
-            layout.addWidget(host)
-            return line
+        def section(title: str) -> SettingsSection:
+            card = SettingsSection(title, label_width)
+            card.setMaximumWidth(760)
+            column.addWidget(card)
+            return card
 
-        def add_label(line: QHBoxLayout, text: str, align: Qt.AlignmentFlag = Qt.AlignVCenter) -> None:
-            label = QLabel(text)
-            label.setObjectName("sub")
-            label.setFixedWidth(label_width)
-            line.addWidget(label, 0, align)
-
-        name_line = add_row()
-        add_label(name_line, "角色名称")
+        general = section("常规")
         self.player_edit = QLineEdit(self.store.player_name)
         self.player_edit.setPlaceholderText("游戏里的名字")
         self.player_edit.editingFinished.connect(self._save_player_name)
         self.player_edit.setFixedWidth(name_width)
-        name_line.addWidget(self.player_edit, 0, Qt.AlignVCenter)
-        name_line.addStretch(1)
+        general.add_row("角色名称", self.player_edit)
 
-        mode_line = add_row()
-        add_label(mode_line, "检查")
-        modes = QHBoxLayout()
-        modes.setSpacing(GAP)
-        modes.setContentsMargins(0, 0, 0, 0)
-        self.auto_on = QPushButton("自动检查")
-        self.auto_off = QPushButton("手动检查")
-        self.auto_group = QButtonGroup(self)
-        self.auto_group.setExclusive(True)
-        for button in (self.auto_on, self.auto_off):
-            button.setObjectName("mode")
-            button.setCheckable(True)
-            button.setFixedWidth(slot)
-            button.setFocusPolicy(Qt.NoFocus)
-            button.setCursor(Qt.PointingHandCursor)
-            button.setAutoDefault(False)
-            self.auto_group.addButton(button)
-            modes.addWidget(button)
+        check = section("检查")
+        self.auto_mode = SegmentedControl(
+            [("auto", "自动检查"), ("manual", "手动检查")], "auto" if self.store.auto_capture else "manual"
+        )
+        self.auto_on = self.auto_mode.buttons["auto"]
+        self.auto_off = self.auto_mode.buttons["manual"]
+        self.auto_mode.changed.connect(lambda key: self._toggle_auto(key == "auto"))
         self.hotkey_edit = QLineEdit()
         self.hotkey_edit.setReadOnly(True)
         self.hotkey_edit.setPlaceholderText("无")
         self.hotkey_edit.setFixedWidth(slot)
         self.hotkey_edit.setCursor(Qt.PointingHandCursor)
         self.hotkey_edit.installEventFilter(self)
-        modes.addWidget(self.hotkey_edit)
-        self.auto_on.setChecked(self.store.auto_capture)
-        self.auto_off.setChecked(not self.store.auto_capture)
-        self.auto_on.clicked.connect(lambda: self._toggle_auto(True))
-        self.auto_off.clicked.connect(lambda: self._toggle_auto(False))
-        mode_line.addLayout(modes)
-        mode_line.addStretch(1)
-
-        read_line = add_row()
-        add_label(read_line, "识别")
+        check.add_row("方式", self.auto_mode, self.hotkey_edit)
+        # Hotkey problems show right under the hotkey they are about.
+        self.settings_label = QLabel("")
+        self.settings_label.setObjectName("rowHint")
+        self.settings_label.setWordWrap(True)
+        self.settings_label.hide()
+        check.add_widget(self.settings_label, separated=False, indent=True)
         self.test_button = QPushButton("测试一下")
         self.test_button.setToolTip("用自带的大厅截图试一次识别，不用进游戏")
-        self.test_button.setFixedWidth(slot)
         self.test_button.setAutoDefault(False)
         self.test_button.clicked.connect(self.test_recognition)
         self.picture_button = QPushButton("检查截图")
         self.picture_button.setToolTip("选一张大厅截图，看看里面有没有黑名单")
-        self.picture_button.setFixedWidth(slot)
         self.picture_button.setAutoDefault(False)
         self.picture_button.clicked.connect(self.check_picture)
-        read_line.addWidget(self.test_button, 0, Qt.AlignVCenter)
-        read_line.addWidget(self.picture_button, 0, Qt.AlignVCenter)
-        read_line.addStretch(1)
+        check.add_row("识别", self.test_button, self.picture_button)
+        self.sound_switch = Switch(self.store.hit_sound)
+        self.sound_switch.setAccessibleName("提示音")
+        self.sound_switch.toggled.connect(self._set_hit_sound)
+        check.add_row("提示音", self.sound_switch, hint="发现黑名单时响一声")
 
-        sound_line = add_row()
-        add_label(sound_line, "提示音")
-        self.sound_on = QPushButton("开")
-        self.sound_off = QPushButton("关")
-        self.sound_group = QButtonGroup(self)
-        self.sound_group.setExclusive(True)
-        for button in (self.sound_on, self.sound_off):
-            button.setObjectName("mode")
-            button.setCheckable(True)
-            button.setFixedWidth(slot)
-            button.setFocusPolicy(Qt.NoFocus)
-            button.setCursor(Qt.PointingHandCursor)
-            button.setAutoDefault(False)
-            self.sound_group.addButton(button)
-            sound_line.addWidget(button, 0, Qt.AlignVCenter)
-        self.sound_on.setToolTip("发现黑名单时响一声")
-        self.sound_on.setChecked(self.store.hit_sound)
-        self.sound_off.setChecked(not self.store.hit_sound)
-        self.sound_on.clicked.connect(lambda: self._set_hit_sound(True))
-        self.sound_off.clicked.connect(lambda: self._set_hit_sound(False))
-        sound_line.addStretch(1)
-
-        look_line = add_row()
-        add_label(look_line, "外观")
-        self.appearance_buttons: dict[str, QPushButton] = {}
-        self.appearance_group = QButtonGroup(self)
-        self.appearance_group.setExclusive(True)
-        for key, label in (("light", "浅色"), ("dark", "深色"), ("system", "跟随系统")):
-            button = QPushButton(label)
-            button.setObjectName("mode")
-            button.setCheckable(True)
-            button.setFixedWidth(slot)
-            button.setFocusPolicy(Qt.NoFocus)
-            button.setCursor(Qt.PointingHandCursor)
-            button.setAutoDefault(False)
-            button.setChecked(self.store.appearance == key)
-            button.clicked.connect(lambda _checked=False, picked=key: self._set_appearance(picked))
-            self.appearance_group.addButton(button)
-            self.appearance_buttons[key] = button
-            look_line.addWidget(button, 0, Qt.AlignVCenter)
-        look_line.addStretch(1)
-
-        theme_line = add_row()
-        add_label(theme_line, "主题")
-        swatches = QHBoxLayout()
+        look = section("外观")
+        self.appearance_control = SegmentedControl(
+            [("light", "浅色"), ("dark", "深色"), ("system", "跟随系统")], self.store.appearance
+        )
+        self.appearance_buttons: dict[str, QPushButton] = self.appearance_control.buttons
+        self.appearance_control.changed.connect(self._set_appearance)
+        look.add_row("模式", self.appearance_control)
+        swatch_host = QWidget()
+        swatches = QHBoxLayout(swatch_host)
         swatches.setSpacing(8)
         swatches.setContentsMargins(0, 0, 0, 0)
         self.theme_buttons: dict[str, ThemeSwatch] = {}
@@ -741,16 +700,19 @@ class MainWindow(QMainWindow):
             swatch.chosen.connect(self._set_theme)
             self.theme_buttons[name] = swatch
             swatches.addWidget(swatch, 0, Qt.AlignVCenter)
-        theme_line.addLayout(swatches)
-        theme_line.addStretch(1)
+        look.add_row("主题", swatch_host)
 
-        tag_line = add_row()
-        add_label(tag_line, "标签", Qt.AlignTop)
-        self.tag_settings = QVBoxLayout()
+        tags = section("标签")
+        tag_row = QWidget()
+        tag_line = QHBoxLayout(tag_row)
+        tag_line.setContentsMargins(0, 4, 0, 8)
+        tag_line.setSpacing(GAP)
+        tag_host = QWidget()
+        self.tag_settings = QVBoxLayout(tag_host)
         self.tag_settings.setSpacing(0)
         self.tag_settings.setContentsMargins(0, 0, 0, 0)
         self._fill_tag_settings()
-        tag_line.addLayout(self.tag_settings, 1)
+        tag_line.addWidget(tag_host, 1)
         recheck = QPushButton("按原因补标签")
         recheck.setObjectName("recheck")
         recheck.setFont(chinese_font(SMALL_PT))
@@ -758,9 +720,14 @@ class MainWindow(QMainWindow):
         recheck.setCursor(Qt.PointingHandCursor)
         recheck.clicked.connect(self._recheck_tags)
         tag_line.addWidget(recheck, 0, Qt.AlignTop)
+        tags.add_widget(tag_row, separated=False)
 
-        reset_line = add_row()
-        add_label(reset_line, "控制")
+        data = section("数据")
+        self.data_button = QPushButton("打开数据文件夹")
+        self.data_button.setToolTip("名单、设置、每天的备份 backups 和日志 logs 都在这里")
+        self.data_button.setAutoDefault(False)
+        self.data_button.setCursor(Qt.PointingHandCursor)
+        self.data_button.clicked.connect(self.open_data_folder)
         reset = QPushButton("清除数据且复原")
         reset.setObjectName("danger")
         reset.setFont(ui_font())
@@ -768,27 +735,13 @@ class MainWindow(QMainWindow):
         reset.setAutoDefault(False)
         reset.setCursor(Qt.PointingHandCursor)
         reset.clicked.connect(self._ask_reset)
-        reset_line.addWidget(reset, 0, Qt.AlignVCenter)
-        self.data_button = QPushButton("打开数据文件夹")
-        self.data_button.setToolTip("名单、设置、每天的备份 backups 和日志 logs 都在这里")
-        self.data_button.setAutoDefault(False)
-        self.data_button.setCursor(Qt.PointingHandCursor)
-        self.data_button.clicked.connect(self.open_data_folder)
-        reset_line.addWidget(self.data_button, 0, Qt.AlignVCenter)
-        reset_line.addStretch(1)
+        # The destructive one sits apart, at the far end of the row.
+        control = data.add_row("控制", self.data_button)
+        control.addWidget(reset, 0, Qt.AlignVCenter)
 
-        version_line = add_row(last=True)
-        add_label(version_line, "版本")
-        version = QLabel(__version__)
-        version_line.addWidget(version, 0, Qt.AlignVCenter)
-        version_line.addStretch(1)
-
-        self.settings_label = QLabel("")
-        self.settings_label.setObjectName("sub")
-        self.settings_label.setWordWrap(True)
-        self.settings_label.hide()
-        layout.addWidget(self.settings_label)
-        layout.addStretch(1)
+        about = section("关于")
+        about.add_row("版本", QLabel(__version__))
+        column.addStretch(1)
         return page
 
     def _fill_tag_settings(self) -> None:
@@ -869,9 +822,10 @@ class MainWindow(QMainWindow):
         self._show_hotkey()
         self._sync_hotkey_mode()
         self._set_settings_note("")
-        self.auto_on.setChecked(True)
-        self.auto_off.setChecked(False)
-        self.sound_off.setChecked(True)
+        self._sync_auto_controls()
+        self.sound_switch.blockSignals(True)
+        self.sound_switch.setChecked(self.store.hit_sound)
+        self.sound_switch.blockSignals(False)
         if not self._watch_timer.isActive():
             self.watch = LobbyWatch()
             self._watch_timer.start()
@@ -964,8 +918,8 @@ class MainWindow(QMainWindow):
             self._restyle()
 
     def _mark_appearance_buttons(self) -> None:
-        for key, button in getattr(self, "appearance_buttons", {}).items():
-            button.setChecked(key == self.store.appearance)
+        if hasattr(self, "appearance_control"):
+            self.appearance_control.set_current(self.store.appearance)
 
     def _restyle(self) -> None:
         """Repaint every window after the accent color or 浅色/深色 changed."""
@@ -1920,21 +1874,25 @@ class MainWindow(QMainWindow):
     def _toggle_auto(self, checked: bool) -> None:
         self.store.auto_capture = bool(checked)
         self.store.save_settings()
-        if self.auto_switch.isChecked() != self.store.auto_capture:
-            self.auto_switch.blockSignals(True)
-            self.auto_switch.setChecked(self.store.auto_capture)
-            self.auto_switch.blockSignals(False)
+        self._sync_auto_controls()
         if self.store.auto_capture:
-            self.auto_on.setChecked(True)
             self.watch = LobbyWatch()
             self._watch_timer.start()
         else:
-            self.auto_off.setChecked(True)
             if not self.panel.isVisible():
                 self._watch_timer.stop()
         self._sync_hotkey_mode()
         if self._status_kind in ("idle", "watch"):
             self._sync_watch_idle()
+
+    def _sync_auto_controls(self) -> None:
+        """The header switch and the 方式 choice both show the saved mode."""
+        auto = self.store.auto_capture
+        self.auto_mode.set_current("auto" if auto else "manual")
+        if self.auto_switch.isChecked() != auto:
+            self.auto_switch.blockSignals(True)
+            self.auto_switch.setChecked(auto)
+            self.auto_switch.blockSignals(False)
 
     def _begin_hotkey(self) -> None:
         self._set_settings_note("")
@@ -2091,7 +2049,10 @@ class MainWindow(QMainWindow):
     def _set_hit_sound(self, enabled: bool) -> None:
         self.store.hit_sound = bool(enabled)
         self.store.save_settings()
-        (self.sound_on if enabled else self.sound_off).setChecked(True)
+        if self.sound_switch.isChecked() != self.store.hit_sound:
+            self.sound_switch.blockSignals(True)
+            self.sound_switch.setChecked(self.store.hit_sound)
+            self.sound_switch.blockSignals(False)
         if enabled:
             _play_hit_sound()
 

@@ -552,6 +552,10 @@ def _window_style(family: str) -> str:
                 background: transparent;
                 border: none;
             }}
+            QScrollArea#settingsScroll, QWidget#settingsBody {{
+                background: transparent;
+                border: none;
+            }}
             QFrame#headerDivider {{
                 background: {t["border"]};
                 border: none;

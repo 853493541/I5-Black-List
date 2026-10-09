@@ -917,6 +917,10 @@ def test_reset_asks_before_clearing_everything(qapp, tmp_path, monkeypatch):
     window.store.save_settings()
     window.player_edit.setText("纪戴宁")
     window._show_list()
+    monkeypatch.setattr("blacklist_detect.ui._play_hit_sound", lambda: None)
+    window.sound_switch.click()
+    window.auto_switch.click()
+    assert window.store.hit_sound is True and window.store.auto_capture is False
     monkeypatch.setattr("blacklist_detect.ui._confirm", lambda *_args: False)
     window._ask_reset()
     assert [entry.name for entry in window.store.entries] == ["甲"]
@@ -932,6 +936,9 @@ def test_reset_asks_before_clearing_everything(qapp, tmp_path, monkeypatch):
     assert window.hotkey_edit.text() == "Alt+1"
     assert window.hotkey_edit.isEnabled() is False
     assert window.auto_on.isChecked() is True
+    # Every control that shows a setting goes back with it.
+    assert window.auto_switch.isChecked() is True
+    assert window.sound_switch.isChecked() is window.store.hit_sound is False
     again = Store(window.store.root)
     assert again.entries == []
     assert again.scans == []
@@ -1355,4 +1362,35 @@ def test_the_data_folder_button_opens_the_settings_folder(qapp, tmp_path, monkey
     window = MainWindow()
     window.data_button.click()
     assert opened and opened[0].replace("/", "\\").rstrip("\\").endswith("BlackListDetect")
+    window.close()
+
+
+def test_settings_are_grouped_into_titled_cards(qapp, tmp_path, monkeypatch):
+    from blacklist_detect.ui_kit import SettingsSection
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.setattr("blacklist_detect.ui._play_hit_sound", lambda: None)
+    window = MainWindow()
+    window._watch_timer.stop()
+    sections = window.findChildren(SettingsSection)
+    titles = [section.findChild(QLabel, "sectionTitle").text() for section in sections]
+    assert titles == ["常规", "检查", "外观", "标签", "数据", "关于"]
+    assert all(section.maximumWidth() <= 760 for section in sections)
+    # 提示音 is a switch that saves at once.
+    assert window.sound_switch.isChecked() is False
+    window.sound_switch.click()
+    assert window.store.hit_sound is True
+    assert Store(window.store.root).hit_sound is True
+    window._set_hit_sound(False)
+    assert window.sound_switch.isChecked() is False
+    # The 方式 choice follows the header switch, and the other way round.
+    window.auto_switch.click()
+    assert window.auto_mode.current() == "manual"
+    window.auto_on.click()
+    assert window.auto_switch.isChecked() is True
+    assert window.store.auto_capture is True
+    window.auto_off.click()
+    assert window.store.auto_capture is False
+    window._watch_timer.stop()
     window.close()

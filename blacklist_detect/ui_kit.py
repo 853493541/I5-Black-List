@@ -294,25 +294,30 @@ class SegmentedControl(QWidget):
             button.setChecked(key == current)
             button.setAutoDefault(False)
             button.setCursor(Qt.PointingHandCursor)
+            button.pressed.connect(self._remember)
             button.clicked.connect(self._on_click)
             button.setProperty("key", key)
             self._group.addButton(button)
             self.buttons[key] = button
             row.addWidget(button)
-        self._current = current
+        self._before = current
+
+    def _remember(self) -> None:
+        # The choice as it stood when the press began, however it was set.
+        self._before = self.current()
 
     def _on_click(self) -> None:
         button = self.sender()
         key = str(button.property("key")) if button is not None else ""
-        if key and key != self._current:
-            self._current = key
+        if key and key != self._before:
+            self._before = key
             self.changed.emit(key)
 
     def current(self) -> str:
-        return self._current
+        checked = self._group.checkedButton()
+        return str(checked.property("key")) if checked is not None else ""
 
     def set_current(self, key: str) -> None:
-        self._current = key
         for name, button in self.buttons.items():
             button.setChecked(name == key)
 
@@ -555,12 +560,25 @@ class SettingsSection(QFrame):
         self._rows.addSpacing(4)
         self._count = 0
 
+    def add_widget(self, widget: QWidget, *, separated: bool = True, indent: bool = False) -> QWidget:
+        """Free content in the card, such as a wrap of chips or a note under the row above."""
+        if separated and self._count:
+            self._line()
+        self._count += 1
+        if indent:
+            widget.setContentsMargins(self._label_width + 12, 0, 0, 8)
+        self._rows.addWidget(widget)
+        return widget
+
+    def _line(self) -> None:
+        line = QFrame()
+        line.setObjectName("sectionLine")
+        line.setFixedHeight(1)
+        self._rows.addWidget(line)
+
     def add_row(self, label: str, *widgets: QWidget, hint: str = "", stretch: bool = True) -> QHBoxLayout:
         if self._count:
-            line = QFrame()
-            line.setObjectName("sectionLine")
-            line.setFixedHeight(1)
-            self._rows.addWidget(line)
+            self._line()
         self._count += 1
         host = QWidget()
         host.setObjectName("sectionRow")

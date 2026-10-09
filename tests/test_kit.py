@@ -117,6 +117,12 @@ def test_a_segmented_control_keeps_one_choice(qapp):
     assert control.buttons["system"].property("place") == "last"
     control.set_current("system")
     assert control.buttons["system"].isChecked()
+    assert control.current() == "system"
+    # Set from code, then clicked back: the click still counts as a change.
+    control.buttons["light"].setChecked(True)
+    assert control.current() == "light"
+    control.buttons["system"].click()
+    assert picked == ["dark", "system"]
 
 
 def test_an_icon_button_is_named_for_screen_readers(qapp):
