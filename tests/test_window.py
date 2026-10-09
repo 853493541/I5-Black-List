@@ -25,6 +25,7 @@ from blacklist_detect.ui import (
     _zh_clock,
     masked_name,
 )
+from blacklist_detect.ui_theme import OVERLAY_PT, SMALL_PT, THEME
 
 
 @pytest.fixture(scope="module")
@@ -107,7 +108,7 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     window.store.scans[0]["at"] = seen.isoformat()
     window._show_list()
     assert window.blacklist_table.item(0, 3).text() == "3小时前"
-    assert window.windowTitle() == "黑名单检测 v0.1.6"
+    assert window.windowTitle() == "黑名单检测 v0.1.7"
     assert window.list_empty.isHidden() is True
     assert window.clear_list_button.isHidden() is False
     assert window.blacklist_table.isHidden() is False
@@ -431,7 +432,7 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     assert action.font().italic() is True
     assert action.isHidden() is False
     window._hover_history_cell(0, 0)
-    assert window.history_table.cellWidget(0, 0).styleSheet() == window._history_wrap_style("#f3fbf6")
+    assert window.history_table.cellWidget(0, 0).styleSheet() == window._history_wrap_style(THEME["green_wash"])
     assert window.history_table.viewport().cursor().shape() == Qt.ArrowCursor
     assert window.history_table.item(1, 0).text() == "未看清"
     missed = window.history_table.cellWidget(1, 0).findChild(QLabel)
@@ -613,7 +614,7 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     assert window.hit_card.findChild(QLabel, "hitMore") is None
     listed = window._tag_cell(("炸房", "贴脸", "挂机", "场外"))
     assert [pill._text for pill in listed.pills] == ["炸房", "贴脸", "挂机", "场外"]
-    assert listed.pills[0].font().pointSize() == 11
+    assert listed.pills[0].font().pointSizeF() == SMALL_PT
     listed.resize(2000, 40)
     assert listed.arrange() == 4
     assert listed.more.isHidden()
@@ -644,8 +645,8 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
         "贴脸",
         "挂机",
     ]
-    assert window.hit_card.findChildren(TagPill)[0].font().pointSize() == 11
-    assert "13pt" in window.hit_card.findChild(QLabel, "hitName").styleSheet()
+    assert window.hit_card.findChildren(TagPill)[0].font().pointSizeF() == SMALL_PT
+    assert f"{OVERLAY_PT}pt" in window.hit_card.findChild(QLabel, "hitName").styleSheet()
     assert window.hit_card.findChild(QLabel, "hitMore") is None
     assert window.hit_card.findChild(QLabel, "hitExtra") is None
     assert window.hit_card.scroll.verticalScrollBar().maximum() == 0

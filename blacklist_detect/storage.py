@@ -428,6 +428,8 @@ class Store:
         self.panel_pos: tuple[int, int] | None = None
         self.window_size: tuple[int, int] | None = None
         self.theme = "蓝色"
+        # 浅色, 深色, or 跟随系统 (light, dark, system); the accent color is self.theme.
+        self.appearance = "light"
         self.player_name = ""
         self.custom_tags: list[str] = []
         self.hidden_tags: list[str] = []
@@ -637,6 +639,7 @@ class Store:
                 "panel_pos": None if self.panel_pos is None else [self.panel_pos[0], self.panel_pos[1]],
                 "window_size": None if self.window_size is None else [self.window_size[0], self.window_size[1]],
                 "theme": self.theme,
+                "appearance": self.appearance,
                 "player_name": self.player_name,
                 "custom_tags": list(self.custom_tags),
                 "hidden_tags": list(self.hidden_tags),
@@ -660,6 +663,9 @@ class Store:
             theme = str(settings.get("theme", "") or "")
             if theme in ("蓝色", "棕色", "紫色", "绿色", "红色"):
                 self.theme = theme
+            appearance = str(settings.get("appearance", "") or "")
+            if appearance in ("light", "dark", "system"):
+                self.appearance = appearance
             self.player_name = clean_stored_name(str(settings.get("player_name", "") or ""))[:_MAX_NAME]
             self.custom_tags = []
             self.hidden_tags = []
@@ -864,6 +870,7 @@ class Store:
         self.panel_pos = None
         self.window_size = None
         self.theme = "蓝色"
+        self.appearance = "light"
         self.player_name = ""
         self.custom_tags = []
         self.hidden_tags = []

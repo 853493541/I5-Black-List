@@ -22,7 +22,8 @@ from PySide6.QtWidgets import (
 )
 
 from blacklist_detect.ui_theme import (
-    READ_PT,
+    BODY_PT,
+    OVERLAY_PT,
     THEME,
     chinese_family,
     chinese_font,
@@ -133,7 +134,7 @@ class HitCard(QWidget):
         body_layout.addWidget(self.scroll)
 
     def set_people(self, people: list[tuple[str, tuple[str, ...]]], height: int) -> None:
-        name_pt = READ_PT
+        name_pt = OVERLAY_PT
         self.rows.setContentsMargins(12, 8, 12, 8)
         self.rows.setSpacing(6)
         self.rows.setAlignment(Qt.AlignLeft | Qt.AlignTop)
@@ -141,7 +142,7 @@ class HitCard(QWidget):
         family = chinese_family()
         ink = THEME["text"]
         mark = THEME["red"]
-        name_font = chinese_font(READ_PT)
+        name_font = chinese_font(OVERLAY_PT)
         name_width = 0
         if people:
             metrics = QFontMetrics(name_font)
@@ -216,7 +217,7 @@ class HitCard(QWidget):
                 margin: 6px 2px 6px 0;
             }}
             QScrollBar::handle:vertical {{
-                background: {t["button_line"]};
+                background: {t["border"]};
                 border-radius: 4px;
                 min-height: 24px;
             }}
@@ -307,8 +308,8 @@ class LobbyPanel(QWidget):
         self.label.setAlignment(Qt.AlignCenter)
         self.label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         layout.addWidget(self.label)
-        self.setFont(chinese_font(READ_PT))
-        self.label.setFont(chinese_font(READ_PT))
+        self.setFont(chinese_font(BODY_PT))
+        self.label.setFont(chinese_font(BODY_PT))
 
     def set_mode(self, mode: str, text: str) -> None:
         self.mode = mode

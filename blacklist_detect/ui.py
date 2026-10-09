@@ -81,9 +81,11 @@ from blacklist_detect.ui_overlay import (
     native_to_logical,
 )
 from blacklist_detect.ui_theme import (
+    APPEARANCES,
+    BODY_PT,
     GAP,
     PAD,
-    READ_PT,
+    ROW_H,
     SMALL_PT,
     THEME,
     THEMES,
@@ -93,11 +95,14 @@ from blacklist_detect.ui_theme import (
     _page,
     _pointing,
     _window_style,
+    accent_of,
     chinese_family,
     chinese_font,
+    is_dark,
     record_font,
     ui_font,
     use_theme,
+    wants_dark,
 )
 from blacklist_detect.ui_widgets import (
     DayFolderIcon,
@@ -285,7 +290,7 @@ class MainWindow(QMainWindow):
         self.uncaught.connect(self._show_uncaught)
         self.setWindowTitle(f"黑名单检测 {__version__}")
         self.store = Store()
-        use_theme(self.store.theme)
+        use_theme(self.store.theme, self.store.appearance)
         self.setMinimumSize(900, 560)
         saved = self.store.window_size or (900, 560)
         self.resize(saved[0], saved[1])
@@ -295,6 +300,10 @@ class MainWindow(QMainWindow):
         self.worker.done.connect(self._on_worker)
         self.worker.placed.connect(self._on_lobby_placed)
         self.watch = LobbyWatch()
+        # 跟随系统 looks at Windows every few seconds; a registry read costs nothing.
+        self._appearance_timer = QTimer(self)
+        self._appearance_timer.setInterval(3000)
+        self._appearance_timer.timeout.connect(self._follow_system)
         self._watch_timer = QTimer(self)
         self._watch_timer.setInterval(GLANCE_INTERVAL_MS)
         self._watch_timer.timeout.connect(self._auto_tick)
@@ -405,7 +414,7 @@ class MainWindow(QMainWindow):
         self.watch_label = QLabel("未开启")
         self.watch_label.setObjectName("idle")
         self.watch_label.setMaximumWidth(200)
-        self.watch_label.setFont(chinese_font(READ_PT))
+        self.watch_label.setFont(chinese_font(BODY_PT))
         self.watch_label.setCursor(Qt.PointingHandCursor)
         cluster_row.addWidget(self.mode_cycle, 0, Qt.AlignVCenter)
         cluster_row.addWidget(self.watch_label, 0, Qt.AlignVCenter)
@@ -504,7 +513,7 @@ class MainWindow(QMainWindow):
         self._apply_column_widths()
         self._apply_column_order()
         self.blacklist_table.verticalHeader().setVisible(False)
-        self.blacklist_table.verticalHeader().setDefaultSectionSize(44)
+        self.blacklist_table.verticalHeader().setDefaultSectionSize(ROW_H)
         self.blacklist_table.setSelectionMode(QTableWidget.SingleSelection)
         self.blacklist_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.blacklist_table.setEditTriggers(QTableWidget.NoEditTriggers)
@@ -583,7 +592,7 @@ class MainWindow(QMainWindow):
         catalog = QLabel("模仿者游戏（12人狂欢场）")
         catalog.setFont(record_font())
         catalog.setStyleSheet(
-            f'color: {THEME["text"]}; background: transparent; font-family: "{chinese_family()}"; font-size: 13pt;'
+            f'color: {THEME["text"]}; background: transparent; font-family: "{chinese_family()}"; font-size: {BODY_PT}pt;'
         )
         head.addWidget(catalog)
         head.addStretch(1)
@@ -597,7 +606,7 @@ class MainWindow(QMainWindow):
             header.setSectionResizeMode(column, header.ResizeMode.Stretch)
         self.history_table.setCursor(Qt.PointingHandCursor)
         self.history_table.verticalHeader().setVisible(False)
-        self.history_table.verticalHeader().setDefaultSectionSize(48)
+        self.history_table.verticalHeader().setDefaultSectionSize(ROW_H + 4)
         self.history_table.setSelectionMode(QTableWidget.NoSelection)
         self.history_table.setFocusPolicy(Qt.NoFocus)
         self.history_table.setItemDelegate(_PlainItemDelegate(self.history_table))
@@ -732,6 +741,26 @@ class MainWindow(QMainWindow):
         self.sound_off.clicked.connect(lambda: self._set_hit_sound(False))
         sound_line.addStretch(1)
 
+        look_line = add_row()
+        add_label(look_line, "外观")
+        self.appearance_buttons: dict[str, QPushButton] = {}
+        self.appearance_group = QButtonGroup(self)
+        self.appearance_group.setExclusive(True)
+        for key, label in (("light", "浅色"), ("dark", "深色"), ("system", "跟随系统")):
+            button = QPushButton(label)
+            button.setObjectName("mode")
+            button.setCheckable(True)
+            button.setFixedWidth(slot)
+            button.setFocusPolicy(Qt.NoFocus)
+            button.setCursor(Qt.PointingHandCursor)
+            button.setAutoDefault(False)
+            button.setChecked(self.store.appearance == key)
+            button.clicked.connect(lambda _checked=False, picked=key: self._set_appearance(picked))
+            self.appearance_group.addButton(button)
+            self.appearance_buttons[key] = button
+            look_line.addWidget(button, 0, Qt.AlignVCenter)
+        look_line.addStretch(1)
+
         theme_line = add_row()
         add_label(theme_line, "主题")
         swatches = QHBoxLayout()
@@ -739,7 +768,7 @@ class MainWindow(QMainWindow):
         swatches.setContentsMargins(0, 0, 0, 0)
         self.theme_buttons: dict[str, ThemeSwatch] = {}
         for name in THEMES:
-            swatch = ThemeSwatch(name, THEMES[name]["gold"])
+            swatch = ThemeSwatch(name, THEMES[name]["accent"])
             swatch.chosen.connect(self._set_theme)
             self.theme_buttons[name] = swatch
             swatches.addWidget(swatch, 0, Qt.AlignVCenter)
@@ -878,7 +907,8 @@ class MainWindow(QMainWindow):
             self.watch = LobbyWatch()
             self._watch_timer.start()
         self._sync_watch_idle()
-        use_theme(self.store.theme)
+        use_theme(self.store.theme, self.store.appearance)
+        self._mark_appearance_buttons()
         icon = _icon()
         self.setWindowIcon(icon)
         if self.tray is not None:
@@ -929,6 +959,8 @@ class MainWindow(QMainWindow):
 
     def _mark_theme_buttons(self) -> None:
         for name, swatch in self.theme_buttons.items():
+            # Show each accent as it looks in the current 浅色/深色, not always the light one.
+            swatch._color = accent_of(name)
             swatch.set_selected(name == self.store.theme)
 
     def _set_theme(self, name: str) -> None:
@@ -937,7 +969,33 @@ class MainWindow(QMainWindow):
             return
         self.store.theme = name
         self.store.save_settings()
-        use_theme(name)
+        self._restyle()
+
+    def _set_appearance(self, appearance: str) -> None:
+        if appearance not in APPEARANCES:
+            return
+        self.store.appearance = appearance
+        self.store.save_settings()
+        self._mark_appearance_buttons()
+        if appearance == "system":
+            self._appearance_timer.start()
+        else:
+            self._appearance_timer.stop()
+        if wants_dark(appearance) != is_dark():
+            self._restyle()
+
+    def _follow_system(self) -> None:
+        """跟随系统: switch when Windows switches between light and dark apps."""
+        if self.store.appearance == "system" and wants_dark("system") != is_dark():
+            self._restyle()
+
+    def _mark_appearance_buttons(self) -> None:
+        for key, button in getattr(self, "appearance_buttons", {}).items():
+            button.setChecked(key == self.store.appearance)
+
+    def _restyle(self) -> None:
+        """Repaint every window after the accent color or 浅色/深色 changed."""
+        use_theme(self.store.theme, self.store.appearance)
         icon = _icon()
         self.setWindowIcon(icon)
         if self.tray is not None:
@@ -1042,7 +1100,7 @@ class MainWindow(QMainWindow):
     def _list_cell(self, text: str, store_index: int | None = None) -> QTableWidgetItem:
         item = QTableWidgetItem(text)
         item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-        item.setFont(chinese_font(READ_PT))
+        item.setFont(chinese_font(BODY_PT))
         item.setForeground(QColor(THEME["text"]))
         item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         if store_index is not None:
@@ -1247,7 +1305,7 @@ class MainWindow(QMainWindow):
             detail = " ".join(entry.reason.split())
             self.blacklist_table.setItem(row, 2, self._list_cell(detail))
             self.blacklist_table.setItem(row, 3, self._list_cell(met.get(index, "")))
-            self.blacklist_table.setRowHeight(row, 44)
+            self.blacklist_table.setRowHeight(row, ROW_H)
         self._blacklist_hover = -1
         self.blacklist_table.setCurrentCell(-1, -1)
         bar.setValue(position)
@@ -1548,7 +1606,7 @@ class MainWindow(QMainWindow):
         label.setFont(record_font())
         label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         label.setStyleSheet(
-            f'color: {THEME["text"]}; background: transparent; font-family: "{chinese_family()}"; font-size: 13pt; font-weight: 400;'
+            f'color: {THEME["text"]}; background: transparent; font-family: "{chinese_family()}"; font-size: {BODY_PT}pt; font-weight: 400;'
         )
         line.addWidget(label)
         self.history_list.addItem(item)
@@ -1575,14 +1633,14 @@ class MainWindow(QMainWindow):
         clock.setFont(record_font())
         clock.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         clock.setStyleSheet(
-            f'color: {THEME["text"]}; background: transparent; font-family: "{chinese_family()}"; font-size: 13pt; font-weight: 400;'
+            f'color: {THEME["text"]}; background: transparent; font-family: "{chinese_family()}"; font-size: {BODY_PT}pt; font-weight: 400;'
         )
         line.addWidget(clock, 0, Qt.AlignVCenter)
         line.addStretch(1)
         remove = QPushButton("×")
         remove.setObjectName("rowDelete")
         remove.setFixedSize(22, 22)
-        mark = chinese_font(READ_PT)
+        mark = chinese_font(BODY_PT)
         remove.setFont(mark)
         remove.setCursor(Qt.PointingHandCursor)
         remove.setFocusPolicy(Qt.NoFocus)
@@ -1701,7 +1759,7 @@ class MainWindow(QMainWindow):
         self.history_table.setRowCount((len(names) + 1) // 2)
         for index, seat in enumerate(names):
             self._set_history_seat(index // 2, index % 2, seat)
-            self.history_table.setRowHeight(index // 2, 48)
+            self.history_table.setRowHeight(index // 2, ROW_H + 4)
 
     def _mark_selected_record(self) -> None:
         for row in range(self.history_list.count()):
@@ -1778,7 +1836,7 @@ class MainWindow(QMainWindow):
             missed.setItalic(True)
             name_label.setFont(missed)
         name_label.setStyleSheet(
-            f'color: {name_color}; background: transparent; font-family: "{chinese_family()}"; font-size: 13pt;'
+            f'color: {name_color}; background: transparent; font-family: "{chinese_family()}"; font-size: {BODY_PT}pt;'
             + (" font-style: italic;" if unclear else "")
         )
         line.addWidget(name_label)
@@ -1805,13 +1863,13 @@ class MainWindow(QMainWindow):
                 action_label.setFont(you)
                 color = THEME["gray"]
                 action_label.setStyleSheet(
-                    f'color: {color}; background: transparent; font-family: "{chinese_family()}"; font-size: 13pt; font-weight: 700; font-style: italic;'
+                    f'color: {color}; background: transparent; font-family: "{chinese_family()}"; font-size: {BODY_PT}pt; font-weight: 700; font-style: italic;'
                 )
             else:
                 color = THEME["red"]
                 action_label.setFont(record_font())
                 action_label.setStyleSheet(
-                    f'color: {color}; background: transparent; font-family: "{chinese_family()}"; font-size: 13pt;'
+                    f'color: {color}; background: transparent; font-family: "{chinese_family()}"; font-size: {BODY_PT}pt;'
                 )
             if action == "添加":
                 action_label.hide()
@@ -2454,7 +2512,7 @@ class MainWindow(QMainWindow):
     def _show_hotkey_mark(self) -> None:
         self.watch_mark.setPixmap(QPixmap())
         self.watch_mark.setObjectName("hotkey")
-        self.watch_mark.setFont(chinese_font(READ_PT))
+        self.watch_mark.setFont(chinese_font(BODY_PT))
         self.watch_mark.setText(f"[{self.store.hotkey}]")
         self.watch_mark.setVisible(bool(self.store.hotkey))
         self.watch_mark.style().unpolish(self.watch_mark)
@@ -2472,7 +2530,7 @@ class MainWindow(QMainWindow):
             "status": THEME["text"],
         }
         self.watch_label.setObjectName(tone)
-        self.watch_label.setFont(chinese_font(READ_PT))
+        self.watch_label.setFont(chinese_font(BODY_PT))
         self.watch_label.setToolTip(tip or text)
         width = max(1, self.watch_label.maximumWidth())
         self.watch_label.setText(self.watch_label.fontMetrics().elidedText(text, Qt.TextElideMode.ElideRight, width))

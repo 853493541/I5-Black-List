@@ -230,14 +230,14 @@ class _ColumnHeader(QHeaderView):
         if self.visualIndex(logicalIndex) == self.count() - 1:
             return
         painter.save()
-        painter.setPen(QColor(THEME["line"]))
+        painter.setPen(QColor(THEME["border"]))
         painter.drawLine(rect.right(), rect.top() + 6, rect.right(), rect.bottom() - 6)
         painter.restore()
 
     def _paint_eye(self, painter, box: QRect) -> None:  # noqa: ANN001
         painter.save()
         painter.setRenderHint(QPainter.Antialiasing)
-        pen = QPen(QColor("#6b7280"), 1.5)
+        pen = QPen(QColor(THEME["muted"]), 1.5)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         painter.setPen(pen)
@@ -255,7 +255,7 @@ class _ColumnHeader(QHeaderView):
                 QPointF(box.right() - 2, box.top() + 3),
             )
         else:
-            painter.setBrush(QColor("#6b7280"))
+            painter.setBrush(QColor(THEME["muted"]))
             painter.drawEllipse(QPointF(center_x, center_y), 1.7, 1.7)
         painter.restore()
 
@@ -266,6 +266,9 @@ class TagPill(QWidget):
     A clickable pill emits clicked(text). It does not hold a callback: a lambda
     that refers back to its dialog makes a reference cycle, and PySide6 6.12
     crashed when the garbage collector broke it.
+
+    Tags are neutral chips. tone="accent" is for a pill that shows a choice, like
+    the picked tags in the add dialog. Red is kept for blacklist hits.
     """
 
     clicked = Signal(str)
@@ -280,6 +283,7 @@ class TagPill(QWidget):
         clickable: bool = False,
         active: bool = True,
         point_size: float | None = None,
+        tone: str = "neutral",
     ) -> None:
         super().__init__()
         self._text = text
@@ -287,8 +291,12 @@ class TagPill(QWidget):
         self._active = active
         self._point_size = point_size
         self._blend = 1.0 if active else 0.0
-        self._wash = THEME["red_wash"]
-        self._ink = THEME["red"]
+        if tone == "accent":
+            self._wash = THEME["accent_wash"]
+            self._ink = THEME["accent_line"] if THEME.get("scheme") == "dark" else THEME["accent"]
+        else:
+            self._wash = THEME["chip_bg"]
+            self._ink = THEME["chip_text"]
         self._anim = QVariantAnimation(self)
         self._anim.setDuration(200)
         self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
@@ -358,8 +366,8 @@ class TagPill(QWidget):
         body.adjust(0, 1, -1, -1)
         pad = self._pad_now()
         if not self._active:
-            painter.setPen(QPen(QColor("#9aa1ab"), 1))
-            painter.setBrush(QColor("#e4e6eb"))
+            painter.setPen(QPen(QColor(THEME["chip_off_line"]), 1))
+            painter.setBrush(QColor(THEME["chip_off_bg"]))
             radius = body.height() / 2
             painter.drawRoundedRect(body.adjusted(1, 1, -1, -1), radius, radius)
             painter.setPen(QColor(THEME["gray"]))
@@ -388,9 +396,9 @@ class TagPill(QWidget):
         painter.translate(center.x(), center.y())
         painter.scale(scale, scale)
         painter.translate(-center.x(), -center.y())
-        fill = _mix("#e4e6eb", self._wash, amount)
+        fill = _mix(THEME["chip_off_bg"], self._wash, amount)
         ink = _mix(THEME["gray"], self._ink, amount)
-        edge = _mix("#9aa1ab", self._wash, amount)
+        edge = _mix(THEME["chip_off_line"], self._wash, amount)
         radius = body.height() / 2
         if amount < 0.98:
             painter.setPen(QPen(edge, 1))
@@ -522,8 +530,8 @@ class NewTagButton(QPushButton):
         painter.setFont(face)
         body = QRect(self.rect())
         body.adjust(0, 1, -1, -1)
-        painter.setPen(QColor(THEME["button_line"]))
-        painter.setBrush(QColor(THEME["hover"] if self._hover else THEME["button"]))
+        painter.setPen(QColor(THEME["border"]))
+        painter.setBrush(QColor(THEME["hover"] if self._hover else THEME["surface"]))
         painter.drawRoundedRect(body, body.height() / 2, body.height() / 2)
         painter.setPen(QColor(THEME["text"]))
         text_box = QRect(body)
@@ -589,7 +597,7 @@ class DayFolderIcon(QWidget):
             pen.setCapStyle(Qt.PenCapStyle.RoundCap)
             pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
             painter.setPen(pen)
-            painter.setBrush(QColor("#f4f5f7"))
+            painter.setBrush(QColor(THEME["surface"]))
             painter.drawRoundedRect(QRectF(1.5, 5.4, 13.0, 8.0), 1.4, 1.4)
             painter.drawRoundedRect(QRectF(1.5, 3.2, 6.0, 3.6), 1.0, 1.0)
             painter.setPen(Qt.NoPen)
@@ -673,7 +681,7 @@ def _reload_icon() -> QPixmap:
         painter.drawLine(tip, left)
         painter.drawLine(tip, right)
 
-    return _line_icon(draw, "#6b7280")
+    return _line_icon(draw, THEME["muted"])
 
 
 def _watch_mark(color: str) -> QPixmap:
@@ -731,7 +739,7 @@ class ThemeSwatch(QWidget):
             return
         painter.setRenderHint(QPainter.Antialiasing)
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor("#1c9a4b"))
+        painter.setBrush(QColor(THEME["green"]))
         painter.drawEllipse(self._square - hang, 0, self._badge, self._badge)
         center_x = self._square
         center_y = hang
@@ -758,9 +766,9 @@ def _icon() -> QIcon:
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.Antialiasing)
     painter.setPen(Qt.NoPen)
-    painter.setBrush(QColor(THEME["gold"]))
+    painter.setBrush(QColor(THEME["accent"]))
     painter.drawRoundedRect(4, 4, 56, 56, 12, 12)
-    painter.setBrush(QColor(THEME["on_gold"]))
+    painter.setBrush(QColor(THEME["on_accent"]))
     painter.drawRoundedRect(16, 16, 32, 6, 2, 2)
     painter.drawRoundedRect(16, 29, 32, 6, 2, 2)
     painter.drawRoundedRect(16, 42, 20, 6, 2, 2)
@@ -801,14 +809,14 @@ class _DetailTip(QWidget):
             QWidget#detailTip {{
                 background: {t["surface"]};
                 color: {t["text"]};
-                border: 1px solid {t["line"]};
+                border: 1px solid {t["border"]};
                 border-radius: {RADIUS}px;
             }}
             QLabel#detailTipText {{
                 background: transparent;
                 color: {t["text"]};
                 font-family: "{family}";
-                font-size: 11pt;
+                font-size: {SMALL_PT}pt;
                 border: none;
             }}
             """
