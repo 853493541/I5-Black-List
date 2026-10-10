@@ -1043,10 +1043,12 @@ def test_a_failed_check_is_shown_and_clears_when_checks_work(qapp, tmp_path, mon
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
     window._watch_timer.stop()
-    window._on_worker(("glance", "err", OcrUnavailable("本地 PaddleOCR 中文模型没有就绪。")))
+    window._on_worker(("glance", "err", OcrUnavailable("识别模型没有就绪，请重新解压完整的安装包。")))
     assert window.watch_label.text() == "识别模型没有就绪"
-    assert "PaddleOCR" in window.watch_label.toolTip()
-    assert "app.log" in window.watch_label.toolTip()
+    assert window.watch_label.toolTip() == "识别模型没有就绪，请重新解压完整的安装包。"
+    # No file path, library name or command: those go to the log, not to the user.
+    assert "app.log" not in window.watch_label.toolTip()
+    assert "PaddleOCR" not in window.watch_label.toolTip()
     assert window._glance_pause_until > 0
     window._on_worker(("check", "err", RuntimeError("坏了")))
     assert window.watch_label.text() == "检查出错"
@@ -1845,8 +1847,29 @@ def test_a_model_that_will_not_load_stops_the_check_at_its_step(qapp, tmp_path, 
     window.show()
     window.start_environment_check()
     _wait(qapp, 350)
-    window._on_worker(("warmup", "err", OcrUnavailable("本地 PaddleOCR 中文模型没有就绪。")))
+    window._on_worker(("warmup", "err", OcrUnavailable("识别模型没有就绪，请重新解压完整的安装包。")))
     assert window.setup.title.text() == "环境有问题"
     assert "模型" in window.setup.message.text()
     assert window.setup.notes[1].text() == ""
     window.close()
+
+
+def test_a_library_error_is_shown_in_plain_words(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    window._picture_pending = "截图检查"
+    window._on_worker(("picture", "err", OSError("cannot identify image file 'C:\\x\\a.png'")))
+    shown = window._picture_dialog.summary.text()
+    assert "这张图片无法读取" in shown
+    assert "cannot" not in shown and "png" not in shown
+    window._picture_dialog.close()
+    window.close()
+
+
+def test_a_damaged_list_file_is_reported_without_its_error(tmp_path):
+    (tmp_path / "blacklist.json").write_text("{ not json", encoding="utf-8")
+    store = Store(tmp_path)
+    assert store.entries == []
+    assert store.load_warning == "黑名单文件无法读取，已另存一份，名单从空白开始。"

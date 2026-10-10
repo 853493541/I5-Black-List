@@ -403,6 +403,12 @@ def _daily_backup(path: Path) -> None:
         pass
 
 
+def _log_set_aside(exc: Exception, backup: Path) -> None:
+    from blacklist_detect.logs import log
+
+    log.warning("The blacklist file could not be read (%s); kept as %s", exc, backup)
+
+
 def _set_aside(path: Path) -> Path:
     """Move an unreadable file out of the way under a new name. Earlier ones are never overwritten."""
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -568,7 +574,8 @@ class Store:
             except (OSError, ValueError, AttributeError, TypeError) as exc:
                 self.entries = []
                 backup = _set_aside(self.blacklist_path)
-                self.load_warning = f"黑名单文件无法读取（{exc}），已留作 {backup.name}。"
+                _log_set_aside(exc, backup)
+                self.load_warning = "黑名单文件无法读取，已另存一份，名单从空白开始。"
         discovered = False
         stripped = False
         for entry in self.entries:

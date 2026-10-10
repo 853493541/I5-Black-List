@@ -46,7 +46,7 @@ from blacklist_detect.capture import (
     virtual_origin,
 )
 from blacklist_detect.hotkey import GlobalHotkey, parse_hotkey
-from blacklist_detect.logs import log, log_dir, on_uncaught, setup_logging
+from blacklist_detect.logs import log, on_uncaught, setup_logging
 from blacklist_detect.match import MIN_PREFIX_CHARS, NameLabel, fold, format_hit, match_label, seat_number, split_ellipsis
 from blacklist_detect.model import Entry
 from blacklist_detect.ocr_engine import OcrUnavailable, get_engine
@@ -174,7 +174,7 @@ def _claim_windows_app() -> None:
 
 
 def run_app() -> int:
-    log_path = setup_logging()
+    setup_logging()
     log.info("Start %s, Python %s, %s", __version__, sys.version.split()[0], sys.platform)
     _claim_windows_app()
     app = QApplication(sys.argv)
@@ -189,12 +189,11 @@ def run_app() -> int:
     _apply_theme(app)
     try:
         window = MainWindow()
-    except Exception as exc:
+    except Exception:
         log.critical("The window could not open", exc_info=True)
         from PySide6.QtWidgets import QMessageBox
 
-        where = f"\n\n详情在 {log_path}" if log_path else ""
-        QMessageBox.critical(None, "黑名单检测", f"程序没能打开：{exc}{where}")
+        QMessageBox.critical(None, "黑名单检测", "程序没能打开，请重新解压完整的安装包后再试。")
         return 1
     window.instance_server = listen_for_instances(key, window._show_from_tray, window.quit_app)
     on_uncaught(window.report_uncaught)
@@ -765,7 +764,7 @@ class MainWindow(QMainWindow):
 
         data = section("数据")
         self.data_button = QPushButton("打开数据文件夹")
-        self.data_button.setToolTip("名单、设置、每天的备份 backups 和日志 logs 都在这里")
+        self.data_button.setToolTip("名单、设置、每天的备份和日志都在这里")
         self.data_button.setAutoDefault(False)
         self.data_button.setCursor(Qt.PointingHandCursor)
         self.data_button.clicked.connect(self.open_data_folder)
@@ -2276,7 +2275,8 @@ class MainWindow(QMainWindow):
         try:
             capture_top_band()
         except Exception as exc:  # noqa: BLE001 - every way the screen copy fails is shown the same way
-            self._env_fail(0, str(exc) or "没有读到画面。")
+            log.warning("Environment check: screen copy failed: %s", exc)
+            self._env_fail(0, _plain_error(exc, "没有读到画面。"))
             return
         self.setup.step(0, "ok")
         self.setup.step(1, "run")
@@ -2315,7 +2315,8 @@ class MainWindow(QMainWindow):
 
     def _on_env_sample(self, status: str, value) -> None:  # noqa: ANN001
         if status != "ok":
-            self._env_fail(2, str(value))
+            log.warning("Environment check: sample lobby failed: %s", value)
+            self._env_fail(2, _plain_error(value, "识别没能完成。"))
             return
         read = sum(1 for slot in value.names if not slot.unclear)
         if not value.header_found or read < 10:
@@ -2376,7 +2377,8 @@ class MainWindow(QMainWindow):
         self._sync_picture_buttons()
         if status != "ok":
             log.warning("Picture check failed: %s", value)
-            self._picture_dialog = PictureResultDialog(title, error=str(value), parent=self)
+            error = _plain_error(value, "这张图片无法读取。")
+            self._picture_dialog = PictureResultDialog(title, error=error, parent=self)
         else:
             log.info("Picture check: lobby %s, %d on the list", value.header_found, len(value.hits))
             self._picture_dialog = PictureResultDialog(title, result=value, parent=self)
@@ -2397,8 +2399,9 @@ class MainWindow(QMainWindow):
         self.uncaught.emit(text)
 
     def _show_uncaught(self, text: str) -> None:
-        tip = f"{text}\n\n日志：{log_dir(self.store.root) / 'app.log'}"
-        self._set_result("程序出错了", "hit", "error", tip=tip)
+        # The exception and its trace are already in the log; the user sees only that something failed.
+        del text
+        self._set_result("程序出错了", "hit", "error")
 
     def _report_problem(self, problem) -> None:  # noqa: ANN001
         """Say what went wrong in the header and the tray. A check that silently stops is worse than an error."""
@@ -2408,15 +2411,15 @@ class MainWindow(QMainWindow):
             label = "无法读取屏幕"
         else:
             label = "检查出错"
-        detail = str(problem).strip() or label
-        if detail != self._problem:
+        raw = str(problem).strip() or label
+        detail = _plain_error(problem, "检查没能完成，请稍后再试。")
+        if raw != self._problem:
             trace = (type(problem), problem, problem.__traceback__) if isinstance(problem, BaseException) else None
             expected = isinstance(problem, (OcrUnavailable, CaptureUnavailable))
-            log.warning("%s: %s", label, detail, exc_info=None if expected else trace)
-        if self._status_kind != "error" or detail != self._problem:
-            tip = f"{detail}\n\n日志：{log_dir(self.store.root) / 'app.log'}"
-            self._set_result(label, "hit", "error", tip=tip)
-        self._problem = detail
+            log.warning("%s: %s", label, raw, exc_info=None if expected else trace)
+        if self._status_kind != "error" or raw != self._problem:
+            self._set_result(label, "hit", "error", tip=detail)
+        self._problem = raw
         if label not in self._told_problems:
             self._told_problems.add(label)
             self._notify(label, detail[:200])
@@ -2504,7 +2507,7 @@ class MainWindow(QMainWindow):
 
     def _on_warmed(self, status: str, value) -> None:
         self._warm_state = "ready" if status == "ok" else "failed"
-        self._warm_error = "" if status == "ok" else str(value)
+        self._warm_error = "" if status == "ok" else _plain_error(value, "识别模型没有就绪。")
         if self._env_waiting:
             if status == "ok":
                 self._env_models_ready()
@@ -2910,6 +2913,14 @@ class MainWindow(QMainWindow):
         if self.tray is not None:
             self.tray.hide()
         super().closeEvent(event)
+
+
+def _plain_error(problem, fallback: str) -> str:  # noqa: ANN001
+    """What a user may read about an error. The app's own errors are already plain Chinese;
+    anything else (a library's message, often English, with paths) is logged and replaced."""
+    if isinstance(problem, (OcrUnavailable, CaptureUnavailable)):
+        return str(problem).strip() or fallback
+    return fallback
 
 
 class _ElidedLabel(QLabel):
