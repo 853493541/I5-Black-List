@@ -314,6 +314,17 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(900, 560)
         saved = self.store.window_size or (900, 560)
         self.resize(saved[0], saved[1])
+        # Open where it was left. Qt's own record keeps the frame right and moves a window
+        # back onto a screen when the one it was on is gone.
+        if self.store.window_geometry:
+            from PySide6.QtCore import QByteArray
+
+            self.restoreGeometry(QByteArray.fromBase64(self.store.window_geometry.encode("ascii")))
+        # Moving or resizing saves once the window stops, not on every step of a drag.
+        self._geometry_timer = QTimer(self)
+        self._geometry_timer.setSingleShot(True)
+        self._geometry_timer.setInterval(600)
+        self._geometry_timer.timeout.connect(self._remember_size)
         self.setWindowIcon(_icon())
         self.hotkey = GlobalHotkey(self.check_now)
         self.worker = CheckWorker()
@@ -1105,7 +1116,7 @@ class MainWindow(QMainWindow):
     def showEvent(self, event) -> None:  # noqa: ANN001
         super().showEvent(event)
         _caption_color(self)
-        self._remember_size()
+        self._remember_geometry_soon()
 
     def _list_cell(self, text: str, store_index: int | None = None, font=None, ink=None) -> QTableWidgetItem:  # noqa: ANN001
         item = QTableWidgetItem(text)
@@ -1923,7 +1934,16 @@ class MainWindow(QMainWindow):
             moment = datetime.fromisoformat(stamp)
         except ValueError:
             return "", stamp
-        return f"{moment.month}月{moment.day}日", _zh_clock(moment)
+        local = _local_moment(stamp) or moment
+        today = datetime.now().astimezone().date()
+        days = (today - local.date()).days
+        if days == 0:
+            day = "今天"
+        elif days == 1:
+            day = "昨天"
+        else:
+            day = f"{moment.month}月{moment.day}日"
+        return day, _zh_clock(moment)
 
     def _show_history_scan(self, row: int) -> None:
         self._history_hover = (-1, -1)
@@ -2879,19 +2899,34 @@ class MainWindow(QMainWindow):
         self._set_tray(text)
 
     def _remember_size(self) -> None:
+        """Save the window's size and place now. A move or a resize waits for the drag to end."""
         if not hasattr(self, "store"):
             return
+        changed = False
         width, height = self.width(), self.height()
-        if width < 900 or height < 560:
-            return
-        if self.store.window_size == (width, height):
-            return
-        self.store.window_size = (width, height)
-        self.store.save_settings()
+        if width >= 900 and height >= 560 and self.store.window_size != (width, height):
+            self.store.window_size = (width, height)
+            changed = True
+        if self.isVisible() and not self.isMinimized():
+            geometry = bytes(self.saveGeometry().toBase64()).decode("ascii")
+            if self.store.window_geometry != geometry:
+                self.store.window_geometry = geometry
+                changed = True
+        if changed:
+            self.store.save_settings()
+
+    def _remember_geometry_soon(self) -> None:
+        timer = getattr(self, "_geometry_timer", None)
+        if timer is not None:
+            timer.start()
 
     def resizeEvent(self, event) -> None:  # noqa: ANN001
         super().resizeEvent(event)
-        self._remember_size()
+        self._remember_geometry_soon()
+
+    def moveEvent(self, event) -> None:  # noqa: ANN001
+        super().moveEvent(event)
+        self._remember_geometry_soon()
 
     def _save_debug(self, result: CheckResult) -> None:
         directory = self.store.root / "debug"

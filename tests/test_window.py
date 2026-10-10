@@ -391,8 +391,8 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     assert mark._opened is True
     assert "上午" not in folder.text()
     assert "下午" not in folder.text()
-    moment = datetime.fromisoformat(str(window.store.scans[0]["at"]))
-    assert folder.text() == f"{moment.month}月{moment.day}日"
+    # A record from today is grouped under 今天, as chat apps show it.
+    assert folder.text() == "今天"
     assert "transparent" in window.history_list.itemWidget(day).styleSheet()
     clock_label = window.history_list.itemWidget(window.history_list.item(1)).findChild(QLabel, "recordTime")
     clock = clock_label.text()
@@ -902,9 +902,22 @@ def test_theme_choice_persists(qapp, tmp_path, monkeypatch):
     assert "#c23b2e" in window.styleSheet()
     window.show()
     window.resize(940, 600)
+    window.move(120, 90)
+    # Moving and resizing save once the window settles, not on every step of a drag.
+    assert window._geometry_timer.isActive()
     window._remember_size()
-    assert Store(window.store.root).window_size == (window.width(), window.height())
+    again = Store(window.store.root)
+    assert again.window_size == (window.width(), window.height())
+    assert again.window_geometry
     window.close()
+    # The next start hands Qt its own record of the place; Qt keeps it on a screen that exists.
+    restored: list[bytes] = []
+    monkeypatch.setattr(MainWindow, "restoreGeometry", lambda self, data: restored.append(bytes(data)) or True)
+    reopened = MainWindow()
+    from PySide6.QtCore import QByteArray
+
+    assert restored == [bytes(QByteArray.fromBase64(again.window_geometry.encode("ascii")))]
+    reopened.close()
 
 
 def test_reset_asks_before_clearing_everything(qapp, tmp_path, monkeypatch):
@@ -1982,3 +1995,17 @@ def test_a_pickable_tag_lights_up_under_the_pointer(qapp):
     assert pill._hover is True
     qapp.sendEvent(pill, QEvent(QEvent.Type.Leave))
     assert pill._hover is False
+
+
+def test_recent_records_say_today_and_yesterday(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    now = datetime.now().astimezone().replace(microsecond=0)
+    assert window._day_and_clock(now.isoformat())[0] == "今天"
+    assert window._day_and_clock((now - timedelta(days=1)).isoformat())[0] == "昨天"
+    older = now - timedelta(days=5)
+    assert window._day_and_clock(older.isoformat())[0] == f"{older.month}月{older.day}日"
+    window.close()
+

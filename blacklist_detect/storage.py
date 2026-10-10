@@ -433,6 +433,8 @@ class Store:
         self.save_debug_frames = False
         self.panel_pos: tuple[int, int] | None = None
         self.window_size: tuple[int, int] | None = None
+        # Where and how the window was last left (Qt's own record, base64), so it opens there again.
+        self.window_geometry = ""
         self.theme = "蓝色"
         # 浅色, 深色, or 跟随系统 (light, dark, system); the accent color is self.theme.
         self.appearance = "light"
@@ -658,6 +660,7 @@ class Store:
                 "save_debug_frames": self.save_debug_frames,
                 "panel_pos": None if self.panel_pos is None else [self.panel_pos[0], self.panel_pos[1]],
                 "window_size": None if self.window_size is None else [self.window_size[0], self.window_size[1]],
+                "window_geometry": self.window_geometry,
                 "theme": self.theme,
                 "appearance": self.appearance,
                 "player_name": self.player_name,
@@ -682,6 +685,7 @@ class Store:
             self.save_debug_frames = bool(settings.get("save_debug_frames", False))
             self.panel_pos = _panel_pos(settings.get("panel_pos"))
             self.window_size = _window_size(settings.get("window_size"))
+            self.window_geometry = str(settings.get("window_geometry", "") or "")
             theme = str(settings.get("theme", "") or "")
             if theme in ("蓝色", "棕色", "紫色", "绿色", "红色"):
                 self.theme = theme
@@ -893,6 +897,7 @@ class Store:
         self.save_debug_frames = False
         self.panel_pos = None
         self.window_size = None
+        self.window_geometry = ""
         self.theme = "蓝色"
         self.appearance = "light"
         self.player_name = ""
