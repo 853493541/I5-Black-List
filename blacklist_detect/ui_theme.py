@@ -618,6 +618,8 @@ def _kit_rules(family: str) -> str:
                 color: {t["text"]};
                 background: transparent;
             }}
+            QLabel#sectionTitle[group="true"] {{ font-size: {BODY_PT}pt; }}
+            QFrame#sectionGroup {{ background: transparent; border: none; }}
             QLabel#dialogTitle {{
                 font-family: "{family}";
                 font-size: {DIALOG_TITLE_PT}pt;

@@ -703,21 +703,40 @@ class EmptyState(QWidget):
         self.icon.setPixmap(line_pixmap(self._icon_name, 40, THEME["muted"]))
 
 
+class _InlineHint(QLabel):
+    """A row's explanation after its controls, in gray. Cut short with … when the row is
+    narrow; the whole text is in its tooltip."""
+
+    def __init__(self, text: str) -> None:
+        super().__init__(text)
+        self.setObjectName("rowHint")
+        self.setToolTip(text)
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(0, super().minimumSizeHint().height())
+
+    def paintEvent(self, _event) -> None:  # noqa: ANN001
+        painter = QPainter(self)
+        painter.setFont(self.font())
+        painter.setPen(self.palette().color(self.foregroundRole()))
+        shown = QFontMetrics(self.font()).elidedText(self.text(), Qt.ElideRight, self.width())
+        painter.drawText(self.rect(), Qt.AlignLeft | Qt.AlignVCenter, shown)
+
+
 class SettingsSection(QFrame):
     """A titled card in 设置. Each row is a label in a fixed column with its controls after it.
 
-    A compact card puts its title in a column on the left, beside its rows, keeps the rows
-    an even height, and puts a row's hint in its tooltip, so cards stacked one per row
-    still fit on one screen. Content stays at the top when a card is taller than it needs.
+    A compact section is a group the way Windows 11 settings show one: its title above a card
+    of even rows, each row's explanation in gray right after its controls. Groups stacked one
+    per row still fit on one screen. Content stays at the top when a card is taller than it needs.
     """
 
-    # The height of a compact row: a control and its padding.
-    COMPACT_ROW = CONTROL_H + 12
+    # The height of a compact row: a control and a little room.
+    COMPACT_ROW = CONTROL_H + 8
 
     def __init__(self, title: str, label_width: int, parent: QWidget | None = None, *, compact: bool = False) -> None:
         super().__init__(parent)
-        self.setObjectName("section")
-        self.setAttribute(Qt.WA_StyledBackground, True)
         self._label_width = label_width
         self._compact = compact
         heading = QLabel(title)
@@ -726,15 +745,23 @@ class SettingsSection(QFrame):
         self._rows = QVBoxLayout()
         self._rows.setSpacing(0)
         if compact:
-            beside = QHBoxLayout(self)
-            beside.setContentsMargins(20, 8, 20, 8)
-            beside.setSpacing(16)
-            # Every card's title takes the same width, so the rows line up from card to card.
-            heading.setFixedSize(QFontMetrics(heading.font()).horizontalAdvance("中" * 3), self.COMPACT_ROW)
-            heading.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            beside.addWidget(heading, 0, Qt.AlignTop)
-            beside.addLayout(self._rows, 1)
+            # The group itself is see-through; its card holds the rows.
+            self.setObjectName("sectionGroup")
+            heading.setProperty("group", True)
+            outer = QVBoxLayout(self)
+            outer.setContentsMargins(0, 0, 0, 0)
+            outer.setSpacing(6)
+            outer.addWidget(heading)
+            self.card = QFrame()
+            self.card.setObjectName("section")
+            self.card.setAttribute(Qt.WA_StyledBackground, True)
+            self._rows.setContentsMargins(16, 2, 16, 2)
+            self.card.setLayout(self._rows)
+            outer.addWidget(self.card)
         else:
+            self.setObjectName("section")
+            self.setAttribute(Qt.WA_StyledBackground, True)
+            self.card = self
             self._rows.setContentsMargins(20, 14, 20, 6)
             self.setLayout(self._rows)
             self._rows.addWidget(heading)
@@ -765,7 +792,7 @@ class SettingsSection(QFrame):
     def add_row(self, label: str, *widgets: QWidget, hint: str = "", stretch: bool = True) -> QHBoxLayout:
         """The setting's name in a fixed column, its controls right after it.
 
-        The hint goes under the controls, or into their tooltip on a compact card.
+        The hint goes under the controls, or in gray right after them on a compact card.
         """
         if self._count:
             self._line()
@@ -773,7 +800,7 @@ class SettingsSection(QFrame):
         host = QWidget()
         host.setObjectName("sectionRow")
         column = QVBoxLayout(host)
-        column.setContentsMargins(0, *((6, 0, 6) if self._compact else (10, 0, 10)))
+        column.setContentsMargins(0, *((4, 0, 4) if self._compact else (10, 0, 10)))
         column.setSpacing(4)
         if self._compact:
             host.setMinimumHeight(self.COMPACT_ROW)
@@ -785,14 +812,13 @@ class SettingsSection(QFrame):
         row.addWidget(name, 0, Qt.AlignVCenter)
         for widget in widgets:
             row.addWidget(widget, 0, Qt.AlignVCenter)
-        if stretch:
+        if hint and self._compact:
+            row.addSpacing(4)
+            row.addWidget(_InlineHint(hint), 1, Qt.AlignVCenter)
+        elif stretch:
             row.addStretch(1)
         column.addLayout(row)
-        if hint and self._compact:
-            for widget in (name, *widgets):
-                if not widget.toolTip():
-                    widget.setToolTip(hint)
-        elif hint:
+        if hint and not self._compact:
             note = QLabel(hint)
             note.setObjectName("rowHint")
             note.setWordWrap(True)

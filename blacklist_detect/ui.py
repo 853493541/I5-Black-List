@@ -756,9 +756,13 @@ class MainWindow(QMainWindow):
         column = QVBoxLayout(body)
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(GAP)
-        cards = QVBoxLayout()
-        cards.setSpacing(GAP)
-        column.addLayout(cards)
+        # A readable width: on a wide window the rows do not stretch across the screen.
+        holder = QWidget()
+        holder.setMaximumWidth(760)
+        cards = QVBoxLayout(holder)
+        cards.setContentsMargins(0, 0, 0, 0)
+        cards.setSpacing(18)
+        column.addWidget(holder)
         column.addStretch(1)
         scroll.setWidget(body)
         layout.addWidget(scroll, 1)
@@ -786,7 +790,7 @@ class MainWindow(QMainWindow):
         self.hotkey_edit.setCursor(Qt.PointingHandCursor)
         self.hotkey_edit.installEventFilter(self)
         self.hotkey_edit.setAccessibleName("热键")
-        check.add_row("方式", self.auto_mode, self.hotkey_edit)
+        check.add_row("方式", self.auto_mode, self.hotkey_edit, hint="手动检查时使用")
         # Hotkey problems show right under the hotkey they are about.
         self.settings_label = QLabel("")
         self.settings_label.setObjectName("rowHint")
@@ -797,7 +801,7 @@ class MainWindow(QMainWindow):
         self.picture_button.setToolTip("选一张大厅截图，看看里面有没有黑名单")
         self.picture_button.setAutoDefault(False)
         self.picture_button.clicked.connect(self.check_picture)
-        check.add_row("识别", self.picture_button)
+        check.add_row("识别", self.picture_button, hint="选一张大厅截图，看看里面有没有黑名单")
 
         # 常规: how the app starts and closes.
         general = section("常规")
