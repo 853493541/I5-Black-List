@@ -1949,3 +1949,36 @@ def test_the_start_with_windows_switch(qapp, tmp_path, monkeypatch):
     assert state["on"] is False and switch.isChecked() is False, "清除数据且复原 turns it off"
     assert window.tray_switch.isChecked() is True
     window.close()
+
+
+def test_records_with_a_hit_are_marked_in_the_list(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    window.store.add("霁玥吉尔曼")
+    window.store.scans = [
+        {"at": "2026-10-09T12:00:00+08:00", "names": [{"seat": 1, "name": "霁玥吉尔曼"}, {"seat": 2, "name": "霁玥吉尔曼"}]},
+        {"at": "2026-10-09T11:00:00+08:00", "names": [{"seat": 1, "name": "路人甲"}]},
+    ]
+    window._reload_history()
+    rows = {}
+    for row in range(window.history_list.count()):
+        item = window.history_list.item(row)
+        if item.data(Qt.UserRole + 1) == "time":
+            rows[item.data(Qt.UserRole)] = window.history_list.itemWidget(item)
+    assert rows[0].findChild(QLabel, "recordHitCount").text() == "2"
+    assert rows[0].toolTip() == "2 人在黑名单里"
+    assert rows[1].findChild(QLabel, "recordHitCount") is None
+    # The search field carries its magnifier.
+    assert window.list_search.actions()
+    window.close()
+
+
+def test_a_pickable_tag_lights_up_under_the_pointer(qapp):
+    pill = TagPill("炸房", clickable=True, active=False)
+    assert pill._hover is False
+    qapp.sendEvent(pill, QEnterEvent(QPointF(2, 2), QPointF(2, 2), QPointF(2, 2)))
+    assert pill._hover is True
+    qapp.sendEvent(pill, QEvent(QEvent.Type.Leave))
+    assert pill._hover is False

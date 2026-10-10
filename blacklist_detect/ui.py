@@ -73,6 +73,7 @@ from blacklist_detect.ui_dialogs import (
     TagEditDialog,
     _confirm,
 )
+from blacklist_detect.ui_icons import icon as line_icon
 from blacklist_detect.ui_icons import pixmap as line_pixmap
 from blacklist_detect.ui_kit import (
     ConfirmDialog,
@@ -476,6 +477,9 @@ class MainWindow(QMainWindow):
         self.list_search.setClearButtonEnabled(True)
         self.list_search.setMaximumWidth(360)
         self.list_search.setAccessibleName("搜索名字、标签或原因")
+        self.search_icon = self.list_search.addAction(
+            line_icon("search", 16, THEME["muted"]), QLineEdit.ActionPosition.LeadingPosition
+        )
         self.list_search.setToolTip("Ctrl+F")
         self.list_search.textChanged.connect(self._on_search_text)
         toolbar.addWidget(self.list_search, 1)
@@ -956,6 +960,8 @@ class MainWindow(QMainWindow):
             self.more_button.refresh()
         if hasattr(self, "record_more"):
             self.record_more.refresh()
+        if hasattr(self, "search_icon"):
+            self.search_icon.setIcon(line_icon("search", 16, THEME["muted"]))
         if hasattr(self, "history_empty"):
             self.history_empty.refresh()
 
@@ -1301,6 +1307,7 @@ class MainWindow(QMainWindow):
         if cached is not None and cached[0] == key:
             return cached[1]
         found: dict[int, str] = {}
+        hits: dict[int, int] = {}
         by_id = {id(entry): index for index, entry in enumerate(entries)}
         # A seat can only match a name that starts with the same four folded characters (or,
         # for a short name, is the same). Grouping by that key leaves match_label, which still
@@ -1310,7 +1317,7 @@ class MainWindow(QMainWindow):
             folded = fold(entry.name)
             if folded:
                 groups.setdefault(folded[:MIN_PREFIX_CHARS], []).append(entry)
-        for scan in scans:
+        for number, scan in enumerate(scans):
             for seat in scan.get("names", []):
                 if seat.get("unclear") or not str(seat.get("name") or ""):
                     continue
@@ -1318,14 +1325,20 @@ class MainWindow(QMainWindow):
                 candidates = groups.get(fold(shown)[:MIN_PREFIX_CHARS], [])
                 if not candidates:
                     continue
-                for match in match_label(NameLabel(raw=shown, visible=shown, truncated=False), candidates):
+                matches = match_label(NameLabel(raw=shown, visible=shown, truncated=False), candidates)
+                if matches:
+                    hits[number] = hits.get(number, 0) + 1
+                for match in matches:
                     index = by_id.get(id(match.entry))
                     if index is not None and index not in found:
                         found[index] = str(scan.get("at", ""))
-            if len(found) == len(entries):
-                break
-        self._met_cache = (key, found)
+        self._met_cache = (key, found, hits)
         return found
+
+    def _scan_hit_counts(self) -> dict[int, int]:
+        """How many seats in each record were on the list, from the same pass as 最后遇到."""
+        self._last_met_stamps()
+        return self._met_cache[2]
 
     def _last_met_all(self) -> dict[int, str]:
         """The same, as 刚刚 / 3小时前, worked out now so it stays current."""
@@ -1788,6 +1801,24 @@ class MainWindow(QMainWindow):
             f'color: {THEME["text"]}; background: transparent; font-family: "{chinese_family()}"; font-size: {BODY_PT}pt; font-weight: 400;'
         )
         line.addWidget(clock, 0, Qt.AlignVCenter)
+        hits = self._scan_hit_counts().get(index, 0)
+        if hits:
+            # A record with someone on the list can be found without opening each one.
+            flag = QLabel()
+            flag.setObjectName("recordHits")
+            flag.setPixmap(line_pixmap("warning", 14, THEME["red"]))
+            flag.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+            flag.setStyleSheet("background: transparent;")
+            count = QLabel(str(hits))
+            count.setObjectName("recordHitCount")
+            count.setFont(chinese_font(SMALL_PT))
+            count.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+            count.setStyleSheet(f'color: {THEME["red"]}; background: transparent;')
+            line.addSpacing(8)
+            line.addWidget(flag, 0, Qt.AlignVCenter)
+            line.addSpacing(3)
+            line.addWidget(count, 0, Qt.AlignVCenter)
+            wrap.setToolTip(f"{hits} 人在黑名单里")
         line.addStretch(1)
         remove = QPushButton("×")
         remove.setObjectName("rowDelete")

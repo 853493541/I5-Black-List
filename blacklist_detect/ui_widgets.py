@@ -297,6 +297,7 @@ class TagPill(_KeyboardRing, QWidget):
         super().__init__()
         self._text = text
         self._clickable = clickable
+        self._hover = False
         self._active = active
         self._point_size = point_size
         self._blend = 1.0 if active else 0.0
@@ -375,17 +376,30 @@ class TagPill(_KeyboardRing, QWidget):
             return
         super().keyPressEvent(event)
 
+    def enterEvent(self, event) -> None:  # noqa: ANN001
+        self._hover = True
+        self.update()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:  # noqa: ANN001
+        self._hover = False
+        self.update()
+        super().leaveEvent(event)
+
     def _paint_still(self, painter: QPainter) -> None:
         painter.setFont(self._face())
         body = QRect(self.rect())
         body.adjust(0, 1, -1, -1)
         pad = self._pad_now()
         if not self._active:
-            painter.setPen(QPen(QColor(THEME["chip_off_line"]), 1))
-            painter.setBrush(QColor(THEME["chip_off_bg"]))
+            hot = self._clickable and self._hover
+            line = THEME["red"] if hot else THEME["chip_off_line"]
+            painter.setPen(QPen(QColor(line), 1))
+            painter.setBrush(QColor(THEME["red_wash"] if hot else THEME["chip_off_bg"]))
             radius = body.height() / 2
             painter.drawRoundedRect(body.adjusted(1, 1, -1, -1), radius, radius)
-            painter.setPen(QColor(THEME["gray"]))
+            ink = THEME["red"] if hot else THEME["muted"] if self._clickable else THEME["gray"]
+            painter.setPen(QColor(ink))
             text_box = QRect(body)
             text_box.adjust(pad, 0, -pad, 0)
             painter.drawText(text_box, Qt.AlignCenter, self._text)
@@ -857,6 +871,15 @@ class _DetailTip(QWidget):
         self.move(max(area.left() + 8, x), max(area.top() + 8, y))
 
 
+def _row_divider(painter: QPainter, rect: QRect) -> None:
+    painter.save()
+    color = QColor(THEME["border"])
+    color.setAlphaF(0.6)
+    painter.setPen(QPen(color, 1))
+    painter.drawLine(rect.left(), rect.bottom(), rect.right(), rect.bottom())
+    painter.restore()
+
+
 class _PlainItemDelegate(QStyledItemDelegate):
     """Selection stays a wash. A click does not draw the black focus box."""
 
@@ -873,9 +896,13 @@ class _PlainItemDelegate(QStyledItemDelegate):
             tags = index.data(Qt.UserRole + 3)
             if view.objectName() == "blacklist" and tags:
                 paint_tag_row(painter, option.rect, tuple(tags))
+            if view.objectName() == "blacklist":
+                _row_divider(painter, option.rect)
             return
         option.state = option.state & ~QStyle.State_HasFocus
         super().paint(painter, option, index)
+        if isinstance(view, QTableWidget) and view.objectName() == "blacklist":
+            _row_divider(painter, option.rect)
         if isinstance(view, QTableWidget) and view.objectName() == "blacklist" and option.state & QStyle.State_Selected:
             header = view.horizontalHeader()
             if index.column() == header.logicalIndex(header.count() - 1):

@@ -113,7 +113,7 @@ def main() -> int:
     snap("records_hover")
     window._clear_history_hover()
     window.tabs.setCurrentIndex(1)
-    window._on_worker(("glance", "err", ui.OcrUnavailable("本地 PaddleOCR 中文模型没有就绪。")))
+    window._on_worker(("glance", "err", ui.OcrUnavailable("识别模型没有就绪，请重新解压完整的安装包。")))
     snap("status_error")
 
     dialogs = [
