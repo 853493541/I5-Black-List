@@ -7,13 +7,16 @@ Each one reads its colors from THEME and its sizes from ui_theme, so it follows
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 
 from PySide6.QtCore import (
     QEasingCurve,
     QEvent,
     QObject,
+    QPoint,
     QPropertyAnimation,
+    QRect,
     QRectF,
     QSize,
     Qt,
@@ -441,27 +444,14 @@ class Toast(QWidget):
         return False
 
 
-class _Scrim(QWidget):
-    """Dims the window behind an open dialog, so the dialog is what is in front."""
-
-    def __init__(self, host: QWidget) -> None:
-        super().__init__(host)
-        self.setObjectName("scrim")
-        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-        self.setGeometry(host.rect())
-        self.raise_()
-        self.show()
-
-    def paintEvent(self, _event) -> None:  # noqa: ANN001
-        painter = QPainter(self)
-        painter.fillRect(self.rect(), QColor(0, 0, 0, 120 if THEME.get("scheme") == "dark" else 72))
-
-
 class Modal(QDialog):
     """A dialog drawn as a card over its dimmed window, the way Windows 11 apps show one.
 
     There is no Windows title bar: the title and a × share the card's first row, so the
-    title is said once. Esc, × and 取消 all close it.
+    title is said once. The dialog's own window covers its parent's and paints the dimming,
+    so a click anywhere outside the card closes it, as on the web. When closing would throw
+    away something typed or picked (has_changes), that click only gives the card a short
+    shake instead; × and Esc always close.
     """
 
     # Room around the card for its shadow, which falls a little downward.
@@ -474,7 +464,10 @@ class Modal(QDialog):
         self.setObjectName("modal")
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.card: QFrame | None = None
-        self._scrim: _Scrim | None = None
+        # The window this one covers and dims while open, or None when it stands alone.
+        self.host: QWidget | None = None
+        self._shake: QVariantAnimation | None = None
+        self._shake_from = QPoint()
 
     def frame(self, title: str) -> QVBoxLayout:
         """Build the card and its title row. Returns the layout the dialog's content goes in."""
@@ -485,7 +478,14 @@ class Modal(QDialog):
         outer.setContentsMargins(self._SHADOW, self._SHADOW - self._DROP, self._SHADOW, self._SHADOW + self._DROP)
         self.card = QFrame()
         self.card.setObjectName("dialogCard")
-        outer.addWidget(self.card)
+        # The card keeps its own size in the middle; the rest of the window is the dimming.
+        outer.addStretch(1)
+        middle = QHBoxLayout()
+        middle.addStretch(1)
+        middle.addWidget(self.card)
+        middle.addStretch(1)
+        outer.addLayout(middle)
+        outer.addStretch(1)
         column = QVBoxLayout(self.card)
         # The × sits near the corner; the content below keeps the full padding.
         corner = 12
@@ -510,14 +510,41 @@ class Modal(QDialog):
         column.addLayout(body)
         return body
 
+    def has_changes(self) -> bool:
+        """Whether closing now would throw away something typed or picked. Forms say so."""
+        return False
+
+    def setVisible(self, visible: bool) -> None:  # noqa: FBT001
+        if visible and not self.isVisible():
+            self._cover_host()
+        super().setVisible(visible)
+
+    def _cover_host(self) -> None:
+        """Lie over the parent window's contents, so all of it is dimmed and takes the outside click."""
+        parent = self.parentWidget()
+        host = parent.window() if parent is not None else None
+        if host is None or not host.isVisible() or host.isMinimized() or isinstance(host, Modal):
+            self.host = None
+            return
+        self.host = host
+        area = QRect(host.mapToGlobal(QPoint(0, 0)), host.size())
+        # A card taller or wider than a small window still fits: the dimming grows around it.
+        need = self.minimumSizeHint().expandedTo(self.sizeHint())
+        grow_x = max(0, need.width() - area.width())
+        grow_y = max(0, need.height() - area.height())
+        self.setGeometry(area.adjusted(-grow_x // 2, -grow_y // 2, grow_x - grow_x // 2, grow_y - grow_y // 2))
+
     def paintEvent(self, _event) -> None:  # noqa: ANN001
         if self.card is None:
             return
-        # A soft shadow: rounded layers, each a little larger and adding a little shade.
         painter = QPainter(self)
+        dark = THEME.get("scheme") == "dark"
+        if self.host is not None:
+            painter.fillRect(self.rect(), QColor(0, 0, 0, 120 if dark else 72))
+        # A soft shadow: rounded layers, each a little larger and adding a little shade.
         painter.setRenderHint(QPainter.Antialiasing)
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor(0, 0, 0, 8 if THEME.get("scheme") == "dark" else 5))
+        painter.setBrush(QColor(0, 0, 0, 8 if dark else 5))
         box = QRectF(self.card.geometry())
         steps = 12
         for step in range(steps, 0, -1):
@@ -525,19 +552,44 @@ class Modal(QDialog):
             rect = box.adjusted(-grow, -grow + self._DROP, grow, grow + self._DROP)
             painter.drawRoundedRect(rect, self.RADIUS + grow, self.RADIUS + grow)
 
-    def showEvent(self, event) -> None:  # noqa: ANN001
-        super().showEvent(event)
-        parent = self.parentWidget()
-        host = parent.window() if parent is not None else None
-        if self._scrim is None and host is not None and host.isVisible() and not isinstance(host, Modal):
-            self._scrim = _Scrim(host)
+    def mousePressEvent(self, event) -> None:  # noqa: ANN001
+        outside = self.card is not None and not self.card.geometry().contains(event.position().toPoint())
+        if event.button() == Qt.LeftButton and outside:
+            self.click_outside()
+            return
+        super().mousePressEvent(event)
 
-    def hideEvent(self, event) -> None:  # noqa: ANN001
-        super().hideEvent(event)
-        if self._scrim is not None:
-            self._scrim.hide()
-            self._scrim.deleteLater()
-            self._scrim = None
+    def click_outside(self) -> None:
+        """Close, unless that would lose something; then shake, so the click is not a silent no."""
+        if self.has_changes():
+            self._nudge()
+            return
+        self.reject()
+
+    def _nudge(self) -> None:
+        if self.card is None:
+            return
+        if self._shake is None:
+            self._shake = QVariantAnimation(self)
+            self._shake.setDuration(320)
+            self._shake.setStartValue(0.0)
+            self._shake.setEndValue(1.0)
+            self._shake.valueChanged.connect(self._shake_step)
+            self._shake.finished.connect(self._shake_done)
+        if self._shake.state() != QVariantAnimation.State.Running:
+            self._shake_from = self.card.pos()
+        self._shake.start()
+
+    def shaking(self) -> bool:
+        return self._shake is not None and self._shake.state() == QVariantAnimation.State.Running
+
+    def _shake_step(self, value) -> None:  # noqa: ANN001
+        progress = float(value)
+        offset = round(8 * math.sin(progress * math.pi * 6) * (1 - progress))
+        self.card.move(self._shake_from.x() + offset, self._shake_from.y())
+
+    def _shake_done(self) -> None:
+        self.card.move(self._shake_from)
 
 
 class ConfirmDialog(Modal):

@@ -9,9 +9,9 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 pytest.importorskip("PySide6")
 
-from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
+from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, Qt
 from PySide6.QtGui import QEnterEvent, QFocusEvent, QFontMetrics, QKeyEvent, QMouseEvent
-from PySide6.QtWidgets import QApplication, QDialog, QHBoxLayout, QLabel, QPushButton, QWidget
+from PySide6.QtWidgets import QApplication, QDialog, QHBoxLayout, QLabel, QPushButton
 
 from blacklist_detect.pipeline import CheckResult, Hit, NameSlot
 from blacklist_detect.storage import Store
@@ -354,8 +354,9 @@ def test_reason_boxes_allow_several_and_a_note(qapp):
     row = row_of(dialog.card.layout(), labeled["保存"])
     assert row is not None
     assert row.indexOf(labeled["删除"]) == 0
-    assert row.indexOf(labeled["取消"]) == row.indexOf(labeled["保存"]) - 1
     assert row.indexOf(labeled["保存"]) == row.count() - 1
+    # No 取消: ×, Esc and a click outside the card do that.
+    assert "取消" not in labeled
     dialog._delete()
     assert dialog.deleted is True
     assert dialog.result() == QDialog.Accepted
@@ -2277,16 +2278,41 @@ def test_dialogs_say_their_title_once_and_dim_the_window(qapp, tmp_path, monkeyp
     # One box needs no label: the title names it. Screen readers still hear it.
     assert "标签" not in texts
     assert dialog.name_edit.accessibleName() == "标签"
-    # The window behind is dimmed while the dialog is open, and only then.
+    # It lies over the window it belongs to and dims it, so a click anywhere outside the card reaches it.
     dialog.show()
-    scrims = [child for child in window.findChildren(QWidget) if child.objectName() == "scrim"]
-    assert len(scrims) == 1 and scrims[0].isVisible() and scrims[0].geometry() == window.rect()
-    # × closes without saving, as 取消 and Esc do; it is not a Tab stop, like a title bar's ×.
-    assert dialog.close_button.focusPolicy() == Qt.NoFocus
-    dialog.close_button.click()
-    assert dialog.result() == QDialog.Rejected
     qapp.processEvents()
-    assert not [child for child in window.findChildren(QWidget) if child.objectName() == "scrim" and child.isVisible()]
+    assert dialog.host is window
+    assert dialog.geometry().contains(QRect(window.mapToGlobal(QPoint(0, 0)), window.size()))
+    assert dialog.card.geometry().center().x() == pytest.approx(dialog.rect().center().x(), abs=2)
+
+    def click_at(widget, point) -> None:  # noqa: ANN001
+        qapp.sendEvent(
+            widget,
+            QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(point), QPointF(widget.mapToGlobal(point)), Qt.LeftButton, Qt.LeftButton, Qt.NoModifier),
+        )
+
+    # Something typed is not thrown away by a stray click: the card shakes and stays.
+    dialog.name_edit.setText("闹房")
+    click_at(dialog, QPoint(4, 4))
+    assert dialog.isVisible() and dialog.shaking()
+    # A click inside the card is not a click outside.
+    dialog.name_edit.setText("贴脸")
+    click_at(dialog, dialog.card.geometry().center())
+    assert dialog.isVisible()
+    # Unchanged, a click outside closes it, without saving.
+    click_at(dialog, QPoint(4, 4))
+    assert dialog.isVisible() is False and dialog.result() == QDialog.Rejected
+    # × always closes; it is not a Tab stop, like a title bar's ×.
+    again = TagEditDialog("贴脸", window.store.tag_catalog(), parent=window)
+    again.show()
+    again.name_edit.setText("改过了")
+    assert again.close_button.focusPolicy() == Qt.NoFocus
+    again.close_button.click()
+    assert again.isVisible() is False and again.result() == QDialog.Rejected
+    # The forms have no 取消; the confirmation keeps it, as its safe default.
+    for form in (dialog, TagCreateDialog(window.store.tag_catalog(), parent=window), AddNameDialog(parent=window)):
+        assert "取消" not in [button.text() for button in form.findChildren(QPushButton)]
+        form.close()
     # Every kind of dialog is built the same way.
     for made in (
         TagCreateDialog(window.store.tag_catalog(), parent=window),
@@ -2296,4 +2322,10 @@ def test_dialogs_say_their_title_once_and_dim_the_window(qapp, tmp_path, monkeyp
         assert isinstance(made, Modal) and made.windowFlags() & Qt.FramelessWindowHint
         assert made.heading.text() == made.windowTitle()
         made.close()
+    confirm = ConfirmDialog(window, "清空列表", "名单里的 1 个名字会被删除。", "确认清空", danger=True)
+    assert confirm.cancel_button.text() == "取消" and confirm.cancel_button.isDefault()
+    # Clicking outside a confirmation is the safe answer.
+    confirm.show()
+    confirm.click_outside()
+    assert confirm.result() == QDialog.Rejected
     window.close()

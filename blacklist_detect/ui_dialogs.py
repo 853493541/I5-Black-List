@@ -9,7 +9,6 @@ from PySide6.QtGui import (
     QFontMetrics,
 )
 from PySide6.QtWidgets import (
-    QDialog,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -35,15 +34,6 @@ from blacklist_detect.ui_widgets import (
     _FlowHost,
     _zh_date,
 )
-
-
-def _cancel_button(dialog: QDialog) -> QPushButton:
-    """Close without saving. Esc does the same."""
-    cancel = QPushButton("取消")
-    cancel.setAutoDefault(False)
-    cancel.setDefault(False)
-    cancel.clicked.connect(dialog.reject)
-    return cancel
 
 
 def _frame(dialog: Modal, title: str) -> QVBoxLayout:
@@ -78,7 +68,10 @@ def _field(layout: QVBoxLayout, label: str, widget: QWidget, aside: QWidget | No
 
 
 def _footer(layout: QVBoxLayout, *right: QPushButton, left: QPushButton | None = None) -> None:
-    """取消 and the main action on the right; anything destructive stands apart on the left."""
+    """The main action on the right; anything destructive stands apart on the left.
+
+    There is no 取消: ×, Esc and a click outside the card close without saving.
+    """
     layout.addSpacing(8)
     row = QHBoxLayout()
     row.setSpacing(8)
@@ -135,13 +128,16 @@ class TagEditDialog(Modal):
         self.error = _field(layout, "", self.name_edit)
         self.name_edit.textChanged.connect(self._clear_error)
         # The destructive button stands apart on the left, away from 保存.
-        _footer(layout, _cancel_button(self), _primary("保存", self._accept), left=_danger("删除", self._delete))
+        _footer(layout, _primary("保存", self._accept), left=_danger("删除", self._delete))
         self.card.setMinimumWidth(380)
         self.name_edit.returnPressed.connect(self._accept)
         _pointing(self)
 
     def _clear_error(self, *_args) -> None:
         _say_error(self.error, "")
+
+    def has_changes(self) -> bool:
+        return self.name_edit.text().strip() != self.original
 
     def _accept(self) -> None:
         from blacklist_detect.storage import clean_tag
@@ -175,13 +171,16 @@ class TagCreateDialog(Modal):
         self.name_edit.setAccessibleName("标签")
         self.error = _field(layout, "", self.name_edit)
         self.name_edit.textChanged.connect(self._clear_error)
-        _footer(layout, _cancel_button(self), _primary("添加", self._accept))
+        _footer(layout, _primary("添加", self._accept))
         self.card.setMinimumWidth(380)
         self.name_edit.returnPressed.connect(self._accept)
         _pointing(self)
 
     def _clear_error(self, *_args) -> None:
         _say_error(self.error, "")
+
+    def has_changes(self) -> bool:
+        return bool(self.name_edit.text().strip())
 
     def _accept(self) -> None:
         from blacklist_detect.storage import clean_tag
@@ -250,13 +249,17 @@ class AddNameDialog(Modal):
         remove = _danger("删除", self._delete) if allow_delete else None
         confirm = _primary("保存" if allow_delete else "添加", self._accept)
         # The destructive button stands apart on the left, away from 保存.
-        _footer(layout, _cancel_button(self), confirm, left=remove)
+        _footer(layout, confirm, left=remove)
         self.card.setMinimumWidth(440)
         self.name_edit.returnPressed.connect(self._accept)
+        self._before = (name, tuple(self.picked), detail)
         _pointing(self)
 
     def _clear_name_error(self, _text: str) -> None:
         _say_error(self.name_error, "")
+
+    def has_changes(self) -> bool:
+        return (self.name_edit.text(), tuple(self.picked), self.detail_edit.toPlainText()) != self._before
 
     def _refresh_tags(self) -> None:
         self.tag_host.clear()
@@ -349,12 +352,15 @@ class BatchAddDialog(Modal):
         self.error.hide()
         layout.addWidget(self.error)
         self.edit.textChanged.connect(self._clear_error)
-        _footer(layout, _cancel_button(self), _primary("添加", self._accept))
+        _footer(layout, _primary("添加", self._accept))
         self.card.setMinimumWidth(460)
         _pointing(self)
 
     def _clear_error(self, *_args) -> None:
         _say_error(self.error, "")
+
+    def has_changes(self) -> bool:
+        return bool(self.edit.toPlainText().strip())
 
     def _accept(self) -> None:
         from blacklist_detect.storage import annotated_from_block, is_shared, names_from_block, parse_blacklist, parse_shared
