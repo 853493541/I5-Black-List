@@ -867,19 +867,40 @@ def test_titlebar_close_hides_to_the_tray_and_says_so_once(qapp, tmp_path, monke
     window.close()
 
 
-def test_prefix_hit_shows_the_read_name_and_the_stored_name(qapp, tmp_path, monkeypatch):
+def test_a_cut_name_shows_once_with_the_rest_from_the_list(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
     window.store.add("无害虎皮吉尔曼", tags=("炸房",))
-    window.store.add_scan([{"seat": 1, "name": "无害虎皮", "unclear": False}])
+    window.store.add("破轮蜡像金婚99")
+    window.store.add_scan(
+        [
+            {"seat": 1, "name": "无害虎皮", "unclear": False},
+            {"seat": 2, "name": "破轮蜡像金婚88", "unclear": False},
+        ]
+    )
     window._reload_history()
+    # The game cut the name: it shows once, 无害虎皮 as read and 吉尔曼 from the list, with no 名单 note.
     assert window.history_table.item(0, 0).text() == "无害虎皮"
-    listed = window.history_table.cellWidget(0, 0).findChild(QLabel, "rowListed")
-    assert listed.text() == "名单：无害虎皮吉尔曼"
-    assert "炸房" not in listed.text()
-    assert window.history_table.cellWidget(0, 0).findChild(QLabel, "rowAction") is None
+    seat = window.history_table.cellWidget(0, 0)
+    assert seat.findChild(QLabel, "rowListed") is None
+    assert seat.findChild(QLabel, "rowTail").text() == "吉尔曼"
+    assert window.history_table.item(0, 0).toolTip() == "画面是「无害虎皮」，黑名单里是「无害虎皮吉尔曼」"
+    assert seat.findChild(QLabel, "rowAction") is None
+    # A name that differs in more than the cut may be someone else: the list's spelling stays beside it.
+    other = window.history_table.cellWidget(0, 1)
+    assert other.findChild(QLabel, "rowTail") is None
+    assert other.findChild(QLabel, "rowListed").text() == "名单：破轮蜡像金婚99"
     window.close()
+
+
+def test_listed_tail():
+    from blacklist_detect.match import listed_tail
+
+    assert listed_tail("破轮蜡像", "破轮蜡像金婚99") == "金婚99"
+    assert listed_tail("Abcd", "abcdEF") == "EF"
+    assert listed_tail("破轮蜡像金婚99", "破轮蜡像金婚99") == ""
+    assert listed_tail("破轮蜡像金婚88", "破轮蜡像金婚99") is None
 
 
 def test_corner_reports_refresh_and_skip(qapp, tmp_path, monkeypatch):
@@ -1077,8 +1098,7 @@ def test_history_shows_the_name_as_read_beside_the_list_spelling(qapp, tmp_path,
     )
     window._reload_history()
     assert window.history_table.item(0, 0).text() == "小猫爆锤"
-    listed = window.history_table.cellWidget(0, 0).findChild(QLabel, "rowListed")
-    assert listed.text() == "名单：小猫爆锤大王"
+    assert window.history_table.cellWidget(0, 0).findChild(QLabel, "rowTail").text() == "大王"
     assert window.history_table.item(0, 0).foreground().color().name() == "#c23b2e"
     assert window.history_table.cellWidget(0, 1).findChild(QLabel, "rowListed") is None
     opened: list[int] = []
@@ -1278,7 +1298,9 @@ def test_a_picture_check_opens_its_result(qapp, tmp_path, monkeypatch):
     assert isinstance(shown, PictureResultDialog)
     assert shown.windowTitle() == "识别测试"
     assert shown.summary.text() == "1 人在黑名单里，1 人没看清"
-    assert shown.seats[0].text() == "名0　名单：名0大王"
+    # Cut short by the game: the name once, the rest from the list in a lighter red.
+    assert "名0" in shown.seats[0].text() and "大王" in shown.seats[0].text()
+    assert "名单" not in shown.seats[0].text()
     assert shown.seats[3].text() == "未看清"
     assert window.picture_button.isEnabled() is True
     assert window.picture_button.text() == "检查截图"

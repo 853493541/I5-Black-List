@@ -60,6 +60,20 @@ def fold(text: str) -> str:
     return strip_noise(text).casefold()
 
 
+def listed_tail(read: str, listed: str) -> str | None:
+    """What the list adds after a name the game cut short: 破轮蜡像 + 金婚99.
+
+    "" when the two are the same name, None when they differ in more than the cut,
+    such as 破轮蜡像金婚88 read against 破轮蜡像金婚99.
+    """
+    if fold(read) == fold(listed):
+        return ""
+    cut = len(read)
+    if len(listed) > cut and fold(listed[:cut]) == fold(read):
+        return listed[cut:]
+    return None
+
+
 def clean_stored_name(raw: str) -> str:
     """Name as saved. A trailing ellipsis or a stray mark is not part of the name."""
     text, _truncated = split_ellipsis(raw)
