@@ -19,7 +19,6 @@ from PySide6.QtWidgets import (
     QDialog,
     QFileDialog,
     QFrame,
-    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -733,12 +732,10 @@ class MainWindow(QMainWindow):
         return page
 
     def _settings_page(self) -> QWidget:
-        """Everything on one screen, like settings grouped with like.
+        """One card per row, like settings grouped with like, all on one screen:
+        检查, 常规, 外观, then 数据 at the foot, where starting over is out of the way.
 
-        检查 | 常规
-        外观 | 数据
-
-        角色名称 and 标签 live beside the list on 黑名单.
+        角色名称 is in the header, and 标签 beside the list on 黑名单.
         """
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -755,12 +752,9 @@ class MainWindow(QMainWindow):
         column = QVBoxLayout(body)
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(GAP)
-        grid = QGridLayout()
-        grid.setHorizontalSpacing(GAP)
-        grid.setVerticalSpacing(GAP)
-        grid.setColumnStretch(0, 1)
-        grid.setColumnStretch(1, 1)
-        column.addLayout(grid)
+        cards = QVBoxLayout()
+        cards.setSpacing(GAP)
+        column.addLayout(cards)
         column.addStretch(1)
         scroll.setWidget(body)
         layout.addWidget(scroll, 1)
@@ -768,13 +762,13 @@ class MainWindow(QMainWindow):
         slot = metrics.horizontalAdvance("手动检查") + 28
         label_width = metrics.horizontalAdvance("关闭到托盘") + 8
 
-        def section(title: str, row: int, col: int, span: int = 1) -> SettingsSection:
+        def section(title: str) -> SettingsSection:
             card = SettingsSection(title, label_width, compact=True)
-            grid.addWidget(card, row, col, 1, span)
+            cards.addWidget(card)
             return card
 
         # 检查: how and when a lobby is checked.
-        check = section("检查", 0, 0)
+        check = section("检查")
         self.auto_mode = SegmentedControl(
             [("auto", "自动检查"), ("manual", "手动检查")], "auto" if self.store.auto_capture else "manual"
         )
@@ -802,7 +796,7 @@ class MainWindow(QMainWindow):
         check.add_row("识别", self.picture_button)
 
         # 常规: how the app starts and closes.
-        general = section("常规", 0, 1)
+        general = section("常规")
         self.autostart_switch = Switch(autostart.is_enabled())
         self.autostart_switch.setAccessibleName("开机启动")
         self.autostart_switch.setEnabled(autostart.available())
@@ -816,7 +810,7 @@ class MainWindow(QMainWindow):
         )
 
         # 外观: how the window looks.
-        look = section("外观", 1, 0)
+        look = section("外观")
         self.appearance_control = SegmentedControl(
             [("light", "浅色"), ("dark", "深色"), ("system", "跟随系统")], self.store.appearance
         )
@@ -835,24 +829,16 @@ class MainWindow(QMainWindow):
             swatches.addWidget(swatch, 0, Qt.AlignVCenter)
         look.add_row("主题", swatch_host)
 
-        # 数据: where it is kept, starting over, and which version this is.
-        data = section("数据", 1, 1)
-        self.data_button = QPushButton("打开数据文件夹")
-        self.data_button.setToolTip("名单、设置、每天的备份和日志都在这里")
-        self.data_button.setAutoDefault(False)
-        self.data_button.setCursor(Qt.PointingHandCursor)
-        self.data_button.clicked.connect(self.open_data_folder)
-        reset = QPushButton("清除数据且复原")
+        # 数据: starting over.
+        data = section("数据")
+        reset = QPushButton("清空数据")
         reset.setObjectName("danger")
         reset.setFont(ui_font())
         self.reset_button = reset
         reset.setAutoDefault(False)
         reset.setCursor(Qt.PointingHandCursor)
         reset.clicked.connect(self._ask_reset)
-        # The destructive one keeps a little distance from its neighbour.
-        control = data.add_row("控制", self.data_button, reset)
-        control.insertSpacing(2, GAP)
-        data.add_row("版本", QLabel(__version__))
+        data.add_row("控制", reset)
         return page
 
     def _fill_tag_list(self) -> None:
@@ -983,7 +969,7 @@ class MainWindow(QMainWindow):
         self.settings_label.setVisible(bool(text))
 
     def _ask_reset(self) -> None:
-        if not _confirm(self, "清除数据且复原会清空角色名称、记录、黑名单和设置。确定清除？"):
+        if not _confirm(self, "清空数据会删除角色名称、记录、黑名单和设置。确定清空？"):
             return
         self.store.reset()
         self.hotkey.clear()
@@ -3001,14 +2987,6 @@ class MainWindow(QMainWindow):
     def _set_tray(self, text: str) -> None:
         if self.tray is not None:
             self.tray.setToolTip(text[:120])
-
-    def open_data_folder(self) -> bool:
-        """Show the folder with the list, settings, backups, and logs, for sending a log or restoring a backup."""
-        from PySide6.QtCore import QUrl
-        from PySide6.QtGui import QDesktopServices
-
-        self.store.root.mkdir(parents=True, exist_ok=True)
-        return QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.store.root)))
 
     def quit_app(self) -> None:
         """Close for real, as 退出 in the tray menu does. The local installer asks for this before an update."""

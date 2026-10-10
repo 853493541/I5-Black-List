@@ -551,9 +551,13 @@ class EmptyState(QWidget):
 class SettingsSection(QFrame):
     """A titled card in 设置. Each row is a label in a fixed column with its controls after it.
 
-    compact cards keep rows tight and put a row's hint in its tooltip, so the whole
-    page fits on one screen. Content stays at the top when a card is taller than it needs.
+    A compact card puts its title in a column on the left, beside its rows, keeps the rows
+    an even height, and puts a row's hint in its tooltip, so cards stacked one per row
+    still fit on one screen. Content stays at the top when a card is taller than it needs.
     """
+
+    # The height of a compact row: a control and its padding.
+    COMPACT_ROW = CONTROL_H + 12
 
     def __init__(self, title: str, label_width: int, parent: QWidget | None = None, *, compact: bool = False) -> None:
         super().__init__(parent)
@@ -561,14 +565,25 @@ class SettingsSection(QFrame):
         self.setAttribute(Qt.WA_StyledBackground, True)
         self._label_width = label_width
         self._compact = compact
-        self._rows = QVBoxLayout(self)
-        self._rows.setContentsMargins(*((16, 10, 16, 8) if compact else (20, 14, 20, 6)))
-        self._rows.setSpacing(0)
         heading = QLabel(title)
         heading.setObjectName("sectionTitle")
         heading.setFont(chinese_font(SECTION_PT))
-        self._rows.addWidget(heading)
-        self._rows.addSpacing(2 if compact else 4)
+        self._rows = QVBoxLayout()
+        self._rows.setSpacing(0)
+        if compact:
+            beside = QHBoxLayout(self)
+            beside.setContentsMargins(20, 8, 20, 8)
+            beside.setSpacing(16)
+            # Every card's title takes the same width, so the rows line up from card to card.
+            heading.setFixedSize(QFontMetrics(heading.font()).horizontalAdvance("中" * 3), self.COMPACT_ROW)
+            heading.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            beside.addWidget(heading, 0, Qt.AlignTop)
+            beside.addLayout(self._rows, 1)
+        else:
+            self._rows.setContentsMargins(20, 14, 20, 6)
+            self.setLayout(self._rows)
+            self._rows.addWidget(heading)
+            self._rows.addSpacing(4)
         self._rows.addStretch(1)
         self._count = 0
 
@@ -605,6 +620,8 @@ class SettingsSection(QFrame):
         column = QVBoxLayout(host)
         column.setContentsMargins(0, *((6, 0, 6) if self._compact else (10, 0, 10)))
         column.setSpacing(4)
+        if self._compact:
+            host.setMinimumHeight(self.COMPACT_ROW)
         row = QHBoxLayout()
         row.setSpacing(12)
         name = QLabel(label)

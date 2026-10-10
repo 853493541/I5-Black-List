@@ -456,7 +456,7 @@ class Store:
 
     @property
     def first_run(self) -> bool:
-        """The app opens as new: on a new PC, or after 清除数据且复原."""
+        """The app opens as new: on a new PC, or after 清空数据."""
         return not self.welcomed
 
     @first_run.setter

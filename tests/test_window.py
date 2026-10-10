@@ -947,7 +947,8 @@ def test_reset_asks_before_clearing_everything(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
-    assert any(button.text() == "清除数据且复原" for button in window.findChildren(QPushButton))
+    buttons = [button.text() for button in window.findChildren(QPushButton)]
+    assert "清空数据" in buttons and "清除数据且复原" not in buttons and "打开数据文件夹" not in buttons
     window.store.add("甲", tags=("炸房",))
     window.store.add_scan([{"seat": 1, "name": "甲", "unclear": False}])
     window.store.player_name = "纪戴宁"
@@ -1369,19 +1370,6 @@ def test_the_installer_can_ask_the_open_copy_to_quit(qapp):
     server.close()
 
 
-def test_the_data_folder_button_opens_the_settings_folder(qapp, tmp_path, monkeypatch):
-    from PySide6.QtGui import QDesktopServices
-
-    monkeypatch.setenv("APPDATA", str(tmp_path))
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
-    opened = []
-    monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: opened.append(url.toLocalFile()) or True)
-    window = MainWindow()
-    window.data_button.click()
-    assert opened and opened[0].replace("/", "\\").rstrip("\\").endswith("BlackListDetect")
-    window.close()
-
-
 def test_settings_are_grouped_into_titled_cards(qapp, tmp_path, monkeypatch):
     from blacklist_detect.ui_kit import SettingsSection
 
@@ -1404,9 +1392,16 @@ def test_settings_are_grouped_into_titled_cards(qapp, tmp_path, monkeypatch):
     for _ in range(5):
         qapp.processEvents()
     assert window.settings_scroll.verticalScrollBar().maximum() == 0, "设置 fits without scrolling"
-    by_title = dict(zip(titles, sections, strict=True))
-    assert by_title["检查"].y() == by_title["常规"].y(), "two columns"
-    assert by_title["外观"].y() == by_title["数据"].y()
+    # One card per row, full width, each title in a column on its left.
+    assert [section.x() for section in sections] == [sections[0].x()] * 4
+    assert [section.width() for section in sections] == [sections[0].width()] * 4
+    assert [section.y() for section in sections] == sorted(section.y() for section in sections)
+    heads = [section.findChild(QLabel, "sectionTitle") for section in sections]
+    assert all(head.y() == heads[0].y() and head.width() == heads[0].width() for head in heads)
+    rows = [section.findChild(QLabel, "rowLabel") for section in sections]
+    assert all(row.mapTo(window, QPoint(0, 0)).x() == rows[0].mapTo(window, QPoint(0, 0)).x() for row in rows)
+    # 版本 is not shown.
+    assert "版本" not in [label.text() for label in window.findChildren(QLabel)]
     window.hide()
     # 提示音 is gone.
     assert "提示音" not in [label.text() for label in window.findChildren(QLabel)]
@@ -1990,7 +1985,7 @@ def test_the_start_with_windows_switch(qapp, tmp_path, monkeypatch):
     monkeypatch.setattr("blacklist_detect.ui._confirm", lambda *_args: True)
     window.tray_switch.click()
     window._ask_reset()
-    assert state["on"] is False and switch.isChecked() is False, "清除数据且复原 turns it off"
+    assert state["on"] is False and switch.isChecked() is False, "清空数据 turns it off"
     assert window.tray_switch.isChecked() is True
     window.close()
 
