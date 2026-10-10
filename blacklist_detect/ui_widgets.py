@@ -684,20 +684,21 @@ def _reload_icon() -> QPixmap:
 
 
 def _watch_mark(color: str) -> QPixmap:
+    """The status dot: a soft halo with a solid core, 8 px across."""
     ratio = 2
-    size = 8 * ratio
-    pixmap = QPixmap(size, size)
+    side = 8
+    pixmap = QPixmap(side * ratio, side * ratio)
     pixmap.setDevicePixelRatio(ratio)
     pixmap.fill(Qt.transparent)
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.Antialiasing)
     painter.setPen(Qt.NoPen)
     painter.setBrush(QColor(color))
+    # A painter on a high-DPI pixmap works in logical pixels: the whole dot is side × side.
     painter.setOpacity(0.22)
-    painter.drawEllipse(0, 0, size, size)
+    painter.drawEllipse(QRectF(0, 0, side, side))
     painter.setOpacity(1)
-    inset = 2 * ratio
-    painter.drawEllipse(inset, inset, size - inset * 2, size - inset * 2)
+    painter.drawEllipse(QRectF(2, 2, side - 4, side - 4))
     painter.end()
     return pixmap
 

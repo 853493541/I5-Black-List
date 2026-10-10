@@ -1594,3 +1594,13 @@ def test_the_eye_sits_right_after_the_name_title(qapp, tmp_path, monkeypatch):
     assert box.left() < 14 + title_width + 24, "beside the title, not at the far right"
     assert box.right() < section.right() - 100
     window.close()
+
+
+def test_the_status_dot_is_drawn_whole(qapp):
+    from blacklist_detect.ui_widgets import _watch_mark
+
+    image = _watch_mark("#c23b2e").toImage()
+    side = image.width()
+    # Every quarter of the dot has color, not only the top-left one.
+    for x, y in ((side // 4, side // 2), (3 * side // 4, side // 2), (side // 2, 3 * side // 4)):
+        assert image.pixelColor(x, y).alpha() > 0, (x, y)
