@@ -819,9 +819,10 @@ def test_titlebar_close_hides_to_the_tray_and_says_so_once(qapp, tmp_path, monke
     assert event.ignored is True
     assert window.isHidden() is True
     assert window._closing is False
-    assert window.tray.messages == ["黑名单检测仍在运行"]
+    # Hiding to the tray says nothing: no Windows notification.
+    assert window.tray.messages == []
     window.closeEvent(TitleBarClose())
-    assert window.tray.messages == ["黑名单检测仍在运行"]
+    assert window.tray.messages == []
     window.tray = real_tray
     window.close()
 

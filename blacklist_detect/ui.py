@@ -331,10 +331,8 @@ class MainWindow(QMainWindow):
         self._day_hover = -1
         self._check_started: float | None = None
         self._release_foreground = False
-        self._told_tray = False
         self._manual_check = False
         self._problem = ""
-        self._told_problems: set[str] = set()
         self._glance_pause_until = 0.0
         self._warm_started: float | None = None
         # loading, ready or failed, so the environment check knows where the models stand.
@@ -2225,8 +2223,6 @@ class MainWindow(QMainWindow):
         lock_foreground(True)
         if self._start(self._capture_job, live=True):
             self._manual_check = True
-        elif self._status_kind == "loading":
-            self._notify("识别模型还在加载", "请过几秒再按一次快捷键。")
 
     def start_warmup(self) -> None:
         """Load the OCR models now, so the first lobby check does not wait for them."""
@@ -2420,9 +2416,6 @@ class MainWindow(QMainWindow):
         if self._status_kind != "error" or raw != self._problem:
             self._set_result(label, "hit", "error", tip=detail)
         self._problem = raw
-        if label not in self._told_problems:
-            self._told_problems.add(label)
-            self._notify(label, detail[:200])
 
     def _clear_problem(self) -> None:
         if not self._problem:
@@ -2431,15 +2424,6 @@ class MainWindow(QMainWindow):
         log.info("Checks work again.")
         if self._status_kind == "error":
             self._sync_watch_idle()
-
-    def _notify(self, title: str, text: str, warning: bool = True) -> None:
-        """A Windows notification from the tray icon. The window is usually hidden behind the game."""
-        if self.tray is None or not self.tray.isVisible():
-            return
-        from PySide6.QtWidgets import QSystemTrayIcon
-
-        icon = QSystemTrayIcon.MessageIcon.Warning if warning else QSystemTrayIcon.MessageIcon.Information
-        self.tray.showMessage(title, text, icon, 5000)
 
     def _capture_job(self) -> CheckResult:
         frames = capture_displays()
@@ -2566,7 +2550,6 @@ class MainWindow(QMainWindow):
         if self._check_started is not None:
             elapsed = time.perf_counter() - self._check_started
             self._check_started = None
-        manual = self._manual_check
         if status == "err":
             if not rescan and self._live_check and self._rescan_now():
                 return
@@ -2582,8 +2565,6 @@ class MainWindow(QMainWindow):
                 return
             self._manual_check = False
             log.info("No lobby on screen: %s", result.message)
-            if manual:
-                self._notify("没有看到大厅", "按快捷键时，「推演成功」的画面要在屏幕上。")
             if self.store.auto_capture:
                 self.watch.retry_after(time.perf_counter())
             self._hide_panel_after_title()
@@ -2889,9 +2870,6 @@ class MainWindow(QMainWindow):
             # Keep checking from the tray. Without a tray icon there would be no way back, so X quits.
             event.ignore()
             self.hide()
-            if not self._told_tray:
-                self._told_tray = True
-                self._notify("黑名单检测仍在运行", "它会继续检查大厅。在右下角的托盘图标上右键可以退出。", warning=False)
             return
         self._remember_size()
         self.hide()

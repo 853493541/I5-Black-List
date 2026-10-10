@@ -33,3 +33,9 @@ def _user_strings():
 def test_no_user_facing_text_names_the_system():
     found = [f"{name}:{line}: {text}" for name, line, text in _user_strings() if BANNED.search(text)]
     assert found == []
+
+
+def test_the_app_sends_no_windows_notifications():
+    """No popup from the tray: errors show in the window header, never over the game."""
+    senders = [path.name for path in PACKAGE.glob("*.py") if "showMessage" in path.read_text(encoding="utf-8")]
+    assert senders == []
