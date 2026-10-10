@@ -16,7 +16,6 @@ newest version. Your list and settings stay in %APPDATA%\\BlackListDetect.
 from __future__ import annotations
 
 import argparse
-import filecmp
 import os
 import shutil
 import subprocess
@@ -96,7 +95,9 @@ def stop_app(root: Path) -> bool:
 
 
 def _same(left: Path, right: Path) -> bool:
-    return right.is_file() and left.stat().st_size == right.stat().st_size and filecmp.cmp(left, right, shallow=False)
+    # Compare the bytes themselves. filecmp keeps answers keyed on size and modified time,
+    # so a file edited to the same size within the same clock tick could be judged unchanged.
+    return right.is_file() and left.stat().st_size == right.stat().st_size and left.read_bytes() == right.read_bytes()
 
 
 def sync_tree(source: Path, target: Path) -> tuple[int, int]:

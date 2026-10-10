@@ -32,3 +32,18 @@ def test_sync_copies_changes_and_removes_old_files(tmp_path):
     assert (target / "__pycache__" / "ui.cpython-312.pyc").read_text(encoding="utf-8") == "install cache"
 
     assert sync_tree(source, target) == (0, 0)
+
+
+def test_sync_sees_a_same_size_edit_made_in_the_same_instant(tmp_path):
+    import os
+
+    source = tmp_path / "repo" / "blacklist_detect"
+    target = tmp_path / "install" / "blacklist_detect"
+    _write(source / "ui.py", "version A")
+    sync_tree(source, target)
+    stamp = (source / "ui.py").stat().st_mtime_ns
+    _write(source / "ui.py", "version B")
+    os.utime(source / "ui.py", ns=(stamp, stamp))
+    assert sync_tree(source, target) == (1, 0)
+    assert (target / "ui.py").read_text(encoding="utf-8") == "version B"
+    assert sync_tree(source, target) == (0, 0)
