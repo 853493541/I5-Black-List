@@ -486,6 +486,7 @@ def test_capture_mode_defaults_to_auto(qapp, tmp_path, monkeypatch):
     assert window.watch_mark.text() == ""
     assert window.hotkey_edit.text() == "Alt+1"
     assert window.hotkey_edit.isEnabled() is False
+    assert window.hotkey_edit.toolTip() == "手动检查时使用"
     assert window.hotkey.active == ""
     monkeypatch.setattr(window.hotkey, "apply", lambda spec: setattr(window.hotkey, "active", spec.display) or True)
     window.auto_off.click()
@@ -981,12 +982,12 @@ def test_clear_buttons_split_into_cancel_and_confirm(qapp, tmp_path, monkeypatch
     assert window.store.entries == []
     assert window.more_button.isHidden() is True
     assert window.list_empty.isHidden() is False
-    window.clear_history_button.click()
+    window.clear_history_action.trigger()
     assert window.store.scans
-    window.clear_history_button.click()
+    window.clear_history_action.trigger()
     assert questions[2:] == [("清空记录", "确认清空", True)] * 2
     assert window.store.scans == []
-    assert window.clear_history_button.isHidden()
+    assert window.record_card.isHidden()
     assert asked == []
     window.close()
 
@@ -1604,3 +1605,57 @@ def test_the_status_dot_is_drawn_whole(qapp):
     # Every quarter of the dot has color, not only the top-left one.
     for x, y in ((side // 4, side // 2), (3 * side // 4, side // 2), (side // 2, 3 * side // 4)):
         assert image.pixelColor(x, y).alpha() > 0, (x, y)
+
+
+def test_a_wider_window_gives_its_width_to_the_reason(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    window.store.add("甲", reason="很长的原因" * 20)
+    window._show_list()
+    window.tabs.setCurrentIndex(window.blacklist_tab)
+    table = window.blacklist_table
+    window.resize(900, 560)
+    window.show()
+    qapp.processEvents()
+    narrow = [table.columnWidth(column) for column in range(4)]
+    window.resize(1400, 900)
+    qapp.processEvents()
+    wide = [table.columnWidth(column) for column in range(4)]
+    assert wide[2] > narrow[2] + 300, "原因 takes the extra width"
+    assert wide[3] == narrow[3], "最后遇到 keeps its width"
+    assert sum(wide) <= table.viewport().width() + 1
+    # Dragging 原因's edge moves the boundary with 最后遇到; the row still fits.
+    header = table.horizontalHeader()
+    header.resizeSection(2, wide[2] - 120)
+    qapp.processEvents()
+    assert table.columnWidth(2) == wide[2] - 120
+    assert table.columnWidth(3) == wide[3] + 120
+    assert sum(table.columnWidth(column) for column in range(4)) <= table.viewport().width() + 1
+    window.close()
+
+
+def test_the_record_card_fits_its_seats_and_has_a_menu(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    window.store.add_scan([{"seat": i + 1, "name": f"名{i}", "unclear": False} for i in range(12)])
+    window.store.add_scan([{"seat": 1, "name": "甲", "unclear": False}])
+    window._reload_history()
+    window.resize(1400, 900)
+    window.show()
+    qapp.processEvents()
+    table = window.history_table
+    rows = sum(table.rowHeight(row) for row in range(table.rowCount()))
+    assert table.height() <= rows + 12, "no empty box under the seats"
+    assert window.record_card.height() < window.history_list.height()
+    assert [a.text() for a in window.record_menu.actions() if a.text()] == ["删除", "清空记录"]
+    assert window.record_more.accessibleName() == "更多"
+    assert not any(b.text() == "清空记录" for b in window.findChildren(QPushButton))
+    before = len(window.store.scans)
+    assert before >= 1
+    window.delete_record_action.trigger()
+    assert len(window.store.scans) == before - 1
+    window.close()

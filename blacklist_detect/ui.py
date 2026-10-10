@@ -496,7 +496,7 @@ class MainWindow(QMainWindow):
             if item is not None:
                 item.setToolTip("拖动换顺序，拖边缘改宽度")
         header = self.blacklist_table.horizontalHeader()
-        header.setStretchLastSection(True)
+        header.setStretchLastSection(False)
         for column in range(4):
             header.setSectionResizeMode(column, header.ResizeMode.Interactive)
         header.setMinimumSectionSize(72)
@@ -570,9 +570,6 @@ class MainWindow(QMainWindow):
         self.history_list.currentRowChanged.connect(self._on_history_picked)
         self.history_list.itemClicked.connect(self._on_history_clicked)
         side_layout.addWidget(self.history_list, 1)
-        self.clear_history_button = QPushButton("清空记录")
-        self.clear_history_button.clicked.connect(self._ask_clear_history)
-        side_layout.addWidget(self.clear_history_button)
         body.addWidget(side)
         record = QWidget()
         record.setObjectName("recordCard")
@@ -598,6 +595,13 @@ class MainWindow(QMainWindow):
         self.record_time = QLabel("")
         self.record_time.setObjectName("sub")
         head.addWidget(self.record_time)
+        self.record_more = IconButton("more", "更多")
+        self.record_menu = QMenu(self)
+        self.delete_record_action = self.record_menu.addAction("删除", self._delete_history)
+        self.record_menu.addSeparator()
+        self.clear_history_action = self.record_menu.addAction("清空记录", self._ask_clear_history)
+        self.record_more.clicked.connect(self._open_record_menu)
+        head.addWidget(self.record_more)
         names.addWidget(head_bar)
         self.history_table = QTableWidget(0, 2)
         self.history_table.setObjectName("recordNames")
@@ -623,8 +627,13 @@ class MainWindow(QMainWindow):
         self.history_table.cellClicked.connect(self._on_history_cell)
         self.history_table.setContextMenuPolicy(Qt.CustomContextMenu)
         self.history_table.customContextMenuRequested.connect(self._history_menu)
-        names.addWidget(self.history_table, 1)
-        body.addWidget(record, 1)
+        names.addWidget(self.history_table)
+        self.record_column = QWidget()
+        column = QVBoxLayout(self.record_column)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.addWidget(record)
+        column.addStretch(1)
+        body.addWidget(self.record_column, 1)
         self.history_empty = EmptyState("records", "还没有记录", "进入「推演成功」大厅时会自动检查，并记在这里。")
         self.history_hint = self.history_empty.title
         self.history_test_button = QPushButton("测试一下")
@@ -906,6 +915,8 @@ class MainWindow(QMainWindow):
         if hasattr(self, "list_empty"):
             self.list_empty.refresh()
             self.more_button.refresh()
+        if hasattr(self, "record_more"):
+            self.record_more.refresh()
         if hasattr(self, "history_empty"):
             self.history_empty.refresh()
 
@@ -1124,8 +1135,12 @@ class MainWindow(QMainWindow):
         header.blockSignals(False)
         self._fit_blacklist_columns()
 
+    # 原因 takes whatever width is left, wherever it sits, so a wider window shows more
+    # of the reason. The other columns keep the widths the user gave them.
+    _FLEX_COLUMN = 2
+
     def _fit_blacklist_columns(self, prefer: int | None = None) -> None:
-        """Keep every column inside the list. Extra width comes out of the last column."""
+        """Keep every column inside the list. Extra width goes to, or comes out of, 原因."""
         table = getattr(self, "blacklist_table", None)
         if table is None or getattr(self, "_fitting_columns", False):
             return
@@ -1136,57 +1151,55 @@ class MainWindow(QMainWindow):
         if count == 0 or available < minimum:
             return
         logicals = [header.logicalIndex(visual) for visual in range(count)]
-        if prefer is None:
-            saved = self.store.column_widths
-            if len(saved) != count:
-                saved = [header.sectionSize(index) for index in range(count)]
-            sizes = [max(minimum, saved[logical]) for logical in logicals]
-        else:
-            sizes = [max(minimum, header.sectionSize(logical)) for logical in logicals]
-        others = sizes[:-1]
-        overflow = sum(others) + minimum - available
-        if overflow > 0 and prefer is not None and prefer in logicals[:-1]:
-            index = logicals.index(prefer)
-            spare = others[index] - minimum
-            cut = min(max(spare, 0), overflow)
-            others[index] -= cut
+        saved = list(self.store.column_widths)
+        if len(saved) != count:
+            saved = [header.sectionSize(index) for index in range(count)]
+        width = {
+            logical: max(minimum, header.sectionSize(logical) if prefer is not None else saved[logical])
+            for logical in logicals
+        }
+        flex = self._FLEX_COLUMN if self._FLEX_COLUMN in logicals else logicals[-1]
+        if prefer == flex:
+            # Dragging 原因's own edge moves that boundary: the column on its right gives or takes.
+            visual = header.visualIndex(flex)
+            prefer = None
+            if visual + 1 < count:
+                neighbour = logicals[visual + 1]
+                rest = sum(size for logical, size in width.items() if logical not in (flex, neighbour))
+                width[neighbour] = max(minimum, available - rest - width[flex])
+                prefer = neighbour
+        fixed = [logical for logical in logicals if logical != flex]
+        overflow = sum(width[logical] for logical in fixed) + minimum - available
+        order = list(reversed(fixed))
+        if prefer in fixed:
+            # The column being resized gives way first, so the others keep their size.
+            order.remove(prefer)
+            order.insert(0, prefer)
+        for logical in order:
+            if overflow <= 0:
+                break
+            cut = min(max(width[logical] - minimum, 0), overflow)
+            width[logical] -= cut
             overflow -= cut
-        if overflow > 0:
-            for index in range(len(others) - 1, -1, -1):
-                spare = others[index] - minimum
-                if spare <= 0:
-                    continue
-                cut = min(spare, overflow)
-                others[index] -= cut
-                overflow -= cut
-                if overflow <= 0:
-                    break
-        room = available - sum(others)
-        if room < minimum:
-            room = minimum
-        target = [*others, max(minimum, room)]
+        width[flex] = max(minimum, available - sum(width[logical] for logical in fixed))
         self._fitting_columns = True
         header.blockSignals(True)
         try:
-            for logical, size in zip(logicals, target, strict=True):
-                if header.sectionSize(logical) != size:
-                    table.setColumnWidth(logical, size)
-                visual = header.visualIndex(logical)
-                if (
-                    prefer is not None
-                    and visual != count - 1
-                    and 0 <= logical < len(self.store.column_widths)
-                ):
-                    self.store.column_widths[logical] = size
+            for logical in logicals:
+                if header.sectionSize(logical) != width[logical]:
+                    table.setColumnWidth(logical, width[logical])
+                if prefer is not None and logical != flex and 0 <= logical < len(self.store.column_widths):
+                    self.store.column_widths[logical] = width[logical]
         finally:
             header.blockSignals(False)
             self._fitting_columns = False
 
     def _save_column_width(self, logical: int, _old: int, new: int) -> None:
-        header = self.blacklist_table.horizontalHeader()
         if getattr(self, "_fitting_columns", False):
             return
-        if header.visualIndex(logical) == header.count() - 1:
+        if logical == self._FLEX_COLUMN:
+            self._fit_blacklist_columns(prefer=logical)
+            self.store.save_settings()
             return
         if not 0 <= logical < len(self.store.column_widths) or self.store.column_widths[logical] == new:
             return
@@ -1361,6 +1374,10 @@ class MainWindow(QMainWindow):
     def _refresh_blacklist_tab(self) -> None:
         count = len(self.store.entries)
         self._set_tab_count(self.blacklist_tab, count)
+
+    def _open_record_menu(self) -> None:
+        button = self.record_more
+        self.record_menu.popup(button.mapToGlobal(button.rect().bottomRight()) - QPoint(self.record_menu.sizeHint().width(), -4))
 
     def _open_more_menu(self) -> None:
         button = self.more_button
@@ -1613,9 +1630,9 @@ class MainWindow(QMainWindow):
         self.history_side.setVisible(count > 0)
         self.history_list.setVisible(count > 0)
         self.record_card.setVisible(count > 0)
+        self.record_column.setVisible(count > 0)
         self.history_table.setVisible(count > 0)
         self.history_empty.setVisible(count == 0)
-        self.clear_history_button.setVisible(count > 0)
         self._set_tab_count(self.history_tab, count)
         chosen = -1
         if count:
@@ -1798,6 +1815,13 @@ class MainWindow(QMainWindow):
         for index, seat in enumerate(names):
             self._set_history_seat(index // 2, index % 2, seat)
             self.history_table.setRowHeight(index // 2, ROW_H + 4)
+        self._fit_record_card()
+
+    def _fit_record_card(self) -> None:
+        """The table is exactly as tall as its rows, so the card ends with the last seat."""
+        table = self.history_table
+        rows = sum(table.rowHeight(row) for row in range(table.rowCount()))
+        table.setFixedHeight(max(ROW_H + 4, rows) + 2 * table.frameWidth() + 6)
 
     def _mark_selected_record(self) -> None:
         for row in range(self.history_list.count()):
@@ -2056,6 +2080,8 @@ class MainWindow(QMainWindow):
         manual = not self.store.auto_capture
         self.hotkey_edit.setEnabled(manual)
         self.hotkey_edit.setCursor(Qt.PointingHandCursor if manual else Qt.ArrowCursor)
+        # Greyed out in 自动 mode: say why, instead of leaving a dead field.
+        self.hotkey_edit.setToolTip("" if manual else "手动检查时使用")
         if not manual:
             self.hotkey.clear()
             return

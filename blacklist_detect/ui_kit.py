@@ -435,7 +435,8 @@ class Toast(QWidget):
             return
         width = min(self.sizeHint().width(), max(200, host.width() - 48))
         self.resize(width, self.sizeHint().height())
-        self.move((host.width() - width) // 2, host.height() - self.height() - 24)
+        # Float clear of the page's bottom edge rather than sitting on a card's border.
+        self.move((host.width() - width) // 2, host.height() - self.height() - 40)
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if watched is self.parentWidget() and event.type() == QEvent.Type.Resize and self.isVisible():

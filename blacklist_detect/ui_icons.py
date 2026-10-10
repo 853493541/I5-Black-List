@@ -8,6 +8,7 @@ theme unless one is passed.
 from __future__ import annotations
 
 from collections.abc import Callable
+from math import cos, radians, sin
 
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
@@ -168,6 +169,19 @@ def _users(p: QPainter) -> None:
     p.drawPath(side)
 
 
+def _reload(p: QPainter) -> None:
+    # An open circle with its arrowhead at the top right: switch to the other mode.
+    cx, cy, radius = 12.0, 12.3, 7.5
+    p.drawArc(QRectF(cx - radius, cy - radius, radius * 2, radius * 2), 60 * 16, -300 * 16)
+    end = radians(60)
+    tip = QPointF(cx + radius * cos(end), cy - radius * sin(end))
+    tx, ty = -sin(end), -cos(end)
+    back, wing = 4.0, 2.6
+    nx, ny = -ty, tx
+    p.drawLine(tip, QPointF(tip.x() - tx * back + nx * wing, tip.y() - ty * back + ny * wing))
+    p.drawLine(tip, QPointF(tip.x() - tx * back - nx * wing, tip.y() - ty * back - ny * wing))
+
+
 def _picture(p: QPainter) -> None:
     p.drawRoundedRect(QRectF(4, 5, 16, 14), 2, 2)
     p.drawEllipse(QPointF(9, 10), 1.6, 1.6)
@@ -199,6 +213,7 @@ DRAWINGS: dict[str, Callable[[QPainter], None]] = {
     "settings": _settings,
     "users": _users,
     "picture": _picture,
+    "reload": _reload,
 }
 
 
