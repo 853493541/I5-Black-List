@@ -597,7 +597,8 @@ class MainWindow(QMainWindow):
         head_row = QWidget()
         head_row.setFixedHeight(CONTROL_H)
         head = QHBoxLayout(head_row)
-        head.setContentsMargins(0, 0, 0, 0)
+        # The title lines up with the pills below it, which sit 12 px into their rows.
+        head.setContentsMargins(TagListDelegate.INSET, 0, 0, 0)
         head.setSpacing(4)
         title = QLabel("标签")
         title.setObjectName("sideTitle")
@@ -626,11 +627,13 @@ class MainWindow(QMainWindow):
         column.addWidget(self.tag_list, 1)
         recheck = QPushButton("重新标注")
         recheck.setToolTip("按原因补标签")
-        recheck.setObjectName("recheck")
+        recheck.setObjectName("sideAction")
         recheck.setFont(chinese_font(SMALL_PT))
+        recheck.setIcon(line_icon("reload", 14, THEME["muted"]))
         recheck.setAutoDefault(False)
         recheck.setCursor(Qt.PointingHandCursor)
         recheck.clicked.connect(self._recheck_tags)
+        self.recheck_button = recheck
         column.addWidget(recheck)
         self._fill_tag_list()
         return side
@@ -1038,6 +1041,7 @@ class MainWindow(QMainWindow):
         if hasattr(self, "tag_list"):
             self.tag_add.refresh()
             self.tag_list.viewport().update()
+            self.recheck_button.setIcon(line_icon("reload", 14, THEME["muted"]))
         if hasattr(self, "watch_label"):
             self._set_result(self._watch_full, self._watch_tone, self._status_kind, self._watch_tip)
         if hasattr(self, "profile_chip"):

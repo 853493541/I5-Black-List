@@ -333,10 +333,19 @@ def _button_rules(family: str) -> str:
                 color: {t["danger"]};
                 border-color: {t["danger"]};
             }}
-            QPushButton#recheck {{
+            QPushButton#sideAction {{
+                background: transparent;
+                border: none;
+                color: {t["muted"]};
                 font-size: {SMALL_PT}pt;
-                padding: 0 10px;
-                min-height: {CONTROL_H - 8}px;
+                text-align: left;
+                padding: 0 12px;
+                min-height: 30px;
+                border-radius: {RADIUS}px;
+            }}
+            QPushButton#sideAction:hover {{
+                background: {t["hover"]};
+                color: {t["text"]};
             }}
             QPushButton#link {{
                 background: transparent;
@@ -716,17 +725,18 @@ def _window_style(family: str) -> str:
                 font-size: {BODY_PT}pt;
                 font-weight: 400;
                 color: {t["text"]};
+                background: transparent;
+                border: none;
                 padding: 0;
                 outline: none;
-                border-radius: {CARD_RADIUS}px;
             }}
             QListWidget#history:focus {{
-                border: 1px solid {t["border"]};
+                border: none;
                 outline: none;
             }}
             QListWidget#history::item {{
                 padding: 2px 8px;
-                margin: 1px 4px;
+                margin: 1px 0;
                 border: none;
                 border-radius: {RADIUS}px;
                 outline: none;
@@ -738,17 +748,18 @@ def _window_style(family: str) -> str:
                 font-weight: 400;
             }}
             QListWidget#tags {{
-                padding: 4px 0;
+                background: transparent;
+                border: none;
+                padding: 0;
                 outline: none;
-                border-radius: {CARD_RADIUS}px;
             }}
             QListWidget#tags:focus {{
-                border: 1px solid {t["border"]};
+                border: none;
                 outline: none;
             }}
             QListWidget#tags::item {{
                 padding: 0;
-                margin: 1px 4px;
+                margin: 1px 0;
                 border: none;
                 border-radius: {RADIUS}px;
                 outline: none;
