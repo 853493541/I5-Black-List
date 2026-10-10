@@ -12,7 +12,6 @@ from PySide6.QtGui import (
     QColor,
     QCursor,
     QFontMetrics,
-    QPixmap,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -73,6 +72,7 @@ from blacklist_detect.ui_dialogs import (
     TagEditDialog,
     _confirm,
 )
+from blacklist_detect.ui_header import NamePopover, ProfileChip, StatusChip
 from blacklist_detect.ui_icons import icon as line_icon
 from blacklist_detect.ui_icons import pixmap as line_pixmap
 from blacklist_detect.ui_kit import (
@@ -124,14 +124,11 @@ from blacklist_detect.ui_widgets import (
     TagListDelegate,
     TagPill,
     ThemeSwatch,
-    _check_icon,
     _ColumnHeader,
     _DetailTip,
     _icon,
     _local_moment,
     _PlainItemDelegate,
-    _reload_icon,
-    _watch_mark,
     _zh_ago,
     _zh_clock,
     masked_name,
@@ -429,37 +426,31 @@ class MainWindow(QMainWindow):
             header_row.addWidget(button, 0, Qt.AlignBottom)
         self._tab_group.idClicked.connect(self.tabs.setCurrentIndex)
         header_row.addStretch(1)
-        self.mode_cluster = QWidget()
-        self.mode_cluster.setObjectName("modeCluster")
-        self.mode_cluster.setAttribute(Qt.WA_NoSystemBackground, True)
-        self.mode_cluster.setAttribute(Qt.WA_TranslucentBackground, True)
-        self.mode_cluster.setAutoFillBackground(False)
-        self.mode_cluster.setMouseTracking(True)
-        self.mode_cluster.setCursor(Qt.PointingHandCursor)
-        cluster_row = QHBoxLayout(self.mode_cluster)
-        cluster_row.setContentsMargins(0, 0, 0, 0)
-        cluster_row.setSpacing(6)
-        self.mode_cycle = QLabel()
-        self.mode_cycle.setObjectName("modeCycle")
-        self.mode_cycle.setFixedSize(16, 16)
-        self.mode_cycle.setPixmap(_reload_icon())
-        self.mode_cycle.setCursor(Qt.PointingHandCursor)
-        self.mode_cycle.hide()
-        self.watch_mark = QLabel()
-        self.watch_mark.setPixmap(_watch_mark(THEME["muted"]))
-        self.watch_mark.setCursor(Qt.PointingHandCursor)
-        self.watch_label = QLabel("未开启")
-        self.watch_label.setObjectName("idle")
-        self.watch_label.setMaximumWidth(200)
-        self.watch_label.setFont(chinese_font(BODY_PT))
-        self.watch_label.setCursor(Qt.PointingHandCursor)
-        cluster_row.addWidget(self.mode_cycle, 0, Qt.AlignVCenter)
-        cluster_row.addWidget(self.watch_label, 0, Qt.AlignVCenter)
-        cluster_row.addWidget(self.watch_mark, 0, Qt.AlignVCenter)
-        for widget in (self.mode_cluster, self.mode_cycle, self.watch_mark, self.watch_label):
-            widget.setMouseTracking(True)
-            widget.installEventFilter(self)
-        header_row.addWidget(self.mode_cluster, 0, Qt.AlignVCenter)
+        # The chips keep clear of the header's line, which only the tab underline touches.
+        right = QWidget()
+        right_row = QHBoxLayout(right)
+        right_row.setContentsMargins(0, 0, 0, 4)
+        right_row.setSpacing(0)
+        # What checking is doing. A click flips 自动检查 and 手动检查.
+        self.status_chip = StatusChip()
+        self.status_chip.clicked.connect(self._cycle_capture_mode)
+        right_row.addWidget(self.status_chip, 0, Qt.AlignVCenter)
+        right_row.addSpacing(12)
+        divider = QFrame()
+        divider.setObjectName("headerDivider")
+        divider.setFixedSize(1, 18)
+        right_row.addWidget(divider, 0, Qt.AlignVCenter)
+        right_row.addSpacing(8)
+        # 角色名称 where an app shows whose it is; a click opens a small box to change it.
+        self.profile_chip = ProfileChip()
+        self.profile_chip.set_name(self.store.player_name)
+        self.profile_chip.clicked.connect(self._open_name_box)
+        right_row.addWidget(self.profile_chip, 0, Qt.AlignVCenter)
+        header_row.addWidget(right, 0, Qt.AlignBottom)
+        self.name_box = NamePopover(self)
+        self.player_edit = self.name_box.edit
+        self.player_edit.setText(self.store.player_name)
+        self.name_box.closed.connect(self._save_player_name)
         self._sync_tab_buttons(self.tabs.currentIndex())
         outer.addWidget(header)
         outer.addWidget(self.tabs)
@@ -595,10 +586,7 @@ class MainWindow(QMainWindow):
         return page
 
     def _list_side(self) -> QWidget:
-        """标签 on top, where the list starts, and 角色名称 at the foot.
-
-        The tags pick which names the list shows. 全部 shows them all.
-        """
+        """标签 beside the list: each one picks which names the list shows, and 全部 shows them all."""
         side = QWidget()
         # As wide as the list of records on 记录, so the left column stays put between the pages.
         side.setFixedWidth(168)
@@ -644,19 +632,6 @@ class MainWindow(QMainWindow):
         recheck.setCursor(Qt.PointingHandCursor)
         recheck.clicked.connect(self._recheck_tags)
         column.addWidget(recheck)
-        column.addSpacing(4)
-        name = QVBoxLayout()
-        name.setContentsMargins(0, 0, 0, 0)
-        name.setSpacing(6)
-        name_title = QLabel("角色名称")
-        name_title.setObjectName("sideTitle")
-        name.addWidget(name_title)
-        self.player_edit = QLineEdit(self.store.player_name)
-        self.player_edit.setPlaceholderText("游戏里的名字")
-        self.player_edit.editingFinished.connect(self._save_player_name)
-        self.player_edit.setAccessibleName("角色名称")
-        name.addWidget(self.player_edit)
-        column.addLayout(name)
         self._fill_tag_list()
         return side
 
@@ -1014,6 +989,7 @@ class MainWindow(QMainWindow):
         self.hotkey.clear()
         self._tag_filter = ""
         self.player_edit.setText("")
+        self.profile_chip.set_name("")
         self.hotkey_edit.clearFocus()
         self._show_hotkey()
         self._sync_hotkey_mode()
@@ -1043,8 +1019,12 @@ class MainWindow(QMainWindow):
         self.clear_mark.hide()
         self._reload_history()
 
+    def _open_name_box(self) -> None:
+        self.name_box.open_below(self.profile_chip)
+
     def _save_player_name(self) -> None:
         name = self.player_edit.text().strip()
+        self.profile_chip.set_name(name)
         if name == self.store.player_name:
             return
         self.store.player_name = name
@@ -1073,8 +1053,9 @@ class MainWindow(QMainWindow):
             self.tag_list.viewport().update()
         if hasattr(self, "watch_label"):
             self._set_result(self._watch_full, self._watch_tone, self._status_kind, self._watch_tip)
-        if hasattr(self, "mode_cycle"):
-            self.mode_cycle.setPixmap(_reload_icon())
+        if hasattr(self, "profile_chip"):
+            self.status_chip.update()
+            self.profile_chip.update()
         if hasattr(self, "detail_tip"):
             self.detail_tip.apply_theme()
         if hasattr(self, "list_empty"):
@@ -1138,37 +1119,11 @@ class MainWindow(QMainWindow):
         self._reload_history(max(0, self._selected_scan()))
         self._show_list()
 
-    def _filter_mode_cluster(self, watched, event) -> bool:  # noqa: ANN001
-        cycle = getattr(self, "mode_cycle", None)
-        cluster = getattr(self, "mode_cluster", None)
-        if cycle is None or cluster is None or not hasattr(self, "watch_label"):
-            return False
-        if watched not in (cluster, cycle, self.watch_mark, self.watch_label):
-            return False
-        kind = event.type()
-        if kind in (QEvent.Type.Enter, QEvent.Type.HoverEnter):
-            cycle.show()
-        elif kind in (QEvent.Type.Leave, QEvent.Type.HoverLeave) and not self._pointer_over_mode_cluster():
-            cycle.hide()
-        elif kind == QEvent.Type.MouseButtonPress and event.button() == Qt.LeftButton:
-            self._cycle_capture_mode()
-            return True
-        return False
-
-    def _pointer_over_mode_cluster(self) -> bool:
-        cluster = self.mode_cluster
-        if not cluster.isVisible():
-            return False
-        pos = cluster.mapFromGlobal(QCursor.pos())
-        return cluster.rect().adjusted(-2, -2, 2, 2).contains(pos)
-
     def eventFilter(self, watched, event) -> bool:  # noqa: ANN001
         if getattr(self, "_closing", False):
             # Child widgets are being torn down. Touching them now raises.
             return False
         if event.type() == QEvent.Type.KeyPress and self._list_key(watched, event):
-            return True
-        if self._filter_mode_cluster(watched, event):
             return True
         edit = getattr(self, "hotkey_edit", None)
         if edit is not None and watched is edit:
@@ -2361,7 +2316,7 @@ class MainWindow(QMainWindow):
     def _sync_auto_controls(self) -> None:
         """The 方式 choice and the header's tooltip both follow the saved mode."""
         self.auto_mode.set_current("auto" if self.store.auto_capture else "manual")
-        self._sync_mode_cycle_tip()
+        self._sync_status_tip()
 
     def _begin_hotkey(self) -> None:
         self._set_settings_note("")
@@ -2979,63 +2934,28 @@ class MainWindow(QMainWindow):
         widget.show()
         _pin_topmost(widget)
 
-    def _sync_mode_cycle_tip(self) -> None:
-        cycle = getattr(self, "mode_cycle", None)
-        if cycle is None:
+    def _sync_status_tip(self) -> None:
+        """The pill's tooltip: what went wrong, when something did, and what a click does."""
+        chip = getattr(self, "status_chip", None)
+        if chip is None:
             return
-        tip = "切换为手动检查" if self.store.auto_capture else "切换为自动检查"
-        self.mode_cycle.setToolTip(tip)
-        self.mode_cluster.setToolTip(tip)
-        self.watch_mark.setToolTip(tip)
+        flip = "切换为手动检查" if self.store.auto_capture else "切换为自动检查"
+        chip.setToolTip(f"{self._watch_tip}\n{flip}" if self._watch_tip else flip)
 
     def _sync_watch_idle(self) -> None:
         if self.store.auto_capture:
             self._set_result("自动检查中", "watchOn", "watch")
         else:
             self._set_result("手动检查", "watchOff", "idle")
-        self._sync_mode_cycle_tip()
-
-    def _show_status_mark(self, pixmap: QPixmap) -> None:
-        self.watch_mark.setText("")
-        self.watch_mark.setObjectName("")
-        self.watch_mark.setPixmap(pixmap)
-        self.watch_mark.show()
-        self.watch_mark.style().unpolish(self.watch_mark)
-        self.watch_mark.style().polish(self.watch_mark)
-
-    def _show_hotkey_mark(self) -> None:
-        self.watch_mark.setPixmap(QPixmap())
-        self.watch_mark.setObjectName("hotkey")
-        self.watch_mark.setFont(chinese_font(BODY_PT))
-        self.watch_mark.setText(f"[{self.store.hotkey}]")
-        self.watch_mark.setVisible(bool(self.store.hotkey))
-        self.watch_mark.style().unpolish(self.watch_mark)
-        self.watch_mark.style().polish(self.watch_mark)
 
     def _set_result(self, text: str, tone: str = "status", kind: str = "result", tip: str = "") -> None:
         self._status_kind = kind
         self._watch_tone = tone
         self._watch_full = text
         self._watch_tip = tip
-        colors = {
-            "clear": THEME["green"],
-            "hit": THEME["red"],
-            "idle": THEME["muted"],
-            "status": THEME["text"],
-        }
-        self.watch_label.setObjectName(tone)
-        self.watch_label.setFont(chinese_font(BODY_PT))
-        self.watch_label.setToolTip(tip or text)
-        width = max(1, self.watch_label.maximumWidth())
-        self.watch_label.setText(self.watch_label.fontMetrics().elidedText(text, Qt.TextElideMode.ElideRight, width))
-        self.watch_label.style().unpolish(self.watch_label)
-        self.watch_label.style().polish(self.watch_label)
-        if kind == "watch":
-            self._show_status_mark(_check_icon())
-        elif kind == "idle":
-            self._show_hotkey_mark()
-        else:
-            self._show_status_mark(_watch_mark(colors.get(tone, THEME["muted"])))
+        # 手动检查 shows the hotkey that starts a check.
+        self.status_chip.set_state(text, tone, self.store.hotkey if kind == "idle" else "")
+        self._sync_status_tip()
         self._set_tray(text)
 
     def _remember_size(self) -> None:

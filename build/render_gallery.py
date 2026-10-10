@@ -78,6 +78,9 @@ def main() -> int:
     store.add_scan([{"seat": i + 1, "name": n, "unclear": not n} for i, n in enumerate(NAMES)], 1.2)
     window._show_list()
     window._reload_history()
+    if hasattr(window, "profile_chip"):
+        window.player_edit.setText(store.player_name)
+        window.profile_chip.set_name(store.player_name)
 
     for size in ((900, 560), (1400, 900)):
         window.resize(*size)
@@ -155,6 +158,7 @@ def main() -> int:
     window.hit_card.set_people([("霁玥吉尔曼", ("炸房", "贴脸")), ("gffdsd", ("挂机",))], 64)
     snap("overlay_hit_card", window.hit_card)
 
+    _header_scenes(window, snap)
     _setup_scenes(app, window, snap)
     _kit_scenes(window, snap)
     _contact_sheet(out, args.label, shots)
@@ -182,6 +186,23 @@ def _focus_scene(app, window, snap) -> None:  # noqa: ANN001
     window.picture_button.setFocus(Qt.FocusReason.TabFocusReason)
     snap("focus_secondary")
     window.setFocus()
+
+
+def _header_scenes(window, snap) -> None:  # noqa: ANN001
+    """The header's right end: 手动检查 with its key cap, the pill under the pointer, and the name box."""
+    chip = getattr(window, "status_chip", None)
+    if chip is None:
+        return
+    header = chip.parentWidget().parentWidget()
+    window._set_result("手动检查", "watchOff", "idle")
+    snap("header_manual", header)
+    chip._hover = True
+    snap("header_hover", header)
+    chip._hover = False
+    window._sync_watch_idle()
+    window._open_name_box()
+    snap("name_box", window.name_box)
+    window.name_box.hide()
 
 
 def _setup_scenes(app, window, snap) -> None:  # noqa: ANN001

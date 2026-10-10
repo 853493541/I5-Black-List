@@ -666,14 +666,6 @@ def _clear_layout(layout: QLayout) -> None:
             widget.deleteLater()
 
 
-def _check_icon() -> QPixmap:
-    return line_pixmap("check", 16, THEME["green"])
-
-
-def _reload_icon() -> QPixmap:
-    return line_pixmap("reload", 16, THEME["muted"])
-
-
 def _watch_mark(color: str) -> QPixmap:
     """The status dot: a soft halo with a solid core, 8 px across."""
     ratio = 2

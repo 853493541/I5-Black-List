@@ -565,29 +565,23 @@ def _kit_rules(family: str) -> str:
             """
 
 
-def _status_rules(family: str) -> str:
-    """The header status line. Each tone is one color; size and face are shared."""
+def _popover_rules(family: str) -> str:
+    """The small box that opens under 角色名称 in the header."""
     t = THEME
-    tones = {
-        "clear": t["green"],
-        "hit": t["red"],
-        "idle": t["muted"],
-        "status": t["text"],
-        "watchOn": t["green"],
-        "watchOff": t["muted"],
-        "hotkey": t["muted"],
-    }
-    return "".join(
-        f"""
-            QLabel#{name} {{
+    return f"""
+            QFrame#popover {{
+                background: {t["surface"]};
+                border: 1px solid {t["border"]};
+                border-radius: {CARD_RADIUS}px;
+            }}
+            QLabel#popoverTitle {{
                 font-family: "{family}";
                 font-size: {BODY_PT}pt;
-                font-weight: 400;
-                color: {color};
+                font-weight: 600;
+                color: {t["text"]};
                 background: transparent;
-            }}"""
-        for name, color in tones.items()
-    )
+            }}
+            """
 
 
 def _window_style(family: str) -> str:
@@ -612,10 +606,6 @@ def _window_style(family: str) -> str:
                 border-bottom: 1px solid {t["border"]};
             }}
             QWidget#tabHeader QLabel {{ background: transparent; }}
-            QWidget#tabHeader QWidget#modeCluster, QWidget#modeCycle {{
-                background: transparent;
-                border: none;
-            }}
             QScrollArea#settingsScroll, QWidget#settingsBody {{
                 background: transparent;
                 border: none;
@@ -637,7 +627,7 @@ def _window_style(family: str) -> str:
                 color: {t["text"]};
                 background: transparent;
             }}
-            """ + _status_rules(family) + _kit_rules(family) + _input_rules(family) + f"""
+            """ + _popover_rules(family) + _kit_rules(family) + _input_rules(family) + f"""
             QPlainTextEdit, QTableWidget, QListWidget {{
                 background: {t["surface"]};
                 color: {t["text"]};

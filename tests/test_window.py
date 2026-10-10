@@ -116,8 +116,8 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     assert window.hotkey_edit.text() == "Alt+1"
     assert window.hotkey_edit.isEnabled() is False
     # 角色名称 sits beside the list on 黑名单, not in 设置.
-    assert window.list_side.isAncestorOf(window.player_edit)
-    assert window.tabs.widget(window.blacklist_tab).isAncestorOf(window.player_edit)
+    # 角色名称 is changed from the header, in the box under its chip.
+    assert window.name_box.isAncestorOf(window.player_edit)
     assert "点击修改" not in [label.text() for label in window.findChildren(QLabel)]
     created = TagCreateDialog(window.store.tag_catalog(), parent=window)
     created.name_edit.setText("红名")
@@ -361,8 +361,8 @@ def test_elapsed_time_is_not_shown_in_the_record_list(qapp, tmp_path, monkeypatc
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
-    assert window.watch_label.text() == "自动检查中"
-    assert window.watch_label.toolTip() == "自动检查中"
+    assert window.status_chip.text() == "自动检查中"
+    assert window.status_chip.toolTip() == "切换为手动检查"
     window.store.add_scan([{"seat": 1, "name": "莓有橘子甜", "unclear": False}], 0.254)
     window._reload_history()
     assert "0.25" not in window.history_list.item(0).text()
@@ -490,24 +490,24 @@ def test_capture_mode_defaults_to_auto(qapp, tmp_path, monkeypatch):
     assert window.auto_off.isChecked() is False
     assert window.store.auto_capture is True
     assert window._watch_timer.isActive() is True
-    assert window.watch_label.text() == "自动检查中"
-    assert window.watch_mark.text() == ""
+    assert window.status_chip.text() == "自动检查中"
+    assert window.status_chip.key_text() == ""
     assert window.hotkey_edit.text() == "Alt+1"
     assert window.hotkey_edit.isEnabled() is False
     assert window.hotkey_edit.toolTip() == "手动检查时使用"
     assert window.hotkey.active == ""
     monkeypatch.setattr(window.hotkey, "apply", lambda spec: setattr(window.hotkey, "active", spec.display) or True)
     window.auto_off.click()
-    assert window.watch_label.text() == "手动检查"
-    assert window.watch_mark.text() == "[Alt+1]"
-    assert window.watch_mark.objectName() == "hotkey"
+    assert window.status_chip.text() == "手动检查"
+    assert window.status_chip.key_text() == "Alt+1"
+    assert window.status_chip.tone() == "watchOff"
     assert window.store.auto_capture is False
     assert window._watch_timer.isActive() is False
     assert window.hotkey_edit.isEnabled() is True
     assert window.hotkey.active == "Alt+1"
     assert Store(window.store.root).auto_capture is False
     window.auto_on.click()
-    assert window.watch_label.text() == "自动检查中"
+    assert window.status_chip.text() == "自动检查中"
     assert window.store.auto_capture is True
     assert window.hotkey_edit.isEnabled() is False
     assert window.hotkey.active == ""
@@ -516,67 +516,82 @@ def test_capture_mode_defaults_to_auto(qapp, tmp_path, monkeypatch):
 
 
 def test_header_cycle_switches_capture_mode(qapp, tmp_path, monkeypatch):
+    from blacklist_detect.ui_header import StatusChip
+
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
     window.show()
-    cycle = window.mode_cycle
-    assert cycle is not None
-    assert cycle.objectName() == "modeCycle"
-    assert cycle.width() == 16
-    assert cycle.cursor().shape() == Qt.PointingHandCursor
-    assert cycle.isHidden()
-    assert cycle.toolTip() == "切换为手动检查"
-    assert window.watch_label.text() == "自动检查中"
-    assert cycle.parentWidget() is window.mode_cluster
-    assert window.watch_mark.parentWidget() is window.mode_cluster
-    assert window.watch_label.parentWidget() is window.mode_cluster
-    qapp.sendEvent(window.watch_label, QEnterEvent(QPointF(2, 2), QPointF(2, 2), QPointF(2, 2)))
-    qapp.processEvents()
-    assert cycle.isHidden() is False
-    assert cycle.isVisible()
-    assert cycle.x() < window.watch_label.x() < window.watch_mark.x()
+    chip = window.status_chip
+    assert isinstance(chip, StatusChip)
+    assert chip.cursor().shape() == Qt.PointingHandCursor
+    assert chip.focusPolicy() == Qt.TabFocus
+    assert chip.text() == "自动检查中" and chip.tone() == "watchOn"
+    assert chip.toolTip() == "切换为手动检查"
+    # Under the pointer the dot becomes the flip arrows.
+    assert chip.hovered() is False
+    qapp.sendEvent(chip, QEnterEvent(QPointF(2, 2), QPointF(2, 2), QPointF(2, 2)))
+    assert chip.hovered() is True
+    qapp.sendEvent(chip, QEvent(QEvent.Type.Leave))
+    assert chip.hovered() is False
 
     def fake_apply(spec):
         window.hotkey.active = spec.display
         return True
 
     monkeypatch.setattr(window.hotkey, "apply", fake_apply)
-
-    def click(widget) -> None:
-        local = QPointF(widget.rect().center())
-        press = QMouseEvent(
-            QEvent.Type.MouseButtonPress,
-            local,
-            QPointF(widget.mapToGlobal(widget.rect().center())),
-            Qt.LeftButton,
-            Qt.LeftButton,
-            Qt.NoModifier,
-        )
-        qapp.sendEvent(widget, press)
-
-    click(window.watch_label)
+    chip.click()
     assert window.store.auto_capture is False
-    assert window.watch_label.text() == "手动检查"
-    assert window.watch_mark.text() == "[Alt+1]"
+    assert chip.text() == "手动检查" and chip.key_text() == "Alt+1"
     assert window.auto_off.isChecked() is True
     assert window.auto_on.isChecked() is False
     assert window.hotkey_edit.isEnabled() is True
     assert window.hotkey.active == "Alt+1"
     assert Store(window.store.root).auto_capture is False
-    assert cycle.toolTip() == "切换为自动检查"
+    assert chip.toolTip() == "切换为自动检查"
     assert window.tabs.currentIndex() == 0
-    click(window.watch_mark)
+    # The keyboard flips it too.
+    _press(qapp, chip, Qt.Key_Return)
     assert window.store.auto_capture is True
-    assert window.watch_label.text() == "自动检查中"
+    assert chip.text() == "自动检查中" and chip.key_text() == ""
     assert window.auto_on.isChecked() is True
     assert window.hotkey_edit.isEnabled() is False
     assert window.hotkey.active == ""
     assert Store(window.store.root).auto_capture is True
-    assert cycle.toolTip() == "切换为手动检查"
+    assert chip.toolTip() == "切换为手动检查"
     window._watch_timer.stop()
     window.close()
 
+
+def test_the_name_is_changed_from_the_header(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    window.resize(900, 560)
+    window.show()
+    chip = window.profile_chip
+    assert chip.name() == "" and chip.accessibleName() == "角色名称"
+    assert chip.x() > window.status_chip.x(), "the name is at the far right"
+    chip.click()
+    assert window.name_box.isVisible()
+    assert window.player_edit.placeholderText() == "游戏里的名字"
+    # The box opens under the chip, inside the window's right edge.
+    box = window.name_box.geometry()
+    assert box.top() >= chip.mapToGlobal(chip.rect().bottomLeft()).y()
+    assert box.right() <= chip.mapToGlobal(chip.rect().bottomRight()).x() + 1
+    window.player_edit.setText("纪戴宁")
+    _press(qapp, window.player_edit, Qt.Key_Return)
+    assert window.name_box.isVisible() is False
+    assert chip.name() == "纪戴宁"
+    assert Store(window.store.root).player_name == "纪戴宁"
+    # Esc puts the name back.
+    chip.click()
+    window.player_edit.setText("别的名字")
+    _press(qapp, window.name_box, Qt.Key_Escape)
+    assert window.name_box.isVisible() is False
+    assert window.store.player_name == "纪戴宁" and chip.name() == "纪戴宁"
+    window.close()
 
 def test_tabs_show_counts_as_badges(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
@@ -783,7 +798,7 @@ def test_auto_check_does_not_leave_the_current_tab(qapp, tmp_path, monkeypatch):
     window.tabs.setCurrentIndex(settings)
     window._start(lambda: None, live=True)
     assert window.tabs.currentIndex() == settings
-    assert window.watch_label.text() == "自动检查中"
+    assert window.status_chip.text() == "自动检查中"
     window._start(window._capture_job, live=True)
     assert window.tabs.currentIndex() == settings
     window.close()
@@ -857,10 +872,10 @@ def test_corner_reports_refresh_and_skip(qapp, tmp_path, monkeypatch):
     seat = NameSlot(0, (0, 0, 1, 1), "纪戴宁", "纪戴宁", False, 1.0, False)
     window.store.add_scan([{"seat": 1, "name": "纪戴宁", "unclear": False}])
     window._on_checked("ok", CheckResult(True, "", names=[seat]))
-    assert window.watch_label.text() == "自动检查中"
+    assert window.status_chip.text() == "自动检查中"
     window.store.scans[0]["at"] = "2020-01-01T00:00:00+00:00"
     window._on_checked("ok", CheckResult(True, "", names=[seat]))
-    assert window.watch_label.text() == "自动检查中"
+    assert window.status_chip.text() == "自动检查中"
     window.close()
 
 
@@ -906,8 +921,8 @@ def test_theme_choice_persists(qapp, tmp_path, monkeypatch):
     assert window.theme_buttons["蓝色"]._selected is False
     assert Store(window.store.root).theme == "红色"
     window._set_result("1 人在名单里", "hit", "result")
-    assert window.watch_label.objectName() == "hit"
-    assert "#c23b2e" in window.styleSheet()
+    assert window.status_chip.tone() == "hit"
+    assert window.status_chip._colors()[1] == THEME["red"] == "#c23b2e"
     window.show()
     window.resize(940, 600)
     window.move(120, 90)
@@ -958,7 +973,7 @@ def test_reset_asks_before_clearing_everything(qapp, tmp_path, monkeypatch):
     assert window.hotkey_edit.isEnabled() is False
     assert window.auto_on.isChecked() is True
     # Every control that shows a setting goes back with it.
-    assert window.mode_cycle.toolTip() == "切换为手动检查"
+    assert window.status_chip.toolTip() == "切换为手动检查"
     again = Store(window.store.root)
     assert again.entries == []
     assert again.scans == []
@@ -1063,16 +1078,17 @@ def test_a_failed_check_is_shown_and_clears_when_checks_work(qapp, tmp_path, mon
     window = MainWindow()
     window._watch_timer.stop()
     window._on_worker(("glance", "err", OcrUnavailable("识别模型没有就绪，请重新解压完整的安装包。")))
-    assert window.watch_label.text() == "识别模型没有就绪"
-    assert window.watch_label.toolTip() == "识别模型没有就绪，请重新解压完整的安装包。"
+    assert window.status_chip.text() == "识别模型没有就绪"
+    assert window.status_chip.tone() == "hit"
+    assert window.status_chip.toolTip() == "识别模型没有就绪，请重新解压完整的安装包。\n切换为手动检查"
     # No file path, library name or command: those go to the log, not to the user.
-    assert "app.log" not in window.watch_label.toolTip()
-    assert "PaddleOCR" not in window.watch_label.toolTip()
+    assert "app.log" not in window.status_chip.toolTip()
+    assert "PaddleOCR" not in window.status_chip.toolTip()
     assert window._glance_pause_until > 0
     window._on_worker(("check", "err", RuntimeError("坏了")))
-    assert window.watch_label.text() == "检查出错"
+    assert window.status_chip.text() == "检查出错"
     window._on_worker(("glance", "ok", False))
-    assert window.watch_label.text() == "自动检查中"
+    assert window.status_chip.text() == "自动检查中"
     window.close()
 
 
@@ -1083,9 +1099,9 @@ def test_the_model_load_is_shown_until_it_finishes(qapp, tmp_path, monkeypatch):
     window._watch_timer.stop()
     window.worker.request = lambda *args, **kwargs: True
     window.start_warmup()
-    assert window.watch_label.text() == "正在加载识别模型"
+    assert window.status_chip.text() == "正在加载识别模型"
     window._on_worker(("warmup", "ok", None))
-    assert window.watch_label.text() == "自动检查中"
+    assert window.status_chip.text() == "自动检查中"
     window.close()
 
 
@@ -1398,7 +1414,7 @@ def test_settings_are_grouped_into_titled_cards(qapp, tmp_path, monkeypatch):
     window._cycle_capture_mode()
     assert window.auto_mode.current() == "manual"
     window.auto_on.click()
-    assert window.mode_cycle.toolTip() == "切换为手动检查"
+    assert window.status_chip.toolTip() == "切换为手动检查"
     assert window.store.auto_capture is True
     window.auto_off.click()
     assert window.store.auto_capture is False
