@@ -114,8 +114,9 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     assert window.blacklist_table.isHidden() is False
     assert window.hotkey_edit.text() == "Alt+1"
     assert window.hotkey_edit.isEnabled() is False
-    assert window.player_edit.maximumWidth() == window.player_edit.width()
-    assert window.player_edit.width() < 200
+    # 角色名称 sits beside the list on 黑名单, not in 设置.
+    assert window.list_side.isAncestorOf(window.player_edit)
+    assert window.tabs.widget(window.blacklist_tab).isAncestorOf(window.player_edit)
     assert "点击修改" not in [label.text() for label in window.findChildren(QLabel)]
     created = TagCreateDialog(window.store.tag_catalog(), parent=window)
     created.name_edit.setText("红名")
@@ -123,7 +124,7 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     assert created.created == "红名"
     assert window.store.add_custom_tag(created.created)
     window.store.save_settings()
-    window._fill_tag_settings()
+    window._fill_tag_list()
     created.close()
     assert window.store.tag_catalog() == ("炸房", "贴脸", "挂机", "场外", "不尊重底牌", "红名")
     picked = AddNameDialog(catalog=window.store.tag_catalog())
@@ -144,9 +145,9 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
         return len(asked) > 1
 
     monkeypatch.setattr("blacklist_detect.ui._confirm", confirm)
-    window._remove_settings_tag("红名")
+    window._remove_tag("红名")
     assert window.store.custom_tags == ["红名"]
-    window._remove_settings_tag("红名")
+    window._remove_tag("红名")
     assert asked == ["1 个名字使用「红名」：甲。确定删除？"] * 2
     assert window.store.custom_tags == []
     assert window.store.entries[-1].tags == ()
@@ -207,6 +208,12 @@ def test_blacklist_columns_can_be_dragged(qapp, tmp_path, monkeypatch):
     window.close()
     again = MainWindow()
     assert again._column_labels() == ["最后遇到", "名字", "标签", "原因"]
+    # Dragged in a window as it opens: the list beside the tags, with a name in it.
+    again.store.add("甲")
+    again._show_list()
+    again.resize(900, 560)
+    again.show()
+    qapp.processEvents()
     again.blacklist_table.horizontalHeader().resizeSection(0, 220)
     assert again.store.column_widths[0] == 220
     again.close()
@@ -576,7 +583,7 @@ def test_tabs_show_counts_as_badges(qapp, tmp_path, monkeypatch):
     window = MainWindow()
     window._watch_timer.stop()
     tabs = window._tab_buttons
-    assert [tab.name() for tab in tabs] == ["记录", "黑名单", "设置"]
+    assert [tab.name() for tab in tabs] == ["黑名单", "记录", "设置"]
     assert [tab.count() for tab in tabs] == [0, 0, 0]
     narrow = tabs[window.blacklist_tab].sizeHint().width()
     window.store.add("甲")
@@ -769,7 +776,7 @@ def test_auto_check_does_not_leave_the_current_tab(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
     window.worker.request = lambda fn, kind="check": True
-    assert window.tabs.tabText(0).startswith("记录")
+    assert window.tabs.tabText(0).startswith("黑名单")
     assert window.tabs.count() == 3
     settings = window.tabs.count() - 1
     window.tabs.setCurrentIndex(settings)
@@ -1367,10 +1374,15 @@ def test_settings_are_grouped_into_titled_cards(qapp, tmp_path, monkeypatch):
     window._watch_timer.stop()
     sections = window.findChildren(SettingsSection)
     titles = [section.findChild(QLabel, "sectionTitle").text() for section in sections]
-    assert titles == ["检查", "常规", "外观", "数据", "标签"]
+    assert titles == ["检查", "常规", "外观", "数据"]
+    # 角色名称 and 标签 moved to 黑名单.
+    settings_page = window.tabs.widget(window.settings_tab)
+    shown = [label.text() for label in settings_page.findChildren(QLabel)]
+    assert "角色名称" not in shown and "标签" not in shown
+    assert not settings_page.isAncestorOf(window.tag_list)
     # Like with like, and all of it on one screen at the smallest window.
     window.resize(900, 560)
-    window.tabs.setCurrentIndex(2)
+    window.tabs.setCurrentIndex(window.settings_tab)
     window.show()
     for _ in range(5):
         qapp.processEvents()
@@ -1378,7 +1390,6 @@ def test_settings_are_grouped_into_titled_cards(qapp, tmp_path, monkeypatch):
     by_title = dict(zip(titles, sections, strict=True))
     assert by_title["检查"].y() == by_title["常规"].y(), "two columns"
     assert by_title["外观"].y() == by_title["数据"].y()
-    assert by_title["标签"].width() > by_title["检查"].width() * 1.8, "标签 spans both columns"
     window.hide()
     # 提示音 is gone.
     assert "提示音" not in [label.text() for label in window.findChildren(QLabel)]
@@ -1421,11 +1432,13 @@ def test_keyboard_reaches_every_page_and_list(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
     window._watch_timer.stop()
-    # Ctrl+1/2/3 open the pages; Ctrl+F lands on 黑名单.
+    # Ctrl+1/2/3 open the pages in their order; Ctrl+F lands on 黑名单.
     window.shortcuts["Ctrl+3"].activated.emit()
-    assert window.tabs.currentIndex() == 2
+    assert window.tabs.currentIndex() == window.settings_tab == 2
     window.shortcuts["Ctrl+1"].activated.emit()
-    assert window.tabs.currentIndex() == window.history_tab
+    assert window.tabs.currentIndex() == window.blacklist_tab == 0
+    window.shortcuts["Ctrl+2"].activated.emit()
+    assert window.tabs.currentIndex() == window.history_tab == 1
     window.store.add("甲")
     window.store.add("乙")
     window._show_list()
@@ -1470,7 +1483,7 @@ def test_keyboard_reaches_every_page_and_list(qapp, tmp_path, monkeypatch):
 
 def test_controls_take_keyboard_focus_and_have_names(qapp, tmp_path, monkeypatch):
     from blacklist_detect.ui_kit import IconButton, Switch, TabButton
-    from blacklist_detect.ui_widgets import NewTagButton, ThemeSwatch
+    from blacklist_detect.ui_widgets import ThemeSwatch
 
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
@@ -1482,7 +1495,8 @@ def test_controls_take_keyboard_focus_and_have_names(qapp, tmp_path, monkeypatch
     for kind in (IconButton, Switch, TabButton, ThemeSwatch):
         for control in window.findChildren(kind):
             assert control.accessibleName(), (kind.__name__, control)
-    assert window.findChild(NewTagButton).focusPolicy() == Qt.TabFocus
+    assert window.tag_add.focusPolicy() == Qt.TabFocus and window.tag_add.accessibleName() == "新标签"
+    assert window.tag_list.focusPolicy() == Qt.StrongFocus
     assert all(pill.focusPolicy() == Qt.TabFocus for pill in window.findChildren(TagPill) if pill._clickable)
     # A theme swatch is chosen with Enter, the way a click chooses it.
     swatch = window.theme_buttons["绿色"]
@@ -2009,3 +2023,177 @@ def test_recent_records_say_today_and_yesterday(qapp, tmp_path, monkeypatch):
     assert window._day_and_clock(older.isoformat())[0] == f"{older.month}月{older.day}日"
     window.close()
 
+
+
+def test_the_window_opens_on_blacklist(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    assert window.blacklist_tab == 0 and window.tabs.currentIndex() == window.blacklist_tab
+    assert window._tab_buttons[0].isChecked() and window._tab_buttons[0].toolTip() == "Ctrl+1"
+    # A new list still shows where to put 角色名称 and the tags.
+    assert window.list_empty.isHidden() is False
+    assert window.list_side.isHidden() is False
+    window.close()
+
+
+def _tag_rows(window) -> list[tuple[str, int]]:  # noqa: ANN001
+    rows = []
+    for row in range(window.tag_list.count()):
+        item = window.tag_list.item(row)
+        rows.append((item.text(), int(item.data(Qt.UserRole + 1) or 0)))
+    return rows
+
+
+def _shown_names(window) -> list[str]:  # noqa: ANN001
+    table = window.blacklist_table
+    return [table.item(row, 0).text() for row in range(table.rowCount())] if not table.isHidden() else []
+
+
+def test_a_tag_beside_the_list_shows_only_its_names(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    window.store.add("甲", tags=("炸房",))
+    window.store.add("乙", tags=("炸房", "贴脸"))
+    window.store.add("丙", tags=("贴脸",), reason="场外")
+    window._show_list()
+    # 全部, then every tag with how many names carry it.
+    assert _tag_rows(window) == [("全部", 3), ("炸房", 2), ("贴脸", 2), ("挂机", 0), ("场外", 0), ("不尊重底牌", 0)]
+    assert window.tag_list.currentRow() == 0
+    window.tag_list.setCurrentRow(1)
+    assert window._tag_filter == "炸房"
+    assert _shown_names(window) == ["甲", "乙"]
+    assert window.list_count.text() == "找到 2 人"
+    # The search narrows the picked tag further.
+    window.list_search.setText("乙")
+    assert _shown_names(window) == ["乙"]
+    window.list_search.clear()
+    # A tag no name carries says so.
+    window.tag_list.setCurrentRow(3)
+    assert window.blacklist_table.isHidden() and window.list_hint.text() == "没有名字使用「挂机」"
+    # 全部 shows the whole list again; the tab badge counts it all the time.
+    window.tag_list.setCurrentRow(0)
+    assert _shown_names(window) == ["甲", "乙", "丙"]
+    assert window.list_count.text() == "共 3 人"
+    assert window._tab_buttons[window.blacklist_tab].count() == 3
+    # Counts follow the list; the picked tag stays picked.
+    window.tag_list.setCurrentRow(2)
+    window.store.add("丁", tags=("贴脸",))
+    window._list_changed()
+    assert _tag_rows(window)[2] == ("贴脸", 3)
+    assert window.tag_list.currentRow() == 2 and _shown_names(window) == ["乙", "丙", "丁"]
+    window.close()
+
+
+def test_add_starts_with_the_picked_tag(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    window.store.add("甲", tags=("挂机",))
+    window._show_list()
+    seen: list[tuple[str, ...]] = []
+
+    class Dialog:
+        def __init__(self, *, tags=(), **_kwargs) -> None:  # noqa: ANN001
+            seen.append(tuple(tags))
+
+        def exec(self) -> int:
+            return QDialog.Rejected
+
+    monkeypatch.setattr("blacklist_detect.ui.AddNameDialog", Dialog)
+    window._add_by_dialog()
+    window.tag_list.setCurrentRow(3)
+    window._add_by_dialog()
+    assert seen == [(), ("挂机",)]
+    window.close()
+
+
+def test_renaming_or_deleting_the_picked_tag(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    window.store.add("甲", tags=("炸房",))
+    window.store.add("乙")
+    window._show_list()
+    window.tag_list.setCurrentRow(1)
+    answer = {"renamed": "闹房", "deleted": False}
+
+    class Edit:
+        def __init__(self, tag, _catalog, parent=None) -> None:  # noqa: ANN001
+            self.renamed = answer["renamed"]
+            self.deleted = answer["deleted"]
+
+        def exec(self) -> int:
+            return QDialog.Accepted
+
+    monkeypatch.setattr("blacklist_detect.ui.TagEditDialog", Edit)
+    window._edit_tag("炸房")
+    # The list stays on the tag under its new name.
+    assert window._tag_filter == "闹房"
+    assert window.tag_list.currentItem().text() == "闹房"
+    assert _shown_names(window) == ["甲"]
+    # Deleting a tag that names carry asks first, then goes back to 全部.
+    asked: list[str] = []
+    monkeypatch.setattr("blacklist_detect.ui._confirm", lambda _parent, text: asked.append(text) or True)
+    answer["deleted"] = True
+    window._edit_tag("闹房")
+    assert asked == ["1 个名字使用「闹房」：甲。确定删除？"]
+    assert window._tag_filter == "" and window.tag_list.currentRow() == 0
+    assert "闹房" not in window.store.tag_catalog()
+    assert _shown_names(window) == ["甲", "乙"]
+    # One no name carries goes at once.
+    window._edit_tag("挂机")
+    assert len(asked) == 1 and "挂机" not in window.store.tag_catalog()
+    window.close()
+
+
+def test_a_tags_pencil_opens_its_editor_and_keys_work(qapp, tmp_path, monkeypatch):
+    from blacklist_detect.ui_widgets import TagListDelegate
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    window.store.add("甲", tags=("炸房",))
+    window._show_list()
+    window.resize(900, 560)
+    window.show()
+    for _ in range(5):
+        qapp.processEvents()
+    opened: list[str] = []
+    monkeypatch.setattr(window, "_edit_tag", opened.append)
+    view = window.tag_list
+    rect = view.visualItemRect(view.item(1))
+    pencil = TagListDelegate.edit_box(rect).center()
+    move = QMouseEvent(QEvent.Type.MouseMove, QPointF(pencil), QPointF(pencil), Qt.NoButton, Qt.NoButton, Qt.NoModifier)
+    qapp.sendEvent(view.viewport(), move)
+    assert view.property("hoverRow") == 1
+    for kind in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease):
+        qapp.sendEvent(
+            view.viewport(), QMouseEvent(kind, QPointF(pencil), QPointF(pencil), Qt.LeftButton, Qt.LeftButton, Qt.NoModifier)
+        )
+    # The pencil opens 修改 without picking the tag.
+    assert opened == ["炸房"]
+    assert window._tag_filter == ""
+    # The rest of the row picks it.
+    middle = QPointF(rect.center().x() - 30, rect.center().y())
+    for kind in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease):
+        qapp.sendEvent(view.viewport(), QMouseEvent(kind, middle, middle, Qt.LeftButton, Qt.LeftButton, Qt.NoModifier))
+    assert window._tag_filter == "炸房" and opened == ["炸房"]
+    # Enter or F2 opens 修改; Delete asks, then removes.
+    _press(qapp, view, Qt.Key_F2)
+    _press(qapp, view, Qt.Key_Return)
+    assert opened == ["炸房"] * 3
+    monkeypatch.setattr("blacklist_detect.ui._confirm", lambda *_args: True)
+    _press(qapp, view, Qt.Key_Delete)
+    assert "炸房" not in window.store.tag_catalog()
+    assert window._tag_filter == ""
+    # Leaving the list takes the pencil away.
+    qapp.sendEvent(view.viewport(), QEvent(QEvent.Type.Leave))
+    assert view.property("hoverRow") == -1
+    window.close()

@@ -97,6 +97,7 @@ from blacklist_detect.ui_overlay import (
 from blacklist_detect.ui_theme import (
     APPEARANCES,
     BODY_PT,
+    CONTROL_H,
     GAP,
     PAD,
     ROW_H,
@@ -120,13 +121,12 @@ from blacklist_detect.ui_theme import (
 )
 from blacklist_detect.ui_widgets import (
     DayFolderIcon,
-    NewTagButton,
+    TagListDelegate,
     TagPill,
     ThemeSwatch,
     _check_icon,
     _ColumnHeader,
     _DetailTip,
-    _FlowHost,
     _icon,
     _local_moment,
     _PlainItemDelegate,
@@ -373,6 +373,9 @@ class MainWindow(QMainWindow):
         self._watch_tip = ""
         self._blacklist_sort: tuple[int, bool] | None = None
         self._blacklist_hover = -1
+        # The tag picked beside 黑名单 ("" for 全部), and a press on a tag's pencil waiting for its release.
+        self._tag_filter = ""
+        self._tag_press = ""
         self._build()
         self._add_shortcuts()
         self._apply_style()
@@ -404,9 +407,9 @@ class MainWindow(QMainWindow):
 
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
-        self.history_tab = self.tabs.addTab(self._history_page(), "记录")
         self.blacklist_tab = self.tabs.addTab(self._list_page(), "黑名单")
-        self.tabs.addTab(self._settings_page(), "设置")
+        self.history_tab = self.tabs.addTab(self._history_page(), "记录")
+        self.settings_tab = self.tabs.addTab(self._settings_page(), "设置")
         self.tabs.tabBar().hide()
         self.tabs.currentChanged.connect(self._sync_tab_buttons)
         header = QWidget()
@@ -479,8 +482,16 @@ class MainWindow(QMainWindow):
 
     def _list_page(self) -> QWidget:
         page = QWidget()
-        layout = QVBoxLayout(page)
-        _page(layout)
+        outer = QVBoxLayout(page)
+        _page(outer)
+        body = QHBoxLayout()
+        body.setSpacing(GAP)
+        outer.addLayout(body, 1)
+        body.addWidget(self._list_side())
+        layout = QVBoxLayout()
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(GAP)
+        body.addLayout(layout, 1)
         toolbar = QHBoxLayout()
         toolbar.setSpacing(8)
         self.list_search = QLineEdit()
@@ -582,6 +593,71 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.blacklist_table, 1)
         layout.addWidget(self.list_empty, 1)
         return page
+
+    def _list_side(self) -> QWidget:
+        """标签 on top, where the list starts, and 角色名称 at the foot.
+
+        The tags pick which names the list shows. 全部 shows them all.
+        """
+        side = QWidget()
+        # As wide as the list of records on 记录, so the left column stays put between the pages.
+        side.setFixedWidth(168)
+        self.list_side = side
+        column = QVBoxLayout(side)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(GAP)
+        head_row = QWidget()
+        head_row.setFixedHeight(CONTROL_H)
+        head = QHBoxLayout(head_row)
+        head.setContentsMargins(0, 0, 0, 0)
+        head.setSpacing(4)
+        title = QLabel("标签")
+        title.setObjectName("sideTitle")
+        head.addWidget(title, 0, Qt.AlignVCenter)
+        head.addStretch(1)
+        self.tag_add = IconButton("add", "新标签")
+        self.tag_add.clicked.connect(self._create_tag)
+        head.addWidget(self.tag_add, 0, Qt.AlignVCenter)
+        column.addWidget(head_row)
+        self.tag_list = QListWidget()
+        self.tag_list.setObjectName("tags")
+        self.tag_list.setAccessibleName("标签")
+        self.tag_list.setFocusPolicy(Qt.StrongFocus)
+        self.tag_list.setItemDelegate(TagListDelegate(self.tag_list))
+        self.tag_list.setProperty("hoverRow", -1)
+        self.tag_list.setCursor(Qt.PointingHandCursor)
+        self.tag_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.tag_list.setMouseTracking(True)
+        self.tag_list.viewport().setMouseTracking(True)
+        self.tag_list.installEventFilter(self)
+        self.tag_list.viewport().installEventFilter(self)
+        self.tag_list.currentRowChanged.connect(self._on_tag_picked)
+        self.tag_list.itemDoubleClicked.connect(self._on_tag_double_clicked)
+        self.tag_list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.tag_list.customContextMenuRequested.connect(self._tag_menu)
+        column.addWidget(self.tag_list, 1)
+        recheck = QPushButton("按原因补标签")
+        recheck.setObjectName("recheck")
+        recheck.setFont(chinese_font(SMALL_PT))
+        recheck.setAutoDefault(False)
+        recheck.setCursor(Qt.PointingHandCursor)
+        recheck.clicked.connect(self._recheck_tags)
+        column.addWidget(recheck)
+        column.addSpacing(4)
+        name = QVBoxLayout()
+        name.setContentsMargins(0, 0, 0, 0)
+        name.setSpacing(6)
+        name_title = QLabel("角色名称")
+        name_title.setObjectName("sideTitle")
+        name.addWidget(name_title)
+        self.player_edit = QLineEdit(self.store.player_name)
+        self.player_edit.setPlaceholderText("游戏里的名字")
+        self.player_edit.editingFinished.connect(self._save_player_name)
+        self.player_edit.setAccessibleName("角色名称")
+        name.addWidget(self.player_edit)
+        column.addLayout(name)
+        self._fill_tag_list()
+        return side
 
     def _history_page(self) -> QWidget:
         page = QWidget()
@@ -685,7 +761,8 @@ class MainWindow(QMainWindow):
 
         检查 | 常规
         外观 | 数据
-        标签 (the full width: it grows with the tags)
+
+        角色名称 and 标签 live beside the list on 黑名单.
         """
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -712,7 +789,6 @@ class MainWindow(QMainWindow):
         scroll.setWidget(body)
         layout.addWidget(scroll, 1)
         metrics = QFontMetrics(chinese_font())
-        name_width = metrics.horizontalAdvance("中" * 7) + 28
         slot = metrics.horizontalAdvance("手动检查") + 28
         label_width = metrics.horizontalAdvance("关闭到托盘") + 8
 
@@ -749,14 +825,8 @@ class MainWindow(QMainWindow):
         self.picture_button.clicked.connect(self.check_picture)
         check.add_row("识别", self.picture_button)
 
-        # 常规: who you are, and how the app starts and closes.
+        # 常规: how the app starts and closes.
         general = section("常规", 0, 1)
-        self.player_edit = QLineEdit(self.store.player_name)
-        self.player_edit.setPlaceholderText("游戏里的名字")
-        self.player_edit.editingFinished.connect(self._save_player_name)
-        self.player_edit.setFixedWidth(name_width)
-        self.player_edit.setAccessibleName("角色名称")
-        general.add_row("角色名称", self.player_edit)
         self.autostart_switch = Switch(autostart.is_enabled())
         self.autostart_switch.setAccessibleName("开机启动")
         self.autostart_switch.setEnabled(autostart.available())
@@ -807,79 +877,117 @@ class MainWindow(QMainWindow):
         control = data.add_row("控制", self.data_button, reset)
         control.insertSpacing(2, GAP)
         data.add_row("版本", QLabel(__version__))
-
-        # 标签: the full width, since it grows with the tags.
-        tags = section("标签", 2, 0, 2)
-        tag_row = QWidget()
-        tag_line = QHBoxLayout(tag_row)
-        tag_line.setContentsMargins(0, 4, 0, 4)
-        tag_line.setSpacing(GAP)
-        tag_host = QWidget()
-        self.tag_settings = QVBoxLayout(tag_host)
-        self.tag_settings.setSpacing(0)
-        self.tag_settings.setContentsMargins(0, 0, 0, 0)
-        self._fill_tag_settings()
-        tag_line.addWidget(tag_host, 1)
-        recheck = QPushButton("按原因补标签")
-        recheck.setObjectName("recheck")
-        recheck.setFont(chinese_font(SMALL_PT))
-        recheck.setAutoDefault(False)
-        recheck.setCursor(Qt.PointingHandCursor)
-        recheck.clicked.connect(self._recheck_tags)
-        tag_line.addWidget(recheck, 0, Qt.AlignTop)
-        tags.add_widget(tag_row, separated=False)
         return page
 
-    def _fill_tag_settings(self) -> None:
-        while self.tag_settings.count():
-            item = self.tag_settings.takeAt(0)
-            widget = item.widget()
-            if widget is not None:
-                widget.hide()
-                widget.setParent(None)
-                widget.deleteLater()
-        host = _FlowHost(gap=6)
-        for tag in self.store.tag_catalog():
-            pill = TagPill(tag, clickable=True)
-            pill.clicked.connect(self._edit_settings_tag)
-            host.addWidget(pill)
-        create = NewTagButton()
-        create.clicked.connect(self._create_settings_tag)
-        host.addWidget(create)
-        self.tag_settings.addWidget(host)
+    def _fill_tag_list(self) -> None:
+        """全部 and each tag, with how many names carry it. Rows are rebuilt only when the tags change."""
+        view = getattr(self, "tag_list", None)
+        if view is None:
+            return
+        catalog = self.store.tag_catalog()
+        if self._tag_filter not in catalog:
+            self._tag_filter = ""
+        counts: dict[str, int] = {}
+        for entry in self.store.entries:
+            for tag in entry.tags:
+                counts[tag] = counts.get(tag, 0) + 1
+        rows = [("", len(self.store.entries)), *((tag, counts.get(tag, 0)) for tag in catalog)]
+        view.blockSignals(True)
+        if [self._tag_at(row) for row in range(view.count())] != [tag for tag, _count in rows]:
+            view.clear()
+            for tag, _count in rows:
+                item = QListWidgetItem(tag or "全部")
+                item.setData(Qt.UserRole, tag)
+                view.addItem(item)
+        for row, (tag, count) in enumerate(rows):
+            view.item(row).setData(Qt.UserRole + 1, count)
+            if tag == self._tag_filter and view.currentRow() != row:
+                view.setCurrentRow(row)
+        view.blockSignals(False)
+
+    def _tag_at(self, row: int) -> str:
+        item = self.tag_list.item(row) if row >= 0 else None
+        return str(item.data(Qt.UserRole) or "") if item is not None else ""
+
+    def _on_tag_picked(self, row: int) -> None:
+        tag = self._tag_at(row)
+        if tag == self._tag_filter:
+            return
+        self._tag_filter = tag
+        self._show_list()
+
+    def _on_tag_double_clicked(self, item: QListWidgetItem) -> None:
+        tag = str(item.data(Qt.UserRole) or "")
+        if tag:
+            self._edit_tag(tag)
+
+    def _hover_tag_row(self, row: int) -> None:
+        if self.tag_list.property("hoverRow") == row:
+            return
+        self.tag_list.setProperty("hoverRow", row)
+        self.tag_list.viewport().update()
+
+    def _on_tag_pencil(self, event) -> bool:  # noqa: ANN001
+        """A press and release on a tag's pencil opens 修改, the way a button would; the row is not picked."""
+        if event.button() != Qt.LeftButton:
+            return False
+        pos = event.position().toPoint()
+        row = self.tag_list.indexAt(pos).row()
+        tag = self._tag_at(row)
+        on_pencil = bool(tag) and TagListDelegate.edit_target(self.tag_list.visualItemRect(self.tag_list.item(row))).contains(pos)
+        if event.type() == QEvent.Type.MouseButtonPress:
+            self._tag_press = tag if on_pencil else ""
+            return on_pencil
+        pressed, self._tag_press = self._tag_press, ""
+        if not pressed:
+            return False
+        if on_pencil and tag == pressed:
+            self._edit_tag(tag)
+        return True
+
+    def _tag_menu(self, pos) -> None:  # noqa: ANN001
+        tag = self._tag_at(self.tag_list.indexAt(pos).row())
+        if not tag:
+            return
+        menu = self._menu((("修改", ("tag_edit", tag)), None, ("删除", ("tag_delete", tag))))
+        menu.popup(self.tag_list.viewport().mapToGlobal(pos))
 
     def _recheck_tags(self) -> None:
         self.store.recheck_tags()
         self._show_list()
 
-    def _create_settings_tag(self) -> None:
+    def _create_tag(self) -> None:
         dialog = TagCreateDialog(self.store.tag_catalog(), parent=self)
         if dialog.exec() != QDialog.Accepted or not dialog.created:
             return
         if not self.store.add_custom_tag(dialog.created):
             return
         self.store.save_settings()
-        self._fill_tag_settings()
+        self._fill_tag_list()
 
-    def _edit_settings_tag(self, tag: str) -> None:
+    def _edit_tag(self, tag: str) -> None:
         dialog = TagEditDialog(tag, self.store.tag_catalog(), parent=self)
         if dialog.exec() != QDialog.Accepted:
             return
         if dialog.deleted:
-            if self.store.remove_custom_tag(tag):
+            if any(tag in entry.tags for entry in self.store.entries):
+                # Names would lose the tag, so it asks first.
+                self._remove_tag(tag)
+            elif self.store.remove_custom_tag(tag):
                 self._refresh_tag_views()
             return
         if dialog.renamed == tag:
             return
         if self.store.rename_tag(tag, dialog.renamed) == "renamed":
+            if self._tag_filter == tag:
+                self._tag_filter = dialog.renamed
             self._refresh_tag_views()
 
     def _refresh_tag_views(self) -> None:
-        self._fill_tag_settings()
         self._show_list()
         self._show_history_scan(self._selected_scan())
 
-    def _remove_settings_tag(self, tag: str) -> None:
+    def _remove_tag(self, tag: str) -> None:
         names = [entry.name for entry in self.store.entries if tag in entry.tags]
         if not names:
             text = f"没有名字使用「{tag}」。确定删除？"
@@ -903,6 +1011,7 @@ class MainWindow(QMainWindow):
             return
         self.store.reset()
         self.hotkey.clear()
+        self._tag_filter = ""
         self.player_edit.setText("")
         self.hotkey_edit.clearFocus()
         self._show_hotkey()
@@ -958,8 +1067,9 @@ class MainWindow(QMainWindow):
             self.reset_button.setFont(ui_font())
         _pointing(self)
         self._mark_theme_buttons()
-        if hasattr(self, "tag_settings"):
-            self._fill_tag_settings()
+        if hasattr(self, "tag_list"):
+            self.tag_add.refresh()
+            self.tag_list.viewport().update()
         if hasattr(self, "watch_label"):
             self._set_result(self._watch_full, self._watch_tone, self._status_kind, self._watch_tip)
         if hasattr(self, "mode_cycle"):
@@ -1091,6 +1201,15 @@ class MainWindow(QMainWindow):
                     self._sync_detail_tip(index.row(), index.column())
             elif event.type() == QEvent.Type.Resize:
                 self._fit_blacklist_columns()
+        tags = getattr(self, "tag_list", None)
+        if tags is not None and watched is tags.viewport():
+            kind = event.type()
+            if kind == QEvent.Type.MouseMove:
+                self._hover_tag_row(tags.indexAt(event.position().toPoint()).row())
+            elif kind == QEvent.Type.Leave:
+                self._hover_tag_row(-1)
+            elif kind in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease) and self._on_tag_pencil(event):
+                return True
         tip = getattr(self, "detail_tip", None)
         if tip is not None and watched is tip:
             if event.type() == QEvent.Type.Enter:
@@ -1141,6 +1260,8 @@ class MainWindow(QMainWindow):
 
     def _ordered_entries(self) -> list[tuple[int, Entry]]:
         rows = list(enumerate(self.store.entries))
+        if self._tag_filter:
+            rows = [pair for pair in rows if self._tag_filter in pair[1].tags]
         query = self._search_text()
         if query:
             folded = fold(query)
@@ -1356,6 +1477,8 @@ class MainWindow(QMainWindow):
         return {index: _zh_ago(stamp) for index, stamp in self._last_met_stamps().items()}
 
     def _show_list(self) -> None:
+        # First, since a tag that is gone also drops out of the filter.
+        self._fill_tag_list()
         rows = self._ordered_entries()
         met = self._last_met_all()
         table = self.blacklist_table
@@ -1390,7 +1513,7 @@ class MainWindow(QMainWindow):
         for button in self.toolbar_buttons:
             button.setVisible(count > 0)
         # The tab badge stops at 99+; the exact number is here.
-        if self._search_text():
+        if self._search_text() or self._tag_filter:
             self.list_count.setText(f"找到 {len(rows)} 人")
         else:
             self.list_count.setText(f"共 {count} 人" if count else "")
@@ -1399,7 +1522,8 @@ class MainWindow(QMainWindow):
             self.blacklist_table.setVisible(True)
         elif count:
             self.list_empty.set_icon("search")
-            self.list_empty.set_text(f"没有找到「{self._search_text()}」")
+            query = self._search_text()
+            self.list_empty.set_text(f"没有找到「{query}」" if query else f"没有名字使用「{self._tag_filter}」")
             self.empty_add_button.hide()
             self.empty_batch_button.hide()
             self.list_empty.show()
@@ -1543,6 +1667,16 @@ class MainWindow(QMainWindow):
             if key == Qt.Key_Delete:
                 self._delete_entry(int(item.data(Qt.UserRole)))
                 return True
+        elif watched is getattr(self, "tag_list", None):
+            tag = self._tag_at(self.tag_list.currentRow())
+            if not tag:
+                return False
+            if enter or key == Qt.Key_F2:
+                self._edit_tag(tag)
+                return True
+            if key == Qt.Key_Delete:
+                self._remove_tag(tag)
+                return True
         elif watched is getattr(self, "history_table", None):
             row, column = self.history_table.currentRow(), self.history_table.currentColumn()
             if enter and row >= 0 and column >= 0:
@@ -1571,8 +1705,8 @@ class MainWindow(QMainWindow):
 
         self.shortcuts: dict[str, QShortcut] = {}
         for keys, slot in (
-            ("Ctrl+1", self._show_records_page),
-            ("Ctrl+2", self._show_blacklist_page),
+            ("Ctrl+1", self._show_blacklist_page),
+            ("Ctrl+2", self._show_records_page),
             ("Ctrl+3", self._show_settings_page),
             ("Ctrl+F", self._focus_search),
             ("Ctrl+N", self._add_by_dialog),
@@ -1589,7 +1723,7 @@ class MainWindow(QMainWindow):
         self.tabs.setCurrentIndex(self.blacklist_tab)
 
     def _show_settings_page(self) -> None:
-        self.tabs.setCurrentIndex(2)
+        self.tabs.setCurrentIndex(self.settings_tab)
 
     def _focus_search(self) -> None:
         self._show_blacklist_page()
@@ -1639,6 +1773,10 @@ class MainWindow(QMainWindow):
             self._on_history_cell(*args)
         elif kind == "copy_text":
             self._copy_text(*args)
+        elif kind == "tag_edit":
+            self._edit_tag(*args)
+        elif kind == "tag_delete":
+            self._remove_tag(*args)
 
     def _copy_name(self, index: int) -> None:
         if 0 <= index < len(self.store.entries):
@@ -1664,7 +1802,8 @@ class MainWindow(QMainWindow):
         self._say(f"已复制 {count} 人。朋友在「批量添加」里粘贴即可。")
 
     def _add_by_dialog(self) -> None:
-        dialog = AddNameDialog(catalog=self.store.tag_catalog(), parent=self, taken=self._taken_names())
+        picked = (self._tag_filter,) if self._tag_filter else ()
+        dialog = AddNameDialog(tags=picked, catalog=self.store.tag_catalog(), parent=self, taken=self._taken_names())
         if dialog.exec() != QDialog.Accepted or dialog.deleted:
             return
         before = self.store.snapshot_entries()
@@ -1687,7 +1826,7 @@ class MainWindow(QMainWindow):
         if added == 0:
             self._say(f"这 {skipped} 个名字都已经在名单里")
             return
-        # A shared list may bring tags this list has not seen. They now show in 设置.
+        # A shared list may bring tags this list has not seen. They now show beside the list.
         self._refresh_tag_views()
         text = f"已添加 {added} 人"
         if skipped:

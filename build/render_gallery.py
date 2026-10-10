@@ -65,10 +65,10 @@ def main() -> int:
 
     window.resize(900, 560)
     window.show()
-    window.tabs.setCurrentIndex(0)
-    snap("records_empty_900")
-    window.tabs.setCurrentIndex(1)
+    window.tabs.setCurrentIndex(window.blacklist_tab)
     snap("blacklist_empty_900")
+    window.tabs.setCurrentIndex(window.history_tab)
+    snap("records_empty_900")
 
     store = window.store
     store.player_name = "阿强"
@@ -81,14 +81,14 @@ def main() -> int:
 
     for size in ((900, 560), (1400, 900)):
         window.resize(*size)
-        window.tabs.setCurrentIndex(0)
-        snap(f"records_{size[0]}")
-        window.tabs.setCurrentIndex(1)
+        window.tabs.setCurrentIndex(window.blacklist_tab)
         snap(f"blacklist_{size[0]}")
-        window.tabs.setCurrentIndex(2)
+        window.tabs.setCurrentIndex(window.history_tab)
+        snap(f"records_{size[0]}")
+        window.tabs.setCurrentIndex(window.settings_tab)
         snap(f"settings_{size[0]}")
     window.resize(900, 560)
-    window.tabs.setCurrentIndex(1)
+    window.tabs.setCurrentIndex(window.blacklist_tab)
     say = getattr(window, "_say", None)
     if say is not None:
         say("已添加 3 人", undo=lambda: None)
@@ -102,17 +102,23 @@ def main() -> int:
     window._hover_blacklist_row(1, 0)
     snap("blacklist_hover")
     window._clear_blacklist_hover()
+    if hasattr(window, "tag_list"):
+        window.tag_list.setCurrentRow(1)
+        window._hover_tag_row(2)
+        snap("blacklist_tag_picked")
+        window._hover_tag_row(-1)
+        window.tag_list.setCurrentRow(0)
     from PySide6.QtCore import QPoint
 
     window.detail_tip.show_reason("1" * 120 + "\n第二行：很长的原因文字" * 3, QPoint(40, 40))
     snap("reason_tip", window.detail_tip)
     window.detail_tip.hide()
     _focus_scene(app, window, snap)
-    window.tabs.setCurrentIndex(0)
+    window.tabs.setCurrentIndex(window.history_tab)
     window._hover_history_cell(1, 0)
     snap("records_hover")
     window._clear_history_hover()
-    window.tabs.setCurrentIndex(1)
+    window.tabs.setCurrentIndex(window.blacklist_tab)
     window._on_worker(("glance", "err", ui.OcrUnavailable("识别模型没有就绪，请重新解压完整的安装包。")))
     snap("status_error")
 
@@ -162,15 +168,15 @@ def _focus_scene(app, window, snap) -> None:  # noqa: ANN001
     from PySide6.QtWidgets import QPushButton
 
     window.activateWindow()
-    window.tabs.setCurrentIndex(1)
+    window.tabs.setCurrentIndex(window.blacklist_tab)
     for button in window.findChildren(QPushButton):
         if button.text() == "添加" and button.isVisible():
             button.setFocus(Qt.FocusReason.TabFocusReason)
             break
     snap("focus_primary")
-    window._tab_buttons[2].setFocus(Qt.FocusReason.TabFocusReason)
+    window._tab_buttons[window.settings_tab].setFocus(Qt.FocusReason.TabFocusReason)
     snap("focus_tab")
-    window.tabs.setCurrentIndex(2)
+    window.tabs.setCurrentIndex(window.settings_tab)
     window.theme_buttons["绿色"].setFocus(Qt.FocusReason.TabFocusReason)
     snap("focus_swatch")
     window.picture_button.setFocus(Qt.FocusReason.TabFocusReason)
@@ -182,7 +188,7 @@ def _setup_scenes(app, window, snap) -> None:  # noqa: ANN001
     """The environment check card: running, confirmed, and failed."""
     from blacklist_detect.ui_setup import SetupCheck
 
-    window.tabs.setCurrentIndex(0)
+    window.tabs.setCurrentIndex(window.history_tab)
     setup = SetupCheck(window.centralWidget())
     setup.start()
     setup.step(0, "ok")

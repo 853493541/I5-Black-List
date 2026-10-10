@@ -113,12 +113,13 @@ class Run:
         window._watch_timer.stop()
         window.resize(1100, 700)
         window.show()
-        for index, page in enumerate(("records", "blacklist", "settings")):
+        pages = (("blacklist", window.blacklist_tab), ("records", window.history_tab), ("settings", window.settings_tab))
+        for page, index in pages:
             self.timed(f"switch to {page}", lambda index=index: window.tabs.setCurrentIndex(index))
             self.snap(page)
         if self.scenario == "heavy":
             self.timed("redraw the whole list", window._show_list)
-            window.tabs.setCurrentIndex(1)
+            window.tabs.setCurrentIndex(window.blacklist_tab)
             self.timed("type one search letter", lambda: window.list_search.setText("霁"))
             self.snap("blacklist_search")
             self.timed("clear the search", window.list_search.clear)
@@ -126,12 +127,12 @@ class Run:
             self.timed("add one name", lambda: (window.store.add("新来的人"), window._list_changed()))
             self.timed("change the theme", lambda: window._set_theme("绿色"))
             self.timed("switch to dark", lambda: window._set_appearance("dark"))
-            window.tabs.setCurrentIndex(0)
+            window.tabs.setCurrentIndex(window.history_tab)
             self.snap("records_dark")
-            window.tabs.setCurrentIndex(1)
+            window.tabs.setCurrentIndex(window.blacklist_tab)
             self.snap("blacklist_dark")
         if self.scenario == "edge":
-            window.tabs.setCurrentIndex(0)
+            window.tabs.setCurrentIndex(window.history_tab)
             window._reload_history(1)
             self.snap("records_unclear")
         window.close()

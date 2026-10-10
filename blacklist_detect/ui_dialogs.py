@@ -497,7 +497,7 @@ class GuideDialog(QDialog):
         layout.addWidget(intro)
         layout.addSpacing(4)
         steps = (
-            ("settings", "1. 在「设置」里填上你的角色名称，记录里会标出你自己。"),
+            ("edit", "1. 在「黑名单」里填上你的角色名称，记录里会标出你自己。"),
             ("users", "2. 在「黑名单」里添加名字，或用「批量添加」粘贴朋友分享的名单。"),
             ("check", "3. 进游戏就好。有黑名单的人时，「准备案件还原」按钮会被标红，旁边列出名字。"),
         )

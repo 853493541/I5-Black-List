@@ -23,7 +23,6 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLayout,
-    QPushButton,
     QScrollArea,
     QSizePolicy,
     QStyle,
@@ -37,6 +36,7 @@ from PySide6.QtWidgets import (
 from blacklist_detect.ui_icons import pixmap as line_pixmap
 from blacklist_detect.ui_kit import _KeyboardRing, activates
 from blacklist_detect.ui_theme import (
+    BODY_PT,
     RADIUS,
     SMALL_PT,
     THEME,
@@ -521,55 +521,62 @@ def _draw_pill(painter: QPainter, rect: QRect, text: str, active: bool, pad: int
     painter.drawText(text_box, Qt.AlignCenter, text)
 
 
-class NewTagButton(_KeyboardRing, QPushButton):
-    """Sits after the tag pills and opens the new-tag dialog."""
+class TagListDelegate(QStyledItemDelegate):
+    """The tags beside 黑名单: 全部, then each tag as a red pill with how many names carry it.
 
-    def __init__(self) -> None:
-        super().__init__("新标签")
-        self.setObjectName("tagNew")
-        self.setFocusPolicy(Qt.TabFocus)
-        self.setCursor(Qt.PointingHandCursor)
-        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        self.setFont(self._face())
-        self._hover = False
+    The row under the pointer shows a pencil in place of its number; a click on the pencil opens 修改.
+    """
 
-    @staticmethod
-    def _face() -> QFont:
-        return chinese_font(SMALL_PT)
+    # The item's margin and padding, so the pill and the number sit inside the row's wash.
+    INSET = 12
+    ROW = 34
 
-    def sizeHint(self) -> QSize:
-        metrics = QFontMetrics(self._face())
-        return QSize(metrics.horizontalAdvance(self.text()) + 16, metrics.height() + 6)
-
-    def minimumSizeHint(self) -> QSize:
-        return self.sizeHint()
-
-    def enterEvent(self, event) -> None:  # noqa: ANN001
-        self._hover = True
-        self.update()
-        super().enterEvent(event)
-
-    def leaveEvent(self, event) -> None:  # noqa: ANN001
-        self._hover = False
-        self.update()
-        super().leaveEvent(event)
-
-    def paintEvent(self, _event) -> None:  # noqa: ANN001
-        painter = QPainter(self)
+    def paint(self, painter, option, index) -> None:  # noqa: ANN001
+        view = self.parent()
+        drawn = QStyleOptionViewItem(option)
+        self.initStyleOption(drawn, index)
+        drawn.state = drawn.state & ~QStyle.State_HasFocus
+        drawn.text = ""
+        view.style().drawControl(QStyle.CE_ItemViewItem, drawn, painter, view)
+        rect = option.rect.adjusted(self.INSET, 0, -self.INSET, 0)
+        tag = str(index.data(Qt.UserRole) or "")
+        count = int(index.data(Qt.UserRole + 1) or 0)
+        painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        face = self._face()
-        painter.setFont(face)
-        body = QRect(self.rect())
-        body.adjust(0, 1, -1, -1)
-        painter.setPen(QColor(THEME["border"]))
-        painter.setBrush(QColor(THEME["hover"] if self._hover else THEME["surface"]))
-        painter.drawRoundedRect(body, body.height() / 2, body.height() / 2)
-        painter.setPen(QColor(THEME["text"]))
-        text_box = QRect(body)
-        text_box.adjust(8, 0, -8, 0)
-        painter.drawText(text_box, Qt.AlignCenter, self.text())
-        if self.show_ring():
-            _paint_ring(painter, QRectF(body).adjusted(0.5, 0.5, -0.5, -0.5), body.height() / 2)
+        if tag and view.property("hoverRow") == index.row():
+            box = self.edit_box(option.rect)
+            painter.drawPixmap(box.topLeft(), line_pixmap("edit", 16, THEME["muted"]))
+        elif count:
+            painter.setFont(chinese_font(SMALL_PT))
+            painter.setPen(QColor(THEME["muted"]))
+            painter.drawText(rect, Qt.AlignRight | Qt.AlignVCenter, str(count))
+        room = rect.adjusted(0, 0, -32, 0)
+        if tag:
+            face = _pill_face()
+            painter.setFont(face)
+            metrics = QFontMetrics(face)
+            text = metrics.elidedText(tag, Qt.ElideRight, max(0, room.width() - TagPill._pad * 2))
+            size = _pill_size(text, metrics)
+            top = rect.top() + (rect.height() - size.height()) // 2
+            _draw_pill(painter, QRect(rect.left(), top, size.width(), size.height()), text, True, TagPill._pad)
+        else:
+            painter.setFont(chinese_font(BODY_PT))
+            painter.setPen(QColor(THEME["text"]))
+            painter.drawText(room, Qt.AlignLeft | Qt.AlignVCenter, str(index.data(Qt.DisplayRole) or ""))
+        painter.restore()
+
+    def sizeHint(self, _option, _index) -> QSize:  # noqa: ANN001
+        return QSize(0, self.ROW)
+
+    @classmethod
+    def edit_box(cls, rect: QRect) -> QRect:
+        """Where a row's pencil is drawn."""
+        return QRect(rect.right() - cls.INSET - 15, rect.center().y() - 7, 16, 16)
+
+    @classmethod
+    def edit_target(cls, rect: QRect) -> QRect:
+        """The area a click on the pencil lands in: larger than the pencil, as a button would be."""
+        return cls.edit_box(rect).adjusted(-8, -8, 8, 8)
 
 
 class DayFolderIcon(QWidget):

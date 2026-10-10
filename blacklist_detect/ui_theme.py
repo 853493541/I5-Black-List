@@ -678,6 +678,29 @@ def _window_style(family: str) -> str:
                 color: {t["text"]};
                 font-weight: 400;
             }}
+            QListWidget#tags {{
+                padding: 4px 0;
+                outline: none;
+                border-radius: {CARD_RADIUS}px;
+            }}
+            QListWidget#tags:focus {{
+                border: 1px solid {t["border"]};
+                outline: none;
+            }}
+            QListWidget#tags::item {{
+                padding: 0;
+                margin: 1px 4px;
+                border: none;
+                border-radius: {RADIUS}px;
+                outline: none;
+            }}
+            QLabel#sideTitle {{
+                font-family: "{family}";
+                font-size: {SMALL_PT}pt;
+                font-weight: 600;
+                color: {t["muted"]};
+                background: transparent;
+            }}
             QListWidget::item:hover {{ background: {t["hover"]}; }}
             QListWidget::item:selected, QListWidget::item:selected:hover {{
                 background: {t["selected"]};
@@ -815,16 +838,6 @@ def _window_style(family: str) -> str:
                 background: {t["accent"]};
                 border-color: {t["accent"]};
                 color: {t["on_accent"]};
-            }}
-            QPushButton#tagNew {{
-                background: transparent;
-                border: none;
-                padding: 0;
-                margin: 0;
-                min-width: 0;
-                min-height: 0;
-                font-size: {SMALL_PT}pt;
-                font-weight: 400;
             }}
             """
 
