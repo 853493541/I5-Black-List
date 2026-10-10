@@ -549,22 +549,32 @@ class EmptyState(QWidget):
 
 
 class SettingsSection(QFrame):
-    """A titled card in 设置. Each row is a label on the left and its controls on the right."""
+    """A titled card in 设置. Each row is a label in a fixed column with its controls after it.
 
-    def __init__(self, title: str, label_width: int, parent: QWidget | None = None) -> None:
+    compact cards keep rows tight and put a row's hint in its tooltip, so the whole
+    page fits on one screen. Content stays at the top when a card is taller than it needs.
+    """
+
+    def __init__(self, title: str, label_width: int, parent: QWidget | None = None, *, compact: bool = False) -> None:
         super().__init__(parent)
         self.setObjectName("section")
         self.setAttribute(Qt.WA_StyledBackground, True)
         self._label_width = label_width
+        self._compact = compact
         self._rows = QVBoxLayout(self)
-        self._rows.setContentsMargins(20, 14, 20, 6)
+        self._rows.setContentsMargins(*((16, 10, 16, 8) if compact else (20, 14, 20, 6)))
         self._rows.setSpacing(0)
         heading = QLabel(title)
         heading.setObjectName("sectionTitle")
         heading.setFont(chinese_font(SECTION_PT))
         self._rows.addWidget(heading)
-        self._rows.addSpacing(4)
+        self._rows.addSpacing(2 if compact else 4)
+        self._rows.addStretch(1)
         self._count = 0
+
+    def _add(self, widget: QWidget) -> None:
+        # Before the closing stretch, so rows stay at the top of the card.
+        self._rows.insertWidget(self._rows.count() - 1, widget)
 
     def add_widget(self, widget: QWidget, *, separated: bool = True, indent: bool = False) -> QWidget:
         """Free content in the card, such as a wrap of chips or a note under the row above."""
@@ -573,20 +583,19 @@ class SettingsSection(QFrame):
         self._count += 1
         if indent:
             widget.setContentsMargins(self._label_width + 12, 0, 0, 8)
-        self._rows.addWidget(widget)
+        self._add(widget)
         return widget
 
     def _line(self) -> None:
         line = QFrame()
         line.setObjectName("sectionLine")
         line.setFixedHeight(1)
-        self._rows.addWidget(line)
+        self._add(line)
 
     def add_row(self, label: str, *widgets: QWidget, hint: str = "", stretch: bool = True) -> QHBoxLayout:
-        """The setting's name in a fixed column, its controls right after it, the hint under them.
+        """The setting's name in a fixed column, its controls right after it.
 
-        Controls sit next to their name, not across the card: on a wide window a
-        right-aligned control is too far from the words it belongs to.
+        The hint goes under the controls, or into their tooltip on a compact card.
         """
         if self._count:
             self._line()
@@ -594,7 +603,7 @@ class SettingsSection(QFrame):
         host = QWidget()
         host.setObjectName("sectionRow")
         column = QVBoxLayout(host)
-        column.setContentsMargins(0, 10, 0, 10)
+        column.setContentsMargins(0, *((6, 0, 6) if self._compact else (10, 0, 10)))
         column.setSpacing(4)
         row = QHBoxLayout()
         row.setSpacing(12)
@@ -607,11 +616,15 @@ class SettingsSection(QFrame):
         if stretch:
             row.addStretch(1)
         column.addLayout(row)
-        if hint:
+        if hint and self._compact:
+            for widget in (name, *widgets):
+                if not widget.toolTip():
+                    widget.setToolTip(hint)
+        elif hint:
             note = QLabel(hint)
             note.setObjectName("rowHint")
             note.setWordWrap(True)
             note.setContentsMargins(self._label_width + 12, 0, 0, 0)
             column.addWidget(note)
-        self._rows.addWidget(host)
+        self._add(host)
         return row

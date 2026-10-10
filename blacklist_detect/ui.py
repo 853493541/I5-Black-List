@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QFileDialog,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -667,51 +668,48 @@ class MainWindow(QMainWindow):
         return page
 
     def _settings_page(self) -> QWidget:
+        """Everything on one screen, like settings grouped with like.
+
+        检查 | 常规
+        外观 | 数据
+        标签 (the full width: it grows with the tags)
+        """
         page = QWidget()
         layout = QVBoxLayout(page)
         _page(layout)
+        # Only a very large text size makes this scroll; at the smallest window it fits.
         scroll = QScrollArea()
         scroll.setObjectName("settingsScroll")
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.settings_scroll = scroll
         body = QWidget()
         body.setObjectName("settingsBody")
         column = QVBoxLayout(body)
-        column.setContentsMargins(0, 0, GAP, GAP)
+        column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(GAP)
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(GAP)
+        grid.setVerticalSpacing(GAP)
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 1)
+        column.addLayout(grid)
+        column.addStretch(1)
         scroll.setWidget(body)
         layout.addWidget(scroll, 1)
         metrics = QFontMetrics(chinese_font())
         name_width = metrics.horizontalAdvance("中" * 7) + 28
-        slot = metrics.horizontalAdvance("手动检查") + 36
-        label_width = metrics.horizontalAdvance("角色名称") + 8
+        slot = metrics.horizontalAdvance("手动检查") + 28
+        label_width = metrics.horizontalAdvance("关闭到托盘") + 8
 
-        def section(title: str) -> SettingsSection:
-            card = SettingsSection(title, label_width)
-            column.addWidget(card)
+        def section(title: str, row: int, col: int, span: int = 1) -> SettingsSection:
+            card = SettingsSection(title, label_width, compact=True)
+            grid.addWidget(card, row, col, 1, span)
             return card
 
-        general = section("常规")
-        self.player_edit = QLineEdit(self.store.player_name)
-        self.player_edit.setPlaceholderText("游戏里的名字")
-        self.player_edit.editingFinished.connect(self._save_player_name)
-        self.player_edit.setFixedWidth(name_width)
-        self.player_edit.setAccessibleName("角色名称")
-        general.add_row("角色名称", self.player_edit)
-        self.autostart_switch = Switch(autostart.is_enabled())
-        self.autostart_switch.setAccessibleName("开机启动")
-        self.autostart_switch.setEnabled(autostart.available())
-        self.autostart_switch.toggled.connect(self._set_autostart)
-        general.add_row("开机启动", self.autostart_switch, hint="开机后在右下角托盘里运行")
-        self.tray_switch = Switch(self.store.close_to_tray)
-        self.tray_switch.setAccessibleName("关闭窗口")
-        self.tray_switch.toggled.connect(self._set_close_to_tray)
-        general.add_row(
-            "关闭窗口", self.tray_switch, hint="开着时，点 × 会缩小到右下角托盘，继续检查大厅；关掉时直接退出。"
-        )
-
-        check = section("检查")
+        # 检查: how and when a lobby is checked.
+        check = section("检查", 0, 0)
         self.auto_mode = SegmentedControl(
             [("auto", "自动检查"), ("manual", "手动检查")], "auto" if self.store.auto_capture else "manual"
         )
@@ -732,17 +730,38 @@ class MainWindow(QMainWindow):
         self.settings_label.setWordWrap(True)
         self.settings_label.hide()
         check.add_widget(self.settings_label, separated=False, indent=True)
+        self.sound_switch = Switch(self.store.hit_sound)
+        self.sound_switch.setAccessibleName("提示音")
+        self.sound_switch.toggled.connect(self._set_hit_sound)
+        check.add_row("提示音", self.sound_switch, hint="发现黑名单时响一声")
         self.picture_button = QPushButton("检查截图")
         self.picture_button.setToolTip("选一张大厅截图，看看里面有没有黑名单")
         self.picture_button.setAutoDefault(False)
         self.picture_button.clicked.connect(self.check_picture)
         check.add_row("识别", self.picture_button)
-        self.sound_switch = Switch(self.store.hit_sound)
-        self.sound_switch.setAccessibleName("提示音")
-        self.sound_switch.toggled.connect(self._set_hit_sound)
-        check.add_row("提示音", self.sound_switch, hint="发现黑名单时响一声")
 
-        look = section("外观")
+        # 常规: who you are, and how the app starts and closes.
+        general = section("常规", 0, 1)
+        self.player_edit = QLineEdit(self.store.player_name)
+        self.player_edit.setPlaceholderText("游戏里的名字")
+        self.player_edit.editingFinished.connect(self._save_player_name)
+        self.player_edit.setFixedWidth(name_width)
+        self.player_edit.setAccessibleName("角色名称")
+        general.add_row("角色名称", self.player_edit)
+        self.autostart_switch = Switch(autostart.is_enabled())
+        self.autostart_switch.setAccessibleName("开机启动")
+        self.autostart_switch.setEnabled(autostart.available())
+        self.autostart_switch.toggled.connect(self._set_autostart)
+        general.add_row("开机启动", self.autostart_switch, hint="开机后在右下角托盘里运行")
+        self.tray_switch = Switch(self.store.close_to_tray)
+        self.tray_switch.setAccessibleName("关闭到托盘")
+        self.tray_switch.toggled.connect(self._set_close_to_tray)
+        general.add_row(
+            "关闭到托盘", self.tray_switch, hint="开着时，点 × 会缩小到右下角托盘，继续检查大厅；关掉时直接退出。"
+        )
+
+        # 外观: how the window looks.
+        look = section("外观", 1, 0)
         self.appearance_control = SegmentedControl(
             [("light", "浅色"), ("dark", "深色"), ("system", "跟随系统")], self.store.appearance
         )
@@ -761,27 +780,8 @@ class MainWindow(QMainWindow):
             swatches.addWidget(swatch, 0, Qt.AlignVCenter)
         look.add_row("主题", swatch_host)
 
-        tags = section("标签")
-        tag_row = QWidget()
-        tag_line = QHBoxLayout(tag_row)
-        tag_line.setContentsMargins(0, 4, 0, 8)
-        tag_line.setSpacing(GAP)
-        tag_host = QWidget()
-        self.tag_settings = QVBoxLayout(tag_host)
-        self.tag_settings.setSpacing(0)
-        self.tag_settings.setContentsMargins(0, 0, 0, 0)
-        self._fill_tag_settings()
-        tag_line.addWidget(tag_host, 1)
-        recheck = QPushButton("按原因补标签")
-        recheck.setObjectName("recheck")
-        recheck.setFont(chinese_font(SMALL_PT))
-        recheck.setAutoDefault(False)
-        recheck.setCursor(Qt.PointingHandCursor)
-        recheck.clicked.connect(self._recheck_tags)
-        tag_line.addWidget(recheck, 0, Qt.AlignTop)
-        tags.add_widget(tag_row, separated=False)
-
-        data = section("数据")
+        # 数据: where it is kept, starting over, and which version this is.
+        data = section("数据", 1, 1)
         self.data_button = QPushButton("打开数据文件夹")
         self.data_button.setToolTip("名单、设置、每天的备份和日志都在这里")
         self.data_button.setAutoDefault(False)
@@ -797,10 +797,28 @@ class MainWindow(QMainWindow):
         # The destructive one keeps a little distance from its neighbour.
         control = data.add_row("控制", self.data_button, reset)
         control.insertSpacing(2, GAP)
+        data.add_row("版本", QLabel(__version__))
 
-        about = section("关于")
-        about.add_row("版本", QLabel(__version__))
-        column.addStretch(1)
+        # 标签: the full width, since it grows with the tags.
+        tags = section("标签", 2, 0, 2)
+        tag_row = QWidget()
+        tag_line = QHBoxLayout(tag_row)
+        tag_line.setContentsMargins(0, 4, 0, 4)
+        tag_line.setSpacing(GAP)
+        tag_host = QWidget()
+        self.tag_settings = QVBoxLayout(tag_host)
+        self.tag_settings.setSpacing(0)
+        self.tag_settings.setContentsMargins(0, 0, 0, 0)
+        self._fill_tag_settings()
+        tag_line.addWidget(tag_host, 1)
+        recheck = QPushButton("按原因补标签")
+        recheck.setObjectName("recheck")
+        recheck.setFont(chinese_font(SMALL_PT))
+        recheck.setAutoDefault(False)
+        recheck.setCursor(Qt.PointingHandCursor)
+        recheck.clicked.connect(self._recheck_tags)
+        tag_line.addWidget(recheck, 0, Qt.AlignTop)
+        tags.add_widget(tag_row, separated=False)
         return page
 
     def _fill_tag_settings(self) -> None:

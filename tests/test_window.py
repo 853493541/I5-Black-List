@@ -1381,13 +1381,18 @@ def test_settings_are_grouped_into_titled_cards(qapp, tmp_path, monkeypatch):
     window._watch_timer.stop()
     sections = window.findChildren(SettingsSection)
     titles = [section.findChild(QLabel, "sectionTitle").text() for section in sections]
-    assert titles == ["常规", "检查", "外观", "标签", "数据", "关于"]
-    # The cards fill the page: nothing is left empty on the right.
-    window.resize(1400, 900)
+    assert titles == ["检查", "常规", "外观", "数据", "标签"]
+    # Like with like, and all of it on one screen at the smallest window.
+    window.resize(900, 560)
     window.tabs.setCurrentIndex(2)
     window.show()
-    qapp.processEvents()
-    assert all(section.width() > 1200 for section in sections)
+    for _ in range(5):
+        qapp.processEvents()
+    assert window.settings_scroll.verticalScrollBar().maximum() == 0, "设置 fits without scrolling"
+    by_title = dict(zip(titles, sections, strict=True))
+    assert by_title["检查"].y() == by_title["常规"].y(), "two columns"
+    assert by_title["外观"].y() == by_title["数据"].y()
+    assert by_title["标签"].width() > by_title["检查"].width() * 1.8, "标签 spans both columns"
     window.hide()
     # 提示音 is a switch that saves at once.
     assert window.sound_switch.isChecked() is False
