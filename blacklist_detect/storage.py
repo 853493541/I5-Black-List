@@ -445,6 +445,8 @@ class Store:
         self.hit_sound = False
         # The app version that last passed the environment check; it runs again after an update.
         self.env_checked = ""
+        # × hides the window to the tray (the app keeps checking), or quits.
+        self.close_to_tray = True
         self.load_warning = ""
         # Whether the welcome guide has been shown. A settings file from before this was saved
         # counts as welcomed; no settings file at all is a first open.
@@ -668,6 +670,7 @@ class Store:
                 "hit_sound": self.hit_sound,
                 "env_checked": self.env_checked,
                 "welcomed": self.welcomed,
+                "close_to_tray": self.close_to_tray,
             },
         )
 
@@ -700,6 +703,7 @@ class Store:
             self.hit_sound = bool(settings.get("hit_sound", False))
             self.env_checked = str(settings.get("env_checked", "") or "")
             self.welcomed = bool(settings.get("welcomed", True))
+            self.close_to_tray = bool(settings.get("close_to_tray", True))
             for raw in settings.get("hidden_tags") or []:
                 tag = clean_tag(str(raw))
                 if tag in TAGS and tag not in self.hidden_tags:
@@ -904,6 +908,7 @@ class Store:
         # The next open is a first open: the environment check and the welcome guide run again.
         self.env_checked = ""
         self.welcomed = False
+        self.close_to_tray = True
         self.load_warning = ""
         self.save_entries()
         self.save_scans()

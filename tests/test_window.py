@@ -1899,3 +1899,80 @@ def test_reset_then_restart_runs_the_check_and_the_guide_again(qapp, tmp_path, m
     again.begin()
     assert shown == ["check"]
     again.close()
+
+
+def test_closing_quits_or_goes_to_the_tray_as_set(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+
+    class Tray:
+        def isVisible(self):
+            return True
+
+        def hide(self):
+            pass
+
+        def setToolTip(self, text):
+            pass
+
+    class TitleBarClose:
+        ignored = False
+
+        def spontaneous(self):
+            return True
+
+        def ignore(self):
+            self.ignored = True
+
+        def accept(self):
+            pass
+
+    real_tray, window.tray = window.tray, Tray()
+    assert window.tray_switch.isChecked() is True
+    stay = TitleBarClose()
+    window.closeEvent(stay)
+    assert stay.ignored is True and window._closing is False
+    window.tray_switch.click()
+    assert window.store.close_to_tray is False
+    assert Store(window.store.root).close_to_tray is False
+    monkeypatch.setattr("blacklist_detect.ui.QMainWindow.closeEvent", lambda self, event: None)
+    leave = TitleBarClose()
+    window.closeEvent(leave)
+    assert leave.ignored is False and window._closing is True, "× quits when 关闭窗口 is off"
+    window.tray = real_tray
+
+
+def test_the_start_with_windows_switch(qapp, tmp_path, monkeypatch):
+    from blacklist_detect import autostart
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    state = {"on": False, "works": True}
+    monkeypatch.setattr(autostart, "available", lambda: True)
+    monkeypatch.setattr(autostart, "is_enabled", lambda: state["on"])
+
+    def set_enabled(on):
+        if state["works"]:
+            state["on"] = on
+        return state["works"]
+
+    monkeypatch.setattr(autostart, "set_enabled", set_enabled)
+    window = MainWindow()
+    window._watch_timer.stop()
+    switch = window.autostart_switch
+    assert switch.isEnabled() and switch.isChecked() is False
+    switch.click()
+    assert state["on"] is True and switch.isChecked() is True
+    state["works"] = False
+    switch.click()
+    assert state["on"] is True and switch.isChecked() is True, "a change that failed does not show as made"
+    assert window.toast.text.text() == "没能更改开机启动"
+    state["works"] = True
+    monkeypatch.setattr("blacklist_detect.ui._confirm", lambda *_args: True)
+    window.tray_switch.click()
+    window._ask_reset()
+    assert state["on"] is False and switch.isChecked() is False, "清除数据且复原 turns it off"
+    assert window.tray_switch.isChecked() is True
+    window.close()

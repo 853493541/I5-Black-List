@@ -14,9 +14,10 @@ def main(argv: list[str] | None = None) -> int:
         return _check_cli(args[1:])
     if args[:1] == ["download-models"]:
         return _download_models()
+    from blacklist_detect.autostart import BACKGROUND
     from blacklist_detect.ui import run_app
 
-    return run_app()
+    return run_app(background=BACKGROUND in args)
 
 
 def _check_cli(args: list[str]) -> int:

@@ -37,7 +37,7 @@ def main() -> int:
     env["PYTHONUTF8"] = "1"
     env["QT_QPA_PLATFORM"] = "windows"
     subprocess.Popen(
-        [str(pythonw), "-m", "blacklist_detect"],
+        [str(pythonw), "-m", "blacklist_detect", *sys.argv[1:]],
         cwd=str(root),
         env=env,
     )

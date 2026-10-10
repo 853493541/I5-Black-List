@@ -36,7 +36,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from blacklist_detect import __version__
+from blacklist_detect import __version__, autostart
 from blacklist_detect.capture import (
     CaptureUnavailable,
     capture_capability_message,
@@ -173,7 +173,7 @@ def _claim_windows_app() -> None:
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Local.BlackListDetect")
 
 
-def run_app() -> int:
+def run_app(background: bool = False) -> int:
     setup_logging()
     log.info("Start %s, Python %s, %s", __version__, sys.version.split()[0], sys.platform)
     _claim_windows_app()
@@ -181,8 +181,8 @@ def run_app() -> int:
     app.setApplicationName("黑名单检测")
     app.setApplicationVersion(__version__)
     key = instance_key()
-    if notify_running_instance(key):
-        log.info("Already running. Brought the open window forward.")
+    if notify_running_instance(key, show=not background):
+        log.info("Already running." if background else "Already running. Brought the open window forward.")
         return 0
     app.setWindowIcon(_icon())
     app.setFont(chinese_font())
@@ -197,7 +197,13 @@ def run_app() -> int:
         return 1
     window.instance_server = listen_for_instances(key, window._show_from_tray, window.quit_app)
     on_uncaught(window.report_uncaught)
-    window.show()
+    # Started with Windows: stay in the tray, unless a first open or an environment check needs the window.
+    quiet = background and window.tray is not None and not window.store.first_run and window.store.env_checked == __version__
+    if quiet:
+        log.info("Started with Windows; staying in the tray.")
+    else:
+        window.show()
+    autostart.refresh()
     window.start_warmup()
     QTimer.singleShot(0, window.begin)
     code = app.exec()
@@ -205,17 +211,21 @@ def run_app() -> int:
     return code
 
 
-def notify_running_instance(key: str) -> bool:
-    """Ask a copy that is already open to show its window. False when none is open."""
+def notify_running_instance(key: str, show: bool = True) -> bool:
+    """Ask a copy that is already open to show its window. False when none is open.
+
+    With show=False it only checks: a start at sign-in should not pop an open window forward.
+    """
     from PySide6.QtNetwork import QLocalSocket
 
     socket = QLocalSocket()
     socket.connectToServer(key)
     if not socket.waitForConnected(300):
         return False
-    socket.write(b"show")
-    socket.flush()
-    socket.waitForBytesWritten(300)
+    if show:
+        socket.write(b"show")
+        socket.flush()
+        socket.waitForBytesWritten(300)
     socket.disconnectFromServer()
     return True
 
@@ -689,6 +699,17 @@ class MainWindow(QMainWindow):
         self.player_edit.setFixedWidth(name_width)
         self.player_edit.setAccessibleName("角色名称")
         general.add_row("角色名称", self.player_edit)
+        self.autostart_switch = Switch(autostart.is_enabled())
+        self.autostart_switch.setAccessibleName("开机启动")
+        self.autostart_switch.setEnabled(autostart.available())
+        self.autostart_switch.toggled.connect(self._set_autostart)
+        general.add_row("开机启动", self.autostart_switch, hint="开机后在右下角托盘里运行")
+        self.tray_switch = Switch(self.store.close_to_tray)
+        self.tray_switch.setAccessibleName("关闭窗口")
+        self.tray_switch.toggled.connect(self._set_close_to_tray)
+        general.add_row(
+            "关闭窗口", self.tray_switch, hint="开着时，点 × 会缩小到右下角托盘，继续检查大厅；关掉时直接退出。"
+        )
 
         check = section("检查")
         self.auto_mode = SegmentedControl(
@@ -864,6 +885,10 @@ class MainWindow(QMainWindow):
         self.sound_switch.blockSignals(True)
         self.sound_switch.setChecked(self.store.hit_sound)
         self.sound_switch.blockSignals(False)
+        if autostart.is_enabled():
+            autostart.set_enabled(False)
+        self._sync_switch(self.autostart_switch, autostart.is_enabled())
+        self._sync_switch(self.tray_switch, self.store.close_to_tray)
         if not self._watch_timer.isActive():
             self.watch = LobbyWatch()
             self._watch_timer.start()
@@ -2380,6 +2405,23 @@ class MainWindow(QMainWindow):
             self._picture_dialog = PictureResultDialog(title, result=value, parent=self)
         self._picture_dialog.open()
 
+    def _set_autostart(self, enabled: bool) -> None:
+        if not autostart.set_enabled(enabled):
+            log.warning("Could not change start with Windows to %s", enabled)
+            self._say("没能更改开机启动")
+        self._sync_switch(self.autostart_switch, autostart.is_enabled())
+
+    def _set_close_to_tray(self, enabled: bool) -> None:
+        self.store.close_to_tray = bool(enabled)
+        self.store.save_settings()
+
+    @staticmethod
+    def _sync_switch(switch: Switch, on: bool) -> None:
+        if switch.isChecked() != on:
+            switch.blockSignals(True)
+            switch.setChecked(on)
+            switch.blockSignals(False)
+
     def _set_hit_sound(self, enabled: bool) -> None:
         self.store.hit_sound = bool(enabled)
         self.store.save_settings()
@@ -2866,7 +2908,7 @@ class MainWindow(QMainWindow):
             self._show_from_tray()
 
     def closeEvent(self, event) -> None:  # noqa: ANN001
-        if event.spontaneous() and self.tray is not None and self.tray.isVisible():
+        if event.spontaneous() and self.store.close_to_tray and self.tray is not None and self.tray.isVisible():
             # Keep checking from the tray. Without a tray icon there would be no way back, so X quits.
             event.ignore()
             self.hide()
