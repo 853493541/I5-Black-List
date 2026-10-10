@@ -646,21 +646,14 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     assert isinstance(name.parentWidget().layout(), QHBoxLayout)
     assert [pill._text for pill in window.hit_card.findChildren(TagPill)] == ["炸房", "贴脸"]
     assert window.hit_card.findChild(QLabel, "hitMore") is None
-    listed = window._tag_cell(("炸房", "贴脸", "挂机", "场外"))
-    assert [pill._text for pill in listed.pills] == ["炸房", "贴脸", "挂机", "场外"]
-    assert listed.pills[0].font().pointSizeF() == SMALL_PT
-    listed.resize(2000, 40)
-    assert listed.arrange() == 4
-    assert listed.more.isHidden()
-    two = listed.pills[0].sizeHint().width() + listed.pills[1].sizeHint().width()
-    listed.resize(two + 6 * 2 + listed._more_width(2) + 8 + 2, 40)
-    assert listed.arrange() == 2
-    assert listed.more.isHidden() is False
-    assert listed.more._text == "+2"
-    assert listed.more.geometry().right() < listed.width()
-    listed.resize(10, 40)
-    assert listed.arrange() == 0
-    assert listed.more._text == "+4"
+    from blacklist_detect.ui_widgets import tag_row_layout
+
+    four = ("炸房", "贴脸", "挂机", "场外")
+    assert tag_row_layout(four, 2000) == (4, "")
+    two = TagPill("炸房").sizeHint().width() + TagPill("贴脸").sizeHint().width()
+    more = TagPill("+2").sizeHint().width()
+    assert tag_row_layout(four, two + 6 * 2 + more + 8 + 2) == (2, "+2")
+    assert tag_row_layout(four, 10) == (0, "+4")
     window.hit_card.set_people(
         [
             ("国服园丁", ("123",)),
@@ -1536,47 +1529,36 @@ def test_a_button_shows_its_focus_ring_only_while_focused(qapp, tmp_path, monkey
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
     window._watch_timer.stop()
-    from blacklist_detect.ui_theme import input_mode
-
     button = window.test_button
     ring = button.findChild(_FocusRing)
     assert ring is not None and ring.isHidden()
-    input_mode().set_keyboard(False)
-    qapp.sendEvent(button, QFocusEvent(QEvent.Type.FocusIn, Qt.TabFocusReason))
-    assert ring.isHidden(), "no ring until the keyboard is used"
+    qapp.sendEvent(button, QFocusEvent(QEvent.Type.FocusIn, Qt.OtherFocusReason))
+    assert ring.isHidden(), "no ring for focus that did not come from the keyboard"
     qapp.sendEvent(button, QFocusEvent(QEvent.Type.FocusOut, Qt.TabFocusReason))
-    input_mode().set_keyboard(True)
     qapp.sendEvent(button, QFocusEvent(QEvent.Type.FocusIn, Qt.TabFocusReason))
     assert ring.isVisibleTo(button)
     assert ring.geometry() == button.rect()
     qapp.sendEvent(button, QFocusEvent(QEvent.Type.FocusOut, Qt.TabFocusReason))
     assert ring.isHidden()
-    input_mode().set_keyboard(False)
     window.close()
 
 
 def test_no_focus_ring_when_the_window_opens(qapp, tmp_path, monkeypatch):
-    from blacklist_detect.ui_theme import input_mode
-
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
-    input_mode().set_keyboard(False)
     window = MainWindow()
     window._watch_timer.stop()
     window.show()
     window.activateWindow()
-    first = window._tab_buttons[0]
-    first.setFocus(Qt.FocusReason.TabFocusReason)
+    for _ in range(10):
+        qapp.processEvents()
+    # The page holds the focus, so no tab or button opens with a keyboard ring.
+    assert not any(tab.show_ring() for tab in window._tab_buttons)
+    assert QApplication.focusWidget() not in window._tab_buttons
+    # Tab still reaches the tabs, and then the ring shows.
+    window._tab_buttons[0].setFocus(Qt.FocusReason.TabFocusReason)
     qapp.processEvents()
-    # Qt hands the first tab the focus as if Tab were pressed; no ring until the user does.
-    assert first.show_ring() is False
-    qapp.sendEvent(first, QKeyEvent(QKeyEvent.Type.KeyPress, Qt.Key_Right, Qt.NoModifier))
-    assert input_mode().keyboard is True
-    assert first.show_ring() is first.hasFocus()
-    press = QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(2, 2), QPointF(2, 2), Qt.LeftButton, Qt.LeftButton, Qt.NoModifier)
-    qapp.sendEvent(window.watch_label, press)
-    assert input_mode().keyboard is False
-    assert first.show_ring() is False
+    assert window._tab_buttons[0].show_ring() is window._tab_buttons[0].hasFocus()
     window.close()
 
 
@@ -1678,3 +1660,38 @@ def test_the_reason_card_wraps_any_text_and_shows_all_of_it(qapp):
     tip.show_reason("短", QPoint(100, 100))
     assert tip.label.width() < 100
     tip.hide()
+
+
+def test_last_seen_matches_checking_every_name(qapp, tmp_path, monkeypatch):
+    import random
+
+    from blacklist_detect.match import NameLabel, match_label
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    rng = random.Random(3)
+    pool = list("霁玥吉尔曼小猫爆锤大王路人甲") + ["Ab", "aB", "ab", "XY"]
+    for _ in range(300):
+        window.store.add("".join(rng.choice(pool) for _ in range(rng.randint(1, 6))))
+    names = [entry.name for entry in window.store.entries]
+    for scan in range(6):
+        seats = []
+        for seat in range(12):
+            pick = rng.choice(names)
+            shown = rng.choice([pick, pick[:4] + "...", pick.upper(), "".join(rng.choice(pool) for _ in range(3)), ""])
+            seats.append({"seat": seat + 1, "name": shown, "unclear": not shown})
+        window.store.scans.insert(0, {"at": f"2026-10-0{scan + 1}T12:00:00+08:00", "names": seats})
+    expected: dict[int, str] = {}
+    entries = window.store.entries
+    for scan in window.store.scans:
+        for seat in scan["names"]:
+            if seat.get("unclear") or not seat.get("name"):
+                continue
+            label = NameLabel(raw=seat["name"], visible=seat["name"], truncated=False)
+            for match in match_label(label, entries):
+                index = next(i for i, entry in enumerate(entries) if entry is match.entry)
+                expected.setdefault(index, scan["at"])
+    assert window._last_met_stamps() == expected
+    window.close()

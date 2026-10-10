@@ -43,6 +43,7 @@ from blacklist_detect.ui_theme import (
     CONTROL_H,
     DIALOG_PAD,
     GAP,
+    KEYBOARD_FOCUS,
     SECTION_PT,
     SMALL_PT,
     THEME,
@@ -52,10 +53,7 @@ from blacklist_detect.ui_theme import (
     _pointing,
     chinese_family,
     chinese_font,
-    keyboard_in_use,
 )
-
-_KEYBOARD_FOCUS = (Qt.FocusReason.TabFocusReason, Qt.FocusReason.BacktabFocusReason, Qt.FocusReason.ShortcutFocusReason)
 
 
 def activates(event) -> bool:  # noqa: ANN001
@@ -71,7 +69,7 @@ class _KeyboardRing:
     _ring = False
 
     def focusInEvent(self, event) -> None:  # noqa: ANN001
-        self._ring = event.reason() in _KEYBOARD_FOCUS
+        self._ring = event.reason() in KEYBOARD_FOCUS
         super().focusInEvent(event)
         self.update()
 
@@ -81,7 +79,7 @@ class _KeyboardRing:
         self.update()
 
     def show_ring(self) -> bool:
-        return self._ring and self.hasFocus() and keyboard_in_use()
+        return self._ring and self.hasFocus()
 
 
 class Switch(_KeyboardRing, QAbstractButton):

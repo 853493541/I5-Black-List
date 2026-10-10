@@ -87,9 +87,6 @@ def test_a_tab_button_grows_a_badge_for_its_count(qapp):
 
 
 def test_focus_rings_show_for_the_keyboard_only(qapp):
-    from blacklist_detect.ui_theme import input_mode
-
-    input_mode().set_keyboard(True)
     host = QWidget()
     tab = TabButton("记录", host)
     switch = Switch(True, host)
@@ -104,7 +101,6 @@ def test_focus_rings_show_for_the_keyboard_only(qapp):
         widget.setFocus(Qt.FocusReason.TabFocusReason)
         _settle(qapp)
         assert widget.show_ring() is widget.hasFocus()
-    input_mode().set_keyboard(False)
     host.close()
 
 

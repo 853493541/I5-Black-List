@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import sys
 
-from PySide6.QtCore import QEvent, QObject, QRectF, Qt
+from PySide6.QtCore import QEvent, QRectF, Qt
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -31,9 +31,18 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+_family: str | None = None
+
 
 def chinese_family() -> str:
-    """A face that actually contains simplified Chinese. Qt does not fall back by itself."""
+    """A face that actually contains simplified Chinese. Qt does not fall back by itself.
+
+    Asking Qt for every installed family is slow, and a big list made thousands of fonts,
+    so the answer is kept once a Chinese face is found.
+    """
+    global _family
+    if _family is not None:
+        return _family
     from PySide6.QtGui import QFontDatabase
 
     installed = set(QFontDatabase.families())
@@ -51,6 +60,7 @@ def chinese_family() -> str:
         "黑体",
     ):
         if name in installed:
+            _family = name
             return name
     return "Microsoft YaHei"
 
@@ -395,54 +405,8 @@ def _card_rules() -> str:
             """
 
 
-_NAVIGATION_KEYS = (Qt.Key_Tab, Qt.Key_Backtab, Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down)
-
-
-class _InputMode(QObject):
-    """Focus rings show only while the keyboard is in use, as on Windows.
-
-    Not when a window opens and Qt hands its first control the focus, and not after
-    a click: Tab or an arrow key turns them on, a mouse press turns them off.
-    """
-
-    def __init__(self, app: QApplication) -> None:
-        super().__init__(app)
-        self.keyboard = False
-        app.installEventFilter(self)
-
-    def eventFilter(self, watched, event) -> bool:  # noqa: ANN001
-        kind = event.type()
-        if kind == QEvent.Type.KeyPress and event.key() in _NAVIGATION_KEYS:
-            self.set_keyboard(True)
-        elif kind == QEvent.Type.MouseButtonPress:
-            self.set_keyboard(False)
-        return False
-
-    def set_keyboard(self, on: bool) -> None:
-        if on == self.keyboard:
-            return
-        self.keyboard = on
-        focused = QApplication.focusWidget()
-        if focused is not None:
-            focused.update()
-            for ring in focused.findChildren(_FocusRing, options=Qt.FindChildOption.FindDirectChildrenOnly):
-                ring.setVisible(on)
-
-
-_input: _InputMode | None = None
-
-
-def input_mode() -> _InputMode | None:
-    global _input
-    app = QApplication.instance()
-    if _input is None and app is not None:
-        _input = _InputMode(app)
-    return _input
-
-
-def keyboard_in_use() -> bool:
-    mode = input_mode()
-    return mode is not None and mode.keyboard
+# Focus that arrives this way came from the keyboard. Only then is a focus ring drawn.
+KEYBOARD_FOCUS = (Qt.FocusReason.TabFocusReason, Qt.FocusReason.BacktabFocusReason, Qt.FocusReason.ShortcutFocusReason)
 
 
 class _FocusRing(QWidget):
@@ -464,7 +428,7 @@ class _FocusRing(QWidget):
         kind = event.type()
         if kind == QEvent.Type.FocusIn:
             self.setGeometry(watched.rect())
-            self.setVisible(keyboard_in_use())
+            self.setVisible(event.reason() in KEYBOARD_FOCUS)
             self.raise_()
         elif kind == QEvent.Type.FocusOut:
             self.hide()
@@ -484,7 +448,6 @@ class _FocusRing(QWidget):
 
 def _pointing(root) -> None:
     """Buttons show a hand, and take focus from Tab but not from a click, like Windows buttons."""
-    input_mode()
     for widget in (*root.findChildren(QPushButton), *root.findChildren(QCheckBox)):
         widget.setCursor(Qt.PointingHandCursor)
         if widget.focusPolicy() == Qt.NoFocus:

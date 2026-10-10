@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass
+from functools import lru_cache
 
 from blacklist_detect.model import Entry
 
@@ -50,8 +51,12 @@ def strip_noise(text: str) -> str:
     return "".join(kept)
 
 
+@lru_cache(maxsize=32768)
 def fold(text: str) -> str:
-    """Comparison form. Latin letters compare case-insensitively. Chinese is unchanged."""
+    """Comparison form. Latin letters compare case-insensitively. Chinese is unchanged.
+
+    Pure, so its answers are kept: a long list folds the same names on every check.
+    """
     return strip_noise(text).casefold()
 
 
@@ -61,6 +66,7 @@ def clean_stored_name(raw: str) -> str:
     return strip_noise(text)
 
 
+@lru_cache(maxsize=32768)
 def is_lobby_chrome(text: str) -> bool:
     """Lobby status, not a player name. 准备就绪 is one of these lines."""
     folded = normalize_text(text)

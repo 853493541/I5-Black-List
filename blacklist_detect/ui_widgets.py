@@ -440,69 +440,71 @@ class TagPill(_KeyboardRing, QWidget):
         super().mousePressEvent(event)
 
 
-class _TagRow(QWidget):
-    """The tags in one list cell. Pills that do not fit become one +N pill instead of being cut."""
+_ROW_PAD = 4
+_ROW_GAP = 6
 
-    _pad = 4
-    _gap = 6
 
-    def __init__(self, tags: tuple[str, ...] | list[str]) -> None:
-        super().__init__()
-        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-        self.setMinimumWidth(0)
-        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-        self.pills = [TagPill(tag) for tag in tags]
-        for pill in self.pills:
-            pill.setParent(self)
-        self.more = TagPill("+0", active=False)
-        self.more.setParent(self)
-        self.more.hide()
+def _pill_face() -> QFont:
+    face = chinese_font(SMALL_PT)
+    face.setWeight(QFont.Weight.DemiBold)
+    return face
 
-    def sizeHint(self) -> QSize:
-        height = self.more.sizeHint().height()
-        return QSize(0, height)
 
-    def _more_width(self, hidden: int) -> int:
-        self.more._text = f"+{hidden}"
-        return self.more.sizeHint().width()
+def _pill_size(text: str, metrics: QFontMetrics) -> QSize:
+    return QSize(metrics.horizontalAdvance(text) + TagPill._pad * 2, metrics.height() + TagPill._extra)
 
-    def arrange(self) -> int:
-        """Place the pills that fit. Returns how many are shown."""
-        room = self.width() - self._pad * 2
-        count = len(self.pills)
-        widths = [pill.sizeHint().width() for pill in self.pills]
-        shown = 0
-        for keep in range(count, -1, -1):
-            hidden = count - keep
-            needed = sum(widths[:keep]) + self._gap * max(0, keep - 1)
-            if hidden:
-                needed += (self._gap if keep else 0) + self._more_width(hidden)
-            if needed <= room or keep == 0:
-                shown = keep
-                break
-        x = self._pad
-        for index, pill in enumerate(self.pills):
-            if index >= shown:
-                pill.hide()
-                continue
-            size = pill.sizeHint()
-            pill.setGeometry(x, (self.height() - size.height()) // 2, size.width(), size.height())
-            pill.show()
-            x += size.width() + self._gap
-        hidden = count - shown
+
+def tag_row_layout(tags: tuple[str, ...] | list[str], width: int) -> tuple[int, str]:
+    """How many tags fit in a cell this wide, and the +N pill for the rest ("" when all fit)."""
+    metrics = QFontMetrics(_pill_face())
+    room = width - _ROW_PAD * 2
+    widths = [_pill_size(tag, metrics).width() for tag in tags]
+    count = len(widths)
+    for keep in range(count, -1, -1):
+        hidden = count - keep
+        needed = sum(widths[:keep]) + _ROW_GAP * max(0, keep - 1)
         if hidden:
-            self._more_width(hidden)
-            size = self.more.sizeHint()
-            self.more.setGeometry(x, (self.height() - size.height()) // 2, size.width(), size.height())
-            self.more.show()
-            self.more.update()
-        else:
-            self.more.hide()
-        return shown
+            needed += (_ROW_GAP if keep else 0) + _pill_size(f"+{hidden}", metrics).width()
+        if needed <= room or keep == 0:
+            return keep, f"+{hidden}" if hidden else ""
+    return 0, ""
 
-    def resizeEvent(self, event) -> None:  # noqa: ANN001
-        super().resizeEvent(event)
-        self.arrange()
+
+def paint_tag_row(painter: QPainter, rect: QRect, tags: tuple[str, ...] | list[str]) -> None:
+    """The tags of one list row, drawn straight onto the table. A widget per row made a long list slow."""
+    shown, more = tag_row_layout(tags, rect.width())
+    face = _pill_face()
+    metrics = QFontMetrics(face)
+    painter.save()
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setFont(face)
+    x = rect.left() + _ROW_PAD
+    for text, active in [*((tag, True) for tag in tags[:shown]), *([(more, False)] if more else [])]:
+        size = _pill_size(text, metrics)
+        top = rect.top() + (rect.height() - size.height()) // 2
+        _draw_pill(painter, QRect(x, top, size.width(), size.height()), text, active, TagPill._pad)
+        x += size.width() + _ROW_GAP
+    painter.restore()
+
+
+def _draw_pill(painter: QPainter, rect: QRect, text: str, active: bool, pad: int) -> None:
+    """One pill: red wash and red words, or the outlined grey of a pill that is off or +N."""
+    body = QRect(rect)
+    body.adjust(0, 1, -1, -1)
+    radius = body.height() / 2
+    if active:
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(THEME["red_wash"]))
+        painter.drawRoundedRect(body, radius, radius)
+        painter.setPen(QColor(THEME["red"]))
+    else:
+        painter.setPen(QPen(QColor(THEME["chip_off_line"]), 1))
+        painter.setBrush(QColor(THEME["chip_off_bg"]))
+        painter.drawRoundedRect(body.adjusted(1, 1, -1, -1), radius, radius)
+        painter.setPen(QColor(THEME["gray"]))
+    text_box = QRect(body)
+    text_box.adjust(pad, 0, -pad, 0)
+    painter.drawText(text_box, Qt.AlignCenter, text)
 
 
 class NewTagButton(_KeyboardRing, QPushButton):
@@ -868,6 +870,9 @@ class _PlainItemDelegate(QStyledItemDelegate):
             drawn.state = drawn.state & ~QStyle.State_HasFocus
             drawn.text = ""
             view.style().drawControl(QStyle.CE_ItemViewItem, drawn, painter, view)
+            tags = index.data(Qt.UserRole + 3)
+            if view.objectName() == "blacklist" and tags:
+                paint_tag_row(painter, option.rect, tuple(tags))
             return
         option.state = option.state & ~QStyle.State_HasFocus
         super().paint(painter, option, index)

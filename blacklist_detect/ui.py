@@ -47,7 +47,7 @@ from blacklist_detect.capture import (
 )
 from blacklist_detect.hotkey import GlobalHotkey, parse_hotkey
 from blacklist_detect.logs import log, log_dir, on_uncaught, setup_logging
-from blacklist_detect.match import NameLabel, fold, format_hit, match_label, seat_number, split_ellipsis
+from blacklist_detect.match import MIN_PREFIX_CHARS, NameLabel, fold, format_hit, match_label, seat_number, split_ellipsis
 from blacklist_detect.model import Entry
 from blacklist_detect.ocr_engine import OcrUnavailable, get_engine
 from blacklist_detect.paths import instance_key
@@ -130,7 +130,6 @@ from blacklist_detect.ui_widgets import (
     _local_moment,
     _PlainItemDelegate,
     _reload_icon,
-    _TagRow,
     _watch_mark,
     _zh_ago,
     _zh_clock,
@@ -354,6 +353,10 @@ class MainWindow(QMainWindow):
         self._build()
         self._add_shortcuts()
         self._apply_style()
+        # Opening a window, Qt gives its first tab the focus as if Tab were pressed, and the
+        # tab would draw its keyboard ring. The page takes the focus instead; Tab still reaches the tabs.
+        self.centralWidget().setFocusPolicy(Qt.ClickFocus)
+        self.centralWidget().setFocus(Qt.FocusReason.OtherFocusReason)
         _caption_color(self)
         self._show_list()
         self._reload_history()
@@ -1057,31 +1060,22 @@ class MainWindow(QMainWindow):
         _caption_color(self)
         self._remember_size()
 
-    def _tag_cell(self, tags: tuple[str, ...] | list[str]) -> QWidget:
-        return _TagRow(tags)
-
-    def _list_cell(self, text: str, store_index: int | None = None) -> QTableWidgetItem:
+    def _list_cell(self, text: str, store_index: int | None = None, font=None, ink=None) -> QTableWidgetItem:  # noqa: ANN001
         item = QTableWidgetItem(text)
         item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-        item.setFont(chinese_font(BODY_PT))
-        item.setForeground(QColor(THEME["text"]))
+        item.setFont(font if font is not None else chinese_font(BODY_PT))
+        item.setForeground(ink if ink is not None else QColor(THEME["text"]))
         item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         if store_index is not None:
             item.setData(Qt.UserRole, store_index)
         return item
 
-    def _sort_stamp(self, entry: Entry, column: int) -> float | None:
+    def _sort_stamp(self, index: int, column: int) -> float | None:
         if column != 3:
             return None
-        for scan in self.store.scans:
-            for seat in scan.get("names", []):
-                if seat.get("unclear") or not str(seat.get("name") or ""):
-                    continue
-                shown = str(seat["name"])
-                if match_label(NameLabel(raw=shown, visible=shown, truncated=False), [entry]):
-                    moment = _local_moment(str(scan.get("at", "")))
-                    return None if moment is None else moment.timestamp()
-        return None
+        stamp = self._last_met_stamps().get(index)
+        moment = _local_moment(stamp) if stamp else None
+        return None if moment is None else moment.timestamp()
 
     def _search_text(self) -> str:
         search = getattr(self, "list_search", None)
@@ -1107,8 +1101,8 @@ class MainWindow(QMainWindow):
         column, newest = self._blacklist_sort
 
         def key(pair: tuple[int, Entry]) -> tuple[bool, float, int]:
-            index, entry = pair
-            stamp = self._sort_stamp(entry, column)
+            index, _entry = pair
+            stamp = self._sort_stamp(index, column)
             if stamp is None:
                 return (True, 0.0, index)
             return (False, -stamp if newest else stamp, index)
@@ -1237,40 +1231,76 @@ class MainWindow(QMainWindow):
         header.setSortIndicator(column, Qt.DescendingOrder if newest else Qt.AscendingOrder)
         self._show_list()
 
-    def _last_met_all(self) -> dict[int, str]:
-        """When each listed name was last seen, from one pass over the records (newest first)."""
+    def _last_met_stamps(self) -> dict[int, str]:
+        """When each listed name was last seen, as the record's time, from one pass (newest first).
+
+        Kept until the list or the records change: a search letter or a theme change
+        redraws the list, and matching every seat against a long list each time was slow.
+        """
+        entries = self.store.entries
+        scans = self.store.scans
+        key = (
+            tuple(entry.name for entry in entries),
+            tuple((str(scan.get("at", "")), tuple(str(seat.get("name") or "") for seat in scan.get("names", []))) for scan in scans),
+        )
+        cached = getattr(self, "_met_cache", None)
+        if cached is not None and cached[0] == key:
+            return cached[1]
         found: dict[int, str] = {}
-        by_id = {id(entry): index for index, entry in enumerate(self.store.entries)}
-        for scan in self.store.scans:
+        by_id = {id(entry): index for index, entry in enumerate(entries)}
+        # A seat can only match a name that starts with the same four folded characters (or,
+        # for a short name, is the same). Grouping by that key leaves match_label, which still
+        # decides, only a handful of names to look at instead of the whole list.
+        groups: dict[str, list[Entry]] = {}
+        for entry in entries:
+            folded = fold(entry.name)
+            if folded:
+                groups.setdefault(folded[:MIN_PREFIX_CHARS], []).append(entry)
+        for scan in scans:
             for seat in scan.get("names", []):
                 if seat.get("unclear") or not str(seat.get("name") or ""):
                     continue
                 shown = str(seat["name"])
-                for match in match_label(NameLabel(raw=shown, visible=shown, truncated=False), self.store.entries):
+                candidates = groups.get(fold(shown)[:MIN_PREFIX_CHARS], [])
+                if not candidates:
+                    continue
+                for match in match_label(NameLabel(raw=shown, visible=shown, truncated=False), candidates):
                     index = by_id.get(id(match.entry))
                     if index is not None and index not in found:
-                        found[index] = _zh_ago(str(scan.get("at", "")))
-            if len(found) == len(self.store.entries):
+                        found[index] = str(scan.get("at", ""))
+            if len(found) == len(entries):
                 break
+        self._met_cache = (key, found)
         return found
+
+    def _last_met_all(self) -> dict[int, str]:
+        """The same, as 刚刚 / 3小时前, worked out now so it stays current."""
+        return {index: _zh_ago(stamp) for index, stamp in self._last_met_stamps().items()}
 
     def _show_list(self) -> None:
         rows = self._ordered_entries()
         met = self._last_met_all()
-        bar = self.blacklist_table.verticalScrollBar()
+        table = self.blacklist_table
+        bar = table.verticalScrollBar()
         position = bar.value()
-        self.blacklist_table.setRowCount(len(rows))
+        font = chinese_font(BODY_PT)
+        ink = QColor(THEME["text"])
+        table.setUpdatesEnabled(False)
+        table.setRowCount(len(rows))
         for row, (index, entry) in enumerate(rows):
             shown = masked_name(entry.name) if self.store.names_hidden else entry.name
-            self.blacklist_table.setItem(row, 0, self._list_cell(shown, index))
-            tags_item = self._list_cell(tag_text(entry))
-            tags_item.setToolTip(tag_text(entry))
-            self.blacklist_table.setItem(row, 1, tags_item)
-            self.blacklist_table.setCellWidget(row, 1, self._tag_cell(entry.tags))
+            table.setItem(row, 0, self._list_cell(shown, index, font, ink))
+            tags = tag_text(entry)
+            tags_item = self._list_cell(tags, None, font, ink)
+            tags_item.setToolTip(tags)
+            # The table paints these as pills; a widget per row made a long list slow.
+            tags_item.setData(Qt.UserRole + 3, tuple(entry.tags))
+            table.setItem(row, 1, tags_item)
             detail = " ".join(entry.reason.split())
-            self.blacklist_table.setItem(row, 2, self._list_cell(detail))
-            self.blacklist_table.setItem(row, 3, self._list_cell(met.get(index, "")))
-            self.blacklist_table.setRowHeight(row, ROW_H)
+            table.setItem(row, 2, self._list_cell(detail, None, font, ink))
+            table.setItem(row, 3, self._list_cell(met.get(index, ""), None, font, ink))
+            table.setRowHeight(row, ROW_H)
+        table.setUpdatesEnabled(True)
         self._blacklist_hover = -1
         self.blacklist_table.setCurrentCell(-1, -1)
         bar.setValue(position)
