@@ -374,10 +374,11 @@ class MainWindow(QMainWindow):
         self._tag_press = ""
         self._build()
         self._add_shortcuts()
-        self._apply_style()
         # Opening a window, Qt gives its first tab the focus as if Tab were pressed, and the
         # tab would draw its keyboard ring. The page takes the focus instead; Tab still reaches the tabs.
+        # Focusable before the style is applied, so it keeps the input method like the rest.
         self.centralWidget().setFocusPolicy(Qt.ClickFocus)
+        self._apply_style()
         self.centralWidget().setFocus(Qt.FocusReason.OtherFocusReason)
         _caption_color(self)
         self._show_list()

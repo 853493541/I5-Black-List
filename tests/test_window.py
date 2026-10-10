@@ -2213,3 +2213,43 @@ def test_a_tags_pencil_opens_its_editor_and_keys_work(qapp, tmp_path, monkeypatc
     qapp.sendEvent(view.viewport(), QEvent(QEvent.Type.Leave))
     assert view.property("hoverRow") == -1
     window.close()
+
+
+def test_chinese_input_stays_switchable_where_nothing_takes_text(qapp, tmp_path, monkeypatch):
+    from PySide6.QtGui import QInputMethodQueryEvent
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    window.store.add_scan([{"seat": 1, "name": "甲", "unclear": False}])
+    window.store.add_scan([{"seat": 1, "name": "乙", "unclear": False}])
+    window._reload_history()
+
+    def takes_input(widget) -> bool:  # noqa: ANN001
+        # The question Windows asks: ImEnabled together with ImHints.
+        query = QInputMethodQueryEvent(Qt.InputMethodQuery.ImEnabled | Qt.InputMethodQuery.ImHints)
+        qapp.sendEvent(widget, query)
+        return bool(query.value(Qt.InputMethodQuery.ImEnabled))
+
+    # Qt takes a window's input method away when the focused widget does not take text, and
+    # Windows then types only English. The page, the lists, the tabs and the buttons keep it.
+    for widget in (
+        window.centralWidget(),
+        window.history_list,
+        window.history_table,
+        window.blacklist_table,
+        window.tag_list,
+        window._tab_buttons[0],
+        window.status_chip,
+        window.profile_chip,
+        window.picture_button,
+    ):
+        assert takes_input(widget), widget
+    # A list turns it off again when its current row changes; it still says it takes input.
+    window.history_list.setCurrentRow(2)
+    assert takes_input(window.history_list)
+    # Text boxes decide for themselves: the search box takes it, the read-only hotkey box does not.
+    assert takes_input(window.list_search)
+    assert takes_input(window.hotkey_edit) is False
+    window.close()

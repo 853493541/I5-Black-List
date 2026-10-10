@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import sys
 
-from PySide6.QtCore import QEvent, QRectF, Qt
+from PySide6.QtCore import QEvent, QObject, QRectF, Qt
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -25,9 +25,14 @@ from PySide6.QtGui import (
     QPen,
 )
 from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QAbstractSpinBox,
     QApplication,
     QCheckBox,
+    QLineEdit,
+    QPlainTextEdit,
     QPushButton,
+    QTextEdit,
     QWidget,
 )
 
@@ -447,7 +452,10 @@ class _FocusRing(QWidget):
 
 
 def _pointing(root) -> None:
-    """Buttons show a hand, and take focus from Tab but not from a click, like Windows buttons."""
+    """Buttons show a hand, and take focus from Tab but not from a click, like Windows buttons.
+
+    It also keeps the input method switchable everywhere in root (see keep_input_method).
+    """
     for widget in (*root.findChildren(QPushButton), *root.findChildren(QCheckBox)):
         widget.setCursor(Qt.PointingHandCursor)
         if widget.focusPolicy() == Qt.NoFocus:
@@ -455,6 +463,59 @@ def _pointing(root) -> None:
         widget.setFocusPolicy(Qt.TabFocus)
         if isinstance(widget, QPushButton) and widget.findChild(_FocusRing) is None and widget.objectName() != "link":
             _FocusRing(widget)
+    keep_input_method(root)
+
+
+# Widgets that take text decide about the input method themselves: a read-only box, like
+# the hotkey box, turns it off on purpose so a key goes straight in.
+_TAKES_TEXT = (QLineEdit, QPlainTextEdit, QTextEdit, QAbstractSpinBox)
+
+
+def keep_input_method(root: QWidget) -> None:
+    """Keep 中文 input switchable while a list, a table or a button has the focus.
+
+    Qt takes a window's input method away whenever the focused widget does not take text,
+    and Windows then types only English in the whole window until a text box is clicked.
+    Other Windows apps keep it, so 中/英 can be switched at any time. Marking every focusable
+    widget as taking input keeps it; a list or a table even uses what is typed to jump to a row.
+    """
+    for widget in (root, *root.findChildren(QWidget)):
+        if isinstance(widget, _TAKES_TEXT):
+            continue
+        if widget is root or widget.focusPolicy() != Qt.NoFocus:
+            widget.setAttribute(Qt.WA_InputMethodEnabled, True)
+        if isinstance(widget, QAbstractItemView) and widget.findChild(_InputMethodKeeper) is None:
+            _InputMethodKeeper(widget)
+
+
+class _InputMethodKeeper(QObject):
+    """A list or a table turns the input method off again each time its current row changes
+    to one that cannot be edited. This answers for it, when asked, that it takes input."""
+
+    def __init__(self, view: QAbstractItemView) -> None:
+        super().__init__(view)
+        view.installEventFilter(self)
+
+    def eventFilter(self, watched, event) -> bool:  # noqa: ANN001
+        if event.type() != QEvent.Type.InputMethodQuery:
+            return False
+        asked = event.queries().value
+        enabled = Qt.InputMethodQuery.ImEnabled
+        if not asked & enabled.value:
+            return False
+        # Windows asks for several things at once, ImEnabled among them. Each is answered
+        # as the view would answer it, except that it takes input.
+        for bit in range(32):
+            if not asked & (1 << bit) or 1 << bit == enabled.value:
+                continue
+            try:
+                query = Qt.InputMethodQuery(1 << bit)
+            except ValueError:
+                continue
+            event.setValue(query, watched.inputMethodQuery(query))
+        event.setValue(enabled, watched.isEnabled())
+        event.accept()
+        return True
 
 
 def _menu_style(family: str) -> str:
