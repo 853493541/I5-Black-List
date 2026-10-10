@@ -21,6 +21,9 @@ jobs:
       - name: Lint
         run: python -m ruff check .
       - name: Test
+        # The tests take a minute or two; a hang fails here, after its stacks are printed,
+        # instead of at the job's 20-minute limit.
+        timeout-minutes: 8
         env:
           QT_QPA_PLATFORM: offscreen
           PYTHONPATH: .

@@ -26,6 +26,8 @@ include = ["blacklist_detect*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# A test that hangs prints every thread's stack after two minutes, so the log says where it stuck.
+faulthandler_timeout = 120
 
 [tool.ruff]
 target-version = "py312"
