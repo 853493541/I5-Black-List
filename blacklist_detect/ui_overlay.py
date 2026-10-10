@@ -52,19 +52,6 @@ def native_to_logical(x: float, y: float, screens=None) -> tuple[float, float, f
     return x / ratio, y / ratio, ratio
 
 
-def _play_hit_sound() -> None:
-    """The Windows warning sound. It follows the system volume and sound scheme."""
-    if sys.platform == "win32":
-        try:
-            import winsound
-
-            winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
-            return
-        except Exception:
-            pass
-    QApplication.beep()
-
-
 def _pin_topmost(widget) -> None:
     if sys.platform != "win32":
         return

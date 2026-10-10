@@ -91,7 +91,6 @@ from blacklist_detect.ui_overlay import (
     LobbyPanel,
     _cover_radius,
     _pin_topmost,
-    _play_hit_sound,
     native_to_logical,
 )
 from blacklist_detect.ui_theme import (
@@ -153,7 +152,6 @@ __all__ = [
     "_apply_theme",
     "_cover_radius",
     "_icon",
-    "_play_hit_sound",
     "_zh_clock",
     "chinese_font",
     "instance_key",
@@ -730,10 +728,6 @@ class MainWindow(QMainWindow):
         self.settings_label.setWordWrap(True)
         self.settings_label.hide()
         check.add_widget(self.settings_label, separated=False, indent=True)
-        self.sound_switch = Switch(self.store.hit_sound)
-        self.sound_switch.setAccessibleName("提示音")
-        self.sound_switch.toggled.connect(self._set_hit_sound)
-        check.add_row("提示音", self.sound_switch, hint="发现黑名单时响一声")
         self.picture_button = QPushButton("检查截图")
         self.picture_button.setToolTip("选一张大厅截图，看看里面有没有黑名单")
         self.picture_button.setAutoDefault(False)
@@ -900,9 +894,6 @@ class MainWindow(QMainWindow):
         self._sync_hotkey_mode()
         self._set_settings_note("")
         self._sync_auto_controls()
-        self.sound_switch.blockSignals(True)
-        self.sound_switch.setChecked(self.store.hit_sound)
-        self.sound_switch.blockSignals(False)
         if autostart.is_enabled():
             autostart.set_enabled(False)
         self._sync_switch(self.autostart_switch, autostart.is_enabled())
@@ -2440,16 +2431,6 @@ class MainWindow(QMainWindow):
             switch.setChecked(on)
             switch.blockSignals(False)
 
-    def _set_hit_sound(self, enabled: bool) -> None:
-        self.store.hit_sound = bool(enabled)
-        self.store.save_settings()
-        if self.sound_switch.isChecked() != self.store.hit_sound:
-            self.sound_switch.blockSignals(True)
-            self.sound_switch.setChecked(self.store.hit_sound)
-            self.sound_switch.blockSignals(False)
-        if enabled:
-            _play_hit_sound()
-
     def report_uncaught(self, text: str) -> None:
         """Any thread may call this. The window is updated on its own thread."""
         self.uncaught.emit(text)
@@ -2654,8 +2635,6 @@ class MainWindow(QMainWindow):
                 self._apply_filled(result)
             self._reload_history()
         self._show_panel(result)
-        if result.hits and self._live_check and self.store.hit_sound:
-            _play_hit_sound()
         if self.store.save_debug_frames and result.preview_rgb is not None:
             self._save_debug(result)
 

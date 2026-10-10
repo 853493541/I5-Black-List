@@ -188,11 +188,11 @@ def test_an_empty_state_has_a_heading_hint_and_action(qapp):
 
 def test_a_settings_section_lays_out_rows(qapp):
     section = SettingsSection("检查", 80)
-    section.add_row("提示音", Switch(True), hint="发现黑名单时响一声")
+    section.add_row("开机启动", Switch(True), hint="开机后在右下角托盘里运行")
     section.add_row("快捷键", QPushButton("Alt+1"))
     labels = [label.text() for label in section.findChildren(QLabel)]
     assert labels[0] == "检查"
-    assert "提示音" in labels and "快捷键" in labels and "发现黑名单时响一声" in labels
+    assert "开机启动" in labels and "快捷键" in labels and "开机后在右下角托盘里运行" in labels
     assert len([w for w in section.findChildren(QWidget) if w.objectName() == "sectionLine"]) == 1
 
 

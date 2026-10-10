@@ -442,7 +442,6 @@ class Store:
         self.column_order: list[int] = [0, 1, 2, 3]
         self.column_widths: list[int] = list(DEFAULT_COLUMN_WIDTHS)
         self.names_hidden = False
-        self.hit_sound = False
         # The app version that last passed the environment check; it runs again after an update.
         self.env_checked = ""
         # × hides the window to the tray (the app keeps checking), or quits.
@@ -667,7 +666,6 @@ class Store:
                 "column_order": list(self.column_order),
                 "column_widths": list(self.column_widths),
                 "names_hidden": self.names_hidden,
-                "hit_sound": self.hit_sound,
                 "env_checked": self.env_checked,
                 "welcomed": self.welcomed,
                 "close_to_tray": self.close_to_tray,
@@ -700,7 +698,6 @@ class Store:
             if widths is not None:
                 self.column_widths = widths
             self.names_hidden = bool(settings.get("names_hidden", False))
-            self.hit_sound = bool(settings.get("hit_sound", False))
             self.env_checked = str(settings.get("env_checked", "") or "")
             self.welcomed = bool(settings.get("welcomed", True))
             self.close_to_tray = bool(settings.get("close_to_tray", True))
@@ -904,7 +901,6 @@ class Store:
         self.column_order = [0, 1, 2, 3]
         self.column_widths = list(DEFAULT_COLUMN_WIDTHS)
         self.names_hidden = False
-        self.hit_sound = False
         # The next open is a first open: the environment check and the welcome guide run again.
         self.env_checked = ""
         self.welcomed = False

@@ -244,7 +244,7 @@ def _kit_scenes(window, snap) -> None:  # noqa: ANN001
     column.addLayout(icons)
     section = ui_kit.SettingsSection("检查", 72)
     section.add_row("自动检查", ui_kit.Switch(True), hint="进入「推演成功」大厅时自动检查。")
-    section.add_row("提示音", ui_kit.Switch(False))
+    section.add_row("开机启动", ui_kit.Switch(False))
     column.addWidget(section)
     empty = ui_kit.EmptyState("records", "还没有记录", "进入「推演成功」大厅时会自动检查，并记在这里。")
     empty.add_action(QPushButton("测试一下"))

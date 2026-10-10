@@ -390,11 +390,10 @@ def test_a_shared_list_keeps_custom_tags_and_reasons(tmp_path):
     assert friend.entries[0].reason == "开局就炸房，还骂人"
 
 
-def test_first_run_and_the_hit_sound_setting(tmp_path):
+def test_first_run_is_kept_until_the_guide_is_shown(tmp_path):
     store = Store(tmp_path)
     assert store.first_run is True
-    assert store.hit_sound is False
-    store.hit_sound = True
+    store.theme = "绿色"
     store.save_settings()
     # Saving a setting (the window size on close, say) does not end the first run;
     # showing the welcome guide does.
@@ -403,12 +402,16 @@ def test_first_run_and_the_hit_sound_setting(tmp_path):
     store.save_settings()
     again = Store(tmp_path)
     assert again.first_run is False
-    assert again.hit_sound is True
+    assert again.theme == "绿色"
 
 
 def test_a_settings_file_from_before_counts_as_welcomed(tmp_path):
     (tmp_path / "settings.json").write_text('{"hit_sound": true}', encoding="utf-8")
-    assert Store(tmp_path).first_run is False
+    store = Store(tmp_path)
+    assert store.first_run is False
+    # 提示音 is gone: an old file's setting is ignored, and dropped on the next save.
+    store.save_settings()
+    assert "hit_sound" not in (tmp_path / "settings.json").read_text(encoding="utf-8")
 
 
 def test_reset_makes_the_next_open_a_first_open(tmp_path):

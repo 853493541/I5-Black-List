@@ -919,10 +919,8 @@ def test_reset_asks_before_clearing_everything(qapp, tmp_path, monkeypatch):
     window.store.save_settings()
     window.player_edit.setText("纪戴宁")
     window._show_list()
-    monkeypatch.setattr("blacklist_detect.ui._play_hit_sound", lambda: None)
-    window.sound_switch.click()
     window._cycle_capture_mode()
-    assert window.store.hit_sound is True and window.store.auto_capture is False
+    assert window.store.auto_capture is False
     monkeypatch.setattr("blacklist_detect.ui._confirm", lambda *_args: False)
     window._ask_reset()
     assert [entry.name for entry in window.store.entries] == ["甲"]
@@ -940,7 +938,6 @@ def test_reset_asks_before_clearing_everything(qapp, tmp_path, monkeypatch):
     assert window.auto_on.isChecked() is True
     # Every control that shows a setting goes back with it.
     assert window.mode_cycle.toolTip() == "切换为手动检查"
-    assert window.sound_switch.isChecked() is window.store.hit_sound is False
     again = Store(window.store.root)
     assert again.entries == []
     assert again.scans == []
@@ -1238,29 +1235,6 @@ def test_a_picture_check_opens_its_result(qapp, tmp_path, monkeypatch):
     window.close()
 
 
-def test_a_match_rings_only_when_the_sound_is_on(qapp, tmp_path, monkeypatch):
-    from blacklist_detect import ui
-
-    monkeypatch.setenv("APPDATA", str(tmp_path))
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
-    rings = []
-    monkeypatch.setattr(ui, "_play_hit_sound", lambda: rings.append(1))
-    window = MainWindow()
-    window._watch_timer.stop()
-    window._live_check = True
-    seat = NameSlot(0, (0, 0, 1, 1), "甲", "甲", False, 0.9, False)
-    hit = Hit(0, "甲", "甲", "", False, "")
-    window._on_checked("ok", CheckResult(True, "", names=[seat], hits=[hit], button_box=(0, 0, 50, 20)))
-    assert rings == []
-    window._set_hit_sound(True)
-    assert rings == [1]
-    window.store.scans[0]["at"] = "2020-01-01T00:00:00+00:00"
-    window._live_check = True
-    window._on_checked("ok", CheckResult(True, "", names=[seat], hits=[hit], button_box=(0, 0, 50, 20)))
-    assert rings == [1, 1]
-    window.close()
-
-
 def test_a_second_monitor_uses_its_own_scaling(qapp):
     from PySide6.QtCore import QRect
 
@@ -1376,7 +1350,6 @@ def test_settings_are_grouped_into_titled_cards(qapp, tmp_path, monkeypatch):
 
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
-    monkeypatch.setattr("blacklist_detect.ui._play_hit_sound", lambda: None)
     window = MainWindow()
     window._watch_timer.stop()
     sections = window.findChildren(SettingsSection)
@@ -1394,13 +1367,8 @@ def test_settings_are_grouped_into_titled_cards(qapp, tmp_path, monkeypatch):
     assert by_title["外观"].y() == by_title["数据"].y()
     assert by_title["标签"].width() > by_title["检查"].width() * 1.8, "标签 spans both columns"
     window.hide()
-    # 提示音 is a switch that saves at once.
-    assert window.sound_switch.isChecked() is False
-    window.sound_switch.click()
-    assert window.store.hit_sound is True
-    assert Store(window.store.root).hit_sound is True
-    window._set_hit_sound(False)
-    assert window.sound_switch.isChecked() is False
+    # 提示音 is gone.
+    assert "提示音" not in [label.text() for label in window.findChildren(QLabel)]
     # The 方式 choice follows a click on the header's status, and the other way round.
     window._cycle_capture_mode()
     assert window.auto_mode.current() == "manual"
