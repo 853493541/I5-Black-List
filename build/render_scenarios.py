@@ -118,6 +118,7 @@ class Run:
             self.snap(page)
         if self.scenario == "heavy":
             self.timed("redraw the whole list", window._show_list)
+            window.tabs.setCurrentIndex(1)
             self.timed("type one search letter", lambda: window.list_search.setText("霁"))
             self.snap("blacklist_search")
             self.timed("clear the search", window.list_search.clear)

@@ -1695,3 +1695,57 @@ def test_last_seen_matches_checking_every_name(qapp, tmp_path, monkeypatch):
                 expected.setdefault(index, scan["at"])
     assert window._last_met_stamps() == expected
     window.close()
+
+
+def test_the_list_counts_sorts_by_name_and_offers_a_start(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    # A new user sees the two ways to start inside the empty list, and only there.
+    assert window.empty_add_button.isHidden() is False
+    assert window.empty_batch_button.isHidden() is False
+    assert all(button.isHidden() for button in window.toolbar_buttons)
+    assert window.list_count.text() == ""
+    for name in ("张三", "阿强", "李四"):
+        window.store.add(name)
+    window._show_list()
+    assert window.list_count.text() == "共 3 人"
+    assert not any(button.isHidden() for button in window.toolbar_buttons)
+    window.list_search.setText("阿")
+    assert window.list_count.text() == "找到 1 人"
+    window.list_search.setText("没有这个")
+    assert window.empty_add_button.isHidden(), "no-match is not the empty-list start"
+    window.list_search.clear()
+    # 名字 sorts in pinyin order, and a second click turns it round.
+    window._sort_blacklist(0)
+    assert [window.blacklist_table.item(row, 0).text() for row in range(3)] == ["阿强", "李四", "张三"]
+    window._sort_blacklist(0)
+    assert [window.blacklist_table.item(row, 0).text() for row in range(3)] == ["张三", "李四", "阿强"]
+    window.close()
+
+
+def test_a_record_says_what_it_found_and_shortens_long_names(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    long_name = "超长的名字" * 12
+    window.store.add("霁玥吉尔曼")
+    window.store.add_scan(
+        [
+            {"seat": 1, "name": "霁玥吉尔曼", "unclear": False},
+            {"seat": 2, "name": "", "unclear": True},
+            {"seat": 3, "name": long_name, "unclear": False},
+        ]
+    )
+    window._reload_history()
+    assert window.record_summary.text() == "1 人在黑名单里，1 人没看清"
+    assert window.history_table.item(1, 0).toolTip() == long_name
+    label = window.history_table.cellWidget(1, 0).findChild(QLabel)
+    assert label.minimumSizeHint().width() < 100, "a long name can shrink to fit its seat"
+    window.store.remove_scan(0)
+    window.store.add_scan([{"seat": 1, "name": "路人甲", "unclear": False}])
+    window._reload_history()
+    assert window.record_summary.text() == "这间大厅里没有黑名单"
+    window.close()

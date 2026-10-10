@@ -766,6 +766,7 @@ def _window_style(family: str) -> str:
                 color: {t["text"]};
                 background: transparent;
             }}
+            QWidget#tableHead QLabel#recordTitle {{ font-size: {BODY_PT}pt; }}
             QWidget#recordCard QTableWidget#recordNames {{
                 background: {t["surface"]};
                 border: none;

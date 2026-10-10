@@ -468,6 +468,9 @@ class MainWindow(QMainWindow):
         self.list_search.setToolTip("Ctrl+F")
         self.list_search.textChanged.connect(self._on_search_text)
         toolbar.addWidget(self.list_search, 1)
+        self.list_count = QLabel("")
+        self.list_count.setObjectName("sub")
+        toolbar.addWidget(self.list_count)
         toolbar.addStretch(1)
         batch = QPushButton("批量添加")
         batch.setToolTip("Ctrl+I")
@@ -476,6 +479,7 @@ class MainWindow(QMainWindow):
         add.setObjectName("primary")
         add.setToolTip("Ctrl+N")
         add.clicked.connect(self._add_by_dialog)
+        self.toolbar_buttons = (batch, add)
         toolbar.addWidget(batch)
         toolbar.addWidget(add)
         # 分享 and 清空列表 are used now and then, so they wait under 更多 instead of beside 添加.
@@ -543,6 +547,11 @@ class MainWindow(QMainWindow):
         self._detail_tip_timer.timeout.connect(self._hide_detail_tip)
         self.list_empty = EmptyState("users", "还没有名字")
         self.list_hint = self.list_empty.title
+        self.empty_batch_button = self.list_empty.add_action(QPushButton("批量添加"))
+        self.empty_batch_button.clicked.connect(self._add_many_by_dialog)
+        self.empty_add_button = self.list_empty.add_action(QPushButton("添加"))
+        self.empty_add_button.setObjectName("primary")
+        self.empty_add_button.clicked.connect(self._add_by_dialog)
         layout.addLayout(toolbar)
         layout.addWidget(self.blacklist_table, 1)
         layout.addWidget(self.list_empty, 1)
@@ -589,11 +598,13 @@ class MainWindow(QMainWindow):
         head.setContentsMargins(16, 12, 16, 12)
         head.setSpacing(GAP)
         catalog = QLabel("模仿者游戏（12人狂欢场）")
+        catalog.setObjectName("recordTitle")
         catalog.setFont(record_font())
-        catalog.setStyleSheet(
-            f'color: {THEME["text"]}; background: transparent; font-family: "{chinese_family()}"; font-size: {BODY_PT}pt;'
-        )
         head.addWidget(catalog)
+        self.record_summary = QLabel("")
+        self.record_summary.setObjectName("sub")
+        head.addSpacing(GAP)
+        head.addWidget(self.record_summary)
         head.addStretch(1)
         self.record_time = QLabel("")
         self.record_time.setObjectName("sub")
@@ -966,6 +977,9 @@ class MainWindow(QMainWindow):
             self.tray.setIcon(icon)
         self._apply_style()
         _caption_color(self)
+        if getattr(self, "tray_menu", None) is not None:
+            # The tray menu has no parent window, so it does not get the window's new style.
+            self.tray_menu.setStyleSheet(_menu_style(chinese_family()))
         self._reload_history(max(0, self._selected_scan()))
         self._show_list()
 
@@ -1099,6 +1113,16 @@ class MainWindow(QMainWindow):
         if self._blacklist_sort is None:
             return rows
         column, newest = self._blacklist_sort
+        if column == 0:
+            # Chinese names in pinyin order, as a Chinese reader expects, then the rest.
+            from functools import cmp_to_key
+
+            from PySide6.QtCore import QCollator, QLocale
+
+            collator = QCollator(QLocale(QLocale.Language.Chinese, QLocale.Country.China))
+            collator.setNumericMode(True)
+            ordered = sorted(rows, key=cmp_to_key(lambda a, b: collator.compare(a[1].name, b[1].name)))
+            return ordered if newest else ordered[::-1]
 
         def key(pair: tuple[int, Entry]) -> tuple[bool, float, int]:
             index, _entry = pair
@@ -1222,13 +1246,16 @@ class MainWindow(QMainWindow):
         self._fit_blacklist_columns()
 
     def _sort_blacklist(self, column: int) -> None:
-        if column != 3:
+        if column not in (0, 3):
             return
-        newest = self._blacklist_sort != (column, True)
-        self._blacklist_sort = (column, newest)
+        first = self._blacklist_sort != (column, True)
+        self._blacklist_sort = (column, first)
         header = self.blacklist_table.horizontalHeader()
         header.setSortIndicatorShown(True)
-        header.setSortIndicator(column, Qt.DescendingOrder if newest else Qt.AscendingOrder)
+        if column == 0:
+            header.setSortIndicator(column, Qt.AscendingOrder if first else Qt.DescendingOrder)
+        else:
+            header.setSortIndicator(column, Qt.DescendingOrder if first else Qt.AscendingOrder)
         self._show_list()
 
     def _last_met_stamps(self) -> dict[int, str]:
@@ -1309,17 +1336,28 @@ class MainWindow(QMainWindow):
         count = len(self.store.entries)
         self.list_search.setVisible(count > 0 or bool(self._search_text()))
         self.more_button.setVisible(count > 0)
+        for button in self.toolbar_buttons:
+            button.setVisible(count > 0)
+        # The tab badge stops at 99+; the exact number is here.
+        if self._search_text():
+            self.list_count.setText(f"找到 {len(rows)} 人")
+        else:
+            self.list_count.setText(f"共 {count} 人" if count else "")
         if count and rows:
             self.list_empty.hide()
             self.blacklist_table.setVisible(True)
         elif count:
             self.list_empty.set_icon("search")
             self.list_empty.set_text(f"没有找到「{self._search_text()}」")
+            self.empty_add_button.hide()
+            self.empty_batch_button.hide()
             self.list_empty.show()
             self.blacklist_table.setVisible(False)
         else:
             self.list_empty.set_icon("users")
             self.list_empty.set_text("还没有名字")
+            self.empty_add_button.show()
+            self.empty_batch_button.show()
             self.list_empty.show()
             self.blacklist_table.setVisible(False)
 
@@ -1835,15 +1873,27 @@ class MainWindow(QMainWindow):
         self.history_table.setRowCount(0)
         if row < 0 or row >= len(self.store.scans):
             self.record_time.setText("")
+            self.record_summary.setText("")
             return
         day, clock = self._day_and_clock(str(self.store.scans[row].get("at", "")))
         self.record_time.setText(f"{day} {clock}".strip())
         names = self.store.scans[row].get("names", [])
         self.history_table.setRowCount((len(names) + 1) // 2)
+        kinds = []
         for index, seat in enumerate(names):
-            self._set_history_seat(index // 2, index % 2, seat)
+            kinds.append(self._set_history_seat(index // 2, index % 2, seat))
             self.history_table.setRowHeight(index // 2, ROW_H + 4)
         self._fit_record_card()
+        self._summarize_record(kinds.count("hit"), kinds.count("unclear"))
+
+    def _summarize_record(self, hits: int, unclear: int) -> None:
+        """What this lobby held, in the words the picture check uses."""
+        text = f"{hits} 人在黑名单里" if hits else "这间大厅里没有黑名单"
+        if unclear:
+            text += f"，{unclear} 人没看清"
+        self.record_summary.setText(text)
+        tone = THEME["red"] if hits else THEME["muted"]
+        self.record_summary.setStyleSheet(f"color: {tone}; background: transparent;")
 
     def _fit_record_card(self) -> None:
         """The table is exactly as tall as its rows, so the card ends with the last seat."""
@@ -1863,7 +1913,8 @@ class MainWindow(QMainWindow):
         found = match_label(label, list(self.store.entries))
         return found[0] if found else None
 
-    def _set_history_seat(self, row: int, column: int, seat: dict) -> None:
+    def _set_history_seat(self, row: int, column: int, seat: dict) -> str:
+        """Fill one seat. Returns hit, unclear or "" for the lobby summary."""
         unclear = bool(seat.get("unclear")) or not str(seat.get("name") or "")
         shown = "未看清" if unclear else str(seat.get("name"))
         visible = "未知" if unclear else shown
@@ -1931,7 +1982,7 @@ class MainWindow(QMainWindow):
             warn.setAttribute(Qt.WA_TransparentForMouseEvents, True)
             warn.setStyleSheet("background: transparent;")
             line.addWidget(warn)
-        name_label = QLabel(visible if unclear else label)
+        name_label = _ElidedLabel(visible if unclear else label)
         name_label.setFont(name_font)
         name_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         name_color = tone
@@ -1943,8 +1994,9 @@ class MainWindow(QMainWindow):
             f'color: {name_color}; background: transparent; font-family: "{chinese_family()}"; font-size: {BODY_PT}pt;'
             + (" font-style: italic;" if unclear else "")
         )
-        line.addWidget(name_label)
-        line.addStretch(1)
+        line.addWidget(name_label, 1)
+        if not unclear and not name_item.toolTip():
+            name_item.setToolTip(label)
         if listed:
             listed_label = QLabel(f"名单：{listed}")
             listed_label.setObjectName("rowListed")
@@ -1976,6 +2028,7 @@ class MainWindow(QMainWindow):
                 action_label.hide()
             line.addWidget(action_label, 0, Qt.AlignVCenter)
         self.history_table.setCellWidget(row, column, wrap)
+        return "unclear" if unclear else "hit" if match is not None else ""
 
     def _history_wrap_style(self, wash: str = "") -> str:
         return f"QFrame#seat {{ background: {wash or THEME['surface']}; border-radius: 6px; }}"
@@ -2764,6 +2817,22 @@ class MainWindow(QMainWindow):
         if self.tray is not None:
             self.tray.hide()
         super().closeEvent(event)
+
+
+class _ElidedLabel(QLabel):
+    """One line that ends in … when it does not fit, instead of being cut mid-character."""
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(self.fontMetrics().horizontalAdvance("…") * 3, super().minimumSizeHint().height())
+
+    def paintEvent(self, _event) -> None:  # noqa: ANN001
+        from PySide6.QtGui import QPainter
+
+        painter = QPainter(self)
+        painter.setPen(self.palette().color(self.foregroundRole()))
+        painter.setFont(self.font())
+        text = self.fontMetrics().elidedText(self.text(), Qt.TextElideMode.ElideRight, self.width())
+        painter.drawText(self.rect(), int(Qt.AlignLeft | Qt.AlignVCenter), text)
 
 
 def QSystemTrayIcon_available() -> bool:
