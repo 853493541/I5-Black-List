@@ -149,6 +149,7 @@ def main() -> int:
     window.hit_card.set_people([("霁玥吉尔曼", ("炸房", "贴脸")), ("gffdsd", ("挂机",))], 64)
     snap("overlay_hit_card", window.hit_card)
 
+    _setup_scenes(app, window, snap)
     _kit_scenes(window, snap)
     _contact_sheet(out, args.label, shots)
     print(f"{len(shots)} pictures in {out}")
@@ -172,9 +173,35 @@ def _focus_scene(app, window, snap) -> None:  # noqa: ANN001
     window.tabs.setCurrentIndex(2)
     window.theme_buttons["绿色"].setFocus(Qt.FocusReason.TabFocusReason)
     snap("focus_swatch")
-    window.test_button.setFocus(Qt.FocusReason.TabFocusReason)
+    window.picture_button.setFocus(Qt.FocusReason.TabFocusReason)
     snap("focus_secondary")
     window.setFocus()
+
+
+def _setup_scenes(app, window, snap) -> None:  # noqa: ANN001
+    """The environment check card: running, confirmed, and failed."""
+    from blacklist_detect.ui_setup import SetupCheck
+
+    window.tabs.setCurrentIndex(0)
+    setup = SetupCheck(window.centralWidget())
+    setup.start()
+    setup.step(0, "ok")
+    setup.step(1, "run")
+    setup._value = 0.5
+    setup.bar.setValue(500)
+    snap("setup_running")
+    setup.step(1, "ok")
+    setup.step(2, "ok", "12/12")
+    setup.succeed()
+    setup._value = 1.0
+    setup.bar.setValue(1000)
+    snap("setup_ok")
+    setup.start()
+    setup.step(0, "ok")
+    setup.fail(1, "本地 PaddleOCR 中文模型没有就绪。")
+    setup.bar.setValue(400)
+    snap("setup_failed")
+    setup.hide()
 
 
 def _kit_scenes(window, snap) -> None:  # noqa: ANN001

@@ -491,7 +491,6 @@ class GuideDialog(QDialog):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self.wants_test = False
         layout = _frame(self, "欢迎使用黑名单检测")
         intro = QLabel("进入「推演成功」大厅时，它会读出十二个名字，并标出黑名单里的人。只读屏幕，不碰游戏。")
         intro.setWordWrap(True)
@@ -521,17 +520,9 @@ class GuideDialog(QDialog):
             row.addWidget(step, 1)
             layout.addLayout(row)
             self.steps.append(step)
-        test = QPushButton("测试一下")
-        test.setAutoDefault(False)
-        test.setToolTip("用自带的大厅截图试一次识别")
-        test.clicked.connect(self._test)
-        _footer(layout, test, _primary("开始使用", self.accept))
+        _footer(layout, _primary("开始使用", self.accept))
         self.setMinimumWidth(600)
         _pointing(self)
-
-    def _test(self) -> None:
-        self.wants_test = True
-        self.accept()
 
     def showEvent(self, event) -> None:  # noqa: ANN001
         super().showEvent(event)

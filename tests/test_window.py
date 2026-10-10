@@ -1210,10 +1210,11 @@ def test_a_picture_check_opens_its_result(qapp, tmp_path, monkeypatch):
     window._watch_timer.stop()
     asked = []
     window.worker.request = lambda fn, kind="check": asked.append(kind) or True
-    window.test_recognition()
+    window._run_picture("lobby.png", "识别测试")
     assert asked == ["picture"]
-    assert window.test_button.isEnabled() is False
-    assert window.history_test_button.isEnabled() is False
+    assert window.picture_button.isEnabled() is False
+    assert window.picture_button.text() == "正在识别"
+    assert not any(b.text() == "测试一下" for b in window.findChildren(QPushButton))
     names = [NameSlot(index, (0, 0, 1, 1), f"名{index}", f"名{index}", False, 0.9, False) for index in range(12)]
     names[3] = NameSlot(3, (0, 0, 1, 1), "", "", False, 0.1, True)
     hit = Hit(0, "名0", "名0大王", "", True, "")
@@ -1224,7 +1225,8 @@ def test_a_picture_check_opens_its_result(qapp, tmp_path, monkeypatch):
     assert shown.summary.text() == "1 人在黑名单里，1 人没看清"
     assert shown.seats[0].text() == "名0　名单：名0大王"
     assert shown.seats[3].text() == "未看清"
-    assert window.test_button.isEnabled() is True
+    assert window.picture_button.isEnabled() is True
+    assert window.picture_button.text() == "检查截图"
     shown.close()
     window._run_picture("x.png", "截图检查")
     window._on_worker(("picture", "ok", CheckResult(False, "没有找到这间大厅。")))
@@ -1529,7 +1531,7 @@ def test_a_button_shows_its_focus_ring_only_while_focused(qapp, tmp_path, monkey
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
     window._watch_timer.stop()
-    button = window.test_button
+    button = window.picture_button
     ring = button.findChild(_FocusRing)
     assert ring is not None and ring.isHidden()
     qapp.sendEvent(button, QFocusEvent(QEvent.Type.FocusIn, Qt.OtherFocusReason))
@@ -1748,4 +1750,103 @@ def test_a_record_says_what_it_found_and_shortens_long_names(qapp, tmp_path, mon
     window.store.add_scan([{"seat": 1, "name": "路人甲", "unclear": False}])
     window._reload_history()
     assert window.record_summary.text() == "这间大厅里没有黑名单"
+    window.close()
+
+
+def _wait(qapp, ms: int) -> None:
+    import time
+
+    end = time.monotonic() + ms / 1000
+    while time.monotonic() < end:
+        qapp.processEvents()
+
+
+def _lobby(read: int) -> CheckResult:
+    names = [NameSlot(i, (0, 0, 1, 1), f"名{i}", f"名{i}", False, 0.9, i >= read) for i in range(12)]
+    return CheckResult(True, "", names=names)
+
+
+def test_the_first_open_checks_the_environment_and_confirms_it(qapp, tmp_path, monkeypatch):
+    from blacklist_detect import __version__
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.setattr("blacklist_detect.ui.capture_top_band", lambda: object())
+    window = MainWindow()
+    window._watch_timer.stop()
+    jobs: list[str] = []
+    window.worker.request = lambda fn, kind="check": jobs.append(kind) or True
+    window.show()
+    assert window.store.env_checked == ""
+    assert window.start_environment_check() is True
+    setup = window.setup
+    assert setup.isVisible() and setup.title.text() == "正在检查环境"
+    _wait(qapp, 350)
+    # 屏幕截图 passed; the models load next, then the sample lobby is read.
+    assert jobs == ["warmup"]
+    window._on_worker(("warmup", "ok", None))
+    assert jobs == ["warmup", "envcheck"]
+    window._on_worker(("envcheck", "ok", _lobby(12)))
+    assert setup.title.text() == "环境确认"
+    assert setup.notes[2].text() == "12/12"
+    assert window.store.env_checked == __version__
+    assert Store(window.store.root).env_checked == __version__
+    # Once confirmed for this version, it does not run again.
+    assert window.start_environment_check() is False
+    window.close()
+
+
+def test_a_failed_check_says_where_and_can_be_retried(qapp, tmp_path, monkeypatch):
+    from blacklist_detect.capture import CaptureUnavailable
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    broken = [True]
+
+    def grab():
+        if broken[0]:
+            raise CaptureUnavailable("没有读到画面，请再试一次。")
+        return object()
+
+    monkeypatch.setattr("blacklist_detect.ui.capture_top_band", grab)
+    window = MainWindow()
+    window._watch_timer.stop()
+    jobs: list[str] = []
+    window.worker.request = lambda fn, kind="check": jobs.append(kind) or True
+    window.show()
+    window.start_environment_check()
+    _wait(qapp, 350)
+    setup = window.setup
+    assert setup.title.text() == "环境有问题"
+    assert setup.message.text() == "没有读到画面，请再试一次。"
+    assert setup.buttons.isVisible()
+    assert window.store.env_checked == ""
+    assert window._glance_pause_until == 0.0, "the lobby watch carries on after a failed check"
+    broken[0] = False
+    setup.retry_button.click()
+    _wait(qapp, 350)
+    assert jobs == ["warmup"]
+    window._on_worker(("warmup", "ok", None))
+    window._on_worker(("envcheck", "ok", _lobby(5)))
+    assert setup.title.text() == "环境有问题"
+    assert "5 个名字" in setup.message.text()
+    window.close()
+
+
+def test_a_model_that_will_not_load_stops_the_check_at_its_step(qapp, tmp_path, monkeypatch):
+    from blacklist_detect.ocr_engine import OcrUnavailable
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.setattr("blacklist_detect.ui.capture_top_band", lambda: object())
+    window = MainWindow()
+    window._watch_timer.stop()
+    window.worker.request = lambda fn, kind="check": True
+    window.show()
+    window.start_environment_check()
+    _wait(qapp, 350)
+    window._on_worker(("warmup", "err", OcrUnavailable("本地 PaddleOCR 中文模型没有就绪。")))
+    assert window.setup.title.text() == "环境有问题"
+    assert "模型" in window.setup.message.text()
+    assert window.setup.notes[1].text() == ""
     window.close()

@@ -437,6 +437,8 @@ class Store:
         self.column_widths: list[int] = list(DEFAULT_COLUMN_WIDTHS)
         self.names_hidden = False
         self.hit_sound = False
+        # The app version that last passed the environment check; it runs again after an update.
+        self.env_checked = ""
         self.load_warning = ""
         # No settings file yet: this PC has not opened the app before (or it was reset).
         self.first_run = not self.settings_path.exists()
@@ -647,6 +649,7 @@ class Store:
                 "column_widths": list(self.column_widths),
                 "names_hidden": self.names_hidden,
                 "hit_sound": self.hit_sound,
+                "env_checked": self.env_checked,
             },
         )
 
@@ -677,6 +680,7 @@ class Store:
                 self.column_widths = widths
             self.names_hidden = bool(settings.get("names_hidden", False))
             self.hit_sound = bool(settings.get("hit_sound", False))
+            self.env_checked = str(settings.get("env_checked", "") or "")
             for raw in settings.get("hidden_tags") or []:
                 tag = clean_tag(str(raw))
                 if tag in TAGS and tag not in self.hidden_tags:

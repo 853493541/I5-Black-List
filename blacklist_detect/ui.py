@@ -200,7 +200,7 @@ def run_app() -> int:
     on_uncaught(window.report_uncaught)
     window.show()
     window.start_warmup()
-    QTimer.singleShot(0, window.show_first_run_guide)
+    QTimer.singleShot(0, window.begin)
     code = app.exec()
     log.info("Exit %s", code)
     return code
@@ -338,6 +338,11 @@ class MainWindow(QMainWindow):
         self._told_problems: set[str] = set()
         self._glance_pause_until = 0.0
         self._warm_started: float | None = None
+        # loading, ready or failed, so the environment check knows where the models stand.
+        self._warm_state = ""
+        self._warm_error = ""
+        self._env_waiting = False
+        self.setup = None
         self._picture_pending = ""
         self._picture_dialog = None
         # The last glance, kept by the worker thread to skip a screen that has not changed.
@@ -650,11 +655,6 @@ class MainWindow(QMainWindow):
         body.addWidget(self.record_column, 1)
         self.history_empty = EmptyState("records", "还没有记录", "进入「推演成功」大厅时会自动检查，并记在这里。")
         self.history_hint = self.history_empty.title
-        self.history_test_button = QPushButton("测试一下")
-        self.history_test_button.setToolTip("用自带的大厅截图试一次识别，不用进游戏")
-        self.history_test_button.setAutoDefault(False)
-        self.history_test_button.clicked.connect(self.test_recognition)
-        self.history_empty.add_action(self.history_test_button)
         body.addWidget(self.history_empty, 1)
         layout.addLayout(body, 1)
         return page
@@ -714,15 +714,11 @@ class MainWindow(QMainWindow):
         self.settings_label.setWordWrap(True)
         self.settings_label.hide()
         check.add_widget(self.settings_label, separated=False, indent=True)
-        self.test_button = QPushButton("测试一下")
-        self.test_button.setToolTip("用自带的大厅截图试一次识别，不用进游戏")
-        self.test_button.setAutoDefault(False)
-        self.test_button.clicked.connect(self.test_recognition)
         self.picture_button = QPushButton("检查截图")
         self.picture_button.setToolTip("选一张大厅截图，看看里面有没有黑名单")
         self.picture_button.setAutoDefault(False)
         self.picture_button.clicked.connect(self.check_picture)
-        check.add_row("识别", self.test_button, self.picture_button)
+        check.add_row("识别", self.picture_button)
         self.sound_switch = Switch(self.store.hit_sound)
         self.sound_switch.setAccessibleName("提示音")
         self.sound_switch.toggled.connect(self._set_hit_sound)
@@ -2237,6 +2233,7 @@ class MainWindow(QMainWindow):
         """Load the OCR models now, so the first lobby check does not wait for them."""
         if not self.worker.request(get_engine().warmup, kind="warmup"):
             return
+        self._warm_state = "loading"
         self._warm_started = time.perf_counter()
         self._set_result("正在加载识别模型", "idle", "loading")
 
@@ -2246,13 +2243,100 @@ class MainWindow(QMainWindow):
             return
         self.store.first_run = False
         self.store.save_settings()
-        guide = GuideDialog(self)
-        if guide.exec() == QDialog.Accepted and guide.wants_test:
-            self.test_recognition()
+        GuideDialog(self).exec()
 
-    def test_recognition(self) -> None:
-        """Read the bundled lobby picture, so a friend can see recognition work without the game."""
-        self._run_picture(str(SAMPLE_LOBBY), "识别测试")
+    def begin(self) -> None:
+        """After the window opens: the environment check when it is due, then the first-run guide."""
+        if not self.start_environment_check():
+            self.show_first_run_guide()
+
+    # --- Environment check: 屏幕截图, 识别模型, 识别测试 -------------------------------
+
+    def start_environment_check(self, force: bool = False) -> bool:
+        """Run the check on the first open and after an update. False when it is not due."""
+        if not force and self.store.env_checked == __version__:
+            return False
+        if self.setup is None:
+            from blacklist_detect.ui_setup import SetupCheck
+
+            self.setup = SetupCheck(self.centralWidget())
+            self.setup.retry.connect(self._run_environment_check)
+            self.setup.dismissed.connect(self._after_environment_check)
+        self._run_environment_check()
+        return True
+
+    def _run_environment_check(self) -> None:
+        self.setup.start()
+        # The lobby watch waits, so the check has the reader to itself.
+        self._glance_pause_until = time.perf_counter() + 3600
+        self.setup.step(0, "run")
+        QTimer.singleShot(200, self._env_capture)
+
+    def _env_capture(self) -> None:
+        try:
+            capture_top_band()
+        except Exception as exc:  # noqa: BLE001 - every way the screen copy fails is shown the same way
+            self._env_fail(0, str(exc) or "没有读到画面。")
+            return
+        self.setup.step(0, "ok")
+        self.setup.step(1, "run")
+        if self._warm_state == "ready":
+            self._env_models_ready()
+        elif self._warm_state == "failed":
+            self._env_fail(1, self._warm_error)
+        else:
+            self._env_waiting = True
+            if self._warm_state != "loading":
+                self._env_load_models(0)
+
+    def _env_load_models(self, tries: int) -> None:
+        self.start_warmup()
+        if self._warm_state == "loading":
+            return
+        if tries < 300:
+            QTimer.singleShot(100, lambda: self._env_load_models(tries + 1))
+            return
+        self._env_fail(1, "识别一直在忙，请稍后再试。")
+
+    def _env_models_ready(self) -> None:
+        self._env_waiting = False
+        self.setup.step(1, "ok")
+        self.setup.step(2, "run")
+        self._env_sample(0)
+
+    def _env_sample(self, tries: int) -> None:
+        path = str(SAMPLE_LOBBY)
+        if self.worker.request(lambda: check_image(path, []), kind="envcheck"):
+            return
+        if tries < 300:
+            QTimer.singleShot(100, lambda: self._env_sample(tries + 1))
+            return
+        self._env_fail(2, "识别一直在忙，请稍后再试。")
+
+    def _on_env_sample(self, status: str, value) -> None:  # noqa: ANN001
+        if status != "ok":
+            self._env_fail(2, str(value))
+            return
+        read = sum(1 for slot in value.names if not slot.unclear)
+        if not value.header_found or read < 10:
+            log.warning("Environment check: lobby %s, %d names read", value.header_found, read)
+            self._env_fail(2, f"示例截图只读出 {read} 个名字，识别可能不准。")
+            return
+        log.info("Environment check passed: %d names read", read)
+        self.setup.step(2, "ok", f"{read}/12")
+        self.store.env_checked = __version__
+        self.store.save_settings()
+        self._glance_pause_until = 0.0
+        self.setup.succeed()
+
+    def _env_fail(self, index: int, message: str) -> None:
+        log.warning("Environment check failed at %s: %s", index, message)
+        self._env_waiting = False
+        self._glance_pause_until = 0.0
+        self.setup.fail(index, message)
+
+    def _after_environment_check(self) -> None:
+        self.show_first_run_guide()
 
     def check_picture(self) -> None:
         path, _filter = QFileDialog.getOpenFileName(self, "选择大厅截图", "", "图片 (*.png *.jpg *.jpeg *.bmp *.webp)")
@@ -2283,9 +2367,8 @@ class MainWindow(QMainWindow):
 
     def _sync_picture_buttons(self) -> None:
         busy = bool(self._picture_pending)
-        for button in (self.test_button, self.picture_button, self.history_test_button):
-            button.setEnabled(not busy)
-        self.test_button.setText("正在识别" if busy else "测试一下")
+        self.picture_button.setEnabled(not busy)
+        self.picture_button.setText("正在识别" if busy else "检查截图")
 
     def _on_picture(self, status: str, value) -> None:  # noqa: ANN001
         title = self._picture_pending or "截图检查"
@@ -2414,9 +2497,19 @@ class MainWindow(QMainWindow):
         if job == "picture":
             self._on_picture(status, value)
             return
+        if job == "envcheck":
+            self._on_env_sample(status, value)
+            return
         self._on_checked(status, value)
 
     def _on_warmed(self, status: str, value) -> None:
+        self._warm_state = "ready" if status == "ok" else "failed"
+        self._warm_error = "" if status == "ok" else str(value)
+        if self._env_waiting:
+            if status == "ok":
+                self._env_models_ready()
+            else:
+                self._env_fail(1, self._warm_error)
         if status != "ok":
             self._report_problem(value)
             return
