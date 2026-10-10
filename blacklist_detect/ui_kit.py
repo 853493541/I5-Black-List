@@ -45,7 +45,7 @@ from blacklist_detect.ui_theme import (
     BODY_PT,
     CONTROL_H,
     DIALOG_PAD,
-    GAP,
+    DIALOG_TITLE_PT,
     KEYBOARD_FOCUS,
     SECTION_PT,
     SMALL_PT,
@@ -487,15 +487,21 @@ class Modal(QDialog):
         outer.addLayout(middle)
         outer.addStretch(1)
         column = QVBoxLayout(self.card)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(0)
+        top = QWidget()
+        column.addWidget(top)
+        inner = QVBoxLayout(top)
         # The × sits near the corner; the content below keeps the full padding.
         corner = 12
-        column.setContentsMargins(DIALOG_PAD, 16, corner, DIALOG_PAD)
-        column.setSpacing(GAP)
+        inner.setContentsMargins(DIALOG_PAD, 18, corner, DIALOG_PAD)
+        # Space says what belongs together: more between the title and the fields than inside a field.
+        inner.setSpacing(16)
         head = QHBoxLayout()
         head.setSpacing(8)
         self.heading = QLabel(title)
         self.heading.setObjectName("dialogTitle")
-        self.heading.setFont(chinese_font(SECTION_PT))
+        self.heading.setFont(chinese_font(DIALOG_TITLE_PT))
         self.heading.setWordWrap(True)
         head.addWidget(self.heading, 1, Qt.AlignVCenter)
         self.close_button = IconButton("close", "关闭")
@@ -503,12 +509,30 @@ class Modal(QDialog):
         self.close_button.setFocusPolicy(Qt.NoFocus)
         self.close_button.clicked.connect(self.reject)
         head.addWidget(self.close_button, 0, Qt.AlignTop)
-        column.addLayout(head)
+        inner.addLayout(head)
         body = QVBoxLayout()
         body.setContentsMargins(0, 0, DIALOG_PAD - corner, 0)
-        body.setSpacing(GAP)
-        column.addLayout(body)
+        body.setSpacing(16)
+        inner.addLayout(body)
         return body
+
+    def footer(self, *right: QPushButton, left: QPushButton | None = None) -> QHBoxLayout:
+        """The buttons in a band along the card's foot, as Windows 11 dialogs have them.
+
+        The main action is on the right; anything destructive stands apart on the left.
+        """
+        band = QFrame()
+        band.setObjectName("dialogFooter")
+        row = QHBoxLayout(band)
+        row.setContentsMargins(DIALOG_PAD, 14, DIALOG_PAD, 14)
+        row.setSpacing(8)
+        if left is not None:
+            row.addWidget(left)
+        row.addStretch(1)
+        for button in right:
+            row.addWidget(button)
+        self.card.layout().addWidget(band)
+        return row
 
     def has_changes(self) -> bool:
         """Whether closing now would throw away something typed or picked. Forms say so."""
@@ -610,20 +634,14 @@ class ConfirmDialog(Modal):
         self.body = QLabel(body)
         self.body.setWordWrap(True)
         layout.addWidget(self.body)
-        layout.addSpacing(4)
-        buttons = QHBoxLayout()
-        buttons.setSpacing(8)
-        buttons.addStretch(1)
         self.cancel_button = QPushButton(cancel)
         self.cancel_button.setDefault(True)
         self.cancel_button.clicked.connect(self.reject)
-        buttons.addWidget(self.cancel_button)
         self.confirm_button = QPushButton(confirm)
         self.confirm_button.setObjectName("danger" if danger else "primary")
         self.confirm_button.setAutoDefault(False)
         self.confirm_button.clicked.connect(self.accept)
-        buttons.addWidget(self.confirm_button)
-        layout.addLayout(buttons)
+        self.footer(self.cancel_button, self.confirm_button)
         self.card.setMinimumWidth(400)
         _pointing(self)
 

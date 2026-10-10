@@ -85,7 +85,8 @@ def _mix(start: str, end: str, amount: float) -> QColor:
 BODY_PT = 10.5  # 14 px: labels, buttons, inputs, table cells
 SMALL_PT = 9  # 12 px: hints, captions, tags
 SECTION_PT = 12  # 16 px: section and card titles
-TITLE_PT = 15  # 20 px: page and dialog titles, empty-state headings
+TITLE_PT = 15  # 20 px: page titles, empty-state headings
+DIALOG_TITLE_PT = 13.5  # 18 px: a dialog's title
 OVERLAY_PT = 13.5  # 18 px: names drawn over the game, read at a glance
 
 # Spacing on a 4 px grid.
@@ -601,9 +602,16 @@ def _kit_rules(family: str) -> str:
                 border: 1px solid {t["border"]};
                 border-radius: {CARD_RADIUS}px;
             }}
-            QLabel#sectionTitle, QLabel#dialogTitle {{
+            QLabel#sectionTitle {{
                 font-family: "{family}";
                 font-size: {SECTION_PT}pt;
+                font-weight: 600;
+                color: {t["text"]};
+                background: transparent;
+            }}
+            QLabel#dialogTitle {{
+                font-family: "{family}";
+                font-size: {DIALOG_TITLE_PT}pt;
                 font-weight: 600;
                 color: {t["text"]};
                 background: transparent;
@@ -913,12 +921,26 @@ def _dialog_style(family: str) -> str:
                 background: transparent;
                 color: {t["text"]};
             }}
-            QLabel#field, QLabel#sub {{
+            QLabel#field {{
+                font-family: "{family}";
+                font-size: {BODY_PT}pt;
+                font-weight: 400;
+                color: {t["text"]};
+                background: transparent;
+            }}
+            QLabel#sub {{
                 font-family: "{family}";
                 font-size: {SMALL_PT}pt;
                 font-weight: 400;
                 color: {t["muted"]};
                 background: transparent;
+            }}
+            QFrame#dialogFooter {{
+                background: {t["bg"]};
+                border: none;
+                border-top: 1px solid {t["border"]};
+                border-bottom-left-radius: 11px;
+                border-bottom-right-radius: 11px;
             }}
             QLabel#error {{
                 font-family: "{family}";

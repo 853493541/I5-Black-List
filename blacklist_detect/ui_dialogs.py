@@ -67,20 +67,12 @@ def _field(layout: QVBoxLayout, label: str, widget: QWidget, aside: QWidget | No
     return error
 
 
-def _footer(layout: QVBoxLayout, *right: QPushButton, left: QPushButton | None = None) -> None:
-    """The main action on the right; anything destructive stands apart on the left.
+def _footer(dialog: Modal, *right: QPushButton, left: QPushButton | None = None) -> None:
+    """The main action on the right of the footer band; anything destructive stands apart on the left.
 
     There is no 取消: ×, Esc and a click outside the card close without saving.
     """
-    layout.addSpacing(8)
-    row = QHBoxLayout()
-    row.setSpacing(8)
-    if left is not None:
-        row.addWidget(left)
-    row.addStretch(1)
-    for button in right:
-        row.addWidget(button)
-    layout.addLayout(row)
+    dialog.footer(*right, left=left)
 
 
 def _primary(text: str, on_click) -> QPushButton:  # noqa: ANN001
@@ -128,7 +120,7 @@ class TagEditDialog(Modal):
         self.error = _field(layout, "", self.name_edit)
         self.name_edit.textChanged.connect(self._clear_error)
         # The destructive button stands apart on the left, away from 保存.
-        _footer(layout, _primary("保存", self._accept), left=_danger("删除", self._delete))
+        _footer(self, _primary("保存", self._accept), left=_danger("删除", self._delete))
         self.card.setMinimumWidth(380)
         self.name_edit.returnPressed.connect(self._accept)
         _pointing(self)
@@ -171,7 +163,7 @@ class TagCreateDialog(Modal):
         self.name_edit.setAccessibleName("标签")
         self.error = _field(layout, "", self.name_edit)
         self.name_edit.textChanged.connect(self._clear_error)
-        _footer(layout, _primary("添加", self._accept))
+        _footer(self, _primary("添加", self._accept))
         self.card.setMinimumWidth(380)
         self.name_edit.returnPressed.connect(self._accept)
         _pointing(self)
@@ -249,7 +241,7 @@ class AddNameDialog(Modal):
         remove = _danger("删除", self._delete) if allow_delete else None
         confirm = _primary("保存" if allow_delete else "添加", self._accept)
         # The destructive button stands apart on the left, away from 保存.
-        _footer(layout, confirm, left=remove)
+        _footer(self, confirm, left=remove)
         self.card.setMinimumWidth(440)
         self.name_edit.returnPressed.connect(self._accept)
         self._before = (name, tuple(self.picked), detail)
@@ -352,7 +344,7 @@ class BatchAddDialog(Modal):
         self.error.hide()
         layout.addWidget(self.error)
         self.edit.textChanged.connect(self._clear_error)
-        _footer(layout, _primary("添加", self._accept))
+        _footer(self, _primary("添加", self._accept))
         self.card.setMinimumWidth(460)
         _pointing(self)
 
@@ -457,7 +449,7 @@ class PictureResultDialog(Modal):
                 self.seats.append(cell)
             layout.addLayout(grid)
         close = _primary("关闭", self.accept)
-        _footer(layout, close)
+        _footer(self, close)
         self.card.setMinimumWidth(480)
         _pointing(self)
 
@@ -496,6 +488,6 @@ class GuideDialog(Modal):
             row.addWidget(step, 1)
             layout.addLayout(row)
             self.steps.append(step)
-        _footer(layout, _primary("开始使用", self.accept))
+        _footer(self, _primary("开始使用", self.accept))
         self.card.setMinimumWidth(680)
         _pointing(self)

@@ -351,8 +351,10 @@ def test_reason_boxes_allow_several_and_a_note(qapp):
                 return found
         return None
 
-    row = row_of(dialog.card.layout(), labeled["保存"])
-    assert row is not None
+    row = labeled["保存"].parentWidget().layout()
+    # The buttons sit in the footer band along the card's foot.
+    assert labeled["保存"].parentWidget().objectName() == "dialogFooter"
+    assert row_of(row, labeled["保存"]) is row
     assert row.indexOf(labeled["删除"]) == 0
     assert row.indexOf(labeled["保存"]) == row.count() - 1
     # No 取消: ×, Esc and a click outside the card do that.
