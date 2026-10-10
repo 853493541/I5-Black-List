@@ -637,16 +637,18 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     window._on_lobby_placed(button)
     assert window.panel.isVisible() is True
     assert window.panel.mode == "checking"
-    assert window.panel.label.text() == "请等待"
-    assert "#e8892d" in window.panel.styleSheet()
-    assert "border: none" in window.panel.styleSheet()
+    # Dark glass with a turning arc hides the button while the check runs.
+    assert window.panel.text() == "请等待"
+    assert window.panel.spinning() and window.panel.ring() == ""
     assert not (window.panel.windowFlags() & Qt.WindowTransparentForInput)
     assert window.hit_card.isVisible() is False
     assert window.clear_mark.isVisible() is False
     assert window.panel.x() > 0
     window._on_checked("ok", CheckResult(True, "", button_box=button))
     assert window.panel.mode == "clear"
-    assert window.panel.label.text() == ""
+    assert window.panel.text() == ""
+    assert window.panel.spinning() is False
+    assert window.panel.ring() == "#17b26a"
     assert window.panel.toolTip() == "没有黑名单"
     assert window.clear_mark.isVisible() is True
     assert window.clear_mark.height() == max(16, round(window.panel.height() * 0.6))
@@ -664,16 +666,17 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     hit = Hit(0, "甲", "甲", "", False, "1号  甲", ("炸房", "贴脸"))
     window._show_panel(CheckResult(True, "", names=[slot], hits=[hit], button_box=button))
     assert window.panel.mode == "hit"
-    assert window.panel.label.text() == ""
-    assert "6px solid #c23b2e" in window.panel.styleSheet()
+    assert window.panel.text() == ""
+    assert window.panel.ring() == "#f04438"
     assert not (window.panel.windowFlags() & Qt.WindowTransparentForInput)
     assert window.hit_card.isVisible() is True
     assert window.clear_mark.isVisible() is False
     centered = window.panel.y() + (window.panel.height() - window.hit_card.height()) // 2
     assert window.hit_card.y() == centered
-    assert "border: none" in window.hit_card.styleSheet()
-    # A warning mark, not only a red dot, so color is not the only sign.
-    assert not window.hit_card.findChild(QLabel, "hitBullet").pixmap().isNull()
+    # Dark glass with its own title: a warning mark and words, so color is not the only sign.
+    assert "rgba(18, 20, 26" in window.hit_card.styleSheet()
+    assert not window.hit_card.findChild(QLabel, "hitIcon").pixmap().isNull()
+    assert window.hit_card.findChild(QLabel, "hitTitle").text() == "1 人在黑名单里"
     name = window.hit_card.findChild(QLabel, "hitName")
     assert name.text() == "甲"
     assert isinstance(name.parentWidget().layout(), QHBoxLayout)
@@ -697,6 +700,7 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     )
     names = [label.text() for label in window.hit_card.findChildren(QLabel, "hitName")]
     assert names == ["国服园丁", "紫花地丁o", "亿萌"]
+    assert window.hit_card.findChild(QLabel, "hitTitle").text() == "3 人在黑名单里"
     assert [pill._text for pill in window.hit_card.findChildren(TagPill)] == [
         "123",
         "炸房",
@@ -760,9 +764,10 @@ def test_panel_covers_the_accept_button(qapp, tmp_path, monkeypatch):
     assert window.panel.height() == round(60 / ratio) + outset * 2
     radius = _cover_radius(window.panel.height())
     assert radius < window.panel.height() // 2
-    assert f"border-radius: {radius}px" in window.panel.styleSheet()
+    # The cover's corners follow the button's: rounded, not a pill, and not square.
     assert window.panel.mask().contains(QPoint(window.panel.height() // 4, 2))
-    assert "#e8892d" in window.panel.styleSheet()
+    assert not window.panel.mask().contains(QPoint(0, 0))
+    assert window.panel.spinning()
     window._show_panel(CheckResult(True, "", button_box=button))
     assert window.panel.mode == "clear"
     assert window.panel.x() == round((100 + origin_x) / ratio) - outset

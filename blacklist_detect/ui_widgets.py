@@ -342,6 +342,12 @@ class TagPill(_KeyboardRing, QWidget):
     def minimumSizeHint(self) -> QSize:
         return self.sizeHint()
 
+    def set_colors(self, wash: str, ink: str) -> None:
+        """Paint the pill in other colors, such as on the dark overlay over the game."""
+        self._wash = wash
+        self._ink = ink
+        self.update()
+
     def set_active(self, active: bool) -> None:
         active = bool(active)
         self._active = active

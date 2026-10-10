@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import sys
 
-from PySide6.QtCore import QEasingCurve, QPointF, QPropertyAnimation, QRectF, Qt
+from PySide6.QtCore import QEasingCurve, QPointF, QPropertyAnimation, QRectF, Qt, QVariantAnimation
 from PySide6.QtGui import (
     QBitmap,
     QColor,
+    QFont,
     QFontMetrics,
     QPainter,
     QPen,
@@ -25,7 +26,7 @@ from blacklist_detect.ui_icons import pixmap as line_pixmap
 from blacklist_detect.ui_theme import (
     BODY_PT,
     OVERLAY_PT,
-    THEME,
+    SMALL_PT,
     chinese_family,
     chinese_font,
 )
@@ -74,8 +75,20 @@ def _pin_topmost(widget) -> None:
     )
 
 
-_COVER_BORDER = 6
+_COVER_RING = 4
 _COVER_OUTSET = 3
+
+# The marks sit over the game, not over the app, so they keep these colors in 浅色 and 深色:
+# dark glass like other game overlays, and a red and a green bright enough for a game scene.
+_GLASS = QColor(18, 20, 26, 236)
+_GLASS_LINE = QColor(255, 255, 255, 30)
+# A dark hairline outside a ring keeps it visible on a light scene and a dark one alike.
+_EDGE = QColor(0, 0, 0, 150)
+RED = "#f04438"
+GREEN = "#17b26a"
+_RED_TEXT = "#ff8f87"
+_RED_WASH = "#34f04438"  # #AARRGGBB: the red at about a fifth
+_INK = "#f5f6f8"
 
 
 def _fade_in(widget: QWidget, ms: int = 120) -> None:
@@ -99,7 +112,11 @@ def _cover_radius(height: int) -> int:
 
 
 class HitCard(QWidget):
-    """Name and tags beside the red border. It does not cover the button."""
+    """Who on the blacklist is in this lobby, beside the red ring. It does not cover the button.
+
+    Dark glass, like other game overlays: 「N 人在黑名单里」 in red on top, then each name
+    in large white type with its tags. Three names show; more scroll.
+    """
 
     def __init__(self) -> None:
         super().__init__(
@@ -120,7 +137,20 @@ class HitCard(QWidget):
         self.body.setAttribute(Qt.WA_StyledBackground, True)
         outer.addWidget(self.body)
         body_layout = QVBoxLayout(self.body)
-        body_layout.setContentsMargins(0, 0, 0, 0)
+        body_layout.setContentsMargins(14, 10, 14, 12)
+        body_layout.setSpacing(8)
+        head = QHBoxLayout()
+        head.setSpacing(6)
+        self.icon = QLabel()
+        self.icon.setObjectName("hitIcon")
+        self.icon.setPixmap(line_pixmap("warning", 16, RED, stroke=1.8))
+        head.addWidget(self.icon, 0, Qt.AlignVCenter)
+        self.title = QLabel("")
+        self.title.setObjectName("hitTitle")
+        self.title.setFont(chinese_font(SMALL_PT))
+        head.addWidget(self.title, 0, Qt.AlignVCenter)
+        head.addStretch(1)
+        body_layout.addLayout(head)
         self.scroll = QScrollArea()
         self.scroll.setObjectName("hitScroll")
         self.scroll.setWidgetResizable(True)
@@ -131,24 +161,21 @@ class HitCard(QWidget):
         self.content = QWidget()
         self.content.setObjectName("hitRows")
         self.rows = QVBoxLayout(self.content)
-        self.rows.setContentsMargins(12, 8, 12, 8)
+        self.rows.setContentsMargins(0, 0, 0, 0)
         self.rows.setSpacing(6)
         self.scroll.setWidget(self.content)
         body_layout.addWidget(self.scroll)
+        self._apply_style()
 
     def set_people(self, people: list[tuple[str, tuple[str, ...]]], height: int) -> None:
-        name_pt = OVERLAY_PT
-        self.rows.setContentsMargins(12, 8, 12, 8)
-        self.rows.setSpacing(6)
+        del height  # The card keeps its own size; it is centered on the button beside it.
         self.rows.setAlignment(Qt.AlignLeft | Qt.AlignTop)
         _clear_layout(self.rows)
+        self.title.setText(f"{len(people)} 人在黑名单里")
         family = chinese_family()
-        ink = THEME["text"]
-        mark = THEME["red"]
         name_font = chinese_font(OVERLAY_PT)
+        name_font.setWeight(QFont.Weight.DemiBold)
         name_width = 0
-        warn_side = max(14, round(QFontMetrics(name_font).height() * 0.78))
-        warn = line_pixmap("warning", warn_side, mark, stroke=1.8)
         if people:
             metrics = QFontMetrics(name_font)
             name_width = max(metrics.horizontalAdvance(name) for name, _tags in people)
@@ -159,26 +186,23 @@ class HitCard(QWidget):
             row.setContentsMargins(0, 0, 0, 0)
             row.setSpacing(6)
             row.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-            bullet = QLabel()
-            bullet.setObjectName("hitBullet")
-            bullet.setPixmap(warn)
-            bullet.setStyleSheet("background: transparent;")
-            row.addWidget(bullet, 0, Qt.AlignVCenter)
             label = QLabel(name)
             label.setObjectName("hitName")
             label.setFont(name_font)
             label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             label.setFixedWidth(name_width)
             label.setStyleSheet(
-                f'color: {ink}; background: transparent; font-family: "{family}"; font-size: {name_pt}pt; font-weight: 400;'
+                f'color: {_INK}; background: transparent; font-family: "{family}"; font-size: {OVERLAY_PT}pt; font-weight: 600;'
             )
             row.addWidget(label, 0, Qt.AlignVCenter)
+            row.addSpacing(4)
             for tag in tags[:3]:
-                row.addWidget(TagPill(tag), 0, Qt.AlignVCenter)
+                pill = TagPill(tag)
+                pill.set_colors(_RED_WASH, _RED_TEXT)
+                row.addWidget(pill, 0, Qt.AlignVCenter)
             row.addStretch(1)
             self.rows.addWidget(person)
             person.setVisible(True)
-        self._apply_style(_cover_radius(max(28, int(height))))
         self.setMinimumSize(0, 0)
         self.setMaximumSize(16777215, 16777215)
         self.content.setMinimumSize(0, 0)
@@ -187,28 +211,37 @@ class HitCard(QWidget):
         self.rows.activate()
         count = self.rows.count()
         row_heights = [self.rows.itemAt(i).widget().sizeHint().height() for i in range(count)]
-        margins = self.rows.contentsMargins()
         spacing = self.rows.spacing()
-        full = margins.top() + margins.bottom() + sum(row_heights) + spacing * max(0, count - 1)
+        full = sum(row_heights) + spacing * max(0, count - 1)
         visible_n = min(3, count)
-        visible = margins.top() + margins.bottom() + sum(row_heights[:visible_n]) + spacing * max(0, visible_n - 1)
+        visible = sum(row_heights[:visible_n]) + spacing * max(0, visible_n - 1)
         content_w = max(self.rows.sizeHint().width(), 1)
         bar = 10 if count > 3 else 0
         self.content.setMinimumSize(content_w, max(full, 1))
         self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded if count > 3 else Qt.ScrollBarAlwaysOff)
-        self.scroll.setFixedHeight(max(visible, 1))
+        self.scroll.setFixedSize(content_w + bar, max(visible, 1))
         self.scroll.verticalScrollBar().setValue(0)
-        self.setFixedSize(content_w + bar, max(visible, 1))
+        self.body.layout().invalidate()
+        self.body.layout().activate()
+        self.setFixedSize(self.body.layout().sizeHint())
 
-    def _apply_style(self, radius: int) -> None:
-        t = THEME
+    def _apply_style(self) -> None:
+        family = chinese_family()
         self.setStyleSheet(
             f"""
             QWidget#hitCard {{
-                background: {t["surface"]};
-                border: none;
-                border-radius: {radius}px;
+                background: rgba({_GLASS.red()}, {_GLASS.green()}, {_GLASS.blue()}, {_GLASS.alpha()});
+                border: 1px solid rgba(255, 255, 255, {_GLASS_LINE.alpha()});
+                border-radius: 12px;
             }}
+            QLabel#hitTitle {{
+                color: {_RED_TEXT};
+                background: transparent;
+                font-family: "{family}";
+                font-size: {SMALL_PT}pt;
+                font-weight: 600;
+            }}
+            QLabel#hitIcon {{ background: transparent; }}
             QScrollArea#hitScroll, QScrollArea#hitScroll QWidget {{
                 background: transparent;
                 border: none;
@@ -216,11 +249,11 @@ class HitCard(QWidget):
             QScrollBar:vertical {{
                 background: transparent;
                 width: 8px;
-                margin: 6px 2px 6px 0;
+                margin: 2px 0 2px 2px;
             }}
             QScrollBar::handle:vertical {{
-                background: {t["border"]};
-                border-radius: 4px;
+                background: rgba(255, 255, 255, 70);
+                border-radius: 3px;
                 min-height: 24px;
             }}
             QScrollBar::add-line, QScrollBar::sub-line,
@@ -264,8 +297,8 @@ class ClearMark(QWidget):
     def paintEvent(self, _event) -> None:  # noqa: ANN001
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor(THEME["green"]))
+        painter.setPen(QPen(_EDGE, 1))
+        painter.setBrush(QColor(GREEN))
         painter.drawEllipse(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5))
         pen = QPen(QColor("#ffffff"), max(2.0, self.height() * 0.07))
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
@@ -290,7 +323,11 @@ class ClearMark(QWidget):
 
 
 class LobbyPanel(QWidget):
-    """Rounded cover sized to 准备案件还原. It sits on the button, not beside it."""
+    """The cover sized to 准备案件还原. It sits on the button, not beside it.
+
+    While a check runs, dark glass hides the button, with a turning arc and 请等待. A hit draws
+    a red ring around the button and a clear lobby a green one; the button shows through.
+    """
 
     def __init__(self) -> None:
         super().__init__(
@@ -305,49 +342,90 @@ class LobbyPanel(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setFocusPolicy(Qt.NoFocus)
         self.mode = ""
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        self.label = QLabel("")
-        self.label.setWordWrap(True)
-        self.label.setAlignment(Qt.AlignCenter)
-        self.label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-        layout.addWidget(self.label)
+        self._text = ""
+        self._angle = 0.0
+        self._spin = QVariantAnimation(self)
+        self._spin.setStartValue(0.0)
+        self._spin.setEndValue(360.0)
+        self._spin.setDuration(900)
+        self._spin.setLoopCount(-1)
+        self._spin.valueChanged.connect(self._turn)
         self.setFont(chinese_font(BODY_PT))
-        self.label.setFont(chinese_font(BODY_PT))
+
+    def text(self) -> str:
+        return self._text
+
+    def spinning(self) -> bool:
+        return self._spin.state() == QVariantAnimation.State.Running
+
+    def ring(self) -> str:
+        """The ring's color, or "" when there is none."""
+        return {"hit": RED, "clear": GREEN}.get(self.mode, "")
 
     def set_mode(self, mode: str, text: str) -> None:
         self.mode = mode
         self.setToolTip(text)
-        self.label.setText(text if mode == "checking" else "")
-        radius = _cover_radius(self.height())
-        family = chinese_family()
-        label_px = max(12, min(22, round(self.height() * 0.32)))
+        self._text = text if mode == "checking" else ""
         if mode == "checking":
-            background = "#e8892d"
-            ink = "#fffaf3"
-            border = "none"
-        elif mode == "hit":
-            background = "transparent"
-            ink = "transparent"
-            border = f"{_COVER_BORDER}px solid {THEME['red']}"
+            if not self.spinning():
+                self._spin.start()
         else:
-            background = "transparent"
-            ink = "transparent"
-            border = f"{_COVER_BORDER}px solid {THEME['green']}"
-        self.setStyleSheet(
-            f"""
-            LobbyPanel, QWidget {{ background: transparent; }}
-            QLabel {{
-                background: {background};
-                color: {ink};
-                border: {border};
-                font-family: "{family}";
-                font-size: {label_px}px;
-                padding: 4px 12px;
-                border-radius: {radius}px;
-            }}
-            """
-        )
+            self._spin.stop()
+        self.update()
+
+    def _turn(self, value) -> None:  # noqa: ANN001
+        self._angle = float(value)
+        self.update()
+
+    def paintEvent(self, _event) -> None:  # noqa: ANN001
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        box = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        radius = _cover_radius(self.height())
+        if self.mode == "checking":
+            # Nearly opaque: the button must not show through while it is being checked.
+            painter.setPen(QPen(_GLASS_LINE, 1))
+            painter.setBrush(QColor(_GLASS.red(), _GLASS.green(), _GLASS.blue(), 250))
+            painter.drawRoundedRect(box, radius, radius)
+            self._paint_waiting(painter)
+            return
+        color = self.ring()
+        if not color:
+            return
+        painter.setBrush(Qt.NoBrush)
+        painter.setPen(QPen(_EDGE, 1))
+        painter.drawRoundedRect(box, radius, radius)
+        inset = 1 + _COVER_RING / 2
+        painter.setPen(QPen(QColor(color), _COVER_RING))
+        painter.drawRoundedRect(box.adjusted(inset, inset, -inset, -inset), max(1.0, radius - inset), max(1.0, radius - inset))
+
+    def _paint_waiting(self, painter: QPainter) -> None:
+        """A turning arc and the words, centered on the cover."""
+        face = chinese_font(BODY_PT)
+        face.setPixelSize(max(12, min(22, round(self.height() * 0.32))))
+        face.setWeight(QFont.Weight.DemiBold)
+        painter.setFont(face)
+        metrics = QFontMetrics(face)
+        words = metrics.horizontalAdvance(self._text) if self._text else 0
+        side = metrics.height() * 0.8
+        gap = 8 if self._text else 0
+        left = (self.width() - (side + gap + words)) / 2
+        middle = self.height() / 2
+        arc = QRectF(left, middle - side / 2, side, side)
+        painter.setBrush(Qt.NoBrush)
+        painter.setPen(QPen(QColor(255, 255, 255, 56), 2.2))
+        painter.drawEllipse(arc)
+        pen = QPen(QColor(_INK), 2.2)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(pen)
+        painter.drawArc(arc, round(-self._angle * 16), 100 * 16)
+        if self._text:
+            painter.setPen(QColor(_INK))
+            painter.drawText(QRectF(left + side + gap, 0, words + 2, self.height()), Qt.AlignLeft | Qt.AlignVCenter, self._text)
+
+    def hideEvent(self, event) -> None:  # noqa: ANN001
+        super().hideEvent(event)
+        self._spin.stop()
 
     def show_over(self, left: float, top: float, width: float, height: float, mode: str, text: str) -> None:
         width = max(1, int(round(width)))

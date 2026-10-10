@@ -167,14 +167,7 @@ def main() -> int:
     confirm.close()
     window.resize(900, 560)
 
-    panel = window.panel
-    panel.resize(260, 64)
-    panel.set_mode("clear", "没有黑名单\n1 人没看清")
-    snap("overlay_clear", panel)
-    panel.set_mode("hit", "")
-    snap("overlay_hit", panel)
-    window.hit_card.set_people([("霁玥吉尔曼", ("炸房", "贴脸")), ("gffdsd", ("挂机",))], 64)
-    snap("overlay_hit_card", window.hit_card)
+    _overlay_scenes(window, snap)
 
     _header_scenes(window, snap)
     _setup_scenes(app, window, snap)
@@ -204,6 +197,56 @@ def _focus_scene(app, window, snap) -> None:  # noqa: ANN001
     window.picture_button.setFocus(Qt.FocusReason.TabFocusReason)
     snap("focus_secondary")
     window.setFocus()
+
+
+def _overlay_scenes(window, snap) -> None:  # noqa: ANN001
+    """The marks over a stand-in for the game: 请等待, a hit with its card, and a clear lobby."""
+    from PySide6.QtCore import QPoint, QRect, Qt
+    from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPixmap
+
+    from blacklist_detect import ui
+    from blacklist_detect.ui_overlay import _COVER_OUTSET
+
+    button = QRect(60, 90, 250, 64)
+    outset = _COVER_OUTSET
+
+    def scene(mode: str, text: str, beside=None) -> QPixmap:  # noqa: ANN001
+        ratio = window.devicePixelRatioF()
+        canvas = QPixmap(round(860 * ratio), round(244 * ratio))
+        canvas.setDevicePixelRatio(ratio)
+        painter = QPainter(canvas)
+        painter.setRenderHint(QPainter.Antialiasing)
+        shade = QLinearGradient(0, 0, 860, 244)
+        shade.setColorAt(0, QColor("#3a3128"))
+        shade.setColorAt(1, QColor("#17161a"))
+        painter.fillRect(canvas.rect(), shade)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor("#c9772a"))
+        painter.drawRoundedRect(button, 9, 9)
+        painter.setPen(QColor("#fff7ec"))
+        painter.setFont(ui.chinese_font(13))
+        painter.drawText(button, Qt.AlignCenter, "准备案件还原")
+        panel = window.panel
+        panel.setFixedSize(button.width() + outset * 2, button.height() + outset * 2)
+        panel.set_mode(mode, text)
+        panel._spin.stop()
+        panel._angle = 40.0
+        painter.drawPixmap(button.topLeft() - QPoint(outset, outset), panel.grab())
+        if beside is not None:
+            beside.layout().activate() if beside.layout() is not None else None
+            beside.resize(beside.size())
+            mark = beside.grab()
+            left = button.right() + outset + 12
+            height = round(mark.height() / mark.devicePixelRatio())
+            painter.drawPixmap(QPoint(left, button.center().y() - height // 2 + 1), mark)
+        painter.end()
+        return canvas
+
+    snap("overlay_checking", picture=scene("checking", "请等待"))
+    window.hit_card.set_people([("霁玥吉尔曼", ("炸房", "贴脸")), ("gffdsd", ("挂机",))], 70)
+    snap("overlay_hit", picture=scene("hit", "", window.hit_card))
+    window.clear_mark.set_size(70)
+    snap("overlay_clear", picture=scene("clear", "没有黑名单", window.clear_mark))
 
 
 def _header_scenes(window, snap) -> None:  # noqa: ANN001
