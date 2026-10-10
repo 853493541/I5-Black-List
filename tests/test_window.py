@@ -434,7 +434,7 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     assert action.isHidden() is True
     window._paint_history_hover(0, 0, True)
     assert action.isHidden() is False
-    assert window.history_table.cellWidget(0, 0).styleSheet() == window._history_wrap_style(THEME["hover"])
+    assert window.history_table.cellWidget(0, 0).styleSheet() == window._history_wrap_style(THEME["selected"])
     assert window.record_time.text().endswith(clock)
     window._paint_history_hover(0, 0, False)
     assert action.isHidden() is True

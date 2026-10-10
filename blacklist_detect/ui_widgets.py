@@ -37,7 +37,6 @@ from blacklist_detect.ui_icons import pixmap as line_pixmap
 from blacklist_detect.ui_kit import _KeyboardRing, activates
 from blacklist_detect.ui_theme import (
     BODY_PT,
-    RADIUS,
     SMALL_PT,
     THEME,
     _mix,
@@ -507,14 +506,14 @@ def paint_tag_row(painter: QPainter, rect: QRect, tags: tuple[str, ...] | list[s
     painter.restore()
 
 
-def _draw_pill(painter: QPainter, rect: QRect, text: str, active: bool, pad: int) -> None:
+def _draw_pill(painter: QPainter, rect: QRect, text: str, active: bool, pad: int, wash: str = "") -> None:
     """One pill: red wash and red words, or the outlined grey of a pill that is off or +N."""
     body = QRect(rect)
     body.adjust(0, 1, -1, -1)
     radius = body.height() / 2
     if active:
         painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor(THEME["red_wash"]))
+        painter.setBrush(QColor(wash or THEME["red_wash"]))
         painter.drawRoundedRect(body, radius, radius)
         painter.setPen(QColor(THEME["red"]))
     else:
@@ -564,7 +563,9 @@ class TagListDelegate(QStyledItemDelegate):
             text = metrics.elidedText(tag, Qt.ElideRight, max(0, room.width() - TagPill._pad * 2))
             size = _pill_size(text, metrics)
             top = rect.top() + (rect.height() - size.height()) // 2
-            _draw_pill(painter, QRect(rect.left(), top, size.width(), size.height()), text, True, TagPill._pad)
+            # The list sits on the page, not on a white card: a slightly stronger wash keeps the pill visible.
+            wash = _mix(THEME["red_wash"], THEME["red"], 0.10).name()
+            _draw_pill(painter, QRect(rect.left(), top, size.width(), size.height()), text, True, TagPill._pad, wash)
         else:
             painter.setFont(chinese_font(BODY_PT))
             painter.setPen(QColor(THEME["text"]))
@@ -782,11 +783,16 @@ class _DetailTip(QWidget):
             None,
             Qt.Tool | Qt.FramelessWindowHint | Qt.WindowDoesNotAcceptFocus,
         )
-        self.setObjectName("detailTip")
         self.setAttribute(Qt.WA_ShowWithoutActivating, True)
-        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setFocusPolicy(Qt.NoFocus)
-        layout = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        # The card inside a see-through window, so its corners are round on the desktop too.
+        self.card = QFrame()
+        self.card.setObjectName("detailTip")
+        outer.addWidget(self.card)
+        layout = QVBoxLayout(self.card)
         layout.setContentsMargins(12, 10, 6, 10)
         layout.setSpacing(0)
         self.label = QLabel()
@@ -810,11 +816,11 @@ class _DetailTip(QWidget):
         t = THEME
         self.setStyleSheet(
             f"""
-            QWidget#detailTip {{
+            QFrame#detailTip {{
                 background: {t["surface"]};
                 color: {t["text"]};
                 border: 1px solid {t["border"]};
-                border-radius: {RADIUS}px;
+                border-radius: 8px;
             }}
             QScrollArea#detailTipScroll, QScrollArea#detailTipScroll > QWidget > QWidget {{
                 background: transparent;
@@ -860,7 +866,9 @@ class _DetailTip(QWidget):
         self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded if scrolls else Qt.ScrollBarAlwaysOff)
         self.scroll.setFixedSize(width + (10 if scrolls else 0), min(height, self._HEIGHT))
         self.scroll.verticalScrollBar().setValue(0)
-        self.adjustSize()
+        # Exactly the text's size: adjustSize gives a window whose content can grow at least 200 × 100.
+        self.layout().activate()
+        self.resize(self.layout().sizeHint())
         self._place(anchor)
         self.show()
 

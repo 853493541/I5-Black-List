@@ -333,7 +333,7 @@ class BatchAddDialog(Modal):
             "· 只有名字，用空格或换行隔开\n"
             "· 朋友用「分享」复制的名单"
         )
-        hint.setObjectName("sub")
+        hint.setObjectName("hintBox")
         layout.addWidget(hint)
         self.edit = QPlainTextEdit()
         self.edit.setPlaceholderText("把名字粘在这里")

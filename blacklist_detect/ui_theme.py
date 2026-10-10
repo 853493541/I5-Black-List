@@ -948,6 +948,14 @@ def _dialog_style(family: str) -> str:
                 color: {t["muted"]};
                 background: transparent;
             }}
+            QLabel#hintBox {{
+                font-family: "{family}";
+                font-size: {SMALL_PT}pt;
+                color: {t["muted"]};
+                background: {t["surface_alt"]};
+                border-radius: 8px;
+                padding: 10px 12px;
+            }}
             QFrame#dialogFooter {{
                 background: {t["bg"]};
                 border: none;

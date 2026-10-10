@@ -130,6 +130,7 @@ def main() -> int:
     window.detail_tip.hide()
     _focus_scene(app, window, snap)
     window.tabs.setCurrentIndex(window.history_tab)
+    window._clear_history_hover()
     window._hover_history_cell(1, 0)
     snap("records_hover")
     window._clear_history_hover()

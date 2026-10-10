@@ -22,10 +22,10 @@ from PySide6.QtWidgets import (
 from blacklist_detect.ui_icons import pixmap as line_pixmap
 from blacklist_detect.ui_theme import (
     DIALOG_PAD,
+    DIALOG_TITLE_PT,
     GAP,
     SMALL_PT,
     THEME,
-    TITLE_PT,
     _pointing,
     chinese_font,
 )
@@ -68,7 +68,7 @@ class SetupCheck(QWidget):
         heading.addWidget(self.mark)
         self.title = QLabel("")
         self.title.setObjectName("setupTitle")
-        self.title.setFont(chinese_font(TITLE_PT))
+        self.title.setFont(chinese_font(DIALOG_TITLE_PT))
         heading.addWidget(self.title)
         heading.addStretch(1)
         column.addLayout(heading)
@@ -153,6 +153,7 @@ class SetupCheck(QWidget):
                 border-radius: 12px;
             }}
             QFrame#setupCard QLabel {{ background: transparent; color: {t["text"]}; }}
+            QFrame#setupCard QLabel#setupTitle {{ font-size: {DIALOG_TITLE_PT}pt; font-weight: 600; }}
             QFrame#setupCard QLabel#setupNote {{ color: {t["muted"]}; }}
             QFrame#setupCard QLabel#setupMessage {{ color: {t["red"]}; }}
             QProgressBar#setupProgress {{

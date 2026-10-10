@@ -514,9 +514,11 @@ class MainWindow(QMainWindow):
         self.more_button = IconButton("more", "更多")
         self.more_menu = QMenu(self)
         self.share_action = self.more_menu.addAction("分享", self._share_list)
+        _mark_menu_item(self.share_action, "copy")
         self.share_action.setToolTip("复制整个名单。朋友在「批量添加」里粘贴即可。")
         self.more_menu.addSeparator()
         self.clear_list_action = self.more_menu.addAction("清空列表", self._clear_list)
+        _mark_menu_item(self.clear_list_action, "delete")
         self.more_button.clicked.connect(self._open_more_menu)
         toolbar.addWidget(self.more_button)
         self.blacklist_table = QTableWidget(0, 4)
@@ -693,8 +695,10 @@ class MainWindow(QMainWindow):
         self.record_more = IconButton("more", "更多")
         self.record_menu = QMenu(self)
         self.delete_record_action = self.record_menu.addAction("删除", self._delete_history)
+        _mark_menu_item(self.delete_record_action)
         self.record_menu.addSeparator()
         self.clear_history_action = self.record_menu.addAction("清空记录", self._ask_clear_history)
+        _mark_menu_item(self.clear_history_action, "delete")
         self.record_more.clicked.connect(self._open_record_menu)
         head.addWidget(self.record_more)
         names.addWidget(head_bar)
@@ -1058,6 +1062,8 @@ class MainWindow(QMainWindow):
             self.more_button.refresh()
         if hasattr(self, "record_more"):
             self.record_more.refresh()
+            for action in (*self.more_menu.actions(), *self.record_menu.actions()):
+                _mark_menu_item(action, str(action.property("icon_name") or ""))
         if hasattr(self, "search_icon"):
             self.search_icon.setIcon(line_icon("search", 16, THEME["muted"]))
         if hasattr(self, "history_empty"):
@@ -1459,6 +1465,7 @@ class MainWindow(QMainWindow):
         self._hide_detail_tip()
         self._refresh_blacklist_tab()
         count = len(self.store.entries)
+        self.recheck_button.setVisible(count > 0)
         self.list_search.setVisible(count > 0 or bool(self._search_text()))
         self.more_button.setVisible(count > 0)
         for button in self.toolbar_buttons:
@@ -1704,7 +1711,9 @@ class MainWindow(QMainWindow):
                 menu.addSeparator()
                 continue
             text, data = item
-            menu.addAction(text).setData(data)
+            action = menu.addAction(text)
+            action.setData(data)
+            _mark_menu_item(action)
         menu.triggered.connect(self._on_menu_action)
         menu.aboutToHide.connect(menu.deleteLater)
         return menu
@@ -2125,7 +2134,7 @@ class MainWindow(QMainWindow):
         else:
             tone = THEME["text"]
             wash = ""
-            hover = THEME["hover"]
+            hover = THEME["selected"]
         name_item.setForeground(QColor(tone))
         self.history_table.setItem(row, column, name_item)
         wrap = QWidget()
@@ -2196,7 +2205,7 @@ class MainWindow(QMainWindow):
         return "unclear" if unclear else "hit" if match is not None else ""
 
     def _history_wrap_style(self, wash: str = "") -> str:
-        return f"QFrame#seat {{ background: {wash or THEME['surface']}; border-radius: 6px; }}"
+        return f"QFrame#seat {{ background: {wash or THEME['surface_alt']}; border-radius: 6px; }}"
 
     def _history_cell_is_mine(self, row: int, column: int) -> bool:
         item = self.history_table.item(row, column)
@@ -3040,6 +3049,18 @@ class MainWindow(QMainWindow):
         if self.tray is not None:
             self.tray.hide()
         super().closeEvent(event)
+
+
+# A menu item's icon, by what it does. The ones that delete are red, so they stand out.
+_MENU_ICONS = {"修改": "edit", "添加": "add", "复制名字": "copy", "删除": "delete"}
+
+
+def _mark_menu_item(action, name: str = "") -> None:  # noqa: ANN001
+    name = name or _MENU_ICONS.get(action.text(), "")
+    if not name:
+        return
+    action.setProperty("icon_name", name)
+    action.setIcon(line_icon(name, 16, THEME["red"] if name == "delete" else THEME["muted"]))
 
 
 def _plain_error(problem, fallback: str) -> str:  # noqa: ANN001
