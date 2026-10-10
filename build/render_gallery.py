@@ -57,11 +57,23 @@ def main() -> int:
         for _ in range(10):
             app.processEvents()
 
-    def snap(name: str, widget=None) -> None:
+    def snap(name: str, widget=None, picture=None) -> None:
         settle()
         path = out / f"{len(shots) + 1:02d}_{name}.png"
-        (widget or window).grab().save(str(path))
+        (picture if picture is not None else (widget or window).grab()).save(str(path))
         shots.append((name, path))
+
+    def over_window(dialog):  # noqa: ANN001, ANN202
+        """The window as it looks with the dialog open over it: dimmed, the card on top."""
+        from PySide6.QtCore import QPoint
+        from PySide6.QtGui import QPainter
+
+        settle()
+        base = window.grab()
+        painter = QPainter(base)
+        painter.drawPixmap(dialog.pos() - window.mapToGlobal(QPoint(0, 0)), dialog.grab())
+        painter.end()
+        return base
 
     window.resize(900, 560)
     window.show()
@@ -143,11 +155,17 @@ def main() -> int:
     dialogs.append(
         ("dialog_picture", lambda: ui.PictureResultDialog("识别测试", result=CheckResult(True, "", names=slots, hits=hits), parent=window))
     )
+    window.resize(1100, 760)
     for name, make in dialogs:
         dialog = make()
         dialog.show()
-        snap(name, dialog)
+        snap(name, picture=over_window(dialog))
         dialog.close()
+    confirm = ui.ConfirmDialog(window, "清空列表", "名单里的 3 个名字会被删除。", "确认清空", danger=True)
+    confirm.show()
+    snap("dialog_confirm", picture=over_window(confirm))
+    confirm.close()
+    window.resize(900, 560)
 
     panel = window.panel
     panel.resize(260, 64)

@@ -901,6 +901,12 @@ def _dialog_style(family: str) -> str:
                 background: {t["bg"]};
                 color: {t["text"]};
             }}
+            QDialog#modal {{ background: transparent; }}
+            QFrame#dialogCard {{
+                background: {t["surface"]};
+                border: 1px solid {t["border"]};
+                border-radius: 12px;
+            }}
             QLabel {{
                 font-family: "{family}";
                 font-size: {BODY_PT}pt;

@@ -23,16 +23,12 @@ from PySide6.QtWidgets import (
 from blacklist_detect.match import clean_stored_name, fold, split_ellipsis
 from blacklist_detect.pipeline import CheckResult
 from blacklist_detect.ui_icons import pixmap as line_pixmap
+from blacklist_detect.ui_kit import Modal
 from blacklist_detect.ui_theme import (
-    DIALOG_PAD,
     GAP,
     THEME,
-    TITLE_PT,
-    _caption_color,
-    _dialog_style,
     _pointing,
     chinese_family,
-    chinese_font,
 )
 from blacklist_detect.ui_widgets import (
     TagPill,
@@ -50,36 +46,28 @@ def _cancel_button(dialog: QDialog) -> QPushButton:
     return cancel
 
 
-def _frame(dialog: QDialog, title: str) -> QVBoxLayout:
-    """Every dialog starts the same way: the theme, and its title as a heading inside it."""
-    dialog.setWindowTitle(title)
-    dialog.setFont(chinese_font())
-    dialog.setStyleSheet(_dialog_style(chinese_family()))
-    _caption_color(dialog)
-    layout = QVBoxLayout(dialog)
-    layout.setContentsMargins(DIALOG_PAD, DIALOG_PAD - 4, DIALOG_PAD, DIALOG_PAD)
-    layout.setSpacing(GAP)
-    heading = QLabel(title)
-    heading.setObjectName("dialogTitle")
-    heading.setFont(chinese_font(TITLE_PT))
-    layout.addWidget(heading)
-    dialog.heading = heading
-    return layout
+def _frame(dialog: Modal, title: str) -> QVBoxLayout:
+    """Every dialog starts the same way: a card with its title and a × in one row."""
+    return dialog.frame(title)
 
 
 def _field(layout: QVBoxLayout, label: str, widget: QWidget, aside: QWidget | None = None) -> QLabel:
-    """A label above its control, and a line under it for what is wrong with it."""
+    """A label above its control, and a line under it for what is wrong with it.
+
+    With no label, the control stands alone: in a dialog with one box, the title names it.
+    """
     column = QVBoxLayout()
     column.setSpacing(6)
-    top = QHBoxLayout()
-    top.setSpacing(8)
-    name = QLabel(label)
-    name.setObjectName("field")
-    top.addWidget(name)
-    top.addStretch(1)
-    if aside is not None:
-        top.addWidget(aside)
-    column.addLayout(top)
+    if label or aside is not None:
+        top = QHBoxLayout()
+        top.setSpacing(8)
+        name = QLabel(label)
+        name.setObjectName("field")
+        top.addWidget(name)
+        top.addStretch(1)
+        if aside is not None:
+            top.addWidget(aside)
+        column.addLayout(top)
     column.addWidget(widget)
     error = QLabel("")
     error.setObjectName("error")
@@ -132,7 +120,7 @@ def _confirm(parent, text: str, title: str = "黑名单检测", confirm: str = "
     return ConfirmDialog.ask(parent, title, text, confirm, danger=True)
 
 
-class TagEditDialog(QDialog):
+class TagEditDialog(Modal):
     """Rename one tag, or delete it from the list and from every name."""
 
     def __init__(self, tag: str, catalog: tuple[str, ...], parent=None) -> None:
@@ -143,20 +131,17 @@ class TagEditDialog(QDialog):
         self.deleted = False
         layout = _frame(self, "修改标签")
         self.name_edit = QLineEdit(tag)
-        self.error = _field(layout, "标签", self.name_edit)
+        self.name_edit.setAccessibleName("标签")
+        self.error = _field(layout, "", self.name_edit)
         self.name_edit.textChanged.connect(self._clear_error)
         # The destructive button stands apart on the left, away from 保存.
         _footer(layout, _cancel_button(self), _primary("保存", self._accept), left=_danger("删除", self._delete))
-        self.setMinimumWidth(380)
+        self.card.setMinimumWidth(380)
         self.name_edit.returnPressed.connect(self._accept)
         _pointing(self)
 
     def _clear_error(self, *_args) -> None:
         _say_error(self.error, "")
-
-    def showEvent(self, event) -> None:  # noqa: ANN001
-        super().showEvent(event)
-        _caption_color(self)
 
     def _accept(self) -> None:
         from blacklist_detect.storage import clean_tag
@@ -178,7 +163,7 @@ class TagEditDialog(QDialog):
         self.accept()
 
 
-class TagCreateDialog(QDialog):
+class TagCreateDialog(Modal):
     """Name a tag that is not in the list yet."""
 
     def __init__(self, catalog: tuple[str, ...], parent=None) -> None:
@@ -187,19 +172,16 @@ class TagCreateDialog(QDialog):
         self.created = ""
         layout = _frame(self, "新标签")
         self.name_edit = QLineEdit()
-        self.error = _field(layout, "标签", self.name_edit)
+        self.name_edit.setAccessibleName("标签")
+        self.error = _field(layout, "", self.name_edit)
         self.name_edit.textChanged.connect(self._clear_error)
         _footer(layout, _cancel_button(self), _primary("添加", self._accept))
-        self.setMinimumWidth(380)
+        self.card.setMinimumWidth(380)
         self.name_edit.returnPressed.connect(self._accept)
         _pointing(self)
 
     def _clear_error(self, *_args) -> None:
         _say_error(self.error, "")
-
-    def showEvent(self, event) -> None:  # noqa: ANN001
-        super().showEvent(event)
-        _caption_color(self)
 
     def _accept(self) -> None:
         from blacklist_detect.storage import clean_tag
@@ -216,7 +198,7 @@ class TagCreateDialog(QDialog):
         self.accept()
 
 
-class AddNameDialog(QDialog):
+class AddNameDialog(Modal):
     """One player. Click a tag to put it on this record, and click it again to take it off."""
 
     def __init__(
@@ -269,16 +251,12 @@ class AddNameDialog(QDialog):
         confirm = _primary("保存" if allow_delete else "添加", self._accept)
         # The destructive button stands apart on the left, away from 保存.
         _footer(layout, _cancel_button(self), confirm, left=remove)
-        self.setMinimumWidth(440)
+        self.card.setMinimumWidth(440)
         self.name_edit.returnPressed.connect(self._accept)
         _pointing(self)
 
     def _clear_name_error(self, _text: str) -> None:
         _say_error(self.name_error, "")
-
-    def showEvent(self, event) -> None:  # noqa: ANN001
-        super().showEvent(event)
-        _caption_color(self)
 
     def _refresh_tags(self) -> None:
         self.tag_host.clear()
@@ -342,7 +320,7 @@ class AddNameDialog(QDialog):
         self.accept()
 
 
-class BatchAddDialog(QDialog):
+class BatchAddDialog(Modal):
     """Many names from one paste. Spaces separate names, or each person is 名字（说明）."""
 
     def __init__(self, catalog: tuple[str, ...] = (), parent=None) -> None:
@@ -372,15 +350,11 @@ class BatchAddDialog(QDialog):
         layout.addWidget(self.error)
         self.edit.textChanged.connect(self._clear_error)
         _footer(layout, _cancel_button(self), _primary("添加", self._accept))
-        self.setMinimumWidth(460)
+        self.card.setMinimumWidth(460)
         _pointing(self)
 
     def _clear_error(self, *_args) -> None:
         _say_error(self.error, "")
-
-    def showEvent(self, event) -> None:  # noqa: ANN001
-        super().showEvent(event)
-        _caption_color(self)
 
     def _accept(self) -> None:
         from blacklist_detect.storage import annotated_from_block, is_shared, names_from_block, parse_blacklist, parse_shared
@@ -411,7 +385,7 @@ class BatchAddDialog(QDialog):
 SAMPLE_LOBBY = Path(__file__).resolve().parent / "assets" / "sample-lobby.jpg"
 
 
-class PictureResultDialog(QDialog):
+class PictureResultDialog(Modal):
     """What one picture check read: the twelve seats, with blacklist matches in red."""
 
     def __init__(self, title: str, result: CheckResult | None = None, error: str = "", parent=None) -> None:
@@ -451,7 +425,7 @@ class PictureResultDialog(QDialog):
                 line.setSpacing(8)
                 cell = QLabel()
                 base = f'font-family: "{chinese_family()}"; background: transparent;'
-                wash = THEME["surface"]
+                wash = THEME["surface_alt"]
                 if slot.unclear:
                     cell.setText("未看清")
                     cell.setStyleSheet(base + f' color: {THEME["gray"]};')
@@ -478,15 +452,11 @@ class PictureResultDialog(QDialog):
             layout.addLayout(grid)
         close = _primary("关闭", self.accept)
         _footer(layout, close)
-        self.setMinimumWidth(480)
+        self.card.setMinimumWidth(480)
         _pointing(self)
 
-    def showEvent(self, event) -> None:  # noqa: ANN001
-        super().showEvent(event)
-        _caption_color(self)
 
-
-class GuideDialog(QDialog):
+class GuideDialog(Modal):
     """Shown once on a new PC: what the app does and the three things to set up."""
 
     def __init__(self, parent=None) -> None:
@@ -521,9 +491,5 @@ class GuideDialog(QDialog):
             layout.addLayout(row)
             self.steps.append(step)
         _footer(layout, _primary("开始使用", self.accept))
-        self.setMinimumWidth(680)
+        self.card.setMinimumWidth(680)
         _pointing(self)
-
-    def showEvent(self, event) -> None:  # noqa: ANN001
-        super().showEvent(event)
-        _caption_color(self)

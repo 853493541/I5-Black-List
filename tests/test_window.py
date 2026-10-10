@@ -11,7 +11,7 @@ pytest.importorskip("PySide6")
 
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
 from PySide6.QtGui import QEnterEvent, QFocusEvent, QFontMetrics, QKeyEvent, QMouseEvent
-from PySide6.QtWidgets import QApplication, QDialog, QHBoxLayout, QLabel, QPushButton
+from PySide6.QtWidgets import QApplication, QDialog, QHBoxLayout, QLabel, QPushButton, QWidget
 
 from blacklist_detect.pipeline import CheckResult, Hit, NameSlot
 from blacklist_detect.storage import Store
@@ -340,13 +340,18 @@ def test_reason_boxes_allow_several_and_a_note(qapp):
     assert labeled["保存"].isDefault() is True
     assert labeled["删除"].isDefault() is False
     assert labeled["删除"].autoDefault() is False
-    row = None
-    root = dialog.layout()
-    for index in range(root.count()):
-        nested = root.itemAt(index).layout()
-        if nested is not None and nested.indexOf(labeled["保存"]) >= 0:
-            row = nested
-            break
+    def row_of(layout, button):  # noqa: ANN001, ANN202
+        # The footer row, wherever it sits among the card's layouts.
+        if layout.indexOf(button) >= 0:
+            return layout
+        for index in range(layout.count()):
+            nested = layout.itemAt(index).layout()
+            found = row_of(nested, button) if nested is not None else None
+            if found is not None:
+                return found
+        return None
+
+    row = row_of(dialog.card.layout(), labeled["保存"])
     assert row is not None
     assert row.indexOf(labeled["删除"]) == 0
     assert row.indexOf(labeled["取消"]) == row.indexOf(labeled["保存"]) - 1
@@ -2252,4 +2257,43 @@ def test_chinese_input_stays_switchable_where_nothing_takes_text(qapp, tmp_path,
     # Text boxes decide for themselves: the search box takes it, the read-only hotkey box does not.
     assert takes_input(window.list_search)
     assert takes_input(window.hotkey_edit) is False
+    window.close()
+
+
+def test_dialogs_say_their_title_once_and_dim_the_window(qapp, tmp_path, monkeypatch):
+    from blacklist_detect.ui_kit import ConfirmDialog, Modal
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    window.show()
+    dialog = TagEditDialog("贴脸", window.store.tag_catalog(), parent=window)
+    # No Windows title bar: the card's own row is the only place the title is said.
+    assert isinstance(dialog, Modal)
+    assert dialog.windowFlags() & Qt.FramelessWindowHint
+    texts = [label.text() for label in dialog.findChildren(QLabel)]
+    assert texts.count("修改标签") == 1
+    # One box needs no label: the title names it. Screen readers still hear it.
+    assert "标签" not in texts
+    assert dialog.name_edit.accessibleName() == "标签"
+    # The window behind is dimmed while the dialog is open, and only then.
+    dialog.show()
+    scrims = [child for child in window.findChildren(QWidget) if child.objectName() == "scrim"]
+    assert len(scrims) == 1 and scrims[0].isVisible() and scrims[0].geometry() == window.rect()
+    # × closes without saving, as 取消 and Esc do; it is not a Tab stop, like a title bar's ×.
+    assert dialog.close_button.focusPolicy() == Qt.NoFocus
+    dialog.close_button.click()
+    assert dialog.result() == QDialog.Rejected
+    qapp.processEvents()
+    assert not [child for child in window.findChildren(QWidget) if child.objectName() == "scrim" and child.isVisible()]
+    # Every kind of dialog is built the same way.
+    for made in (
+        TagCreateDialog(window.store.tag_catalog(), parent=window),
+        AddNameDialog(catalog=window.store.tag_catalog(), parent=window),
+        ConfirmDialog(window, "清空列表", "名单里的 1 个名字会被删除。", "确认清空", danger=True),
+    ):
+        assert isinstance(made, Modal) and made.windowFlags() & Qt.FramelessWindowHint
+        assert made.heading.text() == made.windowTitle()
+        made.close()
     window.close()

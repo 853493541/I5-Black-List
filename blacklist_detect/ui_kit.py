@@ -47,7 +47,6 @@ from blacklist_detect.ui_theme import (
     SECTION_PT,
     SMALL_PT,
     THEME,
-    _caption_color,
     _dialog_style,
     _mix,
     _pointing,
@@ -442,7 +441,106 @@ class Toast(QWidget):
         return False
 
 
-class ConfirmDialog(QDialog):
+class _Scrim(QWidget):
+    """Dims the window behind an open dialog, so the dialog is what is in front."""
+
+    def __init__(self, host: QWidget) -> None:
+        super().__init__(host)
+        self.setObjectName("scrim")
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self.setGeometry(host.rect())
+        self.raise_()
+        self.show()
+
+    def paintEvent(self, _event) -> None:  # noqa: ANN001
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), QColor(0, 0, 0, 120 if THEME.get("scheme") == "dark" else 72))
+
+
+class Modal(QDialog):
+    """A dialog drawn as a card over its dimmed window, the way Windows 11 apps show one.
+
+    There is no Windows title bar: the title and a × share the card's first row, so the
+    title is said once. Esc, × and 取消 all close it.
+    """
+
+    # Room around the card for its shadow, which falls a little downward.
+    _SHADOW = 22
+    _DROP = 6
+    RADIUS = 12
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent, Qt.Dialog | Qt.FramelessWindowHint)
+        self.setObjectName("modal")
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.card: QFrame | None = None
+        self._scrim: _Scrim | None = None
+
+    def frame(self, title: str) -> QVBoxLayout:
+        """Build the card and its title row. Returns the layout the dialog's content goes in."""
+        self.setWindowTitle(title)
+        self.setFont(chinese_font())
+        self.setStyleSheet(_dialog_style(chinese_family()))
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(self._SHADOW, self._SHADOW - self._DROP, self._SHADOW, self._SHADOW + self._DROP)
+        self.card = QFrame()
+        self.card.setObjectName("dialogCard")
+        outer.addWidget(self.card)
+        column = QVBoxLayout(self.card)
+        # The × sits near the corner; the content below keeps the full padding.
+        corner = 12
+        column.setContentsMargins(DIALOG_PAD, 16, corner, DIALOG_PAD)
+        column.setSpacing(GAP)
+        head = QHBoxLayout()
+        head.setSpacing(8)
+        self.heading = QLabel(title)
+        self.heading.setObjectName("dialogTitle")
+        self.heading.setFont(chinese_font(SECTION_PT))
+        self.heading.setWordWrap(True)
+        head.addWidget(self.heading, 1, Qt.AlignVCenter)
+        self.close_button = IconButton("close", "关闭")
+        # Like the × of a title bar it is not a Tab stop; Esc does the same.
+        self.close_button.setFocusPolicy(Qt.NoFocus)
+        self.close_button.clicked.connect(self.reject)
+        head.addWidget(self.close_button, 0, Qt.AlignTop)
+        column.addLayout(head)
+        body = QVBoxLayout()
+        body.setContentsMargins(0, 0, DIALOG_PAD - corner, 0)
+        body.setSpacing(GAP)
+        column.addLayout(body)
+        return body
+
+    def paintEvent(self, _event) -> None:  # noqa: ANN001
+        if self.card is None:
+            return
+        # A soft shadow: rounded layers, each a little larger and adding a little shade.
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(0, 0, 0, 8 if THEME.get("scheme") == "dark" else 5))
+        box = QRectF(self.card.geometry())
+        steps = 12
+        for step in range(steps, 0, -1):
+            grow = step * self._SHADOW / steps
+            rect = box.adjusted(-grow, -grow + self._DROP, grow, grow + self._DROP)
+            painter.drawRoundedRect(rect, self.RADIUS + grow, self.RADIUS + grow)
+
+    def showEvent(self, event) -> None:  # noqa: ANN001
+        super().showEvent(event)
+        parent = self.parentWidget()
+        host = parent.window() if parent is not None else None
+        if self._scrim is None and host is not None and host.isVisible() and not isinstance(host, Modal):
+            self._scrim = _Scrim(host)
+
+    def hideEvent(self, event) -> None:  # noqa: ANN001
+        super().hideEvent(event)
+        if self._scrim is not None:
+            self._scrim.hide()
+            self._scrim.deleteLater()
+            self._scrim = None
+
+
+class ConfirmDialog(Modal):
     """Ask before doing something that is hard to take back. The safe choice is the default."""
 
     def __init__(
@@ -456,16 +554,7 @@ class ConfirmDialog(QDialog):
         danger: bool = False,
     ) -> None:
         super().__init__(parent)
-        self.setWindowTitle(title)
-        self.setFont(chinese_font())
-        self.setStyleSheet(_dialog_style(chinese_family()))
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(DIALOG_PAD, DIALOG_PAD, DIALOG_PAD, DIALOG_PAD)
-        layout.setSpacing(GAP)
-        heading = QLabel(title)
-        heading.setObjectName("dialogTitle")
-        heading.setFont(chinese_font(SECTION_PT))
-        layout.addWidget(heading)
+        layout = self.frame(title)
         self.body = QLabel(body)
         self.body.setWordWrap(True)
         layout.addWidget(self.body)
@@ -483,12 +572,8 @@ class ConfirmDialog(QDialog):
         self.confirm_button.clicked.connect(self.accept)
         buttons.addWidget(self.confirm_button)
         layout.addLayout(buttons)
-        self.setMinimumWidth(400)
+        self.card.setMinimumWidth(400)
         _pointing(self)
-
-    def showEvent(self, event) -> None:  # noqa: ANN001
-        super().showEvent(event)
-        _caption_color(self)
 
     @classmethod
     def ask(cls, parent: QWidget | None, title: str, body: str, confirm: str, *, danger: bool = False) -> bool:
