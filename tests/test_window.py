@@ -267,7 +267,7 @@ def test_blacklist_detail_elides_and_explains_on_hover(qapp, tmp_path, monkeypat
     assert window._reason_for_row(0) == stored
     window._hover_blacklist_row(0, 2)
     assert window.detail_tip.isVisible() is True
-    assert window.detail_tip.label.text() == stored
+    assert window.detail_tip.text == stored
     window._hover_blacklist_row(1, 2)
     assert window.detail_tip.isVisible() is False
     window.close()
@@ -1659,3 +1659,22 @@ def test_the_record_card_fits_its_seats_and_has_a_menu(qapp, tmp_path, monkeypat
     window.delete_record_action.trigger()
     assert len(window.store.scans) == before - 1
     window.close()
+
+
+def test_the_reason_card_wraps_any_text_and_shows_all_of_it(qapp):
+    from PySide6.QtCore import QPoint
+
+    from blacklist_detect.ui_widgets import _DetailTip
+
+    tip = _DetailTip()
+    tip.show_reason("1" * 160, QPoint(100, 100))
+    line = QFontMetrics(tip.label.font()).lineSpacing()
+    assert tip.label.width() <= 400
+    assert tip.label.height() >= line * 3, "an unbroken run wraps onto several lines"
+    assert tip.scroll.verticalScrollBarPolicy() == Qt.ScrollBarAlwaysOff
+    tip.show_reason("很长的原因" * 200, QPoint(100, 100))
+    assert tip.scroll.height() <= 320
+    assert tip.scroll.verticalScrollBarPolicy() == Qt.ScrollBarAsNeeded, "a very long reason scrolls"
+    tip.show_reason("短", QPoint(100, 100))
+    assert tip.label.width() < 100
+    tip.hide()

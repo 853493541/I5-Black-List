@@ -698,10 +698,8 @@ class MainWindow(QMainWindow):
         self.settings_label = QLabel("")
         self.settings_label.setObjectName("rowHint")
         self.settings_label.setWordWrap(True)
-        self.settings_label.setAlignment(Qt.AlignRight)
-        self.settings_label.setContentsMargins(0, 0, 0, 8)
         self.settings_label.hide()
-        check.add_widget(self.settings_label, separated=False)
+        check.add_widget(self.settings_label, separated=False, indent=True)
         self.test_button = QPushButton("测试一下")
         self.test_button.setToolTip("用自带的大厅截图试一次识别，不用进游戏")
         self.test_button.setAutoDefault(False)
@@ -768,9 +766,9 @@ class MainWindow(QMainWindow):
         reset.setAutoDefault(False)
         reset.setCursor(Qt.PointingHandCursor)
         reset.clicked.connect(self._ask_reset)
-        # The destructive one sits apart, at the far end of the row.
-        control = data.add_row("控制", self.data_button)
-        control.addWidget(reset, 0, Qt.AlignVCenter)
+        # The destructive one keeps a little distance from its neighbour.
+        control = data.add_row("控制", self.data_button, reset)
+        control.insertSpacing(2, GAP)
 
         about = section("关于")
         about.add_row("版本", QLabel(__version__))

@@ -102,6 +102,11 @@ def main() -> int:
     window._hover_blacklist_row(1, 0)
     snap("blacklist_hover")
     window._clear_blacklist_hover()
+    from PySide6.QtCore import QPoint
+
+    window.detail_tip.show_reason("1" * 120 + "\n第二行：很长的原因文字" * 3, QPoint(40, 40))
+    snap("reason_tip", window.detail_tip)
+    window.detail_tip.hide()
     _focus_scene(app, window, snap)
     window.tabs.setCurrentIndex(0)
     window._hover_history_cell(1, 0)

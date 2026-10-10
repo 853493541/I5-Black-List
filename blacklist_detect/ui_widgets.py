@@ -19,10 +19,12 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QApplication,
+    QFrame,
     QHeaderView,
     QLabel,
     QLayout,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QStyle,
     QStyledItemDelegate,
@@ -763,17 +765,23 @@ class _DetailTip(QWidget):
         self.setAttribute(Qt.WA_ShowWithoutActivating, True)
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.setFocusPolicy(Qt.NoFocus)
-        self.setMaximumWidth(320)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setContentsMargins(12, 10, 6, 10)
         layout.setSpacing(0)
         self.label = QLabel()
         self.label.setObjectName("detailTipText")
         self.label.setWordWrap(True)
         self.label.setTextFormat(Qt.TextFormat.PlainText)
         self.label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-        self.label.setFont(chinese_font())
-        layout.addWidget(self.label)
+        self.label.setFont(chinese_font(SMALL_PT))
+        # A very long reason scrolls inside the card; the card stays open while the pointer is on it.
+        self.scroll = QScrollArea()
+        self.scroll.setObjectName("detailTipScroll")
+        self.scroll.setFrameShape(QFrame.NoFrame)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll.setWidgetResizable(False)
+        self.scroll.setWidget(self.label)
+        layout.addWidget(self.scroll)
         self.apply_theme()
 
     def apply_theme(self) -> None:
@@ -787,6 +795,19 @@ class _DetailTip(QWidget):
                 border: 1px solid {t["border"]};
                 border-radius: {RADIUS}px;
             }}
+            QScrollArea#detailTipScroll, QScrollArea#detailTipScroll > QWidget > QWidget {{
+                background: transparent;
+                border: none;
+            }}
+            QScrollArea#detailTipScroll QScrollBar:vertical {{
+                background: transparent;
+                width: 6px;
+            }}
+            QScrollArea#detailTipScroll QScrollBar::handle:vertical {{
+                background: {t["border"]};
+                border-radius: 3px;
+                min-height: 24px;
+            }}
             QLabel#detailTipText {{
                 background: transparent;
                 color: {t["text"]};
@@ -797,13 +818,27 @@ class _DetailTip(QWidget):
             """
         )
 
+    _WIDTH = 400
+    _HEIGHT = 320
+
     def show_reason(self, text: str, anchor: QPoint) -> None:
         self.apply_theme()
-        self.label.setFont(chinese_font())
-        self.label.setText(text)
+        self.label.setFont(chinese_font(SMALL_PT))
+        lines = text.split("\n")
+        self.text = text
+        # Qt wraps only between words; a run like 1111 or a long English word has none.
+        # A zero-width space between characters lets every line wrap, and shows nothing.
+        self.label.setText("\n".join("\u200b".join(line) for line in lines))
         metrics = QFontMetrics(self.label.font())
-        longest = max((metrics.horizontalAdvance(line) for line in text.split("\n")), default=0)
-        self.label.setFixedWidth(min(296, max(longest + 2, 48)))
+        longest = max((metrics.horizontalAdvance(line) for line in lines), default=0)
+        width = min(self._WIDTH, max(longest + 4, 48))
+        self.label.setFixedWidth(width)
+        height = self.label.heightForWidth(width)
+        self.label.setFixedHeight(height)
+        scrolls = height > self._HEIGHT
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded if scrolls else Qt.ScrollBarAlwaysOff)
+        self.scroll.setFixedSize(width + (10 if scrolls else 0), min(height, self._HEIGHT))
+        self.scroll.verticalScrollBar().setValue(0)
         self.adjustSize()
         self._place(anchor)
         self.show()

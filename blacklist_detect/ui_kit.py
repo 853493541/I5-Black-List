@@ -585,33 +585,35 @@ class SettingsSection(QFrame):
         self._rows.addWidget(line)
 
     def add_row(self, label: str, *widgets: QWidget, hint: str = "", stretch: bool = True) -> QHBoxLayout:
-        """The setting's name, with its hint under it, on the left; its controls on the right.
+        """The setting's name in a fixed column, its controls right after it, the hint under them.
 
-        stretch=False keeps the controls right after the name instead.
+        Controls sit next to their name, not across the card: on a wide window a
+        right-aligned control is too far from the words it belongs to.
         """
         if self._count:
             self._line()
         self._count += 1
         host = QWidget()
         host.setObjectName("sectionRow")
-        row = QHBoxLayout(host)
-        row.setContentsMargins(0, 10, 0, 10)
+        column = QVBoxLayout(host)
+        column.setContentsMargins(0, 10, 0, 10)
+        column.setSpacing(4)
+        row = QHBoxLayout()
         row.setSpacing(12)
-        words = QVBoxLayout()
-        words.setSpacing(2)
         name = QLabel(label)
         name.setObjectName("rowLabel")
-        name.setMinimumWidth(self._label_width)
-        words.addWidget(name)
+        name.setFixedWidth(self._label_width)
+        row.addWidget(name, 0, Qt.AlignVCenter)
+        for widget in widgets:
+            row.addWidget(widget, 0, Qt.AlignVCenter)
+        if stretch:
+            row.addStretch(1)
+        column.addLayout(row)
         if hint:
             note = QLabel(hint)
             note.setObjectName("rowHint")
             note.setWordWrap(True)
-            words.addWidget(note)
-        row.addLayout(words)
-        if stretch:
-            row.addStretch(1)
-        for widget in widgets:
-            row.addWidget(widget, 0, Qt.AlignVCenter)
+            note.setContentsMargins(self._label_width + 12, 0, 0, 0)
+            column.addWidget(note)
         self._rows.addWidget(host)
         return row
