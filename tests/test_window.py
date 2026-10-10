@@ -880,16 +880,16 @@ def test_a_cut_name_shows_once_with_the_rest_from_the_list(qapp, tmp_path, monke
         ]
     )
     window._reload_history()
-    # The game cut the name: it shows once, 无害虎皮 as read and 吉尔曼 from the list, with no 名单 note.
+    # The game cut the name: it shows once, in full as the list has it, with no 名单 note.
     assert window.history_table.item(0, 0).text() == "无害虎皮"
     seat = window.history_table.cellWidget(0, 0)
     assert seat.findChild(QLabel, "rowListed") is None
-    assert seat.findChild(QLabel, "rowTail").text() == "吉尔曼"
+    assert seat.findChild(QLabel, "rowName").text() == "无害虎皮吉尔曼"
     assert window.history_table.item(0, 0).toolTip() == "画面是「无害虎皮」，黑名单里是「无害虎皮吉尔曼」"
     assert seat.findChild(QLabel, "rowAction") is None
     # A name that differs in more than the cut may be someone else: the list's spelling stays beside it.
     other = window.history_table.cellWidget(0, 1)
-    assert other.findChild(QLabel, "rowTail") is None
+    assert other.findChild(QLabel, "rowName").text() == "破轮蜡像金婚88"
     assert other.findChild(QLabel, "rowListed").text() == "名单：破轮蜡像金婚99"
     window.close()
 
@@ -1098,7 +1098,7 @@ def test_history_shows_the_name_as_read_beside_the_list_spelling(qapp, tmp_path,
     )
     window._reload_history()
     assert window.history_table.item(0, 0).text() == "小猫爆锤"
-    assert window.history_table.cellWidget(0, 0).findChild(QLabel, "rowTail").text() == "大王"
+    assert window.history_table.cellWidget(0, 0).findChild(QLabel, "rowName").text() == "小猫爆锤大王"
     assert window.history_table.item(0, 0).foreground().color().name() == "#c23b2e"
     assert window.history_table.cellWidget(0, 1).findChild(QLabel, "rowListed") is None
     opened: list[int] = []
@@ -1298,9 +1298,8 @@ def test_a_picture_check_opens_its_result(qapp, tmp_path, monkeypatch):
     assert isinstance(shown, PictureResultDialog)
     assert shown.windowTitle() == "识别测试"
     assert shown.summary.text() == "1 人在黑名单里，1 人没看清"
-    # Cut short by the game: the name once, the rest from the list in a lighter red.
-    assert "名0" in shown.seats[0].text() and "大王" in shown.seats[0].text()
-    assert "名单" not in shown.seats[0].text()
+    # Cut short by the game: the name once, in full as the list has it.
+    assert shown.seats[0].text() == "名0大王"
     assert shown.seats[3].text() == "未看清"
     assert window.picture_button.isEnabled() is True
     assert window.picture_button.text() == "检查截图"

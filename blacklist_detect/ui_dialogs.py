@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from html import escape
 from pathlib import Path
 
 from PySide6.QtCore import Qt
@@ -27,7 +26,6 @@ from blacklist_detect.ui_kit import Modal
 from blacklist_detect.ui_theme import (
     GAP,
     THEME,
-    _mix,
     _pointing,
     chinese_family,
     seat_line,
@@ -435,10 +433,8 @@ class PictureResultDialog(Modal):
                     shown = split_ellipsis(slot.visible)[0] or slot.visible
                     tail = listed_tail(shown, hit.entry_name)
                     if tail:
-                        # Cut short by the game: the name once, the rest from the list in a lighter red.
-                        rest = _mix(THEME["red"], THEME["red_wash"], 0.42).name()
-                        cell.setTextFormat(Qt.TextFormat.RichText)
-                        cell.setText(f'{escape(shown)}<span style="color: {rest};">{escape(tail)}</span>')
+                        # Cut short by the game: the name once, in full as the list has it.
+                        cell.setText(hit.entry_name)
                         cell.setToolTip(f"画面是「{shown}」，黑名单里是「{hit.entry_name}」")
                     else:
                         listed = "" if tail == "" else f"　名单：{hit.entry_name}"

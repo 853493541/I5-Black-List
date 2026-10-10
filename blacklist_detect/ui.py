@@ -115,7 +115,6 @@ from blacklist_detect.ui_theme import (
     _apply_theme,
     _caption_color,
     _menu_style,
-    _mix,
     _page,
     _pointing,
     _window_style,
@@ -2121,9 +2120,10 @@ class MainWindow(QMainWindow):
         if not unclear:
             title = split_ellipsis(title)[0] or title
         listed = stored if match is not None and fold(stored) != fold(title) else ""
-        # A name the game cut short shows once, the rest from the list in a lighter red: 破轮蜡像金婚99.
+        # A name the game cut short shows once, in full as the list has it: 破轮蜡像金婚99.
         # Only a list name that differs in more than the cut keeps its 名单 note beside the name.
         tail = listed_tail(title, listed) if listed else None
+        shown_name = listed if tail else title
         # Lobby order is not the player's number. Show the name until a later stage.
         label = title
         name_item = QTableWidgetItem(label)
@@ -2173,7 +2173,8 @@ class MainWindow(QMainWindow):
             warn.setAttribute(Qt.WA_TransparentForMouseEvents, True)
             warn.setStyleSheet("background: transparent;")
             line.addWidget(warn)
-        name_label = _ElidedLabel(visible if unclear else label)
+        name_label = _ElidedLabel(visible if unclear else shown_name)
+        name_label.setObjectName("rowName")
         name_label.setFont(name_font)
         name_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         name_color = tone
@@ -2182,23 +2183,9 @@ class MainWindow(QMainWindow):
         name_label.setStyleSheet(
             f'color: {name_color}; background: transparent; font-family: "{chinese_family()}"; font-size: {BODY_PT}pt;'
         )
+        line.addWidget(name_label, 1)
         if tail:
-            pair = QHBoxLayout()
-            pair.setSpacing(0)
-            pair.addWidget(name_label, 0)
-            rest = _ElidedLabel(tail)
-            rest.setObjectName("rowTail")
-            rest.setFont(name_font)
-            rest.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-            rest.setStyleSheet(
-                f'color: {_mix(THEME["red"], THEME["red_wash"], 0.42).name()}; background: transparent;'
-                f' font-family: "{chinese_family()}"; font-size: {BODY_PT}pt;'
-            )
-            pair.addWidget(rest, 1)
-            line.addLayout(pair, 1)
             name_item.setToolTip(f"画面是「{title}」，黑名单里是「{listed}」")
-        else:
-            line.addWidget(name_label, 1)
         if not unclear and not name_item.toolTip():
             name_item.setToolTip(label)
         if listed and tail is None:
