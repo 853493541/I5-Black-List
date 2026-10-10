@@ -1874,3 +1874,28 @@ def test_a_damaged_list_file_is_reported_without_its_error(tmp_path):
     store = Store(tmp_path)
     assert store.entries == []
     assert store.load_warning == "黑名单文件无法读取，已另存一份，名单从空白开始。"
+
+
+def test_reset_then_restart_runs_the_check_and_the_guide_again(qapp, tmp_path, monkeypatch):
+    from blacklist_detect import __version__
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    window.store.env_checked = __version__
+    window.store.first_run = False
+    window.store.save_settings()
+    monkeypatch.setattr("blacklist_detect.ui._confirm", lambda *_args: True)
+    window._ask_reset()
+    window.resize(1000, 700)
+    window.close()  # closing saves the window size, which writes the settings file again
+    again = MainWindow()
+    again._watch_timer.stop()
+    assert again.store.first_run is True
+    assert again.store.env_checked == ""
+    shown: list[str] = []
+    monkeypatch.setattr(again, "start_environment_check", lambda force=False: shown.append("check") or True)
+    again.begin()
+    assert shown == ["check"]
+    again.close()

@@ -396,9 +396,32 @@ def test_first_run_and_the_hit_sound_setting(tmp_path):
     assert store.hit_sound is False
     store.hit_sound = True
     store.save_settings()
+    # Saving a setting (the window size on close, say) does not end the first run;
+    # showing the welcome guide does.
+    assert Store(tmp_path).first_run is True
+    store.first_run = False
+    store.save_settings()
     again = Store(tmp_path)
     assert again.first_run is False
     assert again.hit_sound is True
+
+
+def test_a_settings_file_from_before_counts_as_welcomed(tmp_path):
+    (tmp_path / "settings.json").write_text('{"hit_sound": true}', encoding="utf-8")
+    assert Store(tmp_path).first_run is False
+
+
+def test_reset_makes_the_next_open_a_first_open(tmp_path):
+    store = Store(tmp_path)
+    store.first_run = False
+    store.env_checked = "v0.2.0"
+    store.save_settings()
+    store.reset()
+    store.window_size = (1000, 700)
+    store.save_settings()
+    again = Store(tmp_path)
+    assert again.first_run is True
+    assert again.env_checked == ""
 
 
 def test_a_snapshot_puts_the_list_back(tmp_path):

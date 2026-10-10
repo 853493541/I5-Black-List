@@ -446,9 +446,19 @@ class Store:
         # The app version that last passed the environment check; it runs again after an update.
         self.env_checked = ""
         self.load_warning = ""
-        # No settings file yet: this PC has not opened the app before (or it was reset).
-        self.first_run = not self.settings_path.exists()
+        # Whether the welcome guide has been shown. A settings file from before this was saved
+        # counts as welcomed; no settings file at all is a first open.
+        self.welcomed = False
         self.load()
+
+    @property
+    def first_run(self) -> bool:
+        """The app opens as new: on a new PC, or after 清除数据且复原."""
+        return not self.welcomed
+
+    @first_run.setter
+    def first_run(self, value: bool) -> None:
+        self.welcomed = not value
 
     def _known_tags(self) -> list[str]:
         names = [tag for tag in TAGS if tag not in self.hidden_tags]
@@ -657,6 +667,7 @@ class Store:
                 "names_hidden": self.names_hidden,
                 "hit_sound": self.hit_sound,
                 "env_checked": self.env_checked,
+                "welcomed": self.welcomed,
             },
         )
 
@@ -688,6 +699,7 @@ class Store:
             self.names_hidden = bool(settings.get("names_hidden", False))
             self.hit_sound = bool(settings.get("hit_sound", False))
             self.env_checked = str(settings.get("env_checked", "") or "")
+            self.welcomed = bool(settings.get("welcomed", True))
             for raw in settings.get("hidden_tags") or []:
                 tag = clean_tag(str(raw))
                 if tag in TAGS and tag not in self.hidden_tags:
@@ -889,6 +901,9 @@ class Store:
         self.column_widths = list(DEFAULT_COLUMN_WIDTHS)
         self.names_hidden = False
         self.hit_sound = False
+        # The next open is a first open: the environment check and the welcome guide run again.
+        self.env_checked = ""
+        self.welcomed = False
         self.load_warning = ""
         self.save_entries()
         self.save_scans()
