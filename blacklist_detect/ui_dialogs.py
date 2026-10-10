@@ -28,6 +28,7 @@ from blacklist_detect.ui_theme import (
     THEME,
     _pointing,
     chinese_family,
+    seat_line,
 )
 from blacklist_detect.ui_widgets import (
     TagPill,
@@ -423,7 +424,7 @@ class PictureResultDialog(Modal):
                 line.setSpacing(8)
                 cell = QLabel()
                 base = f'font-family: "{chinese_family()}"; background: transparent;'
-                wash = THEME["surface_alt"]
+                wash = ""
                 if slot.unclear:
                     cell.setText("未看清")
                     cell.setStyleSheet(base + f' color: {THEME["gray"]};')
@@ -443,7 +444,11 @@ class PictureResultDialog(Modal):
                 else:
                     cell.setText(split_ellipsis(slot.visible)[0] or slot.visible)
                     cell.setStyleSheet(base + f' color: {THEME["text"]};')
-                tile.setStyleSheet(f"QWidget#seatTile {{ background: {wash}; border-radius: 6px; }}")
+                # As on 记录: white with a thin gray outline, filled only when the seat means something.
+                line_color = wash or seat_line()
+                tile.setStyleSheet(
+                    f"QWidget#seatTile {{ background: {wash or THEME['surface']}; border: 1px solid {line_color}; border-radius: 6px; }}"
+                )
                 line.addWidget(cell, 1)
                 grid.addWidget(tile, slot.index // 2, slot.index % 2)
                 self.seats.append(cell)

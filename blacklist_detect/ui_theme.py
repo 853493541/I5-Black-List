@@ -138,6 +138,11 @@ _DARK = {
 APPEARANCES = ("light", "dark", "system")
 
 
+def seat_line() -> str:
+    """The thin neutral outline of a lobby seat: gray, not the accent's tint."""
+    return THEME["border"] if is_dark() else THEME["gray_hover"]
+
+
 def _palette(name: str, dark: bool) -> dict[str, str]:
     """Every color a window uses, by role, for one accent in light or dark."""
     if dark:

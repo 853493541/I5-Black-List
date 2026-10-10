@@ -114,6 +114,7 @@ from blacklist_detect.ui_theme import (
     chinese_font,
     is_dark,
     record_font,
+    seat_line,
     ui_font,
     use_theme,
     wants_dark,
@@ -2134,7 +2135,7 @@ class MainWindow(QMainWindow):
         else:
             tone = THEME["text"]
             wash = ""
-            hover = THEME["selected"]
+            hover = THEME["gray_wash"]
         name_item.setForeground(QColor(tone))
         self.history_table.setItem(row, column, name_item)
         wrap = QWidget()
@@ -2205,7 +2206,9 @@ class MainWindow(QMainWindow):
         return "unclear" if unclear else "hit" if match is not None else ""
 
     def _history_wrap_style(self, wash: str = "") -> str:
-        return f"QFrame#seat {{ background: {wash or THEME['surface_alt']}; border-radius: 6px; }}"
+        """A seat: white with a thin gray outline, or filled when it means something (or is under the pointer)."""
+        line = wash or seat_line()
+        return f"QFrame#seat {{ background: {wash or THEME['surface']}; border: 1px solid {line}; border-radius: 6px; }}"
 
     def _history_cell_is_mine(self, row: int, column: int) -> bool:
         item = self.history_table.item(row, column)
