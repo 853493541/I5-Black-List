@@ -2146,12 +2146,9 @@ class MainWindow(QMainWindow):
         name_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         name_color = tone
         if unclear:
-            missed = record_font()
-            missed.setItalic(True)
-            name_label.setFont(missed)
+            name_label.setFont(record_font())
         name_label.setStyleSheet(
             f'color: {name_color}; background: transparent; font-family: "{chinese_family()}"; font-size: {BODY_PT}pt;'
-            + (" font-style: italic;" if unclear else "")
         )
         line.addWidget(name_label, 1)
         if not unclear and not name_item.toolTip():

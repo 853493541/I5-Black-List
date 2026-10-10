@@ -445,8 +445,9 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     assert window.history_table.item(1, 0).text() == "未看清"
     missed = window.history_table.cellWidget(1, 0).findChild(QLabel)
     assert missed.text() == "未知"
-    assert missed.font().italic() is True
-    assert "italic" in missed.styleSheet()
+    # Gray, not slanted: Chinese has no italic, and Qt's slant looks broken.
+    assert missed.font().italic() is False
+    assert "italic" not in missed.styleSheet()
     assert window.history_table.cellWidget(1, 0).styleSheet() == window._history_wrap_style("")
     window._hover_history_cell(1, 0)
     assert window.history_table.cellWidget(1, 0).styleSheet() == window._history_wrap_style("")
@@ -577,9 +578,12 @@ def test_the_name_is_changed_from_the_header(qapp, tmp_path, monkeypatch):
     assert window.name_box.isVisible()
     assert window.player_edit.placeholderText() == "游戏里的名字"
     # The box opens under the chip, inside the window's right edge.
-    box = window.name_box.geometry()
-    assert box.top() >= chip.mapToGlobal(chip.rect().bottomLeft()).y()
-    assert box.right() <= chip.mapToGlobal(chip.rect().bottomRight()).x() + 1
+    card = window.name_box.card
+    top_left = card.mapToGlobal(card.rect().topLeft())
+    top_right = card.mapToGlobal(card.rect().topRight())
+    assert top_left.y() >= chip.mapToGlobal(chip.rect().bottomLeft()).y()
+    # Its right edge is on the chip's, unless that would leave the screen.
+    assert top_right.x() <= chip.mapToGlobal(chip.rect().bottomRight()).x() + 1
     window.player_edit.setText("纪戴宁")
     _press(qapp, window.player_edit, Qt.Key_Return)
     assert window.name_box.isVisible() is False

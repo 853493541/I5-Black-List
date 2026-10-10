@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QPoint, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QGuiApplication, QPainter, QPen
-from PySide6.QtWidgets import QAbstractButton, QFrame, QLabel, QLineEdit, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QAbstractButton, QFrame, QGraphicsDropShadowEffect, QLabel, QLineEdit, QVBoxLayout, QWidget
 
 from blacklist_detect.ui_icons import pixmap as line_pixmap
 from blacklist_detect.ui_kit import _KeyboardRing, activates
@@ -269,14 +269,22 @@ class NamePopover(QWidget):
     """The small box under ProfileChip. Enter or a click elsewhere keeps the name; Esc puts it back."""
 
     closed = Signal()
+    # Room around the card for its shadow: left, top, right, bottom.
+    _SHADOW = (14, 8, 14, 20)
 
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent, Qt.Popup | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setContentsMargins(*self._SHADOW)
         card = QFrame()
         card.setObjectName("popover")
+        shadow = QGraphicsDropShadowEffect(card)
+        shadow.setBlurRadius(28)
+        shadow.setOffset(0, 6)
+        shadow.setColor(QColor(0, 0, 0, 56))
+        card.setGraphicsEffect(shadow)
+        self.card = card
         outer.addWidget(card)
         layout = QVBoxLayout(card)
         layout.setContentsMargins(16, 14, 16, 16)
@@ -293,20 +301,21 @@ class NamePopover(QWidget):
         hint.setObjectName("rowHint")
         hint.setWordWrap(True)
         layout.addWidget(hint)
-        self.setFixedWidth(280)
+        self.setFixedWidth(280 + self._SHADOW[0] + self._SHADOW[2])
         self._before = ""
 
     def open_below(self, anchor: QWidget) -> None:
-        """Open under the anchor, its right edge on the anchor's, inside the screen."""
+        """Open under the anchor, the card's right edge on the anchor's, inside the screen."""
         self._before = self.edit.text()
         self.adjustSize()
+        left, top, right, _bottom = self._SHADOW
         corner = anchor.mapToGlobal(QPoint(anchor.width(), anchor.height() + 6))
-        place = QPoint(corner.x() - self.width(), corner.y())
+        place = QPoint(corner.x() - self.width() + right, corner.y() - top)
         screen = QGuiApplication.screenAt(corner) or QGuiApplication.primaryScreen()
         if screen is not None:
             area = screen.availableGeometry()
-            place.setX(max(area.left() + 8, min(place.x(), area.right() - self.width() - 8)))
-            place.setY(max(area.top() + 8, min(place.y(), area.bottom() - self.height() - 8)))
+            place.setX(max(area.left() - left, min(place.x(), area.right() - self.width() + right)))
+            place.setY(max(area.top() - top, min(place.y(), area.bottom() - self.height())))
         self.move(place)
         self.show()
         self.edit.setFocus(Qt.PopupFocusReason)

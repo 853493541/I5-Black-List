@@ -454,7 +454,7 @@ class PictureResultDialog(QDialog):
                 wash = THEME["surface"]
                 if slot.unclear:
                     cell.setText("未看清")
-                    cell.setStyleSheet(base + f' color: {THEME["gray"]}; font-style: italic;')
+                    cell.setStyleSheet(base + f' color: {THEME["gray"]};')
                 elif slot.index in hits:
                     hit = hits[slot.index]
                     shown = split_ellipsis(slot.visible)[0] or slot.visible
@@ -521,7 +521,7 @@ class GuideDialog(QDialog):
             layout.addLayout(row)
             self.steps.append(step)
         _footer(layout, _primary("开始使用", self.accept))
-        self.setMinimumWidth(600)
+        self.setMinimumWidth(680)
         _pointing(self)
 
     def showEvent(self, event) -> None:  # noqa: ANN001

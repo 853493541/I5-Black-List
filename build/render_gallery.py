@@ -225,7 +225,7 @@ def _setup_scenes(app, window, snap) -> None:  # noqa: ANN001
     snap("setup_ok")
     setup.start()
     setup.step(0, "ok")
-    setup.fail(1, "本地 PaddleOCR 中文模型没有就绪。")
+    setup.fail(1, "识别模型没有就绪，请重新解压完整的安装包。")
     setup.bar.setValue(400)
     snap("setup_failed")
     setup.hide()
