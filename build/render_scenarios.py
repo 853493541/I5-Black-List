@@ -113,7 +113,7 @@ class Run:
         window._watch_timer.stop()
         window.resize(1100, 700)
         window.show()
-        pages = (("blacklist", window.blacklist_tab), ("records", window.history_tab), ("settings", window.settings_tab))
+        pages = (("records", window.history_tab), ("blacklist", window.blacklist_tab), ("settings", window.settings_tab))
         for page, index in pages:
             self.timed(f"switch to {page}", lambda index=index: window.tabs.setCurrentIndex(index))
             self.snap(page)

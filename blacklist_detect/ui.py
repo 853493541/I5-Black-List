@@ -407,8 +407,8 @@ class MainWindow(QMainWindow):
 
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
-        self.blacklist_tab = self.tabs.addTab(self._list_page(), "黑名单")
         self.history_tab = self.tabs.addTab(self._history_page(), "记录")
+        self.blacklist_tab = self.tabs.addTab(self._list_page(), "黑名单")
         self.settings_tab = self.tabs.addTab(self._settings_page(), "设置")
         self.tabs.tabBar().hide()
         self.tabs.currentChanged.connect(self._sync_tab_buttons)
@@ -636,7 +636,8 @@ class MainWindow(QMainWindow):
         self.tag_list.setContextMenuPolicy(Qt.CustomContextMenu)
         self.tag_list.customContextMenuRequested.connect(self._tag_menu)
         column.addWidget(self.tag_list, 1)
-        recheck = QPushButton("按原因补标签")
+        recheck = QPushButton("重新标注")
+        recheck.setToolTip("按原因补标签")
         recheck.setObjectName("recheck")
         recheck.setFont(chinese_font(SMALL_PT))
         recheck.setAutoDefault(False)
@@ -1705,8 +1706,8 @@ class MainWindow(QMainWindow):
 
         self.shortcuts: dict[str, QShortcut] = {}
         for keys, slot in (
-            ("Ctrl+1", self._show_blacklist_page),
-            ("Ctrl+2", self._show_records_page),
+            ("Ctrl+1", self._show_records_page),
+            ("Ctrl+2", self._show_blacklist_page),
             ("Ctrl+3", self._show_settings_page),
             ("Ctrl+F", self._focus_search),
             ("Ctrl+N", self._add_by_dialog),

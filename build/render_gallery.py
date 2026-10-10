@@ -65,10 +65,10 @@ def main() -> int:
 
     window.resize(900, 560)
     window.show()
-    window.tabs.setCurrentIndex(window.blacklist_tab)
-    snap("blacklist_empty_900")
     window.tabs.setCurrentIndex(window.history_tab)
     snap("records_empty_900")
+    window.tabs.setCurrentIndex(window.blacklist_tab)
+    snap("blacklist_empty_900")
 
     store = window.store
     store.player_name = "阿强"
@@ -81,10 +81,10 @@ def main() -> int:
 
     for size in ((900, 560), (1400, 900)):
         window.resize(*size)
-        window.tabs.setCurrentIndex(window.blacklist_tab)
-        snap(f"blacklist_{size[0]}")
         window.tabs.setCurrentIndex(window.history_tab)
         snap(f"records_{size[0]}")
+        window.tabs.setCurrentIndex(window.blacklist_tab)
+        snap(f"blacklist_{size[0]}")
         window.tabs.setCurrentIndex(window.settings_tab)
         snap(f"settings_{size[0]}")
     window.resize(900, 560)

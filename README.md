@@ -29,7 +29,7 @@ That folder also holds:
 
 ## Check a screenshot
 
-In **设置 → 识别**, **检查截图** runs the same lobby and name check on a picture you pick, and **测试一下** runs it on the bundled `blacklist_detect/assets/sample-lobby.jpg`, so a friend can see recognition work without opening the game. Both show the twelve seats, with blacklist matches in red. The live check copies the screen with one GDI BitBlt on Windows; elsewhere only pictures can be checked.
+In **设置 → 识别**, **检查截图** runs the same lobby and name check on a picture you pick. It shows the twelve seats, with blacklist matches in red. The live check copies the screen with one GDI BitBlt on Windows; elsewhere only pictures can be checked.
 
 From a terminal, with no window:
 
@@ -88,7 +88,8 @@ python build/make_release.py
 
 It copies the runtime without the files the app never loads (unused Qt modules,
 pip, test suites, headers, dxcam, and other PaddleX extras), runs the copy once
-on the reference lobby, and writes two zips to `distelease\`:
+on the reference lobby, and writes two zips to `dist
+elease\`:
 
 - `BlackListDetect-<version>-full.zip` for a first install. Right-click, Extract All, then run `黑名单检测.exe` in the folder.
 - `BlackListDetect-<version>-update.zip` with only the app code. Extract it over the old folder. If `launcher.py` changed, send the full zip instead.

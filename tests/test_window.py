@@ -40,7 +40,8 @@ def test_recheck_button_applies_a_later_tag(qapp, tmp_path, monkeypatch):
     window.store.add("甲", tags=("炸房",), reason="这人场外说话")
     window._show_list()
     assert window.blacklist_table.item(0, 1).text() == "炸房"
-    button = next(item for item in window.findChildren(QPushButton) if item.text() == "按原因补标签")
+    button = next(item for item in window.findChildren(QPushButton) if item.text() == "重新标注")
+    assert button.toolTip() == "按原因补标签"
     button.click()
     assert window.blacklist_table.item(0, 1).text() == "炸房、场外"
     window.close()
@@ -583,7 +584,7 @@ def test_tabs_show_counts_as_badges(qapp, tmp_path, monkeypatch):
     window = MainWindow()
     window._watch_timer.stop()
     tabs = window._tab_buttons
-    assert [tab.name() for tab in tabs] == ["黑名单", "记录", "设置"]
+    assert [tab.name() for tab in tabs] == ["记录", "黑名单", "设置"]
     assert [tab.count() for tab in tabs] == [0, 0, 0]
     narrow = tabs[window.blacklist_tab].sizeHint().width()
     window.store.add("甲")
@@ -776,7 +777,7 @@ def test_auto_check_does_not_leave_the_current_tab(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
     window.worker.request = lambda fn, kind="check": True
-    assert window.tabs.tabText(0).startswith("黑名单")
+    assert window.tabs.tabText(0).startswith("记录")
     assert window.tabs.count() == 3
     settings = window.tabs.count() - 1
     window.tabs.setCurrentIndex(settings)
@@ -1436,9 +1437,9 @@ def test_keyboard_reaches_every_page_and_list(qapp, tmp_path, monkeypatch):
     window.shortcuts["Ctrl+3"].activated.emit()
     assert window.tabs.currentIndex() == window.settings_tab == 2
     window.shortcuts["Ctrl+1"].activated.emit()
-    assert window.tabs.currentIndex() == window.blacklist_tab == 0
+    assert window.tabs.currentIndex() == window.history_tab == 0
     window.shortcuts["Ctrl+2"].activated.emit()
-    assert window.tabs.currentIndex() == window.history_tab == 1
+    assert window.tabs.currentIndex() == window.blacklist_tab == 1
     window.store.add("甲")
     window.store.add("乙")
     window._show_list()
@@ -2025,12 +2026,12 @@ def test_recent_records_say_today_and_yesterday(qapp, tmp_path, monkeypatch):
 
 
 
-def test_the_window_opens_on_blacklist(qapp, tmp_path, monkeypatch):
+def test_the_window_opens_on_records(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
     window._watch_timer.stop()
-    assert window.blacklist_tab == 0 and window.tabs.currentIndex() == window.blacklist_tab
+    assert window.history_tab == 0 and window.tabs.currentIndex() == window.history_tab
     assert window._tab_buttons[0].isChecked() and window._tab_buttons[0].toolTip() == "Ctrl+1"
     # A new list still shows where to put 角色名称 and the tags.
     assert window.list_empty.isHidden() is False
