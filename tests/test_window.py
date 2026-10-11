@@ -639,9 +639,9 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     window._on_lobby_placed(button)
     assert window.panel.isVisible() is True
     assert window.panel.mode == "checking"
-    # A pulsing yellow block with 检查中 hides the button while the check runs.
+    # A block of antique gold with 检查中 hides the button while the check runs.
     assert window.panel.text() == "检查中"
-    assert window.panel.pulsing() and window.panel.ring() == ""
+    assert window.panel.shining() and window.panel.ring() == ""
     assert not (window.panel.windowFlags() & Qt.WindowTransparentForInput)
     assert window.hit_card.isVisible() is False
     assert window.clear_mark.isVisible() is False
@@ -649,17 +649,20 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     window._on_checked("ok", CheckResult(True, "", button_box=button))
     assert window.panel.mode == "clear"
     assert window.panel.text() == ""
-    assert window.panel.pulsing() is False
-    assert window.panel.ring() == "#17b26a"
+    assert window.panel.shining() is False
+    assert window.panel.ring() == "#2f9e5e"
     assert window.panel.toolTip() == "没有黑名单"
     assert window.clear_mark.isVisible() is True
-    assert window.clear_mark.height() == max(16, round(window.panel.height() * 0.6))
+    cover = window.panel.cover_geometry()
+    margin = window.clear_mark.margin
+    assert window.clear_mark.height() - 2 * margin == max(16, round(cover.height() * 0.7))
     assert window.clear_mark.width() == window.clear_mark.height()
-    centered = window.panel.y() + (window.panel.height() - window.clear_mark.height()) // 2
+    centered = cover.y() + (cover.height() - window.clear_mark.height()) // 2
     assert window.clear_mark.y() == centered
-    mark_right = window.clear_mark.x() + window.clear_mark.width()
-    mark_beside = window.clear_mark.x() >= window.panel.x() + window.panel.width() or mark_right <= window.panel.x()
-    assert mark_beside
+    # The badge, not its glow, sits beside the cover.
+    badge_left = window.clear_mark.x() + margin
+    badge_right = window.clear_mark.x() + window.clear_mark.width() - margin
+    assert badge_left >= cover.x() + cover.width() or badge_right <= cover.x()
     assert window.panel.windowFlags() & Qt.WindowTransparentForInput
     assert window.panel.windowFlags() & Qt.WindowStaysOnTopHint
     assert window.panel.windowFlags() & Qt.WindowDoesNotAcceptFocus
@@ -669,16 +672,18 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     window._show_panel(CheckResult(True, "", names=[slot], hits=[hit], button_box=button))
     assert window.panel.mode == "hit"
     assert window.panel.text() == ""
-    assert window.panel.ring() == "#f04438"
+    assert window.panel.ring() == "#a8262f"
     assert not (window.panel.windowFlags() & Qt.WindowTransparentForInput)
     assert window.hit_card.isVisible() is True
     assert window.clear_mark.isVisible() is False
-    centered = window.panel.y() + (window.panel.height() - window.hit_card.height()) // 2
+    cover = window.panel.cover_geometry()
+    centered = cover.y() + (cover.height() - window.hit_card.height()) // 2
     assert window.hit_card.y() == centered
-    # Dark glass with its own title: a warning mark and words, so color is not the only sign.
-    assert "rgba(18, 20, 26" in window.hit_card.styleSheet()
-    assert not window.hit_card.findChild(QLabel, "hitIcon").pixmap().isNull()
-    assert window.hit_card.findChild(QLabel, "hitTitle").text() == "1 人在黑名单里"
+    # Crimson edged in gold, like the ring, with the names and nothing above them.
+    assert "#7a1620" in window.hit_card.styleSheet()
+    assert "228, 196, 126" in window.hit_card.styleSheet()
+    assert window.hit_card.findChild(QLabel, "hitTitle") is None
+    assert window.hit_card.findChild(QLabel, "hitIcon") is None
     name = window.hit_card.findChild(QLabel, "hitName")
     assert name.text() == "甲"
     assert isinstance(name.parentWidget().layout(), QHBoxLayout)
@@ -702,7 +707,6 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     )
     names = [label.text() for label in window.hit_card.findChildren(QLabel, "hitName")]
     assert names == ["国服园丁", "紫花地丁o", "亿萌"]
-    assert window.hit_card.findChild(QLabel, "hitTitle").text() == "3 人在黑名单里"
     assert [pill._text for pill in window.hit_card.findChildren(TagPill)] == [
         "123",
         "炸房",
@@ -716,7 +720,8 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     assert window.hit_card.findChild(QLabel, "hitMore") is None
     assert window.hit_card.findChild(QLabel, "hitExtra") is None
     assert window.hit_card.scroll.verticalScrollBar().maximum() == 0
-    assert window.hit_card.height() > window.panel.height()
+    assert not window.hit_card.fade.isVisibleTo(window.hit_card)
+    assert window.hit_card.height() > window.panel.cover_geometry().height()
     three_height = window.hit_card.height()
     window.hit_card.set_people(
         [
@@ -731,9 +736,15 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     assert names == ["国服园丁", "紫花地丁o", "亿萌", "第四人"]
     assert window.hit_card.findChild(QLabel, "hitExtra") is None
     assert window.hit_card.height() == three_height
-    assert window.hit_card.scroll.verticalScrollBar().maximum() > 0
+    bar = window.hit_card.scroll.verticalScrollBar()
+    assert bar.maximum() > 0
+    # The fourth name waits below a fade, which goes once the list is scrolled to the end.
+    assert window.hit_card.fade.isVisibleTo(window.hit_card)
+    bar.setValue(bar.maximum())
+    assert not window.hit_card.fade.isVisibleTo(window.hit_card)
+    cover = window.panel.cover_geometry()
     card_right = window.hit_card.x() + window.hit_card.width()
-    beside = window.hit_card.x() >= window.panel.x() + window.panel.width() or card_right <= window.panel.x()
+    beside = window.hit_card.x() >= cover.x() + cover.width() or card_right <= cover.x()
     assert beside
     window._show_panel(CheckResult(True, "", button_box=button))
     assert window.panel.mode == "clear"
@@ -758,22 +769,31 @@ def test_panel_covers_the_accept_button(qapp, tmp_path, monkeypatch):
 
     origin_x, origin_y = virtual_origin()
     from blacklist_detect.ui import _COVER_OUTSET, _cover_radius
+    from blacklist_detect.ui_overlay import _GLOW
 
     outset = _COVER_OUTSET
-    assert window.panel.x() == round((100 + origin_x) / ratio) - outset
-    assert window.panel.y() == round((400 + origin_y) / ratio) - outset
-    assert window.panel.width() == round(180 / ratio) + outset * 2
-    assert window.panel.height() == round(60 / ratio) + outset * 2
-    radius = _cover_radius(window.panel.height())
-    assert radius < window.panel.height() // 2
+    cover = window.panel.cover_geometry()
+    assert cover.x() == round((100 + origin_x) / ratio) - outset
+    assert cover.y() == round((400 + origin_y) / ratio) - outset
+    assert cover.width() == round(180 / ratio) + outset * 2
+    assert cover.height() == round(60 / ratio) + outset * 2
+    # The window reaches past the cover, for the glow of a result ring.
+    assert window.panel.width() == cover.width() + 2 * _GLOW
+    radius = _cover_radius(cover.height())
+    assert radius < cover.height() // 2
     # The cover's corners follow the button's: rounded, not a pill, and not square.
-    assert window.panel.mask().contains(QPoint(window.panel.height() // 4, 2))
-    assert not window.panel.mask().contains(QPoint(0, 0))
-    assert window.panel.pulsing()
+    # While checking, the window is only the cover; clicks around it reach the game.
+    assert window.panel.mask().contains(QPoint(_GLOW + cover.height() // 4, _GLOW + 2))
+    assert not window.panel.mask().contains(QPoint(_GLOW, _GLOW))
+    assert not window.panel.mask().contains(QPoint(2, 2))
+    assert window.panel.shining()
     window._show_panel(CheckResult(True, "", button_box=button))
     assert window.panel.mode == "clear"
-    assert window.panel.x() == round((100 + origin_x) / ratio) - outset
-    assert window.panel.y() == round((400 + origin_y) / ratio) - outset
+    cover = window.panel.cover_geometry()
+    assert cover.x() == round((100 + origin_x) / ratio) - outset
+    assert cover.y() == round((400 + origin_y) / ratio) - outset
+    # A result's window takes in the glow around the ring.
+    assert window.panel.mask().contains(QPoint(window.panel.width() // 2, 2))
     window._on_glanced("ok", False)
     assert window.panel.isVisible() is False
     assert window._panel_hide_timer.isActive() is False
@@ -1473,39 +1493,81 @@ def test_the_cover_fades_in_once_and_does_not_blink_on_the_result(qapp):
     panel.close()
 
 
-def test_the_checking_cover_is_yellow_with_its_words_centered(qapp):
+def test_the_checking_cover_is_brass_with_a_glint_and_its_words_centered(qapp):
     from PySide6.QtGui import QColor
 
-    from blacklist_detect.ui_overlay import LobbyPanel
+    from blacklist_detect.ui_overlay import _GLOW, LobbyPanel
 
     panel = LobbyPanel()
-    panel.setFixedSize(262, 80)
+    panel.setFixedSize(262 + 2 * _GLOW, 80 + 2 * _GLOW)
     panel.set_mode("checking", "检查中")
-    assert panel.pulsing()
-    panel._pulse.stop()
-    panel._breathe(0.75)  # the pulse at its dimmest
-    dim = panel.grab().toImage()
-    panel._breathe(0.25)  # and at its brightest
-    bright = panel.grab().toImage()
-    ratio = dim.devicePixelRatio()
-    spot = (round(20 * ratio), round(20 * ratio))
-    yellow = QColor(dim.pixel(*spot))
-    assert yellow.red() > 230 and yellow.green() > 180 and yellow.blue() < 120
-    assert QColor(bright.pixel(*spot)).blue() > yellow.blue() + 20
-    # The words' ink sits in the middle: nothing beside them pulls them off center.
-    edge = round(5 * ratio)
+    assert panel.shining()
+    panel._shine.stop()
+    panel._glint(0.9)  # resting: the glint crosses in the first part of each turn
+    rest = panel.grab().toImage()
+    panel._glint(0.3)  # and on its way across
+    glint = panel.grab().toImage()
+    ratio = rest.devicePixelRatio()
+    spot = (round((_GLOW + 20) * ratio), round((_GLOW + 20) * ratio))
+    gold = QColor(rest.pixel(*spot))
+    assert gold.red() > 180 and gold.green() > 140 and gold.blue() < 130 and gold.red() > gold.blue() + 60
+
+    def light(image) -> int:  # noqa: ANN001
+        return sum(
+            QColor(image.pixel(x, y)).lightness()
+            for y in range(0, image.height(), 3)
+            for x in range(0, image.width(), 3)
+        )
+
+    assert light(glint) > light(rest)
+    # The words' ink sits in the middle of the cover: nothing beside them pulls them off center.
+    edge = round((_GLOW + 5) * ratio)
     ink = [
         (x, y)
-        for y in range(edge, dim.height() - edge)
-        for x in range(edge, dim.width() - edge)
-        if QColor(dim.pixel(x, y)).lightness() < 80
+        for y in range(edge, rest.height() - edge)
+        for x in range(edge, rest.width() - edge)
+        if QColor(rest.pixel(x, y)).lightness() < 70
     ]
     assert ink
     xs = [x for x, _ in ink]
     ys = [y for _, y in ink]
-    assert abs((min(xs) + max(xs)) / 2 - dim.width() / 2) <= 2 * ratio
-    assert abs((min(ys) + max(ys)) / 2 - dim.height() / 2) <= 3 * ratio
+    assert abs((min(xs) + max(xs)) / 2 - rest.width() / 2) <= 2 * ratio
+    assert abs((min(ys) + max(ys)) / 2 - rest.height() / 2) <= 3 * ratio
     panel.close()
+
+
+def test_result_rings_and_the_check_are_edged_in_gold(qapp):
+    from PySide6.QtGui import QColor
+
+    from blacklist_detect.ui_overlay import _GLOW, ClearMark, LobbyPanel
+
+    panel = LobbyPanel()
+    panel.setFixedSize(262 + 2 * _GLOW, 80 + 2 * _GLOW)
+    for mode, band in (("hit", "#a8262f"), ("clear", "#2f9e5e")):
+        panel.set_mode(mode, "")
+        image = panel.grab().toImage()
+        ratio = image.devicePixelRatio()
+        middle = round((_GLOW + 40) * ratio)
+        # From the cover's left edge inward: the gold rim, then the band's color.
+        rim = image.pixelColor(round((_GLOW + 1.2) * ratio), middle)
+        color = image.pixelColor(round((_GLOW + 4.4) * ratio), middle)
+        assert rim.red() > 180 and rim.green() > 150, mode
+        want = QColor(band)
+        assert abs(color.red() - want.red()) < 40 and abs(color.green() - want.green()) < 40, mode
+        # A glow outside the cover, and the button showing through inside.
+        assert image.pixelColor(round((_GLOW - 3) * ratio), middle).alpha() > 0, mode
+        assert image.pixelColor(round((_GLOW + 40) * ratio), middle).alpha() == 0, mode
+    panel.close()
+    mark = ClearMark()
+    mark.set_size(80)
+    assert mark.width() == round(80 * 0.7) + 2 * mark.margin
+    image = mark.grab().toImage()
+    ratio = image.devicePixelRatio()
+    middle = round(mark.height() / 2 * ratio)
+    # The badge's edge is gold, not the green inside it.
+    rim = image.pixelColor(round((mark.margin + 1) * ratio), middle)
+    assert rim.red() > 170 and rim.red() > rim.blue() + 40
+    mark.close()
 
 
 def _press(qapp, widget, key, modifiers=Qt.NoModifier) -> None:

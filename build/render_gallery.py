@@ -205,7 +205,7 @@ def _overlay_scenes(window, snap) -> None:  # noqa: ANN001
     from PySide6.QtCore import QPoint, QRect, QRectF
     from PySide6.QtGui import QImage, QPainter, QPixmap
 
-    from blacklist_detect.ui_overlay import _COVER_OUTSET
+    from blacklist_detect.ui_overlay import _COVER_OUTSET, _GLOW
 
     lobby = QImage(str(REPO / "tests" / "fixtures" / "reference-lobby.png"))
     # 准备案件还原 in that screenshot, as the check finds it; the capture is at twice the scale.
@@ -224,25 +224,29 @@ def _overlay_scenes(window, snap) -> None:  # noqa: ANN001
         painter.setRenderHint(QPainter.SmoothPixmapTransform)
         painter.drawImage(QRectF(0, 0, width, height), lobby, crop)
         panel = window.panel
-        panel.setFixedSize(button.width() + outset * 2, button.height() + outset * 2)
+        cover = button.adjusted(-outset, -outset, outset, outset)
+        panel.setFixedSize(cover.width() + 2 * _GLOW, cover.height() + 2 * _GLOW)
         panel.set_mode(mode, text)
-        panel._pulse.stop()
-        panel._breathe(0.75)
-        painter.drawPixmap(button.topLeft() - QPoint(outset, outset), panel.grab())
+        panel._shine.stop()
+        panel._glint(0.3)
+        painter.drawPixmap(cover.topLeft() - QPoint(_GLOW, _GLOW), panel.grab())
         if beside is not None:
             beside.layout().activate() if beside.layout() is not None else None
             beside.resize(beside.size())
             mark = beside.grab()
-            left = button.right() + outset + 12
+            left = cover.x() + cover.width() + 16 - beside.margin
             height = round(mark.height() / mark.devicePixelRatio())
-            painter.drawPixmap(QPoint(left, button.center().y() - height // 2 + 1), mark)
+            painter.drawPixmap(QPoint(left, cover.center().y() - height // 2 + 1), mark)
         painter.end()
         return canvas
 
     snap("overlay_checking", picture=scene("checking", "检查中"))
     window.hit_card.set_people([("霁玥吉尔曼", ("炸房", "贴脸")), ("gffdsd", ("挂机",))], button.height())
     snap("overlay_hit", picture=scene("hit", "", window.hit_card))
-    window.clear_mark.set_size(button.height())
+    many = [("霁玥吉尔曼", ("炸房", "贴脸")), ("gffdsd", ("挂机",)), ("EluElu", ("演员",)), ("玩的很菜了", ("挂机",))]
+    window.hit_card.set_people(many, button.height())
+    snap("overlay_hit_many", picture=scene("hit", "", window.hit_card))
+    window.clear_mark.set_size(button.height() + outset * 2)
     snap("overlay_clear", picture=scene("clear", "没有黑名单", window.clear_mark))
 
 

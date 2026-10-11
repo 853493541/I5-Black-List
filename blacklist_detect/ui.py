@@ -2941,25 +2941,27 @@ class MainWindow(QMainWindow):
             self.hit_card.hide()
             self.clear_mark.hide()
             return
-        self.hit_card.set_people(people, self.panel.height())
+        self.hit_card.set_people(people, self.panel.cover_geometry().height())
         self._place_beside(self.hit_card)
 
     def _show_clear_mark(self) -> None:
-        self.clear_mark.set_size(self.panel.height())
+        self.clear_mark.set_size(self.panel.cover_geometry().height())
         self._place_beside(self.clear_mark)
 
     def _place_beside(self, widget: QWidget) -> None:
-        gap = 12
-        panel = self.panel
-        x = panel.x() + panel.width() + gap
-        y = panel.y() + (panel.height() - widget.height()) // 2
-        screen = QApplication.screenAt(panel.pos()) or QApplication.primaryScreen()
+        """Beside the cover, centered on it. A mark with a glow (margin) lines up by what it draws."""
+        gap = 16
+        cover = self.panel.cover_geometry()
+        margin = getattr(widget, "margin", 0)
+        x = cover.x() + cover.width() + gap - margin
+        y = cover.y() + (cover.height() - widget.height()) // 2
+        screen = QApplication.screenAt(cover.topLeft()) or QApplication.primaryScreen()
         if screen is not None:
             area = screen.availableGeometry()
-            if x + widget.width() > area.right() - 8:
-                x = panel.x() - gap - widget.width()
-            x = max(area.left() + 8, min(x, area.right() - widget.width() - 8))
-            y = max(area.top() + 8, min(y, area.bottom() - widget.height() - 8))
+            if x + widget.width() - margin > area.right() - 8:
+                x = cover.x() - gap - widget.width() + margin
+            x = max(area.left() + 8 - margin, min(x, area.right() - widget.width() + margin - 8))
+            y = max(area.top() + 8 - margin, min(y, area.bottom() - widget.height() + margin - 8))
         widget.move(int(x), int(y))
         widget.show()
         _pin_topmost(widget)

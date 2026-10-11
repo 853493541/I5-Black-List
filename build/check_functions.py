@@ -27,7 +27,7 @@ os.environ["APPDATA"] = tempfile.mkdtemp(prefix="blacklist-check-")
 os.environ.setdefault("QT_QPA_PLATFORM", "windows")
 
 from PySide6.QtCore import Qt  # noqa: E402
-from PySide6.QtWidgets import QApplication, QDialog  # noqa: E402
+from PySide6.QtWidgets import QApplication, QDialog, QLabel  # noqa: E402
 
 LOBBY = REPO / "tests" / "fixtures" / "reference-lobby.png"
 results: list[tuple[str, bool, str]] = []
@@ -125,7 +125,8 @@ def main() -> int:
     wait_until(lambda: len(window.store.scans) > scans_before and window.panel.mode == "hit", 120)
     check("a live check records the lobby", len(window.store.scans) == scans_before + 1)
     check("the red ring covers 准备案件还原", window.panel.isVisible() and window.panel.mode == "hit" and window.panel.ring() == RED)
-    check("the hit card shows beside it", window.hit_card.isVisible() and "1 人在黑名单里" == window.hit_card.title.text())
+    names = [label.text() for label in window.hit_card.findChildren(QLabel, "hitName")]
+    check("the hit card shows beside it", window.hit_card.isVisible() and names == ["gffdsd"], ", ".join(names))
     check("both stay above the game", topmost(window.panel) and topmost(window.hit_card))
     check("the record is marked with its hit", window._scan_hit_counts().get(0, 0) == 1)
     window._panel_hide_timer.stop()
