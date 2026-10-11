@@ -38,6 +38,8 @@ from app_exe import make_app_exe  # noqa: E402
 REPO = Path(__file__).resolve().parent.parent
 FOLDER = "BlackListDetect"
 EXE_NAME = "黑名单检测.exe"
+# The instructions in the folder, from build/使用说明.txt with the version filled in.
+GUIDE_NAME = "使用说明.txt"
 
 # Whole packages nothing imports during a window open, a lobby check, or a title glance.
 # dxcam and comtypes: capture is a GDI BitBlt in capture.py. The rest come in with
@@ -315,6 +317,9 @@ def main() -> int:
     shutil.copy2(args.launcher, stage / EXE_NAME)
     # The app's own process name and icon: runtime\I5黑名单.exe (see build/app_exe.py).
     app_exe = make_app_exe(stage / "runtime", _version()).relative_to(stage)
+    # With a BOM and Windows line ends, so Notepad on any Windows opens it right.
+    guide = (REPO / "build" / GUIDE_NAME).read_text(encoding="utf-8").replace("{version}", _version())
+    (stage / GUIDE_NAME).write_text(guide, encoding="utf-8-sig", newline="\r\n")
 
     print("Left out of the runtime:")
     for rule, size in sorted(pruner.dropped.items(), key=lambda item: -item[1]):
@@ -338,11 +343,12 @@ def main() -> int:
     update = args.out / f"{FOLDER}-{version}-update.zip"
     print("Zipping ...")
     _zip(stage, full, lambda rel: True)
-    # An update carries the app, the launcher, and the app's exe, since both changed with the code.
+    # An update carries the app, the launcher, the app's exe, and the instructions.
     _zip(
         stage,
         update,
-        lambda rel: (rel.parts[0] == "blacklist_detect" and "models" not in rel.parts) or rel in (Path(EXE_NAME), app_exe),
+        lambda rel: (rel.parts[0] == "blacklist_detect" and "models" not in rel.parts)
+        or rel in (Path(EXE_NAME), app_exe, Path(GUIDE_NAME)),
     )
     print(f"Folder: {_size(stage) / 1e6:.0f} MB unpacked (source runtime {_size(args.runtime) / 1e6:.0f} MB)")
     print(f"  {full.name}: {full.stat().st_size / 1e6:.1f} MB")
