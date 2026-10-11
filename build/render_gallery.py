@@ -123,6 +123,15 @@ def main() -> int:
         snap("blacklist_tag_picked")
         window._hover_tag_row(-1)
         window.tag_list.setCurrentRow(0)
+        # The boxes close when focus leaves them, so the window has to be the active one.
+        window.activateWindow()
+        window.raise_()
+        window._edit_tag("贴脸")
+        snap("blacklist_tag_edit")
+        window._finish_tag_edit(keep=False)
+        window._create_tag()
+        snap("blacklist_tag_new")
+        window._finish_tag_new(keep=False)
     from PySide6.QtCore import QPoint
 
     window.detail_tip.show_reason("1" * 120 + "\n第二行：很长的原因文字" * 3, QPoint(40, 40))
@@ -148,7 +157,6 @@ def main() -> int:
             ),
         ),
         ("dialog_import", lambda: ui.BatchAddDialog(store.tag_catalog(), parent=window)),
-        ("dialog_tag", lambda: ui.TagEditDialog("炸房", store.tag_catalog(), parent=window)),
         ("dialog_guide", lambda: ui.GuideDialog(window)),
     ]
     slots = [NameSlot(i, (0, 0, 1, 1), n, n, False, 0.9, not n) for i, n in enumerate(NAMES)]
@@ -195,6 +203,7 @@ def _focus_scene(app, window, snap) -> None:  # noqa: ANN001
     window.tabs.setCurrentIndex(window.settings_tab)
     window.theme_buttons["绿色"].setFocus(Qt.FocusReason.TabFocusReason)
     snap("focus_swatch")
+    window.tabs.setCurrentIndex(window.history_tab)
     window.picture_button.setFocus(Qt.FocusReason.TabFocusReason)
     snap("focus_secondary")
     window.setFocus()
@@ -251,7 +260,7 @@ def _overlay_scenes(window, snap) -> None:  # noqa: ANN001
 
 
 def _header_scenes(window, snap) -> None:  # noqa: ANN001
-    """The header's right end: 手动检查 with its key cap, the pill under the pointer, and the name box."""
+    """The header's right end: 手动检查 with its key cap, the pill under the pointer, and the name being edited."""
     chip = getattr(window, "status_chip", None)
     if chip is None:
         return
@@ -262,9 +271,10 @@ def _header_scenes(window, snap) -> None:  # noqa: ANN001
     snap("header_hover", header)
     chip._hover = False
     window._sync_watch_idle()
-    window._open_name_box()
-    snap("name_box", window.name_box)
-    window.name_box.hide()
+    window.activateWindow()
+    window._edit_player_name()
+    snap("name_edit", header)
+    window._finish_player_name(keep=False)
 
 
 def _setup_scenes(app, window, snap) -> None:  # noqa: ANN001

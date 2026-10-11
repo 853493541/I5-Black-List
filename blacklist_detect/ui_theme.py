@@ -650,25 +650,6 @@ def _kit_rules(family: str) -> str:
             """
 
 
-def _popover_rules(family: str) -> str:
-    """The small box that opens under 角色名称 in the header."""
-    t = THEME
-    return f"""
-            QFrame#popover {{
-                background: {t["surface"]};
-                border: 1px solid {t["border"]};
-                border-radius: {CARD_RADIUS}px;
-            }}
-            QLabel#popoverTitle {{
-                font-family: "{family}";
-                font-size: {BODY_PT}pt;
-                font-weight: 600;
-                color: {t["text"]};
-                background: transparent;
-            }}
-            """
-
-
 def _window_style(family: str) -> str:
     t = THEME
     return f"""
@@ -712,7 +693,7 @@ def _window_style(family: str) -> str:
                 color: {t["text"]};
                 background: transparent;
             }}
-            """ + _popover_rules(family) + _kit_rules(family) + _input_rules(family) + f"""
+            """ + _kit_rules(family) + _input_rules(family) + f"""
             QPlainTextEdit, QTableWidget, QListWidget {{
                 background: {t["surface"]};
                 color: {t["text"]};

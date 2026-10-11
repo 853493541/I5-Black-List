@@ -71,18 +71,16 @@ from blacklist_detect.pipeline import (
     glance_title,
     same_band,
 )
-from blacklist_detect.storage import Store, describe_entry, tag_text
+from blacklist_detect.storage import Store, clean_tag, describe_entry, tag_text
 from blacklist_detect.ui_dialogs import (
     SAMPLE_LOBBY,
     AddNameDialog,
     BatchAddDialog,
     GuideDialog,
     PictureResultDialog,
-    TagCreateDialog,
-    TagEditDialog,
     _confirm,
 )
-from blacklist_detect.ui_header import NamePopover, ProfileChip, StatusChip
+from blacklist_detect.ui_header import ProfileChip, StatusChip
 from blacklist_detect.ui_icons import icon as line_icon
 from blacklist_detect.ui_icons import pixmap as line_pixmap
 from blacklist_detect.ui_kit import (
@@ -154,8 +152,6 @@ __all__ = [
     "MainWindow",
     "PictureResultDialog",
     "SAMPLE_LOBBY",
-    "TagCreateDialog",
-    "TagEditDialog",
     "TagPill",
     "_COVER_OUTSET",
     "_apply_theme",
@@ -458,16 +454,23 @@ class MainWindow(QMainWindow):
         divider.setFixedSize(1, 18)
         right_row.addWidget(divider, 0, Qt.AlignVCenter)
         right_row.addSpacing(8)
-        # 角色名称 where an app shows whose it is; a click opens a small box to change it.
+        # 角色名称 where an app shows whose it is. A click turns the chip into a box for the
+        # name, in the same place: Enter or a click elsewhere keeps it, Esc puts it back.
         self.profile_chip = ProfileChip()
         self.profile_chip.set_name(self.store.player_name)
-        self.profile_chip.clicked.connect(self._open_name_box)
+        self.profile_chip.clicked.connect(self._edit_player_name)
         right_row.addWidget(self.profile_chip, 0, Qt.AlignVCenter)
+        self.player_edit = QLineEdit(self.store.player_name)
+        self.player_edit.setObjectName("nameEdit")
+        self.player_edit.setPlaceholderText("游戏里的名字")
+        self.player_edit.setAccessibleName("角色名称")
+        self.player_edit.setFixedWidth(180)
+        self.player_edit.hide()
+        self.player_edit.installEventFilter(self)
+        self.player_edit.returnPressed.connect(self._finish_player_name)
+        right_row.addWidget(self.player_edit, 0, Qt.AlignVCenter)
+        self._name_before = ""
         header_row.addWidget(right, 0, Qt.AlignBottom)
-        self.name_box = NamePopover(self)
-        self.player_edit = self.name_box.edit
-        self.player_edit.setText(self.store.player_name)
-        self.name_box.closed.connect(self._save_player_name)
         self._sync_tab_buttons(self.tabs.currentIndex())
         outer.addWidget(header)
         outer.addWidget(self.tabs)
@@ -513,9 +516,6 @@ class MainWindow(QMainWindow):
         self.list_search.setToolTip("Ctrl+F")
         self.list_search.textChanged.connect(self._on_search_text)
         toolbar.addWidget(self.list_search, 1)
-        self.list_count = QLabel("")
-        self.list_count.setObjectName("sub")
-        toolbar.addWidget(self.list_count)
         toolbar.addStretch(1)
         batch = QPushButton("批量导入")
         batch.setToolTip("Ctrl+I")
@@ -621,11 +621,21 @@ class MainWindow(QMainWindow):
         head.setSpacing(4)
         title = QLabel("标签")
         title.setObjectName("sideTitle")
-        head.addWidget(title, 0, Qt.AlignVCenter)
-        head.addStretch(1)
+        self.tag_title = title
+        self.tag_head = head
+        head.addWidget(title, 1, Qt.AlignVCenter)
         self.tag_add = IconButton("add", "新标签")
         self.tag_add.clicked.connect(self._create_tag)
         head.addWidget(self.tag_add, 0, Qt.AlignVCenter)
+        # + turns the heading into a box for the new tag's name.
+        self.tag_new_edit = QLineEdit()
+        self.tag_new_edit.setObjectName("tagEdit")
+        self.tag_new_edit.setPlaceholderText("新标签")
+        self.tag_new_edit.setAccessibleName("新标签")
+        self.tag_new_edit.hide()
+        self.tag_new_edit.installEventFilter(self)
+        self.tag_new_edit.returnPressed.connect(self._finish_tag_new)
+        head.addWidget(self.tag_new_edit, 1)
         column.addWidget(head_row)
         self.tag_list = QListWidget()
         self.tag_list.setObjectName("tags")
@@ -644,6 +654,14 @@ class MainWindow(QMainWindow):
         self.tag_list.setContextMenuPolicy(Qt.CustomContextMenu)
         self.tag_list.customContextMenuRequested.connect(self._tag_menu)
         column.addWidget(self.tag_list, 1)
+        # 编辑 turns a tag's row into a box with its name, over the row.
+        self.tag_editor = QLineEdit(self.tag_list.viewport())
+        self.tag_editor.setObjectName("tagEdit")
+        self.tag_editor.setAccessibleName("标签")
+        self.tag_editor.hide()
+        self.tag_editor.installEventFilter(self)
+        self.tag_editor.returnPressed.connect(self._finish_tag_edit)
+        self._tag_editing = ""
         recheck = QPushButton("重新标注")
         recheck.setToolTip("按原因补标签")
         recheck.setObjectName("sideAction")
@@ -682,6 +700,15 @@ class MainWindow(QMainWindow):
         self.history_list.currentRowChanged.connect(self._on_history_picked)
         self.history_list.itemClicked.connect(self._on_history_clicked)
         side_layout.addWidget(self.history_list, 1)
+        # A lobby from a picture, read the way a live check reads it.
+        self.picture_button = QPushButton("上传截图")
+        self.picture_button.setObjectName("sideAction")
+        self.picture_button.setFont(chinese_font(SMALL_PT))
+        self.picture_button.setIcon(line_icon("picture", 14, THEME["muted"]))
+        self.picture_button.setAutoDefault(False)
+        self.picture_button.setCursor(Qt.PointingHandCursor)
+        self.picture_button.clicked.connect(self.check_picture)
+        side_layout.addWidget(self.picture_button)
         body.addWidget(side)
         record = QWidget()
         record.setObjectName("recordCard")
@@ -701,10 +728,6 @@ class MainWindow(QMainWindow):
         catalog.setObjectName("recordTitle")
         catalog.setFont(record_font())
         head.addWidget(catalog)
-        self.record_summary = QLabel("")
-        self.record_summary.setObjectName("sub")
-        head.addSpacing(GAP)
-        head.addWidget(self.record_summary)
         head.addStretch(1)
         self.record_time = QLabel("")
         self.record_time.setObjectName("sub")
@@ -752,6 +775,8 @@ class MainWindow(QMainWindow):
         body.addWidget(self.record_column, 1)
         self.history_empty = EmptyState("records", "还没有记录", "进入「推演成功」大厅时会自动检查，并记在这里。")
         self.history_hint = self.history_empty.title
+        self.picture_empty_button = self.history_empty.add_action(QPushButton("上传截图"))
+        self.picture_empty_button.clicked.connect(self.check_picture)
         body.addWidget(self.history_empty, 1)
         layout.addLayout(body, 1)
         return page
@@ -818,11 +843,6 @@ class MainWindow(QMainWindow):
         self.settings_label.setWordWrap(True)
         self.settings_label.hide()
         check.add_widget(self.settings_label, separated=False, indent=True)
-        self.picture_button = QPushButton("选择截图")
-        self.picture_button.setToolTip("选一张大厅截图，看看里面有没有黑名单")
-        self.picture_button.setAutoDefault(False)
-        self.picture_button.clicked.connect(self.check_picture)
-        check.add_row("截图检查", self.picture_button, hint="选一张大厅截图，看看里面有没有黑名单")
 
         # 常规: how the app starts and closes.
         general = section("常规")
@@ -830,7 +850,7 @@ class MainWindow(QMainWindow):
         self.autostart_switch.setAccessibleName("开机启动")
         self.autostart_switch.setEnabled(autostart.available())
         self.autostart_switch.toggled.connect(self._set_autostart)
-        general.add_row("开机启动", self.autostart_switch, hint="开机后在右下角托盘里运行")
+        general.add_row("开机启动", self.autostart_switch)
         # Asked the way Chinese desktop apps ask it: what × does, with both answers in view.
         self.close_mode = SegmentedControl(
             [("tray", "最小化到托盘"), ("quit", "退出程序")], "tray" if self.store.close_to_tray else "quit"
@@ -948,30 +968,63 @@ class MainWindow(QMainWindow):
         self._show_list()
 
     def _create_tag(self) -> None:
-        dialog = TagCreateDialog(self.store.tag_catalog(), parent=self)
-        if dialog.exec() != QDialog.Accepted or not dialog.created:
+        """+ turns the 标签 heading into a box for a new tag's name."""
+        self._finish_tag_edit()
+        self.tag_title.hide()
+        self.tag_add.hide()
+        # The box fills the heading, its left edge where a renamed tag's box starts.
+        self.tag_head.setContentsMargins(4, 0, 0, 0)
+        self.tag_new_edit.clear()
+        self.tag_new_edit.show()
+        self.tag_new_edit.setFocus(Qt.MouseFocusReason)
+
+    def _finish_tag_new(self, keep: bool = True) -> None:
+        if self.tag_new_edit.isHidden():
             return
-        if not self.store.add_custom_tag(dialog.created):
+        tag = clean_tag(self.tag_new_edit.text()) if keep else ""
+        self.tag_new_edit.hide()
+        self.tag_head.setContentsMargins(TagListDelegate.INSET, 0, 0, 0)
+        self.tag_title.show()
+        self.tag_add.show()
+        if not tag:
             return
-        self.store.save_settings()
-        self._fill_tag_list()
+        if tag in self.store.tag_catalog():
+            self._say("已有这个标签")
+            return
+        if self.store.add_custom_tag(tag):
+            self.store.save_settings()
+            self._fill_tag_list()
 
     def _edit_tag(self, tag: str) -> None:
-        dialog = TagEditDialog(tag, self.store.tag_catalog(), parent=self)
-        if dialog.exec() != QDialog.Accepted:
+        """The tag's row turns into a box with its name. Enter or a click elsewhere keeps it; Esc does not."""
+        rows = [row for row in range(self.tag_list.count()) if tag and self._tag_at(row) == tag]
+        if not rows:
             return
-        if dialog.deleted:
-            if any(tag in entry.tags for entry in self.store.entries):
-                # Names would lose the tag, so it asks first.
-                self._remove_tag(tag)
-            elif self.store.remove_custom_tag(tag):
-                self._refresh_tag_views()
+        self._finish_tag_new(keep=False)
+        self._finish_tag_edit()
+        self._tag_editing = tag
+        rect = self.tag_list.visualItemRect(self.tag_list.item(rows[0]))
+        self.tag_editor.setGeometry(rect.adjusted(4, 3, -4, -3))
+        self.tag_editor.setText(tag)
+        self.tag_editor.show()
+        self.tag_editor.raise_()
+        self.tag_editor.setFocus(Qt.MouseFocusReason)
+        self.tag_editor.selectAll()
+
+    def _finish_tag_edit(self, keep: bool = True) -> None:
+        if self.tag_editor.isHidden():
             return
-        if dialog.renamed == tag:
+        tag, self._tag_editing = self._tag_editing, ""
+        renamed = clean_tag(self.tag_editor.text()) if keep else ""
+        self.tag_editor.hide()
+        if not renamed or renamed == tag:
             return
-        if self.store.rename_tag(tag, dialog.renamed) == "renamed":
+        result = self.store.rename_tag(tag, renamed)
+        if result == "taken":
+            self._say("已有这个标签")
+        elif result == "renamed":
             if self._tag_filter == tag:
-                self._tag_filter = dialog.renamed
+                self._tag_filter = renamed
             self._refresh_tag_views()
 
     def _refresh_tag_views(self) -> None:
@@ -1034,8 +1087,24 @@ class MainWindow(QMainWindow):
         self.clear_mark.hide()
         self._reload_history()
 
-    def _open_name_box(self) -> None:
-        self.name_box.open_below(self.profile_chip)
+    def _edit_player_name(self) -> None:
+        """The chip becomes a box for the name, the same height and in the same place."""
+        self._name_before = self.store.player_name
+        self.player_edit.setText(self.store.player_name)
+        self.player_edit.setFixedHeight(self.profile_chip.height())
+        self.profile_chip.hide()
+        self.player_edit.show()
+        self.player_edit.setFocus(Qt.MouseFocusReason)
+        self.player_edit.selectAll()
+
+    def _finish_player_name(self, keep: bool = True) -> None:
+        if self.player_edit.isHidden():
+            return
+        if not keep:
+            self.player_edit.setText(self._name_before)
+        self.player_edit.hide()
+        self.profile_chip.show()
+        self._save_player_name()
 
     def _save_player_name(self) -> None:
         name = self.player_edit.text().strip()
@@ -1067,6 +1136,8 @@ class MainWindow(QMainWindow):
             self.tag_add.refresh()
             self.tag_list.viewport().update()
             self.recheck_button.setIcon(line_icon("reload", 14, THEME["muted"]))
+        if hasattr(self, "picture_button"):
+            self.picture_button.setIcon(line_icon("picture", 14, THEME["muted"]))
         if hasattr(self, "watch_label"):
             self._set_result(self._watch_full, self._watch_tone, self._status_kind, self._watch_tip)
         if hasattr(self, "profile_chip"):
@@ -1141,6 +1212,18 @@ class MainWindow(QMainWindow):
         if getattr(self, "_closing", False):
             # Child widgets are being torn down. Touching them now raises.
             return False
+        closers = {
+            getattr(self, "player_edit", None): self._finish_player_name,
+            getattr(self, "tag_editor", None): self._finish_tag_edit,
+            getattr(self, "tag_new_edit", None): self._finish_tag_new,
+        }
+        finish = closers.get(watched) if watched is not None else None
+        if finish is not None:
+            if event.type() == QEvent.Type.KeyPress and event.key() == Qt.Key_Escape:
+                finish(keep=False)
+                return True
+            if event.type() == QEvent.Type.FocusOut:
+                finish()
         if event.type() == QEvent.Type.KeyPress and self._list_key(watched, event):
             return True
         edit = getattr(self, "hotkey_edit", None)
@@ -1192,11 +1275,14 @@ class MainWindow(QMainWindow):
                 self._schedule_detail_tip_hide()
         if watched.property("scanRow") is not None:
             button = watched.findChild(QPushButton, "rowDelete")
+            badge = [watched.findChild(QLabel, name) for name in ("recordHits", "recordHitCount")]
             kind = event.type()
-            if button is not None and kind == QEvent.Type.Enter:
-                button.show()
-            elif button is not None and kind == QEvent.Type.Leave:
-                button.hide()
+            if button is not None and kind in (QEvent.Type.Enter, QEvent.Type.Leave):
+                hovered = kind == QEvent.Type.Enter
+                button.setVisible(hovered)
+                for part in badge:
+                    if part is not None:
+                        part.setVisible(not hovered)
             elif kind == QEvent.Type.MouseButtonPress and event.button() == Qt.LeftButton:
                 scan = int(watched.property("scanRow"))
                 for row in range(self.history_list.count()):
@@ -1487,11 +1573,6 @@ class MainWindow(QMainWindow):
         self.more_button.setVisible(count > 0)
         for button in self.toolbar_buttons:
             button.setVisible(count > 0)
-        # The tab badge stops at 99+; the exact number is here.
-        if self._search_text() or self._tag_filter:
-            self.list_count.setText(f"找到 {len(rows)} 人")
-        else:
-            self.list_count.setText(f"共 {count} 人" if count else "")
         if count and rows:
             self.list_empty.hide()
             self.blacklist_table.setVisible(True)
@@ -1941,12 +2022,14 @@ class MainWindow(QMainWindow):
             count.setFont(chinese_font(SMALL_PT))
             count.setAttribute(Qt.WA_TransparentForMouseEvents, True)
             count.setStyleSheet(f'color: {THEME["red"]}; background: transparent;')
-            line.addSpacing(8)
+            line.addStretch(1)
             line.addWidget(flag, 0, Qt.AlignVCenter)
             line.addSpacing(3)
             line.addWidget(count, 0, Qt.AlignVCenter)
+            line.addSpacing(6)
             wrap.setToolTip(f"{hits} 人在黑名单里")
-        line.addStretch(1)
+        else:
+            line.addStretch(1)
         remove = QPushButton("×")
         remove.setObjectName("rowDelete")
         remove.setFixedSize(22, 22)
@@ -2067,7 +2150,6 @@ class MainWindow(QMainWindow):
         self.history_table.setRowCount(0)
         if row < 0 or row >= len(self.store.scans):
             self.record_time.setText("")
-            self.record_summary.setText("")
             return
         day, clock = self._day_and_clock(str(self.store.scans[row].get("at", "")))
         self.record_time.setText(f"{day} {clock}".strip())
@@ -2078,16 +2160,6 @@ class MainWindow(QMainWindow):
             kinds.append(self._set_history_seat(index // 2, index % 2, seat))
             self.history_table.setRowHeight(index // 2, ROW_H + 4)
         self._fit_record_card()
-        self._summarize_record(kinds.count("hit"), kinds.count("unclear"))
-
-    def _summarize_record(self, hits: int, unclear: int) -> None:
-        """What this lobby held, in the words the picture check uses."""
-        text = f"{hits} 人在黑名单里" if hits else "这间大厅里没有黑名单"
-        if unclear:
-            text += f"，{unclear} 人未识别"
-        self.record_summary.setText(text)
-        tone = THEME["red"] if hits else THEME["muted"]
-        self.record_summary.setStyleSheet(f"color: {tone}; background: transparent;")
 
     def _fit_record_card(self) -> None:
         """The table is exactly as tall as its rows, so the card ends with the last seat."""
@@ -2571,8 +2643,9 @@ class MainWindow(QMainWindow):
 
     def _sync_picture_buttons(self) -> None:
         busy = bool(self._picture_pending)
-        self.picture_button.setEnabled(not busy)
-        self.picture_button.setText("正在识别" if busy else "选择截图")
+        for button in (self.picture_button, self.picture_empty_button):
+            button.setEnabled(not busy)
+            button.setText("正在识别" if busy else "上传截图")
 
     def _on_picture(self, status: str, value) -> None:  # noqa: ANN001
         title = self._picture_pending or "截图检查"

@@ -19,8 +19,6 @@ from blacklist_detect.ui import (
     AddNameDialog,
     DayFolderIcon,
     MainWindow,
-    TagCreateDialog,
-    TagEditDialog,
     TagPill,
     _zh_clock,
     masked_name,
@@ -115,19 +113,27 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     assert window.blacklist_table.isHidden() is False
     assert window.hotkey_edit.text() == "Alt+1"
     assert window.hotkey_edit.isEnabled() is False
-    # 角色名称 sits beside the list on 黑名单, not in 设置.
-    # 角色名称 is changed from the header, in the box under its chip.
-    assert window.name_box.isAncestorOf(window.player_edit)
+    # 角色名称 is changed from the header, in place of its chip.
+    assert window.player_edit.parentWidget() is window.profile_chip.parentWidget()
     assert "点击修改" not in [label.text() for label in window.findChildren(QLabel)]
-    created = TagCreateDialog(window.store.tag_catalog(), parent=window)
-    created.name_edit.setText("红名")
-    created._accept()
-    assert created.created == "红名"
-    assert window.store.add_custom_tag(created.created)
-    window.store.save_settings()
-    window._fill_tag_list()
-    created.close()
+    # + turns the 标签 heading into a box for the new tag.
+    window._create_tag()
+    assert window.tag_new_edit.isHidden() is False and window.tag_title.isHidden()
+    window.tag_new_edit.setText("红名")
+    window._finish_tag_new()
+    assert window.tag_new_edit.isHidden() and window.tag_title.isHidden() is False
     assert window.store.tag_catalog() == ("炸房", "贴脸", "挂机", "场外", "不尊重底牌", "红名")
+    said: list[str] = []
+    monkeypatch.setattr(window, "_say", lambda text, undo=None: said.append(text))
+    window._create_tag()
+    window.tag_new_edit.setText("红名")
+    window._finish_tag_new()
+    assert said == ["已有这个标签"]
+    # Esc, or nothing typed, adds nothing.
+    window._create_tag()
+    window.tag_new_edit.setText("蓝名")
+    window._finish_tag_new(keep=False)
+    assert "蓝名" not in window.store.tag_catalog()
     picked = AddNameDialog(catalog=window.store.tag_catalog())
     assert [(pill._text, pill._active) for pill in picked.findChildren(TagPill)] == [
         ("炸房", False),
@@ -161,16 +167,26 @@ def test_renaming_a_tag_updates_the_edit_panel(qapp, tmp_path, monkeypatch):
     window = MainWindow()
     window.store.add("甲", tags=("炸房", "贴脸"))
     window._show_list()
-    taken = TagEditDialog("炸房", window.store.tag_catalog())
-    taken.name_edit.setText("贴脸")
-    taken._accept()
-    assert taken.error.text() == "已有这个标签"
-    dialog = TagEditDialog("炸房", window.store.tag_catalog())
-    dialog.name_edit.setText("闹房")
-    dialog._accept()
-    assert dialog.renamed == "闹房"
-    assert window.store.rename_tag("炸房", dialog.renamed) == "renamed"
-    window._refresh_tag_views()
+    said: list[str] = []
+    monkeypatch.setattr(window, "_say", lambda text, undo=None: said.append(text))
+    # The row turns into a box with the tag's name, over the row itself.
+    window._edit_tag("炸房")
+    editor = window.tag_editor
+    assert editor.isHidden() is False and editor.text() == "炸房"
+    row = [r for r in range(window.tag_list.count()) if window._tag_at(r) == "炸房"][0]
+    assert window.tag_list.visualItemRect(window.tag_list.item(row)).contains(editor.geometry().center())
+    editor.setText("贴脸")
+    window._finish_tag_edit()
+    assert said == ["已有这个标签"] and "炸房" in window.store.tag_catalog()
+    # Esc keeps the old name.
+    window._edit_tag("炸房")
+    editor.setText("别的")
+    window._finish_tag_edit(keep=False)
+    assert "别的" not in window.store.tag_catalog()
+    window._edit_tag("炸房")
+    editor.setText("闹房")
+    window._finish_tag_edit()
+    assert editor.isHidden()
     assert window.blacklist_table.item(0, 1).text() == "贴脸、闹房"
     edited = AddNameDialog("甲", window.store.entries[0].tags, catalog=window.store.tag_catalog())
     assert [(pill._text, pill._active) for pill in edited.findChildren(TagPill)] == [
@@ -582,27 +598,29 @@ def test_the_name_is_changed_from_the_header(qapp, tmp_path, monkeypatch):
     chip = window.profile_chip
     assert chip.name() == "" and chip.accessibleName() == "角色名称"
     assert chip.x() > window.status_chip.x(), "the name is at the far right"
+    place = chip.geometry()
     chip.click()
-    assert window.name_box.isVisible()
-    assert window.player_edit.placeholderText() == "游戏里的名字"
-    # The box opens under the chip, inside the window's right edge.
-    card = window.name_box.card
-    top_left = card.mapToGlobal(card.rect().topLeft())
-    top_right = card.mapToGlobal(card.rect().topRight())
-    assert top_left.y() >= chip.mapToGlobal(chip.rect().bottomLeft()).y()
-    # Its right edge is on the chip's, unless that would leave the screen.
-    assert top_right.x() <= chip.mapToGlobal(chip.rect().bottomRight()).x() + 1
-    window.player_edit.setText("纪戴宁")
-    _press(qapp, window.player_edit, Qt.Key_Return)
-    assert window.name_box.isVisible() is False
+    edit = window.player_edit
+    # The chip turns into a box for the name, where the chip was.
+    assert edit.isVisible() and chip.isHidden()
+    assert edit.placeholderText() == "游戏里的名字"
+    assert edit.height() == place.height() and edit.geometry().left() == place.left()
+    edit.setText("纪戴宁")
+    edit.returnPressed.emit()
+    assert edit.isHidden() and chip.isVisible()
     assert chip.name() == "纪戴宁"
     assert Store(window.store.root).player_name == "纪戴宁"
     # Esc puts the name back.
     chip.click()
-    window.player_edit.setText("别的名字")
-    _press(qapp, window.name_box, Qt.Key_Escape)
-    assert window.name_box.isVisible() is False
+    edit.setText("别的名字")
+    _press(qapp, edit, Qt.Key_Escape)
+    assert edit.isHidden() and chip.isVisible()
     assert window.store.player_name == "纪戴宁" and chip.name() == "纪戴宁"
+    # A click elsewhere keeps what was typed.
+    chip.click()
+    edit.setText("第三个名字")
+    qapp.sendEvent(edit, QFocusEvent(QEvent.Type.FocusOut, Qt.MouseFocusReason))
+    assert edit.isHidden() and window.store.player_name == "第三个名字"
     window.close()
 
 def test_tabs_show_counts_as_badges(qapp, tmp_path, monkeypatch):
@@ -1317,12 +1335,17 @@ def test_a_picture_check_opens_its_result(qapp, tmp_path, monkeypatch):
     shown = window._picture_dialog
     assert isinstance(shown, PictureResultDialog)
     assert shown.windowTitle() == "识别测试"
-    assert shown.summary.text() == "1 人在黑名单里，1 人未识别"
+    # The seats say it: no line above them counting hits and unread seats.
+    assert shown.summary.isHidden()
     # Cut short by the game: the name once, in full as the list has it.
     assert shown.seats[0].text() == "名0大王"
     assert shown.seats[3].text() == "未识别"
     assert window.picture_button.isEnabled() is True
-    assert window.picture_button.text() == "选择截图"
+    assert window.picture_button.text() == "上传截图"
+    assert window.picture_empty_button.text() == "上传截图"
+    # It lives on 记录, not in 设置.
+    assert window.tabs.widget(window.history_tab).isAncestorOf(window.picture_button)
+    assert window.tabs.widget(window.history_tab).isAncestorOf(window.picture_empty_button)
     shown.close()
     window._run_picture("x.png", "截图检查")
     window._on_worker(("picture", "ok", CheckResult(False, "没有找到这间大厅。")))
@@ -1858,14 +1881,12 @@ def test_the_list_counts_sorts_by_name_and_offers_a_start(qapp, tmp_path, monkey
     assert window.empty_add_button.isHidden() is False
     assert window.empty_batch_button.isHidden() is False
     assert all(button.isHidden() for button in window.toolbar_buttons)
-    assert window.list_count.text() == ""
     for name in ("张三", "阿强", "李四"):
         window.store.add(name)
     window._show_list()
-    assert window.list_count.text() == "共 3 人"
     assert not any(button.isHidden() for button in window.toolbar_buttons)
     window.list_search.setText("阿")
-    assert window.list_count.text() == "找到 1 人"
+    assert _shown_names(window) == ["阿强"]
     window.list_search.setText("没有这个")
     assert window.empty_add_button.isHidden(), "no-match is not the empty-list start"
     window.list_search.clear()
@@ -1892,14 +1913,12 @@ def test_a_record_says_what_it_found_and_shortens_long_names(qapp, tmp_path, mon
         ]
     )
     window._reload_history()
-    assert window.record_summary.text() == "1 人在黑名单里，1 人未识别"
     assert window.history_table.item(1, 0).toolTip() == long_name
     label = window.history_table.cellWidget(1, 0).findChild(QLabel)
     assert label.minimumSizeHint().width() < 100, "a long name can shrink to fit its seat"
     window.store.remove_scan(0)
     window.store.add_scan([{"seat": 1, "name": "路人甲", "unclear": False}])
     window._reload_history()
-    assert window.record_summary.text() == "这间大厅里没有黑名单"
     window.close()
 
 
@@ -2146,6 +2165,22 @@ def test_records_with_a_hit_are_marked_in_the_list(qapp, tmp_path, monkeypatch):
     assert rows[0].findChild(QLabel, "recordHitCount").text() == "2"
     assert rows[0].toolTip() == "2 人在黑名单里"
     assert rows[1].findChild(QLabel, "recordHitCount") is None
+    # The ⚠ count sits at the right end of its row, away from the time.
+    window.resize(900, 560)
+    window.tabs.setCurrentIndex(window.history_tab)
+    window.show()
+    qapp.processEvents()
+    row = rows[0]
+    count = row.findChild(QLabel, "recordHitCount")
+    clock = row.findChild(QLabel, "recordTime")
+    assert count.geometry().right() > row.width() - 24
+    assert count.geometry().left() > clock.geometry().right() + 20
+    # Under the pointer, × takes its place.
+    remove = row.findChild(QPushButton, "rowDelete")
+    qapp.sendEvent(row, QEvent(QEvent.Type.Enter))
+    assert remove.isVisible() and count.isHidden() and row.findChild(QLabel, "recordHits").isHidden()
+    qapp.sendEvent(row, QEvent(QEvent.Type.Leave))
+    assert remove.isHidden() and count.isVisible()
     # The search field carries its magnifier.
     assert window.list_search.actions()
     window.close()
@@ -2215,7 +2250,6 @@ def test_a_tag_beside_the_list_shows_only_its_names(qapp, tmp_path, monkeypatch)
     window.tag_list.setCurrentRow(1)
     assert window._tag_filter == "炸房"
     assert _shown_names(window) == ["甲", "乙"]
-    assert window.list_count.text() == "找到 2 人"
     # The search narrows the picked tag further.
     window.list_search.setText("乙")
     assert _shown_names(window) == ["乙"]
@@ -2226,7 +2260,6 @@ def test_a_tag_beside_the_list_shows_only_its_names(qapp, tmp_path, monkeypatch)
     # 全部 shows the whole list again; the tab badge counts it all the time.
     window.tag_list.setCurrentRow(0)
     assert _shown_names(window) == ["甲", "乙", "丙"]
-    assert window.list_count.text() == "共 3 人"
     assert window._tab_buttons[window.blacklist_tab].count() == 3
     # Counts follow the list; the picked tag stays picked.
     window.tag_list.setCurrentRow(2)
@@ -2270,18 +2303,9 @@ def test_renaming_or_deleting_the_picked_tag(qapp, tmp_path, monkeypatch):
     window.store.add("乙")
     window._show_list()
     window.tag_list.setCurrentRow(1)
-    answer = {"renamed": "闹房", "deleted": False}
-
-    class Edit:
-        def __init__(self, tag, _catalog, parent=None) -> None:  # noqa: ANN001
-            self.renamed = answer["renamed"]
-            self.deleted = answer["deleted"]
-
-        def exec(self) -> int:
-            return QDialog.Accepted
-
-    monkeypatch.setattr("blacklist_detect.ui.TagEditDialog", Edit)
     window._edit_tag("炸房")
+    window.tag_editor.setText("闹房")
+    window._finish_tag_edit()
     # The list stays on the tag under its new name.
     assert window._tag_filter == "闹房"
     assert window.tag_list.currentItem().text() == "闹房"
@@ -2289,15 +2313,13 @@ def test_renaming_or_deleting_the_picked_tag(qapp, tmp_path, monkeypatch):
     # Deleting a tag that names carry asks first, then goes back to 全部.
     asked: list[str] = []
     monkeypatch.setattr("blacklist_detect.ui._confirm", lambda _parent, text: asked.append(text) or True)
-    answer["deleted"] = True
-    window._edit_tag("闹房")
+    window._remove_tag("闹房")
     assert asked == ["1 个名字使用「闹房」：甲。确定删除？"]
     assert window._tag_filter == "" and window.tag_list.currentRow() == 0
     assert "闹房" not in window.store.tag_catalog()
     assert _shown_names(window) == ["甲", "乙"]
-    # One no name carries goes at once.
-    window._edit_tag("挂机")
-    assert len(asked) == 1 and "挂机" not in window.store.tag_catalog()
+    window._remove_tag("挂机")
+    assert "挂机" not in window.store.tag_catalog()
     window.close()
 
 
@@ -2389,6 +2411,7 @@ def test_chinese_input_stays_switchable_where_nothing_takes_text(qapp, tmp_path,
 
 
 def test_dialogs_say_their_title_once_and_dim_the_window(qapp, tmp_path, monkeypatch):
+    from blacklist_detect.ui import BatchAddDialog
     from blacklist_detect.ui_kit import ConfirmDialog, Modal
 
     monkeypatch.setenv("APPDATA", str(tmp_path))
@@ -2396,15 +2419,12 @@ def test_dialogs_say_their_title_once_and_dim_the_window(qapp, tmp_path, monkeyp
     window = MainWindow()
     window._watch_timer.stop()
     window.show()
-    dialog = TagEditDialog("贴脸", window.store.tag_catalog(), parent=window)
+    dialog = AddNameDialog(catalog=window.store.tag_catalog(), parent=window)
     # No Windows title bar: the card's own row is the only place the title is said.
     assert isinstance(dialog, Modal)
     assert dialog.windowFlags() & Qt.FramelessWindowHint
     texts = [label.text() for label in dialog.findChildren(QLabel)]
-    assert texts.count("编辑标签") == 1
-    # One box needs no label: the title names it. Screen readers still hear it.
-    assert "标签" not in texts
-    assert dialog.name_edit.accessibleName() == "标签"
+    assert texts.count("添加") == 1
     # It lies over the window it belongs to and dims it, so a click anywhere outside the card reaches it.
     dialog.show()
     qapp.processEvents()
@@ -2423,26 +2443,26 @@ def test_dialogs_say_their_title_once_and_dim_the_window(qapp, tmp_path, monkeyp
     click_at(dialog, QPoint(4, 4))
     assert dialog.isVisible() and dialog.shaking()
     # A click inside the card is not a click outside.
-    dialog.name_edit.setText("贴脸")
     click_at(dialog, dialog.card.geometry().center())
     assert dialog.isVisible()
     # Unchanged, a click outside closes it, without saving.
+    dialog.name_edit.setText("")
     click_at(dialog, QPoint(4, 4))
     assert dialog.isVisible() is False and dialog.result() == QDialog.Rejected
     # × always closes; it is not a Tab stop, like a title bar's ×.
-    again = TagEditDialog("贴脸", window.store.tag_catalog(), parent=window)
+    again = AddNameDialog(catalog=window.store.tag_catalog(), parent=window)
     again.show()
     again.name_edit.setText("改过了")
     assert again.close_button.focusPolicy() == Qt.NoFocus
     again.close_button.click()
     assert again.isVisible() is False and again.result() == QDialog.Rejected
     # The forms have no 取消; the confirmation keeps it, as its safe default.
-    for form in (dialog, TagCreateDialog(window.store.tag_catalog(), parent=window), AddNameDialog(parent=window)):
+    for form in (dialog, BatchAddDialog(window.store.tag_catalog(), parent=window), AddNameDialog(parent=window)):
         assert "取消" not in [button.text() for button in form.findChildren(QPushButton)]
         form.close()
     # Every kind of dialog is built the same way.
     for made in (
-        TagCreateDialog(window.store.tag_catalog(), parent=window),
+        BatchAddDialog(window.store.tag_catalog(), parent=window),
         AddNameDialog(catalog=window.store.tag_catalog(), parent=window),
         ConfirmDialog(window, "清空黑名单", "黑名单里的 1 个名字会被删除。", "清空", danger=True),
     ):

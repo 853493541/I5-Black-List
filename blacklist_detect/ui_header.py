@@ -3,15 +3,15 @@
 StatusChip is a tinted pill with a dot and a few words. A click flips 自动检查 and 手动检查;
 under the pointer the dot turns into the flip arrows to say so.
 
-ProfileChip shows 角色名称 the way an app shows its account, at the far right. A click opens
-NamePopover, a small box to change it.
+ProfileChip shows 角色名称 the way an app shows its account, at the far right, with a pen.
+A click turns it into a box for the name, in the same place (see MainWindow._edit_player_name).
 """
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPoint, QRectF, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QGuiApplication, QPainter, QPen
-from PySide6.QtWidgets import QAbstractButton, QFrame, QGraphicsDropShadowEffect, QLabel, QLineEdit, QVBoxLayout, QWidget
+from PySide6.QtCore import QPoint, QRectF, QSize, Qt
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen
+from PySide6.QtWidgets import QAbstractButton, QWidget
 
 from blacklist_detect.ui_icons import pixmap as line_pixmap
 from blacklist_detect.ui_kit import _KeyboardRing, activates
@@ -169,7 +169,7 @@ def _initial(name: str) -> str:
 
 
 class ProfileChip(_KeyboardRing, QAbstractButton):
-    """角色名称 with a round initial, and a chevron that says a click opens it for a change."""
+    """角色名称 with a round initial, and a pen that says a click edits it."""
 
     _AVATAR = 24
     _PAD_L = 3
@@ -260,75 +260,6 @@ class ProfileChip(_KeyboardRing, QAbstractButton):
         text = self._shown()
         width = QFontMetrics(self._font()).horizontalAdvance(text)
         painter.drawText(QRectF(x, 0, width + 2, self.height()), Qt.AlignLeft | Qt.AlignVCenter, text)
-        painter.drawPixmap(QPoint(round(x + width + 6), round(middle - 6)), line_pixmap("chevron_down", 12, THEME["muted"]))
+        painter.drawPixmap(QPoint(round(x + width + 6), round(middle - 6)), line_pixmap("edit", 12, THEME["muted"]))
         if self.show_ring():
             _ring(painter, body)
-
-
-class NamePopover(QWidget):
-    """The small box under ProfileChip. Enter or a click elsewhere keeps the name; Esc puts it back."""
-
-    closed = Signal()
-    # Room around the card for its shadow: left, top, right, bottom.
-    _SHADOW = (14, 8, 14, 20)
-
-    def __init__(self, parent: QWidget) -> None:
-        super().__init__(parent, Qt.Popup | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
-        self.setAttribute(Qt.WA_TranslucentBackground, True)
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(*self._SHADOW)
-        card = QFrame()
-        card.setObjectName("popover")
-        shadow = QGraphicsDropShadowEffect(card)
-        shadow.setBlurRadius(28)
-        shadow.setOffset(0, 6)
-        shadow.setColor(QColor(0, 0, 0, 56))
-        card.setGraphicsEffect(shadow)
-        self.card = card
-        outer.addWidget(card)
-        layout = QVBoxLayout(card)
-        layout.setContentsMargins(16, 14, 16, 16)
-        layout.setSpacing(8)
-        title = QLabel("角色名称")
-        title.setObjectName("popoverTitle")
-        layout.addWidget(title)
-        self.edit = QLineEdit()
-        self.edit.setPlaceholderText("游戏里的名字")
-        self.edit.setAccessibleName("角色名称")
-        self.edit.returnPressed.connect(self.close)
-        layout.addWidget(self.edit)
-        hint = QLabel("记录里会标出你自己。")
-        hint.setObjectName("rowHint")
-        hint.setWordWrap(True)
-        layout.addWidget(hint)
-        self.setFixedWidth(280 + self._SHADOW[0] + self._SHADOW[2])
-        self._before = ""
-
-    def open_below(self, anchor: QWidget) -> None:
-        """Open under the anchor, the card's right edge on the anchor's, inside the screen."""
-        self._before = self.edit.text()
-        self.adjustSize()
-        left, top, right, _bottom = self._SHADOW
-        corner = anchor.mapToGlobal(QPoint(anchor.width(), anchor.height() + 6))
-        place = QPoint(corner.x() - self.width() + right, corner.y() - top)
-        screen = QGuiApplication.screenAt(corner) or QGuiApplication.primaryScreen()
-        if screen is not None:
-            area = screen.availableGeometry()
-            place.setX(max(area.left() - left, min(place.x(), area.right() - self.width() + right)))
-            place.setY(max(area.top() - top, min(place.y(), area.bottom() - self.height())))
-        self.move(place)
-        self.show()
-        self.edit.setFocus(Qt.PopupFocusReason)
-        self.edit.selectAll()
-
-    def keyPressEvent(self, event) -> None:  # noqa: ANN001
-        if event.key() == Qt.Key_Escape:
-            self.edit.setText(self._before)
-            self.close()
-            return
-        super().keyPressEvent(event)
-
-    def hideEvent(self, event) -> None:  # noqa: ANN001
-        super().hideEvent(event)
-        self.closed.emit()
-

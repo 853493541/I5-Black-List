@@ -106,90 +106,6 @@ def _confirm(parent, text: str, title: str = "黑名单检测", confirm: str = "
     return ConfirmDialog.ask(parent, title, text, confirm, danger=True)
 
 
-class TagEditDialog(Modal):
-    """Rename one tag, or delete it from the list and from every name."""
-
-    def __init__(self, tag: str, catalog: tuple[str, ...], parent=None) -> None:
-        super().__init__(parent)
-        self.original = tag
-        self.catalog = catalog
-        self.renamed = tag
-        self.deleted = False
-        layout = _frame(self, "编辑标签")
-        self.name_edit = QLineEdit(tag)
-        self.name_edit.setAccessibleName("标签")
-        self.error = _field(layout, "", self.name_edit)
-        self.name_edit.textChanged.connect(self._clear_error)
-        # The destructive button stands apart on the left, away from 保存.
-        _footer(self, _primary("保存", self._accept), left=_danger("删除", self._delete))
-        self.card.setMinimumWidth(380)
-        self.name_edit.returnPressed.connect(self._accept)
-        _pointing(self)
-
-    def _clear_error(self, *_args) -> None:
-        _say_error(self.error, "")
-
-    def has_changes(self) -> bool:
-        return self.name_edit.text().strip() != self.original
-
-    def _accept(self) -> None:
-        from blacklist_detect.storage import clean_tag
-
-        renamed = clean_tag(self.name_edit.text())
-        if not renamed:
-            _say_error(self.error, "请填写标签")
-            return
-        if renamed != self.original and renamed in self.catalog:
-            _say_error(self.error, "已有这个标签")
-            return
-        _say_error(self.error, "")
-        self.renamed = renamed
-        self.deleted = False
-        self.accept()
-
-    def _delete(self) -> None:
-        self.deleted = True
-        self.accept()
-
-
-class TagCreateDialog(Modal):
-    """Name a tag that is not in the list yet."""
-
-    def __init__(self, catalog: tuple[str, ...], parent=None) -> None:
-        super().__init__(parent)
-        self.catalog = catalog
-        self.created = ""
-        layout = _frame(self, "新标签")
-        self.name_edit = QLineEdit()
-        self.name_edit.setAccessibleName("标签")
-        self.error = _field(layout, "", self.name_edit)
-        self.name_edit.textChanged.connect(self._clear_error)
-        _footer(self, _primary("添加", self._accept))
-        self.card.setMinimumWidth(380)
-        self.name_edit.returnPressed.connect(self._accept)
-        _pointing(self)
-
-    def _clear_error(self, *_args) -> None:
-        _say_error(self.error, "")
-
-    def has_changes(self) -> bool:
-        return bool(self.name_edit.text().strip())
-
-    def _accept(self) -> None:
-        from blacklist_detect.storage import clean_tag
-
-        tag = clean_tag(self.name_edit.text())
-        if not tag:
-            _say_error(self.error, "请填写标签")
-            return
-        if tag in self.catalog:
-            _say_error(self.error, "已有这个标签")
-            return
-        _say_error(self.error, "")
-        self.created = tag
-        self.accept()
-
-
 class AddNameDialog(Modal):
     """One player. Click a tag to put it on this record, and click it again to take it off."""
 
@@ -327,13 +243,8 @@ class BatchAddDialog(Modal):
         self.annotated: list[tuple[str, tuple[str, ...], str]] | None = None
         self.catalog = catalog or TAGS
         layout = _frame(self, "批量导入")
-        hint = QLabel(
-            "可以这样粘贴：\n"
-            "· 一行一个：名字，炸房，贴脸，原因\n"
-            "· 名字（说明），说明里的标签会自动选上\n"
-            "· 只有名字，用空格或换行隔开\n"
-            "· 朋友用「复制名单」发来的名单"
-        )
+        # Only the shapes a paste can take; a list from 复制名单 needs no explaining.
+        hint = QLabel("可以这样粘贴：\n小明 小红\n小明，炸房，开局就炸\n小明（开局就炸房）")
         hint.setObjectName("hintBox")
         layout.addWidget(hint)
         self.edit = QPlainTextEdit()
@@ -400,14 +311,8 @@ class PictureResultDialog(Modal):
             reason = result.message if result is not None else ""
             self.summary.setText(f"{reason}\n截图里要有「推演成功」大厅的画面。".strip())
         else:
-            if result.hits:
-                head = f"{len(result.hits)} 人在黑名单里"
-            else:
-                head = "这间大厅里没有黑名单"
-            unclear = sum(1 for slot in result.names if slot.unclear)
-            if unclear:
-                head += f"，{unclear} 人未识别"
-            self.summary.setText(head)
+            # The seats say it: red ones are on the list, grey ones were not read.
+            self.summary.hide()
             hits = {}
             for hit in result.hits:
                 hits.setdefault(hit.index, hit)

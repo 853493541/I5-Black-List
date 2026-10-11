@@ -112,7 +112,9 @@ def main() -> int:
     dialog = window._picture_dialog
     seats = [seat.text() for seat in dialog.seats] if dialog is not None else []
     check("截图检查 reads twelve seats", len(seats) == 12, "、".join(seats))
-    check("截图检查 marks the listed player", dialog is not None and "1 人在黑名单里" in dialog.summary.text(), dialog.summary.text() if dialog else "")
+    # A listed player's seat carries the warning mark, and the dialog adds no counting line.
+    warned = [seat.text() for seat in dialog.seats if seat.parentWidget().findChild(QLabel, "seatWarn")] if dialog else []
+    check("截图检查 marks the listed player", warned == ["gffdsd"] and dialog.summary.isHidden(), "、".join(warned))
     if dialog is not None:
         dialog.close()
 
