@@ -789,7 +789,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(scroll, 1)
         metrics = QFontMetrics(chinese_font())
         slot = metrics.horizontalAdvance("手动检查") + 28
-        label_width = metrics.horizontalAdvance("关闭到托盘") + 8
+        label_width = metrics.horizontalAdvance("关闭窗口时") + 8
 
         def section(title: str) -> SettingsSection:
             card = SettingsSection(title, label_width, compact=True)
@@ -831,12 +831,12 @@ class MainWindow(QMainWindow):
         self.autostart_switch.setEnabled(autostart.available())
         self.autostart_switch.toggled.connect(self._set_autostart)
         general.add_row("开机启动", self.autostart_switch, hint="开机后在右下角托盘里运行")
-        self.tray_switch = Switch(self.store.close_to_tray)
-        self.tray_switch.setAccessibleName("关闭到托盘")
-        self.tray_switch.toggled.connect(self._set_close_to_tray)
-        general.add_row(
-            "关闭到托盘", self.tray_switch, hint="开着时，点 × 会缩小到右下角托盘，继续检查大厅；关掉时直接退出。"
+        # Asked the way Chinese desktop apps ask it: what × does, with both answers in view.
+        self.close_mode = SegmentedControl(
+            [("tray", "最小化到托盘"), ("quit", "退出程序")], "tray" if self.store.close_to_tray else "quit"
         )
+        self.close_mode.changed.connect(self._on_close_mode)
+        general.add_row("关闭窗口时", self.close_mode)
 
         # 外观: how the window looks.
         look = section("外观")
@@ -1013,7 +1013,7 @@ class MainWindow(QMainWindow):
         if autostart.is_enabled():
             autostart.set_enabled(False)
         self._sync_switch(self.autostart_switch, autostart.is_enabled())
-        self._sync_switch(self.tray_switch, self.store.close_to_tray)
+        self.close_mode.set_current("tray" if self.store.close_to_tray else "quit")
         if not self._watch_timer.isActive():
             self.watch = LobbyWatch()
             self._watch_timer.start()
@@ -2592,6 +2592,9 @@ class MainWindow(QMainWindow):
             log.warning("Could not change start with Windows to %s", enabled)
             self._say("没能更改开机启动")
         self._sync_switch(self.autostart_switch, autostart.is_enabled())
+
+    def _on_close_mode(self, key: str) -> None:
+        self._set_close_to_tray(key == "tray")
 
     def _set_close_to_tray(self, enabled: bool) -> None:
         self.store.close_to_tray = bool(enabled)

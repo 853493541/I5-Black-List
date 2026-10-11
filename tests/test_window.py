@@ -1980,17 +1980,19 @@ def test_closing_quits_or_goes_to_the_tray_as_set(qapp, tmp_path, monkeypatch):
             pass
 
     real_tray, window.tray = window.tray, Tray()
-    assert window.tray_switch.isChecked() is True
+    assert window.close_mode.current() == "tray"
     stay = TitleBarClose()
     window.closeEvent(stay)
     assert stay.ignored is True and window._closing is False
-    window.tray_switch.click()
+    # 关闭窗口时: 最小化到托盘 or 退出程序, both in view.
+    assert [button.text() for button in window.close_mode.buttons.values()] == ["最小化到托盘", "退出程序"]
+    window.close_mode.buttons["quit"].click()
     assert window.store.close_to_tray is False
     assert Store(window.store.root).close_to_tray is False
     monkeypatch.setattr("blacklist_detect.ui.QMainWindow.closeEvent", lambda self, event: None)
     leave = TitleBarClose()
     window.closeEvent(leave)
-    assert leave.ignored is False and window._closing is True, "× quits when 关闭窗口 is off"
+    assert leave.ignored is False and window._closing is True, "× quits when 关闭窗口时 is 退出程序"
     window.tray = real_tray
 
 
@@ -2021,10 +2023,10 @@ def test_the_start_with_windows_switch(qapp, tmp_path, monkeypatch):
     assert window.toast.text.text() == "没能更改开机启动"
     state["works"] = True
     monkeypatch.setattr("blacklist_detect.ui._confirm", lambda *_args: True)
-    window.tray_switch.click()
+    window.close_mode.buttons["quit"].click()
     window._ask_reset()
     assert state["on"] is False and switch.isChecked() is False, "清空数据 turns it off"
-    assert window.tray_switch.isChecked() is True
+    assert window.close_mode.current() == "tray"
     window.close()
 
 
