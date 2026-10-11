@@ -75,8 +75,9 @@ Friends get a folder with its own Python, so they do not install anything:
 
 ```
 BlackListDetect\
-  黑名单检测.exe          launcher (build/launcher.spec), starts runtime\pythonw.exe
-  runtime\               embeddable Python 3.12 with the packages installed
+  黑名单检测.exe          launcher (build/launcher.spec), starts runtime\I5黑名单.exe
+  runtime\               embeddable Python 3.12 with the packages installed;
+                         I5黑名单.exe is its pythonw.exe with the app's name and icon (build/app_exe.py)
   blacklist_detect\      the app, plus models\ with the three PaddleOCR folders
 ```
 

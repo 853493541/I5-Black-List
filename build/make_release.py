@@ -32,6 +32,9 @@ import tempfile
 import zipfile
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from app_exe import make_app_exe  # noqa: E402
+
 REPO = Path(__file__).resolve().parent.parent
 FOLDER = "BlackListDetect"
 EXE_NAME = "黑名单检测.exe"
@@ -284,6 +287,8 @@ def main() -> int:
     )
     shutil.copytree(args.models, stage / "blacklist_detect" / "models")
     shutil.copy2(args.launcher, stage / EXE_NAME)
+    # The app's own process name and icon: runtime\I5黑名单.exe (see build/app_exe.py).
+    app_exe = make_app_exe(stage / "runtime", _version()).relative_to(stage)
 
     print("Left out of the runtime:")
     for rule, size in sorted(pruner.dropped.items(), key=lambda item: -item[1]):
@@ -307,10 +312,11 @@ def main() -> int:
     update = args.out / f"{FOLDER}-{version}-update.zip"
     print("Zipping ...")
     _zip(stage, full, lambda rel: True)
+    # An update carries the app, the launcher, and the app's exe, since both changed with the code.
     _zip(
         stage,
         update,
-        lambda rel: rel.parts[0] == "blacklist_detect" and "models" not in rel.parts,
+        lambda rel: (rel.parts[0] == "blacklist_detect" and "models" not in rel.parts) or rel in (Path(EXE_NAME), app_exe),
     )
     print(f"Folder: {_size(stage) / 1e6:.0f} MB unpacked (source runtime {_size(args.runtime) / 1e6:.0f} MB)")
     print(f"  {full.name}: {full.stat().st_size / 1e6:.1f} MB")

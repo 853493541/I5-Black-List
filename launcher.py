@@ -1,7 +1,9 @@
 """Open the app with the Python that ships beside this program.
 
 A friend does not need Python installed. The exe sits next to ``runtime``
-and the ``blacklist_detect`` folder.
+and the ``blacklist_detect`` folder. The app runs as runtime\\I5黑名单.exe, a copy
+of pythonw.exe with the app's name and icon (build/app_exe.py); an older folder
+without it still runs pythonw.exe.
 """
 
 from __future__ import annotations
@@ -20,7 +22,9 @@ def app_root() -> Path:
 
 def main() -> int:
     root = app_root()
-    pythonw = root / "runtime" / "pythonw.exe"
+    pythonw = root / "runtime" / "I5黑名单.exe"
+    if not pythonw.is_file():
+        pythonw = root / "runtime" / "pythonw.exe"
     if not pythonw.is_file():
         import ctypes
 

@@ -28,7 +28,8 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "build"))
 
-from make_release import EXE_NAME, Pruner, _verify  # noqa: E402
+from app_exe import make_app_exe  # noqa: E402
+from make_release import EXE_NAME, Pruner, _verify, _version  # noqa: E402
 
 from blacklist_detect.paths import message_running_copy  # noqa: E402
 
@@ -53,13 +54,17 @@ def _powershell(script: str) -> str:
     return done.stdout.strip()
 
 
+# The app's process, by name: I5黑名单.exe, or pythonw.exe in a folder from before it.
+_APP_PROCESSES = "($_.Name -like 'I5*.exe' -or $_.Name -eq 'pythonw.exe' -or $_.Name -eq 'python.exe')"
+
+
 def running_copies(root: Path) -> list[int]:
     """Process ids of the app started from this folder."""
     folder = str(root).replace("'", "''")
     found = _powershell(
         "[Console]::OutputEncoding = [Text.Encoding]::UTF8; "
-        "Get-CimInstance Win32_Process -Filter \"Name='pythonw.exe' or Name='python.exe'\" | "
-        f"Where-Object {{ $_.ExecutablePath -like '{folder}\\*' }} | ForEach-Object {{ $_.ProcessId }}"
+        f"Get-CimInstance Win32_Process | Where-Object {{ {_APP_PROCESSES} -and "
+        f"$_.ExecutablePath -like '{folder}\\runtime\\*' }} | ForEach-Object {{ $_.ProcessId }}"
     )
     return [int(line) for line in found.split() if line.strip().isdigit()]
 
@@ -69,8 +74,8 @@ def other_copies(root: Path) -> list[str]:
     folder = str(root).replace("'", "''")
     found = _powershell(
         "[Console]::OutputEncoding = [Text.Encoding]::UTF8; "
-        "Get-CimInstance Win32_Process -Filter \"Name='pythonw.exe' or Name='python.exe'\" | "
-        "Where-Object { $_.ExecutablePath -like '*\\runtime\\python*.exe' -and "
+        f"Get-CimInstance Win32_Process | Where-Object {{ {_APP_PROCESSES} -and "
+        "$_.ExecutablePath -like '*\\runtime\\*.exe' -and "
         f"$_.ExecutablePath -notlike '{folder}\\*' }} | "
         "ForEach-Object { Split-Path (Split-Path $_.ExecutablePath) }"
     )
@@ -187,6 +192,10 @@ def main() -> int:
                 raise SystemExit(f"missing {path}")
         install_runtime(root, args.runtime, args.models)
 
+    # The app's own exe, named and with its icon, made again when the version changes.
+    before = (root / "runtime" / "I5黑名单.exe").read_bytes() if (root / "runtime" / "I5黑名单.exe").is_file() else b""
+    if make_app_exe(root / "runtime", _version()).read_bytes() != before:
+        print("Made runtime\\I5黑名单.exe.")
     copied, removed = sync_tree(REPO / "blacklist_detect", root / "blacklist_detect")
     launcher = root / EXE_NAME
     if args.launcher.is_file() and not _same(args.launcher, launcher):
