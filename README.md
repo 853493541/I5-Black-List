@@ -75,7 +75,7 @@ Friends get a folder with its own Python, so they do not install anything:
 
 ```
 BlackListDetect\
-  黑名单检测.exe          launcher (build/launcher.spec), starts runtime\I5黑名单.exe
+  黑名单检测.exe          launcher (build/launcher/Launcher.cs, 17 KB), starts runtime\I5黑名单.exe
   runtime\               embeddable Python 3.12 with the packages installed;
                          I5黑名单.exe is its pythonw.exe with the app's name and icon (build/app_exe.py)
   blacklist_detect\      the app, plus models\ with the three PaddleOCR folders
@@ -84,16 +84,19 @@ BlackListDetect\
 Make the zips from an assembled `dist\黑名单检测\runtime`:
 
 ```bash
+python build/build_launcher.py
 python build/make_release.py
 ```
 
+`build_launcher.py` compiles the launcher with the C# compiler that is part of
+Windows; .NET Framework 4.8, also part of Windows 10 and 11, runs it.
+
 It copies the runtime without the files the app never loads (unused Qt modules,
 pip, test suites, headers, dxcam, and other PaddleX extras), runs the copy once
-on the reference lobby, and writes two zips to `dist
-elease\`:
+on the reference lobby, and writes two zips to `dist\release\`:
 
 - `BlackListDetect-<version>-full.zip` for a first install. Right-click, Extract All, then run `黑名单检测.exe` in the folder.
-- `BlackListDetect-<version>-update.zip` with only the app code. Extract it over the old folder. If `launcher.py` changed, send the full zip instead.
+- `BlackListDetect-<version>-update.zip` with only the app code. Extract it over the old folder.
 
 ## Run the newest code on this PC
 

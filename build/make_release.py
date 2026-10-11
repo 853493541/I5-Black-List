@@ -55,6 +55,15 @@ DROP_PACKAGES = {
     "libfuturize": None,
     "libpasteurize": None,
     "fsspec": "fsspec-",
+    # Loaded only to download models or print benchmark tables; the models ship in the folder.
+    # (pypdfium2 stays: PaddleX will not build the OCR pipeline unless it is installed.)
+    "wcwidth": "wcwidth-",
+    "safetensors": "safetensors-",
+    "anyio": "anyio-",
+    "h11": "h11-",
+    "httpcore": "httpcore-",
+    "httpcore2": "httpcore2-",
+    "httpx2": "httpx2-",
 }
 
 # PySide6 is the full Qt. The app uses widgets, plus QtNetwork's local socket so only one copy runs.
@@ -116,6 +125,19 @@ MAX_INNER_PATH = 170
 DROP_DIR_NAMES = {"tests"}
 DROP_FILE_GLOBS = ("*.lib", "*.h", "*.hpp", "*.pyi", "opencv_videoio_ffmpeg*.dll")
 
+# Single files, by path inside site-packages, that nothing loads.
+DROP_SITE_FILES = {
+    # Screenshots are PNG, JPG, BMP or WebP (the 选择截图 filter); Pillow skips AVIF without it.
+    "PIL/_avif.*.pyd": "Pillow AVIF codec",
+    "numpy/_core/_simd.*.pyd": "numpy SIMD test module",
+    "PySide6/plugins/platforms/qdirect2d.dll": "Qt plugins for other platforms and formats",
+    "PySide6/plugins/platforms/qminimal.dll": "Qt plugins for other platforms and formats",
+    "PySide6/plugins/imageformats/qtiff.dll": "Qt plugins for other platforms and formats",
+    "PySide6/plugins/imageformats/qicns.dll": "Qt plugins for other platforms and formats",
+    # Needs Qt6Pdf.dll, which is left out with the other unused Qt modules.
+    "PySide6/plugins/imageformats/qpdf.dll": "Qt plugins for other platforms and formats",
+}
+
 
 class Pruner:
     def __init__(self, site: Path) -> None:
@@ -157,6 +179,10 @@ class Pruner:
             return "modelscope model and training code"
         if parts[:2] == ("cv2", "data") and name.endswith(".xml"):
             return "OpenCV face-detection data"
+        if path.is_file():
+            for pattern, rule in DROP_SITE_FILES.items():
+                if fnmatch.fnmatch(rel.as_posix(), pattern):
+                    return rule
         if path.is_dir() and name in DROP_DIR_NAMES:
             return "test suites"
         if path.is_dir() and name == "include" and not any(path.rglob("*.py")):
@@ -263,7 +289,7 @@ def main() -> int:
     parser.add_argument("--models", type=Path, default=REPO / "dist" / "黑名单检测" / "blacklist_detect" / "models",
                         help="folder with PP-OCRv5_mobile_det, PP-OCRv5_mobile_rec, PP-OCRv6_medium_rec")
     parser.add_argument("--launcher", type=Path, default=REPO / "dist" / "exe" / EXE_NAME,
-                        help="launcher exe built from launcher.py (see build/launcher.spec)")
+                        help="launcher exe made by build/build_launcher.py")
     parser.add_argument("--out", type=Path, default=REPO / "dist" / "release")
     parser.add_argument("--skip-verify", action="store_true")
     args = parser.parse_args()
