@@ -639,9 +639,9 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     window._on_lobby_placed(button)
     assert window.panel.isVisible() is True
     assert window.panel.mode == "checking"
-    # Dark glass with a turning arc hides the button while the check runs.
-    assert window.panel.text() == "检查中…"
-    assert window.panel.spinning() and window.panel.ring() == ""
+    # A pulsing yellow block with 检查中 hides the button while the check runs.
+    assert window.panel.text() == "检查中"
+    assert window.panel.pulsing() and window.panel.ring() == ""
     assert not (window.panel.windowFlags() & Qt.WindowTransparentForInput)
     assert window.hit_card.isVisible() is False
     assert window.clear_mark.isVisible() is False
@@ -649,7 +649,7 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     window._on_checked("ok", CheckResult(True, "", button_box=button))
     assert window.panel.mode == "clear"
     assert window.panel.text() == ""
-    assert window.panel.spinning() is False
+    assert window.panel.pulsing() is False
     assert window.panel.ring() == "#17b26a"
     assert window.panel.toolTip() == "没有黑名单"
     assert window.clear_mark.isVisible() is True
@@ -769,7 +769,7 @@ def test_panel_covers_the_accept_button(qapp, tmp_path, monkeypatch):
     # The cover's corners follow the button's: rounded, not a pill, and not square.
     assert window.panel.mask().contains(QPoint(window.panel.height() // 4, 2))
     assert not window.panel.mask().contains(QPoint(0, 0))
-    assert window.panel.spinning()
+    assert window.panel.pulsing()
     window._show_panel(CheckResult(True, "", button_box=button))
     assert window.panel.mode == "clear"
     assert window.panel.x() == round((100 + origin_x) / ratio) - outset
@@ -1459,7 +1459,7 @@ def test_the_cover_fades_in_once_and_does_not_blink_on_the_result(qapp):
     from blacklist_detect.ui_overlay import LobbyPanel
 
     panel = LobbyPanel()
-    panel.show_over(40, 40, 240, 60, "checking", "请等待")
+    panel.show_over(40, 40, 240, 60, "checking", "检查中")
     assert panel._fade_anim.startValue() == 0.0
     assert panel._fade_anim.endValue() == 1.0
     panel._fade_anim.stop()
@@ -1470,6 +1470,41 @@ def test_the_cover_fades_in_once_and_does_not_blink_on_the_result(qapp):
     assert panel.windowOpacity() == 1.0
     assert panel.mode == "hit"
     panel.hide()
+    panel.close()
+
+
+def test_the_checking_cover_is_yellow_with_its_words_centered(qapp):
+    from PySide6.QtGui import QColor
+
+    from blacklist_detect.ui_overlay import LobbyPanel
+
+    panel = LobbyPanel()
+    panel.setFixedSize(262, 80)
+    panel.set_mode("checking", "检查中")
+    assert panel.pulsing()
+    panel._pulse.stop()
+    panel._breathe(0.75)  # the pulse at its dimmest
+    dim = panel.grab().toImage()
+    panel._breathe(0.25)  # and at its brightest
+    bright = panel.grab().toImage()
+    ratio = dim.devicePixelRatio()
+    spot = (round(20 * ratio), round(20 * ratio))
+    yellow = QColor(dim.pixel(*spot))
+    assert yellow.red() > 230 and yellow.green() > 180 and yellow.blue() < 120
+    assert QColor(bright.pixel(*spot)).blue() > yellow.blue() + 20
+    # The words' ink sits in the middle: nothing beside them pulls them off center.
+    edge = round(5 * ratio)
+    ink = [
+        (x, y)
+        for y in range(edge, dim.height() - edge)
+        for x in range(edge, dim.width() - edge)
+        if QColor(dim.pixel(x, y)).lightness() < 80
+    ]
+    assert ink
+    xs = [x for x, _ in ink]
+    ys = [y for _, y in ink]
+    assert abs((min(xs) + max(xs)) / 2 - dim.width() / 2) <= 2 * ratio
+    assert abs((min(ys) + max(ys)) / 2 - dim.height() / 2) <= 3 * ratio
     panel.close()
 
 

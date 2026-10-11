@@ -201,37 +201,33 @@ def _focus_scene(app, window, snap) -> None:  # noqa: ANN001
 
 
 def _overlay_scenes(window, snap) -> None:  # noqa: ANN001
-    """The marks over a stand-in for the game: 请等待, a hit with its card, and a clear lobby."""
-    from PySide6.QtCore import QPoint, QRect, Qt
-    from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPixmap
+    """The marks over the reference lobby: 检查中, a hit with its card, and a clear lobby."""
+    from PySide6.QtCore import QPoint, QRect, QRectF
+    from PySide6.QtGui import QImage, QPainter, QPixmap
 
-    from blacklist_detect import ui
     from blacklist_detect.ui_overlay import _COVER_OUTSET
 
-    button = QRect(60, 90, 250, 64)
+    lobby = QImage(str(REPO / "tests" / "fixtures" / "reference-lobby.png"))
+    # 准备案件还原 in that screenshot, as the check finds it; the capture is at twice the scale.
+    x0, y0, x1, y1 = 1498, 1518, 2010, 1667
+    crop = QRectF(x0 - 220, y0 - 123, 1500, 300)
+    button = QRect(220 // 2, 123 // 2, (x1 - x0) // 2, (y1 - y0) // 2)
     outset = _COVER_OUTSET
 
     def scene(mode: str, text: str, beside=None) -> QPixmap:  # noqa: ANN001
         ratio = window.devicePixelRatioF()
-        canvas = QPixmap(round(860 * ratio), round(244 * ratio))
+        width, height = round(crop.width() / 2), round(crop.height() / 2)
+        canvas = QPixmap(round(width * ratio), round(height * ratio))
         canvas.setDevicePixelRatio(ratio)
         painter = QPainter(canvas)
         painter.setRenderHint(QPainter.Antialiasing)
-        shade = QLinearGradient(0, 0, 860, 244)
-        shade.setColorAt(0, QColor("#3a3128"))
-        shade.setColorAt(1, QColor("#17161a"))
-        painter.fillRect(canvas.rect(), shade)
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor("#c9772a"))
-        painter.drawRoundedRect(button, 9, 9)
-        painter.setPen(QColor("#fff7ec"))
-        painter.setFont(ui.chinese_font(13))
-        painter.drawText(button, Qt.AlignCenter, "准备案件还原")
+        painter.setRenderHint(QPainter.SmoothPixmapTransform)
+        painter.drawImage(QRectF(0, 0, width, height), lobby, crop)
         panel = window.panel
         panel.setFixedSize(button.width() + outset * 2, button.height() + outset * 2)
         panel.set_mode(mode, text)
-        panel._spin.stop()
-        panel._angle = 40.0
+        panel._pulse.stop()
+        panel._breathe(0.75)
         painter.drawPixmap(button.topLeft() - QPoint(outset, outset), panel.grab())
         if beside is not None:
             beside.layout().activate() if beside.layout() is not None else None
@@ -243,10 +239,10 @@ def _overlay_scenes(window, snap) -> None:  # noqa: ANN001
         painter.end()
         return canvas
 
-    snap("overlay_checking", picture=scene("checking", "检查中…"))
-    window.hit_card.set_people([("霁玥吉尔曼", ("炸房", "贴脸")), ("gffdsd", ("挂机",))], 70)
+    snap("overlay_checking", picture=scene("checking", "检查中"))
+    window.hit_card.set_people([("霁玥吉尔曼", ("炸房", "贴脸")), ("gffdsd", ("挂机",))], button.height())
     snap("overlay_hit", picture=scene("hit", "", window.hit_card))
-    window.clear_mark.set_size(70)
+    window.clear_mark.set_size(button.height())
     snap("overlay_clear", picture=scene("clear", "没有黑名单", window.clear_mark))
 
 

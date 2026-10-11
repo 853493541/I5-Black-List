@@ -2672,7 +2672,7 @@ class MainWindow(QMainWindow):
         quiet = self._rescan_active
         if live and self.panel.isVisible() and not quiet:
             self._panel_hide_timer.stop()
-            self.panel.set_mode("checking", "检查中…")
+            self.panel.set_mode("checking", "检查中")
             self.hit_card.hide()
             self.clear_mark.hide()
         if not self.worker.request(fn):
@@ -2882,7 +2882,7 @@ class MainWindow(QMainWindow):
         # A finished cover stays put. A second pass must not turn it yellow again.
         if self.panel.isVisible() and self.panel.mode in ("clear", "hit"):
             return
-        self._open_panel("checking", "检查中…", box)
+        self._open_panel("checking", "检查中", box)
         self.hit_card.hide()
         self.clear_mark.hide()
 

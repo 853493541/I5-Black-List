@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import sys
 
 from PySide6.QtCore import QEasingCurve, QPointF, QPropertyAnimation, QRectF, Qt, QVariantAnimation
@@ -10,7 +11,9 @@ from PySide6.QtGui import (
     QColor,
     QFont,
     QFontMetrics,
+    QLinearGradient,
     QPainter,
+    QPainterPath,
     QPen,
 )
 from PySide6.QtWidgets import (
@@ -89,6 +92,13 @@ GREEN = "#17b26a"
 _RED_TEXT = "#ff8f87"
 _RED_WASH = "#34f04438"  # #AARRGGBB: the red at about a fifth
 _INK = "#f5f6f8"
+# While a check runs: a yellow block that reads as "wait" on the game's dark blue lobby.
+_WAIT_TOP = QColor("#ffd84d")
+_WAIT_BOTTOM = QColor("#f2b705")
+_WAIT_INK = QColor("#1a1406")
+_WAIT_LINE = QColor(0, 0, 0, 120)
+# How bright the pulse gets: white over the yellow, at most this alpha.
+_WAIT_GLOW = 70
 
 
 def _fade_in(widget: QWidget, ms: int = 120) -> None:
@@ -325,8 +335,9 @@ class ClearMark(QWidget):
 class LobbyPanel(QWidget):
     """The cover sized to 准备案件还原. It sits on the button, not beside it.
 
-    While a check runs, dark glass hides the button, with a turning arc and 请等待. A hit draws
-    a red ring around the button and a clear lobby a green one; the button shows through.
+    While a check runs, a yellow block hides the button, with 检查中 in the middle, and pulses
+    gently. A hit draws a red ring around the button and a clear lobby a green one; the button
+    shows through.
     """
 
     def __init__(self) -> None:
@@ -343,20 +354,20 @@ class LobbyPanel(QWidget):
         self.setFocusPolicy(Qt.NoFocus)
         self.mode = ""
         self._text = ""
-        self._angle = 0.0
-        self._spin = QVariantAnimation(self)
-        self._spin.setStartValue(0.0)
-        self._spin.setEndValue(360.0)
-        self._spin.setDuration(900)
-        self._spin.setLoopCount(-1)
-        self._spin.valueChanged.connect(self._turn)
+        self._glow = 0.0
+        self._pulse = QVariantAnimation(self)
+        self._pulse.setStartValue(0.0)
+        self._pulse.setEndValue(1.0)
+        self._pulse.setDuration(1200)
+        self._pulse.setLoopCount(-1)
+        self._pulse.valueChanged.connect(self._breathe)
         self.setFont(chinese_font(BODY_PT))
 
     def text(self) -> str:
         return self._text
 
-    def spinning(self) -> bool:
-        return self._spin.state() == QVariantAnimation.State.Running
+    def pulsing(self) -> bool:
+        return self._pulse.state() == QVariantAnimation.State.Running
 
     def ring(self) -> str:
         """The ring's color, or "" when there is none."""
@@ -367,14 +378,15 @@ class LobbyPanel(QWidget):
         self.setToolTip(text)
         self._text = text if mode == "checking" else ""
         if mode == "checking":
-            if not self.spinning():
-                self._spin.start()
+            if not self.pulsing():
+                self._pulse.start()
         else:
-            self._spin.stop()
+            self._pulse.stop()
+            self._glow = 0.0
         self.update()
 
-    def _turn(self, value) -> None:  # noqa: ANN001
-        self._angle = float(value)
+    def _breathe(self, value) -> None:  # noqa: ANN001
+        self._glow = (math.sin(float(value) * 2 * math.pi) + 1) / 2
         self.update()
 
     def paintEvent(self, _event) -> None:  # noqa: ANN001
@@ -383,9 +395,15 @@ class LobbyPanel(QWidget):
         box = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
         radius = _cover_radius(self.height())
         if self.mode == "checking":
-            # Nearly opaque: the button must not show through while it is being checked.
-            painter.setPen(QPen(_GLASS_LINE, 1))
-            painter.setBrush(QColor(_GLASS.red(), _GLASS.green(), _GLASS.blue(), 250))
+            # Opaque: the button must not show through while it is being checked.
+            fill = QLinearGradient(box.topLeft(), box.bottomLeft())
+            fill.setColorAt(0.0, _WAIT_TOP)
+            fill.setColorAt(1.0, _WAIT_BOTTOM)
+            painter.setPen(QPen(_WAIT_LINE, 1))
+            painter.setBrush(fill)
+            painter.drawRoundedRect(box, radius, radius)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(255, 255, 255, round(_WAIT_GLOW * self._glow)))
             painter.drawRoundedRect(box, radius, radius)
             self._paint_waiting(painter)
             return
@@ -400,38 +418,29 @@ class LobbyPanel(QWidget):
         painter.drawRoundedRect(box.adjusted(inset, inset, -inset, -inset), max(1.0, radius - inset), max(1.0, radius - inset))
 
     def _paint_waiting(self, painter: QPainter) -> None:
-        """A turning arc and the words, centered on the cover."""
+        """The words, dead center on the cover, with nothing beside them to pull them off."""
+        if not self._text:
+            return
         face = chinese_font(BODY_PT)
-        face.setPixelSize(max(12, min(22, round(self.height() * 0.32))))
+        face.setPixelSize(max(12, min(30, round(self.height() * 0.36))))
         face.setWeight(QFont.Weight.DemiBold)
+        # Centered by the ink itself, not the font's box, which carries uneven side bearings.
+        outline = QPainterPath()
+        outline.addText(0, 0, face, self._text)
+        ink = outline.boundingRect()
         painter.setFont(face)
-        metrics = QFontMetrics(face)
-        words = metrics.horizontalAdvance(self._text) if self._text else 0
-        side = metrics.height() * 0.8
-        gap = 8 if self._text else 0
-        left = (self.width() - (side + gap + words)) / 2
-        middle = self.height() / 2
-        arc = QRectF(left, middle - side / 2, side, side)
-        painter.setBrush(Qt.NoBrush)
-        painter.setPen(QPen(QColor(255, 255, 255, 56), 2.2))
-        painter.drawEllipse(arc)
-        pen = QPen(QColor(_INK), 2.2)
-        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-        painter.setPen(pen)
-        painter.drawArc(arc, round(-self._angle * 16), 100 * 16)
-        if self._text:
-            painter.setPen(QColor(_INK))
-            painter.drawText(QRectF(left + side + gap, 0, words + 2, self.height()), Qt.AlignLeft | Qt.AlignVCenter, self._text)
+        painter.setPen(_WAIT_INK)
+        painter.drawText(QPointF(self.width() / 2 - ink.center().x(), self.height() / 2 - ink.center().y()), self._text)
 
     def hideEvent(self, event) -> None:  # noqa: ANN001
         super().hideEvent(event)
-        self._spin.stop()
+        self._pulse.stop()
 
     def show_over(self, left: float, top: float, width: float, height: float, mode: str, text: str) -> None:
         width = max(1, int(round(width)))
         height = max(1, int(round(height)))
         # Changing the input flags hides the window; only a cover that was not up yet fades in,
-        # so 请等待 turning into the result does not blink.
+        # so 检查中 turning into the result does not blink.
         appearing = not self.isVisible()
         self.setFixedSize(width, height)
         self.move(int(round(left)), int(round(top)))
