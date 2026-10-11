@@ -1306,11 +1306,76 @@ def test_share_copies_a_list_that_batch_add_reads_back(qapp, tmp_path, monkeypat
     window._share_list()
     text = QApplication.clipboard().text()
     assert text.startswith("#黑名单检测 名单 1人")
+    # Read back into a list that does not have 甲 yet.
     dialog = BatchAddDialog(window.store.tag_catalog())
     dialog.edit.setPlainText(text)
     dialog._accept()
-    assert dialog.annotated == [("甲", ("炸房",), "说明，带逗号")]
+    assert dialog.chosen == [("甲", ("炸房",), "说明，带逗号", -1)]
     dialog.close()
+    window.close()
+
+
+def test_batch_import_previews_each_person_before_adding(qapp, tmp_path, monkeypatch):
+    from blacklist_detect.ui import BatchAddDialog
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    window.store.add("名辅导可乐", reason="发言差")
+    window._show_list()
+    dialog = BatchAddDialog(window.store.tag_catalog(), window.store.entries, parent=window)
+    assert dialog.preview.isHidden() and not dialog.import_button.isEnabled()
+    dialog.edit.setPlainText("这游戏有这么多神人吗\n名辅导可乐（弱智）\n西西zo（挂机占麦）\n小小丑不会输，少主薇（送）")
+    dialog._refresh()
+    table = dialog.preview
+    assert table.isHidden() is False
+    shown = [(table.item(row, 0).text(), dialog.rows[row].checked, table.item(row, 3).text()) for row in range(table.rowCount())]
+    assert shown == [
+        ("这游戏有这么多神人吗", False, "不像名字"),
+        ("名辅导可乐", True, "合并"),
+        ("西西zo", True, ""),
+        ("小小丑不会输", True, ""),
+        ("少主薇", True, ""),
+    ]
+    # 标签 are drawn as the list's red pills; 合并 is in the accent.
+    assert table.item(2, 1).data(Qt.UserRole + 3) == ("挂机",) and table.item(2, 2).text() == "挂机占麦"
+    assert table.item(1, 3).data(Qt.UserRole + 4) == THEME["accent_line"]
+    assert dialog.import_button.text() == "导入 4 人"
+    # A click on a row unchecks it, and it stays unchecked while the text changes.
+    dialog._toggle(4)
+    assert dialog.rows[4].checked is False and table.item(4, 0).data(Qt.UserRole) is False
+    assert dialog.import_button.text() == "导入 3 人"
+    dialog.edit.appendPlainText("新来的")
+    dialog._refresh()
+    assert dialog.rows[4].checked is False
+    assert dialog.import_button.text() == "导入 4 人"
+    # Space checks the current row again.
+    table.setCurrentCell(4, 0)
+    _press(qapp, table, Qt.Key_Space)
+    assert dialog.rows[4].checked is True
+    # Text with no name in it says so.
+    dialog.edit.setPlainText("，，，")
+    dialog._refresh()
+    assert dialog.error.text() == "没有找到名字" and not dialog.import_button.isEnabled()
+    dialog.close()
+    # The window imports what was checked: new names added, the known one merged, with 撤销.
+    said: list[tuple[str, object]] = []
+    monkeypatch.setattr(window, "_say", lambda text, undo=None: said.append((text, undo)))
+
+    class Picked:
+        def __init__(self, *_args, **_kwargs) -> None:
+            self.chosen = [("名辅导可乐", (), "弱智", 0), ("西西zo", ("挂机",), "挂机占麦", -1)]
+
+        def exec(self) -> int:
+            return QDialog.Accepted
+
+    monkeypatch.setattr("blacklist_detect.ui.BatchAddDialog", Picked)
+    window._add_many_by_dialog()
+    assert said[0][0] == "已添加 1 人，更新 1 人"
+    assert [(e.name, e.reason) for e in window.store.entries] == [("名辅导可乐", "发言差；弱智"), ("西西zo", "挂机占麦")]
+    said[0][1]()
+    assert [e.name for e in window.store.entries] == ["名辅导可乐"]
     window.close()
 
 

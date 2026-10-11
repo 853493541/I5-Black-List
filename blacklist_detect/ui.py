@@ -1872,24 +1872,20 @@ class MainWindow(QMainWindow):
         self._say(f"已添加「{entry.name}」", undo=lambda: self._put_back(before))
 
     def _add_many_by_dialog(self) -> None:
-        dialog = BatchAddDialog(self.store.tag_catalog(), parent=self)
-        if dialog.exec() != QDialog.Accepted or not dialog.names:
+        dialog = BatchAddDialog(self.store.tag_catalog(), self.store.entries, parent=self)
+        if dialog.exec() != QDialog.Accepted or not dialog.chosen:
             return
         before = self.store.snapshot_entries()
-        if dialog.annotated is None:
-            added = self.store.add_names(dialog.names)
-        else:
-            added = self.store.add_annotated(dialog.annotated)
-        skipped = len(dialog.names) - added
-        if added == 0:
-            self._say(f"这 {skipped} 个名字都已在黑名单中")
+        added, merged = self.store.import_rows(dialog.chosen)
+        if not added and not merged:
+            self._say("名单里已经都有了")
             return
         # A shared list may bring tags this list has not seen. They now show beside the list.
         self._refresh_tag_views()
-        text = f"已添加 {added} 人"
-        if skipped:
-            text += f"，跳过 {skipped} 个重复的"
-        self._say(text, undo=lambda: self._put_back(before))
+        parts = [f"已添加 {added} 人"] if added else []
+        if merged:
+            parts.append(f"更新 {merged} 人")
+        self._say("，".join(parts), undo=lambda: self._put_back(before))
 
     def _taken_names(self, skip: int = -1) -> frozenset[str]:
         return frozenset(fold(entry.name) for index, entry in enumerate(self.store.entries) if index != skip)

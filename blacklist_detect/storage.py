@@ -114,18 +114,14 @@ def parse_shared(text: str) -> list[tuple[str, tuple[str, ...], str]]:
     return rows
 
 
-def names_from_block(text: str) -> list[str]:
-    """Names from one paste. Spaces, tabs, and new lines separate them."""
-    found: list[str] = []
-    seen: set[str] = set()
-    for part in text.split():
-        cleaned = clean_stored_name(part)[:_MAX_NAME]
-        key = fold(cleaned)
-        if not key or key in seen:
-            continue
-        seen.add(key)
-        found.append(cleaned)
-    return found
+def merge_reason(old: str, new: str) -> str:
+    """Two reasons as one: a reason already said is not said twice."""
+    old, new = (old or "").strip(), (new or "").strip()
+    if not new or new in old:
+        return old
+    if not old or old in new:
+        return new[:_MAX_NOTE]
+    return f"{old}；{new}"[:_MAX_NOTE]
 
 
 def tags_and_reason(text: str, catalog: tuple[str, ...] = TAGS) -> tuple[tuple[str, ...], str]:
@@ -145,73 +141,6 @@ def tags_and_reason(text: str, catalog: tuple[str, ...] = TAGS) -> tuple[tuple[s
     if not stripped:
         return ordered, ""
     return ordered, raw[:_MAX_NOTE]
-
-
-def _split_names(prefix: str) -> list[str]:
-    """A comma in the friend's note is two names, not one name that contains a comma."""
-    line = prefix.strip().splitlines()[-1].strip() if prefix.strip() else ""
-    names: list[str] = []
-    seen: set[str] = set()
-    for chunk in re.split(r"[,，]", line):
-        cleaned = clean_stored_name(chunk)[:_MAX_NAME]
-        key = fold(cleaned)
-        if not key or key in seen:
-            continue
-        seen.add(key)
-        names.append(cleaned)
-    return names
-
-
-def annotated_from_block(text: str, catalog: tuple[str, ...] = TAGS) -> list[tuple[str, tuple[str, ...], str]] | None:
-    """Each 名字（说明） is one person. Commas in front of the note are more names.
-
-    A line break inside the note is still that note. Returns None when the paste
-    is not this form, so a space-separated list still works.
-    """
-    normalized = text.replace("(", "（").replace(")", "）")
-    if "（" not in normalized:
-        return None
-    found: list[tuple[str, tuple[str, ...], str]] = []
-    seen: set[str] = set()
-    for match in re.finditer(r"([^（）]*)（(.*?)）", normalized, re.DOTALL):
-        tags, reason = tags_and_reason(match.group(2), catalog)
-        for name in _split_names(match.group(1)):
-            key = fold(name)
-            if key in seen:
-                continue
-            seen.add(key)
-            found.append((name, tags, reason))
-    return found
-
-
-def parse_blacklist(text: str, catalog: tuple[str, ...] = TAGS) -> list[tuple[str, tuple[str, ...], str]]:
-    """One line is 名字，炸房，贴脸，挂机，原因. 其他:说明 is only the reason text."""
-    parsed: list[tuple[str, tuple[str, ...], str]] = []
-    for raw in text.splitlines():
-        line = raw.strip()
-        if not line:
-            continue
-        raw_parts = re.split(r"[,，]", line)
-        if not raw_parts or not raw_parts[0].strip():
-            continue
-        parts = [part.strip() for part in raw_parts if part.strip()]
-        name = clean_stored_name(parts[0])[:_MAX_NAME]
-        tags: list[str] = []
-        reason_bits: list[str] = []
-        for part in parts[1:]:
-            if part.startswith("其他"):
-                detail = re.sub(r"^其他[:：]?", "", part).strip()
-                if detail:
-                    reason_bits.append(detail)
-                continue
-            if part in catalog and part not in tags:
-                tags.append(part)
-                continue
-            reason_bits.append(part)
-        if not name:
-            continue
-        parsed.append((name, order_tags(tags, catalog), "，".join(reason_bits)[:_MAX_NOTE]))
-    return parsed
 
 
 def _stored_seat(item: dict) -> dict:
@@ -801,50 +730,43 @@ class Store:
         self.save_entries()
         return entry
 
-    def add_names(self, names: list[str]) -> int:
-        existing = {fold(entry.name) for entry in self.entries}
-        added = 0
-        for name in names:
-            cleaned = clean_stored_name(name)[:_MAX_NAME]
-            key = fold(cleaned)
-            if not key or key in existing:
-                continue
-            existing.add(key)
-            self.entries.append(
-                Entry(
-                    name=cleaned,
-                    added_at=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
-                )
-            )
-            added += 1
-        if added:
-            self.save_entries()
-        return added
+    def import_rows(self, rows: list[tuple[str, tuple[str, ...], str, int]]) -> tuple[int, int]:
+        """Add each (name, 标签, 原因, -1); fold each (name, 标签, 原因, index) into that entry.
 
-    def add_annotated(self, rows: list[tuple[str, tuple[str, ...], str]]) -> int:
-        """Add 名字（说明） rows. A name already on the list is skipped."""
-        existing = {fold(entry.name) for entry in self.entries}
-        added = 0
-        for name, tags, reason in rows:
+        A merge keeps the entry's 标签 and adds the new ones, adds a 原因 it did not say yet,
+        and takes the longer name when the list had it cut short. Returns (added, merged).
+        """
+        stamp = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+        taken = {fold(entry.name) for entry in self.entries}
+        added = merged = 0
+        for name, tags, reason, target in rows:
             cleaned = clean_stored_name(name)[:_MAX_NAME]
             key = fold(cleaned)
-            if not key or key in existing:
+            if not key:
                 continue
-            existing.add(key)
             chosen, detail = coerce_tags(tags, reason)
             chosen = self._remember_tags(chosen)
-            self.entries.append(
-                Entry(
-                    name=cleaned,
-                    reason=detail,
-                    tags=chosen,
-                    added_at=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+            if 0 <= target < len(self.entries):
+                entry = self.entries[target]
+                old = fold(entry.name)
+                fuller = len(key) > len(old) and key.startswith(old) and key not in taken
+                self.entries[target] = Entry(
+                    name=cleaned if fuller else entry.name,
+                    reason=merge_reason(entry.reason, detail),
+                    tags=order_tags(list(dict.fromkeys([*entry.tags, *chosen])), self.tag_catalog()),
+                    added_at=entry.added_at,
                 )
-            )
+                taken.add(key)
+                merged += 1
+                continue
+            if key in taken:
+                continue
+            taken.add(key)
+            self.entries.append(Entry(name=cleaned, reason=detail, tags=chosen, added_at=stamp))
             added += 1
-        if added:
+        if added or merged:
             self.save_entries()
-        return added
+        return added, merged
 
     def update_at(self, index: int, name: str, tags: tuple[str, ...] | list[str], reason: str = "") -> bool:
         if not 0 <= index < len(self.entries):

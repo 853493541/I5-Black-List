@@ -1,24 +1,32 @@
-"""Dialogs: add and edit names, batch add, tags, picture results, and the first-run guide."""
+"""Dialogs: add and edit names, batch import, picture results, and the first-run guide."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QEvent, QRect, QRectF, Qt, QTimer
 from PySide6.QtGui import (
+    QColor,
     QFontMetrics,
+    QPainter,
+    QPen,
 )
 from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QPlainTextEdit,
     QPushButton,
+    QStyledItemDelegate,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
+from blacklist_detect.importing import MERGE, ODD, SAME, ImportRow, plan_import
 from blacklist_detect.match import clean_stored_name, fold, listed_tail, split_ellipsis
 from blacklist_detect.pipeline import CheckResult
 from blacklist_detect.ui_icons import pixmap as line_pixmap
@@ -34,6 +42,7 @@ from blacklist_detect.ui_widgets import (
     TagPill,
     _FlowHost,
     _zh_date,
+    paint_tag_row,
 )
 
 
@@ -232,64 +241,194 @@ class AddNameDialog(Modal):
         self.accept()
 
 
-class BatchAddDialog(Modal):
-    """Many names from one paste. Spaces separate names, or each person is 名字（说明）."""
+class _PickDelegate(QStyledItemDelegate):
+    """A preview row's first cell: a box like the app's own, then the name. Unchecked is grey."""
 
-    def __init__(self, catalog: tuple[str, ...] = (), parent=None) -> None:
+    BOX = 16
+
+    def paint(self, painter: QPainter, option, index) -> None:  # noqa: ANN001
+        checked = bool(index.data(Qt.UserRole))
+        rect = option.rect
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing)
+        box = QRectF(rect.left() + 8, rect.center().y() - self.BOX / 2 + 0.5, self.BOX, self.BOX)
+        if checked:
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(THEME["accent"]))
+            painter.drawRoundedRect(box, 4, 4)
+            painter.drawPixmap(box.adjusted(2, 2, -2, -2).toRect(), line_pixmap("check", 12, THEME["on_accent"]))
+        else:
+            painter.setPen(QPen(QColor(THEME["border"]), 1.2))
+            painter.setBrush(QColor(THEME["surface"]))
+            painter.drawRoundedRect(box.adjusted(0.5, 0.5, -0.5, -0.5), 4, 4)
+        text = QRect(round(box.right()) + 8, rect.top(), max(0, rect.right() - round(box.right()) - 12), rect.height())
+        painter.setFont(option.font)
+        painter.setPen(QColor(THEME["text"] if checked else THEME["muted"]))
+        shown = QFontMetrics(option.font).elidedText(str(index.data() or ""), Qt.ElideRight, text.width())
+        painter.drawText(text, Qt.AlignLeft | Qt.AlignVCenter, shown)
+        painter.restore()
+
+
+class _PreviewDelegate(QStyledItemDelegate):
+    """The other preview cells: 标签 as the list's red pills, text in its own color, faded when unchecked."""
+
+    def paint(self, painter: QPainter, option, index) -> None:  # noqa: ANN001
+        checked = bool(index.sibling(index.row(), 0).data(Qt.UserRole))
+        painter.save()
+        if not checked:
+            painter.setOpacity(0.45)
+        tags = index.data(Qt.UserRole + 3)
+        if tags:
+            paint_tag_row(painter, option.rect, tuple(tags))
+        else:
+            box = option.rect.adjusted(8, 0, -8, 0)
+            painter.setFont(option.font)
+            painter.setPen(QColor(index.data(Qt.UserRole + 4) or THEME["text"]))
+            shown = QFontMetrics(option.font).elidedText(str(index.data() or ""), Qt.ElideRight, box.width())
+            painter.drawText(box, Qt.AlignLeft | Qt.AlignVCenter, shown)
+        painter.restore()
+
+
+class BatchAddDialog(Modal):
+    """Paste a list, see what each person does to the list, then import the ones left checked.
+
+    Under the box, one row per person: 合并 when the name is on the list already (its new
+    标签 and 原因 are added to it), 已在黑名单 when it brings nothing new, and 不像名字 for a
+    line that is not a name, such as a title. Those two start unchecked. A click on a row,
+    or Space, checks or unchecks it. The rows follow the text as it changes; a row
+    unchecked by hand stays unchecked.
+    """
+
+    _STATUS = {MERGE: "合并", SAME: "已在黑名单", ODD: "不像名字"}
+
+    def __init__(self, catalog: tuple[str, ...] = (), entries=(), parent=None) -> None:  # noqa: ANN001
         super().__init__(parent)
         from blacklist_detect.storage import TAGS
 
-        self.names: list[str] = []
-        self.annotated: list[tuple[str, tuple[str, ...], str]] | None = None
         self.catalog = catalog or TAGS
+        self.entries = list(entries)
+        self.rows: list[ImportRow] = []
+        self.chosen: list[tuple[str, tuple[str, ...], str, int]] = []
+        self._picked: dict[str, bool] = {}
         layout = _frame(self, "批量导入")
-        # Only the shapes a paste can take; a list from 复制名单 needs no explaining.
-        hint = QLabel("可以这样粘贴：\n小明 小红\n小明，炸房，开局就炸\n小明（开局就炸房）")
-        hint.setObjectName("hintBox")
-        layout.addWidget(hint)
         self.edit = QPlainTextEdit()
-        self.edit.setPlaceholderText("把名字粘在这里")
-        self.edit.setMinimumHeight(180)
+        self.edit.setPlaceholderText("名字（原因），一行一个")
+        self.edit.setAccessibleName("名单")
+        self.edit.setFixedHeight(120)
         layout.addWidget(self.edit)
+        self.preview = QTableWidget(0, 4)
+        self.preview.setObjectName("importPreview")
+        self.preview.setAccessibleName("导入预览")
+        self.preview.setHorizontalHeaderLabels(["名字", "标签", "原因", ""])
+        head = self.preview.horizontalHeader()
+        head.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        head.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        head.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        head.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        head.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self.preview.setColumnWidth(0, 160)
+        self.preview.setColumnWidth(1, 110)
+        self.preview.verticalHeader().setVisible(False)
+        self.preview.verticalHeader().setDefaultSectionSize(30)
+        self.preview.setSelectionMode(QTableWidget.NoSelection)
+        self.preview.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.preview.setShowGrid(False)
+        self.preview.setWordWrap(False)
+        self.preview.setTextElideMode(Qt.TextElideMode.ElideRight)
+        self.preview.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.preview.setMinimumHeight(240)
+        self.preview.setItemDelegateForColumn(0, _PickDelegate(self.preview))
+        for column in (1, 2, 3):
+            self.preview.setItemDelegateForColumn(column, _PreviewDelegate(self.preview))
+        self.preview.setCursor(Qt.PointingHandCursor)
+        self.preview.hide()
+        self.preview.cellClicked.connect(self._toggle)
+        self.preview.installEventFilter(self)
+        layout.addWidget(self.preview)
         self.error = QLabel("")
         self.error.setObjectName("error")
         self.error.hide()
         layout.addWidget(self.error)
-        self.edit.textChanged.connect(self._clear_error)
-        _footer(self, _primary("导入", self._accept))
-        self.card.setMinimumWidth(460)
+        self.import_button = _primary("导入", self._accept)
+        self.import_button.setEnabled(False)
+        _footer(self, self.import_button)
+        self.card.setMinimumWidth(680)
+        self._timer = QTimer(self)
+        self._timer.setSingleShot(True)
+        self._timer.setInterval(150)
+        self._timer.timeout.connect(self._refresh)
+        self.edit.textChanged.connect(self._timer.start)
         _pointing(self)
-
-    def _clear_error(self, *_args) -> None:
-        _say_error(self.error, "")
 
     def has_changes(self) -> bool:
         return bool(self.edit.toPlainText().strip())
 
-    def _accept(self) -> None:
-        from blacklist_detect.storage import annotated_from_block, is_shared, names_from_block, parse_blacklist, parse_shared
+    def _refresh(self) -> None:
+        """Read the paste again and show who it brings."""
+        self.rows = plan_import(self.edit.toPlainText(), self.entries, self.catalog)
+        for row in self.rows:
+            picked = self._picked.get(fold(row.name))
+            if picked is not None:
+                row.checked = picked
+        table = self.preview
+        table.setRowCount(len(self.rows))
+        for index, row in enumerate(self.rows):
+            name = QTableWidgetItem(row.name)
+            name.setToolTip(row.name)
+            reason = QTableWidgetItem(row.reason)
+            reason.setToolTip(row.reason)
+            status = QTableWidgetItem(self._STATUS.get(row.status, ""))
+            if row.status == MERGE and 0 <= row.target < len(self.entries):
+                status.setToolTip(f"合并到「{self.entries[row.target].name}」")
+            tags = QTableWidgetItem("")
+            tags.setData(Qt.UserRole + 3, row.tags)
+            tags.setToolTip("、".join(row.tags))
+            status.setData(Qt.UserRole + 4, THEME["accent_line"] if row.status == MERGE else THEME["muted"])
+            for column, item in enumerate((name, tags, reason, status)):
+                item.setFlags(Qt.ItemIsEnabled)
+                table.setItem(index, column, item)
+            self._paint_row(index)
+        table.setVisible(bool(self.rows))
+        typed = bool(self.edit.toPlainText().strip())
+        _say_error(self.error, "没有找到名字" if typed and not self.rows else "")
+        self._sync_button()
 
-        text = self.edit.toPlainText()
-        if is_shared(text):
-            # A list copied with 分享 in this app. Its tags come with it.
-            self.annotated = parse_shared(text)
-            self.names = [name for name, _tags, _reason in self.annotated]
-            if not self.names:
-                _say_error(self.error, "没有名字")
-                return
+    def _paint_row(self, index: int) -> None:
+        """Checked or not, for its box; the delegates fade the rest of an unchecked row."""
+        self.preview.item(index, 0).setData(Qt.UserRole, self.rows[index].checked)
+
+    def _toggle(self, index: int, _column: int = 0) -> None:
+        if not 0 <= index < len(self.rows):
+            return
+        row = self.rows[index]
+        row.checked = not row.checked
+        self._picked[fold(row.name)] = row.checked
+        self._paint_row(index)
+        self.preview.viewport().update()
+        self._sync_button()
+
+    def eventFilter(self, watched, event) -> bool:  # noqa: ANN001
+        if watched is self.preview and event.type() == QEvent.Type.KeyPress and event.key() == Qt.Key_Space:
+            self._toggle(self.preview.currentRow())
+            return True
+        return super().eventFilter(watched, event)
+
+    def _sync_button(self) -> None:
+        count = sum(1 for row in self.rows if row.checked)
+        self.import_button.setEnabled(count > 0)
+        self.import_button.setText(f"导入 {count} 人" if count else "导入")
+
+    def _accept(self) -> None:
+        if self._timer.isActive():
+            self._timer.stop()
+            self._refresh()
+        self.chosen = [
+            (row.name, row.tags, row.reason, row.target if row.status in (MERGE, SAME) else -1)
+            for row in self.rows
+            if row.checked
+        ]
+        if self.chosen:
             self.accept()
-            return
-        self.annotated = annotated_from_block(text, self.catalog)
-        if self.annotated is None and ("," in text or "，" in text):
-            self.annotated = parse_blacklist(text, self.catalog) or None
-        if self.annotated is None:
-            self.names = names_from_block(text)
-        else:
-            self.names = [name for name, _tags, _reason in self.annotated]
-        if not self.names:
-            _say_error(self.error, "没有名字")
-            return
-        self.accept()
 
 
 SAMPLE_LOBBY = Path(__file__).resolve().parent / "assets" / "sample-lobby.jpg"

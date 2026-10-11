@@ -333,6 +333,11 @@ def _button_rules(family: str) -> str:
                 background: {t["accent_press"]};
                 color: {t["on_accent"]};
             }}
+            QPushButton#primary:disabled {{
+                background: {t["surface_alt"]};
+                border-color: {t["border"]};
+                color: {t["muted"]};
+            }}
             QPushButton#danger:hover {{
                 background: {t["danger_hover"]};
                 color: {t["danger"]};
@@ -803,6 +808,17 @@ def _window_style(family: str) -> str:
             QTableWidget#blacklist::item:selected:hover {{
                 background: {t["hover"]};
                 color: {t["text"]};
+            }}
+            QTableWidget#importPreview {{
+                background: {t["surface"]};
+                border: 1px solid {t["border"]};
+                border-radius: {CARD_RADIUS}px;
+                outline: none;
+            }}
+            QTableWidget#importPreview::item {{
+                background: transparent;
+                padding: 0 8px;
+                border: none;
             }}
             QHeaderView {{ background: {t["surface"]}; }}
             QHeaderView::section, QTableCornerButton::section {{

@@ -1,63 +1,18 @@
 from blacklist_detect.paths import app_dir
-from blacklist_detect.storage import Store, parse_blacklist
+from blacklist_detect.storage import Store
 
 
-def test_blacklist_lines_parse_one_player_each():
-    lines = parse_blacklist("名字一，炸房，贴脸，他做了坏事\n罪玥吉尔曼, 常挂机\n只有名字\n, 没名字\n甲，其他:开黑")
-    assert lines == [
-        ("名字一", ("炸房", "贴脸"), "他做了坏事"),
-        ("罪玥吉尔曼", (), "常挂机"),
-        ("只有名字", (), ""),
-        ("甲", (), "开黑"),
-    ]
-
-
-def test_a_pasted_block_adds_each_name_once(tmp_path):
-    from blacklist_detect.storage import TAGS, names_from_block
+def test_an_import_adds_each_name_once(tmp_path):
+    from blacklist_detect.storage import TAGS
 
     assert TAGS == ("炸房", "贴脸", "挂机", "场外", "不尊重底牌")
-    assert names_from_block("  纪戴宁   庄园美女\n纪戴宁\t无害虎皮 ") == ["纪戴宁", "庄园美女", "无害虎皮"]
     store = Store(tmp_path)
     store.add("纪戴宁")
-    assert store.add_names(["纪戴宁", "庄园美女", "无害虎皮"]) == 2
+    rows = [("纪戴宁", (), "", 0), ("庄园美女", (), "", -1), ("无害虎皮", (), "", -1), ("庄园美女", (), "", -1)]
+    assert store.import_rows(rows) == (2, 1)
     assert [entry.name for entry in Store(tmp_path).entries] == ["纪戴宁", "庄园美女", "无害虎皮"]
     store.clear_entries()
     assert Store(tmp_path).entries == []
-
-
-def test_a_parenthesis_note_is_one_person(tmp_path):
-    from blacklist_detect.storage import annotated_from_block
-
-    text = """这游戏有这么多神人吗
-挖野菜养你吖（纯粹的傻逼）
-好知知这就来帮（好人帮狼炸房）
-西西zo（挂机占麦）
-翻箱震慑是北城（讲了行为狼、轨迹狼、身份撞了，还给狼弃
-票，弱智来着）
-腐草为萤zzz（狼刀红名，炸房）
-诱之（轨迹差表水差被踩就情绪贴脸）
-小小丑不会输，少主薇（狼能赢的送双排顾问）
-"""
-    rows = annotated_from_block(text)
-    assert rows is not None
-    by_name = {name: (tags, reason) for name, tags, reason in rows}
-    assert by_name["挖野菜养你吖"] == ((), "纯粹的傻逼")
-    assert by_name["好知知这就来帮"][0] == ("炸房",)
-    assert by_name["西西zo"][0] == ("挂机",)
-    assert by_name["翻箱震慑是北城"][0] == ()
-    assert "还给狼弃票" in by_name["翻箱震慑是北城"][1]
-    assert by_name["腐草为萤zzz"][0] == ("炸房",)
-    assert by_name["诱之"][0] == ("贴脸",)
-    assert by_name["小小丑不会输"][1] == by_name["少主薇"][1]
-    assert "狼能赢的送双排顾问" in by_name["少主薇"][1]
-    assert annotated_from_block("甲 乙 丙") is None
-    store = Store(tmp_path)
-    assert store.add_annotated(rows) == len(rows)
-    assert store.add_annotated(rows) == 0
-    saved = {entry.name: (entry.tags, entry.reason) for entry in Store(tmp_path).entries}
-    assert saved["诱之"][0] == ("贴脸",)
-    assert saved["挖野菜养你吖"] == ((), "纯粹的傻逼")
-    assert saved["小小丑不会输"][0] == saved["少主薇"][0] == ()
 
 
 def test_windows_and_linux_dirs():
@@ -68,7 +23,7 @@ def test_windows_and_linux_dirs():
 
 
 def test_a_custom_tag_is_remembered(tmp_path):
-    from blacklist_detect.storage import parse_blacklist
+    from blacklist_detect.importing import read_paste
 
     store = Store(tmp_path)
     assert store.add_custom_tag("红名") is True
@@ -79,7 +34,7 @@ def test_a_custom_tag_is_remembered(tmp_path):
     assert again.custom_tags == ["红名"]
     assert again.entries[0].tags == ("贴脸", "红名")
     assert again.tag_catalog() == ("炸房", "贴脸", "挂机", "场外", "不尊重底牌", "红名")
-    assert parse_blacklist("乙，红名，他做了坏事", again.tag_catalog()) == [("乙", ("红名",), "他做了坏事")]
+    assert read_paste("乙，红名，他做了坏事", again.tag_catalog()) == [("乙", ("红名",), "他做了坏事")]
     assert again.remove_custom_tag("红名") is True
     saved = Store(tmp_path)
     assert saved.custom_tags == []
@@ -384,7 +339,7 @@ def test_a_shared_list_keeps_custom_tags_and_reasons(tmp_path):
         ("gffdsd", (), ""),
     ]
     friend = Store(tmp_path / "b")
-    assert friend.add_annotated(rows) == 2
+    assert friend.import_rows([(name, tags, reason, -1) for name, tags, reason in rows]) == (2, 0)
     assert friend.entries[0].tags == ("炸房", "开麦骂人")
     assert "开麦骂人" in friend.tag_catalog()
     assert friend.entries[0].reason == "开局就炸房，还骂人"

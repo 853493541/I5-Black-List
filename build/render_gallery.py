@@ -156,7 +156,8 @@ def main() -> int:
                 catalog=store.tag_catalog(), parent=window,
             ),
         ),
-        ("dialog_import", lambda: ui.BatchAddDialog(store.tag_catalog(), parent=window)),
+        ("dialog_import_empty", lambda: ui.BatchAddDialog(store.tag_catalog(), store.entries, parent=window)),
+        ("dialog_import", lambda: _import_dialog(ui, store, window)),
         ("dialog_guide", lambda: ui.GuideDialog(window)),
     ]
     slots = [NameSlot(i, (0, 0, 1, 1), n, n, False, 0.9, not n) for i, n in enumerate(NAMES)]
@@ -184,6 +185,25 @@ def main() -> int:
     _contact_sheet(out, args.label, shots)
     print(f"{len(shots)} pictures in {out}")
     os._exit(0)
+
+
+def _import_dialog(ui, store, window):  # noqa: ANN001, ANN202
+    """批量导入 with a friend's list pasted in: new names, one already listed, and its title."""
+    dialog = ui.BatchAddDialog(store.tag_catalog(), store.entries, parent=window)
+    pasted = [
+        "这游戏有这么多神人吗",
+        "霁玥吉尔曼（开局就炸房，这把又炸）",
+        "挖野菜养你吖（纯粹的傻逼）",
+        "好知知这就来帮（好人帮狼炸房）",
+        "西西zo（挂机占麦）",
+        "小小丑不会输，少主薇（狼能赢的送双排顾问）",
+        "翻箱震慑是北城（讲了行为狼、轨迹狼、身份撞了，还给狼弃",
+        "票，弱智来着）",
+        "誘之（轨迹差表水差被踩就情绪贴脸）",
+    ]
+    dialog.edit.setPlainText("\n".join(pasted))
+    dialog._refresh()
+    return dialog
 
 
 def _focus_scene(app, window, snap) -> None:  # noqa: ANN001
