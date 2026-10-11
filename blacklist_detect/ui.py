@@ -482,7 +482,7 @@ class MainWindow(QMainWindow):
             self.tray_menu = QMenu()
             self.tray_menu.setFont(chinese_font())
             self.tray_menu.setStyleSheet(_menu_style(chinese_family()))
-            self.tray_menu.addAction("打开", self._show_from_tray)
+            self.tray_menu.addAction("显示主窗口", self._show_from_tray)
             self.tray_menu.addAction("退出", self.close)
             self.tray.setContextMenu(self.tray_menu)
             self.tray.activated.connect(self._on_tray)
@@ -517,7 +517,7 @@ class MainWindow(QMainWindow):
         self.list_count.setObjectName("sub")
         toolbar.addWidget(self.list_count)
         toolbar.addStretch(1)
-        batch = QPushButton("批量添加")
+        batch = QPushButton("批量导入")
         batch.setToolTip("Ctrl+I")
         batch.clicked.connect(self._add_many_by_dialog)
         add = QPushButton("添加")
@@ -527,14 +527,14 @@ class MainWindow(QMainWindow):
         self.toolbar_buttons = (batch, add)
         toolbar.addWidget(batch)
         toolbar.addWidget(add)
-        # 分享 and 清空列表 are used now and then, so they wait under 更多 instead of beside 添加.
+        # 复制名单 and 清空黑名单 are used now and then, so they wait under 更多 instead of beside 添加.
         self.more_button = IconButton("more", "更多")
         self.more_menu = QMenu(self)
-        self.share_action = self.more_menu.addAction("分享", self._share_list)
+        self.share_action = self.more_menu.addAction("复制名单", self._share_list)
         _mark_menu_item(self.share_action, "copy")
-        self.share_action.setToolTip("复制整个名单。朋友在「批量添加」里粘贴即可。")
+        self.share_action.setToolTip("复制整个名单。朋友在「批量导入」里粘贴即可。")
         self.more_menu.addSeparator()
-        self.clear_list_action = self.more_menu.addAction("清空列表", self._clear_list)
+        self.clear_list_action = self.more_menu.addAction("清空黑名单", self._clear_list)
         _mark_menu_item(self.clear_list_action, "delete")
         self.more_button.clicked.connect(self._open_more_menu)
         toolbar.addWidget(self.more_button)
@@ -544,7 +544,7 @@ class MainWindow(QMainWindow):
         name_header.names_hidden = self.store.names_hidden
         name_header.on_eye = self._toggle_name_hiding
         self.blacklist_table.setHorizontalHeader(name_header)
-        self.blacklist_table.setHorizontalHeaderLabels(["名字", "标签", "原因", "最后遇到"])
+        self.blacklist_table.setHorizontalHeaderLabels(["名字", "标签", "原因", "最近遇到"])
         for column in range(4):
             item = self.blacklist_table.horizontalHeaderItem(column)
             if item is not None:
@@ -592,9 +592,9 @@ class MainWindow(QMainWindow):
         self._detail_tip_timer.setSingleShot(True)
         self._detail_tip_timer.setInterval(160)
         self._detail_tip_timer.timeout.connect(self._hide_detail_tip)
-        self.list_empty = EmptyState("users", "还没有名字")
+        self.list_empty = EmptyState("users", "黑名单还是空的")
         self.list_hint = self.list_empty.title
-        self.empty_batch_button = self.list_empty.add_action(QPushButton("批量添加"))
+        self.empty_batch_button = self.list_empty.add_action(QPushButton("批量导入"))
         self.empty_batch_button.clicked.connect(self._add_many_by_dialog)
         self.empty_add_button = self.list_empty.add_action(QPushButton("添加"))
         self.empty_add_button.setObjectName("primary")
@@ -697,7 +697,7 @@ class MainWindow(QMainWindow):
         head = QHBoxLayout(head_bar)
         head.setContentsMargins(16, 12, 16, 12)
         head.setSpacing(GAP)
-        catalog = QLabel("模仿者游戏（12人狂欢场）")
+        catalog = QLabel("模仿者狂欢（12人狂欢）")
         catalog.setObjectName("recordTitle")
         catalog.setFont(record_font())
         head.addWidget(catalog)
@@ -731,7 +731,7 @@ class MainWindow(QMainWindow):
         self.history_table.verticalHeader().setDefaultSectionSize(ROW_H + 4)
         self.history_table.setSelectionMode(QTableWidget.NoSelection)
         self.history_table.setFocusPolicy(Qt.StrongFocus)
-        self.history_table.setAccessibleName("模仿者游戏（12人狂欢场）")
+        self.history_table.setAccessibleName("模仿者狂欢（12人狂欢）")
         self.history_table.installEventFilter(self)
         self.history_table.currentCellChanged.connect(self._on_seat_current)
         self.history_table.setItemDelegate(_PlainItemDelegate(self.history_table))
@@ -810,7 +810,7 @@ class MainWindow(QMainWindow):
         self.hotkey_edit.setFixedWidth(slot)
         self.hotkey_edit.setCursor(Qt.PointingHandCursor)
         self.hotkey_edit.installEventFilter(self)
-        self.hotkey_edit.setAccessibleName("热键")
+        self.hotkey_edit.setAccessibleName("快捷键")
         check.add_row("方式", self.auto_mode, self.hotkey_edit, hint="手动检查时使用")
         # Hotkey problems show right under the hotkey they are about.
         self.settings_label = QLabel("")
@@ -818,11 +818,11 @@ class MainWindow(QMainWindow):
         self.settings_label.setWordWrap(True)
         self.settings_label.hide()
         check.add_widget(self.settings_label, separated=False, indent=True)
-        self.picture_button = QPushButton("检查截图")
+        self.picture_button = QPushButton("选择截图")
         self.picture_button.setToolTip("选一张大厅截图，看看里面有没有黑名单")
         self.picture_button.setAutoDefault(False)
         self.picture_button.clicked.connect(self.check_picture)
-        check.add_row("识别", self.picture_button, hint="选一张大厅截图，看看里面有没有黑名单")
+        check.add_row("截图检查", self.picture_button, hint="选一张大厅截图，看看里面有没有黑名单")
 
         # 常规: how the app starts and closes.
         general = section("常规")
@@ -856,7 +856,7 @@ class MainWindow(QMainWindow):
             swatch.chosen.connect(self._set_theme)
             self.theme_buttons[name] = swatch
             swatches.addWidget(swatch, 0, Qt.AlignVCenter)
-        look.add_row("主题", swatch_host)
+        look.add_row("主题色", swatch_host)
 
         # 数据: starting over.
         data = section("数据")
@@ -867,7 +867,7 @@ class MainWindow(QMainWindow):
         reset.setAutoDefault(False)
         reset.setCursor(Qt.PointingHandCursor)
         reset.clicked.connect(self._ask_reset)
-        data.add_row("控制", reset)
+        data.add_row("重置", reset)
         return page
 
     def _fill_tag_list(self) -> None:
@@ -940,7 +940,7 @@ class MainWindow(QMainWindow):
         tag = self._tag_at(self.tag_list.indexAt(pos).row())
         if not tag:
             return
-        menu = self._menu((("修改", ("tag_edit", tag)), None, ("删除", ("tag_delete", tag))))
+        menu = self._menu((("编辑", ("tag_edit", tag)), None, ("删除", ("tag_delete", tag))))
         menu.popup(self.tag_list.viewport().mapToGlobal(pos))
 
     def _recheck_tags(self) -> None:
@@ -1505,7 +1505,7 @@ class MainWindow(QMainWindow):
             self.blacklist_table.setVisible(False)
         else:
             self.list_empty.set_icon("users")
-            self.list_empty.set_text("还没有名字")
+            self.list_empty.set_text("黑名单还是空的")
             self.empty_add_button.show()
             self.empty_batch_button.show()
             self.list_empty.show()
@@ -1603,7 +1603,7 @@ class MainWindow(QMainWindow):
         count = len(self.store.entries)
         if not count:
             return
-        if ConfirmDialog.ask(self, "清空列表", f"名单里的 {count} 个名字会被删除。", "确认清空", danger=True):
+        if ConfirmDialog.ask(self, "清空黑名单", f"黑名单里的 {count} 个名字会被删除。", "清空", danger=True):
             self._confirm_clear_list()
 
     def _confirm_clear_list(self) -> None:
@@ -1719,7 +1719,7 @@ class MainWindow(QMainWindow):
         menu.popup(self.blacklist_table.viewport().mapToGlobal(pos))
 
     def _row_menu(self, index: int) -> QMenu:
-        return self._menu((("修改", ("edit", index)), ("复制名字", ("copy_entry", index)), None, ("删除", ("delete", index))))
+        return self._menu((("编辑", ("edit", index)), ("复制名字", ("copy_entry", index)), None, ("删除", ("delete", index))))
 
     def _menu(self, items) -> QMenu:  # noqa: ANN001
         menu = QMenu(self)
@@ -1776,7 +1776,7 @@ class MainWindow(QMainWindow):
         if not count:
             return
         QApplication.clipboard().setText(share_text(self.store.entries))
-        self._say(f"已复制 {count} 人。朋友在「批量添加」里粘贴即可。")
+        self._say(f"已复制 {count} 人。朋友在「批量导入」里粘贴即可。")
 
     def _add_by_dialog(self) -> None:
         picked = (self._tag_filter,) if self._tag_filter else ()
@@ -1801,13 +1801,13 @@ class MainWindow(QMainWindow):
             added = self.store.add_annotated(dialog.annotated)
         skipped = len(dialog.names) - added
         if added == 0:
-            self._say(f"这 {skipped} 个名字都已经在名单里")
+            self._say(f"这 {skipped} 个名字都已在黑名单中")
             return
         # A shared list may bring tags this list has not seen. They now show beside the list.
         self._refresh_tag_views()
         text = f"已添加 {added} 人"
         if skipped:
-            text += f"，{skipped} 个已在名单里没有重复添加"
+            text += f"，跳过 {skipped} 个重复的"
         self._say(text, undo=lambda: self._put_back(before))
 
     def _taken_names(self, skip: int = -1) -> frozenset[str]:
@@ -1827,7 +1827,7 @@ class MainWindow(QMainWindow):
             entry.name,
             entry.tags,
             entry.reason,
-            title="修改",
+            title="编辑",
             allow_delete=True,
             catalog=self.store.tag_catalog(),
             added_at=entry.added_at,
@@ -2038,7 +2038,7 @@ class MainWindow(QMainWindow):
 
     def _ask_clear_history(self) -> None:
         count = len(self.store.scans)
-        if count and ConfirmDialog.ask(self, "清空记录", f"{count} 条记录会被删除。", "确认清空", danger=True):
+        if count and ConfirmDialog.ask(self, "清空记录", f"{count} 条记录会被删除。", "清空", danger=True):
             self._clear_history()
 
     def _clear_history(self) -> None:
@@ -2084,7 +2084,7 @@ class MainWindow(QMainWindow):
         """What this lobby held, in the words the picture check uses."""
         text = f"{hits} 人在黑名单里" if hits else "这间大厅里没有黑名单"
         if unclear:
-            text += f"，{unclear} 人没看清"
+            text += f"，{unclear} 人未识别"
         self.record_summary.setText(text)
         tone = THEME["red"] if hits else THEME["muted"]
         self.record_summary.setStyleSheet(f"color: {tone}; background: transparent;")
@@ -2110,13 +2110,13 @@ class MainWindow(QMainWindow):
     def _set_history_seat(self, row: int, column: int, seat: dict) -> str:
         """Fill one seat. Returns hit, unclear or "" for the lobby summary."""
         unclear = bool(seat.get("unclear")) or not str(seat.get("name") or "")
-        shown = "未看清" if unclear else str(seat.get("name"))
-        visible = "未知" if unclear else shown
+        shown = "未识别" if unclear else str(seat.get("name"))
+        visible = "未识别" if unclear else shown
         match = None if unclear else self._history_match(shown)
         stored = match.entry.name if match is not None else ""
         mine = not unclear and match is None and self._is_my_name(shown)
         if mine:
-            action = "你"
+            action = "我"
         elif unclear or match is not None:
             action = ""
         else:
@@ -2196,7 +2196,7 @@ class MainWindow(QMainWindow):
         if not unclear and not name_item.toolTip():
             name_item.setToolTip(label)
         if listed and tail is None:
-            listed_label = QLabel(f"名单：{listed}")
+            listed_label = QLabel(f"黑名单：{listed}")
             listed_label.setObjectName("rowListed")
             listed_label.setFont(chinese_font(SMALL_PT))
             listed_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
@@ -2211,7 +2211,7 @@ class MainWindow(QMainWindow):
             action_label.setFont(chinese_font())
             action_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
             action_label.setFont(chinese_font(SMALL_PT))
-            if action == "你":
+            if action == "我":
                 action_label.setStyleSheet(
                     f'color: {THEME["chip_text"]}; background: {THEME["chip_bg"]}; border: 1px solid {THEME["chip_bg"]}; border-radius: 9px;'
                     f' padding: 1px 8px; font-family: "{chinese_family()}"; font-size: {SMALL_PT}pt;'
@@ -2235,11 +2235,11 @@ class MainWindow(QMainWindow):
 
     def _history_cell_is_mine(self, row: int, column: int) -> bool:
         item = self.history_table.item(row, column)
-        return item is not None and str(item.data(Qt.UserRole + 1) or "") == "你"
+        return item is not None and str(item.data(Qt.UserRole + 1) or "") == "我"
 
     def _history_cell_is_unclear(self, row: int, column: int) -> bool:
         item = self.history_table.item(row, column)
-        return item is not None and item.text() == "未看清"
+        return item is not None and item.text() == "未识别"
 
     def _hover_history_cell(self, row: int, column: int) -> None:
         if self._history_cell_is_mine(row, column) or self._history_cell_is_unclear(row, column):
@@ -2264,7 +2264,7 @@ class MainWindow(QMainWindow):
         wrap = self.history_table.cellWidget(row, column)
         if item is None or wrap is None:
             return
-        if hot and str(item.data(Qt.UserRole + 1) or "") == "你":
+        if hot and str(item.data(Qt.UserRole + 1) or "") == "我":
             hot = False
         hover = str(wrap.property("toneHover") or "")
         wash = hover if hot and hover else str(wrap.property("toneWash") or "")
@@ -2287,7 +2287,7 @@ class MainWindow(QMainWindow):
         action = str(item.data(Qt.UserRole + 1) or "")
         items = []
         if item.data(Qt.UserRole + 2):
-            items.append(("修改", ("seat", row, column)))
+            items.append(("编辑", ("seat", row, column)))
         elif action == "添加":
             items.append(("添加", ("seat", row, column)))
         items.append(("复制名字", ("copy_text", shown)))
@@ -2303,7 +2303,7 @@ class MainWindow(QMainWindow):
             return
         shown = str(item.data(Qt.UserRole) or "")
         shown = split_ellipsis(shown)[0] or shown
-        if not shown or str(item.data(Qt.UserRole + 1) or "") == "你":
+        if not shown or str(item.data(Qt.UserRole + 1) or "") == "我":
             return
         stored = str(item.data(Qt.UserRole + 2) or "")
         if stored:
@@ -2349,7 +2349,7 @@ class MainWindow(QMainWindow):
         self._set_settings_note("")
         self.hotkey.clear()
         self.hotkey_edit.clear()
-        self.hotkey_edit.setPlaceholderText("按下热键")
+        self.hotkey_edit.setPlaceholderText("请按下快捷键")
 
     def _end_hotkey(self) -> None:
         self.hotkey_edit.setPlaceholderText("无")
@@ -2403,12 +2403,12 @@ class MainWindow(QMainWindow):
         if registered:
             self._set_settings_note("")
         elif sys.platform != "win32":
-            self._set_settings_note("这台电脑不能用热键。")
+            self._set_settings_note("这台电脑不能用快捷键。")
         else:
             self.store.hotkey = ""
             self.store.save_settings()
             self.hotkey_edit.clear()
-            self._set_settings_note("换一个热键。")
+            self._set_settings_note("请换一个快捷键。")
         self.hotkey_edit.clearFocus()
         if self._status_kind == "idle":
             self._sync_watch_idle()
@@ -2572,7 +2572,7 @@ class MainWindow(QMainWindow):
     def _sync_picture_buttons(self) -> None:
         busy = bool(self._picture_pending)
         self.picture_button.setEnabled(not busy)
-        self.picture_button.setText("正在识别" if busy else "检查截图")
+        self.picture_button.setText("正在识别" if busy else "选择截图")
 
     def _on_picture(self, status: str, value) -> None:  # noqa: ANN001
         title = self._picture_pending or "截图检查"
@@ -2614,16 +2614,16 @@ class MainWindow(QMainWindow):
     def _show_uncaught(self, text: str) -> None:
         # The exception and its trace are already in the log; the user sees only that something failed.
         del text
-        self._set_result("程序出错了", "hit", "error")
+        self._set_result("程序出错", "hit", "error")
 
     def _report_problem(self, problem) -> None:  # noqa: ANN001
         """Say what went wrong in the header and the tray. A check that silently stops is worse than an error."""
         if isinstance(problem, OcrUnavailable):
-            label = "识别模型没有就绪"
+            label = "识别模型未就绪"
         elif isinstance(problem, CaptureUnavailable):
             label = "无法读取屏幕"
         else:
-            label = "检查出错"
+            label = "检查失败"
         raw = str(problem).strip() or label
         detail = _plain_error(problem, "检查没能完成，请稍后再试。")
         if raw != self._problem:
@@ -2672,7 +2672,7 @@ class MainWindow(QMainWindow):
         quiet = self._rescan_active
         if live and self.panel.isVisible() and not quiet:
             self._panel_hide_timer.stop()
-            self.panel.set_mode("checking", "请等待")
+            self.panel.set_mode("checking", "检查中…")
             self.hit_card.hide()
             self.clear_mark.hide()
         if not self.worker.request(fn):
@@ -2708,7 +2708,7 @@ class MainWindow(QMainWindow):
 
     def _on_warmed(self, status: str, value) -> None:
         self._warm_state = "ready" if status == "ok" else "failed"
-        self._warm_error = "" if status == "ok" else _plain_error(value, "识别模型没有就绪。")
+        self._warm_error = "" if status == "ok" else _plain_error(value, "识别模型未就绪。")
         if self._env_waiting:
             if status == "ok":
                 self._env_models_ready()
@@ -2882,7 +2882,7 @@ class MainWindow(QMainWindow):
         # A finished cover stays put. A second pass must not turn it yellow again.
         if self.panel.isVisible() and self.panel.mode in ("clear", "hit"):
             return
-        self._open_panel("checking", "请等待", box)
+        self._open_panel("checking", "检查中…", box)
         self.hit_card.hide()
         self.clear_mark.hide()
 
@@ -2902,7 +2902,7 @@ class MainWindow(QMainWindow):
         text = "没有黑名单"
         unclear = sum(1 for slot in result.names if slot.unclear)
         if unclear:
-            text += f"\n{unclear} 人没看清"
+            text += f"\n{unclear} 人未识别"
         self._open_panel("clear", text, result.button_box)
         self._show_clear_mark()
 
@@ -3086,7 +3086,7 @@ class MainWindow(QMainWindow):
 
 
 # A menu item's icon, by what it does. The ones that delete are red, so they stand out.
-_MENU_ICONS = {"修改": "edit", "添加": "add", "复制名字": "copy", "删除": "delete"}
+_MENU_ICONS = {"编辑": "edit", "添加": "add", "复制名字": "copy", "删除": "delete"}
 
 
 def _mark_menu_item(action, name: str = "") -> None:  # noqa: ANN001

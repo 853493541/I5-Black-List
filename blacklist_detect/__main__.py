@@ -36,7 +36,7 @@ def _check_cli(args: list[str]) -> int:
     print(result.message)
     for slot in result.names:
         if slot.unclear:
-            state = "未看清"
+            state = "未识别"
         elif slot.truncated:
             state = "截断"
         else:

@@ -213,5 +213,5 @@ def _message(anchor: Anchor, slots: list[NameSlot], hits: list[Hit]) -> str:
         parts.append("黑名单里没有这些人")
     unclear = sum(1 for slot in slots if slot.unclear)
     if unclear:
-        parts.append(f"{unclear} 个名字没看清")
+        parts.append(f"{unclear} 个名字未识别")
     return "已检查这间大厅：" + "，".join(parts) + "。"

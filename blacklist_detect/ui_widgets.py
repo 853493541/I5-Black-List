@@ -529,7 +529,7 @@ def _draw_pill(painter: QPainter, rect: QRect, text: str, active: bool, pad: int
 class TagListDelegate(QStyledItemDelegate):
     """The tags beside 黑名单: 全部, then each tag as a red pill with how many names carry it.
 
-    The row under the pointer shows a pencil in place of its number; a click on the pencil opens 修改.
+    The row under the pointer shows a pencil in place of its number; a click on the pencil opens 编辑.
     """
 
     # The item's margin and padding, so the pill and the number sit inside the row's wash.
@@ -919,7 +919,7 @@ class _PlainItemDelegate(QStyledItemDelegate):
         if isinstance(view, QTableWidget) and view.objectName() == "blacklist" and option.state & QStyle.State_Selected:
             header = view.horizontalHeader()
             if index.column() == header.logicalIndex(header.count() - 1):
-                # The row under the pointer is selected; a pencil says a click opens 修改.
+                # The row under the pointer is selected; a pencil says a click opens 编辑.
                 mark = line_pixmap("edit", 16, THEME["muted"])
                 rect = option.rect
                 painter.drawPixmap(rect.right() - 16 - 12, rect.center().y() - 8, mark)

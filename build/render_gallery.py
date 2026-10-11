@@ -135,7 +135,7 @@ def main() -> int:
     snap("records_hover")
     window._clear_history_hover()
     window.tabs.setCurrentIndex(window.blacklist_tab)
-    window._on_worker(("glance", "err", ui.OcrUnavailable("识别模型没有就绪，请重新解压完整的安装包。")))
+    window._on_worker(("glance", "err", ui.OcrUnavailable("识别模型未就绪，请重新解压完整的安装包。")))
     snap("status_error")
 
     dialogs = [
@@ -143,7 +143,7 @@ def main() -> int:
         (
             "dialog_edit",
             lambda: ui.AddNameDialog(
-                "霁玥吉尔曼", ("炸房",), "开局就炸房", title="修改", allow_delete=True,
+                "霁玥吉尔曼", ("炸房",), "开局就炸房", title="编辑", allow_delete=True,
                 catalog=store.tag_catalog(), parent=window,
             ),
         ),
@@ -162,7 +162,7 @@ def main() -> int:
         dialog.show()
         snap(name, picture=over_window(dialog))
         dialog.close()
-    confirm = ui.ConfirmDialog(window, "清空列表", "名单里的 3 个名字会被删除。", "确认清空", danger=True)
+    confirm = ui.ConfirmDialog(window, "清空黑名单", "黑名单里的 3 个名字会被删除。", "清空", danger=True)
     confirm.show()
     snap("dialog_confirm", picture=over_window(confirm))
     confirm.close()
@@ -243,7 +243,7 @@ def _overlay_scenes(window, snap) -> None:  # noqa: ANN001
         painter.end()
         return canvas
 
-    snap("overlay_checking", picture=scene("checking", "请等待"))
+    snap("overlay_checking", picture=scene("checking", "检查中…"))
     window.hit_card.set_people([("霁玥吉尔曼", ("炸房", "贴脸")), ("gffdsd", ("挂机",))], 70)
     snap("overlay_hit", picture=scene("hit", "", window.hit_card))
     window.clear_mark.set_size(70)
@@ -287,7 +287,7 @@ def _setup_scenes(app, window, snap) -> None:  # noqa: ANN001
     snap("setup_ok")
     setup.start()
     setup.step(0, "ok")
-    setup.fail(1, "识别模型没有就绪，请重新解压完整的安装包。")
+    setup.fail(1, "识别模型未就绪，请重新解压完整的安装包。")
     setup.bar.setValue(400)
     snap("setup_failed")
     setup.hide()
@@ -320,8 +320,8 @@ def _kit_scenes(window, snap) -> None:  # noqa: ANN001
     primary = QPushButton("添加")
     primary.setObjectName("primary")
     row.addWidget(primary)
-    row.addWidget(QPushButton("批量添加"))
-    danger = QPushButton("清空列表")
+    row.addWidget(QPushButton("批量导入"))
+    danger = QPushButton("清空黑名单")
     danger.setObjectName("danger")
     row.addWidget(danger)
     row.addStretch(1)

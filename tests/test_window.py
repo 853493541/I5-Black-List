@@ -69,7 +69,7 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
-    assert window.list_hint.text() == "还没有名字"
+    assert window.list_hint.text() == "黑名单还是空的"
     assert window.list_empty.isHidden() is False
     assert window.more_button.isHidden() is True
     assert window.blacklist_table.isHidden() is True
@@ -91,8 +91,8 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     window._clear_blacklist_hover()
     assert window.blacklist_table.currentRow() == -1
     labels = [button.text() for button in window.findChildren(QPushButton)]
-    assert "批量添加" in labels
-    assert [action.text() for action in window.more_menu.actions() if action.text()] == ["分享", "清空列表"]
+    assert "批量导入" in labels
+    assert [action.text() for action in window.more_menu.actions() if action.text()] == ["复制名单", "清空黑名单"]
     assert window.blacklist_table.columnCount() == 4
     assert window.blacklist_table.item(0, 3).text() == ""
     edited = AddNameDialog(
@@ -204,11 +204,11 @@ def test_blacklist_columns_can_be_dragged(qapp, tmp_path, monkeypatch):
     assert header._cursor_at(edge) == Qt.SplitHCursor
     assert header._cursor_at(header.sectionViewportPosition(0) + 40) == Qt.OpenHandCursor
     header.moveSection(3, 0)
-    assert window._column_labels() == ["最后遇到", "名字", "标签", "原因"]
+    assert window._column_labels() == ["最近遇到", "名字", "标签", "原因"]
     assert window.store.column_order == [3, 0, 1, 2]
     window.close()
     again = MainWindow()
-    assert again._column_labels() == ["最后遇到", "名字", "标签", "原因"]
+    assert again._column_labels() == ["最近遇到", "名字", "标签", "原因"]
     # Dragged in a window as it opens: the list beside the tags, with a name in it.
     again.store.add("甲")
     again._show_list()
@@ -333,7 +333,7 @@ def test_reason_boxes_allow_several_and_a_note(qapp):
     dialog._detach_tag("贴脸")
     dialog._accept()
     assert dialog.tags == ("炸房",)
-    dialog = AddNameDialog("甲", ("炸房",), "", title="修改", allow_delete=True)
+    dialog = AddNameDialog("甲", ("炸房",), "", title="编辑", allow_delete=True)
     dialog.show()
     from PySide6.QtWidgets import QPushButton
     labeled = {button.text(): button for button in dialog.findChildren(QPushButton)}
@@ -443,16 +443,16 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     assert window.history_table.item(0, 0).foreground().color().name() == "#1c7a3e"
     assert Store(window.store.root).player_name == "纪戴宁"
     action = window.history_table.cellWidget(0, 0).findChild(QLabel, "rowAction")
-    assert action.text() == "你"
+    assert action.text() == "我"
     assert THEME["chip_bg"] in action.styleSheet()
     assert action.font().italic() is False
     assert action.isHidden() is False
     window._hover_history_cell(0, 0)
     assert window.history_table.cellWidget(0, 0).styleSheet() == window._history_wrap_style(THEME["green_wash"])
     assert window.history_table.viewport().cursor().shape() == Qt.ArrowCursor
-    assert window.history_table.item(1, 0).text() == "未看清"
+    assert window.history_table.item(1, 0).text() == "未识别"
     missed = window.history_table.cellWidget(1, 0).findChild(QLabel)
-    assert missed.text() == "未知"
+    assert missed.text() == "未识别"
     # Gray, not slanted: Chinese has no italic, and Qt's slant looks broken.
     assert missed.font().italic() is False
     assert "italic" not in missed.styleSheet()
@@ -471,7 +471,7 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     assert window.history_table.cellWidget(0, 0).findChild(QLabel, "seatWarn") is not None
     assert window.history_table.cellWidget(0, 1).findChild(QLabel, "seatWarn") is None
     hit_menu = [a.text() for a in window._seat_menu(0, 0).actions() if a.text()]
-    assert hit_menu == ["修改", "复制名字"]
+    assert hit_menu == ["编辑", "复制名字"]
     assert [a.text() for a in window._seat_menu(0, 1).actions() if a.text()] == ["添加", "复制名字"]
     assert window._seat_menu(1, 0) is None
     opened: list[int] = []
@@ -640,7 +640,7 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     assert window.panel.isVisible() is True
     assert window.panel.mode == "checking"
     # Dark glass with a turning arc hides the button while the check runs.
-    assert window.panel.text() == "请等待"
+    assert window.panel.text() == "检查中…"
     assert window.panel.spinning() and window.panel.ring() == ""
     assert not (window.panel.windowFlags() & Qt.WindowTransparentForInput)
     assert window.hit_card.isVisible() is False
@@ -828,7 +828,7 @@ def test_titlebar_close_hides_to_the_tray_and_says_so_once(qapp, tmp_path, monke
     window.show()
     if window.tray is not None:
         labels = [action.text() for action in window.tray.contextMenu().actions()]
-        assert labels == ["打开", "退出"]
+        assert labels == ["显示主窗口", "退出"]
 
     class Tray:
         def __init__(self):
@@ -890,7 +890,7 @@ def test_a_cut_name_shows_once_with_the_rest_from_the_list(qapp, tmp_path, monke
     # A name that differs in more than the cut may be someone else: the list's spelling stays beside it.
     other = window.history_table.cellWidget(0, 1)
     assert other.findChild(QLabel, "rowName").text() == "破轮蜡像金婚88"
-    assert other.findChild(QLabel, "rowListed").text() == "名单：破轮蜡像金婚99"
+    assert other.findChild(QLabel, "rowListed").text() == "黑名单：破轮蜡像金婚99"
     window.close()
 
 
@@ -927,7 +927,7 @@ def test_hotkey_saves_on_the_key_press(qapp, tmp_path, monkeypatch):
     window.auto_off.click()
     assert window.hotkey_edit.isEnabled() is True
     qapp.sendEvent(window.hotkey_edit, QFocusEvent(QEvent.Type.FocusIn))
-    assert window.hotkey_edit.placeholderText() == "按下热键"
+    assert window.hotkey_edit.placeholderText() == "请按下快捷键"
     assert window.hotkey_edit.text() == ""
     qapp.sendEvent(
         window.hotkey_edit,
@@ -1044,14 +1044,14 @@ def test_clear_buttons_split_into_cancel_and_confirm(qapp, tmp_path, monkeypatch
     window.clear_list_action.trigger()
     assert window.store.entries
     window.clear_list_action.trigger()
-    assert questions == [("清空列表", "确认清空", True)] * 2
+    assert questions == [("清空黑名单", "清空", True)] * 2
     assert window.store.entries == []
     assert window.more_button.isHidden() is True
     assert window.list_empty.isHidden() is False
     window.clear_history_action.trigger()
     assert window.store.scans
     window.clear_history_action.trigger()
-    assert questions[2:] == [("清空记录", "确认清空", True)] * 2
+    assert questions[2:] == [("清空记录", "清空", True)] * 2
     assert window.store.scans == []
     assert window.record_card.isHidden()
     assert asked == []
@@ -1066,7 +1066,7 @@ def test_the_add_dialog_refuses_a_name_already_on_the_list(qapp):
     assert dialog.name_error.text() == "黑名单里已经有这个名字"
     dialog.name_edit.setText("★☆★")
     dialog._accept()
-    assert dialog.name_error.text() == "名字里要有文字或数字"
+    assert dialog.name_error.text() == "名字需包含文字或数字"
     dialog.name_edit.setText("新名字")
     dialog._accept()
     assert dialog.result() == QDialog.Accepted
@@ -1115,16 +1115,16 @@ def test_a_failed_check_is_shown_and_clears_when_checks_work(qapp, tmp_path, mon
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
     window._watch_timer.stop()
-    window._on_worker(("glance", "err", OcrUnavailable("识别模型没有就绪，请重新解压完整的安装包。")))
-    assert window.status_chip.text() == "识别模型没有就绪"
+    window._on_worker(("glance", "err", OcrUnavailable("识别模型未就绪，请重新解压完整的安装包。")))
+    assert window.status_chip.text() == "识别模型未就绪"
     assert window.status_chip.tone() == "hit"
-    assert window.status_chip.toolTip() == "识别模型没有就绪，请重新解压完整的安装包。\n切换为手动检查"
+    assert window.status_chip.toolTip() == "识别模型未就绪，请重新解压完整的安装包。\n切换为手动检查"
     # No file path, library name or command: those go to the log, not to the user.
     assert "app.log" not in window.status_chip.toolTip()
     assert "PaddleOCR" not in window.status_chip.toolTip()
     assert window._glance_pause_until > 0
     window._on_worker(("check", "err", RuntimeError("坏了")))
-    assert window.status_chip.text() == "检查出错"
+    assert window.status_chip.text() == "检查失败"
     window._on_worker(("glance", "ok", False))
     assert window.status_chip.text() == "自动检查中"
     window.close()
@@ -1223,10 +1223,10 @@ def test_a_blacklist_row_has_a_menu_to_edit_copy_and_delete(qapp, tmp_path, monk
     window._show_list()
     menu = window._row_menu(1)
     actions = {action.text(): action for action in menu.actions() if action.text()}
-    assert list(actions) == ["修改", "复制名字", "删除"]
+    assert list(actions) == ["编辑", "复制名字", "删除"]
     opened: list[int] = []
     monkeypatch.setattr(window, "_edit_entry", lambda index: opened.append(index))
-    actions["修改"].trigger()
+    actions["编辑"].trigger()
     assert opened == [1]
     actions["复制名字"].trigger()
     assert QApplication.clipboard().text() == "乙"
@@ -1297,12 +1297,12 @@ def test_a_picture_check_opens_its_result(qapp, tmp_path, monkeypatch):
     shown = window._picture_dialog
     assert isinstance(shown, PictureResultDialog)
     assert shown.windowTitle() == "识别测试"
-    assert shown.summary.text() == "1 人在黑名单里，1 人没看清"
+    assert shown.summary.text() == "1 人在黑名单里，1 人未识别"
     # Cut short by the game: the name once, in full as the list has it.
     assert shown.seats[0].text() == "名0大王"
-    assert shown.seats[3].text() == "未看清"
+    assert shown.seats[3].text() == "未识别"
     assert window.picture_button.isEnabled() is True
-    assert window.picture_button.text() == "检查截图"
+    assert window.picture_button.text() == "选择截图"
     shown.close()
     window._run_picture("x.png", "截图检查")
     window._on_worker(("picture", "ok", CheckResult(False, "没有找到这间大厅。")))
@@ -1795,7 +1795,7 @@ def test_a_record_says_what_it_found_and_shortens_long_names(qapp, tmp_path, mon
         ]
     )
     window._reload_history()
-    assert window.record_summary.text() == "1 人在黑名单里，1 人没看清"
+    assert window.record_summary.text() == "1 人在黑名单里，1 人未识别"
     assert window.history_table.item(1, 0).toolTip() == long_name
     label = window.history_table.cellWidget(1, 0).findChild(QLabel)
     assert label.minimumSizeHint().width() < 100, "a long name can shrink to fit its seat"
@@ -1898,7 +1898,7 @@ def test_a_model_that_will_not_load_stops_the_check_at_its_step(qapp, tmp_path, 
     window.show()
     window.start_environment_check()
     _wait(qapp, 350)
-    window._on_worker(("warmup", "err", OcrUnavailable("识别模型没有就绪，请重新解压完整的安装包。")))
+    window._on_worker(("warmup", "err", OcrUnavailable("识别模型未就绪，请重新解压完整的安装包。")))
     assert window.setup.title.text() == "环境有问题"
     assert "模型" in window.setup.message.text()
     assert window.setup.notes[1].text() == ""
@@ -2229,7 +2229,7 @@ def test_a_tags_pencil_opens_its_editor_and_keys_work(qapp, tmp_path, monkeypatc
         qapp.sendEvent(
             view.viewport(), QMouseEvent(kind, QPointF(pencil), QPointF(pencil), Qt.LeftButton, Qt.LeftButton, Qt.NoModifier)
         )
-    # The pencil opens 修改 without picking the tag.
+    # The pencil opens 编辑 without picking the tag.
     assert opened == ["炸房"]
     assert window._tag_filter == ""
     # The rest of the row picks it.
@@ -2237,7 +2237,7 @@ def test_a_tags_pencil_opens_its_editor_and_keys_work(qapp, tmp_path, monkeypatc
     for kind in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease):
         qapp.sendEvent(view.viewport(), QMouseEvent(kind, middle, middle, Qt.LeftButton, Qt.LeftButton, Qt.NoModifier))
     assert window._tag_filter == "炸房" and opened == ["炸房"]
-    # Enter or F2 opens 修改; Delete asks, then removes.
+    # Enter or F2 opens 编辑; Delete asks, then removes.
     _press(qapp, view, Qt.Key_F2)
     _press(qapp, view, Qt.Key_Return)
     assert opened == ["炸房"] * 3
@@ -2304,7 +2304,7 @@ def test_dialogs_say_their_title_once_and_dim_the_window(qapp, tmp_path, monkeyp
     assert isinstance(dialog, Modal)
     assert dialog.windowFlags() & Qt.FramelessWindowHint
     texts = [label.text() for label in dialog.findChildren(QLabel)]
-    assert texts.count("修改标签") == 1
+    assert texts.count("编辑标签") == 1
     # One box needs no label: the title names it. Screen readers still hear it.
     assert "标签" not in texts
     assert dialog.name_edit.accessibleName() == "标签"
@@ -2347,12 +2347,12 @@ def test_dialogs_say_their_title_once_and_dim_the_window(qapp, tmp_path, monkeyp
     for made in (
         TagCreateDialog(window.store.tag_catalog(), parent=window),
         AddNameDialog(catalog=window.store.tag_catalog(), parent=window),
-        ConfirmDialog(window, "清空列表", "名单里的 1 个名字会被删除。", "确认清空", danger=True),
+        ConfirmDialog(window, "清空黑名单", "黑名单里的 1 个名字会被删除。", "清空", danger=True),
     ):
         assert isinstance(made, Modal) and made.windowFlags() & Qt.FramelessWindowHint
         assert made.heading.text() == made.windowTitle()
         made.close()
-    confirm = ConfirmDialog(window, "清空列表", "名单里的 1 个名字会被删除。", "确认清空", danger=True)
+    confirm = ConfirmDialog(window, "清空黑名单", "黑名单里的 1 个名字会被删除。", "清空", danger=True)
     assert confirm.cancel_button.text() == "取消" and confirm.cancel_button.isDefault()
     # Clicking outside a confirmation is the safe answer.
     confirm.show()

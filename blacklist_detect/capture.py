@@ -27,7 +27,7 @@ class CaptureUnavailable(RuntimeError):
 
 def capture_capability_message() -> str:
     if sys.platform != "win32":
-        return "这台电脑不能直接检查游戏画面。请用「选择图片」。"
+        return "这台电脑不能直接检查游戏画面。请用「截图检查」。"
     return ""
 
 

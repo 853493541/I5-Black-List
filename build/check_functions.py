@@ -104,15 +104,15 @@ def main() -> int:
     check("the welcome guide shows once, after it", guides == [1] and not window.store.first_run)
     check("the check is remembered for this version", Store(window.store.root).env_checked == __version__)
 
-    # 2. 检查截图 on the reference lobby, with someone from it on the list.
+    # 2. 截图检查 on the reference lobby, with someone from it on the list.
     window.store.add("gffdsd", "测试", tags=("炸房",))
     window._show_list()
-    window._run_picture(str(LOBBY), "检查截图")
+    window._run_picture(str(LOBBY), "截图检查")
     wait_until(lambda: window._picture_dialog is not None and window._picture_dialog.isVisible(), 120)
     dialog = window._picture_dialog
     seats = [seat.text() for seat in dialog.seats] if dialog is not None else []
-    check("检查截图 reads twelve seats", len(seats) == 12, "、".join(seats))
-    check("检查截图 marks the listed player", dialog is not None and "1 人在黑名单里" in dialog.summary.text(), dialog.summary.text() if dialog else "")
+    check("截图检查 reads twelve seats", len(seats) == 12, "、".join(seats))
+    check("截图检查 marks the listed player", dialog is not None and "1 人在黑名单里" in dialog.summary.text(), dialog.summary.text() if dialog else "")
     if dialog is not None:
         dialog.close()
 

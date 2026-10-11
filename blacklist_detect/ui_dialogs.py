@@ -115,7 +115,7 @@ class TagEditDialog(Modal):
         self.catalog = catalog
         self.renamed = tag
         self.deleted = False
-        layout = _frame(self, "修改标签")
+        layout = _frame(self, "编辑标签")
         self.name_edit = QLineEdit(tag)
         self.name_edit.setAccessibleName("标签")
         self.error = _field(layout, "", self.name_edit)
@@ -238,7 +238,7 @@ class AddNameDialog(Modal):
         self.detail_edit.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.detail_edit.document().setDocumentMargin(0)
         self.detail_edit.setFixedHeight(QFontMetrics(self.font()).lineSpacing() * 3 + 18)
-        _field(layout, "详情", self.detail_edit)
+        _field(layout, "原因", self.detail_edit)
         remove = _danger("删除", self._delete) if allow_delete else None
         confirm = _primary("保存" if allow_delete else "添加", self._accept)
         # The destructive button stands apart on the left, away from 保存.
@@ -296,7 +296,7 @@ class AddNameDialog(Modal):
         if not self.name_edit.text().strip():
             problem = "请填写名字"
         elif not key:
-            problem = "名字里要有文字或数字"
+            problem = "名字需包含文字或数字"
         elif key in self.taken:
             problem = "黑名单里已经有这个名字"
         else:
@@ -326,13 +326,13 @@ class BatchAddDialog(Modal):
         self.names: list[str] = []
         self.annotated: list[tuple[str, tuple[str, ...], str]] | None = None
         self.catalog = catalog or TAGS
-        layout = _frame(self, "批量添加")
+        layout = _frame(self, "批量导入")
         hint = QLabel(
             "可以这样粘贴：\n"
             "· 一行一个：名字，炸房，贴脸，原因\n"
             "· 名字（说明），说明里的标签会自动选上\n"
             "· 只有名字，用空格或换行隔开\n"
-            "· 朋友用「分享」复制的名单"
+            "· 朋友用「复制名单」发来的名单"
         )
         hint.setObjectName("hintBox")
         layout.addWidget(hint)
@@ -345,7 +345,7 @@ class BatchAddDialog(Modal):
         self.error.hide()
         layout.addWidget(self.error)
         self.edit.textChanged.connect(self._clear_error)
-        _footer(self, _primary("添加", self._accept))
+        _footer(self, _primary("导入", self._accept))
         self.card.setMinimumWidth(460)
         _pointing(self)
 
@@ -406,7 +406,7 @@ class PictureResultDialog(Modal):
                 head = "这间大厅里没有黑名单"
             unclear = sum(1 for slot in result.names if slot.unclear)
             if unclear:
-                head += f"，{unclear} 人没看清"
+                head += f"，{unclear} 人未识别"
             self.summary.setText(head)
             hits = {}
             for hit in result.hits:
@@ -426,7 +426,7 @@ class PictureResultDialog(Modal):
                 base = f'font-family: "{chinese_family()}"; background: transparent;'
                 wash = ""
                 if slot.unclear:
-                    cell.setText("未看清")
+                    cell.setText("未识别")
                     cell.setStyleSheet(base + f' color: {THEME["gray"]};')
                 elif slot.index in hits:
                     hit = hits[slot.index]
@@ -437,7 +437,7 @@ class PictureResultDialog(Modal):
                         cell.setText(hit.entry_name)
                         cell.setToolTip(f"画面是「{shown}」，黑名单里是「{hit.entry_name}」")
                     else:
-                        listed = "" if tail == "" else f"　名单：{hit.entry_name}"
+                        listed = "" if tail == "" else f"　黑名单：{hit.entry_name}"
                         cell.setText(shown + listed)
                     cell.setStyleSheet(base + f' color: {THEME["red"]};')
                     wash = THEME["red_wash"]
@@ -477,7 +477,7 @@ class GuideDialog(Modal):
         layout.addSpacing(4)
         steps = (
             ("edit", "1. 在右上角填上你的角色名称，记录里会标出你自己。"),
-            ("users", "2. 在「黑名单」里添加名字，或用「批量添加」粘贴朋友分享的名单。"),
+            ("users", "2. 在「黑名单」里添加名字，或用「批量导入」粘贴朋友分享的名单。"),
             ("check", "3. 进游戏就好。有黑名单的人时，「准备案件还原」按钮会被标红，旁边列出名字。"),
         )
         accent = THEME["accent_line"] if THEME.get("scheme") == "dark" else THEME["accent"]

@@ -348,7 +348,7 @@ class OcrEngine:
             # For whoever reads the log: run `python -m blacklist_detect download-models`, or point
             # BLACKLIST_DETECT_MODEL_DIR at the model folder. The user only needs to reinstall.
             log.warning("The PaddleOCR detection/recognition models did not load", exc_info=True)
-            raise OcrUnavailable("识别模型没有就绪，请重新解压完整的安装包。") from exc
+            raise OcrUnavailable("识别模型未就绪，请重新解压完整的安装包。") from exc
         return self._ocr
 
     def _ensure_name_rec(self):
@@ -376,7 +376,7 @@ class OcrEngine:
                 sampler.batch_size = 12
         except Exception as exc:
             log.warning("The PP-OCRv6 name recognition model did not load", exc_info=True)
-            raise OcrUnavailable("识别模型没有就绪，请重新解压完整的安装包。") from exc
+            raise OcrUnavailable("识别模型未就绪，请重新解压完整的安装包。") from exc
         return self._name_rec
 
 

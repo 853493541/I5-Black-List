@@ -29,7 +29,7 @@ That folder also holds:
 
 ## Check a screenshot
 
-In **设置 → 识别**, **检查截图** runs the same lobby and name check on a picture you pick. It shows the twelve seats, with blacklist matches in red. The live check copies the screen with one GDI BitBlt on Windows; elsewhere only pictures can be checked.
+In **设置 → 截图检查**, **选择截图** runs the same lobby and name check on a picture you pick. It shows the twelve seats, with blacklist matches in red. The live check copies the screen with one GDI BitBlt on Windows; elsewhere only pictures can be checked.
 
 From a terminal, with no window:
 
