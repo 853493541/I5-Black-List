@@ -150,6 +150,55 @@ def _grab_screen(height_fraction: float = 1.0) -> np.ndarray | None:
     return rgb
 
 
+def allow_any_foreground() -> None:
+    """Let another process take the front. A second launch calls this before it asks the copy
+    already open to show itself: Windows lets the app the user just started pass that on."""
+    if sys.platform != "win32":
+        return
+    import ctypes
+
+    ctypes.windll.user32.AllowSetForegroundWindow(ctypes.c_uint32(0xFFFFFFFF).value)  # ASFW_ANY
+
+
+def bring_to_front(hwnd: int) -> bool:
+    """Put a window in front and give it the focus, the way clicking it would.
+
+    Windows keeps an app in the background from pulling its window forward; the window opens
+    behind whatever is in use, or only flashes in the taskbar. Joining the input of the window
+    now in front for a moment lets ours take its place. Returns whether it is in front.
+    """
+    if sys.platform != "win32":
+        return False
+    import ctypes
+    from ctypes import wintypes
+
+    user32 = ctypes.windll.user32
+    kernel32 = ctypes.windll.kernel32
+    user32.GetForegroundWindow.restype = wintypes.HWND
+    user32.GetWindowThreadProcessId.argtypes = (wintypes.HWND, ctypes.c_void_p)
+    user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+    user32.SetForegroundWindow.argtypes = (wintypes.HWND,)
+    user32.BringWindowToTop.argtypes = (wintypes.HWND,)
+    user32.IsIconic.argtypes = (wintypes.HWND,)
+    user32.ShowWindow.argtypes = (wintypes.HWND, ctypes.c_int)
+    target = wintypes.HWND(hwnd)
+    if user32.IsIconic(target):
+        user32.ShowWindow(target, 9)  # SW_RESTORE
+    front = user32.GetForegroundWindow()
+    if front and front == hwnd:
+        return True
+    ours = kernel32.GetCurrentThreadId()
+    theirs = user32.GetWindowThreadProcessId(front, None) if front else 0
+    joined = bool(theirs) and theirs != ours and bool(user32.AttachThreadInput(theirs, ours, True))
+    try:
+        user32.BringWindowToTop(target)
+        user32.SetForegroundWindow(target)
+    finally:
+        if joined:
+            user32.AttachThreadInput(theirs, ours, False)
+    return user32.GetForegroundWindow() == hwnd
+
+
 def lock_foreground(locked: bool) -> None:
     """Stop the hotkey from pulling a window to the front."""
     if sys.platform != "win32":

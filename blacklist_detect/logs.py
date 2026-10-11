@@ -50,6 +50,32 @@ def setup_logging(root: Path | None = None) -> Path | None:
     return folder / "app.log"
 
 
+_RUNNING = "running"
+
+
+def mark_running(root: Path | None = None) -> bool:
+    """Note that the app is open. Returns whether the last run never said it was closing.
+
+    A crash leaves crash.log; a process ended from outside (Task Manager, a tool that ends
+    every pythonw, a power loss) leaves nothing. The note left behind says it happened.
+    """
+    marker = log_dir(root) / _RUNNING
+    unclean = marker.exists()
+    try:
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text("", encoding="utf-8")
+    except OSError:
+        pass
+    return unclean
+
+
+def mark_closed(root: Path | None = None) -> None:
+    try:
+        (log_dir(root) / _RUNNING).unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
 def _log_uncaught(kind, value, trace) -> None:  # noqa: ANN001
     if issubclass(kind, KeyboardInterrupt):
         sys.__excepthook__(kind, value, trace)

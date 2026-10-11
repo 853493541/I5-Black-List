@@ -38,6 +38,8 @@ from PySide6.QtWidgets import (
 from blacklist_detect import __version__, autostart
 from blacklist_detect.capture import (
     CaptureUnavailable,
+    allow_any_foreground,
+    bring_to_front,
     capture_capability_message,
     capture_displays,
     capture_top_band,
@@ -45,7 +47,7 @@ from blacklist_detect.capture import (
     virtual_origin,
 )
 from blacklist_detect.hotkey import GlobalHotkey, parse_hotkey
-from blacklist_detect.logs import log, on_uncaught, setup_logging
+from blacklist_detect.logs import log, mark_closed, mark_running, on_uncaught, setup_logging
 from blacklist_detect.match import (
     MIN_PREFIX_CHARS,
     NameLabel,
@@ -201,6 +203,8 @@ def run_app(background: bool = False) -> int:
 
         QMessageBox.critical(None, "黑名单检测", "程序没能打开，请重新解压完整的安装包后再试。")
         return 1
+    if mark_running():
+        log.warning("The last run ended without closing: it was ended from outside (Task Manager, a tool, or a power loss).")
     window.instance_server = listen_for_instances(key, window._show_from_tray, window.quit_app)
     on_uncaught(window.report_uncaught)
     # Started with Windows: stay in the tray, unless a first open or an environment check needs the window.
@@ -214,6 +218,7 @@ def run_app(background: bool = False) -> int:
     QTimer.singleShot(0, window.begin)
     code = app.exec()
     log.info("Exit %s", code)
+    mark_closed()
     return code
 
 
@@ -229,6 +234,8 @@ def notify_running_instance(key: str, show: bool = True) -> bool:
     if not socket.waitForConnected(300):
         return False
     if show:
+        # The user just started this copy, so it may take the front; it hands that to the open one.
+        allow_any_foreground()
         socket.write(b"show")
         socket.flush()
         socket.waitForBytesWritten(300)
@@ -3029,9 +3036,14 @@ class MainWindow(QMainWindow):
         QApplication.quit()
 
     def _show_from_tray(self) -> None:
-        self.show()
+        """Back from the tray, or from a second launch: shown, not minimized, and in front."""
+        if self.isMinimized():
+            self.showNormal()
+        else:
+            self.show()
         self.raise_()
         self.activateWindow()
+        bring_to_front(int(self.winId()))
 
     def _on_tray(self, reason) -> None:
         from PySide6.QtWidgets import QSystemTrayIcon

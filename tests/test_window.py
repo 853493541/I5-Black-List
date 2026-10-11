@@ -2357,3 +2357,44 @@ def test_dialogs_say_their_title_once_and_dim_the_window(qapp, tmp_path, monkeyp
     confirm.click_outside()
     assert confirm.result() == QDialog.Rejected
     window.close()
+
+
+def test_reopening_from_the_tray_restores_and_comes_to_the_front(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    fronted: list[int] = []
+    monkeypatch.setattr("blacklist_detect.ui.bring_to_front", lambda hwnd: fronted.append(hwnd) or True)
+    window.showMinimized()
+    window.hide()
+    window._show_from_tray()
+    # Windows keeps a background app's window behind others; it is brought forward, not just shown.
+    assert window.isVisible() and not window.isMinimized()
+    assert fronted == [int(window.winId())]
+    window.close()
+
+
+def test_a_second_launch_lets_the_open_copy_come_forward(qapp, monkeypatch):
+    from blacklist_detect.ui import listen_for_instances, notify_running_instance
+
+    allowed: list[bool] = []
+    monkeypatch.setattr("blacklist_detect.ui.allow_any_foreground", lambda: allowed.append(True))
+    key = f"blacklist-detect-test-{os.getpid()}-front"
+    server = listen_for_instances(key, lambda: None)
+    assert notify_running_instance(key, show=True) is True
+    assert allowed == [True]
+    # A start at sign-in only checks; it does not pass the front on.
+    assert notify_running_instance(key, show=False) is True
+    assert allowed == [True]
+    server.close()
+
+
+def test_an_outside_end_is_noted_at_the_next_start(tmp_path):
+    from blacklist_detect.logs import mark_closed, mark_running
+
+    assert mark_running(tmp_path) is False
+    # Ended from outside: nothing removed the note.
+    assert mark_running(tmp_path) is True
+    mark_closed(tmp_path)
+    assert mark_running(tmp_path) is False
