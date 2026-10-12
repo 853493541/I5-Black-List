@@ -666,14 +666,14 @@ class GuideDialog(Modal):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         layout = _frame(self, f"欢迎使用{APP_NAME}")
-        intro = QLabel("进入「推演成功」大厅时，自动识别 12 名玩家并标出黑名单玩家。仅读取屏幕画面，不修改游戏。")
+        intro = QLabel("进入「推演成功」大厅时，会自动帮你查黑名单。")
         intro.setWordWrap(True)
         layout.addWidget(intro)
         layout.addSpacing(4)
         steps = (
-            ("edit", "1. 在右上角填写你的角色名称，记录中会标出你自己。"),
-            ("users", "2. 在「黑名单」中添加玩家，或通过「批量导入」粘贴好友分享的名单。"),
-            ("check", "3. 进入游戏即可。遇到黑名单玩家时，「准备案件还原」按钮会标红，并在旁边列出名字。"),
+            ("edit", "在右上角填上你的游戏名"),
+            ("users", "在「黑名单」里添加或导入名单"),
+            ("check", "进游戏就行，遇到黑名单会标红提醒"),
         )
         accent = THEME["accent_line"] if THEME.get("scheme") == "dark" else THEME["accent"]
         self.steps: list[QLabel] = []
@@ -695,5 +695,5 @@ class GuideDialog(Modal):
             layout.addLayout(row)
             self.steps.append(step)
         _footer(self, _primary("开始使用", self.accept))
-        self.card.setMinimumWidth(680)
+        self.card.setMinimumWidth(460)
         _pointing(self)
