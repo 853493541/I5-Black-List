@@ -47,7 +47,7 @@ from blacklist_detect.capture import (
     lock_foreground,
     virtual_origin,
 )
-from blacklist_detect.game_area import window_rect_at
+from blacklist_detect.game_area import window_order, window_rect_at
 from blacklist_detect.hotkey import GlobalHotkey, parse_hotkey
 from blacklist_detect.importing import suggest_tags, with_tags
 from blacklist_detect.logs import log, mark_closed, mark_running, on_uncaught, setup_logging
@@ -417,8 +417,10 @@ class MainWindow(QMainWindow):
         # 直播模式: the 心动 marks, never the 黑名单 ones, in a window a streaming app can capture.
         self.stream = StreamMirror(self)
         self._preview_until = 0.0
-        # The lobby's button, in desktop pixels: the game's window is the one under it.
+        # The lobby's button, in desktop pixels: the game's window is the one under it, in the
+        # order the windows were in at the screenshot.
         self._game_box = None
+        self._game_windows: tuple[int, ...] = ()
         # New versions from GitHub: checked when the app opens and installed before it is used.
         self.updates = UpdateChecker(self)
         self.updates.found.connect(self._on_update_found)
@@ -3039,10 +3041,12 @@ class MainWindow(QMainWindow):
 
     def _capture_job(self) -> CheckResult:
         started = time.perf_counter()
+        windows = window_order()
         frames = capture_displays()
         captured = time.perf_counter() - started
         result = check_frames(frames, list(self.store.entries), on_lobby=self.worker.placed.emit)
         result.timings["capture"] = captured
+        result.windows = windows
         result.timings["screens"] = len(frames)
         return result
 
@@ -3340,6 +3344,7 @@ class MainWindow(QMainWindow):
             self._hide_panel_after_title()
             return
         self._game_box = result.button_box
+        self._game_windows = result.windows
         likes = self._likes_in(result)
         if hits:
             self.clear_mark.hide()
@@ -3423,7 +3428,7 @@ class MainWindow(QMainWindow):
             return area
         origin_x, origin_y = virtual_origin()
         left, top, right, bottom = self._game_box
-        found = window_rect_at((left + right) // 2 + origin_x, (top + bottom) // 2 + origin_y)
+        found = window_rect_at((left + right) // 2 + origin_x, (top + bottom) // 2 + origin_y, self._game_windows)
         if found is None:
             return area
         x, y, ratio = native_to_logical(found[0], found[1])

@@ -273,7 +273,7 @@ def test_the_border_fits_a_game_in_a_window(window, monkeypatch):
     left = round(area.x() + (game.x() - area.x()) * ratio)
     top = round(area.y() + (game.y() - area.y()) * ratio)
     native = (left, top, left + round(game.width() * ratio), top + round(game.height() * ratio))
-    monkeypatch.setattr(ui, "window_rect_at", lambda x, y: native)
+    monkeypatch.setattr(ui, "window_rect_at", lambda x, y, order=(): native)
     middle_x = area.x() + (game.x() - area.x() + game.width() // 2)
     middle_y = area.y() + (game.y() - area.y() + game.height() // 2)
     box = (round(middle_x * ratio) - 90, round(middle_y * ratio), round(middle_x * ratio) + 90, round(middle_y * ratio) + 60)

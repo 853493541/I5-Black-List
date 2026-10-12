@@ -100,7 +100,7 @@ def test_the_glow_fits_a_game_in_a_window(window, monkeypatch):
     game = QRect(area.x() + 100, area.y() + 120, area.width() // 2 + 200, area.height() // 2 + 150)
     asked: list[tuple[int, int]] = []
 
-    def window_at(x, y):  # noqa: ANN001, ANN202
+    def window_at(x, y, order=()):  # noqa: ANN001, ANN202
         asked.append((x, y))
         left = round(area.x() + (game.x() - area.x()) * ratio)
         top = round(area.y() + (game.y() - area.y()) * ratio)
@@ -115,11 +115,24 @@ def test_the_glow_fits_a_game_in_a_window(window, monkeypatch):
     assert window.alert.geometry() == game
     window._hide_panel_after_title()
     # Nothing found, or something no bigger than the button: the whole screen, as before.
-    monkeypatch.setattr(ui, "window_rect_at", lambda x, y: None)
+    monkeypatch.setattr(ui, "window_rect_at", lambda x, y, order=(): None)
     window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
     assert window.alert.geometry() == area
     window._hide_panel_after_title()
-    monkeypatch.setattr(ui, "window_rect_at", lambda x, y: (x - 5, y - 5, x + 5, y + 5))
+    monkeypatch.setattr(ui, "window_rect_at", lambda x, y, order=(): (x - 5, y - 5, x + 5, y + 5))
     window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
     assert window.alert.geometry() == area
+    window._hide_panel_after_title()
+
+
+def test_the_game_window_is_found_as_the_windows_stood_at_the_screenshot(window, monkeypatch):
+    # By the end of a check something else may be in front of the button (the streaming app).
+    from blacklist_detect import ui
+
+    button, names = _lobby(window)
+    orders: list[tuple[int, ...]] = []
+    monkeypatch.setattr(ui, "window_rect_at", lambda x, y, order=(): orders.append(order))
+    hit = Hit(0, "坏人", "坏人", "", False, "", ("炸房",))
+    window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button, windows=(11, 22, 33)))
+    assert orders and all(order == (11, 22, 33) for order in orders)
     window._hide_panel_after_title()

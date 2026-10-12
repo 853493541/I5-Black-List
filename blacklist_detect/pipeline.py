@@ -64,6 +64,8 @@ class CheckResult:
     button_box: tuple[int, int, int, int] | None = None
     # Seconds each step took (capture, find, read), for the log.
     timings: dict[str, float] = field(default_factory=dict)
+    # The windows front to back at the screenshot, to find the game's window in (game_area).
+    windows: tuple[int, ...] = ()
 
 
 def load_rgb(path: str | Path) -> np.ndarray:

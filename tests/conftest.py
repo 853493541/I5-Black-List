@@ -41,7 +41,7 @@ def _no_game_window(monkeypatch):
     except ImportError:
         yield
         return
-    monkeypatch.setattr(ui, "window_rect_at", lambda _x, _y: None)
+    monkeypatch.setattr(ui, "window_rect_at", lambda _x, _y, _order=(): None)
     yield
 
 
