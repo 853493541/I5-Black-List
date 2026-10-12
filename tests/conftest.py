@@ -33,6 +33,19 @@ def _no_open_questions(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_game_window(monkeypatch):
+    """Whatever windows this PC has open are not a game: the border and glow take the whole screen
+    unless a test puts a game window under the button itself."""
+    try:
+        from blacklist_detect import ui
+    except ImportError:
+        yield
+        return
+    monkeypatch.setattr(ui, "window_rect_at", lambda _x, _y: None)
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _keep_windows():
     yield
     try:
