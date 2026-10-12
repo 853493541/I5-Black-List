@@ -442,7 +442,7 @@ class TagSuggestDialog(Modal):
 
     The 标签 are phrases several 原因 share, as pills under 新标签 and 已有标签. All start on;
     a click cancels one, a second click brings it back. Under them, the people being added
-    with the 标签 each will get, their number beside 名字; six rows show and the rest scroll.
+    with the 标签 each will get and their 原因, their number beside 名字; six rows show and the rest scroll.
     导入 imports; 返回 goes back to the pasted text.
     """
 
@@ -486,16 +486,18 @@ class TagSuggestDialog(Modal):
             column.addLayout(row)
         layout.addWidget(tags)
         # 2. Who will be added, how many beside 名字.
-        table = QTableWidget(len(self.rows), 2)
+        table = QTableWidget(len(self.rows), 3)
         self.people = table
         table.setObjectName("importPreview")
         table.setAccessibleName("将添加的人")
-        table.setHorizontalHeaderLabels([f"名字  {len(self.rows)}", "标签"])
+        table.setHorizontalHeaderLabels([f"名字  {len(self.rows)}", "标签", "原因"])
         head = table.horizontalHeader()
         head.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         head.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
-        head.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        table.setColumnWidth(0, 180)
+        head.setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        head.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        table.setColumnWidth(0, 150)
+        table.setColumnWidth(1, 190)
         table.verticalHeader().setVisible(False)
         table.verticalHeader().setDefaultSectionSize(30)
         table.setSelectionMode(QTableWidget.NoSelection)
@@ -508,12 +510,16 @@ class TagSuggestDialog(Modal):
         # The rows paint as checked: everyone listed here is coming in.
         table.setItemDelegateForColumn(0, _PreviewDelegate(table))
         table.setItemDelegateForColumn(1, _PreviewDelegate(table))
-        for index, (name, _tags, _reason, _target) in enumerate(self.rows):
+        table.setItemDelegateForColumn(2, _PreviewDelegate(table))
+        for index, (name, _tags, reason, _target) in enumerate(self.rows):
             who = QTableWidgetItem(name)
             who.setToolTip(name)
             who.setData(Qt.UserRole, True)
             gets = QTableWidgetItem("")
-            for column, item in enumerate((who, gets)):
+            why = QTableWidgetItem(reason)
+            why.setToolTip(reason)
+            why.setData(Qt.UserRole + 4, THEME["muted"])
+            for column, item in enumerate((who, gets, why)):
                 item.setFlags(Qt.ItemIsEnabled)
                 table.setItem(index, column, item)
         shown = min(len(self.rows), self.LIST_ROWS)
@@ -525,7 +531,7 @@ class TagSuggestDialog(Modal):
         back.clicked.connect(self._back)
         self.import_button = _primary("导入", self.accept)
         _footer(self, back, self.import_button)
-        self.card.setMinimumWidth(520)
+        self.card.setMinimumWidth(680)
         _pointing(self)
 
     def picked(self) -> list[TagSuggestion]:
