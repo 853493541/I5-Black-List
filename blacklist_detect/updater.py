@@ -42,7 +42,20 @@ MANIFEST_URL = f"https://github.com/{REPO}/releases/latest/download/version.json
 RELEASES_URL = f"https://github.com/{REPO}/releases/latest"
 DOWNLOADS = f"https://github.com/{REPO}/releases/download/"
 # Where to fetch from: GitHub itself, then public proxies that put a GitHub address after their own.
-MIRRORS = ("", "https://ghfast.top/", "https://gh-proxy.com/", "https://ghproxy.net/", "https://gh.llkk.cc/")
+# Taken from the list kept in XIU2's 「GitHub 增强 - 高速下载」 (github.com/XIU2/UserScript), one
+# or two per operator so that one going down leaves the rest: ghproxy.link's ghfast.top,
+# gh-proxy's own server and its Tencent EdgeOne and Fastly nodes, ghproxy.net, ucdn's wget.la,
+# and gh.ddlc.top. They come and go; a signed version.json can name new ones.
+MIRRORS = (
+    "",
+    "https://ghfast.top/",
+    "https://gh-proxy.org/",
+    "https://edgeone.gh-proxy.org/",
+    "https://cdn.gh-proxy.org/",
+    "https://ghproxy.net/",
+    "https://wget.la/",
+    "https://gh.ddlc.top/",
+)
 # The proxy that worked last and any a release named, kept beside the settings.
 MIRROR_FILE = "mirrors.json"
 _MIRROR = re.compile(r"https://[A-Za-z0-9.-]+(?::[0-9]+)?/(?:[A-Za-z0-9._~-]+/)*")
