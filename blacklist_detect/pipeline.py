@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -61,6 +62,8 @@ class CheckResult:
     hits: list[Hit] = field(default_factory=list)
     preview_rgb: np.ndarray | None = None
     button_box: tuple[int, int, int, int] | None = None
+    # Seconds each step took (capture, find, read), for the log.
+    timings: dict[str, float] = field(default_factory=dict)
 
 
 def load_rgb(path: str | Path) -> np.ndarray:
@@ -79,6 +82,7 @@ def check_frames(frames: list[np.ndarray], entries: list[Entry], engine=None, on
     reader = engine or get_engine()
     chosen: tuple[np.ndarray, Anchor, list[OcrLine]] | None = None
     last_reason = "未识别到「推演成功」大厅。"
+    started = time.perf_counter()
     for frame in frames:
         anchor, _lines = _locate(reader, frame)
         if anchor.found:
@@ -88,13 +92,17 @@ def check_frames(frames: list[np.ndarray], entries: list[Entry], engine=None, on
     if chosen is None:
         result = CheckResult(False, last_reason)
         result.preview_rgb = frames[0]
+        result.timings["find"] = time.perf_counter() - started
         return result
     frame, anchor, _lines = chosen
     button = snap_button_box(frame, anchor.button_box)
+    found = time.perf_counter()
     if on_lobby is not None and button is not None:
         on_lobby(button)
     result = _read_names(reader, frame, anchor, entries)
     result.button_box = button
+    result.timings["find"] = found - started
+    result.timings["read"] = time.perf_counter() - found
     return result
 
 

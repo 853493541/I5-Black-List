@@ -61,7 +61,7 @@ from blacklist_detect.match import (
 )
 from blacklist_detect.model import Entry
 from blacklist_detect.names import APP_NAME
-from blacklist_detect.ocr_engine import OcrUnavailable, get_engine
+from blacklist_detect.ocr_engine import OcrUnavailable, get_engine, inference_device
 from blacklist_detect.paths import instance_key
 from blacklist_detect.pipeline import (
     CheckResult,
@@ -410,6 +410,8 @@ class MainWindow(QMainWindow):
         self._check_started: float | None = None
         self._release_foreground = False
         self._manual_check = False
+        # When the hotkey was pressed, to log how long its check took from the player's side.
+        self._pressed_at: float | None = None
         self._problem = ""
         self._glance_pause_until = 0.0
         self._warm_started: float | None = None
@@ -2658,11 +2660,17 @@ class MainWindow(QMainWindow):
         self._sync_hotkey_mode()
 
     def check_now(self) -> None:
+        log.info("Hotkey: checking.")
+        self._pressed_at = time.perf_counter()
         self._release_foreground = True
         self._rescan_active = False
         lock_foreground(True)
         if self._start(self._capture_job, live=True):
             self._manual_check = True
+        else:
+            # Still busy with the last check or the model load: this press does nothing.
+            log.info("Hotkey: busy, the press was ignored.")
+            self._pressed_at = None
 
     def start_warmup(self) -> None:
         """Load the OCR models now, so the first lobby check does not wait for them."""
@@ -2880,8 +2888,23 @@ class MainWindow(QMainWindow):
             self._sync_watch_idle()
 
     def _capture_job(self) -> CheckResult:
+        started = time.perf_counter()
         frames = capture_displays()
-        return check_frames(frames, list(self.store.entries), on_lobby=self.worker.placed.emit)
+        captured = time.perf_counter() - started
+        result = check_frames(frames, list(self.store.entries), on_lobby=self.worker.placed.emit)
+        result.timings["capture"] = captured
+        result.timings["screens"] = len(frames)
+        return result
+
+    def _timing_note(self, result: CheckResult) -> str:
+        """Where a check's time went, and how long since the hotkey, for the log."""
+        steps = result.timings
+        note = ", ".join(f"{name} {steps[name]:.2f} s" for name in ("capture", "find", "read") if name in steps)
+        if steps.get("screens", 1) != 1:
+            note += f", {int(steps['screens'])} screens"
+        if self._pressed_at is not None:
+            note += f"; {time.perf_counter() - self._pressed_at:.2f} s since the hotkey"
+        return note
 
     def _glance_job(self) -> bool:
         """Runs on the worker thread. An unchanged screen keeps the last answer without reading it again."""
@@ -2961,7 +2984,7 @@ class MainWindow(QMainWindow):
             self._report_problem(value)
             return
         if self._warm_started is not None:
-            log.info("OCR ready in %.1f s", time.perf_counter() - self._warm_started)
+            log.info("OCR ready in %.1f s on %s", time.perf_counter() - self._warm_started, inference_device())
         if self._status_kind == "loading":
             self._sync_watch_idle()
 
@@ -3014,6 +3037,7 @@ class MainWindow(QMainWindow):
             if not rescan and self._live_check and self._rescan_now():
                 return
             self._manual_check = False
+            self._pressed_at = None
             self._report_problem(value)
             if self.store.auto_capture:
                 self.watch.retry_after(time.perf_counter())
@@ -3026,7 +3050,8 @@ class MainWindow(QMainWindow):
             if not rescan and self._live_check and self._rescan_now():
                 return
             self._manual_check = False
-            log.info("No lobby on screen: %s", result.message)
+            log.info("No lobby on screen (%s): %s", self._timing_note(result), result.message)
+            self._pressed_at = None
             if self.store.auto_capture:
                 self.watch.retry_after(time.perf_counter())
             self._hide_panel_after_title()
@@ -3036,11 +3061,14 @@ class MainWindow(QMainWindow):
         self._manual_check = False
         self._clear_problem()
         log.info(
-            "Checked the lobby: %d on the list, %d unclear, %.2f s",
+            "Checked the lobby: %d on the list, %d unclear, %.2f s (%s)%s",
             len(result.hits),
             sum(1 for slot in result.names if slot.unclear),
             elapsed or 0.0,
+            self._timing_note(result),
+            ", second look" if rescan else "",
         )
+        self._pressed_at = None
         self._note_watch(bool(result.header_found))
         if result.header_found and result.names:
             outcome = self.store.add_scan(
