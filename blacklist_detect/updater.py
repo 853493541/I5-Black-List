@@ -6,8 +6,9 @@ the oldest version the zip can be laid over. version.json.sig is an Ed25519 sign
 version.json, made with a key that never leaves the publisher's PC; the app holds the public
 half, so a release that key did not sign is ignored even if the download page was taken over.
 
-The app only asks: it checks quietly, and a friend clicks 更新 to download. The zip is unpacked
-into update.new beside the app; the launcher lays it over the folder on the next start, keeping
+The app only asks: it checks once when it opens (and when 检查更新 is clicked), and a friend
+clicks 更新 to download. The zip is unpacked into update.new beside the app; the launcher
+lays it over the folder on the next start, keeping
 what it replaced in update.old, and puts that back if the new version never says it started.
 Nothing about the player is sent: the requests are plain downloads of public files.
 """

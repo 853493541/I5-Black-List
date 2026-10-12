@@ -172,9 +172,9 @@ __all__ = [
     "run_app",
 ]
 
-# Updates are looked for a little after the app opens, so the opening is not slowed, then every six hours.
-UPDATE_FIRST_MS = 20_000
-UPDATE_EVERY_MS = 6 * 60 * 60 * 1000
+# Updates are looked for once each time the app opens, a moment after, so the opening is not slowed.
+# After that only 设置 › 检查更新 looks.
+UPDATE_FIRST_MS = 5_000
 
 
 def _claim_windows_app() -> None:
@@ -365,19 +365,15 @@ class MainWindow(QMainWindow):
         # Two or more 心动 players and no 黑名单: a border of silk and flowers, once per lobby.
         self.love = LoveBorder()
         self._love_played = False
-        # New versions from GitHub: checked quietly a while after opening and every few hours.
+        # New versions from GitHub: checked quietly once after opening; 检查更新 checks again.
         self.updates = UpdateChecker(self)
         self.updates.found.connect(self._on_update_found)
         self.updates.latest.connect(self._on_update_latest)
         self.updates.failed.connect(self._on_update_failed)
         self._release: updater.Release | None = None
         self._update_asked = False
-        self._update_timer = QTimer(self)
-        self._update_timer.setInterval(UPDATE_EVERY_MS)
-        self._update_timer.timeout.connect(self._check_updates_quietly)
         if updater.app_root() is not None:
             QTimer.singleShot(UPDATE_FIRST_MS, self._check_updates_quietly)
-            self._update_timer.start()
             QTimer.singleShot(3000, self._confirm_update)
         self._panel_hide_timer = QTimer(self)
         self._panel_hide_timer.setSingleShot(True)

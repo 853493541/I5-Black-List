@@ -1,4 +1,4 @@
-"""Updates in the window: a quiet check now and then, and the dialog that downloads one.
+"""Updates in the window: a quiet check when the app opens, 检查更新, and the dialog that downloads one.
 
 The check and the download run on their own threads and report back by signal, so the window
 never waits on the network. Nothing is downloaded until the player clicks 更新.
