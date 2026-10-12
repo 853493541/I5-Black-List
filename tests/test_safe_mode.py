@@ -22,6 +22,7 @@ def window(tmp_path, monkeypatch):  # noqa: ANN001, ANN201
     monkeypatch.setattr(ui, "play_hit_sound", lambda: sounds.append(1))
     made = MainWindow()
     made._watch_timer.stop()
+    made.store.disclaimer_accepted = True
     made.sounds = sounds
     yield made
     made.notice.hide()

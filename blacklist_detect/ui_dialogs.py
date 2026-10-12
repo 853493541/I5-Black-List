@@ -660,6 +660,48 @@ class PictureResultDialog(Modal):
         _pointing(self)
 
 
+# 使用声明: what the app is and is not, and who answers for using it.
+DISCLAIMER = (
+    "本工具是玩家自制的免费工具，与网易及《第五人格》官方无关。",
+    "本工具只截取屏幕画面、在你的电脑上识别文字，不读取、不修改游戏数据，也不会替你操作游戏。",
+    "使用第三方工具可能违反游戏的用户协议。使用本工具（包括完整模式和自动检查）带来的任何后果，"
+    "包括但不限于账号受到处罚，由使用者自行承担。",
+    "黑名单、心动和记录只保存在你自己的电脑上，不会上传。除检查更新外，本工具不联网。",
+    "识别结果可能有误，请以游戏内显示为准。请勿用本工具骚扰、辱骂或针对其他玩家。",
+)
+
+
+class DisclaimerDialog(Modal):
+    """使用声明. Before first use it asks: 同意 goes on, 不同意 closes the app. From 设置 it only shows."""
+
+    def __init__(self, parent=None, asking: bool = True) -> None:
+        super().__init__(parent)
+        layout = _frame(self, "使用声明")
+        self.points: list[QLabel] = []
+        for number, text in enumerate(DISCLAIMER, 1):
+            row = QHBoxLayout()
+            row.setSpacing(8)
+            mark = QLabel(f"{number}.")
+            mark.setObjectName("rowHint")
+            mark.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+            row.addWidget(mark, 0, Qt.AlignTop)
+            point = QLabel(text)
+            point.setWordWrap(True)
+            row.addWidget(point, 1)
+            layout.addLayout(row)
+            self.points.append(point)
+        if asking:
+            self.decline_button = QPushButton("不同意")
+            self.decline_button.setAutoDefault(False)
+            self.decline_button.clicked.connect(self.reject)
+            self.agree_button = _primary("同意并继续", self.accept)
+            _footer(self, self.decline_button, self.agree_button)
+        else:
+            _footer(self, _primary("知道了", self.accept))
+        self.card.setMinimumWidth(520)
+        _pointing(self)
+
+
 class GuideDialog(Modal):
     """Shown once on a new PC: what the app does and the three things to set up."""
 

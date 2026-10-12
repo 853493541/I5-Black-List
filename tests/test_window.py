@@ -1599,7 +1599,7 @@ def test_settings_are_grouped_into_titled_cards(qapp, tmp_path, monkeypatch):
     assert "角色名称" not in shown and "标签" not in shown
     assert not settings_page.isAncestorOf(window.tag_list)
     # Like with like, all of it on one screen at a usual size; the smallest window scrolls.
-    window.resize(900, 700)
+    window.resize(900, 760)
     window.tabs.setCurrentIndex(window.settings_tab)
     window.show()
     for _ in range(5):
@@ -2212,6 +2212,7 @@ def test_the_first_run_guide_opens_over_the_window_without_waiting(qapp, tmp_pat
     window = MainWindow()
     window._watch_timer.stop()
     window.store.first_run = True
+    window.store.disclaimer_accepted = True
     # It returns at once, so the setup screen's fade that calls it is not held up.
     window.show_first_run_guide()
     guide = window.findChild(GuideDialog)
@@ -2221,6 +2222,44 @@ def test_the_first_run_guide_opens_over_the_window_without_waiting(qapp, tmp_pat
     assert len(window.findChildren(GuideDialog)) == 1
     guide.accept()
     window.close()
+
+
+def test_the_disclaimer_comes_first_and_declining_closes_the_app(qapp, tmp_path, monkeypatch):
+    from blacklist_detect.ui import DisclaimerDialog, GuideDialog
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    assert window.store.disclaimer_accepted is False
+    # Nothing is checked before it is agreed to.
+    monkeypatch.setattr(window.worker, "request", lambda fn, kind="check": True)
+    assert window._start(window._capture_job, live=True) is False
+    window.show_first_run_guide()
+    notice = window.findChild(DisclaimerDialog)
+    assert notice is not None and notice.isVisible() and notice.isModal()
+    text = " ".join(point.text() for point in notice.points)
+    assert "与网易" in text and "自行承担" in text and "不会上传" in text
+    assert window.findChild(GuideDialog) is None
+    # 同意: kept, and the welcome guide follows on a new PC.
+    notice.agree_button.click()
+    assert Store(window.store.root).disclaimer_accepted is True
+    assert window.findChild(GuideDialog) is not None
+    assert window._start(window._capture_job, live=True) is True
+    window.close()
+
+    other = tmp_path / "other"
+    monkeypatch.setenv("APPDATA", str(other))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(other))
+    second = MainWindow()
+    second._watch_timer.stop()
+    closed: list[bool] = []
+    monkeypatch.setattr(second, "quit_app", lambda: closed.append(True))
+    second.show_first_run_guide()
+    second.findChild(DisclaimerDialog).decline_button.click()
+    assert closed == [True]
+    assert Store(second.store.root).disclaimer_accepted is False
+    second.close()
 
 
 def test_closing_quits_or_goes_to_the_tray_as_set(qapp, tmp_path, monkeypatch):

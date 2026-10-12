@@ -80,6 +80,7 @@ from blacklist_detect.ui_dialogs import (
     SAMPLE_LOBBY,
     AddNameDialog,
     BatchAddDialog,
+    DisclaimerDialog,
     GuideDialog,
     PictureResultDialog,
     TagSuggestDialog,
@@ -245,7 +246,13 @@ def run_app(background: bool = False) -> int:
     window.instance_server = listen_for_instances(key, window._show_from_tray, window.quit_app)
     on_uncaught(window.report_uncaught)
     # Started with Windows: stay in the tray, unless a first open or an environment check needs the window.
-    quiet = background and window.tray is not None and not window.store.first_run and window.store.env_checked == __version__
+    quiet = (
+        background
+        and window.tray is not None
+        and not window.store.first_run
+        and window.store.disclaimer_accepted
+        and window.store.env_checked == __version__
+    )
     if quiet:
         log.info("Started with Windows; staying in the tray.")
     else:
@@ -962,6 +969,12 @@ class MainWindow(QMainWindow):
         )
         self.close_mode.changed.connect(self._on_close_mode)
         general.add_row("关闭窗口时", self.close_mode)
+        self.disclaimer_button = QPushButton("查看")
+        self.disclaimer_button.setFont(ui_font())
+        self.disclaimer_button.setAutoDefault(False)
+        self.disclaimer_button.setCursor(Qt.PointingHandCursor)
+        self.disclaimer_button.clicked.connect(self._show_disclaimer)
+        general.add_row("使用声明", self.disclaimer_button)
 
         # 外观: how the window looks.
         look = section("外观")
@@ -2779,7 +2792,15 @@ class MainWindow(QMainWindow):
         self._set_result("正在加载识别模型", "idle", "loading")
 
     def show_first_run_guide(self) -> None:
-        """Once per PC: the app opened with no settings file yet."""
+        """Once per PC: 使用声明 to agree to, then, on a new PC, the welcome guide."""
+        if not self.store.disclaimer_accepted:
+            # Over the window without a nested event loop, like the guide.
+            notice = DisclaimerDialog(self)
+            notice.setAttribute(Qt.WA_DeleteOnClose, True)
+            notice.accepted.connect(self._accept_disclaimer)
+            notice.rejected.connect(self._decline_disclaimer)
+            notice.open()
+            return
         if not self.store.first_run:
             return
         self.store.first_run = False
@@ -2788,6 +2809,19 @@ class MainWindow(QMainWindow):
         guide = GuideDialog(self)
         guide.setAttribute(Qt.WA_DeleteOnClose, True)
         guide.open()
+
+    def _accept_disclaimer(self) -> None:
+        log.info("使用声明 agreed to.")
+        self.store.disclaimer_accepted = True
+        self.store.save_settings()
+        self.show_first_run_guide()
+
+    def _decline_disclaimer(self) -> None:
+        log.info("使用声明 declined: closing.")
+        self.quit_app()
+
+    def _show_disclaimer(self) -> None:
+        DisclaimerDialog(self, asking=False).exec()
 
     def begin(self) -> None:
         """After the window opens: the environment check when it is due, then the first-run guide."""
@@ -3036,7 +3070,8 @@ class MainWindow(QMainWindow):
             self.clear_mark.hide()
             self.love.stop()
             self.alert.leave()
-        if not self.worker.request(fn):
+        # Nothing is checked before 使用声明 is agreed to.
+        if not self.store.disclaimer_accepted or not self.worker.request(fn):
             self._unlock_foreground()
             return False
         self._check_started = time.perf_counter()

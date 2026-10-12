@@ -402,6 +402,8 @@ class Store:
         self.stream_mode = ""
         # What the player agreed to after being told the risk: "full" (完整模式), "auto" (自动检查).
         self.consented: list[str] = []
+        # 使用声明: read and agreed to before the app is used, once per PC.
+        self.disclaimer_accepted = False
         self.load_warning = ""
         # Whether the welcome guide has been shown. A settings file from before this was saved
         # counts as welcomed; no settings file at all is a first open.
@@ -765,6 +767,7 @@ class Store:
                 "check_likes": self.check_likes,
                 "stream_mode": self.stream_mode,
                 "consented": list(self.consented),
+                "disclaimer_accepted": self.disclaimer_accepted,
             },
         )
 
@@ -804,6 +807,7 @@ class Store:
             self.check_likes = bool(settings.get("check_likes", True))
             stream = settings.get("stream_mode", "")
             self.stream_mode = stream if stream in ("key", "alpha") else ""
+            self.disclaimer_accepted = settings.get("disclaimer_accepted") is True
             agreed = settings.get("consented") or []
             self.consented = [mode for mode in ("full", "auto") if isinstance(agreed, list) and mode in agreed]
             for raw in settings.get("hidden_tags") or []:
@@ -1012,6 +1016,7 @@ class Store:
         self.hit_sound = True
         self.stream_mode = ""
         self.consented = []
+        self.disclaimer_accepted = False
         self.load_warning = ""
         self.save_entries()
         self.save_likes()
