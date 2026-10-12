@@ -344,13 +344,22 @@ def main() -> int:
     full = args.out / f"{FOLDER}-{version}-full.zip"
     update = args.out / f"{FOLDER}-{version}-update.zip"
     print("Zipping ...")
-    _zip(stage, full, lambda rel: True)
+
+    # The check above ran the app, which left Python caches in its folder: those stay out (an
+    # update would refuse them anyway). The runtime keeps its own, which make the first start quicker.
+    def fresh(rel: Path) -> bool:
+        return not (rel.parts[0] == "blacklist_detect" and "__pycache__" in rel.parts)
+
+    _zip(stage, full, fresh)
     # An update carries the app, the launcher, the app's exe, and the instructions.
     _zip(
         stage,
         update,
-        lambda rel: (rel.parts[0] == "blacklist_detect" and "models" not in rel.parts)
-        or rel in (Path(EXE_NAME), app_exe, Path(GUIDE_NAME)),
+        lambda rel: fresh(rel)
+        and (
+            (rel.parts[0] == "blacklist_detect" and "models" not in rel.parts)
+            or rel in (Path(EXE_NAME), app_exe, Path(GUIDE_NAME))
+        ),
     )
     print(f"Folder: {_size(stage) / 1e6:.0f} MB unpacked (source runtime {_size(args.runtime) / 1e6:.0f} MB)")
     print(f"  {full.name}: {full.stat().st_size / 1e6:.1f} MB")

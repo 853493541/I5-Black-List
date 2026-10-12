@@ -167,19 +167,21 @@ def _mirror_file() -> Path:
 
 
 def mirrors() -> list[str]:
-    """Where to try, in order: the one that worked last, GitHub, the built-in proxies, then any a release named."""
+    """Where to try, in order: the one that worked last, MIRRORS as listed, then any a release named."""
     order = list(MIRRORS)
-    preferred = ""
+    # None until something has worked: "" would mean GitHub, and put it ahead of the list.
+    preferred: str | None = None
     try:
         saved = json.loads(_mirror_file().read_text(encoding="utf-8"))
-        preferred = str(saved.get("preferred", ""))
+        if "preferred" in saved:
+            preferred = str(saved["preferred"])
         listed = [str(item) for item in saved.get("listed", [])]
     except (OSError, ValueError, AttributeError, TypeError):
         listed = []
     for prefix in listed:
         if _good_mirror(prefix) and prefix not in order:
             order.append(prefix)
-    if _good_mirror(preferred) and preferred in order:
+    if preferred is not None and _good_mirror(preferred) and preferred in order:
         order.remove(preferred)
         order.insert(0, preferred)
     return order

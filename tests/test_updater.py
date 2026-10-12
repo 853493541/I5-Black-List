@@ -442,3 +442,12 @@ def test_a_download_that_does_not_match_tries_another_address(monkeypatch, tmp_p
     session = _Session({release.url: _Response(b"w" * len(payload)), second + release.url: _Response(payload)})
     assert updater.download(release, tmp_path, session=session).read_bytes() == payload
     assert updater.mirrors()[0] == second
+
+
+def test_a_new_install_keeps_the_listed_order():
+    # Nothing has worked yet: the list's own order, not GitHub first.
+    assert updater.mirrors() == list(updater.MIRRORS)
+    updater._remember("")
+    assert updater.mirrors()[0] == ""
+    updater._remember(updater.MIRRORS[1])
+    assert updater.mirrors()[0] == updater.MIRRORS[1]
