@@ -63,7 +63,9 @@ def describe_entry(entry: Entry) -> str:
 
 
 # First line of a list copied with 分享. 批量添加 reads such a paste with parse_shared.
-SHARE_MARK = "#黑名单检测 名单"
+SHARE_MARK = "#模仿者小工具 黑名单"
+# Lists copied before the rename start with this.
+OLD_SHARE_MARKS = ("#黑名单检测 名单",)
 _REASON_MARK = "原因："
 
 
@@ -84,7 +86,8 @@ def share_text(entries: list[Entry]) -> str:
 
 
 def is_shared(text: str) -> bool:
-    return any(line.strip().startswith(SHARE_MARK) for line in (text or "").splitlines())
+    marks = (SHARE_MARK, *OLD_SHARE_MARKS)
+    return any(line.strip().startswith(marks) for line in (text or "").splitlines())
 
 
 def parse_shared(text: str) -> list[tuple[str, tuple[str, ...], str]]:

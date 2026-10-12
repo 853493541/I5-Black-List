@@ -158,7 +158,7 @@ def paddle_safe_dir(folder: Path, cache_roots: list[Path] | None = None) -> Path
     """A path to this model folder that Paddle can open.
 
     Paddle cannot open model files under a path with Chinese characters in it,
-    for example a 黑名单检测 folder or a Chinese Windows user name. Such a folder
+    for example a 模仿者小工具 folder or a Chinese Windows user name. Such a folder
     is reached by its 8.3 short name, or else copied once to an ASCII folder.
     """
     if str(folder).isascii():

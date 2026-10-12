@@ -1,7 +1,8 @@
-﻿// 黑名单检测.exe: starts the app with the Python that ships beside it.
+﻿// 模仿者小工具.exe: starts the app with the Python that ships beside it.
 //
 // A friend needs nothing installed. The exe sits next to runtime\ and blacklist_detect\,
-// and runs runtime\I5黑名单.exe -m blacklist_detect (a folder from before that exe
+// and runs runtime\模仿者小工具.exe -m blacklist_detect (runtime\I5黑名单.exe in a folder from
+// before the app was renamed, runtime\pythonw.exe in one from before either; a folder from before that exe
 // existed still has runtime\pythonw.exe). Arguments are passed on, so the start at sign-in
 // can ask for --background. Built by build/build_launcher.py with the C# compiler that
 // comes with Windows; .NET Framework 4.8, which it needs, is part of Windows 10 and 11.
@@ -31,7 +32,9 @@ static class Launcher
     static int Main(string[] args)
     {
         string root = AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\');
-        string python = Path.Combine(root, "runtime", "I5黑名单.exe");
+        string python = Path.Combine(root, "runtime", "模仿者小工具.exe");
+        if (!File.Exists(python))
+            python = Path.Combine(root, "runtime", "I5黑名单.exe");
         if (!File.Exists(python))
             python = Path.Combine(root, "runtime", "pythonw.exe");
         var passed = new List<string>();
@@ -91,7 +94,7 @@ static class Launcher
                 k = screen.DpiX / 96F;
             Func<int, int> px = v => (int)Math.Round(v * k);
             form.AutoScaleMode = AutoScaleMode.None;
-            form.Text = "黑名单检测";
+            form.Text = "模仿者小工具";
             form.Font = new Font("Microsoft YaHei UI", 10.5F);
             form.FormBorderStyle = FormBorderStyle.FixedDialog;
             form.MaximizeBox = false;
@@ -197,15 +200,19 @@ static class Updates
 
     static bool RunningHere(string root)
     {
-        string mine = Path.GetFullPath(Path.Combine(root, "runtime", "I5黑名单.exe"));
-        foreach (Process process in Process.GetProcessesByName("I5黑名单"))
+        string runtime = Path.GetFullPath(Path.Combine(root, "runtime"));
+        foreach (string name in new[] { "模仿者小工具", "I5黑名单" })
         {
-            try
+            foreach (Process process in Process.GetProcessesByName(name))
             {
-                if (string.Equals(Path.GetFullPath(process.MainModule.FileName), mine, StringComparison.OrdinalIgnoreCase))
-                    return true;
+                try
+                {
+                    string folder = Path.GetDirectoryName(Path.GetFullPath(process.MainModule.FileName));
+                    if (string.Equals(folder, runtime, StringComparison.OrdinalIgnoreCase))
+                        return true;
+                }
+                catch (Exception) { }
             }
-            catch (Exception) { }
         }
         return false;
     }

@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
 from blacklist_detect import __version__
+from blacklist_detect.names import LAUNCHERS, PROCESSES, launcher_in
 
 log = logging.getLogger(__name__)
 
@@ -37,13 +38,12 @@ DOWNLOADS = f"https://github.com/{REPO}/releases/download/"
 PUBLIC_KEY = "N4neQZQZcRKxH5DP/85SZr1cCq3s2sMaZFzG3lCiO14="
 
 FOLDER = "BlackListDetect"
-LAUNCHER = "黑名单检测.exe"
 STAGED = "update.new"
 BACKUP = "update.old"
 PENDING = "update.check"
 VERSION_FILE = ".version"
 # What an update may put in the folder: the app, the launcher, the app's exe, the instructions.
-_ALLOWED_FILES = {LAUNCHER, "runtime/I5黑名单.exe", "使用说明.txt"}
+_ALLOWED_FILES = {*LAUNCHERS, *(f"runtime/{name}" for name in PROCESSES), "使用说明.txt"}
 _ALLOWED_DIR = "blacklist_detect"
 MAX_SIZE = 100_000_000
 TIMEOUT = 10
@@ -79,7 +79,7 @@ def parse_version(text: str) -> tuple[int, ...]:
 def app_root() -> Path | None:
     """The folder the app runs from, when it is a release folder. None when run from the source."""
     root = Path(__file__).resolve().parent.parent
-    if (root / "runtime").is_dir() and (root / LAUNCHER).is_file():
+    if (root / "runtime").is_dir() and launcher_in(root) is not None:
         return root
     return None
 

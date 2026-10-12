@@ -347,7 +347,7 @@ def _header_scenes(window, snap) -> None:  # noqa: ANN001
 
 
 def _update_scenes(window, snap, over_window) -> None:  # noqa: ANN001
-    """Updates, every state: the header pill, 设置 › 更新, the dialog from offer to restart, and the toast."""
+    """Updates, every state: 设置 › 更新, the header pill, the dialog from download to restart, and the toast."""
     if not hasattr(window, "update_pill"):
         return
     from blacklist_detect.ui_update import UpdateDialog
@@ -374,7 +374,10 @@ def _update_scenes(window, snap, over_window) -> None:  # noqa: ANN001
     window._update_asked = True
     window._on_update_failed("无法连接更新服务器，请稍后重试")
     snap("update_settings_failed")
+    # Found: in the app it installs at once; here only the 设置 and header look is wanted.
+    window._updating = True
     window._on_update_found(release)
+    window._updating = False
     snap("update_settings_found")
     snap("update_header_new", header)
 
@@ -382,23 +385,28 @@ def _update_scenes(window, snap, over_window) -> None:  # noqa: ANN001
         shown = Release(release.version, release.url, release.sha256, release.size, base=base, notes=release.notes)
         dialog = UpdateDialog(shown, REPO, REPO / "dist", window)
         dialog._download.start = lambda *_args: None
+        dialog.RESTART_MS = 10 ** 9
         prepare(dialog)
         dialog.show()
         snap(name, picture=over_window(dialog))
+        dialog._state = "idle"
         dialog.close()
 
     def downloading(dialog) -> None:  # noqa: ANN001
-        dialog.action.click()
+        dialog.start()
         dialog._on_progress(42, 100)
 
+    def restarting(dialog) -> None:  # noqa: ANN001
+        dialog.start()
+        dialog._on_done(release.version)
+
     def failed(dialog) -> None:  # noqa: ANN001
-        dialog.action.click()
+        dialog.start()
         dialog._on_failed("下载失败，请检查网络后重试")
 
-    dialog_shot("update_dialog_offer", lambda dialog: None)
     dialog_shot("update_dialog_downloading", downloading)
+    dialog_shot("update_dialog_restarting", restarting)
     dialog_shot("update_dialog_failed", failed)
-    dialog_shot("update_dialog_ready", lambda dialog: dialog._ready())
     dialog_shot("update_dialog_full", lambda dialog: None, base="v0.4.1")
     window.update_pill.hide()
     window._release = None

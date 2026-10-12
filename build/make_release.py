@@ -8,7 +8,7 @@ Python against the reference lobby, and is zipped only if it still reads the
 same twelve names.
 
 Output in dist/release/:
-    BlackListDetect-<version>-full.zip    first install: extract, then run 黑名单检测.exe
+    BlackListDetect-<version>-full.zip    first install: extract, then run 模仿者小工具.exe
     BlackListDetect-<version>-update.zip  later versions: the app code only
 
 To run the newest code on this PC without unzipping anything, use
@@ -37,7 +37,7 @@ from app_exe import make_app_exe  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent
 FOLDER = "BlackListDetect"
-EXE_NAME = "黑名单检测.exe"
+EXE_NAME = "模仿者小工具.exe"
 # The instructions in the folder, from build/使用说明.txt with the version filled in.
 GUIDE_NAME = "使用说明.txt"
 
@@ -317,7 +317,7 @@ def main() -> int:
     )
     shutil.copytree(args.models, stage / "blacklist_detect" / "models")
     shutil.copy2(args.launcher, stage / EXE_NAME)
-    # The app's own process name and icon: runtime\I5黑名单.exe (see build/app_exe.py).
+    # The app's own process name and icon: runtime\模仿者小工具.exe (see build/app_exe.py).
     app_exe = make_app_exe(stage / "runtime", _version()).relative_to(stage)
     # With a BOM and Windows line ends, so Notepad on any Windows opens it right.
     guide = (REPO / "build" / GUIDE_NAME).read_text(encoding="utf-8").replace("{version}", _version())

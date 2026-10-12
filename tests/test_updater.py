@@ -13,6 +13,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 from blacklist_detect import updater
+from blacklist_detect.names import LAUNCHERS
 from blacklist_detect.updater import Release, UpdateError
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -134,7 +135,7 @@ def _update_zip(path: Path, extra: dict[str, bytes] | None = None) -> Path:
     files = {
         "BlackListDetect/blacklist_detect/__init__.py": b'__version__ = "v9.0.0"\n',
         "BlackListDetect/blacklist_detect/new_part.py": b"NEW = True\n",
-        "BlackListDetect/黑名单检测.exe": b"launcher",
+        "BlackListDetect/模仿者小工具.exe": b"launcher",
         "BlackListDetect/使用说明.txt": "新的说明".encode(),
         **(extra or {}),
     }
@@ -152,13 +153,26 @@ def test_unpacking_keeps_to_the_app_files(tmp_path):
             "BlackListDetect/blacklist_detect/models/x.bin": b"no",
             "BlackListDetect/runtime/python312.dll": b"no",
             "Other/blacklist_detect/x.py": b"no",
+            # A folder from before the rename keeps its old file names; they are updated too.
+            "BlackListDetect/黑名单检测.exe": b"old launcher",
+            "BlackListDetect/runtime/I5黑名单.exe": b"old app",
+            "BlackListDetect/runtime/模仿者小工具.exe": b"app",
         },
     )
     root = tmp_path / "app"
     root.mkdir()
     staged = updater.stage(zipped, root, "v9.0.0")
     names = sorted(p.relative_to(staged).as_posix() for p in staged.rglob("*") if p.is_file())
-    assert names == [".version", "blacklist_detect/__init__.py", "blacklist_detect/new_part.py", "使用说明.txt", "黑名单检测.exe"]
+    assert names == [
+        ".version",
+        "blacklist_detect/__init__.py",
+        "blacklist_detect/new_part.py",
+        "runtime/I5黑名单.exe",
+        "runtime/模仿者小工具.exe",
+        "使用说明.txt",
+        "模仿者小工具.exe",
+        "黑名单检测.exe",
+    ]
     assert updater.staged_version(root) == "v9.0.0"
     assert not (tmp_path / "evil.txt").exists()
 
@@ -171,16 +185,16 @@ def test_the_launcher_lays_the_update_over_and_puts_it_back_when_it_fails(tmp_pa
     root = tmp_path / "BlackListDetect"
     (root / "blacklist_detect" / "models").mkdir(parents=True)
     (root / "runtime").mkdir()
-    launcher = build(root / updater.LAUNCHER)
+    launcher = build(root / LAUNCHERS[0])
     (root / "blacklist_detect" / "__init__.py").write_text('__version__ = "v0.3.0"\n', encoding="utf-8")
     (root / "blacklist_detect" / "models" / "model.bin").write_bytes(b"model")
     (root / "使用说明.txt").write_text("旧的说明", encoding="utf-8")
 
     def stage_new() -> None:
-        updater.stage(_update_zip(tmp_path / "u.zip", {"BlackListDetect/黑名单检测.exe": launcher.read_bytes()}), root, "v9.0.0")
+        updater.stage(_update_zip(tmp_path / "u.zip", {"BlackListDetect/模仿者小工具.exe": launcher.read_bytes()}), root, "v9.0.0")
 
     def apply() -> int:
-        return subprocess.run([str(root / updater.LAUNCHER), "--apply-only"], check=False, timeout=60).returncode
+        return subprocess.run([str(root / LAUNCHERS[0]), "--apply-only"], check=False, timeout=60).returncode
 
     stage_new()
     assert apply() == 0
@@ -219,7 +233,42 @@ def window(tmp_path, monkeypatch):  # noqa: ANN001, ANN201
     made.close()
 
 
-def test_a_found_release_shows_in_the_header_and_settings(window, tmp_path, monkeypatch):
+def test_a_check_shows_its_answer_beside_the_button(window, tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QApplication
+
+    root = tmp_path / "BlackListDetect"
+    root.mkdir()
+    monkeypatch.setattr(updater, "app_root", lambda: root)
+    assert window.update_pill.isHidden() and window.update_button.text() == "检查更新"
+    # A check when the app opens that finds nothing says nothing.
+    window._on_update_latest()
+    assert window.update_hint.text() == ""
+    # Asked for by the button: the answer shows beside it, wide enough to read.
+    monkeypatch.setattr(window.updates, "check", lambda: True)
+    window._on_update_button()
+    assert window.update_button.text() == "检查中…" and not window.update_button.isEnabled()
+    window._on_update_failed("无法连接更新服务器，请稍后重试")
+    window.resize(1000, 640)
+    window.tabs.setCurrentIndex(window.settings_tab)
+    window.show()
+    QApplication.processEvents()
+    hint, button = window.update_hint, window.update_button
+    assert hint.text() == "无法连接更新服务器，请稍后重试" and button.isEnabled()
+    assert hint.parentWidget() is button.parentWidget()
+    assert hint.isVisible() and hint.width() > hint.fontMetrics().horizontalAdvance(hint.text())
+    assert hint.x() > button.x() + button.width() and abs(hint.geometry().center().y() - button.geometry().center().y()) <= 2
+    window._update_asked = True
+    window._on_update_latest()
+    assert hint.text() == "已是最新版本"
+    # With no note the button keeps its own width instead of filling the row.
+    window._update_note("")
+    QApplication.processEvents()
+    assert button.width() <= button.sizeHint().width() + 2
+    # The row keeps the same columns as the others: its label at the left, the button after it.
+    assert button.x() == window.close_mode.x()
+
+
+def test_a_new_version_installs_at_once_and_restarts(window, tmp_path, monkeypatch):
     from PySide6.QtWidgets import QApplication
 
     from blacklist_detect.ui_update import UpdateDialog
@@ -227,59 +276,72 @@ def test_a_found_release_shows_in_the_header_and_settings(window, tmp_path, monk
     root = tmp_path / "BlackListDetect"
     root.mkdir()
     monkeypatch.setattr(updater, "app_root", lambda: root)
-    assert window.update_pill.isHidden() and window.update_button.text() == "检查更新"
-    # A quiet check that finds nothing says nothing.
-    window._on_update_latest()
-    assert window.update_hint.isHidden()
-    # Asked for by the button: the answer shows under it.
-    monkeypatch.setattr(window.updates, "check", lambda: True)
-    window._on_update_button()
-    assert window.update_button.text() == "检查中…" and not window.update_button.isEnabled()
-    window._on_update_failed("无法连接更新服务器，请稍后重试")
-    # Beside the button, not under it, and wide enough to read.
-    window.resize(1000, 640)
-    window.tabs.setCurrentIndex(window.settings_tab)
     window.show()
     QApplication.processEvents()
-    hint, button = window.update_hint, window.update_button
-    assert hint.parentWidget() is button.parentWidget()
-    assert hint.isVisible() and hint.width() > hint.fontMetrics().horizontalAdvance(hint.text())
-    assert hint.x() > button.x() + button.width() and abs(hint.geometry().center().y() - button.geometry().center().y()) <= 2
-    assert window.update_hint.text() == "无法连接更新服务器，请稍后重试" and window.update_button.isEnabled()
-    # Found quietly: the pill and the button change; nothing opens by itself.
-    release = updater.read_manifest(_manifest(base="v0.1.0"))
-    window._on_update_found(release)
-    assert not window.update_pill.isHidden() and window.update_pill.text() == "有新版本"
-    assert window.update_button.text() == "有更新"
-    assert window.findChild(UpdateDialog) is None
-    window._on_update_button()
+    started: list[str] = []
+    monkeypatch.setattr("blacklist_detect.ui_update.Download.start", lambda self, rel, where, folder: started.append(rel.version))
+    # Found when the app opens: the download starts with no click, in a dialog that cannot be closed.
+    window._on_update_found(updater.read_manifest(_manifest(base="v0.1.0")))
     dialog = window.findChild(UpdateDialog)
-    assert dialog is not None and dialog.action.text() == "立即更新" and "心动列表" in dialog.notes.text()
+    assert started == ["v9.0.0"] and dialog is not None and dialog.isVisible()
+    assert dialog.windowTitle() == "正在更新到 v9.0.0" and "心动列表" in dialog.notes.text()
+    assert dialog.close_button.isHidden() and dialog.band.isHidden()
     dialog.reject()
+    dialog.click_outside()
+    assert dialog.isVisible(), "it stays until the update is in"
+    dialog._on_progress(42, 100)
+    assert dialog.bar.value() == 420 and dialog.status.text() == "下载中 42%"
+    # Done: it says so and the app restarts by itself.
+    restarted: list[bool] = []
+    monkeypatch.setattr(window, "_restart_for_update", lambda *_args: restarted.append(True))
+    dialog.restart_requested.disconnect()
+    dialog.restart_requested.connect(window._restart_for_update)
+    dialog.RESTART_MS = 0
+    dialog._on_done("v9.0.0")
+    assert dialog.status.text() == "更新完成，正在重启…"
+    QApplication.processEvents()
+    assert restarted == [True]
 
 
-def test_the_dialog_walks_from_download_to_restart(window, tmp_path, monkeypatch):
+def test_a_failed_download_can_be_tried_again_or_skipped(window, tmp_path, monkeypatch):
     from blacklist_detect.ui_update import UpdateDialog
 
     root = tmp_path / "BlackListDetect"
     root.mkdir()
-    release = updater.read_manifest(_manifest(base="v0.1.0"))
-    dialog = UpdateDialog(release, root, tmp_path, window)
+    monkeypatch.setattr(updater, "app_root", lambda: root)
     started: list[str] = []
-    monkeypatch.setattr(dialog._download, "start", lambda rel, where, folder: started.append(rel.version))
-    dialog.action.click()
-    assert started == ["v9.0.0"] and dialog.action.text() == "下载中…" and not dialog.action.isEnabled()
-    dialog._on_progress(50, 100)
-    assert dialog.bar.value() == 500
+    monkeypatch.setattr("blacklist_detect.ui_update.Download.start", lambda self, rel, where, folder: started.append(rel.version))
+    window._release = updater.read_manifest(_manifest(base="v0.1.0"))
+    window.show()
+    # 有更新 (or the pill) installs with one click.
+    window._on_update_button()
+    dialog = window.findChild(UpdateDialog)
+    assert started == ["v9.0.0"]
     dialog._on_failed("下载失败，请检查网络后重试")
-    assert dialog.action.text() == "重试" and dialog.status.text() == "下载失败，请检查网络后重试"
-    dialog._on_done("v9.0.0")
-    assert dialog.action.text() == "立即重启" and dialog.action.isEnabled()
-    asked: list[bool] = []
-    dialog.restart_requested.connect(lambda: asked.append(True))
+    assert not dialog.band.isHidden() and dialog.action.text() == "重试" and dialog.skip.text() == "跳过"
+    assert dialog.status.text() == "下载失败，请检查网络后重试" and not dialog.close_button.isHidden()
     dialog.action.click()
-    assert asked == [True]
-    # A release that needs the full package sends the player to the download page instead.
-    full = UpdateDialog(updater.read_manifest(_manifest(base="v8.0.0")), root, tmp_path, window)
-    assert full.action.text() == "前往下载" and "完整安装包" in full.status.text()
-    full.reject()
+    assert started == ["v9.0.0", "v9.0.0"] and dialog.band.isHidden()
+    dialog._on_failed("下载失败，请检查网络后重试")
+    dialog.skip.click()
+    assert not dialog.isVisible() and not window._updating
+    # In the tray the update downloads out of sight, then restarts there.
+    window.hide()
+    window._install_update()
+    assert started[-1] == "v9.0.0" and len(started) == 3 and window._updating
+
+
+def test_a_release_needing_the_full_package_waits_for_a_click(window, tmp_path, monkeypatch):
+    from blacklist_detect.ui_update import UpdateDialog
+
+    root = tmp_path / "BlackListDetect"
+    root.mkdir()
+    monkeypatch.setattr(updater, "app_root", lambda: root)
+    started: list[str] = []
+    monkeypatch.setattr("blacklist_detect.ui_update.Download.start", lambda self, rel, where, folder: started.append(rel.version))
+    window._on_update_found(updater.read_manifest(_manifest(base="v8.0.0")))
+    assert window.findChild(UpdateDialog) is None and not window.update_pill.isHidden() and started == []
+    window._on_update_button()
+    dialog = window.findChild(UpdateDialog)
+    assert dialog.action.text() == "前往下载" and "完整安装包" in dialog.status.text() and started == []
+    dialog.reject()

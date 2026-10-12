@@ -1,4 +1,4 @@
-"""The app's own process: runtime\\I5黑名单.exe, a copy of the runtime's pythonw.exe with its own name and icon.
+"""The app's own process: runtime\\模仿者小工具.exe, a copy of the runtime's pythonw.exe with its own name and icon.
 
 Task Manager lists a process by its exe's description, and pythonw.exe says "Python": the app
 showed as one Python among others, and a tool that ends every pythonw.exe ended it too. The copy
@@ -17,7 +17,7 @@ from ctypes import wintypes
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-APP_NAME = "I5黑名单"
+APP_NAME = "模仿者小工具"
 APP_EXE = f"{APP_NAME}.exe"
 ICON = REPO / "blacklist_detect" / "assets" / "app.ico"
 
@@ -101,7 +101,7 @@ def stamp(exe: Path, version: str, icon: Path = ICON) -> None:
 
 
 def make_app_exe(runtime: Path, version: str) -> Path:
-    """runtime\\I5黑名单.exe from runtime\\pythonw.exe, refreshed when either changed."""
+    """runtime\\模仿者小工具.exe from runtime\\pythonw.exe, refreshed when either changed."""
     source = runtime / "pythonw.exe"
     target = runtime / APP_EXE
     temporary = runtime / "app-exe.tmp"

@@ -1,7 +1,7 @@
 """开机自动启动: start with Windows, quietly, in the tray.
 
 Windows runs whatever is listed under the user's Run key at sign-in. The entry
-points at the 黑名单检测.exe this copy was started from, with --background, so
+points at the launcher (模仿者小工具.exe) this copy was started from, with --background, so
 the app comes up in the tray instead of opening its window over the desktop.
 Only the current user's key is touched; nothing needs administrator rights.
 """
@@ -11,16 +11,16 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from blacklist_detect.names import launcher_in
+
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 VALUE_NAME = "BlackListDetect"
-EXE_NAME = "黑名单检测.exe"
 BACKGROUND = "--background"
 
 
 def launcher() -> Path | None:
-    """The 黑名单检测.exe beside this copy of the app, or None when run from source."""
-    exe = Path(__file__).resolve().parent.parent / EXE_NAME
-    return exe if exe.is_file() else None
+    """The launcher beside this copy of the app, or None when run from source."""
+    return launcher_in(Path(__file__).resolve().parent.parent)
 
 
 def available() -> bool:

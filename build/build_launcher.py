@@ -1,12 +1,12 @@
-"""Build 黑名单检测.exe, the launcher, with the C# compiler that comes with Windows.
+"""Build 模仿者小工具.exe, the launcher, with the C# compiler that comes with Windows.
 
     python build/build_launcher.py
 
-The launcher only starts runtime\\I5黑名单.exe -m blacklist_detect (see build/launcher/Launcher.cs).
+The launcher only starts runtime\\模仿者小工具.exe -m blacklist_detect (see build/launcher/Launcher.cs).
 In C# it is about 10 KB; it was 8 MB as a PyInstaller exe, which carried a whole Python of its own.
 It needs .NET Framework 4.8, which is part of Windows 10 and 11, so a friend installs nothing.
 
-Output: dist/exe/黑名单检测.exe, with the app's icon, name, and version.
+Output: dist/exe/模仿者小工具.exe, with the app's icon, name, and version.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 SOURCE = REPO / "build" / "launcher" / "Launcher.cs"
 ICON = REPO / "blacklist_detect" / "assets" / "app.ico"
-OUT = REPO / "dist" / "exe" / "黑名单检测.exe"
+OUT = REPO / "dist" / "exe" / "模仿者小工具.exe"
 
 
 def compiler() -> Path:
@@ -47,8 +47,8 @@ def build(out: Path = OUT) -> Path:
         info = Path(scratch) / "AssemblyInfo.cs"
         info.write_text(
             "using System.Reflection;\n"
-            '[assembly: AssemblyTitle("黑名单检测")]\n'
-            '[assembly: AssemblyProduct("黑名单检测")]\n'
+            '[assembly: AssemblyTitle("模仿者小工具")]\n'
+            '[assembly: AssemblyProduct("模仿者小工具")]\n'
             f'[assembly: AssemblyVersion("{version()}")]\n'
             f'[assembly: AssemblyFileVersion("{version()}")]\n',
             encoding="utf-8-sig",

@@ -1,7 +1,9 @@
-"""Updates in the window: a quiet check when the app opens, 检查更新, and the dialog that downloads one.
+"""Updates in the window: a check when the app opens, 检查更新, and the update itself.
 
+A new version found when the app opens is downloaded straight away, in a dialog that stays until
+it is done, and the app restarts into it. A version found by 检查更新 is installed the same way.
 The check and the download run on their own threads and report back by signal, so the window
-never waits on the network. Nothing is downloaded until the player clicks 更新.
+never waits on the network.
 """
 
 from __future__ import annotations
@@ -12,12 +14,13 @@ import subprocess
 import threading
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Qt, QUrl, Signal
+from PySide6.QtCore import QObject, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QLabel, QProgressBar, QWidget
+from PySide6.QtWidgets import QLabel, QProgressBar, QPushButton, QWidget
 
 from blacklist_detect import __version__, updater
-from blacklist_detect.ui_dialogs import _footer, _primary
+from blacklist_detect.names import launcher_in
+from blacklist_detect.ui_dialogs import _primary
 from blacklist_detect.ui_kit import Modal
 from blacklist_detect.ui_theme import _pointing
 
@@ -65,7 +68,9 @@ class UpdateChecker(QObject):
             self.found.emit(release)
 
 
-class _Download(QObject):
+class Download(QObject):
+    """Fetches the update zip on a thread and unpacks it into update.new."""
+
     progress = Signal(int, int)
     done = Signal(str)
     failed = Signal(str)
@@ -88,35 +93,45 @@ class _Download(QObject):
         self.done.emit(release.version)
 
 
-def restart_into_update(root: Path) -> bool:
-    """Start the launcher, which waits for this app to close, lays the update over and opens it."""
-    launcher = root / updater.LAUNCHER
-    if not launcher.is_file():
+def restart_into_update(root: Path, background: bool = False) -> bool:
+    """Start the launcher, which waits for this app to close, lays the update over and opens it.
+
+    background: the app was in the tray, so the new version starts there too.
+    """
+    launcher = launcher_in(root)
+    if launcher is None:
         return False
     flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-    subprocess.Popen([str(launcher), "--wait-pid", str(os.getpid())], cwd=str(root), creationflags=flags, close_fds=True)  # noqa: S603
+    command = [str(launcher), "--wait-pid", str(os.getpid())] + (["--background"] if background else [])
+    subprocess.Popen(command, cwd=str(root), creationflags=flags, close_fds=True)  # noqa: S603
     return True
 
 
 class UpdateDialog(Modal):
-    """发现新版本: what is new, then 立即更新 → a progress bar → 立即重启.
+    """正在更新: what is new and a progress bar; when the download is done the app restarts.
 
-    restart is called when the player wants the new version now; the window quits for it.
+    It stays until the update is in: no × and no click outside while it downloads. If the
+    download fails, 重试 tries again and 跳过 leaves the update for later. A release that needs
+    the full package only says so, with 前往下载.
     """
 
     restart_requested = Signal()
+    # How long 更新完成，正在重启… shows before the app closes.
+    RESTART_MS = 900
 
     def __init__(self, release: updater.Release, root: Path | None, data_dir: Path, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.release = release
         self.root = root
         self.data_dir = data_dir
-        self._download = _Download(self)
+        self._download = Download(self)
         self._download.progress.connect(self._on_progress)
         self._download.done.connect(self._on_done)
         self._download.failed.connect(self._on_failed)
-        layout = self.frame(f"发现新版本 {release.version}")
-        self.summary = QLabel(f"当前版本 {__version__}")
+        full = release.needs_full() or root is None
+        layout = self.frame(f"发现新版本 {release.version}" if full else f"正在更新到 {release.version}")
+        size = max(release.size / 1e6, 0.1)
+        self.summary = QLabel(f"当前版本 {__version__}" if full else f"当前版本 {__version__} · {size:.1f} MB")
         self.summary.setObjectName("sub")
         layout.addWidget(self.summary)
         self.notes = QLabel("\n".join(f"· {line}" for line in release.notes) or "· 问题修复和体验优化")
@@ -134,24 +149,57 @@ class UpdateDialog(Modal):
         self.status.setWordWrap(True)
         self.status.hide()
         layout.addWidget(self.status)
-        self.action = _primary("立即更新", self._act)
-        _footer(self, self.action)
+        self.skip = QPushButton("跳过")
+        self.skip.setAutoDefault(False)
+        self.skip.clicked.connect(self.reject)
+        self.action = _primary("重试", self._act)
+        row = self.footer(self.skip, self.action)
+        self.band = row.parentWidget()
         self.card.setMinimumWidth(460)
         _pointing(self)
-        self._state = "offer"
-        if release.needs_full():
-            self._state = "full"
-            self._say("此版本需要下载完整安装包，名单和设置会保留")
-            self.action.setText("前往下载")
-        elif root is None:
+        self._state = "idle"
+        if root is None:
             self._state = "source"
             self._say("源码运行不支持更新")
-            self.action.setEnabled(False)
-        elif updater.staged_version(root) == release.version:
-            self._ready()
+            self.skip.hide()
+            self.action.setText("知道了")
+        elif release.needs_full():
+            self._state = "full"
+            self._say("此版本需要下载完整安装包，名单和设置会保留")
+            self.skip.hide()
+            self.action.setText("前往下载")
         else:
-            size = release.size / 1e6
-            self.summary.setText(f"当前版本 {__version__} · {max(size, 0.1):.1f} MB")
+            self.band.hide()
+
+    def start(self) -> None:
+        """Download now. Already downloaded (and not yet restarted into): restart now."""
+        if self._state in ("source", "full", "downloading", "restarting"):
+            return
+        if updater.staged_version(self.root) == self.release.version:
+            self._on_done(self.release.version)
+            return
+        self._state = "downloading"
+        self.close_button.hide()
+        self.band.hide()
+        self.bar.setValue(0)
+        self.bar.show()
+        self._say("下载中 0%")
+        self._download.start(self.release, self.root, self.data_dir / "updates")
+
+    def busy(self) -> bool:
+        return self._state in ("downloading", "restarting")
+
+    def reject(self) -> None:
+        # The update is on its way: ×, Esc and a click outside wait for it.
+        if self.busy():
+            return
+        super().reject()
+
+    def click_outside(self) -> None:
+        if self.busy():
+            self._nudge()
+            return
+        super().click_outside()
 
     def _say(self, text: str) -> None:
         self.status.setText(text)
@@ -161,37 +209,32 @@ class UpdateDialog(Modal):
         if self._state == "full":
             QDesktopServices.openUrl(QUrl(updater.RELEASES_URL))
             self.accept()
-        elif self._state in ("offer", "failed"):
-            self._start()
-        elif self._state == "ready":
-            self.restart_requested.emit()
+        elif self._state == "failed":
+            self.start()
+        else:
             self.accept()
 
-    def _start(self) -> None:
-        self._state = "downloading"
-        self.action.setEnabled(False)
-        self.action.setText("下载中…")
-        self.bar.setValue(0)
-        self.bar.show()
-        self._say("")
-        self._download.start(self.release, self.root, self.data_dir / "updates")
-
     def _on_progress(self, got: int, total: int) -> None:
-        self.bar.setValue(round(1000 * got / max(total, 1)))
+        share = got / max(total, 1)
+        self.bar.setValue(round(1000 * share))
+        self._say(f"下载中 {round(100 * share)}%")
 
     def _on_done(self, _version: str) -> None:
-        self._ready()
+        self._state = "restarting"
+        self.close_button.hide()
+        self.band.hide()
+        self.bar.setValue(1000)
+        self.bar.show()
+        self._say("更新完成，正在重启…")
+        QTimer.singleShot(self.RESTART_MS, self._restart)
 
-    def _ready(self) -> None:
-        self._state = "ready"
-        self.bar.hide()
-        self._say("下载完成，重启后生效")
-        self.action.setEnabled(True)
-        self.action.setText("立即重启")
+    def _restart(self) -> None:
+        self.restart_requested.emit()
 
     def _on_failed(self, message: str) -> None:
         self._state = "failed"
         self.bar.hide()
+        self.close_button.show()
         self._say(message)
-        self.action.setEnabled(True)
+        self.band.show()
         self.action.setText("重试")

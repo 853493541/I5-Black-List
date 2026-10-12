@@ -108,7 +108,7 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     window.store.scans[0]["at"] = seen.isoformat()
     window._show_list()
     assert window.blacklist_table.item(0, 3).text() == "3小时前"
-    assert window.windowTitle() == f"黑名单检测 {__version__}"
+    assert window.windowTitle() == f"模仿者小工具 {__version__}"
     assert window.list_empty.isHidden() is True
     assert window.more_button.isHidden() is False
     assert window.blacklist_table.isHidden() is False
@@ -1306,7 +1306,7 @@ def test_share_copies_a_list_that_batch_add_reads_back(qapp, tmp_path, monkeypat
     window._show_list()
     window._share_list()
     text = QApplication.clipboard().text()
-    assert text.startswith("#黑名单检测 名单 1人")
+    assert text.startswith("#模仿者小工具 黑名单 1人")
     # Read back into a list that does not have 甲 yet.
     dialog = BatchAddDialog(window.store.tag_catalog())
     dialog.edit.setPlainText(text)

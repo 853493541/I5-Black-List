@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 
 from blacklist_detect.importing import ELSEWHERE, MERGE, ODD, SAME, ImportRow, plan_import
 from blacklist_detect.match import clean_stored_name, fold, listed_tail, split_ellipsis
+from blacklist_detect.names import APP_NAME
 from blacklist_detect.pipeline import CheckResult
 from blacklist_detect.ui_icons import pixmap as line_pixmap
 from blacklist_detect.ui_kit import Modal
@@ -108,7 +109,7 @@ def _say_error(label: QLabel, text: str) -> None:
     label.setVisible(bool(text))
 
 
-def _confirm(parent, text: str, title: str = "黑名单检测", confirm: str = "确定") -> bool:
+def _confirm(parent, text: str, title: str = APP_NAME, confirm: str = "确定") -> bool:
     """Ask before something that cannot be taken back. 取消 is the default answer."""
     from blacklist_detect.ui_kit import ConfirmDialog
 
@@ -540,7 +541,7 @@ class GuideDialog(Modal):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        layout = _frame(self, "欢迎使用黑名单检测")
+        layout = _frame(self, f"欢迎使用{APP_NAME}")
         intro = QLabel("进入「推演成功」大厅时，它会读出十二个名字，并标出黑名单里的人。只读屏幕，不碰游戏。")
         intro.setWordWrap(True)
         layout.addWidget(intro)

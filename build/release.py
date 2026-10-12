@@ -31,6 +31,7 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
 from blacklist_detect import __version__, updater  # noqa: E402
+from blacklist_detect.names import APP_NAME  # noqa: E402
 
 KEY = Path.home() / ".blacklist-detect" / "release-key.pem"
 OUT = REPO / "dist" / "release"
@@ -131,14 +132,14 @@ def publish(args: argparse.Namespace) -> int:
         "",
         "- 已安装 v0.4.0 及以上：打开程序，按提示更新",
         f"- 更早版本：下载 {_zip('update').name}，解压覆盖原文件夹",
-        f"- 首次安装：下载 {_zip('full').name}，解压后运行「黑名单检测.exe」",
+        f"- 首次安装：下载 {_zip('full').name}，解压后运行「模仿者小工具.exe」",
     ]
     notes.write_text("\n".join(lines) + "\n", encoding="utf-8")
     command = [
         "release", "create", __version__,
         "--repo", updater.REPO,
         "--target", args.target,
-        "--title", f"黑名单检测 {__version__}",
+        "--title", f"{APP_NAME} {__version__}",
         "--notes-file", str(notes),
         *(str(path) for path in assets),
     ]  # fmt: skip

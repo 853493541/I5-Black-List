@@ -6,7 +6,7 @@
 
 The first run copies the trimmed runtime, the OCR models, and the launcher to
 %LOCALAPPDATA%\\Programs\\BlackListDetect (the usual place for an app installed
-for one user), and puts a 黑名单检测 shortcut on the Desktop and in the Start menu.
+for one user), and puts a 模仿者小工具 shortcut on the Desktop and in the Start menu.
 
 Every later run asks the open copy to quit, copies only the app files that
 changed (a second or two), and starts it again. The shortcut always opens the
@@ -33,7 +33,10 @@ from make_release import EXE_NAME, Pruner, _verify, _version  # noqa: E402
 
 from blacklist_detect.paths import message_running_copy  # noqa: E402
 
-SHORTCUT = "黑名单检测"
+SHORTCUT = "模仿者小工具"
+# Shortcuts, launcher and process names from before the rename, replaced by the ones above.
+OLD_SHORTCUT = "黑名单检测"
+OLD_FILES = ("黑名单检测.exe", "runtime/I5黑名单.exe")
 # Inside the app folder these are never copied from the repo or removed by a sync.
 _KEEP = {"__pycache__", "models"}
 
@@ -54,8 +57,8 @@ def _powershell(script: str) -> str:
     return done.stdout.strip()
 
 
-# The app's process, by name: I5黑名单.exe, or pythonw.exe in a folder from before it.
-_APP_PROCESSES = "($_.Name -like 'I5*.exe' -or $_.Name -eq 'pythonw.exe' -or $_.Name -eq 'python.exe')"
+# The app's process, by name: 模仿者小工具.exe, I5黑名单.exe before the rename, or pythonw.exe before either.
+_APP_PROCESSES = "($_.Name -eq '模仿者小工具.exe' -or $_.Name -like 'I5*.exe' -or $_.Name -eq 'pythonw.exe' -or $_.Name -eq 'python.exe')"
 
 
 def running_copies(root: Path) -> list[int]:
@@ -145,7 +148,7 @@ def install_runtime(root: Path, runtime: Path, models: Path) -> None:
 
 
 def make_shortcuts(root: Path) -> list[str]:
-    """A 黑名单检测 shortcut on the Desktop and in the Start menu, pointing at this folder."""
+    """A 模仿者小工具 shortcut on the Desktop and in the Start menu, pointing at this folder; the old 黑名单检测 ones go."""
     exe = str(root / EXE_NAME).replace("'", "''")
     work = str(root).replace("'", "''")
     made = _powershell(
@@ -156,6 +159,7 @@ def make_shortcuts(root: Path) -> list[str]:
         f"  $link = $shell.CreateShortcut((Join-Path $folder '{SHORTCUT}.lnk')); "
         f"  $link.TargetPath = '{exe}'; $link.WorkingDirectory = '{work}'; "
         f"  $link.IconLocation = '{exe},0'; $link.Description = '{SHORTCUT}'; $link.Save(); "
+        f"  Remove-Item -ErrorAction SilentlyContinue (Join-Path $folder '{OLD_SHORTCUT}.lnk'); "
         "  Join-Path $folder '" + SHORTCUT + ".lnk' }"
     )
     return [line for line in made.splitlines() if line.strip()]
@@ -193,9 +197,14 @@ def main() -> int:
         install_runtime(root, args.runtime, args.models)
 
     # The app's own exe, named and with its icon, made again when the version changes.
-    before = (root / "runtime" / "I5黑名单.exe").read_bytes() if (root / "runtime" / "I5黑名单.exe").is_file() else b""
+    made = root / "runtime" / "模仿者小工具.exe"
+    before = made.read_bytes() if made.is_file() else b""
     if make_app_exe(root / "runtime", _version()).read_bytes() != before:
-        print("Made runtime\\I5黑名单.exe.")
+        print("Made runtime\\模仿者小工具.exe.")
+    for old in OLD_FILES:
+        if (root / old).is_file():
+            (root / old).unlink()
+            print(f"Removed {old} (renamed).")
     copied, removed = sync_tree(REPO / "blacklist_detect", root / "blacklist_detect")
     launcher = root / EXE_NAME
     if args.launcher.is_file() and not _same(args.launcher, launcher):
@@ -215,10 +224,10 @@ def main() -> int:
         print("Another copy of the app is open, so this one would only bring that window forward:")
         for folder in others:
             print(f"  {folder}")
-        print("Quit it (tray icon, right-click, 退出), then open 黑名单检测 from the Desktop shortcut.")
+        print("Quit it (tray icon, right-click, 退出), then open 模仿者小工具 from the Desktop shortcut.")
     elif not args.no_start:
         start_app(root)
-        print("Started 黑名单检测.")
+        print("Started 模仿者小工具.")
     print(f"Done in {time.monotonic() - started:.1f} s. Installed in {root}")
     return 0
 

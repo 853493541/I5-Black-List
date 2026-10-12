@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
     QMenu,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -59,6 +60,7 @@ from blacklist_detect.match import (
     split_ellipsis,
 )
 from blacklist_detect.model import Entry
+from blacklist_detect.names import APP_NAME
 from blacklist_detect.ocr_engine import OcrUnavailable, get_engine
 from blacklist_detect.paths import instance_key
 from blacklist_detect.pipeline import (
@@ -132,7 +134,7 @@ from blacklist_detect.ui_theme import (
     use_theme,
     wants_dark,
 )
-from blacklist_detect.ui_update import UpdateChecker, UpdateDialog, restart_into_update
+from blacklist_detect.ui_update import Download, UpdateChecker, UpdateDialog, restart_into_update
 from blacklist_detect.ui_widgets import (
     DayFolderIcon,
     TagListDelegate,
@@ -173,9 +175,9 @@ __all__ = [
     "run_app",
 ]
 
-# Updates are looked for once each time the app opens, a moment after, so the opening is not slowed.
-# After that only 设置 › 检查更新 looks.
-UPDATE_FIRST_MS = 5_000
+# Updates are looked for once each time the app opens, just after the window is up. A new version
+# found then is installed right away. After that only 设置 › 检查更新 looks.
+UPDATE_FIRST_MS = 1_000
 
 
 def _claim_windows_app() -> None:
@@ -192,7 +194,7 @@ def run_app(background: bool = False) -> int:
     log.info("Start %s, Python %s, %s", __version__, sys.version.split()[0], sys.platform)
     _claim_windows_app()
     app = QApplication(sys.argv)
-    app.setApplicationName("黑名单检测")
+    app.setApplicationName(APP_NAME)
     app.setApplicationVersion(__version__)
     key = instance_key()
     if notify_running_instance(key, show=not background):
@@ -207,7 +209,7 @@ def run_app(background: bool = False) -> int:
         log.critical("The window could not open", exc_info=True)
         from PySide6.QtWidgets import QMessageBox
 
-        QMessageBox.critical(None, "黑名单检测", "程序没能打开，请重新解压完整的安装包后再试。")
+        QMessageBox.critical(None, APP_NAME, "程序启动失败，请重新解压完整的安装包后再试。")
         return 1
     if mark_running():
         log.warning("The last run ended without closing: it was ended from outside (Task Manager, a tool, or a power loss).")
@@ -327,7 +329,7 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.uncaught.connect(self._show_uncaught)
-        self.setWindowTitle(f"黑名单检测 {__version__}")
+        self.setWindowTitle(f"{APP_NAME} {__version__}")
         self.store = Store()
         use_theme(self.store.theme, self.store.appearance)
         self.setMinimumSize(900, 560)
@@ -366,13 +368,15 @@ class MainWindow(QMainWindow):
         # Two or more 心动 players and no 黑名单: a border of silk and flowers, once per lobby.
         self.love = LoveBorder()
         self._love_played = False
-        # New versions from GitHub: checked quietly once after opening; 检查更新 checks again.
+        # New versions from GitHub: checked when the app opens and installed straight away;
+        # 检查更新 checks again, and installs what it finds the same way.
         self.updates = UpdateChecker(self)
         self.updates.found.connect(self._on_update_found)
         self.updates.latest.connect(self._on_update_latest)
         self.updates.failed.connect(self._on_update_failed)
         self._release: updater.Release | None = None
         self._update_asked = False
+        self._updating = False
         if updater.app_root() is not None:
             QTimer.singleShot(UPDATE_FIRST_MS, self._check_updates_quietly)
             QTimer.singleShot(3000, self._confirm_update)
@@ -477,7 +481,7 @@ class MainWindow(QMainWindow):
         self.update_pill.setObjectName("updatePill")
         self.update_pill.setCursor(Qt.PointingHandCursor)
         self.update_pill.setFocusPolicy(Qt.TabFocus)
-        self.update_pill.clicked.connect(self._open_update)
+        self.update_pill.clicked.connect(self._install_update)
         self.update_pill.hide()
         right_row.addWidget(self.update_pill, 0, Qt.AlignVCenter)
         right_row.addSpacing(10)
@@ -518,7 +522,7 @@ class MainWindow(QMainWindow):
             from PySide6.QtWidgets import QSystemTrayIcon
 
             self.tray = QSystemTrayIcon(_icon(), self)
-            self.tray.setToolTip(f"黑名单检测 {__version__}")
+            self.tray.setToolTip(f"{APP_NAME} {__version__}")
             self.tray_menu = QMenu()
             self.tray_menu.setFont(chinese_font())
             self.tray_menu.setStyleSheet(_menu_style(chinese_family()))
@@ -899,9 +903,11 @@ class MainWindow(QMainWindow):
         self.update_button.setAutoDefault(False)
         self.update_button.setCursor(Qt.PointingHandCursor)
         self.update_button.clicked.connect(self._on_update_button)
-        # What the last check found, in gray right after the button.
+        # As wide as its words, with or without the note after it.
+        self.update_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        # What the last check found, in gray right after the button. Empty, it still holds the
+        # rest of the row, so the label and the button stay where every other row has them.
         self.update_hint = _InlineHint("")
-        self.update_hint.hide()
         update_row = general.add_row("更新", self.update_button, stretch=False)
         update_row.addSpacing(4)
         update_row.addWidget(self.update_hint, 1, Qt.AlignVCenter)
@@ -3269,9 +3275,9 @@ class MainWindow(QMainWindow):
         self.updates.check()
 
     def _on_update_button(self) -> None:
-        """检查更新, or, once a new version is known, 更新到 it."""
+        """检查更新, or, once a new version is known, install it."""
         if self._release is not None:
-            self._open_update()
+            self._install_update()
             return
         if updater.app_root() is None:
             self._update_note("源码运行不支持更新")
@@ -3285,19 +3291,20 @@ class MainWindow(QMainWindow):
     def _update_note(self, text: str) -> None:
         self.update_hint.setText(text)
         self.update_hint.setToolTip(text)
-        self.update_hint.setVisible(bool(text))
 
     def _on_update_found(self, release: updater.Release) -> None:
+        """A new version: shown in the header and 设置, and installed now unless it needs the full package."""
         log.info("Update available: %s", release.version)
+        asked, self._update_asked = self._update_asked, False
         self._release = release
-        self.update_pill.setToolTip(f"{release.version}，点击查看")
+        self.update_pill.setToolTip(f"{release.version}，点击更新")
         self.update_pill.show()
         self.update_button.setEnabled(True)
         self.update_button.setText("有更新")
         self._update_note("")
-        if self._update_asked:
-            self._update_asked = False
-            self._open_update()
+        if release.needs_full() and not asked:
+            return
+        self._install_update()
 
     def _on_update_latest(self) -> None:
         self.update_button.setEnabled(True)
@@ -3313,19 +3320,45 @@ class MainWindow(QMainWindow):
             self._update_asked = False
             self._update_note(message)
 
-    def _open_update(self) -> None:
-        if self._release is None:
+    def _install_update(self) -> None:
+        """Download the known new version and restart into it.
+
+        With the window up, a dialog shows the progress and stays until it is done. In the tray,
+        it happens out of sight and the new version starts in the tray again.
+        """
+        release, root = self._release, updater.app_root()
+        if release is None or self._updating or self._closing:
             return
-        dialog = UpdateDialog(self._release, updater.app_root(), self.store.root, self)
+        if root is not None and not release.needs_full() and not self.isVisible():
+            self._updating = True
+            download = Download(self)
+            download.done.connect(self._restart_for_update)
+            download.failed.connect(self._quiet_update_failed)
+            download.start(release, root, self.store.root / "updates")
+            return
+        self._updating = True
+        dialog = UpdateDialog(release, root, self.store.root, self)
         dialog.setAttribute(Qt.WA_DeleteOnClose, True)
         dialog.restart_requested.connect(self._restart_for_update)
+        dialog.finished.connect(self._update_dialog_closed)
         dialog.open()
+        dialog.start()
 
-    def _restart_for_update(self) -> None:
+    def _update_dialog_closed(self, _result: int) -> None:
+        # 跳过 after a failed download: the pill stays, and a click on it tries again.
+        self._updating = False
+
+    def _quiet_update_failed(self, message: str) -> None:
+        log.info("Update in the tray failed: %s", message)
+        self._updating = False
+
+    def _restart_for_update(self, *_args) -> None:  # noqa: ANN002
         root = updater.app_root()
-        if root is not None and restart_into_update(root):
+        if root is not None and restart_into_update(root, background=not self.isVisible()):
             log.info("Restarting into %s", self._release.version if self._release else "the update")
             self.quit_app()
+        else:
+            self._updating = False
 
     def _confirm_update(self) -> None:
         """This version opened: tell the launcher, which would otherwise put the old one back."""

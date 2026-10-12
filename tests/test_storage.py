@@ -331,7 +331,7 @@ def test_a_shared_list_keeps_custom_tags_and_reasons(tmp_path):
     sender.add("霁玥吉尔曼", reason="开局就炸房，还骂人", tags=("炸房", "开麦骂人"))
     sender.add("gffdsd")
     text = share_text(sender.entries)
-    assert text.splitlines()[0] == "#黑名单检测 名单 2人"
+    assert text.splitlines()[0] == "#模仿者小工具 黑名单 2人"
     assert is_shared(text)
     rows = parse_shared(text)
     assert rows == [

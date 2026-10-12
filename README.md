@@ -75,9 +75,9 @@ Friends get a folder with its own Python, so they do not install anything:
 
 ```
 BlackListDetect\
-  黑名单检测.exe          launcher (build/launcher/Launcher.cs, 17 KB), starts runtime\I5黑名单.exe
+  模仿者小工具.exe        launcher (build/launcher/Launcher.cs, 17 KB), starts runtime\模仿者小工具.exe
   runtime\               embeddable Python 3.12 with the packages installed;
-                         I5黑名单.exe is its pythonw.exe with the app's name and icon (build/app_exe.py)
+                         模仿者小工具.exe is its pythonw.exe with the app's name and icon (build/app_exe.py)
   blacklist_detect\      the app, plus models\ with the three PaddleOCR folders
 ```
 
@@ -95,7 +95,7 @@ It copies the runtime without the files the app never loads (unused Qt modules,
 pip, test suites, headers, dxcam, and other PaddleX extras), runs the copy once
 on the reference lobby, and writes two zips to `dist\release\`:
 
-- `BlackListDetect-<version>-full.zip` for a first install. Right-click, Extract All, then run `黑名单检测.exe` in the folder.
+- `BlackListDetect-<version>-full.zip` for a first install. Right-click, Extract All, then run `模仿者小工具.exe` in the folder.
 - `BlackListDetect-<version>-update.zip` with only the app code. Extract it over the old folder.
 
 ## Run the newest code on this PC
@@ -105,7 +105,7 @@ python build/install_local.py
 ```
 
 The first run installs the app to `%LOCALAPPDATA%\Programs\BlackListDetect` and
-puts a 黑名单检测 shortcut on the Desktop and in the Start menu. Every later run
+puts a 模仿者小工具 shortcut on the Desktop and in the Start menu. Every later run
 asks the open app to quit, copies only the files that changed (a few seconds),
 and starts it again, so the shortcut always opens the newest version. Add
 `--verify` to read the reference lobby with the installed copy. Only one copy of
