@@ -233,42 +233,14 @@ def window(tmp_path, monkeypatch):  # noqa: ANN001, ANN201
     made.close()
 
 
-def test_a_check_shows_its_answer_beside_the_button(window, tmp_path, monkeypatch):
-    from PySide6.QtWidgets import QApplication
+def test_settings_have_no_update_controls(window):
+    from PySide6.QtWidgets import QLabel, QPushButton
 
-    root = tmp_path / "BlackListDetect"
-    root.mkdir()
-    monkeypatch.setattr(updater, "app_root", lambda: root)
-    assert window.update_pill.isHidden() and window.update_button.text() == "检查更新"
-    # A check when the app opens that finds nothing says nothing.
-    window._on_update_latest()
-    assert window.update_hint.text() == ""
-    # Asked for by the button: the answer shows beside it, wide enough to read.
-    monkeypatch.setattr(window.updates, "check", lambda: True)
-    window._on_update_button()
-    assert window.update_button.text() == "检查中…" and not window.update_button.isEnabled()
-    window._on_update_failed("无法连接更新服务器，请稍后重试")
-    window.resize(1000, 640)
-    window.tabs.setCurrentIndex(window.settings_tab)
-    window.show()
-    QApplication.processEvents()
-    hint, button = window.update_hint, window.update_button
-    assert hint.text() == "无法连接更新服务器，请稍后重试" and button.isEnabled()
-    assert hint.parentWidget() is button.parentWidget()
-    assert hint.isVisible() and hint.width() > hint.fontMetrics().horizontalAdvance(hint.text())
-    assert hint.x() > button.x() + button.width() and abs(hint.geometry().center().y() - button.geometry().center().y()) <= 2
-    window._update_asked = True
-    window._on_update_latest()
-    assert hint.text() == "已是最新版本"
-    # With no note the button keeps its own width instead of filling the row.
-    window._update_note("")
-    QApplication.processEvents()
-    assert button.width() <= button.sizeHint().width() + 2
-    # The row keeps the same columns as the others: its label at the left, the button after it.
-    assert button.x() == window.close_mode.x()
+    texts = [label.text() for label in window.findChildren(QLabel)] + [button.text() for button in window.findChildren(QPushButton)]
+    assert not any(text in ("更新", "检查更新", "有新版本", "有更新") for text in texts)
 
 
-def test_a_new_version_installs_at_once_and_restarts(window, tmp_path, monkeypatch):
+def test_a_new_version_found_at_start_is_installed_first(window, tmp_path, monkeypatch):
     from PySide6.QtWidgets import QApplication
 
     from blacklist_detect.ui_update import UpdateDialog
@@ -280,17 +252,20 @@ def test_a_new_version_installs_at_once_and_restarts(window, tmp_path, monkeypat
     QApplication.processEvents()
     started: list[str] = []
     monkeypatch.setattr("blacklist_detect.ui_update.Download.start", lambda self, rel, where, folder: started.append(rel.version))
-    # Found when the app opens: the download starts with no click, in a dialog that cannot be closed.
     window._on_update_found(updater.read_manifest(_manifest(base="v0.1.0")))
     dialog = window.findChild(UpdateDialog)
     assert started == ["v9.0.0"] and dialog is not None and dialog.isVisible()
     assert dialog.windowTitle() == "正在更新到 v9.0.0" and "心动列表" in dialog.notes.text()
+    # Nothing closes it: no ×, and Esc or a click outside do nothing.
     assert dialog.close_button.isHidden() and dialog.band.isHidden()
     dialog.reject()
     dialog.click_outside()
-    assert dialog.isVisible(), "it stays until the update is in"
+    assert dialog.isVisible()
     dialog._on_progress(42, 100)
     assert dialog.bar.value() == 420 and dialog.status.text() == "下载中 42%"
+    # A second answer from GitHub does not start a second update.
+    window._on_update_found(updater.read_manifest(_manifest(base="v0.1.0")))
+    assert started == ["v9.0.0"]
     # Done: it says so and the app restarts by itself.
     restarted: list[bool] = []
     monkeypatch.setattr(window, "_restart_for_update", lambda *_args: restarted.append(True))
@@ -303,45 +278,61 @@ def test_a_new_version_installs_at_once_and_restarts(window, tmp_path, monkeypat
     assert restarted == [True]
 
 
-def test_a_failed_download_can_be_tried_again_or_skipped(window, tmp_path, monkeypatch):
+def test_a_failed_download_offers_retry_or_quit(window, tmp_path, monkeypatch):
     from blacklist_detect.ui_update import UpdateDialog
 
     root = tmp_path / "BlackListDetect"
     root.mkdir()
     monkeypatch.setattr(updater, "app_root", lambda: root)
+    window.show()
     started: list[str] = []
     monkeypatch.setattr("blacklist_detect.ui_update.Download.start", lambda self, rel, where, folder: started.append(rel.version))
-    window._release = updater.read_manifest(_manifest(base="v0.1.0"))
-    window.show()
-    # 有更新 (or the pill) installs with one click.
-    window._on_update_button()
+    window._on_update_found(updater.read_manifest(_manifest(base="v0.1.0")))
     dialog = window.findChild(UpdateDialog)
-    assert started == ["v9.0.0"]
     dialog._on_failed("下载失败，请检查网络后重试")
-    assert not dialog.band.isHidden() and dialog.action.text() == "重试" and dialog.skip.text() == "跳过"
-    assert dialog.status.text() == "下载失败，请检查网络后重试" and not dialog.close_button.isHidden()
+    assert not dialog.band.isHidden() and dialog.action.text() == "重试" and dialog.leave.text() == "退出"
+    assert dialog.status.text() == "下载失败，请检查网络后重试" and dialog.close_button.isHidden()
+    dialog.reject()
+    assert dialog.isVisible(), "still no way around the update but 退出"
     dialog.action.click()
     assert started == ["v9.0.0", "v9.0.0"] and dialog.band.isHidden()
     dialog._on_failed("下载失败，请检查网络后重试")
-    dialog.skip.click()
-    assert not dialog.isVisible() and not window._updating
-    # In the tray the update downloads out of sight, then restarts there.
-    window.hide()
-    window._install_update()
-    assert started[-1] == "v9.0.0" and len(started) == 3 and window._updating
+    quit_asked: list[bool] = []
+    dialog.quit_requested.disconnect()
+    dialog.quit_requested.connect(lambda: quit_asked.append(True))
+    dialog.leave.click()
+    assert quit_asked == [True]
 
 
-def test_a_release_needing_the_full_package_waits_for_a_click(window, tmp_path, monkeypatch):
+def test_in_the_tray_the_update_happens_out_of_sight(window, tmp_path, monkeypatch):
     from blacklist_detect.ui_update import UpdateDialog
 
     root = tmp_path / "BlackListDetect"
     root.mkdir()
     monkeypatch.setattr(updater, "app_root", lambda: root)
+    window.hide()
     started: list[str] = []
     monkeypatch.setattr("blacklist_detect.ui_update.Download.start", lambda self, rel, where, folder: started.append(rel.version))
+    window._on_update_found(updater.read_manifest(_manifest(base="v0.1.0")))
+    assert started == ["v9.0.0"] and window.findChild(UpdateDialog) is None
+    window._quiet_update_failed("下载失败，请检查网络后重试")
+    assert not window._updating
+
+
+def test_a_release_needing_the_full_package_sends_to_the_download_page(window, tmp_path, monkeypatch):
+    from blacklist_detect.ui_update import UpdateDialog
+
+    root = tmp_path / "BlackListDetect"
+    root.mkdir()
+    monkeypatch.setattr(updater, "app_root", lambda: root)
+    window.show()
+    started: list[str] = []
+    monkeypatch.setattr("blacklist_detect.ui_update.Download.start", lambda self, rel, where, folder: started.append(rel.version))
+    opened: list[str] = []
+    monkeypatch.setattr("blacklist_detect.ui_update.QDesktopServices.openUrl", lambda url: opened.append(url.toString()))
     window._on_update_found(updater.read_manifest(_manifest(base="v8.0.0")))
-    assert window.findChild(UpdateDialog) is None and not window.update_pill.isHidden() and started == []
-    window._on_update_button()
     dialog = window.findChild(UpdateDialog)
-    assert dialog.action.text() == "前往下载" and "完整安装包" in dialog.status.text() and started == []
-    dialog.reject()
+    assert started == [] and dialog.action.text() == "前往下载" and dialog.leave.text() == "退出"
+    assert "完整安装包" in dialog.status.text()
+    dialog.action.click()
+    assert opened == [updater.RELEASES_URL] and dialog.isVisible()

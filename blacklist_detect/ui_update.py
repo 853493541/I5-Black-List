@@ -1,9 +1,8 @@
-"""Updates in the window: a check when the app opens, 检查更新, and the update itself.
+"""Updates in the window: a check when the app opens, and the update itself.
 
 A new version found when the app opens is downloaded straight away, in a dialog that stays until
-it is done, and the app restarts into it. A version found by 检查更新 is installed the same way.
-The check and the download run on their own threads and report back by signal, so the window
-never waits on the network.
+it is done, and the app restarts into it. The check and the download run on their own threads
+and report back by signal, so the window never waits on the network.
 """
 
 from __future__ import annotations
@@ -110,12 +109,13 @@ def restart_into_update(root: Path, background: bool = False) -> bool:
 class UpdateDialog(Modal):
     """正在更新: what is new and a progress bar; when the download is done the app restarts.
 
-    It stays until the update is in: no × and no click outside while it downloads. If the
-    download fails, 重试 tries again and 跳过 leaves the update for later. A release that needs
-    the full package only says so, with 前往下载.
+    The new version comes first: no ×, no Esc and no click outside close it. If the download
+    fails, 重试 tries again and 退出 closes the app; the next start tries again. A release that
+    needs the full package says so, with 前往下载 and 退出.
     """
 
     restart_requested = Signal()
+    quit_requested = Signal()
     # How long 更新完成，正在重启… shows before the app closes.
     RESTART_MS = 900
 
@@ -149,24 +149,25 @@ class UpdateDialog(Modal):
         self.status.setWordWrap(True)
         self.status.hide()
         layout.addWidget(self.status)
-        self.skip = QPushButton("跳过")
-        self.skip.setAutoDefault(False)
-        self.skip.clicked.connect(self.reject)
+        self.leave = QPushButton("退出")
+        self.leave.setAutoDefault(False)
+        self.leave.clicked.connect(self.quit_requested.emit)
         self.action = _primary("重试", self._act)
-        row = self.footer(self.skip, self.action)
+        row = self.footer(self.leave, self.action)
         self.band = row.parentWidget()
         self.card.setMinimumWidth(460)
         _pointing(self)
         self._state = "idle"
+        self.close_button.hide()
         if root is None:
+            self.close_button.show()
             self._state = "source"
             self._say("源码运行不支持更新")
-            self.skip.hide()
+            self.leave.hide()
             self.action.setText("知道了")
         elif release.needs_full():
             self._state = "full"
             self._say("此版本需要下载完整安装包，名单和设置会保留")
-            self.skip.hide()
             self.action.setText("前往下载")
         else:
             self.band.hide()
@@ -190,16 +191,15 @@ class UpdateDialog(Modal):
         return self._state in ("downloading", "restarting")
 
     def reject(self) -> None:
-        # The update is on its way: ×, Esc and a click outside wait for it.
-        if self.busy():
-            return
-        super().reject()
+        # The new version comes first: ×, Esc and a click outside do nothing; 退出 closes the app.
+        if self._state == "source":
+            super().reject()
 
     def click_outside(self) -> None:
-        if self.busy():
-            self._nudge()
+        if self._state == "source":
+            super().click_outside()
             return
-        super().click_outside()
+        self._nudge()
 
     def _say(self, text: str) -> None:
         self.status.setText(text)
@@ -208,7 +208,6 @@ class UpdateDialog(Modal):
     def _act(self) -> None:
         if self._state == "full":
             QDesktopServices.openUrl(QUrl(updater.RELEASES_URL))
-            self.accept()
         elif self._state == "failed":
             self.start()
         else:
@@ -234,7 +233,6 @@ class UpdateDialog(Modal):
     def _on_failed(self, message: str) -> None:
         self._state = "failed"
         self.bar.hide()
-        self.close_button.show()
         self._say(message)
         self.band.show()
         self.action.setText("重试")

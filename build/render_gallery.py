@@ -347,39 +347,20 @@ def _header_scenes(window, snap) -> None:  # noqa: ANN001
 
 
 def _update_scenes(window, snap, over_window) -> None:  # noqa: ANN001
-    """Updates, every state: 设置 › 更新, the header pill, the dialog from download to restart, and the toast."""
-    if not hasattr(window, "update_pill"):
-        return
+    """The update, every state: downloading, restarting, failed, and needing the full package."""
     from blacklist_detect.ui_update import UpdateDialog
     from blacklist_detect.updater import DOWNLOADS, Release
 
     release = Release(
-        "v0.4.1",
-        f"{DOWNLOADS}v0.4.1/BlackListDetect-v0.4.1-update.zip",
+        "v0.4.3",
+        f"{DOWNLOADS}v0.4.3/BlackListDetect-v0.4.3-update.zip",
         "0" * 64,
         1_900_000,
         base="v0.3.0",
         notes=("心动列表支持按最近遇到排序", "修复偶尔无法识别大厅的问题"),
     )
-    header = window.status_chip.parentWidget().parentWidget()
     window.resize(1000, 640)
-    window.tabs.setCurrentIndex(window.settings_tab)
-    snap("update_settings_idle")
-    window.update_button.setEnabled(False)
-    window.update_button.setText("检查中…")
-    snap("update_settings_checking")
-    window._update_asked = True
-    window._on_update_latest()
-    snap("update_settings_latest")
-    window._update_asked = True
-    window._on_update_failed("无法连接更新服务器，请稍后重试")
-    snap("update_settings_failed")
-    # Found: in the app it installs at once; here only the 设置 and header look is wanted.
-    window._updating = True
-    window._on_update_found(release)
-    window._updating = False
-    snap("update_settings_found")
-    snap("update_header_new", header)
+    window.tabs.setCurrentIndex(window.history_tab)
 
     def dialog_shot(name: str, prepare, base: str = "v0.3.0") -> None:  # noqa: ANN001
         shown = Release(release.version, release.url, release.sha256, release.size, base=base, notes=release.notes)
@@ -389,7 +370,7 @@ def _update_scenes(window, snap, over_window) -> None:  # noqa: ANN001
         prepare(dialog)
         dialog.show()
         snap(name, picture=over_window(dialog))
-        dialog._state = "idle"
+        dialog._state = "source"
         dialog.close()
 
     def downloading(dialog) -> None:  # noqa: ANN001
@@ -404,16 +385,11 @@ def _update_scenes(window, snap, over_window) -> None:  # noqa: ANN001
         dialog.start()
         dialog._on_failed("下载失败，请检查网络后重试")
 
-    dialog_shot("update_dialog_downloading", downloading)
-    dialog_shot("update_dialog_restarting", restarting)
-    dialog_shot("update_dialog_failed", failed)
-    dialog_shot("update_dialog_full", lambda dialog: None, base="v0.4.1")
-    window.update_pill.hide()
-    window._release = None
-    window.update_button.setText("检查更新")
-    window._update_note("")
-    window.tabs.setCurrentIndex(window.history_tab)
-    window._say("已更新到 v0.4.1")
+    dialog_shot("update_downloading", downloading)
+    dialog_shot("update_restarting", restarting)
+    dialog_shot("update_failed", failed)
+    dialog_shot("update_full", lambda dialog: None, base="v0.4.3")
+    window._say("已更新到 v0.4.3")
     # The toast fades in over 150 ms.
     from PySide6.QtTest import QTest
 

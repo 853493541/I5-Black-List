@@ -363,20 +363,6 @@ def _button_rules(family: str) -> str:
                 background: {t["hover"]};
                 color: {t["text"]};
             }}
-            QPushButton#updatePill {{
-                background: {t["accent_wash"]};
-                border: 1px solid {t["accent_line"]};
-                color: {t["accent_line"]};
-                font-size: {SMALL_PT}pt;
-                padding: 0 10px;
-                min-height: 22px;
-                max-height: 22px;
-                border-radius: 11px;
-            }}
-            QPushButton#updatePill:hover {{
-                background: {t["accent_line"]};
-                color: {t["on_accent"]};
-            }}
             QPushButton#link {{
                 background: transparent;
                 border: none;
