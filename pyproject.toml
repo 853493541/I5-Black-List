@@ -13,6 +13,9 @@ dependencies = [
   "numpy",
   "Pillow",
   "paddleocr>=3.0",
+  # Updates: the signed version file and the download. PaddleOCR brings both in already.
+  "cryptography",
+  "requests",
 ]
 
 [project.optional-dependencies]
