@@ -1719,6 +1719,9 @@ class MainWindow(QMainWindow):
             header.locked = bool(self.store.stream_mode)
             header.viewport().update()
         self._show_list()
+        # 记录 masks its 黑名单 seats in 直播模式 too.
+        if hasattr(self, "history_table"):
+            self._show_history_scan(self._selected_scan())
 
     def _sync_detail_tip(self, row: int, column: int) -> None:
         text = self._reason_for_row(row) if column == 2 else ""
@@ -2361,6 +2364,10 @@ class MainWindow(QMainWindow):
         if like is not None:
             # 心动 shows the 昵称, or the full name as the list has it.
             shown_name = like.shown()
+        # 直播模式: this page may be on stream, so a 黑名单 name is masked like on the 黑名单 page.
+        hide = match is not None and bool(self.store.stream_mode)
+        if hide:
+            shown_name, listed, tail, title = masked_name(shown_name), "", None, masked_name(title)
         # Lobby order is not the player's number. Show the name until a later stage.
         label = title
         name_item = QTableWidgetItem(label)
@@ -2433,7 +2440,7 @@ class MainWindow(QMainWindow):
             f'color: {name_color}; background: transparent; font-family: "{chinese_family()}"; font-size: {BODY_PT}pt;'
         )
         line.addWidget(name_label, 1)
-        if tail:
+        if tail and not hide:
             name_item.setToolTip(f"读到「{title}」，是黑名单里的「{listed}」")
         if like is not None:
             name_item.setToolTip(f"读到「{title}」，是心动里的「{like.name}」")
@@ -2954,7 +2961,9 @@ class MainWindow(QMainWindow):
             self._picture_dialog = PictureResultDialog(title, error=error, parent=self)
         else:
             log.info("Picture check: lobby %s, %d on the list", value.header_found, len(value.hits))
-            self._picture_dialog = PictureResultDialog(title, result=value, parent=self, likes=self.store.likes)
+            self._picture_dialog = PictureResultDialog(
+                title, result=value, parent=self, likes=self.store.likes, hide_hits=bool(self.store.stream_mode)
+            )
         self._picture_dialog.open()
 
     def _set_autostart(self, enabled: bool) -> None:

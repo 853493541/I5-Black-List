@@ -43,6 +43,7 @@ from blacklist_detect.ui_theme import (
 )
 from blacklist_detect.ui_widgets import (
     TagPill,
+    masked_name,
     _FlowHost,
     _zh_date,
     paint_tag_row,
@@ -578,7 +579,7 @@ def _liked(slot, likes):  # noqa: ANN001, ANN202
 class PictureResultDialog(Modal):
     """What one picture check read: the twelve seats, blacklist matches in red, 心动 in rose."""
 
-    def __init__(self, title: str, result: CheckResult | None = None, error: str = "", parent=None, likes=()) -> None:  # noqa: ANN001
+    def __init__(self, title: str, result: CheckResult | None = None, error: str = "", parent=None, likes=(), hide_hits: bool = False) -> None:  # noqa: ANN001
         super().__init__(parent)
         layout = _frame(self, title)
         self.summary = QLabel()
@@ -617,7 +618,10 @@ class PictureResultDialog(Modal):
                     hit = hits[slot.index]
                     shown = split_ellipsis(slot.visible)[0] or slot.visible
                     tail = listed_tail(shown, hit.entry_name)
-                    if tail:
+                    if hide_hits:
+                        # 直播模式: the dialog may be on stream; the name is masked.
+                        cell.setText(masked_name(shown))
+                    elif tail:
                         # Cut short by the game: the name once, in full as the list has it.
                         cell.setText(hit.entry_name)
                         cell.setToolTip(f"读到「{shown}」，是黑名单里的「{hit.entry_name}」")
