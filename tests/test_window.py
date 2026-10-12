@@ -2134,6 +2134,25 @@ def test_reset_then_restart_runs_the_check_and_the_guide_again(qapp, tmp_path, m
     again.close()
 
 
+def test_the_first_run_guide_opens_over_the_window_without_waiting(qapp, tmp_path, monkeypatch):
+    from blacklist_detect.ui import GuideDialog
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    window.store.first_run = True
+    # It returns at once, so the setup screen's fade that calls it is not held up.
+    window.show_first_run_guide()
+    guide = window.findChild(GuideDialog)
+    assert guide is not None and guide.isVisible() and guide.isModal()
+    assert window.store.first_run is False
+    window.show_first_run_guide()
+    assert len(window.findChildren(GuideDialog)) == 1
+    guide.accept()
+    window.close()
+
+
 def test_closing_quits_or_goes_to_the_tray_as_set(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))

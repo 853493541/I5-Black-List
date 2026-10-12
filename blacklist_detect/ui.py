@@ -2561,7 +2561,10 @@ class MainWindow(QMainWindow):
             return
         self.store.first_run = False
         self.store.save_settings()
-        GuideDialog(self).exec()
+        # Over the window without a nested event loop: this runs from the setup screen's fade.
+        guide = GuideDialog(self)
+        guide.setAttribute(Qt.WA_DeleteOnClose, True)
+        guide.open()
 
     def begin(self) -> None:
         """After the window opens: the environment check when it is due, then the first-run guide."""
