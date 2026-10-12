@@ -220,3 +220,45 @@ def test_in_stream_mode_no_page_shows_a_blacklist_name(window):
     texts = [label.text() for label in shown.findChildren(type(shown.summary))]
     assert "坏人" not in texts and "坏*" in texts and "小红" in texts
     shown.close()
+
+
+def test_the_stream_window_is_the_game_window_a_capture_sees(window, monkeypatch):
+    """A windowed emulator: 直播姬 captures its whole window and stretches it over the canvas, so
+    直播模式's window must be that window, size for size, or the marks land off the game."""
+    from PySide6.QtCore import QRect
+
+    from blacklist_detect import ui
+    from blacklist_detect.storage import Store
+
+    screen = QApplication.primaryScreen()
+    ratio = screen.devicePixelRatio()
+    geo = screen.geometry()
+    outer = QRect(geo.x() + 40, geo.y() + 30, geo.width() // 2 + 200, geo.height() // 2 + 160)
+    inner = outer.adjusted(0, 36, -48, 0)  # the game surface, inside the emulator's frame
+
+    def native(rect):  # noqa: ANN001, ANN202
+        return (round(rect.left() * ratio), round(rect.top() * ratio), round((rect.right() + 1) * ratio), round((rect.bottom() + 1) * ratio))
+
+    monkeypatch.setattr(ui, "window_rect_at", lambda _x, _y, _order=(), innermost=True: native(inner if innermost else outer))
+    window._set_stream_mode(True)
+    screen_box = QApplication.primaryScreen().availableGeometry()
+    left = int((inner.center().x()) * ratio) - 90
+    top = int((inner.center().y()) * ratio)
+    button = (left, top, left + 180, top + 60)
+    names = [NameSlot(1, (0, 0, 1, 1), "小红", "小红", False, 0.9, False), NameSlot(2, (0, 0, 1, 1), "小明", "小明", False, 0.9, False)]
+    window._live_check = True
+    window._on_lobby_placed(button)
+    window._show_panel(CheckResult(True, "", names=names, button_box=button))
+    window.stream._step()
+    assert window.stream._area == outer and window.stream.size() == outer.size()
+    assert window.love.geometry() == inner, "the border still fits the game surface"
+    assert Store(window.store.root).stream_size == (outer.width(), outer.height())
+    # Next start: the same size before any check.
+    from blacklist_detect.ui import MainWindow
+
+    again = MainWindow()
+    again._watch_timer.stop()
+    again._set_stream_mode(True)
+    assert again.stream.size() == outer.size()
+    again.close()
+    window._hide_panel_after_title()

@@ -404,6 +404,9 @@ class MainWindow(QMainWindow):
         self._notice_screen = None
         # 直播模式: the marks, never a 黑名单 name, in a window a streaming app can capture.
         self.stream = StreamMirror(self)
+        if all(self.store.stream_size):
+            # The game's window size from the last check; where it is comes with the next one.
+            self.stream.set_frame(QRect(0, 0, *self.store.stream_size))
         # The lobby's button, in desktop pixels: the game's window is the one under it, in the
         # order the windows were in at the screenshot.
         self._game_box = None
@@ -3325,6 +3328,7 @@ class MainWindow(QMainWindow):
             return
         self._game_box = result.button_box
         self._game_windows = result.windows
+        self._frame_stream()
         likes = self._likes_in(result)
         if hits:
             self.clear_mark.hide()
@@ -3396,7 +3400,28 @@ class MainWindow(QMainWindow):
         self._love_played = True
         self.love.play(self._game_area(screen), keep)
 
+    def _frame_stream(self) -> None:
+        """直播模式's window takes the size and place of the game's whole window, the one a
+        streaming app's 窗口捕捉 captures: an emulator with its frame, or a full-screen game."""
+        if not self.store.stream_mode or self._game_box is None:
+            return
+        left, top, right, bottom = self._game_box
+        origin_x, origin_y = virtual_origin()
+        x, y, _ratio = native_to_logical((left + right) / 2 + origin_x, (top + bottom) / 2 + origin_y)
+        screen = QApplication.screenAt(QPoint(int(x), int(y))) or QApplication.primaryScreen()
+        if screen is None:
+            return
+        frame = self._window_frame(screen, innermost=False)
+        self.stream.set_frame(frame)
+        size = (frame.width(), frame.height())
+        if size != tuple(self.store.stream_size):
+            self.store.stream_size = size
+            self.store.save_settings()
+
     def _game_area(self, screen) -> QRect:  # noqa: ANN001
+        return self._window_frame(screen, innermost=True)
+
+    def _window_frame(self, screen, innermost: bool) -> QRect:  # noqa: ANN001
         """Where the game is drawn, for the border and the glow: its window when it sits in one (a
         windowed client, an emulator), else the whole screen."""
         area = screen.geometry()
@@ -3404,16 +3429,19 @@ class MainWindow(QMainWindow):
             return area
         origin_x, origin_y = virtual_origin()
         left, top, right, bottom = self._game_box
-        found = window_rect_at((left + right) // 2 + origin_x, (top + bottom) // 2 + origin_y, self._game_windows)
+        found = window_rect_at(
+            (left + right) // 2 + origin_x, (top + bottom) // 2 + origin_y, self._game_windows, innermost=innermost
+        )
         if found is None:
             return area
         x, y, ratio = native_to_logical(found[0], found[1])
         rect = QRect(round(x), round(y), round((found[2] - found[0]) / ratio), round((found[3] - found[1]) / ratio))
-        rect = rect.intersected(area)
+        # Marks stay on the screen; the whole window is what a 窗口捕捉 sees, even partly off it.
+        shown = rect.intersected(area)
         # Not much bigger than the button: not the game's window (a tooltip, a stray control).
-        if rect.width() < 3 * (right - left) / ratio or rect.height() < 3 * (bottom - top) / ratio:
+        if shown.width() < 3 * (right - left) / ratio or shown.height() < 3 * (bottom - top) / ratio:
             return area
-        return rect
+        return shown if innermost else rect
 
     def _open_panel(self, mode: str, text: str, box) -> None:
         self._panel_hide_timer.stop()
