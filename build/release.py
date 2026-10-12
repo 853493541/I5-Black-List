@@ -141,7 +141,7 @@ def publish(args: argparse.Namespace) -> int:
         # From mainland China the GitHub link is often cut off: the same file through a proxy.
         direct = f"{updater.DOWNLOADS}{__version__}/{_zip('full').name}"
         lines += ["", "**国内下载**（GitHub 打不开时）", ""]
-        lines += [f"- {prefix}{direct}" for prefix in updater.MIRRORS[1:3]]
+        lines += [f"- {prefix}{direct}" for prefix in [prefix for prefix in updater.MIRRORS if prefix][:2]]
     notes.write_text("\n".join(lines) + "\n", encoding="utf-8")
     command = [
         "release", "create", __version__,

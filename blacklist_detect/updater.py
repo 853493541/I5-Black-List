@@ -12,9 +12,9 @@ lays it over the folder on the next start, keeping
 what it replaced in update.old, and puts that back if the new version never says it started.
 Nothing about the player is sent: the requests are plain downloads of public files.
 
-From mainland China github.com is often slow or cut off. So GitHub is tried first, then public
-download proxies (MIRRORS): each takes a GitHub address after its own and passes the same file
-through. They are trusted with nothing: version.json must carry the release key's signature and
+From mainland China github.com is often slow or cut off, so the app also goes through public
+download proxies (MIRRORS), in the order that worked best from inside China: each takes a GitHub
+address after its own and passes the same file through. They are trusted with nothing: version.json must carry the release key's signature and
 the zip must match its SHA-256, so a proxy can at worst fail or be slow. The one that worked is
 tried first next time, and a signed version.json may name newer proxies for when these go away.
 """
@@ -41,19 +41,21 @@ REPO = "853493541/I5-Black-List"
 MANIFEST_URL = f"https://github.com/{REPO}/releases/latest/download/version.json"
 RELEASES_URL = f"https://github.com/{REPO}/releases/latest"
 DOWNLOADS = f"https://github.com/{REPO}/releases/download/"
-# Where to fetch from: GitHub itself, then public proxies that put a GitHub address after their own.
-# Taken from the list kept in XIU2's 「GitHub 增强 - 高速下载」 (github.com/XIU2/UserScript), one
-# or two per operator so that one going down leaves the rest: ghproxy.link's ghfast.top,
-# gh-proxy's own server and its EdgeOne and Fastly nodes, ghproxy.net, and ucdn's wget.la. Each one
-# passed `release.py check --each` (signature and zip) on 2026-10-12; gh.ddlc.top answered 429 (too
-# many requests) and was left out. They come and go; a signed version.json can name new ones.
+# Where to fetch from: public proxies that put a GitHub address after their own, and GitHub itself ("").
+# Taken from the list kept in XIU2's 「GitHub 增强 - 高速下载」 (github.com/XIU2/UserScript), from
+# four operators so that one going down leaves the rest. Each passed `release.py check --each`
+# (signature and zip) on 2026-10-12, and the order is how they did that day fetching version.json
+# from 12 Globalping probes inside mainland China (Unicom, Mobile, Telecom, Tencent, Alibaba):
+#   gh-proxy.org 12/12 · ghproxy.net 11/12 · cdn.gh-proxy.org 10/10 online · GitHub 6/12 ·
+#   edgeone.gh-proxy.org 10/11 · ghfast.top 8/12 · wget.la 10/10 but about 4 s.
+# gh.ddlc.top answered 429 (too many requests). They come and go; a signed version.json can name new ones.
 MIRRORS = (
-    "",
-    "https://ghfast.top/",
     "https://gh-proxy.org/",
-    "https://edgeone.gh-proxy.org/",
-    "https://cdn.gh-proxy.org/",
     "https://ghproxy.net/",
+    "https://cdn.gh-proxy.org/",
+    "",
+    "https://edgeone.gh-proxy.org/",
+    "https://ghfast.top/",
     "https://wget.la/",
 )
 # The proxy that worked last and any a release named, kept beside the settings.
