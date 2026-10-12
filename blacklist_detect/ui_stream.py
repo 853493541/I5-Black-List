@@ -90,9 +90,14 @@ class StreamMirror(QWidget):
             marks += [window.panel, window.clear_mark]
         return [mark for mark in marks if mark.isVisible()]
 
+    def _borders(self) -> list:
+        """The flower borders playing now: the one over the game, or the one only the stream gets."""
+        window = self._window
+        return [border for border in (window.love, window.stream_love) if border.playing()]
+
     def busy(self) -> bool:
         """Whether a 心动 mark is showing now."""
-        return bool(self._marks()) or self._window.love.playing()
+        return bool(self._marks()) or bool(self._borders())
 
     def _screen(self) -> QRect:
         panel = self._window.panel
@@ -120,11 +125,10 @@ class StreamMirror(QWidget):
         if self._mode == "key":
             painter.fillRect(self.rect(), KEY)
         origin = self.geometry().topLeft()
-        window = self._window
-        if window.love.playing():
+        for border in self._borders():
             painter.save()
-            painter.translate(window.love.geometry().topLeft() - origin)
-            window.love.paint_at(painter, window.love.elapsed(), window.love.width(), window.love.height())
+            painter.translate(border.geometry().topLeft() - origin)
+            border.paint_at(painter, border.elapsed(), border.width(), border.height())
             painter.restore()
         for mark in self._marks():
             painter.setOpacity(mark.windowOpacity())

@@ -404,6 +404,10 @@ class MainWindow(QMainWindow):
         self.clear_mark = ClearMark()
         # Two or more 心动 players and no 黑名单: a border of silk and flowers, once per lobby.
         self.love = LoveBorder()
+        # The same border for 直播模式 alone, never on the player's screen: in a lobby with a 黑名单
+        # player it would bury the warning there, but viewers see no warning, so they still get it.
+        self.stream_love = LoveBorder()
+        self.stream_love.setAttribute(Qt.WA_DontShowOnScreen, True)
         self._love_played = False
         # 黑名单 players in the lobby: a red glow at the screen's edges while the result is up.
         self.alert = AlertGlow()
@@ -948,16 +952,22 @@ class MainWindow(QMainWindow):
         self.sound_switch.toggled.connect(self._set_hit_sound)
         check.add_row("提示音", self.sound_switch, hint="发现黑名单时响一声")
         # 4 直播模式: a window for the streaming app, with the 心动 marks and never the 黑名单 ones.
-        self.stream_control = SegmentedControl([("off", "关"), ("key", "绿幕"), ("alpha", "透明")], self.store.stream_mode or "off")
-        self.stream_control.setAccessibleName("直播模式")
-        self.stream_control.changed.connect(self._set_stream_mode)
+        self.stream_switch = Switch(bool(self.store.stream_mode))
+        self.stream_switch.setAccessibleName("直播模式")
+        self.stream_switch.toggled.connect(self._set_stream_mode)
         self.stream_preview = QPushButton("预览")
         self.stream_preview.setFont(ui_font())
         self.stream_preview.setAutoDefault(False)
         self.stream_preview.setCursor(Qt.PointingHandCursor)
         self.stream_preview.clicked.connect(self._preview_marks)
         self.stream_preview.setEnabled(bool(self.store.stream_mode))
-        check.add_row("直播模式", self.stream_control, self.stream_preview, hint="观众只看到心动，看不到黑名单")
+        check.add_row("直播模式", self.stream_switch, self.stream_preview, hint="观众只看到心动，看不到黑名单")
+        # How to set it up, under the row while it is on.
+        self.stream_hint = QLabel("在直播软件里添加窗口捕获「模仿者小工具·直播画面」，再给它加「色度键」去掉绿色")
+        self.stream_hint.setObjectName("rowHint")
+        self.stream_hint.setWordWrap(True)
+        self.stream_hint.setVisible(bool(self.store.stream_mode))
+        check.add_widget(self.stream_hint, separated=False, indent=True)
 
         # 常规: how the app starts and closes.
         general = section("常规")
@@ -1194,8 +1204,9 @@ class MainWindow(QMainWindow):
             box.blockSignals(True)
             box.setChecked(on)
             box.blockSignals(False)
-        self.stream_control.set_current("off")
+        self._sync_switch(self.stream_switch, False)
         self.stream_preview.setEnabled(False)
+        self.stream_hint.setVisible(False)
         self.notice.hide()
         if not self._watch_timer.isActive():
             self.watch = LobbyWatch()
@@ -2657,11 +2668,13 @@ class MainWindow(QMainWindow):
         self.store.hit_sound = bool(on)
         self.store.save_settings()
 
-    def _set_stream_mode(self, mode: str) -> None:
-        self.store.stream_mode = mode if mode in ("key", "alpha") else ""
+    def _set_stream_mode(self, on: bool | str) -> None:
+        self.store.stream_mode = "key" if on else ""
         self.store.save_settings()
         self.stream.enable(self.store.stream_mode)
         self.stream_preview.setEnabled(bool(self.store.stream_mode))
+        self.stream_hint.setVisible(bool(self.store.stream_mode))
+        self._sync_switch(self.stream_switch, bool(self.store.stream_mode))
         self._sync_overlay_target()
 
     def _preview_marks(self) -> None:
@@ -3074,6 +3087,7 @@ class MainWindow(QMainWindow):
             self.like_card.hide()
             self.clear_mark.hide()
             self.love.stop()
+            self.stream_love.stop()
             self.alert.leave()
         # Nothing is checked before 使用声明 is agreed to.
         if not self.store.disclaimer_accepted or not self.worker.request(fn):
@@ -3293,6 +3307,7 @@ class MainWindow(QMainWindow):
         self.like_card.hide()
         self.clear_mark.hide()
         self.love.stop()
+        self.stream_love.stop()
         self._love_played = False
         self.alert.leave()
         if not self.store.auto_capture:
@@ -3336,6 +3351,9 @@ class MainWindow(QMainWindow):
             if self.hit_card.isVisible():
                 self._show_like_card(likes)
                 self._show_alert()
+                # Viewers see only the 心动 side, so for them the border plays as it would without one.
+                if self.store.stream_mode and len(likes) >= 2 and not self._love_played:
+                    self._play_love(stream_only=True)
             return
         self.hit_card.hide()
         self.like_card.hide()
@@ -3383,15 +3401,19 @@ class MainWindow(QMainWindow):
             if mark.isVisible():
                 _pin_topmost(mark)
 
-    def _play_love(self) -> None:
-        """The border over the game's screen, parted around the button, the badge and the 心动 card."""
+    def _play_love(self, stream_only: bool = False) -> None:
+        """The border over the game, parted around the button, the badge and the 心动 card.
+        stream_only: for 直播模式's window alone."""
         cover = self.panel.cover_geometry()
-        keep = cover.united(self.clear_mark.geometry()).united(self.like_card.geometry())
+        keep = cover
+        for mark in (self.clear_mark, self.like_card):
+            if mark.isVisible():
+                keep = keep.united(mark.geometry())
         screen = QApplication.screenAt(cover.center()) or QApplication.primaryScreen()
         if screen is None:
             return
         self._love_played = True
-        self.love.play(self._game_area(screen), keep)
+        (self.stream_love if stream_only else self.love).play(self._game_area(screen), keep)
 
     def _game_area(self, screen) -> QRect:  # noqa: ANN001
         """Where the game is drawn, for the border and the glow: its window when it sits in one (a
@@ -3681,6 +3703,8 @@ class MainWindow(QMainWindow):
         self.clear_mark.close()
         self.love.stop()
         self.love.close()
+        self.stream_love.stop()
+        self.stream_love.close()
         self.alert.stop()
         self.alert.close()
         self.notice.close()

@@ -397,8 +397,8 @@ class Store:
         self.check_likes = True
         # 提示音: the system warning sound when a 黑名单 player is found.
         self.hit_sound = True
-        # 直播模式: a window for a streaming app with the 心动 marks only. "" off, "key" on green
-        # for the streaming app to key out, "alpha" on a clear background.
+        # 直播模式: a window for a streaming app with the 心动 marks only, on green for the streaming
+        # app's color key to take out. "" off, "key" on.
         self.stream_mode = ""
         # What the player agreed to after being told the risk: "full" (完整模式), "auto" (自动检查).
         self.consented: list[str] = []
@@ -805,8 +805,8 @@ class Store:
             self.hit_sound = bool(settings.get("hit_sound", True))
             self.check_blacklist = bool(settings.get("check_blacklist", True))
             self.check_likes = bool(settings.get("check_likes", True))
-            stream = settings.get("stream_mode", "")
-            self.stream_mode = stream if stream in ("key", "alpha") else ""
+            # v0.6.0 also offered "alpha" (a clear background); it is on green now, like every capture.
+            self.stream_mode = "key" if settings.get("stream_mode") in ("key", "alpha") else ""
             self.disclaimer_accepted = settings.get("disclaimer_accepted") is True
             agreed = settings.get("consented") or []
             self.consented = [mode for mode in ("full", "auto") if isinstance(agreed, list) and mode in agreed]

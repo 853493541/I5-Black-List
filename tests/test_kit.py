@@ -207,3 +207,17 @@ def test_toast_colors_are_readable(dark):
 def test_theme_has_kit_roles():
     for key in ("toast_bg", "toast_text", "toast_action"):
         assert key in THEME
+
+
+def test_a_switch_set_quietly_is_drawn_where_it_is(qapp):
+    from blacklist_detect.ui_kit import Switch
+
+    switch = Switch(False)
+    switch.blockSignals(True)
+    switch.setChecked(True)
+    switch.blockSignals(False)
+    assert switch._pos == 1.0
+    switch.blockSignals(True)
+    switch.setChecked(False)
+    switch.blockSignals(False)
+    assert switch._pos == 0.0

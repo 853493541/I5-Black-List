@@ -134,6 +134,14 @@ class Switch(_KeyboardRing, QAbstractButton):
         self._anim.setEndValue(1.0 if on else 0.0)
         self._anim.start()
 
+    def checkStateSet(self) -> None:
+        """Set from code with its signals blocked (a setting put back): no toggled, so no slide; the knob
+        goes straight to where it belongs instead of staying drawn the old way."""
+        super().checkStateSet()
+        if self.signalsBlocked():
+            self._anim.stop()
+            self._set_pos(1.0 if self.isChecked() else 0.0)
+
     def paintEvent(self, _event) -> None:  # noqa: ANN001
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)

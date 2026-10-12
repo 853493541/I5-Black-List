@@ -1107,7 +1107,7 @@ def test_reset_asks_before_clearing_everything(qapp, tmp_path, monkeypatch):
     assert window.safe_on.isChecked() is True
     assert window.auto_off.isChecked() is True
     assert window.remind_blacklist.isChecked() and window.remind_likes.isChecked()
-    assert window.stream_control.current() == "off"
+    assert window.stream_switch.isChecked() is False and window.stream_hint.isHidden()
     # Every control that shows a setting goes back with it.
     assert window.status_chip.text() == "手动检查"
     again = Store(window.store.root)

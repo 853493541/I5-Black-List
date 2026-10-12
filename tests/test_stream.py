@@ -70,14 +70,17 @@ def test_the_choice_is_remembered_and_opens_the_window(window):
     from blacklist_detect.ui_stream import TITLE
 
     assert not window.stream.enabled() and not window.stream_preview.isEnabled()
-    window.stream_control.buttons["key"].click()
+    assert window.stream_hint.isHidden()
+    # One switch: on is always green, for the streaming app's color key.
+    window.stream_switch.click()
     assert window.stream.enabled() and window.stream.isVisible() and window.stream.mode() == "key"
     assert window.stream.windowTitle() == TITLE == "模仿者小工具·直播画面"
     assert Store(window.store.root).stream_mode == "key" and window.stream_preview.isEnabled()
-    window.stream_control.buttons["alpha"].click()
-    assert window.stream.mode() == "alpha" and Store(window.store.root).stream_mode == "alpha"
-    window.stream_control.buttons["off"].click()
+    # How to set it up shows while it is on.
+    assert not window.stream_hint.isHidden() and "色度键" in window.stream_hint.text()
+    window.stream_switch.click()
     assert not window.stream.enabled() and not window.stream.isVisible() and not window.stream_preview.isEnabled()
+    assert window.stream_hint.isHidden() and Store(window.store.root).stream_mode == ""
 
 
 def test_likes_are_copied_on_green_and_the_border_plays(window):
@@ -99,10 +102,14 @@ def test_nothing_about_the_blacklist_reaches_the_stream(window):
     _full(window)
     window._set_stream_mode("key")
     _lobby(window, hit=True)
-    # The player sees the red ring, the card and the glow over the game ...
+    # The player sees the red ring, the card and the glow over the game, and no flower border ...
     assert window.panel.mode == "both" and _on_screen(window.hit_card) and window.alert.showing()
-    # ... viewers see only the 心动 card.
+    assert not window.love.playing()
+    # ... viewers see the 心动 card, and the border plays for them as if no one were on the list.
     assert window.stream._marks() == [window.like_card]
+    assert window.stream_love.playing() and not _on_screen(window.stream_love)
+    assert window.stream._borders() == [window.stream_love]
+    window.stream_love.stop()
     stream = window.stream.geometry()
     assert _pixel(window, window.hit_card.geometry().center()).name() == "#00ff00", "no 黑名单 card"
     assert _pixel(window, window.panel.cover_geometry().center()).name() == "#00ff00", "no red ring"
@@ -112,12 +119,12 @@ def test_nothing_about_the_blacklist_reaches_the_stream(window):
 
 
 def test_in_safe_mode_only_the_stream_shows_the_marks(window):
-    window._set_stream_mode("alpha")
+    window._set_stream_mode(True)
     _lobby(window, hit=False)
     # Made, and in the stream's copy ...
     assert window.like_card.isVisible() and window.love.playing()
     assert window.stream.busy()
-    assert _pixel(window, window.like_card.geometry().center()).alpha() > 0
+    assert _pixel(window, window.like_card.geometry().center()).name() != "#00ff00"
     # ... but never on the player's screen, where the corner box says it instead.
     for mark in (window.panel, window.like_card, window.clear_mark, window.love):
         assert not _on_screen(mark)
