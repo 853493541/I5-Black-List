@@ -242,11 +242,11 @@ def fetch_release(session=None, current: str = __version__) -> Release | None:  
             log.info("Update check went through %s", prefix)
         return release if parse_version(release.version) > parse_version(current) else None
     if forged:
-        raise UpdateError("更新信息校验失败")
+        raise UpdateError("无法验证更新信息")
     if missing == len(tried):
         # Nowhere has a version.json: nothing published yet.
         return None
-    raise UpdateError("无法连接更新服务器，请稍后重试")
+    raise UpdateError("无法连接更新服务器，请稍后再试")
 
 
 def download(release: Release, folder: Path, progress: Callable[[int, int], None] | None = None, session=None) -> Path:  # noqa: ANN001
@@ -257,7 +257,7 @@ def download(release: Release, folder: Path, progress: Callable[[int, int], None
     folder.mkdir(parents=True, exist_ok=True)
     target = folder / f"{FOLDER}-{release.version}-update.zip"
     order = [release.mirror, *(prefix for prefix in mirrors() if prefix != release.mirror)]
-    failure = UpdateError("下载失败，请检查网络后重试")
+    failure = UpdateError("无法下载，请检查网络后再试")
     for prefix in order:
         digest = hashlib.sha256()
         got = 0
@@ -284,7 +284,7 @@ def download(release: Release, folder: Path, progress: Callable[[int, int], None
         # Not the zip the release named: another address may pass the right one.
         log.warning("Update download through %s did not match the release", prefix or "GitHub")
         target.unlink(missing_ok=True)
-        failure = UpdateError("文件校验失败，已取消更新")
+        failure = UpdateError("无法验证下载的文件，已取消更新")
     raise failure
 
 

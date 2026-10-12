@@ -296,14 +296,14 @@ def test_a_failed_download_offers_retry_or_skip(window, tmp_path, monkeypatch):
     monkeypatch.setattr("blacklist_detect.ui_update.Download.start", lambda self, rel, where, folder: started.append(rel.version))
     window._on_update_found(updater.read_manifest(_manifest(base="v0.1.0")))
     dialog = window.findChild(UpdateDialog)
-    dialog._on_failed("下载失败，请检查网络后重试")
+    dialog._on_failed("无法下载，请检查网络后再试")
     assert not dialog.band.isHidden() and dialog.action.text() == "重试" and dialog.skip.text() == "跳过"
-    assert dialog.status.text() == "下载失败，请检查网络后重试" and dialog.close_button.isHidden()
+    assert dialog.status.text() == "无法下载，请检查网络后再试" and dialog.close_button.isHidden()
     dialog.reject()
     assert dialog.isVisible(), "only 跳过 lets it go"
     dialog.action.click()
     assert started == ["v9.0.0", "v9.0.0"] and dialog.band.isHidden()
-    dialog._on_failed("下载失败，请检查网络后重试")
+    dialog._on_failed("无法下载，请检查网络后再试")
     dialog.skip.click()
     assert not dialog.isVisible() and not window._updating
 
@@ -319,7 +319,7 @@ def test_in_the_tray_the_update_happens_out_of_sight(window, tmp_path, monkeypat
     monkeypatch.setattr("blacklist_detect.ui_update.Download.start", lambda self, rel, where, folder: started.append(rel.version))
     window._on_update_found(updater.read_manifest(_manifest(base="v0.1.0")))
     assert started == ["v9.0.0"] and window.findChild(UpdateDialog) is None
-    window._quiet_update_failed("下载失败，请检查网络后重试")
+    window._quiet_update_failed("无法下载，请检查网络后再试")
     assert not window._updating
 
 

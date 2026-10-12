@@ -132,7 +132,7 @@ def test_a_record_shows_a_like_in_rose_with_its_nickname(window):
     assert wrap.findChild(QLabel, "rowName").text() == "明哥"
     item = window.history_table.item(0, 0)
     assert item.foreground().color().name() == THEME["rose"]
-    assert "匹配心动「救人很稳的小明」" in item.toolTip()
+    assert "是心动里的「救人很稳的小明」" in item.toolTip()
     # A seat no one listed offers both lists.
     assert [a.text() for a in window._seat_menu(0, 1).actions() if a.text()] == ["加入黑名单", "加入心动列表", "复制名字"]
     assert [a.text() for a in window._seat_menu(0, 0).actions() if a.text()] == ["编辑", "复制名字"]
