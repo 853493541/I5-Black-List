@@ -2624,16 +2624,14 @@ def test_batch_import_offers_shared_phrases_as_tags_before_importing(qapp, tmp_p
     answers = iter(["back", "import"])
 
     def confirm_exec(dialog):  # noqa: ANN001, ANN202
-        shown.append((len(dialog.rows), [s.tag for s in dialog.suggestions], dialog.count_label.text()))
+        shown.append((len(dialog.rows), [s.tag for s in dialog.suggestions], dialog.people.horizontalHeaderItem(0).text()))
         if next(answers) == "back":
             dialog._back()
             return QDialog.Rejected
         # 演员 is turned off: only 送人头 is added.
         dialog.pills["演员"].clicked.emit("演员")
         assert [s.tag for s in dialog.picked()] == ["送人头"]
-        # The list opens under the count and shows the 标签 each person will get.
-        assert dialog.people.isHidden()
-        dialog.expand.click()
+        # The list shows the 标签 each person will get.
         assert not dialog.people.isHidden() and dialog.people.rowCount() == 4
         assert [dialog.people.item(row, 1).data(Qt.UserRole + 3) for row in range(4)] == [("送人头",), ("送人头",), (), ()]
         return QDialog.Accepted
@@ -2643,7 +2641,7 @@ def test_batch_import_offers_shared_phrases_as_tags_before_importing(qapp, tmp_p
     window._add_many_by_dialog()
     # 返回修改 showed the paste again; the second time it imported.
     assert len(shown) == 2
-    assert shown[0][0] == 4 and sorted(shown[0][1]) == ["演员", "送人头"] and shown[0][2] == "将添加 4 人"
+    assert shown[0][0] == 4 and sorted(shown[0][1]) == ["演员", "送人头"] and shown[0][2] == "名字  4"
     tags = {entry.name: entry.tags for entry in window.store.entries}
     assert tags == {"小明": ("送人头",), "小红": ("送人头",), "阿强": (), "丁丁": ()}
     assert "送人头" in window.store.tag_catalog()

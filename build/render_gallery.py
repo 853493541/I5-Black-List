@@ -171,7 +171,6 @@ def main() -> int:
         ("dialog_import", lambda: _import_dialog(ui, store, window)),
         ("dialog_import_tags", lambda: _tag_dialog(store, window)),
         ("dialog_import_tags_one_off", lambda: _tag_dialog(store, window, off="乱报")),
-        ("dialog_import_tags_list", lambda: _tag_dialog(store, window, off="乱报", opened=True)),
         ("dialog_guide", lambda: ui.GuideDialog(window)),
         ("dialog_like", lambda: _like_dialog(window)),
     ]
@@ -209,7 +208,7 @@ def _like_dialog(window):  # noqa: ANN001, ANN202
     return LikeDialog("丙丙的猫猫头", "猫猫", "救人很稳，开局就报点", title="编辑", allow_delete=True, parent=window)
 
 
-def _tag_dialog(store, window, off: str = "", opened: bool = False):  # noqa: ANN001, ANN202
+def _tag_dialog(store, window, off: str = ""):  # noqa: ANN001, ANN202
     """批量导入's second step, for a paste whose 原因 share phrases."""
     from blacklist_detect.importing import plan_import, suggest_tags
     from blacklist_detect.ui_dialogs import TagSuggestDialog
@@ -233,8 +232,6 @@ def _tag_dialog(store, window, off: str = "", opened: bool = False):  # noqa: AN
         # The pill fades over 200 ms; the picture shows where it ends.
         dialog.pills[off]._anim.stop()
         dialog.pills[off]._set_blend(0.0)
-    if opened:
-        dialog.expand.setChecked(True)
     return dialog
 
 

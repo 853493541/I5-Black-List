@@ -12,8 +12,6 @@ from PySide6.QtGui import (
     QPen,
 )
 from PySide6.QtWidgets import (
-    QAbstractButton,
-    QFrame,
     QGridLayout,
     QHBoxLayout,
     QHeaderView,
@@ -439,50 +437,13 @@ class BatchAddDialog(Modal):
 
 
 
-class _ExpandButton(QAbstractButton):
-    """A round button with a chevron: down while the list under it is closed, up while it is open."""
-
-    SIDE = 26
-
-    def __init__(self, tip: str) -> None:
-        super().__init__()
-        self.setCheckable(True)
-        self.setFixedSize(self.SIDE, self.SIDE)
-        self.setCursor(Qt.PointingHandCursor)
-        self.setToolTip(tip)
-        self.setAccessibleName(tip)
-        self.toggled.connect(self.update)
-
-    def enterEvent(self, event) -> None:  # noqa: ANN001
-        self.update()
-        super().enterEvent(event)
-
-    def leaveEvent(self, event) -> None:  # noqa: ANN001
-        self.update()
-        super().leaveEvent(event)
-
-    def paintEvent(self, _event) -> None:  # noqa: ANN001
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        box = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
-        painter.setPen(QPen(QColor(THEME["border"]), 1))
-        painter.setBrush(QColor(THEME["hover"] if self.underMouse() or self.isChecked() else THEME["surface"]))
-        painter.drawEllipse(box)
-        icon = line_pixmap("chevron_down", 14, THEME["text"])
-        painter.translate(box.center())
-        if self.isChecked():
-            painter.rotate(180)
-        painter.drawPixmap(-7, -7, 14, 14, icon)
-        painter.end()
-
-
 class TagSuggestDialog(Modal):
     """批量导入's last step: the 标签 to add, then who will be added.
 
     The 标签 are phrases several 原因 share, as pills under 新标签 and 已有标签. All start on;
-    a click cancels one, a second click brings it back. Under a line, 将添加 N 人, and a round
-    button that opens the list of them, with the 标签 each will get. 导入 imports;
-    返回修改 goes back to the pasted text.
+    a click cancels one, a second click brings it back. Under them, the people being added
+    with the 标签 each will get, their number beside 名字; six rows show and the rest scroll.
+    导入 imports; 返回 goes back to the pasted text.
     """
 
     LIST_ROWS = 6
@@ -499,7 +460,7 @@ class TagSuggestDialog(Modal):
         column = QVBoxLayout(tags)
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(10)
-        hint = QLabel("这些词在多人的原因里出现，导入时会作为标签添加。点击标签可取消添加。")
+        hint = QLabel("点击标签可取消添加")
         hint.setObjectName("sub")
         hint.setWordWrap(True)
         column.addWidget(hint)
@@ -524,27 +485,12 @@ class TagSuggestDialog(Modal):
             row.addWidget(host, 1)
             column.addLayout(row)
         layout.addWidget(tags)
-        # 2. Who will be added, apart from the 标签 by a line; the list opens under it.
-        line = QFrame()
-        line.setFixedHeight(1)
-        line.setStyleSheet(f"background: {THEME['border']}; border: none;")
-        layout.addWidget(line)
-        added = sum(1 for row in self.rows if row[3] < 0)
-        merged = len(self.rows) - added
-        count = QHBoxLayout()
-        count.setSpacing(10)
-        self.count_label = QLabel(f"将添加 {added} 人" + (f"，合并 {merged} 人" if merged else ""))
-        count.addWidget(self.count_label, 0, Qt.AlignVCenter)
-        self.expand = _ExpandButton("查看名单")
-        self.expand.toggled.connect(self._show_list)
-        count.addWidget(self.expand, 0, Qt.AlignVCenter)
-        count.addStretch(1)
-        layout.addLayout(count)
+        # 2. Who will be added, how many beside 名字.
         table = QTableWidget(len(self.rows), 2)
         self.people = table
         table.setObjectName("importPreview")
         table.setAccessibleName("将添加的人")
-        table.setHorizontalHeaderLabels(["名字", "标签"])
+        table.setHorizontalHeaderLabels([f"名字  {len(self.rows)}", "标签"])
         head = table.horizontalHeader()
         head.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         head.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
@@ -572,10 +518,9 @@ class TagSuggestDialog(Modal):
                 table.setItem(index, column, item)
         shown = min(len(self.rows), self.LIST_ROWS)
         table.setFixedHeight(head.sizeHint().height() + 30 * shown + 2 * table.frameWidth() + 24)
-        table.hide()
         layout.addWidget(table)
         self._fill_tags()
-        back = QPushButton("返回修改")
+        back = QPushButton("返回")
         back.setAutoDefault(False)
         back.clicked.connect(self._back)
         self.import_button = _primary("导入", self.accept)
@@ -603,10 +548,6 @@ class TagSuggestDialog(Modal):
             item.setData(Qt.UserRole + 3, tuple(tags))
             item.setToolTip("、".join(tags))
         self.people.viewport().update()
-
-    def _show_list(self, opened: bool) -> None:
-        self.people.setVisible(opened)
-        self.expand.setToolTip("收起名单" if opened else "查看名单")
 
     def _back(self) -> None:
         self.went_back = True
