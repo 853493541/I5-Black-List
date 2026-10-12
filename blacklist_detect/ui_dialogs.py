@@ -12,6 +12,7 @@ from PySide6.QtGui import (
     QPen,
 )
 from PySide6.QtWidgets import (
+    QAbstractButton,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -438,13 +439,53 @@ class BatchAddDialog(Modal):
 
 
 
+class _ExpandButton(QAbstractButton):
+    """A round button with a chevron: down while the list under it is closed, up while it is open."""
+
+    SIDE = 26
+
+    def __init__(self, tip: str) -> None:
+        super().__init__()
+        self.setCheckable(True)
+        self.setFixedSize(self.SIDE, self.SIDE)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setToolTip(tip)
+        self.setAccessibleName(tip)
+        self.toggled.connect(self.update)
+
+    def enterEvent(self, event) -> None:  # noqa: ANN001
+        self.update()
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:  # noqa: ANN001
+        self.update()
+        super().leaveEvent(event)
+
+    def paintEvent(self, _event) -> None:  # noqa: ANN001
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        box = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        painter.setPen(QPen(QColor(THEME["border"]), 1))
+        painter.setBrush(QColor(THEME["hover"] if self.underMouse() or self.isChecked() else THEME["surface"]))
+        painter.drawEllipse(box)
+        icon = line_pixmap("chevron_down", 14, THEME["text"])
+        painter.translate(box.center())
+        if self.isChecked():
+            painter.rotate(180)
+        painter.drawPixmap(-7, -7, 14, 14, icon)
+        painter.end()
+
+
 class TagSuggestDialog(Modal):
-    """批量导入's second step, in two parts: the 标签 to add, then how many people come in.
+    """批量导入's last step: the 标签 to add, then who will be added.
 
     The 标签 are phrases several 原因 share, as pills under 新标签 and 已有标签. All start on;
-    a click turns one off or on again. 导入 imports with the 标签 left on, each added to the
-    records whose 原因 has it; 返回修改 goes back to the pasted text.
+    a click cancels one, a second click brings it back. Under a line, 将添加 N 人, and a round
+    button that opens the list of them, with the 标签 each will get. 导入 imports;
+    返回修改 goes back to the pasted text.
     """
+
+    LIST_ROWS = 6
 
     def __init__(self, suggestions: list[TagSuggestion], rows: list[tuple[str, tuple[str, ...], str, int]], parent=None) -> None:  # noqa: ANN001
         super().__init__(parent)
@@ -452,13 +493,13 @@ class TagSuggestDialog(Modal):
         self.rows = list(rows)
         self.went_back = False
         self.on = {suggestion.tag for suggestion in self.suggestions}
-        layout = _frame(self, "要加上这些标签吗？")
+        layout = _frame(self, "确认导入")
         # 1. The 标签.
         tags = QWidget()
         column = QVBoxLayout(tags)
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(10)
-        hint = QLabel("好几个人的原因里都提到了这些，点一下可以取消")
+        hint = QLabel("这些词在多人的原因里出现，导入时会作为标签添加。点击标签可取消添加。")
         hint.setObjectName("sub")
         hint.setWordWrap(True)
         column.addWidget(hint)
@@ -483,17 +524,61 @@ class TagSuggestDialog(Modal):
             row.addWidget(host, 1)
             column.addLayout(row)
         layout.addWidget(tags)
-        # 2. How many come in, apart from the 标签 by a line.
+        # 2. Who will be added, apart from the 标签 by a line; the list opens under it.
         line = QFrame()
         line.setFixedHeight(1)
         line.setStyleSheet(f"background: {THEME['border']}; border: none;")
         layout.addWidget(line)
-        self.count_label = QLabel(f"这次会导入 {len(self.rows)} 人")
-        layout.addWidget(self.count_label)
+        added = sum(1 for row in self.rows if row[3] < 0)
+        merged = len(self.rows) - added
+        count = QHBoxLayout()
+        count.setSpacing(10)
+        self.count_label = QLabel(f"将添加 {added} 人" + (f"，合并 {merged} 人" if merged else ""))
+        count.addWidget(self.count_label, 0, Qt.AlignVCenter)
+        self.expand = _ExpandButton("查看名单")
+        self.expand.toggled.connect(self._show_list)
+        count.addWidget(self.expand, 0, Qt.AlignVCenter)
+        count.addStretch(1)
+        layout.addLayout(count)
+        table = QTableWidget(len(self.rows), 2)
+        self.people = table
+        table.setObjectName("importPreview")
+        table.setAccessibleName("将添加的人")
+        table.setHorizontalHeaderLabels(["名字", "标签"])
+        head = table.horizontalHeader()
+        head.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        head.setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
+        head.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        table.setColumnWidth(0, 180)
+        table.verticalHeader().setVisible(False)
+        table.verticalHeader().setDefaultSectionSize(30)
+        table.setSelectionMode(QTableWidget.NoSelection)
+        table.setEditTriggers(QTableWidget.NoEditTriggers)
+        table.setFocusPolicy(Qt.NoFocus)
+        table.setShowGrid(False)
+        table.setWordWrap(False)
+        table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        # The rows paint as checked: everyone listed here is coming in.
+        table.setItemDelegateForColumn(0, _PreviewDelegate(table))
+        table.setItemDelegateForColumn(1, _PreviewDelegate(table))
+        for index, (name, _tags, _reason, _target) in enumerate(self.rows):
+            who = QTableWidgetItem(name)
+            who.setToolTip(name)
+            who.setData(Qt.UserRole, True)
+            gets = QTableWidgetItem("")
+            for column, item in enumerate((who, gets)):
+                item.setFlags(Qt.ItemIsEnabled)
+                table.setItem(index, column, item)
+        shown = min(len(self.rows), self.LIST_ROWS)
+        table.setFixedHeight(head.sizeHint().height() + 30 * shown + 2 * table.frameWidth() + 24)
+        table.hide()
+        layout.addWidget(table)
+        self._fill_tags()
         back = QPushButton("返回修改")
         back.setAutoDefault(False)
         back.clicked.connect(self._back)
-        self.import_button = _primary(f"导入 {len(self.rows)} 人", self.accept)
+        self.import_button = _primary("导入", self.accept)
         _footer(self, back, self.import_button)
         self.card.setMinimumWidth(520)
         _pointing(self)
@@ -507,6 +592,21 @@ class TagSuggestDialog(Modal):
         else:
             self.on.add(tag)
         self.pills[tag].set_active(tag in self.on)
+        self._fill_tags()
+
+    def _fill_tags(self) -> None:
+        """Each person's 标签 in the list, with the ones still on."""
+        from blacklist_detect.importing import with_tags
+
+        for index, (_name, tags, _reason, _target) in enumerate(with_tags(self.rows, self.picked())):
+            item = self.people.item(index, 1)
+            item.setData(Qt.UserRole + 3, tuple(tags))
+            item.setToolTip("、".join(tags))
+        self.people.viewport().update()
+
+    def _show_list(self, opened: bool) -> None:
+        self.people.setVisible(opened)
+        self.expand.setToolTip("收起名单" if opened else "查看名单")
 
     def _back(self) -> None:
         self.went_back = True
