@@ -2604,3 +2604,42 @@ def test_an_outside_end_is_noted_at_the_next_start(tmp_path):
     assert mark_running(tmp_path) is True
     mark_closed(tmp_path)
     assert mark_running(tmp_path) is False
+
+
+def test_batch_import_offers_shared_phrases_as_tags_before_importing(qapp, tmp_path, monkeypatch):
+    from blacklist_detect.ui_dialogs import BatchAddDialog, TagSuggestDialog
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    pasted = [("小明", (), "开局送人头", -1), ("小红", (), "又送人头了", -1), ("阿强", (), "演员", -1), ("丁丁", (), "纯演员", -1)]
+    shown: list[tuple[int, list[str], str]] = []
+    batches = iter([QDialog.Accepted, QDialog.Accepted])
+
+    def batch_exec(dialog):  # noqa: ANN001, ANN202
+        dialog.chosen = list(pasted)
+        return next(batches)
+
+    answers = iter(["back", "import"])
+
+    def confirm_exec(dialog):  # noqa: ANN001, ANN202
+        shown.append((len(dialog.rows), [s.tag for s in dialog.suggestions], dialog.summary.text()))
+        if next(answers) == "back":
+            dialog._back()
+            return QDialog.Rejected
+        # 演员 is unchecked: only 送人头 is added.
+        dialog._toggle([s.tag for s in dialog.suggestions].index("演员"))
+        assert dialog.summary.text() == "将为其中 2 人添加标签"
+        return QDialog.Accepted
+
+    monkeypatch.setattr(BatchAddDialog, "exec", batch_exec)
+    monkeypatch.setattr(TagSuggestDialog, "exec", confirm_exec)
+    window._add_many_by_dialog()
+    # 返回修改 showed the paste again; the second time it imported.
+    assert len(shown) == 2
+    assert shown[0][0] == 4 and sorted(shown[0][1]) == ["演员", "送人头"] and shown[0][2] == "将为其中 4 人添加标签"
+    tags = {entry.name: entry.tags for entry in window.store.entries}
+    assert tags == {"小明": ("送人头",), "小红": ("送人头",), "阿强": (), "丁丁": ()}
+    assert "送人头" in window.store.tag_catalog()
+    window.close()

@@ -156,3 +156,38 @@ def test_importing_adds_new_names_and_merges_the_rest(tmp_path):
     # The same paste again changes nothing.
     again = plan_import("名辅导可乐（弱智，炸房）\n新来的（挂机）", store.entries, store.tag_catalog())
     assert all(row.status == SAME and not row.checked for row in again)
+
+
+SHARED_REASONS = [
+    ("小明", (), "开局送人头，还骂人", -1),
+    ("小红", (), "又送人头了", -1),
+    ("阿强", ("挂机",), "送人头还挂机", -1),
+    ("丁丁", (), "一直演，演员", -1),
+    ("戊戊", (), "演员，开局就演", -1),
+    ("庚庚", (), "骂人", -1),
+]
+
+
+def test_a_phrase_in_several_reasons_is_offered_as_a_tag():
+    from blacklist_detect.importing import suggest_tags
+
+    found = {s.tag: (s.existing, s.rows) for s in suggest_tags(SHARED_REASONS, ("炸房", "挂机"))}
+    # 送人头 rather than 人头 or 送人: the longer phrase covers the same records.
+    assert found["送人头"] == (False, (0, 1, 2))
+    assert found["演员"] == (False, (3, 4))
+    assert found["骂人"] == (False, (0, 5))
+    # Words that mean nothing alone, and phrases seen once, are not offered.
+    assert "开局" not in found and "一直" not in found and "人头" not in found
+    assert all(len(rows) >= 2 for _existing, rows in found.values())
+
+
+def test_a_phrase_that_is_already_a_tag_is_offered_as_that_tag():
+    from blacklist_detect.importing import suggest_tags, with_tags
+
+    rows = [("甲", (), "演员一个", -1), ("乙", (), "纯演员", -1), ("丙", ("演员",), "又是演员", -1)]
+    found = suggest_tags(rows, ("炸房", "演员"))
+    assert [(s.tag, s.existing, s.rows) for s in found] == [("演员", True, (0, 1))]
+    # A phrase holding a tag the records already got from it is not offered again.
+    assert suggest_tags([("甲", ("炸房",), "又炸房了", -1), ("乙", ("炸房",), "炸房狗", -1)], ("炸房",)) == []
+    tagged = with_tags(rows, found)
+    assert [r[1] for r in tagged] == [("演员",), ("演员",), ("演员",)]

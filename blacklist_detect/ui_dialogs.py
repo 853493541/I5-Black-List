@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from blacklist_detect.importing import ELSEWHERE, MERGE, ODD, SAME, ImportRow, plan_import
+from blacklist_detect.importing import ELSEWHERE, MERGE, ODD, SAME, ImportRow, TagSuggestion, plan_import
 from blacklist_detect.match import clean_stored_name, fold, listed_tail, split_ellipsis
 from blacklist_detect.names import APP_NAME
 from blacklist_detect.pipeline import CheckResult
@@ -294,7 +294,7 @@ class BatchAddDialog(Modal):
     """Paste a list, see what each person does to the list, then import the ones left checked.
 
     Under the box, one row per person: 合并 when the name is on the list already (its new
-    标签 and 原因 are added to it), 已在黑名单 when it brings nothing new, and 不像名字 for a
+    标签 and 原因 are added to it), 已在黑名单 when it brings nothing new, and 疑似非名字 for a
     line that is not a name, such as a title. Those two start unchecked. A click on a row,
     or Space, checks or unchecks it. The rows follow the text as it changes; a row
     unchecked by hand stays unchecked.
@@ -434,6 +434,111 @@ class BatchAddDialog(Modal):
         ]
         if self.chosen:
             self.accept()
+
+
+
+class TagSuggestDialog(Modal):
+    """批量导入's second step: phrases several 原因 share, offered as 标签 before importing.
+
+    One row per phrase: its 标签 pill, 新标签 or 已有标签, and the records it goes on. All start
+    checked; a click or Space unchecks one. 导入 imports with the checked 标签 added, and
+    返回修改 goes back to the pasted text.
+    """
+
+    def __init__(self, suggestions: list[TagSuggestion], rows: list[tuple[str, tuple[str, ...], str, int]], parent=None) -> None:  # noqa: ANN001
+        super().__init__(parent)
+        self.suggestions = list(suggestions)
+        self.rows = list(rows)
+        self.went_back = False
+        self._checked = [True] * len(self.suggestions)
+        layout = _frame(self, "添加标签")
+        intro = QLabel(f"将导入 {len(self.rows)} 人。以下内容在多人的原因中出现，可以添加为标签：")
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+        table = QTableWidget(len(self.suggestions), 4)
+        self.table = table
+        table.setObjectName("importPreview")
+        table.setAccessibleName("建议的标签")
+        table.setHorizontalHeaderLabels(["", "标签", "", "添加到"])
+        head = table.horizontalHeader()
+        head.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        head.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        head.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        head.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        head.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        table.setColumnWidth(0, 36)
+        table.verticalHeader().setVisible(False)
+        table.verticalHeader().setDefaultSectionSize(34)
+        table.setSelectionMode(QTableWidget.NoSelection)
+        table.setEditTriggers(QTableWidget.NoEditTriggers)
+        table.setShowGrid(False)
+        table.setWordWrap(False)
+        table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        table.setItemDelegateForColumn(0, _PickDelegate(table))
+        for column in (1, 2, 3):
+            table.setItemDelegateForColumn(column, _PreviewDelegate(table))
+        for index, suggestion in enumerate(self.suggestions):
+            names = [self.rows[row][0] for row in suggestion.rows]
+            shown = "、".join(names[:4]) + ("等" if len(names) > 4 else "")
+            pick = QTableWidgetItem("")
+            pill = QTableWidgetItem("")
+            pill.setData(Qt.UserRole + 3, (suggestion.tag,))
+            kind = QTableWidgetItem("已有标签" if suggestion.existing else "新标签")
+            kind.setData(Qt.UserRole + 4, THEME["muted"])
+            where = QTableWidgetItem(f"{len(names)} 人：{shown}")
+            where.setToolTip("、".join(names))
+            for column, item in enumerate((pick, pill, kind, where)):
+                item.setFlags(Qt.ItemIsEnabled)
+                table.setItem(index, column, item)
+            pick.setData(Qt.UserRole, True)
+        # Up to six rows show whole; more scroll. The frame, header and padding come on top.
+        shown_rows = min(len(self.suggestions), 6)
+        table.setFixedHeight(table.horizontalHeader().sizeHint().height() + 34 * shown_rows + 2 * table.frameWidth() + 24)
+        table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded if len(self.suggestions) > 6 else Qt.ScrollBarAlwaysOff)
+        table.setCursor(Qt.PointingHandCursor)
+        table.cellClicked.connect(self._toggle)
+        table.installEventFilter(self)
+        layout.addWidget(table)
+        self.summary = QLabel("")
+        self.summary.setObjectName("sub")
+        layout.addWidget(self.summary)
+        back = QPushButton("返回修改")
+        back.setAutoDefault(False)
+        back.clicked.connect(self._back)
+        self.import_button = _primary(f"导入 {len(self.rows)} 人", self.accept)
+        _footer(self, back, self.import_button)
+        self.card.setMinimumWidth(560)
+        self._sync()
+        _pointing(self)
+
+    def picked(self) -> list[TagSuggestion]:
+        return [suggestion for suggestion, on in zip(self.suggestions, self._checked, strict=True) if on]
+
+    def tagged_count(self) -> int:
+        """How many of the imported records get at least one 标签 from here."""
+        return len({row for suggestion in self.picked() for row in suggestion.rows})
+
+    def _toggle(self, index: int, _column: int = 0) -> None:
+        if not 0 <= index < len(self.suggestions):
+            return
+        self._checked[index] = not self._checked[index]
+        self.table.item(index, 0).setData(Qt.UserRole, self._checked[index])
+        self.table.viewport().update()
+        self._sync()
+
+    def eventFilter(self, watched, event) -> bool:  # noqa: ANN001
+        if watched is self.table and event.type() == QEvent.Type.KeyPress and event.key() == Qt.Key_Space:
+            self._toggle(self.table.currentRow())
+            return True
+        return super().eventFilter(watched, event)
+
+    def _sync(self) -> None:
+        count = self.tagged_count()
+        self.summary.setText(f"将为其中 {count} 人添加标签" if count else "不添加标签")
+
+    def _back(self) -> None:
+        self.went_back = True
+        self.reject()
 
 
 SAMPLE_LOBBY = Path(__file__).resolve().parent / "assets" / "sample-lobby.jpg"

@@ -31,7 +31,7 @@ from dataclasses import dataclass, field
 
 from blacklist_detect.match import clean_stored_name, fold
 from blacklist_detect.model import Entry
-from blacklist_detect.storage import TAGS, is_shared, merge_reason, order_tags, parse_shared, tags_and_reason
+from blacklist_detect.storage import _MAX_TAG, TAGS, is_shared, merge_reason, order_tags, parse_shared, tags_and_reason
 
 # Longer than this is not a player name: the game's names are short.
 NAME_MAX = 8
@@ -236,3 +236,105 @@ def plan_import(
             changes = _adds_to(row, entries[row.target])
             row.status, row.checked = (MERGE, True) if changes else (SAME, False)
     return rows
+
+
+# --- 标签 a pasted batch could use --------------------------------------------------------
+
+# A phrase seen in this many 原因 or more is offered as a 标签.
+SUGGEST_MIN_ROWS = 2
+SUGGEST_LIMIT = 8
+_SUGGEST_LONGEST = 6
+# Words that carry no meaning on their own, and characters a phrase should not start or end on.
+_FILLER = {
+    "一直", "就是", "还是", "然后", "因为", "所以", "但是", "不是", "没有", "什么", "这个", "那个",
+    "自己", "我们", "你们", "他们", "她们", "队友", "游戏", "一把", "一局", "这把", "上把", "开局",
+    "知道", "不会", "不能", "可以", "真的", "感觉", "直接", "已经", "还有", "有点", "一样", "东西",
+}
+_EDGE = set("的了是就都也还在和我你他她它们很太又被把给着呢吧啊吗呀哦哈这那个一有")
+_RUNS = re.compile(r"[\u4e00-\u9fff]+|[A-Za-z0-9]{2,}")
+
+
+@dataclass
+class TagSuggestion:
+    """A phrase several 原因 share, offered as a 标签 for those records."""
+
+    tag: str
+    existing: bool
+    # Indices, in the rows given, of the records that would get it.
+    rows: tuple[int, ...]
+
+
+def _phrases(reason: str) -> set[str]:
+    found: set[str] = set()
+    for run in _RUNS.findall(reason or ""):
+        if run.isascii():
+            found.add(run.lower())
+            continue
+        for size in range(2, min(_SUGGEST_LONGEST, len(run)) + 1):
+            for start in range(len(run) - size + 1):
+                phrase = run[start : start + size]
+                if phrase[0] in _EDGE or phrase[-1] in _EDGE or phrase in _FILLER:
+                    continue
+                found.add(phrase)
+    return found
+
+
+def suggest_tags(
+    rows: list[tuple[str, tuple[str, ...], str, int]], catalog: tuple[str, ...] = TAGS
+) -> list[TagSuggestion]:
+    """Phrases that turn up in the 原因 of several records, as 标签 to add to those records.
+
+    rows are (name, 标签, 原因, target), as the import gives them. A phrase that is already a
+    标签 is offered as that 标签, for the records that do not have it yet. A phrase that holds
+    a 标签, or sits inside one, is left out: those records were tagged from it already. When a
+    longer phrase covers the same records as a shorter one inside it, the longer one is kept,
+    so 送人头 rather than 人头; when the shorter one covers more, it is kept instead.
+    """
+    seen: dict[str, set[int]] = {}
+    for index, (_name, _tags, reason, _target) in enumerate(rows):
+        for phrase in _phrases(reason):
+            seen.setdefault(phrase, set()).add(index)
+    known = [tag.lower() for tag in catalog]
+    candidates: dict[str, set[int]] = {}
+    for phrase, where in seen.items():
+        if len(where) < SUGGEST_MIN_ROWS or len(phrase) > _MAX_TAG:
+            continue
+        if phrase not in known and any(tag in phrase or phrase in tag for tag in known):
+            continue
+        lacking = {index for index in where if phrase not in (tag.lower() for tag in rows[index][1])}
+        if len(lacking) >= SUGGEST_MIN_ROWS or (phrase in known and lacking):
+            candidates[phrase] = lacking
+    kept: dict[str, set[int]] = {}
+    for phrase, where in candidates.items():
+        covered = False
+        for other, other_where in candidates.items():
+            if other == phrase:
+                continue
+            # A longer phrase on the same records says it better; a shorter one on more records is the 标签.
+            if phrase in other and other_where == where:
+                covered = True
+            elif other in phrase and len(other_where) > len(where) and where <= other_where:
+                covered = True
+            if covered:
+                break
+        if not covered:
+            kept[phrase] = where
+    ranked = sorted(kept.items(), key=lambda item: (-len(item[1]), -len(item[0]), item[0]))
+    by_lower = {tag.lower(): tag for tag in catalog}
+    return [
+        TagSuggestion(tag=by_lower.get(phrase, phrase), existing=phrase in by_lower, rows=tuple(sorted(where)))
+        for phrase, where in ranked[:SUGGEST_LIMIT]
+    ]
+
+
+def with_tags(
+    rows: list[tuple[str, tuple[str, ...], str, int]], picked: list[TagSuggestion]
+) -> list[tuple[str, tuple[str, ...], str, int]]:
+    """The rows with the picked 标签 added to the records each one is for."""
+    result = [list(row) for row in rows]
+    for suggestion in picked:
+        for index in suggestion.rows:
+            tags = tuple(result[index][1])
+            if suggestion.tag not in tags:
+                result[index][1] = (*tags, suggestion.tag)
+    return [(name, tuple(tags), reason, target) for name, tags, reason, target in result]

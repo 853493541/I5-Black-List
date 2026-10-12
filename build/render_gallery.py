@@ -169,6 +169,7 @@ def main() -> int:
         ),
         ("dialog_import_empty", lambda: ui.BatchAddDialog(store.tag_catalog(), store.entries, parent=window)),
         ("dialog_import", lambda: _import_dialog(ui, store, window)),
+        ("dialog_import_tags", lambda: _tag_dialog(store, window)),
         ("dialog_guide", lambda: ui.GuideDialog(window)),
         ("dialog_like", lambda: _like_dialog(window)),
     ]
@@ -204,6 +205,27 @@ def _like_dialog(window):  # noqa: ANN001, ANN202
     from blacklist_detect.ui_likes import LikeDialog
 
     return LikeDialog("丙丙的猫猫头", "猫猫", "救人很稳，开局就报点", title="编辑", allow_delete=True, parent=window)
+
+
+def _tag_dialog(store, window):  # noqa: ANN001, ANN202
+    """批量导入's second step, for a paste whose 原因 share phrases."""
+    from blacklist_detect.importing import plan_import, suggest_tags
+    from blacklist_detect.ui_dialogs import TagSuggestDialog
+
+    text = "\n".join(
+        (
+            "小明（开局送人头，还骂人）",
+            "小红（又送人头了）",
+            "阿强（送人头还挂机）",
+            "丁丁（一直演，演员）",
+            "戊戊（演员，开局就演）",
+            "己己（报点乱报，演员）",
+            "庚庚（乱报点）",
+            "辛辛（炸房）",
+        )
+    )
+    rows = [(r.name, r.tags, r.reason, -1) for r in plan_import(text, [], store.tag_catalog()) if r.checked]
+    return TagSuggestDialog(suggest_tags(rows, store.tag_catalog()), rows, parent=window)
 
 
 def _import_dialog(ui, store, window):  # noqa: ANN001, ANN202

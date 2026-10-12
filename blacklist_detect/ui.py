@@ -47,6 +47,7 @@ from blacklist_detect.capture import (
     virtual_origin,
 )
 from blacklist_detect.hotkey import GlobalHotkey, parse_hotkey
+from blacklist_detect.importing import suggest_tags, with_tags
 from blacklist_detect.logs import log, mark_closed, mark_running, on_uncaught, setup_logging
 from blacklist_detect.match import (
     NameLabel,
@@ -79,6 +80,7 @@ from blacklist_detect.ui_dialogs import (
     BatchAddDialog,
     GuideDialog,
     PictureResultDialog,
+    TagSuggestDialog,
     _confirm,
 )
 from blacklist_detect.ui_header import ProfileChip, StatusChip
@@ -1909,11 +1911,23 @@ class MainWindow(QMainWindow):
         self._say(f"已添加「{entry.name}」", undo=lambda: self._put_back(before, likes))
 
     def _add_many_by_dialog(self) -> None:
+        """Paste, check the preview, then, when several 原因 share a phrase, confirm the 标签 to add."""
         dialog = BatchAddDialog(self.store.tag_catalog(), self.store.entries, parent=self, elsewhere=self.store.likes)
-        if dialog.exec() != QDialog.Accepted or not dialog.chosen:
-            return
+        while True:
+            if dialog.exec() != QDialog.Accepted or not dialog.chosen:
+                return
+            rows = dialog.chosen
+            suggestions = suggest_tags(rows, self.store.tag_catalog())
+            if not suggestions:
+                break
+            confirm = TagSuggestDialog(suggestions, rows, parent=self)
+            if confirm.exec() == QDialog.Accepted:
+                rows = with_tags(rows, confirm.picked())
+                break
+            if not confirm.went_back:
+                return
         before = self.store.snapshot_entries()
-        added, merged = self.store.import_rows(dialog.chosen)
+        added, merged = self.store.import_rows(rows)
         if not added and not merged:
             self._say("这些玩家都已在名单中")
             return
