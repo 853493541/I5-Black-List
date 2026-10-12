@@ -29,6 +29,11 @@ def _no_open_questions(monkeypatch):
         raise AssertionError(f"A question was asked and not answered: {dialog.windowTitle() or dialog.body.text()}")
 
     monkeypatch.setattr(ConfirmDialog, "exec", unanswered)
+    # 直播模式's guide only shows how; it is noted, not waited on.
+    from blacklist_detect.ui_dialogs import StreamGuideDialog
+
+    StreamGuideDialog.shown = []
+    monkeypatch.setattr(StreamGuideDialog, "exec", lambda dialog: StreamGuideDialog.shown.append(dialog) or 0)
     yield
 
 

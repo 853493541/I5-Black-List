@@ -378,17 +378,16 @@ def test_a_settings_file_from_before_counts_as_welcomed(tmp_path):
 
 def test_each_level_is_kept_once_agreed_to(tmp_path):
     store = Store(tmp_path)
-    assert (store.check_blacklist, store.check_likes, store.stream_mode) == (True, True, "")
+    assert store.stream_mode == ""
     store.consented = ["full", "auto"]
     store.safe_mode = False
     store.auto_capture = True
     store.hit_sound = False
-    store.check_blacklist = False
     store.stream_mode = "on"
     store.save_settings()
     again = Store(tmp_path)
     assert (again.safe_mode, again.auto_capture, again.hit_sound) == (False, True, False)
-    assert (again.check_blacklist, again.check_likes, again.stream_mode) == (False, True, "on")
+    assert again.stream_mode == "on"
     # What v0.6.0 and v0.6.1 saved is on.
     for saved in ("key", "alpha"):
         (tmp_path / "settings.json").write_text('{"stream_mode": "%s"}' % saved, encoding="utf-8")

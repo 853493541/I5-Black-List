@@ -195,25 +195,21 @@ def test_auto_checks_work_in_safe_mode_too(window):
     assert window.notice.kind == "clear"
 
 
-def test_remind_picks_the_lists(window):
+def test_both_lists_are_always_checked(window):
+    """提醒 is gone: 黑名单 and 心动 are both looked for, whatever an older version saved."""
+    from blacklist_detect.storage import Store
+
+    window.store.settings_path.parent.mkdir(parents=True, exist_ok=True)
+    window.store.settings_path.write_text('{"check_blacklist": false, "check_likes": false}', encoding="utf-8")
+    window.store = Store(window.store.root)
     window.store.add_like("小红")
     button, names = _lobby()
     hit = Hit(0, "坏人", "坏人", "", False, "", ("炸房",))
     window._live_check = True
-    window.remind_blacklist.click()
-    assert window.store.check_blacklist is False
-    window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
-    assert window.notice.kind == "liked"
-    assert window.sounds == []
-    window.remind_blacklist.click()
-    window.remind_likes.click()
     window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
     assert window.notice.kind == "hit"
-    assert "心动" not in window.notice.lines.text()
-    from blacklist_detect.storage import Store
-
-    again = Store(window.store.root)
-    assert (again.check_blacklist, again.check_likes) == (True, False)
+    assert "心动" in window.notice.lines.text()
+    assert not hasattr(window, "remind_blacklist")
 
 
 def _answer(monkeypatch, answer: bool) -> list[tuple[str, str, str]]:  # noqa: ANN001

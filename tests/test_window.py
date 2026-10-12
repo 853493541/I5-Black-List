@@ -61,6 +61,15 @@ def test_the_name_eye_hides_list_names(qapp, tmp_path, monkeypatch):
     assert Store(window.store.root).names_hidden is True
     window._toggle_name_hiding(False)
     assert window.blacklist_table.item(0, 0).text() == "怪物名字啊"
+    # 直播模式: the page may be on stream, so the names are hidden and the eye cannot show them.
+    header = window.blacklist_table.horizontalHeader()
+    window._set_stream_mode(True)
+    assert window.blacklist_table.item(0, 0).text() == "怪****"
+    assert header.names_hidden is True and header.locked is True
+    window._set_stream_mode("")
+    assert window.blacklist_table.item(0, 0).text() == "怪物名字啊"
+    assert header.names_hidden is False and header.locked is False
+    assert window.store.names_hidden is False, "the eye's own choice is kept"
     window.close()
 
 
@@ -1106,8 +1115,7 @@ def test_reset_asks_before_clearing_everything(qapp, tmp_path, monkeypatch):
     assert window.hotkey_edit.isEnabled() is True
     assert window.safe_on.isChecked() is True
     assert window.auto_off.isChecked() is True
-    assert window.remind_blacklist.isChecked() and window.remind_likes.isChecked()
-    assert window.stream_switch.isChecked() is False and window.stream_hint.isHidden()
+    assert window.stream_switch.isChecked() is False and window.store.stream_guided is False
     # Every control that shows a setting goes back with it.
     assert window.status_chip.text() == "手动检查"
     again = Store(window.store.root)

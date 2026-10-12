@@ -392,9 +392,6 @@ class Store:
         # 显示: 安全模式 draws nothing over the game, the result shows in a small box at the bottom
         # right; 完整模式 (False) draws the marks over it. On unless turned off, also for old settings.
         self.safe_mode = True
-        # 提醒: which lists a check looks for.
-        self.check_blacklist = True
-        self.check_likes = True
         # 提示音: the system warning sound when a 黑名单 player is found.
         self.hit_sound = True
         # 直播模式: a window for a streaming app with the 心动 marks only, clear behind them. "" off, "on" on.
@@ -403,6 +400,8 @@ class Store:
         self.consented: list[str] = []
         # 使用声明: read and agreed to before the app is used, once per PC.
         self.disclaimer_accepted = False
+        # 直播模式's guide: shown by itself the first time it is turned on.
+        self.stream_guided = False
         self.load_warning = ""
         # Whether the welcome guide has been shown. A settings file from before this was saved
         # counts as welcomed; no settings file at all is a first open.
@@ -762,11 +761,10 @@ class Store:
                 "close_to_tray": self.close_to_tray,
                 "safe_mode": self.safe_mode,
                 "hit_sound": self.hit_sound,
-                "check_blacklist": self.check_blacklist,
-                "check_likes": self.check_likes,
                 "stream_mode": self.stream_mode,
                 "consented": list(self.consented),
                 "disclaimer_accepted": self.disclaimer_accepted,
+                "stream_guided": self.stream_guided,
             },
         )
 
@@ -802,11 +800,10 @@ class Store:
             self.close_to_tray = bool(settings.get("close_to_tray", True))
             self.safe_mode = bool(settings.get("safe_mode", True))
             self.hit_sound = bool(settings.get("hit_sound", True))
-            self.check_blacklist = bool(settings.get("check_blacklist", True))
-            self.check_likes = bool(settings.get("check_likes", True))
             # v0.6.0 saved "key" (green) or "alpha" (clear), v0.6.1 "key": each is on, and clear now.
             self.stream_mode = "on" if settings.get("stream_mode") in ("on", "key", "alpha") else ""
             self.disclaimer_accepted = settings.get("disclaimer_accepted") is True
+            self.stream_guided = settings.get("stream_guided") is True
             agreed = settings.get("consented") or []
             self.consented = [mode for mode in ("full", "auto") if isinstance(agreed, list) and mode in agreed]
             for raw in settings.get("hidden_tags") or []:
@@ -1010,12 +1007,11 @@ class Store:
         self.welcomed = False
         self.close_to_tray = True
         self.safe_mode = True
-        self.check_blacklist = True
-        self.check_likes = True
         self.hit_sound = True
         self.stream_mode = ""
         self.consented = []
         self.disclaimer_accepted = False
+        self.stream_guided = False
         self.load_warning = ""
         self.save_entries()
         self.save_likes()

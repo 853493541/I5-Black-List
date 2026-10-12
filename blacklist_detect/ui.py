@@ -16,7 +16,6 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
-    QCheckBox,
     QDialog,
     QFileDialog,
     QFrame,
@@ -84,6 +83,7 @@ from blacklist_detect.ui_dialogs import (
     DisclaimerDialog,
     GuideDialog,
     PictureResultDialog,
+    StreamGuideDialog,
     TagSuggestDialog,
     _confirm,
 )
@@ -398,10 +398,6 @@ class MainWindow(QMainWindow):
         self.clear_mark = ClearMark()
         # Two or more 心动 players and no 黑名单: a border of silk and flowers, once per lobby.
         self.love = LoveBorder()
-        # The same border for 直播模式 alone, never on the player's screen: in a lobby with a 黑名单
-        # player it would bury the warning there, but viewers see no warning, so they still get it.
-        self.stream_love = LoveBorder()
-        self.stream_love.setAttribute(Qt.WA_DontShowOnScreen, True)
         self._love_played = False
         # 黑名单 players in the lobby: a red glow at the screen's edges while the result is up.
         self.alert = AlertGlow()
@@ -621,7 +617,8 @@ class MainWindow(QMainWindow):
         self.blacklist_table = QTableWidget(0, 4)
         self.blacklist_table.setObjectName("blacklist")
         name_header = _ColumnHeader(self.blacklist_table)
-        name_header.names_hidden = self.store.names_hidden
+        name_header.names_hidden = self._names_hidden()
+        name_header.locked = bool(self.store.stream_mode)
         name_header.on_eye = self._toggle_name_hiding
         self.blacklist_table.setHorizontalHeader(name_header)
         self.blacklist_table.setHorizontalHeaderLabels(["名字", "标签", "原因", "最近遇到"])
@@ -935,37 +932,29 @@ class MainWindow(QMainWindow):
         self.settings_label.setWordWrap(True)
         self.settings_label.hide()
         check.add_widget(self.settings_label, separated=False, indent=True)
-        # 3 提醒: which lists a check looks for.
-        self.remind_blacklist = QCheckBox("黑名单")
-        self.remind_blacklist.setChecked(self.store.check_blacklist)
-        self.remind_blacklist.toggled.connect(self._set_remind_blacklist)
-        self.remind_likes = QCheckBox("心动")
-        self.remind_likes.setChecked(self.store.check_likes)
-        self.remind_likes.toggled.connect(self._set_remind_likes)
-        check.add_row("提醒", self.remind_blacklist, self.remind_likes)
         self.sound_switch = Switch(self.store.hit_sound)
         self.sound_switch.setAccessibleName("提示音")
         self.sound_switch.toggled.connect(self._set_hit_sound)
         self.sound_switch.setToolTip("发现黑名单时响一声")
         check.add_row("提示音", self.sound_switch)
-        # 4 直播模式: a window for the streaming app, with the 心动 marks and never the 黑名单 ones.
+        # 4 直播模式: a window for the streaming app, with the marks and never a 黑名单 name.
         self.stream_switch = Switch(bool(self.store.stream_mode))
         self.stream_switch.setAccessibleName("直播模式")
-        self.stream_switch.toggled.connect(self._set_stream_mode)
+        self.stream_switch.toggled.connect(self._on_stream_switch)
         self.stream_preview = QPushButton("预览")
         self.stream_preview.setFont(ui_font())
         self.stream_preview.setAutoDefault(False)
         self.stream_preview.setCursor(Qt.PointingHandCursor)
         self.stream_preview.clicked.connect(self._preview_marks)
         self.stream_preview.setEnabled(bool(self.store.stream_mode))
-        self.stream_switch.setToolTip("观众只看到心动，看不到黑名单")
-        check.add_row("直播模式", self.stream_switch, self.stream_preview)
-        # How to set it up, under the row while it is on.
-        self.stream_hint = QLabel("直播软件添加窗口捕获「模仿者小工具·直播画面」，放在游戏上层")
-        self.stream_hint.setObjectName("rowHint")
-        self.stream_hint.setWordWrap(True)
-        self.stream_hint.setVisible(bool(self.store.stream_mode))
-        check.add_widget(self.stream_hint, separated=False, indent=True)
+        self.stream_switch.setToolTip("观众看得到红色提醒，看不到黑名单的名字")
+        # How to set it up in 直播姬, with screenshots.
+        self.stream_guide = QPushButton("设置方法")
+        self.stream_guide.setFont(ui_font())
+        self.stream_guide.setAutoDefault(False)
+        self.stream_guide.setCursor(Qt.PointingHandCursor)
+        self.stream_guide.clicked.connect(self._show_stream_guide)
+        check.add_row("直播模式", self.stream_switch, self.stream_preview, self.stream_guide)
 
         # 常规: how the app starts and closes.
         general = section("常规")
@@ -1198,13 +1187,8 @@ class MainWindow(QMainWindow):
         self.close_mode.set_current("tray" if self.store.close_to_tray else "quit")
         self._sync_switch(self.sound_switch, self.store.hit_sound)
         self.display_mode.set_current("safe")
-        for box, on in ((self.remind_blacklist, True), (self.remind_likes, True)):
-            box.blockSignals(True)
-            box.setChecked(on)
-            box.blockSignals(False)
         self._sync_switch(self.stream_switch, False)
         self.stream_preview.setEnabled(False)
-        self.stream_hint.setVisible(False)
         self.notice.hide()
         if not self._watch_timer.isActive():
             self.watch = LobbyWatch()
@@ -1672,7 +1656,7 @@ class MainWindow(QMainWindow):
         table.setUpdatesEnabled(False)
         table.setRowCount(len(rows))
         for row, (index, entry) in enumerate(rows):
-            shown = masked_name(entry.name) if self.store.names_hidden else entry.name
+            shown = masked_name(entry.name) if self._names_hidden() else entry.name
             table.setItem(row, 0, self._list_cell(shown, index, font, ink))
             tags = tag_text(entry)
             tags_item = self._list_cell(tags, None, font, ink)
@@ -1724,13 +1708,21 @@ class MainWindow(QMainWindow):
             return ""
         return self.store.entries[index].reason
 
+    def _names_hidden(self) -> bool:
+        """黑名单's names masked: by the eye, or always while 直播模式 is on, the page may be on stream."""
+        return self.store.names_hidden or bool(self.store.stream_mode)
+
     def _toggle_name_hiding(self, hidden: bool) -> None:
         self.store.names_hidden = bool(hidden)
+        self.store.save_settings()
+        self._sync_name_hiding()
+
+    def _sync_name_hiding(self) -> None:
         header = self.blacklist_table.horizontalHeader()
         if isinstance(header, _ColumnHeader):
-            header.names_hidden = self.store.names_hidden
+            header.names_hidden = self._names_hidden()
+            header.locked = bool(self.store.stream_mode)
             header.viewport().update()
-        self.store.save_settings()
         self._show_list()
 
     def _sync_detail_tip(self, row: int, column: int) -> None:
@@ -2654,14 +2646,6 @@ class MainWindow(QMainWindow):
             for mark in marks:
                 mark.setAttribute(Qt.WA_DontShowOnScreen, hidden)
 
-    def _set_remind_blacklist(self, on: bool) -> None:
-        self.store.check_blacklist = bool(on)
-        self.store.save_settings()
-
-    def _set_remind_likes(self, on: bool) -> None:
-        self.store.check_likes = bool(on)
-        self.store.save_settings()
-
     def _set_hit_sound(self, on: bool) -> None:
         self.store.hit_sound = bool(on)
         self.store.save_settings()
@@ -2671,9 +2655,9 @@ class MainWindow(QMainWindow):
         self.store.save_settings()
         self.stream.enable(self.store.stream_mode)
         self.stream_preview.setEnabled(bool(self.store.stream_mode))
-        self.stream_hint.setVisible(bool(self.store.stream_mode))
         self._sync_switch(self.stream_switch, bool(self.store.stream_mode))
         self._sync_overlay_target()
+        self._sync_name_hiding()
 
     def _preview_marks(self) -> None:
         """直播模式's 预览: two sample 心动 players near the bottom of the screen for a few seconds."""
@@ -2838,6 +2822,17 @@ class MainWindow(QMainWindow):
 
     def _show_disclaimer(self) -> None:
         DisclaimerDialog(self, asking=False).exec()
+
+    def _on_stream_switch(self, on: bool) -> None:
+        """The switch: the first time it is turned on, how to set it up comes with it."""
+        self._set_stream_mode(on)
+        if on and not self.store.stream_guided:
+            self.store.stream_guided = True
+            self.store.save_settings()
+            self._show_stream_guide()
+
+    def _show_stream_guide(self) -> None:
+        StreamGuideDialog(self).exec()
 
     def begin(self) -> None:
         """After the window opens: the environment check when it is due, then the first-run guide."""
@@ -3087,7 +3082,6 @@ class MainWindow(QMainWindow):
             self.like_card.hide()
             self.clear_mark.hide()
             self.love.stop()
-            self.stream_love.stop()
             self.alert.leave()
         # Nothing is checked before 使用声明 is agreed to.
         if not self.store.disclaimer_accepted or not self.worker.request(fn):
@@ -3307,7 +3301,6 @@ class MainWindow(QMainWindow):
         self.like_card.hide()
         self.clear_mark.hide()
         self.love.stop()
-        self.stream_love.stop()
         self._love_played = False
         self.alert.leave()
         if not self.store.auto_capture:
@@ -3352,9 +3345,6 @@ class MainWindow(QMainWindow):
             if self.hit_card.isVisible():
                 self._show_like_card(likes)
                 self._show_alert()
-                # Viewers see only the 心动 side, so for them the border plays as it would without one.
-                if self.store.stream_mode and len(likes) >= 2 and not self._love_played:
-                    self._play_love(stream_only=True)
             return
         self.hit_card.hide()
         self.like_card.hide()
@@ -3371,8 +3361,8 @@ class MainWindow(QMainWindow):
             self._play_love()
 
     def _hits_in(self, result: CheckResult) -> list[Hit]:
-        """黑名单 players in the lobby, when 提醒 looks for them."""
-        return list(result.hits) if self.store.check_blacklist else []
+        """黑名单 players in the lobby."""
+        return list(result.hits)
 
     def _show_notice(self, result: CheckResult) -> None:
         """安全模式: who is in the lobby, in the box at the bottom right of the game's screen."""
@@ -3402,9 +3392,8 @@ class MainWindow(QMainWindow):
             if mark.isVisible():
                 _pin_topmost(mark)
 
-    def _play_love(self, stream_only: bool = False) -> None:
-        """The border over the game, parted around the button, the badge and the 心动 card.
-        stream_only: for 直播模式's window alone."""
+    def _play_love(self) -> None:
+        """The border over the game, parted around the button, the badge and the 心动 card."""
         cover = self.panel.cover_geometry()
         keep = cover
         for mark in (self.clear_mark, self.like_card):
@@ -3414,7 +3403,7 @@ class MainWindow(QMainWindow):
         if screen is None:
             return
         self._love_played = True
-        (self.stream_love if stream_only else self.love).play(self._game_area(screen), keep)
+        self.love.play(self._game_area(screen), keep)
 
     def _game_area(self, screen) -> QRect:  # noqa: ANN001
         """Where the game is drawn, for the border and the glow: its window when it sits in one (a
@@ -3475,10 +3464,8 @@ class MainWindow(QMainWindow):
         self._place_beside(self.hit_card)
 
     def _likes_in(self, result: CheckResult) -> list[Entry]:
-        """心动 players in the lobby, in seat order, each once, when 提醒 looks for them."""
+        """心动 players in the lobby, in seat order, each once."""
         found: list[Entry] = []
-        if not self.store.check_likes:
-            return found
         for slot in result.names:
             label = NameLabel(raw=slot.raw, visible=slot.visible, truncated=slot.truncated, unclear=slot.unclear)
             for match in match_label(label, list(self.store.likes)):
@@ -3704,8 +3691,6 @@ class MainWindow(QMainWindow):
         self.clear_mark.close()
         self.love.stop()
         self.love.close()
-        self.stream_love.stop()
-        self.stream_love.close()
         self.alert.stop()
         self.alert.close()
         self.notice.close()

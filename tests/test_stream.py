@@ -1,4 +1,4 @@
-"""直播模式: the 心动 marks, never the 黑名单 ones, copied into one window a streaming app can capture."""
+"""直播模式: the marks, never a 黑名单 name, copied into one window a streaming app can capture."""
 
 import pytest
 
@@ -70,19 +70,42 @@ def test_the_choice_is_remembered_and_opens_the_window(window):
     from blacklist_detect.storage import Store
     from blacklist_detect.ui_stream import TITLE
 
+    from blacklist_detect.ui_dialogs import STREAM_GUIDE, StreamGuideDialog
+
     assert not window.stream.enabled() and not window.stream_preview.isEnabled()
-    assert window.stream_hint.isHidden()
     # One switch; the window is clear behind the marks, so no 色度键 is needed.
     window.stream_switch.click()
     assert window.stream.enabled() and window.stream.isVisible() and window.stream.mode() == "on"
     assert window.stream.windowTitle() == TITLE == "模仿者小工具·直播画面"
     assert Store(window.store.root).stream_mode == "on" and window.stream_preview.isEnabled()
-    # How to set it up shows while it is on.
-    assert not window.stream_hint.isHidden() and "窗口捕获" in window.stream_hint.text()
-    assert "色度键" not in window.stream_hint.text()
+    # The first time, how to set it up opens with it; after that, from 设置方法.
+    assert len(StreamGuideDialog.shown) == 1 and Store(window.store.root).stream_guided is True
     window.stream_switch.click()
     assert not window.stream.enabled() and not window.stream.isVisible() and not window.stream_preview.isEnabled()
-    assert window.stream_hint.isHidden() and Store(window.store.root).stream_mode == ""
+    assert Store(window.store.root).stream_mode == ""
+    window.stream_switch.click()
+    assert len(StreamGuideDialog.shown) == 1
+    window.stream_guide.click()
+    assert len(StreamGuideDialog.shown) == 2
+    window.stream_switch.click()
+
+
+def test_the_guide_goes_step_by_step(window):
+    from blacklist_detect.ui_dialogs import GUIDE_PICTURES, STREAM_GUIDE, StreamGuideDialog
+
+    guide = StreamGuideDialog(window)
+    assert guide.step == 0 and guide.back_button.isHidden() and guide.next_button.text() == "下一步"
+    assert "第 1 步" in guide.step_label.text() and "窗口捕捉" in guide.caption.text()
+    for picture, _text in STREAM_GUIDE:
+        assert (GUIDE_PICTURES / picture).is_file(), picture
+    assert guide.picture.pixmap() is not None and not guide.picture.pixmap().isNull()
+    for _ in range(len(STREAM_GUIDE) - 1):
+        guide.next_button.click()
+    assert guide.step == len(STREAM_GUIDE) - 1 and guide.next_button.text() == "完成"
+    assert not guide.back_button.isHidden()
+    guide.back_button.click()
+    assert guide.step == len(STREAM_GUIDE) - 2
+    guide.close()
 
 
 def test_likes_are_copied_clear_around_and_the_border_plays(window):
@@ -105,23 +128,26 @@ def test_likes_are_copied_clear_around_and_the_border_plays(window):
     assert not window.stream.busy() and not window.stream._active
 
 
-def test_nothing_about_the_blacklist_reaches_the_stream(window):
-    _full(window)
+@pytest.mark.parametrize("safe", [False, True])
+def test_viewers_see_the_red_but_never_a_blacklist_name(window, safe):
+    if not safe:
+        _full(window)
     window._set_stream_mode(True)
     _lobby(window, hit=True)
-    # The player sees the red ring, the card and the glow over the game, and no flower border ...
-    assert window.panel.mode == "both" and _on_screen(window.hit_card) and window.alert.showing()
-    assert not window.love.playing()
-    # ... viewers see the 心动 card, and the border plays for them as if no one were on the list.
-    assert window.stream._marks() == [window.like_card]
-    assert window.stream_love.playing() and not _on_screen(window.stream_love)
-    assert window.stream._borders() == [window.stream_love]
-    window.stream_love.stop()
+    assert window.panel.mode == "both" and window.alert.showing() and not window.love.playing()
+    # The stream gets the red ring, the red glow and the 心动 card; never the card with the names.
+    assert window.stream._marks() == [window.like_card, window.panel]
+    assert window.stream._glow() is window.alert and window.stream._borders() == []
     stream = window.stream._area
-    assert _pixel(window, window.hit_card.geometry().center()).alpha() == 0, "no 黑名单 card"
-    assert _pixel(window, window.panel.cover_geometry().center()).alpha() == 0, "no red ring"
-    assert _pixel(window, stream.topLeft() + QPoint(1, stream.height() // 2)).alpha() == 0, "no red glow"
+    edge = _pixel(window, stream.topLeft() + QPoint(1, stream.height() // 2))
+    assert edge.alpha() > 0 and edge.red() > edge.green() + 60, "the red glow"
     assert _pixel(window, window.like_card.geometry().center()).alpha() > 200
+    card = window.hit_card.geometry()
+    ring = window.panel.geometry()
+    # Inside the name card, away from the ring's own soft outer edge: nothing copied.
+    inside = card.center() if not card.intersects(ring) else QPoint(card.right() - 8, card.center().y())
+    assert _pixel(window, inside).alpha() == 0, "no 黑名单 name card"
+    assert _on_screen(window.hit_card) is (not safe)
     window._hide_panel_after_title()
 
 

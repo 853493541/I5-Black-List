@@ -1,4 +1,4 @@
-"""Dialogs: add and edit names, batch import, picture results, and the first-run guide."""
+"""Dialogs: add and edit names, batch import, picture results, the first-run guide and 直播模式's guide."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from PySide6.QtGui import (
     QFontMetrics,
     QPainter,
     QPen,
+    QPixmap,
 )
 from PySide6.QtWidgets import (
     QGridLayout,
@@ -734,3 +735,69 @@ class GuideDialog(Modal):
         _footer(self, _primary("开始使用", self.accept))
         self.card.setMinimumWidth(460)
         _pointing(self)
+
+
+# 直播模式's setup in 直播姬, one step a page: (picture in assets, what to do).
+STREAM_GUIDE = (
+    ("stream-guide-1.png", "在直播姬点「素材」，选「窗口捕捉」"),
+    ("stream-guide-2.png", "窗口选「模仿者小工具·直播画面」，点「确定」"),
+    ("stream-guide-3.png", "它要在游戏画面的上面：新加的素材本来就在最上面"),
+    ("stream-guide-4.jpg", "点本工具的「预览」：直播画面里出现花朵边框就成功了"),
+)
+GUIDE_PICTURES = Path(__file__).resolve().parent / "assets"
+GUIDE_WIDTH = 560
+
+
+class StreamGuideDialog(Modal):
+    """How to add 直播模式's window in 直播姬, a step a page, each with a screenshot."""
+
+    def __init__(self, parent=None) -> None:  # noqa: ANN001
+        super().__init__(parent)
+        layout = _frame(self, "直播模式设置")
+        self.step_label = QLabel()
+        self.step_label.setObjectName("sub")
+        layout.addWidget(self.step_label)
+        self.caption = QLabel()
+        self.caption.setWordWrap(True)
+        layout.addWidget(self.caption)
+        self.picture = QLabel()
+        self.picture.setAlignment(Qt.AlignCenter)
+        self.picture.setFixedWidth(GUIDE_WIDTH)
+        self.picture.setStyleSheet(f'border: 1px solid {THEME["border"]}; border-radius: 8px;')
+        layout.addWidget(self.picture)
+        self.back_button = QPushButton("上一步")
+        self.back_button.setAutoDefault(False)
+        self.back_button.clicked.connect(lambda: self.show_step(self.step - 1))
+        self.next_button = _primary("下一步", self._next)
+        _footer(self, self.back_button, self.next_button)
+        self.card.setMinimumWidth(GUIDE_WIDTH + 2 * 24)
+        _pointing(self)
+        self.step = 0
+        self.show_step(0)
+
+    def show_step(self, step: int) -> None:
+        self.step = max(0, min(step, len(STREAM_GUIDE) - 1))
+        name, text = STREAM_GUIDE[self.step]
+        self.step_label.setText(f"第 {self.step + 1} 步，共 {len(STREAM_GUIDE)} 步")
+        self.caption.setText(text)
+        picture = QPixmap(str(GUIDE_PICTURES / name))
+        if picture.isNull():
+            self.picture.clear()
+            self.picture.hide()
+        else:
+            ratio = self.devicePixelRatioF()
+            # Made at twice the size it shows; never blown up past that.
+            width = min(GUIDE_WIDTH - 2, picture.width() // 2)
+            scaled = picture.scaledToWidth(round(width * ratio), Qt.SmoothTransformation)
+            scaled.setDevicePixelRatio(ratio)
+            self.picture.setPixmap(scaled)
+            self.picture.show()
+        self.back_button.setVisible(self.step > 0)
+        last = self.step == len(STREAM_GUIDE) - 1
+        self.next_button.setText("完成" if last else "下一步")
+
+    def _next(self) -> None:
+        if self.step == len(STREAM_GUIDE) - 1:
+            self.accept()
+        else:
+            self.show_step(self.step + 1)

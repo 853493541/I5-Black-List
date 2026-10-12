@@ -191,6 +191,8 @@ class _ColumnHeader(QHeaderView):
         super().__init__(Qt.Horizontal, parent)
         self.setMouseTracking(True)
         self.names_hidden = False
+        # 直播模式: the names stay hidden and the eye does nothing.
+        self.locked = False
         self.on_eye = None
         self._eye_hot = False
 
@@ -230,7 +232,9 @@ class _ColumnHeader(QHeaderView):
         if hot != self._eye_hot:
             self._eye_hot = hot
             self.viewport().update()
-        if hot:
+        if hot and self.locked:
+            self.setToolTip("直播模式下名字始终隐藏")
+        elif hot:
             self.setToolTip("显示名字" if self.names_hidden else "隐藏名字")
         else:
             self.setToolTip("")
@@ -241,6 +245,9 @@ class _ColumnHeader(QHeaderView):
 
     def mousePressEvent(self, event) -> None:  # noqa: ANN001
         if event.button() == Qt.LeftButton and self._eye_at(event.position().toPoint()):
+            if self.locked:
+                event.accept()
+                return
             self.names_hidden = not self.names_hidden
             if self.on_eye is not None:
                 self.on_eye(self.names_hidden)

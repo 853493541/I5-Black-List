@@ -1,10 +1,10 @@
-"""直播模式: the 心动 marks, copied into one window a streaming app can capture.
+"""直播模式: the marks, copied into one window a streaming app can capture, without a 黑名单 name.
 
 A streamer who captures only the game's window (窗口捕获) gets the game without the marks:
-those are windows of their own, drawn over it. With 直播模式 on, this window copies the 心动
-ones, where they are, a little over twenty times a second: the rose ring and heart badge of a
-lobby with no 黑名单 player, the 心动 card, and the flower border. Nothing about 黑名单 is
-ever copied (no red ring, card or glow), so viewers never see who is on the list.
+those are windows of their own, drawn over it. With 直播模式 on, this window copies them, where
+they are, a little over twenty times a second: the ring round the button and its heart badge, the
+心动 card, the flower border, and the red glow. Viewers see that a 黑名单 player is there (the red
+ring and glow), never who: the card with the names is not copied.
 
 In 安全模式 the marks are made but never put on the streamer's screen (WA_DontShowOnScreen);
 this window is the only place they show. The window itself sits just off the screen, to the
@@ -27,16 +27,17 @@ from PySide6.QtGui import QPainter
 from PySide6.QtWidgets import QApplication, QWidget
 
 from blacklist_detect.names import APP_NAME
+from blacklist_detect.ui_alert import paint_glow
 
 TITLE = f"{APP_NAME}·直播画面"
 FRAME_MS = 45
 
 
 class StreamMirror(QWidget):
-    """One window with the 心动 marks, for a streaming app to capture.
+    """One window with the marks, for a streaming app to capture.
 
-    window is the main window: it owns the marks (panel, like_card, clear_mark) and the flower
-    border (love). Its 黑名单 marks (hit_card, the red ring, alert) are left out.
+    window is the main window: it owns the marks (panel, like_card, clear_mark), the flower
+    border (love) and the red glow (alert). The card with the 黑名单 names (hit_card) is left out.
     """
 
     def __init__(self, window) -> None:  # noqa: ANN001
@@ -85,21 +86,29 @@ class StreamMirror(QWidget):
             self.hide()
 
     def _marks(self) -> list[QWidget]:
-        """The 心动 marks showing now. The ring and badge only while no 黑名单 player is there."""
+        """The marks showing now: the 心动 card, and the ring with a 心动 or 黑名单 player there
+        (red has no names on it). Never the 黑名单 card; nothing for a lobby with no one listed."""
         window = self._window
         marks = [window.like_card]
+        if window.panel.mode in ("liked", "hit", "both"):
+            marks.append(window.panel)
         if window.panel.mode == "liked":
-            marks += [window.panel, window.clear_mark]
+            marks.append(window.clear_mark)
         return [mark for mark in marks if mark.isVisible()]
 
     def _borders(self) -> list:
-        """The flower borders playing now: the one over the game, or the one only the stream gets."""
-        window = self._window
-        return [border for border in (window.love, window.stream_love) if border.playing()]
+        """The flower border while it plays."""
+        love = self._window.love
+        return [love] if love.playing() else []
+
+    def _glow(self):  # noqa: ANN202
+        """The red glow while it shows."""
+        alert = self._window.alert
+        return alert if alert.isVisible() else None
 
     def busy(self) -> bool:
-        """Whether a 心动 mark is showing now."""
-        return bool(self._marks()) or bool(self._borders())
+        """Whether a mark is showing now."""
+        return bool(self._marks()) or bool(self._borders()) or self._glow() is not None
 
     def _place(self, area: QRect) -> None:
         """Mirror area (the game's screen), from a spot just right of every monitor."""
@@ -135,6 +144,13 @@ class StreamMirror(QWidget):
             painter.save()
             painter.translate(border.geometry().topLeft() - origin)
             border.paint_at(painter, border.elapsed(), border.width(), border.height())
+            painter.restore()
+        glow = self._glow()
+        if glow is not None:
+            painter.save()
+            painter.setOpacity(glow.windowOpacity())
+            painter.translate(glow.geometry().topLeft() - origin)
+            paint_glow(painter, glow.width(), glow.height())
             painter.restore()
         for mark in self._marks():
             painter.setOpacity(mark.windowOpacity())
