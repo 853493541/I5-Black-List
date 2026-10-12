@@ -388,9 +388,6 @@ class Store:
         self.env_checked = ""
         # × hides the window to the tray (the app keeps checking), or quits.
         self.close_to_tray = True
-        # 直播模式: a window a streaming app can capture, with the marks over the game in it.
-        # "" off, "key" on green for the streaming app to key out, "alpha" on a clear background.
-        self.stream_mode = ""
         self.load_warning = ""
         # Whether the welcome guide has been shown. A settings file from before this was saved
         # counts as welcomed; no settings file at all is a first open.
@@ -743,7 +740,6 @@ class Store:
                 "env_checked": self.env_checked,
                 "welcomed": self.welcomed,
                 "close_to_tray": self.close_to_tray,
-                "stream_mode": self.stream_mode,
             },
         )
 
@@ -777,8 +773,6 @@ class Store:
             self.env_checked = str(settings.get("env_checked", "") or "")
             self.welcomed = bool(settings.get("welcomed", True))
             self.close_to_tray = bool(settings.get("close_to_tray", True))
-            mode = settings.get("stream_mode", "")
-            self.stream_mode = mode if mode in ("", "key", "alpha") else ("key" if mode is True else "")
             for raw in settings.get("hidden_tags") or []:
                 tag = clean_tag(str(raw))
                 if tag in TAGS and tag not in self.hidden_tags:
@@ -978,7 +972,6 @@ class Store:
         self.env_checked = ""
         self.welcomed = False
         self.close_to_tray = True
-        self.stream_mode = ""
         self.load_warning = ""
         self.save_entries()
         self.save_likes()

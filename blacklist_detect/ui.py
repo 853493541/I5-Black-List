@@ -109,7 +109,6 @@ from blacklist_detect.ui_overlay import (
     _pin_topmost,
     native_to_logical,
 )
-from blacklist_detect.ui_stream import StreamMirror
 from blacklist_detect.ui_theme import (
     APPEARANCES,
     BODY_PT,
@@ -176,9 +175,6 @@ __all__ = [
     "notify_running_instance",
     "run_app",
 ]
-
-# How long 直播模式's 预览 shows its sample marks.
-PREVIEW_MS = 8_000
 
 # Updates are looked for once each time the app opens, just after the window is up. A new version
 # found then is installed before the app is used.
@@ -375,11 +371,6 @@ class MainWindow(QMainWindow):
         self._love_played = False
         # 黑名单 players in the lobby: a red glow at the screen's edges while the result is up.
         self.alert = AlertGlow()
-        # 直播模式: all of the above copied into one window a streaming app can capture.
-        self.stream = StreamMirror(self)
-        self._preview_until = 0.0
-        if self.store.stream_mode:
-            self.stream.enable(self.store.stream_mode)
         # New versions from GitHub: checked when the app opens and installed before it is used.
         self.updates = UpdateChecker(self)
         self.updates.found.connect(self._on_update_found)
@@ -897,16 +888,6 @@ class MainWindow(QMainWindow):
         )
         self.close_mode.changed.connect(self._on_close_mode)
         general.add_row("关闭窗口时", self.close_mode)
-        self.stream_control = SegmentedControl([("off", "关"), ("key", "绿幕"), ("alpha", "透明")], self.store.stream_mode or "off")
-        self.stream_control.setAccessibleName("直播模式")
-        self.stream_control.changed.connect(self._set_stream_mode)
-        self.stream_preview = QPushButton("预览")
-        self.stream_preview.setFont(ui_font())
-        self.stream_preview.setAutoDefault(False)
-        self.stream_preview.setCursor(Qt.PointingHandCursor)
-        self.stream_preview.clicked.connect(self._preview_marks)
-        self.stream_preview.setEnabled(bool(self.store.stream_mode))
-        general.add_row("直播模式", self.stream_control, self.stream_preview, hint="窗口捕获「模仿者小工具·直播画面」")
 
         # 外观: how the window looks.
         look = section("外观")
@@ -1117,9 +1098,6 @@ class MainWindow(QMainWindow):
             autostart.set_enabled(False)
         self._sync_switch(self.autostart_switch, autostart.is_enabled())
         self.close_mode.set_current("tray" if self.store.close_to_tray else "quit")
-        self.stream_control.set_current(self.store.stream_mode or "off")
-        self.stream.enable(self.store.stream_mode)
-        self.stream_preview.setEnabled(bool(self.store.stream_mode))
         if not self._watch_timer.isActive():
             self.watch = LobbyWatch()
             self._watch_timer.start()
@@ -2773,34 +2751,6 @@ class MainWindow(QMainWindow):
             self._say("开机启动设置失败")
         self._sync_switch(self.autostart_switch, autostart.is_enabled())
 
-    def _set_stream_mode(self, mode: str) -> None:
-        self.store.stream_mode = mode if mode in ("key", "alpha") else ""
-        self.store.save_settings()
-        self.stream.enable(self.store.stream_mode)
-        self.stream_preview.setEnabled(bool(self.store.stream_mode))
-
-    def _preview_marks(self) -> None:
-        """Sample marks near the bottom of the screen for a few seconds, to set up a streaming app."""
-        screen = QApplication.primaryScreen()
-        if screen is None:
-            return
-        area, ratio = screen.geometry(), screen.devicePixelRatio()
-        origin_x, origin_y = virtual_origin()
-        left = area.x() + area.width() // 2 - 130
-        top = area.y() + area.height() - 140
-        # The box in desktop pixels, as the check gives it: the monitor's corner plus scaled offsets.
-        def native(x: float, y: float) -> tuple[int, int]:
-            return round(area.x() + (x - area.x()) * ratio) - origin_x, round(area.y() + (y - area.y()) * ratio) - origin_y
-
-        box = (*native(left, top), *native(left + 260, top + 74))
-        names = [NameSlot(0, (0, 0, 1, 1), "示例玩家", "示例玩家", False, 1.0, False)]
-        self._live_check = True
-        self._on_lobby_placed(box)
-        self._show_panel(CheckResult(True, "", names=names, hits=[Hit(0, "示例玩家", "示例玩家", "", False, "", ("炸房",))], button_box=box))
-        # No lobby is on screen: the watch must not take the sample away before its time.
-        self._preview_until = time.perf_counter() + PREVIEW_MS / 1000
-        self._panel_hide_timer.start(PREVIEW_MS)
-
     def _on_close_mode(self, key: str) -> None:
         self._set_close_to_tray(key == "tray")
 
@@ -2946,7 +2896,7 @@ class MainWindow(QMainWindow):
         elif was_error:
             self._sync_watch_idle()
         if not value:
-            if self.panel.isVisible() and time.perf_counter() >= self._preview_until:
+            if self.panel.isVisible():
                 self._hide_panel_after_title()
         else:
             self._panel_hide_timer.stop()
@@ -3419,8 +3369,6 @@ class MainWindow(QMainWindow):
         self.love.close()
         self.alert.stop()
         self.alert.close()
-        self.stream.enable(False)
-        self.stream.close()
         self.hotkey.clear()
         self.worker.stop()
         # A check or a model load cannot be interrupted. Ending the thread under it crashes on exit.
