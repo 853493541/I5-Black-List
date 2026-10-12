@@ -666,14 +666,10 @@ class GuideDialog(Modal):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         layout = _frame(self, f"欢迎使用{APP_NAME}")
-        intro = QLabel("每次进入「推演成功」大厅，都会帮你留意黑名单里的人。")
-        intro.setWordWrap(True)
-        layout.addWidget(intro)
-        layout.addSpacing(4)
         steps = (
             ("edit", "右上角填好你的游戏名"),
             ("users", "在「黑名单」里加上不想遇到的人"),
-            ("check", "遇到他们时，按钮会变红提醒你"),
+            ("check", "排到黑名单里的人，会第一时间提醒你"),
         )
         accent = THEME["accent_line"] if THEME.get("scheme") == "dark" else THEME["accent"]
         self.steps: list[QLabel] = []
