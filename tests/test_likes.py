@@ -258,3 +258,28 @@ def test_a_like_is_moved_to_the_blacklist_when_asked(window, monkeypatch):
     assert window._take_from_likes("小明") is True
     assert window.store.likes == []
     assert Qt.UserRole  # the module imports stay used
+
+
+def test_the_border_fits_a_game_in_a_window(window, monkeypatch):
+    from PySide6.QtCore import QRect
+
+    from blacklist_detect import ui
+
+    window.store.add_like("小红")
+    window.store.add_like("小明")
+    screen = QApplication.primaryScreen()
+    area, ratio = screen.geometry(), screen.devicePixelRatio()
+    game = QRect(area.x() + 80, area.y() + 60, area.width() // 2 + 300, area.height() // 2 + 200)
+    left = round(area.x() + (game.x() - area.x()) * ratio)
+    top = round(area.y() + (game.y() - area.y()) * ratio)
+    native = (left, top, left + round(game.width() * ratio), top + round(game.height() * ratio))
+    monkeypatch.setattr(ui, "window_rect_at", lambda x, y: native)
+    middle_x = area.x() + (game.x() - area.x() + game.width() // 2)
+    middle_y = area.y() + (game.y() - area.y() + game.height() // 2)
+    box = (round(middle_x * ratio) - 90, round(middle_y * ratio), round(middle_x * ratio) + 90, round(middle_y * ratio) + 60)
+    names = [NameSlot(0, (0, 0, 1, 1), "小红", "小红", False, 0.9, False), NameSlot(1, (0, 0, 1, 1), "小明", "小明", False, 0.9, False)]
+    window._live_check = True
+    window._show_panel(CheckResult(True, "", names=names, button_box=box))
+    assert window.love.playing()
+    assert window.love.geometry() == game
+    window._hide_panel_after_title()

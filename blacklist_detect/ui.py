@@ -7,7 +7,7 @@ import sys
 import time
 from datetime import datetime
 
-from PySide6.QtCore import QEvent, QPoint, QSize, Qt, QThread, QTimer, Signal
+from PySide6.QtCore import QEvent, QPoint, QRect, QSize, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import (
     QColor,
     QCursor,
@@ -47,6 +47,7 @@ from blacklist_detect.capture import (
     lock_foreground,
     virtual_origin,
 )
+from blacklist_detect.game_area import window_rect_at
 from blacklist_detect.hotkey import GlobalHotkey, parse_hotkey
 from blacklist_detect.importing import suggest_tags, with_tags
 from blacklist_detect.logs import log, mark_closed, mark_running, on_uncaught, setup_logging
@@ -412,6 +413,8 @@ class MainWindow(QMainWindow):
         # 直播模式: the 心动 marks, never the 黑名单 ones, in a window a streaming app can capture.
         self.stream = StreamMirror(self)
         self._preview_until = 0.0
+        # The lobby's button, in desktop pixels: the game's window is the one under it.
+        self._game_box = None
         # New versions from GitHub: checked when the app opens and installed before it is used.
         self.updates = UpdateChecker(self)
         self.updates.found.connect(self._on_update_found)
@@ -2676,6 +2679,8 @@ class MainWindow(QMainWindow):
             return round(area.x() + (x - area.x()) * ratio) - origin_x, round(area.y() + (y - area.y()) * ratio) - origin_y
 
         box = (*native(left, top), *native(left + 260, top + 74))
+        # No game under the sample: the border goes round the whole screen.
+        self._game_box = None
         self._live_check = True
         self._love_played = False
         self._open_panel("liked", "未发现黑名单", box)
@@ -3319,6 +3324,7 @@ class MainWindow(QMainWindow):
         if result.button_box is None:
             self._hide_panel_after_title()
             return
+        self._game_box = result.button_box
         likes = self._likes_in(result)
         if hits:
             self.clear_mark.hide()
@@ -3372,7 +3378,7 @@ class MainWindow(QMainWindow):
         screen = QApplication.screenAt(cover.center()) or QApplication.primaryScreen()
         if screen is None:
             return
-        self.alert.show_on(screen.geometry())
+        self.alert.show_on(self._game_area(screen))
         for mark in (self.panel, self.hit_card, self.like_card):
             if mark.isVisible():
                 _pin_topmost(mark)
@@ -3385,7 +3391,26 @@ class MainWindow(QMainWindow):
         if screen is None:
             return
         self._love_played = True
-        self.love.play(screen.geometry(), keep)
+        self.love.play(self._game_area(screen), keep)
+
+    def _game_area(self, screen) -> QRect:  # noqa: ANN001
+        """Where the game is drawn, for the border and the glow: its window when it sits in one (a
+        windowed client, an emulator), else the whole screen."""
+        area = screen.geometry()
+        if self._game_box is None:
+            return area
+        origin_x, origin_y = virtual_origin()
+        left, top, right, bottom = self._game_box
+        found = window_rect_at((left + right) // 2 + origin_x, (top + bottom) // 2 + origin_y)
+        if found is None:
+            return area
+        x, y, ratio = native_to_logical(found[0], found[1])
+        rect = QRect(round(x), round(y), round((found[2] - found[0]) / ratio), round((found[3] - found[1]) / ratio))
+        rect = rect.intersected(area)
+        # Not much bigger than the button: not the game's window (a tooltip, a stray control).
+        if rect.width() < 3 * (right - left) / ratio or rect.height() < 3 * (bottom - top) / ratio:
+            return area
+        return rect
 
     def _open_panel(self, mode: str, text: str, box) -> None:
         self._panel_hide_timer.stop()

@@ -83,3 +83,43 @@ def test_the_glow_is_red_at_the_edge_and_clear_in_the_middle():
     # It fades inward, and the corners glow like the sides.
     assert image.pixelColor(1, 150).alpha() > image.pixelColor(12, 150).alpha() > image.pixelColor(30, 150).alpha()
     assert abs(image.pixelColor(1, 1).alpha() - image.pixelColor(200, 1).alpha()) < 20
+
+
+def test_the_glow_fits_a_game_in_a_window(window, monkeypatch):
+    from PySide6.QtCore import QRect
+
+    from blacklist_detect import ui
+    from blacklist_detect.capture import virtual_origin
+
+    button, names = _lobby(window)
+    screen = QApplication.screenAt(window.panel.cover_geometry().center()) or QApplication.primaryScreen()
+    ratio = screen.devicePixelRatio()
+    origin_x, origin_y = virtual_origin()
+    area = screen.geometry()
+    # An emulator window in the middle of the screen, the button inside it.
+    game = QRect(area.x() + 100, area.y() + 120, area.width() // 2 + 200, area.height() // 2 + 150)
+    asked: list[tuple[int, int]] = []
+
+    def window_at(x, y):  # noqa: ANN001, ANN202
+        asked.append((x, y))
+        left = round(area.x() + (game.x() - area.x()) * ratio)
+        top = round(area.y() + (game.y() - area.y()) * ratio)
+        return left, top, left + round(game.width() * ratio), top + round(game.height() * ratio)
+
+    monkeypatch.setattr(ui, "window_rect_at", window_at)
+    hit = Hit(0, "坏人", "坏人", "", False, "", ("炸房",))
+    window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
+    # Asked about the middle of the button, in desktop pixels.
+    left, top, right, bottom = button
+    assert asked[-1] == ((left + right) // 2 + origin_x, (top + bottom) // 2 + origin_y)
+    assert window.alert.geometry() == game
+    window._hide_panel_after_title()
+    # Nothing found, or something no bigger than the button: the whole screen, as before.
+    monkeypatch.setattr(ui, "window_rect_at", lambda x, y: None)
+    window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
+    assert window.alert.geometry() == area
+    window._hide_panel_after_title()
+    monkeypatch.setattr(ui, "window_rect_at", lambda x, y: (x - 5, y - 5, x + 5, y + 5))
+    window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
+    assert window.alert.geometry() == area
+    window._hide_panel_after_title()
