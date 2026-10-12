@@ -106,7 +106,7 @@ class LikeDialog(Modal):
         elif not key:
             problem = "名字需包含文字或数字"
         elif key in self.taken:
-            problem = "心动列表里已经有这个名字"
+            problem = "该玩家已在心动列表中"
         else:
             problem = ""
         if problem:

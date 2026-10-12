@@ -224,7 +224,7 @@ class AddNameDialog(Modal):
         elif not key:
             problem = "名字需包含文字或数字"
         elif key in self.taken:
-            problem = "黑名单里已经有这个名字"
+            problem = "该玩家已在黑名单中"
         else:
             problem = ""
         if problem:

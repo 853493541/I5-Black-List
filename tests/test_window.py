@@ -129,7 +129,7 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     window._create_tag()
     window.tag_new_edit.setText("红名")
     window._finish_tag_new()
-    assert said == ["已有这个标签"]
+    assert said == ["标签已存在"]
     # Esc, or nothing typed, adds nothing.
     window._create_tag()
     window.tag_new_edit.setText("蓝名")
@@ -178,7 +178,7 @@ def test_renaming_a_tag_updates_the_edit_panel(qapp, tmp_path, monkeypatch):
     assert window.tag_list.visualItemRect(window.tag_list.item(row)).contains(editor.geometry().center())
     editor.setText("贴脸")
     window._finish_tag_edit()
-    assert said == ["已有这个标签"] and "炸房" in window.store.tag_catalog()
+    assert said == ["标签已存在"] and "炸房" in window.store.tag_catalog()
     # Esc keeps the old name.
     window._edit_tag("炸房")
     editor.setText("别的")
@@ -1102,7 +1102,7 @@ def test_the_add_dialog_refuses_a_name_already_on_the_list(qapp):
     dialog.name_edit.setText(" GFFDSD ")
     dialog._accept()
     assert dialog.result() != QDialog.Accepted
-    assert dialog.name_error.text() == "黑名单里已经有这个名字"
+    assert dialog.name_error.text() == "该玩家已在黑名单中"
     dialog.name_edit.setText("★☆★")
     dialog._accept()
     assert dialog.name_error.text() == "名字需包含文字或数字"

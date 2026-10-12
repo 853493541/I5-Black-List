@@ -801,7 +801,7 @@ class MainWindow(QMainWindow):
         column.addWidget(record)
         column.addStretch(1)
         body.addWidget(self.record_column, 1)
-        self.history_empty = EmptyState("records", "还没有记录", "进入「推演成功」大厅时会自动检查，并记在这里。")
+        self.history_empty = EmptyState("records", "还没有记录", "进入「推演成功」大厅时会自动检查，结果会记录在这里。")
         self.history_hint = self.history_empty.title
         self.picture_empty_button = self.history_empty.add_action(QPushButton("上传截图"))
         self.picture_empty_button.clicked.connect(self.check_picture)
@@ -1017,7 +1017,7 @@ class MainWindow(QMainWindow):
         if not tag:
             return
         if tag in self.store.tag_catalog():
-            self._say("已有这个标签")
+            self._say("标签已存在")
             return
         if self.store.add_custom_tag(tag):
             self.store.save_settings()
@@ -1049,7 +1049,7 @@ class MainWindow(QMainWindow):
             return
         result = self.store.rename_tag(tag, renamed)
         if result == "taken":
-            self._say("已有这个标签")
+            self._say("标签已存在")
         elif result == "renamed":
             if self._tag_filter == tag:
                 self._tag_filter = renamed
