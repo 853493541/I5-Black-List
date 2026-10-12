@@ -19,6 +19,13 @@ from blacklist_detect.updater import Release, UpdateError
 ROOT = Path(__file__).resolve().parent.parent
 
 
+@pytest.fixture(autouse=True)
+def _own_settings_folder(tmp_path, monkeypatch):  # noqa: ANN001, ANN202
+    """The remembered update address goes beside the settings: never the real ones."""
+    monkeypatch.setenv("APPDATA", str(tmp_path / "appdata"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "appdata"))
+
+
 def _keys() -> tuple[Ed25519PrivateKey, str]:
     private = Ed25519PrivateKey.generate()
     public = private.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
@@ -346,3 +353,92 @@ def test_the_app_ends_its_process_when_the_window_is_gone(monkeypatch):
     monkeypatch.setattr(entry.os, "_exit", ended.append)
     assert entry.main([]) == 0
     assert ended == [0]
+
+
+class _CutOff(_Session):
+    """GitHub as from mainland China: every direct request fails to connect."""
+
+    def get(self, url: str, **kwargs) -> _Response:  # noqa: ANN003
+        if url.startswith("https://github.com/"):
+            import requests
+
+            self.asked.append(url)
+            raise requests.ConnectionError("reset")
+        return super().get(url, **kwargs)
+
+
+def _signed(monkeypatch, **manifest_args) -> tuple[bytes, bytes]:  # noqa: ANN001, ANN003
+    private, public = _keys()
+    monkeypatch.setattr(updater, "PUBLIC_KEY", public)
+    manifest = _manifest(**manifest_args)
+    return manifest, base64.b64encode(private.sign(manifest))
+
+
+def test_github_cut_off_goes_through_a_proxy_and_remembers_it(monkeypatch, tmp_path):
+    payload = b"z" * 5000
+    manifest, signature = _signed(monkeypatch, payload=payload)
+    proxy = updater.MIRRORS[2]
+    release_url = updater.read_manifest(manifest).url
+    session = _CutOff({
+        proxy + updater.MANIFEST_URL: _Response(manifest),
+        proxy + updater.MANIFEST_URL + ".sig": _Response(signature),
+        proxy + release_url: _Response(payload),
+    })  # fmt: skip
+    release = updater.fetch_release(session, current="v0.3.0")
+    assert release is not None and release.mirror == proxy
+    # The zip comes through the same proxy, without trying GitHub again.
+    session.asked.clear()
+    assert updater.download(release, tmp_path / "zip", session=session).read_bytes() == payload
+    assert session.asked == [proxy + release_url]
+    # Next time that proxy is tried first.
+    assert updater.mirrors()[0] == proxy
+    session.asked.clear()
+    updater.fetch_release(session, current="v0.3.0")
+    assert session.asked[0] == proxy + updater.MANIFEST_URL
+
+
+def test_a_proxy_that_changes_the_file_is_passed_over(monkeypatch):
+    manifest, signature = _signed(monkeypatch)
+    bad, good = updater.MIRRORS[1], updater.MIRRORS[2]
+    session = _CutOff({
+        bad + updater.MANIFEST_URL: _Response(manifest.replace(b"v0.1.0", b"v0.0.1")),
+        bad + updater.MANIFEST_URL + ".sig": _Response(signature),
+        good + updater.MANIFEST_URL: _Response(manifest),
+        good + updater.MANIFEST_URL + ".sig": _Response(signature),
+    })  # fmt: skip
+    release = updater.fetch_release(session, current="v0.3.0")
+    assert release is not None and release.mirror == good and release.base == "v0.1.0"
+    # Every way blocked: the player is told it could not connect.
+    with pytest.raises(UpdateError, match="无法连接"):
+        updater.fetch_release(_Blocked({}), current="v0.3.0")
+
+
+class _Blocked(_Session):
+    def get(self, url: str, **_kwargs) -> _Response:  # noqa: ANN003
+        import requests
+
+        raise requests.ConnectionError("no network")
+
+
+def test_a_release_can_name_new_proxies(monkeypatch):
+    data = json.loads(_manifest())
+    data["mirrors"] = ["https://new-proxy.example/", "http://plain.example/", "https://x.example/a b/", "javascript:alert(1)//"]
+    manifest = json.dumps(data).encode("utf-8")
+    private, public = _keys()
+    monkeypatch.setattr(updater, "PUBLIC_KEY", public)
+    signature = base64.b64encode(private.sign(manifest))
+    session = _Session({updater.MANIFEST_URL: _Response(manifest), updater.MANIFEST_URL + ".sig": _Response(signature)})
+    release = updater.fetch_release(session, current="v0.3.0")
+    # Only https addresses ending in / are kept.
+    assert release.mirrors == ("https://new-proxy.example/",)
+    assert updater.mirrors()[-1] == "https://new-proxy.example/"
+    assert "http://plain.example/" not in updater.mirrors()
+
+
+def test_a_download_that_does_not_match_tries_another_address(monkeypatch, tmp_path):
+    payload = b"q" * 3000
+    release = updater.read_manifest(_manifest(payload=payload))
+    second = updater.MIRRORS[1]
+    session = _Session({release.url: _Response(b"w" * len(payload)), second + release.url: _Response(payload)})
+    assert updater.download(release, tmp_path, session=session).read_bytes() == payload
+    assert updater.mirrors()[0] == second

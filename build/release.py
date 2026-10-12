@@ -10,6 +10,7 @@ For each release, after build/make_release.py has made the zips:
     python build/release.py sign       writes dist/release/version.json and version.json.sig
     python build/release.py publish    creates the GitHub release with the update zip and those two
     python build/release.py check      asks GitHub the way the app does, and shows what it gets
+    python build/release.py check --each   the same through GitHub and each proxy, one by one
 
 What is new goes in build/notes/<version>.txt, one line per change, in the words friends read.
 build/release.json holds "base": the oldest version the update zip can be laid over. Raise it
@@ -91,6 +92,8 @@ def sign(_args: argparse.Namespace) -> int:
         "version": __version__,
         "base": base,
         "notes": _notes(),
+        # The proxies copies of this version try when GitHub is cut off; change them in updater.MIRRORS.
+        "mirrors": [prefix for prefix in updater.MIRRORS if prefix],
         "update": {
             "url": f"{updater.DOWNLOADS}{__version__}/{update.name}",
             "sha256": hashlib.sha256(payload).hexdigest(),
@@ -134,6 +137,11 @@ def publish(args: argparse.Namespace) -> int:
         f"- 更早版本：下载 {_zip('update').name}，解压覆盖原文件夹",
         f"- 首次安装：下载 {_zip('full').name}，解压后运行「模仿者小工具.exe」",
     ]
+    if args.with_full:
+        # From mainland China the GitHub link is often cut off: the same file through a proxy.
+        direct = f"{updater.DOWNLOADS}{__version__}/{_zip('full').name}"
+        lines += ["", "**国内下载**（GitHub 打不开时）", ""]
+        lines += [f"- {prefix}{direct}" for prefix in updater.MIRRORS[1:3]]
     notes.write_text("\n".join(lines) + "\n", encoding="utf-8")
     command = [
         "release", "create", __version__,
@@ -151,20 +159,43 @@ def publish(args: argparse.Namespace) -> int:
     return done.returncode
 
 
-def check(_args: argparse.Namespace) -> int:
-    """Ask GitHub what the app would be offered, as a copy two versions back."""
-    try:
-        release = updater.fetch_release(current="v0.0.0")
-    except updater.UpdateError as error:
-        print(f"The app would say: {error}")
-        return 1
-    if release is None:
-        print("No release with version.json yet.")
-        return 1
-    print(f"The app would offer {release.version} ({release.size / 1e6:.2f} MB), for copies from {release.base} on:")
-    for line in release.notes:
-        print(f"  · {line}")
-    return 0
+def check(args: argparse.Namespace) -> int:
+    """Ask GitHub what the app would be offered, as a copy two versions back.
+
+    With --each, ask GitHub and every proxy on its own, and fetch the update zip through each:
+    a proxy passes only when version.json carries the release key's signature and the zip matches.
+    """
+    import os
+    import tempfile
+
+    # The app remembers the address that worked beside its settings; not in this PC's real ones.
+    os.environ["APPDATA"] = os.environ["XDG_CONFIG_HOME"] = tempfile.mkdtemp()
+    ways = list(updater.MIRRORS) if args.each else [None]
+    failed = 0
+    for prefix in ways:
+        if prefix is not None:
+            updater.MIRRORS = (prefix,)
+        name = "GitHub" if not prefix else prefix
+        try:
+            release = updater.fetch_release(current="v0.0.0")
+            if release is not None and args.each:
+                with tempfile.TemporaryDirectory() as folder:
+                    updater.download(release, Path(folder))
+        except updater.UpdateError as error:
+            print(f"{name}: the app would say: {error}")
+            failed += 1
+            continue
+        if release is None:
+            print(f"{name}: no release with version.json yet.")
+            failed += 1
+            continue
+        if args.each:
+            print(f"{name}: OK, {release.version}, signature and zip checked")
+            continue
+        print(f"The app would offer {release.version} ({release.size / 1e6:.2f} MB), for copies from {release.base} on:")
+        for line in release.notes:
+            print(f"  · {line}")
+    return 1 if failed == len(ways) else 0
 
 
 def main() -> int:
@@ -177,7 +208,9 @@ def main() -> int:
     out.add_argument("--with-full", action="store_true", help="also attach the full zip (about 316 MB)")
     out.add_argument("--dry-run", action="store_true", help="show the gh command without running it")
     out.set_defaults(run=publish)
-    steps.add_parser("check", help="see what the app would be offered").set_defaults(run=check)
+    asked = steps.add_parser("check", help="see what the app would be offered")
+    asked.add_argument("--each", action="store_true", help="try GitHub and every proxy one by one")
+    asked.set_defaults(run=check)
     args = parser.parse_args()
     return args.run(args)
 

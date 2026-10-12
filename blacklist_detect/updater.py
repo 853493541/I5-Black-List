@@ -11,6 +11,12 @@ clicks 更新 to download. The zip is unpacked into update.new beside the app; t
 lays it over the folder on the next start, keeping
 what it replaced in update.old, and puts that back if the new version never says it started.
 Nothing about the player is sent: the requests are plain downloads of public files.
+
+From mainland China github.com is often slow or cut off. So GitHub is tried first, then public
+download proxies (MIRRORS): each takes a GitHub address after its own and passes the same file
+through. They are trusted with nothing: version.json must carry the release key's signature and
+the zip must match its SHA-256, so a proxy can at worst fail or be slow. The one that worked is
+tried first next time, and a signed version.json may name newer proxies for when these go away.
 """
 
 from __future__ import annotations
@@ -19,10 +25,11 @@ import base64
 import hashlib
 import json
 import logging
+import re
 import shutil
 import zipfile
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
 
 from blacklist_detect import __version__
@@ -34,6 +41,11 @@ REPO = "853493541/I5-Black-List"
 MANIFEST_URL = f"https://github.com/{REPO}/releases/latest/download/version.json"
 RELEASES_URL = f"https://github.com/{REPO}/releases/latest"
 DOWNLOADS = f"https://github.com/{REPO}/releases/download/"
+# Where to fetch from: GitHub itself, then public proxies that put a GitHub address after their own.
+MIRRORS = ("", "https://ghfast.top/", "https://gh-proxy.com/", "https://ghproxy.net/", "https://gh.llkk.cc/")
+# The proxy that worked last and any a release named, kept beside the settings.
+MIRROR_FILE = "mirrors.json"
+_MIRROR = re.compile(r"https://[A-Za-z0-9.-]+(?::[0-9]+)?/(?:[A-Za-z0-9._~-]+/)*")
 # The public half of the release key, made by `python build/release.py keygen`.
 PUBLIC_KEY = "N4neQZQZcRKxH5DP/85SZr1cCq3s2sMaZFzG3lCiO14="
 
@@ -46,7 +58,8 @@ VERSION_FILE = ".version"
 _ALLOWED_FILES = {*LAUNCHERS, *(f"runtime/{name}" for name in PROCESSES), "使用说明.txt"}
 _ALLOWED_DIR = "blacklist_detect"
 MAX_SIZE = 100_000_000
-TIMEOUT = 10
+# Seconds to connect, then between bytes: a cut-off address is given up on soon, a slow one is not.
+TIMEOUT = (5, 15)
 
 
 class UpdateError(Exception):
@@ -61,6 +74,10 @@ class Release:
     size: int
     base: str
     notes: tuple[str, ...] = field(default_factory=tuple)
+    # The address prefix version.json came through ("" for GitHub), tried first for the zip.
+    mirror: str = ""
+    # Proxies the release names, for later checks.
+    mirrors: tuple[str, ...] = field(default_factory=tuple)
 
     def needs_full(self, current: str = __version__) -> bool:
         """The update zip only completes a folder at least as new as base."""
@@ -112,6 +129,7 @@ def read_manifest(manifest: bytes) -> Release:
             size=int(update["size"]),
             base=str(data.get("base", data["version"])),
             notes=tuple(str(line) for line in data.get("notes", ())),
+            mirrors=tuple(str(item) for item in data.get("mirrors", ()) if _good_mirror(str(item))),
         )
     except (ValueError, KeyError, TypeError) as error:
         raise UpdateError("更新信息无效") from error
@@ -120,6 +138,51 @@ def read_manifest(manifest: bytes) -> Release:
     if not 0 < release.size <= MAX_SIZE or len(release.sha256) != 64:
         raise UpdateError("更新信息无效")
     return release
+
+
+def _good_mirror(prefix: str) -> bool:
+    """An https address ending in /, nothing else: a GitHub address is put right after it."""
+    return prefix == "" or (len(prefix) <= 200 and _MIRROR.fullmatch(prefix) is not None)
+
+
+def _mirror_file() -> Path:
+    from blacklist_detect.paths import app_dir
+
+    return app_dir() / MIRROR_FILE
+
+
+def mirrors() -> list[str]:
+    """Where to try, in order: the one that worked last, GitHub, the built-in proxies, then any a release named."""
+    order = list(MIRRORS)
+    preferred = ""
+    try:
+        saved = json.loads(_mirror_file().read_text(encoding="utf-8"))
+        preferred = str(saved.get("preferred", ""))
+        listed = [str(item) for item in saved.get("listed", [])]
+    except (OSError, ValueError, AttributeError, TypeError):
+        listed = []
+    for prefix in listed:
+        if _good_mirror(prefix) and prefix not in order:
+            order.append(prefix)
+    if _good_mirror(preferred) and preferred in order:
+        order.remove(preferred)
+        order.insert(0, preferred)
+    return order
+
+
+def _remember(preferred: str, listed: tuple[str, ...] = ()) -> None:
+    path = _mirror_file()
+    try:
+        if not listed:
+            listed = tuple(json.loads(path.read_text(encoding="utf-8")).get("listed", []))
+    except (OSError, ValueError, AttributeError, TypeError):
+        listed = ()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {"preferred": preferred, "listed": [item for item in listed if _good_mirror(item)]}
+        path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    except OSError:
+        log.info("Could not remember the update address", exc_info=True)
 
 
 def _session():  # noqa: ANN202
@@ -135,21 +198,36 @@ def fetch_release(session=None, current: str = __version__) -> Release | None:  
     import requests
 
     session = session or _session()
-    try:
-        manifest = session.get(MANIFEST_URL, timeout=TIMEOUT)
-        if manifest.status_code == 404:
-            return None
-        manifest.raise_for_status()
-        signature = session.get(MANIFEST_URL + ".sig", timeout=TIMEOUT)
-        signature.raise_for_status()
-    except requests.RequestException as error:
-        log.info("Update check failed: %s", error)
-        raise UpdateError("无法连接更新服务器，请稍后重试") from error
-    if not verify(manifest.content, signature.text):
-        log.warning("Update manifest has a bad signature")
+    missing = forged = 0
+    tried = mirrors()
+    for prefix in tried:
+        try:
+            manifest = session.get(prefix + MANIFEST_URL, timeout=TIMEOUT)
+            if manifest.status_code == 404:
+                missing += 1
+                continue
+            manifest.raise_for_status()
+            signature = session.get(prefix + MANIFEST_URL + ".sig", timeout=TIMEOUT)
+            signature.raise_for_status()
+        except requests.RequestException as error:
+            log.info("Update check through %s failed: %s", prefix or "GitHub", error)
+            continue
+        if not verify(manifest.content, signature.text):
+            # A proxy that changed the file, or a release someone else signed: either way, not this one.
+            log.warning("Update manifest through %s has a bad signature", prefix or "GitHub")
+            forged += 1
+            continue
+        release = replace(read_manifest(manifest.content), mirror=prefix)
+        _remember(prefix, release.mirrors)
+        if prefix:
+            log.info("Update check went through %s", prefix)
+        return release if parse_version(release.version) > parse_version(current) else None
+    if forged:
         raise UpdateError("更新信息校验失败")
-    release = read_manifest(manifest.content)
-    return release if parse_version(release.version) > parse_version(current) else None
+    if missing == len(tried):
+        # Nowhere has a version.json: nothing published yet.
+        return None
+    raise UpdateError("无法连接更新服务器，请稍后重试")
 
 
 def download(release: Release, folder: Path, progress: Callable[[int, int], None] | None = None, session=None) -> Path:  # noqa: ANN001
@@ -159,31 +237,36 @@ def download(release: Release, folder: Path, progress: Callable[[int, int], None
     session = session or _session()
     folder.mkdir(parents=True, exist_ok=True)
     target = folder / f"{FOLDER}-{release.version}-update.zip"
-    digest = hashlib.sha256()
-    got = 0
-    try:
-        with session.get(release.url, stream=True, timeout=TIMEOUT) as response:
-            response.raise_for_status()
-            with open(target, "wb") as out:
-                for chunk in response.iter_content(64 * 1024):
-                    got += len(chunk)
-                    if got > release.size:
-                        raise UpdateError("文件校验失败，已取消更新")
-                    digest.update(chunk)
-                    out.write(chunk)
-                    if progress is not None:
-                        progress(got, release.size)
-    except requests.RequestException as error:
-        log.info("Update download failed: %s", error)
+    order = [release.mirror, *(prefix for prefix in mirrors() if prefix != release.mirror)]
+    failure = UpdateError("下载失败，请检查网络后重试")
+    for prefix in order:
+        digest = hashlib.sha256()
+        got = 0
+        try:
+            with session.get(prefix + release.url, stream=True, timeout=TIMEOUT) as response:
+                response.raise_for_status()
+                with open(target, "wb") as out:
+                    for chunk in response.iter_content(64 * 1024):
+                        got += len(chunk)
+                        if got > release.size:
+                            break
+                        digest.update(chunk)
+                        out.write(chunk)
+                        if progress is not None:
+                            progress(got, release.size)
+        except requests.RequestException as error:
+            log.info("Update download through %s failed: %s", prefix or "GitHub", error)
+            target.unlink(missing_ok=True)
+            continue
+        if got == release.size and digest.hexdigest() == release.sha256:
+            if prefix != release.mirror:
+                _remember(prefix)
+            return target
+        # Not the zip the release named: another address may pass the right one.
+        log.warning("Update download through %s did not match the release", prefix or "GitHub")
         target.unlink(missing_ok=True)
-        raise UpdateError("下载失败，请检查网络后重试") from error
-    except UpdateError:
-        target.unlink(missing_ok=True)
-        raise
-    if got != release.size or digest.hexdigest() != release.sha256:
-        target.unlink(missing_ok=True)
-        raise UpdateError("文件校验失败，已取消更新")
-    return target
+        failure = UpdateError("文件校验失败，已取消更新")
+    raise failure
 
 
 def _allowed(rel: PurePosixPath) -> bool:
