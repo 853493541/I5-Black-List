@@ -44,8 +44,9 @@ DOWNLOADS = f"https://github.com/{REPO}/releases/download/"
 # Where to fetch from: GitHub itself, then public proxies that put a GitHub address after their own.
 # Taken from the list kept in XIU2's 「GitHub 增强 - 高速下载」 (github.com/XIU2/UserScript), one
 # or two per operator so that one going down leaves the rest: ghproxy.link's ghfast.top,
-# gh-proxy's own server and its Tencent EdgeOne and Fastly nodes, ghproxy.net, ucdn's wget.la,
-# and gh.ddlc.top. They come and go; a signed version.json can name new ones.
+# gh-proxy's own server and its EdgeOne and Fastly nodes, ghproxy.net, and ucdn's wget.la. Each one
+# passed `release.py check --each` (signature and zip) on 2026-10-12; gh.ddlc.top answered 429 (too
+# many requests) and was left out. They come and go; a signed version.json can name new ones.
 MIRRORS = (
     "",
     "https://ghfast.top/",
@@ -54,7 +55,6 @@ MIRRORS = (
     "https://cdn.gh-proxy.org/",
     "https://ghproxy.net/",
     "https://wget.la/",
-    "https://gh.ddlc.top/",
 )
 # The proxy that worked last and any a release named, kept beside the settings.
 MIRROR_FILE = "mirrors.json"
