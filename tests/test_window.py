@@ -2638,7 +2638,7 @@ def test_batch_import_offers_shared_phrases_as_tags_before_importing(qapp, tmp_p
     window._add_many_by_dialog()
     # 返回修改 showed the paste again; the second time it imported.
     assert len(shown) == 2
-    assert shown[0][0] == 4 and sorted(shown[0][1]) == ["演员", "送人头"] and shown[0][2] == "将导入 4 人"
+    assert shown[0][0] == 4 and sorted(shown[0][1]) == ["演员", "送人头"] and shown[0][2] == "这次会导入 4 人"
     tags = {entry.name: entry.tags for entry in window.store.entries}
     assert tags == {"小明": ("送人头",), "小红": ("送人头",), "阿强": (), "丁丁": ()}
     assert "送人头" in window.store.tag_catalog()

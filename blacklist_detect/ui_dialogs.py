@@ -452,13 +452,13 @@ class TagSuggestDialog(Modal):
         self.rows = list(rows)
         self.went_back = False
         self.on = {suggestion.tag for suggestion in self.suggestions}
-        layout = _frame(self, "确认导入")
+        layout = _frame(self, "要加上这些标签吗？")
         # 1. The 标签.
         tags = QWidget()
         column = QVBoxLayout(tags)
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(10)
-        hint = QLabel("以下内容在多人的原因中出现，点选要添加的标签")
+        hint = QLabel("好几个人的原因里都提到了这些，点一下可以取消")
         hint.setObjectName("sub")
         hint.setWordWrap(True)
         column.addWidget(hint)
@@ -482,13 +482,13 @@ class TagSuggestDialog(Modal):
                 self.pills[suggestion.tag] = pill
             row.addWidget(host, 1)
             column.addLayout(row)
-        _field(layout, "添加标签", tags)
+        layout.addWidget(tags)
         # 2. How many come in, apart from the 标签 by a line.
         line = QFrame()
         line.setFixedHeight(1)
         line.setStyleSheet(f"background: {THEME['border']}; border: none;")
         layout.addWidget(line)
-        self.count_label = QLabel(f"将导入 {len(self.rows)} 人")
+        self.count_label = QLabel(f"这次会导入 {len(self.rows)} 人")
         layout.addWidget(self.count_label)
         back = QPushButton("返回修改")
         back.setAutoDefault(False)
