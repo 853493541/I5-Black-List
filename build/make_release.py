@@ -215,6 +215,15 @@ def _expected_names() -> list[list]:
     raise SystemExit("EXPECTED not found in tests/test_reference_screenshot.py")
 
 
+def _sample_names() -> list[list]:
+    """The bundled sample's made-up names, read clear and whole, from the repo's own test."""
+    source = (REPO / "tests" / "test_reference_screenshot.py").read_text(encoding="utf-8")
+    for node in ast.parse(source).body:
+        if isinstance(node, ast.Assign) and any(getattr(t, "id", "") == "SAMPLE_NAMES" for t in node.targets):
+            return [[name, False] for name in ast.literal_eval(node.value)]
+    raise SystemExit("SAMPLE_NAMES not found in tests/test_reference_screenshot.py")
+
+
 def _version() -> str:
     source = (REPO / "blacklist_detect" / "__init__.py").read_text(encoding="utf-8")
     for node in ast.parse(source).body:
@@ -255,7 +264,7 @@ def _verify(stage: Path) -> None:
     problems: list[str] = []
     if data["names"] != _expected_names():
         problems.append(f"names differ: {data['names']}")
-    if data.get("sample_names") != _expected_names():
+    if data.get("sample_names") != _sample_names():
         problems.append(f"the 测试一下 sample reads differently: {data.get('sample_names')}")
     if not data["header"] or not data["glance"]:
         problems.append("lobby title not found")

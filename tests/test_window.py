@@ -537,10 +537,11 @@ def test_capture_mode_defaults_to_safe_mode(qapp, tmp_path, monkeypatch):
     assert window.status_chip.text() == "手动检查"
     assert window.status_chip.key_text() == "Alt+1"
     assert window.hotkey_edit.isEnabled() is True
-    # 自动检查 is a level of its own: 安全模式 stays on, and the choice is kept.
-    window.store.consented = ["auto"]
+    # 自动检查 is for 完整模式: the choice is kept.
+    window.store.consented = ["full", "auto"]
+    window.full_on.click()
     window.auto_on.click()
-    assert window.store.safe_mode is True
+    assert window.store.safe_mode is False
     assert Store(window.store.root).auto_capture is True
     assert window.auto_on.isChecked() is True
     assert window.auto_off.isChecked() is False
@@ -1626,10 +1627,12 @@ def test_settings_are_grouped_into_titled_cards(qapp, tmp_path, monkeypatch):
     window.hide()
     assert window.sound_switch.isChecked() is True
     # The 方式 choice follows a click on the header's status, and the other way round.
-    window.store.consented = ["auto"]
+    window.store.consented = ["full", "auto"]
+    window._cycle_capture_mode()
+    assert window.auto_mode.current() == "manual", "安全模式: 手动检查 only"
+    window.full_on.click()
     window._cycle_capture_mode()
     assert window.auto_mode.current() == "auto"
-    assert window.store.safe_mode is True
     window._cycle_capture_mode()
     assert window.auto_mode.current() == "manual"
     window.auto_on.click()

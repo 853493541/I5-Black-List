@@ -109,8 +109,12 @@ def test_blacklist_roundtrip(tmp_path):
     store.panel_pos = (12, 34)
     store.save_settings()
     assert Store(tmp_path).panel_pos == (12, 34)
-    store.consented = ["auto"]
+    store.consented = ["full", "auto"]
     store.auto_capture = True
+    store.save_settings()
+    # 自动检查 runs only in 完整模式.
+    assert Store(tmp_path).auto_capture is False
+    store.safe_mode = False
     store.save_settings()
     assert Store(tmp_path).auto_capture is True
     again.remove_at(0)

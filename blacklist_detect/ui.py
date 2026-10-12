@@ -84,6 +84,7 @@ from blacklist_detect.ui_dialogs import (
     GuideDialog,
     PictureResultDialog,
     StreamGuideDialog,
+    DisplayGuideDialog,
     TagSuggestDialog,
     _confirm,
 )
@@ -906,14 +907,19 @@ class MainWindow(QMainWindow):
         self.safe_on.setToolTip("结果显示在屏幕右下角，游戏画面上不显示任何内容")
         self.full_on.setToolTip("结果直接显示在游戏画面上")
         self.display_mode.changed.connect(self._on_display_mode)
-        check.add_row("显示", self.display_mode)
-        # 2 方式: 自动检查 watches for the lobby; 手动检查 waits for the hotkey.
+        # ⓘ: the two, side by side, in pictures.
+        self.display_guide = IconButton("info", "显示说明")
+        self.display_guide.clicked.connect(self._show_display_guide)
+        check.add_row("显示", self.display_mode, self.display_guide)
+        # 2 方式: 手动检查 waits for the hotkey; 自动检查 watches for the lobby, in 完整模式 only.
+        # The default comes first, as in every choice here.
         self.auto_mode = SegmentedControl(
-            [("auto", "自动检查"), ("manual", "手动检查")], "auto" if self.store.auto_capture else "manual"
+            [("manual", "手动检查"), ("auto", "自动检查")], "auto" if self.store.auto_capture else "manual"
         )
         self.auto_on = self.auto_mode.buttons["auto"]
         self.auto_off = self.auto_mode.buttons["manual"]
         self.auto_mode.changed.connect(self._on_auto_mode)
+        self._sync_auto_controls()
         self.hotkey_edit = QLineEdit()
         self.hotkey_edit.setReadOnly(True)
         self.hotkey_edit.setPlaceholderText("无")
@@ -932,7 +938,10 @@ class MainWindow(QMainWindow):
         self.sound_switch.setAccessibleName("提示音")
         self.sound_switch.toggled.connect(self._set_hit_sound)
         self.sound_switch.setToolTip("发现黑名单时响一声")
-        check.add_row("提示音", self.sound_switch)
+        # ▶: hear it now.
+        self.sound_play = IconButton("play", "试听")
+        self.sound_play.clicked.connect(lambda: play_hit_sound())
+        check.add_row("提示音", self.sound_switch, self.sound_play)
         # 4 直播模式: a window for the streaming app, with the marks and never a 黑名单 name.
         self.stream_switch = Switch(bool(self.store.stream_mode))
         self.stream_switch.setAccessibleName("直播模式")
@@ -2577,6 +2586,8 @@ class MainWindow(QMainWindow):
             self._sync_watch_idle()
 
     def _cycle_capture_mode(self) -> None:
+        if self.store.safe_mode and not self.store.auto_capture:
+            return  # 安全模式 checks on the hotkey only
         self._on_auto_mode("manual" if self.store.auto_capture else "auto")
 
     def _consent(self, mode: str) -> bool:
@@ -2591,6 +2602,9 @@ class MainWindow(QMainWindow):
         return True
 
     def _on_auto_mode(self, key: str) -> None:
+        if key == "auto" and self.store.safe_mode:
+            self._sync_auto_controls()
+            return
         if key == "auto" and not self._consent("auto"):
             # Declined: the choice goes back to where it was.
             self._sync_auto_controls()
@@ -2606,6 +2620,10 @@ class MainWindow(QMainWindow):
     def _set_safe_mode(self, on: bool) -> None:
         self.store.safe_mode = bool(on)
         self.store.save_settings()
+        if self.store.safe_mode and self.store.auto_capture:
+            # 安全模式 checks on the hotkey only.
+            self._toggle_auto(False)
+        self._sync_auto_controls()
         self.display_mode.set_current("safe" if self.store.safe_mode else "full")
         if self.store.safe_mode:
             # Off the game at once: nothing left drawn over it.
@@ -2645,8 +2663,11 @@ class MainWindow(QMainWindow):
         self._sync_name_hiding()
 
     def _sync_auto_controls(self) -> None:
-        """The 方式 choice and the header's tooltip both follow the saved mode."""
+        """The 方式 choice and the header's tooltip both follow the saved mode. In 安全模式 it is
+        手动检查, and 自动检查 cannot be picked."""
         self.auto_mode.set_current("auto" if self.store.auto_capture else "manual")
+        self.auto_on.setEnabled(not self.store.safe_mode)
+        self.auto_on.setToolTip("安全模式下只能手动检查" if self.store.safe_mode else "")
         self._sync_status_tip()
 
     def _begin_hotkey(self) -> None:
@@ -2791,6 +2812,9 @@ class MainWindow(QMainWindow):
 
     def _show_stream_guide(self) -> None:
         StreamGuideDialog(self).exec()
+
+    def _show_display_guide(self) -> None:
+        DisplayGuideDialog(self).exec()
 
     def begin(self) -> None:
         """After the window opens: the environment check when it is due, then the first-run guide."""
@@ -3484,7 +3508,10 @@ class MainWindow(QMainWindow):
         chip = getattr(self, "status_chip", None)
         if chip is None:
             return
-        flip = "切换为手动检查" if self.store.auto_capture else "切换为自动检查"
+        if self.store.auto_capture:
+            flip = "切换为手动检查"
+        else:
+            flip = "安全模式下只能手动检查" if self.store.safe_mode else "切换为自动检查"
         chip.setToolTip(f"{self._watch_tip}\n{flip}" if self._watch_tip else flip)
         # 记录's empty page says how a check starts.
         empty = getattr(self, "history_empty", None)

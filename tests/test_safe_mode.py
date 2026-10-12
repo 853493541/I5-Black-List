@@ -70,7 +70,8 @@ def test_the_words_for_each_result():
 
 def test_the_empty_record_page_says_to_press_the_hotkey(window):
     assert window.history_empty.hint.text() == "在「推演成功」大厅按 Alt+1 检查"
-    window.store.consented = ["auto"]
+    window.store.consented = ["full", "auto"]
+    window.full_on.click()
     window.auto_on.click()
     assert window.history_empty.hint.text() == "进入「推演成功」大厅时自动检查"
 
@@ -182,17 +183,37 @@ def test_full_mode_brings_the_marks_back_and_the_sound_stays(window):
     assert _marks(window) == []
 
 
-def test_auto_checks_work_in_safe_mode_too(window):
-    window.store.consented = ["auto"]
+def test_safe_mode_checks_on_the_hotkey_only(window):
+    window.store.consented = ["full", "auto"]
+    # 手动检查 comes first, and in 安全模式 自动检查 cannot be picked, from 设置 or the header.
+    assert list(window.auto_mode.buttons) == ["manual", "auto"]
+    assert window.auto_off.isChecked() and not window.auto_on.isEnabled()
     window.auto_on.click()
-    assert (window.store.safe_mode, window.store.auto_capture) == (True, True)
-    assert window._watch_timer.isActive()
-    button, names = _lobby()
-    window._live_check = True
-    window._on_lobby_placed(button)
-    window._show_panel(CheckResult(True, "", names=names, button_box=button))
-    assert _marks(window) == []
-    assert window.notice.kind == "clear"
+    window._cycle_capture_mode()
+    assert window.store.auto_capture is False and not window._watch_timer.isActive()
+    assert "安全模式" in window.status_chip.toolTip()
+    # 完整模式 allows it; back to 安全模式, it is 手动检查 again.
+    window.full_on.click()
+    assert window.auto_on.isEnabled()
+    window.auto_on.click()
+    assert window.store.auto_capture is True
+    window.safe_on.click()
+    assert (window.store.safe_mode, window.store.auto_capture) == (True, False)
+    assert window.auto_off.isChecked() and not window.auto_on.isEnabled()
+    # A settings file saying both comes back as 安全模式 with 手动检查.
+    from blacklist_detect.storage import Store
+
+    window.store.auto_capture = True
+    window.store.save_settings()
+    assert Store(window.store.root).auto_capture is False
+
+
+def test_the_sound_can_be_heard_from_settings(window):
+    from blacklist_detect.ui_notice import HIT_SOUND
+
+    assert HIT_SOUND.is_file()
+    window.sound_play.click()
+    assert window.sounds == [1]
 
 
 def test_both_lists_are_always_checked(window):
@@ -234,6 +255,9 @@ def test_turning_down_the_questions_changes_nothing(window, monkeypatch):
     assert cancel == "保持安全模式"
     assert window.store.safe_mode is True
     assert window.safe_on.isChecked() is True
+    # 自动检查 is asked about in 完整模式, the only place it can be picked.
+    window.store.consented = ["full"]
+    window.full_on.click()
     window.auto_on.click()
     title, body, cancel = asked[1]
     assert title == "开启自动检查"
@@ -241,7 +265,7 @@ def test_turning_down_the_questions_changes_nothing(window, monkeypatch):
     assert cancel == "保持手动检查"
     assert window.store.auto_capture is False
     assert window.auto_off.isChecked() is True
-    assert window.store.consented == []
+    assert window.store.consented == ["full"]
 
 
 def test_each_question_is_asked_once_and_the_answer_is_kept(window, monkeypatch):

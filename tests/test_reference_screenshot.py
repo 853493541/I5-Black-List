@@ -67,13 +67,19 @@ def test_reference_lobby_names():
     assert "准备就绪" not in matched
 
 
-def test_the_bundled_sample_reads_like_the_reference():
+# The bundled sample is the reference lobby with every player's name replaced by a made-up one:
+# the app ships no real player's name.
+SAMPLE_NAMES = ["小林同学", "白日梦想家", "路过的猫", "一只团子", "夏天的风", "心动小鹿",
+                "晚风吹过", "摸鱼大师", "示例坏人", "心动星星", "柠檬汽水", "棉花糖"]  # fmt: skip
+
+
+def test_the_bundled_sample_reads_its_made_up_names():
     from blacklist_detect.ui import SAMPLE_LOBBY
 
     assert SAMPLE_LOBBY.is_file()
     result = check_image(SAMPLE_LOBBY, [])
     assert result.header_found
-    assert [(slot.visible, slot.truncated) for slot in result.names] == EXPECTED
+    assert [(slot.visible, slot.truncated, slot.unclear) for slot in result.names] == [(name, False, False) for name in SAMPLE_NAMES]
 
 
 def test_the_glance_sees_the_title_in_the_reference_band():

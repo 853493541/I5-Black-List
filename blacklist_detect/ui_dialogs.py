@@ -751,37 +751,47 @@ STREAM_SETUP = (
     ("stream-setup-2.png", "第 2 步", "窗口选「模仿者小工具·直播画面」，点「确定」"),
     ("stream-setup-3.png", "第 3 步", "它要在游戏画面上面：新加的素材本来就在最上面"),
 )
+# 显示's guide: what the player sees in each mode.
+DISPLAY_DIFF = (
+    ("display-diff-1.jpg", "发现黑名单", "安全模式只在右下角提示；完整模式在游戏画面上标出是谁"),
+    ("display-diff-2.jpg", "遇到心动", "完整模式还会放花朵边框"),
+)
 GUIDE_PICTURES = Path(__file__).resolve().parent / "assets"
 # Each picture fits in this box, in logical pixels; the files are made at twice the size.
 PICTURE_BOX = (465, 150)
 WORDS_WIDTH = 170
 
 
-class StreamGuideDialog(Modal):
-    """直播模式: what changes on stream (page 1) and how to add it in 直播姬 (page 2)."""
+class PictureGuideDialog(Modal):
+    """A guide in pages of up to three rows, each row its words beside its picture.
 
-    def __init__(self, parent=None) -> None:  # noqa: ANN001
+    pages: (heading, rows), rows as (picture in assets, title, words). The last page's button says
+    知道了; before it, the button names the next page.
+    """
+
+    def __init__(self, title: str, pages, parent=None) -> None:  # noqa: ANN001
         super().__init__(parent)
-        layout = _frame(self, "直播模式")
+        layout = _frame(self, title)
+        self.headings = [heading for heading, _rows in pages]
         self.page_label = QLabel()
         self.page_label.setObjectName("sub")
         layout.addWidget(self.page_label)
         self.pages = QStackedWidget()
         self.pictures: list[QLabel] = []
-        for rows in (STREAM_DIFF, STREAM_SETUP):
+        for _heading, rows in pages:
             page = QWidget()
             column = QVBoxLayout(page)
             column.setContentsMargins(0, 4, 0, 0)
             column.setSpacing(14)
-            for name, title, words in rows:
-                column.addLayout(self._row(name, title, words))
+            for name, row_title, words in rows:
+                column.addLayout(self._row(name, row_title, words))
             column.addStretch(1)
             self.pages.addWidget(page)
         layout.addWidget(self.pages)
         self.back_button = QPushButton("上一步")
         self.back_button.setAutoDefault(False)
-        self.back_button.clicked.connect(lambda: self.show_page(0))
-        self.next_button = _primary("怎么设置", self._next)
+        self.back_button.clicked.connect(lambda: self.show_page(self.page - 1))
+        self.next_button = _primary("知道了", self._next)
         _footer(self, self.back_button, self.next_button)
         _pointing(self)
         self.show_page(0)
@@ -792,7 +802,6 @@ class StreamGuideDialog(Modal):
         text = QVBoxLayout()
         text.setSpacing(4)
         heading = QLabel(title)
-        heading.setObjectName("guideTitle")
         heading.setStyleSheet("font-weight: 600;")
         text.addWidget(heading)
         body = QLabel(words)
@@ -823,14 +832,31 @@ class StreamGuideDialog(Modal):
         return row
 
     def show_page(self, page: int) -> None:
-        self.page = 0 if page <= 0 else 1
+        count = len(self.headings)
+        self.page = max(0, min(page, count - 1))
         self.pages.setCurrentIndex(self.page)
-        self.page_label.setText("直播模式下（1/2）" if self.page == 0 else "怎么设置（2/2）")
-        self.back_button.setVisible(self.page == 1)
-        self.next_button.setText("怎么设置" if self.page == 0 else "知道了")
+        heading = self.headings[self.page]
+        self.page_label.setText(f"{heading}（{self.page + 1}/{count}）" if count > 1 else heading)
+        self.back_button.setVisible(self.page > 0)
+        last = self.page == count - 1
+        self.next_button.setText("知道了" if last else self.headings[self.page + 1])
 
     def _next(self) -> None:
-        if self.page == 0:
-            self.show_page(1)
-        else:
+        if self.page == len(self.headings) - 1:
             self.accept()
+        else:
+            self.show_page(self.page + 1)
+
+
+class StreamGuideDialog(PictureGuideDialog):
+    """直播模式: what changes on stream (page 1) and how to add it in 直播姬 (page 2)."""
+
+    def __init__(self, parent=None) -> None:  # noqa: ANN001
+        super().__init__("直播模式", [("直播模式下", STREAM_DIFF), ("怎么设置", STREAM_SETUP)], parent)
+
+
+class DisplayGuideDialog(PictureGuideDialog):
+    """显示: 安全模式 and 完整模式 side by side."""
+
+    def __init__(self, parent=None) -> None:  # noqa: ANN001
+        super().__init__("显示", [("你在屏幕上看到的", DISPLAY_DIFF)], parent)

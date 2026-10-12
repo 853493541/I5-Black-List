@@ -181,3 +181,19 @@ def test_the_stream_window_is_off_every_screen(window):
     assert window.stream._area == (QApplication.screenAt(window.panel.cover_geometry().center()) or QApplication.primaryScreen()).geometry()
     assert shown.size() == window.stream._area.size()
     window._hide_panel_after_title()
+
+
+def test_display_has_its_own_picture_guide(window):
+    from blacklist_detect.ui_dialogs import DISPLAY_DIFF, GUIDE_PICTURES, DisplayGuideDialog, StreamGuideDialog
+
+    assert 0 < len(DISPLAY_DIFF) <= 3
+    assert all((GUIDE_PICTURES / picture).is_file() for picture, _title, _words in DISPLAY_DIFF)
+    guide = DisplayGuideDialog(window)
+    assert len(guide.pictures) == len(DISPLAY_DIFF) and guide.next_button.text() == "知道了"
+    assert guide.back_button.isHidden()
+    guide.close()
+    shown = []
+    window.display_guide.clicked.disconnect()
+    window.display_guide.clicked.connect(lambda: shown.append(1))
+    window.display_guide.click()
+    assert shown == [1] and StreamGuideDialog.shown == []

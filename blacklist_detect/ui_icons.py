@@ -11,7 +11,7 @@ from collections.abc import Callable
 from math import cos, radians, sin
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap, QPolygonF
 
 from blacklist_detect.ui_theme import THEME
 
@@ -145,6 +145,11 @@ def _info(p: QPainter) -> None:
     p.drawPoint(QPointF(12, 8))
 
 
+def _play(p: QPainter) -> None:
+    p.drawEllipse(QPointF(12, 12), 8.5, 8.5)
+    p.drawPolygon(QPolygonF([QPointF(10.2, 8.6), QPointF(15.6, 12), QPointF(10.2, 15.4)]))
+
+
 def _records(p: QPainter) -> None:
     p.drawRoundedRect(QRectF(4.5, 4.5, 15, 15), 2.5, 2.5)
     for y in (9, 12.5, 16):
@@ -222,6 +227,7 @@ DRAWINGS: dict[str, Callable[[QPainter], None]] = {
     "eye_off": _eye_off,
     "warning": _warning,
     "info": _info,
+    "play": _play,
     "records": _records,
     "settings": _settings,
     "users": _users,

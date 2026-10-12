@@ -7,6 +7,7 @@ fades), it never takes the focus, and it goes away on its own after a few second
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QScreen
@@ -38,13 +39,20 @@ _FILLS = {
 }
 
 
+# The app's own chime: the Windows warning sound is silent when the sound scheme has none.
+HIT_SOUND = Path(__file__).resolve().parent / "assets" / "hit.wav"
+
+
 def play_hit_sound() -> None:
-    """The Windows warning sound. It follows the system volume and sound scheme."""
+    """A short two-note chime, at the system volume, without waiting for it to end."""
     if sys.platform == "win32":
         try:
             import winsound
 
-            winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
+            if HIT_SOUND.is_file():
+                winsound.PlaySound(str(HIT_SOUND), winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT)
+            else:
+                winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
             return
         except Exception:
             pass

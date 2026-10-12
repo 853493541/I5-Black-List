@@ -522,7 +522,8 @@ class Store:
         # 完整模式 and 自动检查 only once agreed to; settings from before the question fall back.
         if "full" not in self.consented:
             self.safe_mode = True
-        if "auto" not in self.consented:
+        # 安全模式 checks on the hotkey only.
+        if "auto" not in self.consented or self.safe_mode:
             self.auto_capture = False
         if self.blacklist_path.exists():
             try:
