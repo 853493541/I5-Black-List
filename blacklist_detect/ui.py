@@ -74,6 +74,7 @@ from blacklist_detect.pipeline import (
     same_band,
 )
 from blacklist_detect.storage import Store, clean_tag, describe_entry, tag_text
+from blacklist_detect.ui_alert import AlertGlow
 from blacklist_detect.ui_dialogs import (
     SAMPLE_LOBBY,
     AddNameDialog,
@@ -368,6 +369,8 @@ class MainWindow(QMainWindow):
         # Two or more 心动 players and no 黑名单: a border of silk and flowers, once per lobby.
         self.love = LoveBorder()
         self._love_played = False
+        # 黑名单 players in the lobby: a red glow at the screen's edges while the result is up.
+        self.alert = AlertGlow()
         # New versions from GitHub: checked when the app opens and installed before it is used.
         self.updates = UpdateChecker(self)
         self.updates.found.connect(self._on_update_found)
@@ -1116,6 +1119,7 @@ class MainWindow(QMainWindow):
         self.clear_mark.hide()
         self.love.stop()
         self._love_played = False
+        self.alert.stop()
         self._reload_history()
         self.likes_page.refresh()
 
@@ -2831,6 +2835,7 @@ class MainWindow(QMainWindow):
             self.like_card.hide()
             self.clear_mark.hide()
             self.love.stop()
+            self.alert.leave()
         if not self.worker.request(fn):
             self._unlock_foreground()
             return False
@@ -3032,6 +3037,7 @@ class MainWindow(QMainWindow):
         self.clear_mark.hide()
         self.love.stop()
         self._love_played = False
+        self.alert.leave()
         if not self.store.auto_capture:
             self._watch_timer.stop()
 
@@ -3045,6 +3051,7 @@ class MainWindow(QMainWindow):
         self.hit_card.hide()
         self.like_card.hide()
         self.clear_mark.hide()
+        self.alert.leave()
 
     def _show_panel(self, result: CheckResult) -> None:
         if not self._live_check or not result.header_found:
@@ -3063,9 +3070,11 @@ class MainWindow(QMainWindow):
             self._show_hit_card(result.hits)
             if self.hit_card.isVisible():
                 self._show_like_card(likes)
+                self._show_alert()
             return
         self.hit_card.hide()
         self.like_card.hide()
+        self.alert.leave()
         text = "未发现黑名单"
         unclear = sum(1 for slot in result.names if slot.unclear)
         if unclear:
@@ -3076,6 +3085,17 @@ class MainWindow(QMainWindow):
         self._show_like_card(likes)
         if len(likes) >= 2 and not self._love_played:
             self._play_love()
+
+    def _show_alert(self) -> None:
+        """The red glow over the game's screen, under the ring and the cards."""
+        cover = self.panel.cover_geometry()
+        screen = QApplication.screenAt(cover.center()) or QApplication.primaryScreen()
+        if screen is None:
+            return
+        self.alert.show_on(screen.geometry())
+        for mark in (self.panel, self.hit_card, self.like_card):
+            if mark.isVisible():
+                _pin_topmost(mark)
 
     def _play_love(self) -> None:
         """The border over the game's screen, parted around the button, the badge and the 心动 card."""
@@ -3347,6 +3367,8 @@ class MainWindow(QMainWindow):
         self.clear_mark.close()
         self.love.stop()
         self.love.close()
+        self.alert.stop()
+        self.alert.close()
         self.hotkey.clear()
         self.worker.stop()
         # A check or a model load cannot be interrupted. Ending the thread under it crashes on exit.
