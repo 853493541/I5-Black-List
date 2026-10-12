@@ -110,12 +110,11 @@ class UpdateDialog(Modal):
     """正在更新: what is new and a progress bar; when the download is done the app restarts.
 
     The new version comes first: no ×, no Esc and no click outside close it. If the download
-    fails, 重试 tries again and 退出 closes the app; the next start tries again. A release that
-    needs the full package says so, with 前往下载 and 退出.
+    fails, 重试 tries again and 跳过 goes on with this version; the next start tries again. A
+    release that needs the full package says so, with 前往下载 and 跳过.
     """
 
     restart_requested = Signal()
-    quit_requested = Signal()
     # How long 更新完成，正在重启… shows before the app closes.
     RESTART_MS = 900
 
@@ -149,11 +148,11 @@ class UpdateDialog(Modal):
         self.status.setWordWrap(True)
         self.status.hide()
         layout.addWidget(self.status)
-        self.leave = QPushButton("退出")
-        self.leave.setAutoDefault(False)
-        self.leave.clicked.connect(self.quit_requested.emit)
+        self.skip = QPushButton("跳过")
+        self.skip.setAutoDefault(False)
+        self.skip.clicked.connect(self._skip)
         self.action = _primary("重试", self._act)
-        row = self.footer(self.leave, self.action)
+        row = self.footer(self.skip, self.action)
         self.band = row.parentWidget()
         self.card.setMinimumWidth(460)
         _pointing(self)
@@ -163,7 +162,7 @@ class UpdateDialog(Modal):
             self.close_button.show()
             self._state = "source"
             self._say("源码运行不支持更新")
-            self.leave.hide()
+            self.skip.hide()
             self.action.setText("知道了")
         elif release.needs_full():
             self._state = "full"
@@ -191,8 +190,12 @@ class UpdateDialog(Modal):
         return self._state in ("downloading", "restarting")
 
     def reject(self) -> None:
-        # The new version comes first: ×, Esc and a click outside do nothing; 退出 closes the app.
+        # The new version comes first: ×, Esc and a click outside do nothing; only 跳过 lets it go.
         if self._state == "source":
+            super().reject()
+
+    def _skip(self) -> None:
+        if self._state in ("failed", "full"):
             super().reject()
 
     def click_outside(self) -> None:

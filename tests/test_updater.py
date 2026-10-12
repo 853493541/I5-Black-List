@@ -278,7 +278,7 @@ def test_a_new_version_found_at_start_is_installed_first(window, tmp_path, monke
     assert restarted == [True]
 
 
-def test_a_failed_download_offers_retry_or_quit(window, tmp_path, monkeypatch):
+def test_a_failed_download_offers_retry_or_skip(window, tmp_path, monkeypatch):
     from blacklist_detect.ui_update import UpdateDialog
 
     root = tmp_path / "BlackListDetect"
@@ -290,18 +290,15 @@ def test_a_failed_download_offers_retry_or_quit(window, tmp_path, monkeypatch):
     window._on_update_found(updater.read_manifest(_manifest(base="v0.1.0")))
     dialog = window.findChild(UpdateDialog)
     dialog._on_failed("下载失败，请检查网络后重试")
-    assert not dialog.band.isHidden() and dialog.action.text() == "重试" and dialog.leave.text() == "退出"
+    assert not dialog.band.isHidden() and dialog.action.text() == "重试" and dialog.skip.text() == "跳过"
     assert dialog.status.text() == "下载失败，请检查网络后重试" and dialog.close_button.isHidden()
     dialog.reject()
-    assert dialog.isVisible(), "still no way around the update but 退出"
+    assert dialog.isVisible(), "only 跳过 lets it go"
     dialog.action.click()
     assert started == ["v9.0.0", "v9.0.0"] and dialog.band.isHidden()
     dialog._on_failed("下载失败，请检查网络后重试")
-    quit_asked: list[bool] = []
-    dialog.quit_requested.disconnect()
-    dialog.quit_requested.connect(lambda: quit_asked.append(True))
-    dialog.leave.click()
-    assert quit_asked == [True]
+    dialog.skip.click()
+    assert not dialog.isVisible() and not window._updating
 
 
 def test_in_the_tray_the_update_happens_out_of_sight(window, tmp_path, monkeypatch):
@@ -332,7 +329,9 @@ def test_a_release_needing_the_full_package_sends_to_the_download_page(window, t
     monkeypatch.setattr("blacklist_detect.ui_update.QDesktopServices.openUrl", lambda url: opened.append(url.toString()))
     window._on_update_found(updater.read_manifest(_manifest(base="v8.0.0")))
     dialog = window.findChild(UpdateDialog)
-    assert started == [] and dialog.action.text() == "前往下载" and dialog.leave.text() == "退出"
+    assert started == [] and dialog.action.text() == "前往下载" and dialog.skip.text() == "跳过"
     assert "完整安装包" in dialog.status.text()
     dialog.action.click()
     assert opened == [updater.RELEASES_URL] and dialog.isVisible()
+    dialog.skip.click()
+    assert not dialog.isVisible() and not window._updating

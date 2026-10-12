@@ -3263,9 +3263,13 @@ class MainWindow(QMainWindow):
         dialog = UpdateDialog(release, root, self.store.root, self)
         dialog.setAttribute(Qt.WA_DeleteOnClose, True)
         dialog.restart_requested.connect(self._restart_for_update)
-        dialog.quit_requested.connect(self.quit_app)
+        dialog.finished.connect(self._update_skipped)
         dialog.open()
         dialog.start()
+
+    def _update_skipped(self, _result: int) -> None:
+        # 跳过: this version goes on; the next start tries again.
+        self._updating = False
 
     def _quiet_update_failed(self, message: str) -> None:
         # The next start tries again.
