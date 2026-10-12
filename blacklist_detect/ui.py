@@ -197,9 +197,6 @@ CONSENT = {
     ),
 }
 
-# How long 直播模式's 预览 shows its sample marks.
-PREVIEW_MS = 8_000
-
 # Updates are looked for once each time the app opens, just after the window is up. A new version
 # found then is installed before the app is used.
 UPDATE_FIRST_MS = 1_000
@@ -404,9 +401,8 @@ class MainWindow(QMainWindow):
         # 安全模式: the result in a small box at the bottom right instead of over the game.
         self.notice = CornerNotice()
         self._notice_screen = None
-        # 直播模式: the 心动 marks, never the 黑名单 ones, in a window a streaming app can capture.
+        # 直播模式: the marks, never a 黑名单 name, in a window a streaming app can capture.
         self.stream = StreamMirror(self)
-        self._preview_until = 0.0
         # The lobby's button, in desktop pixels: the game's window is the one under it, in the
         # order the windows were in at the screenshot.
         self._game_box = None
@@ -941,20 +937,11 @@ class MainWindow(QMainWindow):
         self.stream_switch = Switch(bool(self.store.stream_mode))
         self.stream_switch.setAccessibleName("直播模式")
         self.stream_switch.toggled.connect(self._on_stream_switch)
-        self.stream_preview = QPushButton("预览")
-        self.stream_preview.setFont(ui_font())
-        self.stream_preview.setAutoDefault(False)
-        self.stream_preview.setCursor(Qt.PointingHandCursor)
-        self.stream_preview.clicked.connect(self._preview_marks)
-        self.stream_preview.setEnabled(bool(self.store.stream_mode))
         self.stream_switch.setToolTip("观众看得到红色提醒，看不到黑名单的名字")
-        # How to set it up in 直播姬, with screenshots.
-        self.stream_guide = QPushButton("设置方法")
-        self.stream_guide.setFont(ui_font())
-        self.stream_guide.setAutoDefault(False)
-        self.stream_guide.setCursor(Qt.PointingHandCursor)
+        # ⓘ: what viewers see, and how to set it up in 直播姬, with screenshots.
+        self.stream_guide = IconButton("info", "直播模式说明")
         self.stream_guide.clicked.connect(self._show_stream_guide)
-        check.add_row("直播模式", self.stream_switch, self.stream_preview, self.stream_guide)
+        check.add_row("直播模式", self.stream_switch, self.stream_guide)
 
         # 常规: how the app starts and closes.
         general = section("常规")
@@ -1188,7 +1175,6 @@ class MainWindow(QMainWindow):
         self._sync_switch(self.sound_switch, self.store.hit_sound)
         self.display_mode.set_current("safe")
         self._sync_switch(self.stream_switch, False)
-        self.stream_preview.setEnabled(False)
         self.notice.hide()
         if not self._watch_timer.isActive():
             self.watch = LobbyWatch()
@@ -2654,37 +2640,9 @@ class MainWindow(QMainWindow):
         self.store.stream_mode = "on" if on else ""
         self.store.save_settings()
         self.stream.enable(self.store.stream_mode)
-        self.stream_preview.setEnabled(bool(self.store.stream_mode))
         self._sync_switch(self.stream_switch, bool(self.store.stream_mode))
         self._sync_overlay_target()
         self._sync_name_hiding()
-
-    def _preview_marks(self) -> None:
-        """直播模式's 预览: two sample 心动 players near the bottom of the screen for a few seconds."""
-        screen = QApplication.primaryScreen()
-        if screen is None or not self.store.stream_mode:
-            return
-        area, ratio = screen.geometry(), screen.devicePixelRatio()
-        origin_x, origin_y = virtual_origin()
-        left = area.x() + area.width() // 2 - 130
-        top = area.y() + area.height() - 140
-
-        # The box in desktop pixels, as a check gives it: the monitor's corner plus scaled offsets.
-        def native(x: float, y: float) -> tuple[int, int]:
-            return round(area.x() + (x - area.x()) * ratio) - origin_x, round(area.y() + (y - area.y()) * ratio) - origin_y
-
-        box = (*native(left, top), *native(left + 260, top + 74))
-        # No game under the sample: the border goes round the whole screen.
-        self._game_box = None
-        self._live_check = True
-        self._love_played = False
-        self._open_panel("liked", "未发现黑名单", box)
-        self._show_clear_mark(heart=True)
-        self._show_like_card([Entry("示例心动"), Entry("示例玩家")])
-        self._play_love()
-        # No lobby is on screen: the watch must not take the sample away before its time.
-        self._preview_until = time.perf_counter() + PREVIEW_MS / 1000
-        self._panel_hide_timer.start(PREVIEW_MS)
 
     def _sync_auto_controls(self) -> None:
         """The 方式 choice and the header's tooltip both follow the saved mode."""
@@ -3147,7 +3105,7 @@ class MainWindow(QMainWindow):
         elif was_error:
             self._sync_watch_idle()
         if not value:
-            if self.panel.isVisible() and time.perf_counter() >= self._preview_until:
+            if self.panel.isVisible():
                 self._hide_panel_after_title()
         else:
             self._panel_hide_timer.stop()

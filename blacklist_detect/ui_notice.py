@@ -163,6 +163,9 @@ class CornerNotice(QWidget):
             area = screen.availableGeometry()
             self.move(area.right() - self.width() - _MARGIN + 1, area.bottom() - self.height() - _MARGIN + 1)
         self.show()
+        # A window shown for the first time keeps the style it was made with: set it again now
+        # that it is on screen, or the first result shows in 检查中's gray.
+        self._style(kind)
         _round_corners(self)
         _pin_topmost(self)
         self._timer.start(ms)

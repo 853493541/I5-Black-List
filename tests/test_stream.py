@@ -70,18 +70,18 @@ def test_the_choice_is_remembered_and_opens_the_window(window):
     from blacklist_detect.storage import Store
     from blacklist_detect.ui_stream import TITLE
 
-    from blacklist_detect.ui_dialogs import STREAM_GUIDE, StreamGuideDialog
+    from blacklist_detect.ui_dialogs import StreamGuideDialog
 
-    assert not window.stream.enabled() and not window.stream_preview.isEnabled()
+    assert not window.stream.enabled()
     # One switch; the window is clear behind the marks, so no 色度键 is needed.
     window.stream_switch.click()
     assert window.stream.enabled() and window.stream.isVisible() and window.stream.mode() == "on"
     assert window.stream.windowTitle() == TITLE == "模仿者小工具·直播画面"
-    assert Store(window.store.root).stream_mode == "on" and window.stream_preview.isEnabled()
-    # The first time, how to set it up opens with it; after that, from 设置方法.
+    assert Store(window.store.root).stream_mode == "on"
+    # The first time, the guide opens with it; after that, from the ⓘ beside the switch.
     assert len(StreamGuideDialog.shown) == 1 and Store(window.store.root).stream_guided is True
     window.stream_switch.click()
-    assert not window.stream.enabled() and not window.stream.isVisible() and not window.stream_preview.isEnabled()
+    assert not window.stream.enabled() and not window.stream.isVisible()
     assert Store(window.store.root).stream_mode == ""
     window.stream_switch.click()
     assert len(StreamGuideDialog.shown) == 1
@@ -90,24 +90,24 @@ def test_the_choice_is_remembered_and_opens_the_window(window):
     window.stream_switch.click()
 
 
-def test_the_guide_goes_step_by_step(window):
-    from blacklist_detect.ui_dialogs import GUIDE_PICTURES, STREAM_GUIDE, StreamGuideDialog
+def test_the_guide_shows_what_changes_then_how(window):
+    from blacklist_detect.ui_dialogs import GUIDE_PICTURES, STREAM_DIFF, STREAM_SETUP, StreamGuideDialog
 
-    guide = StreamGuideDialog(window)
-    assert guide.step == 0 and guide.back_button.isHidden() and guide.next_button.text() == "下一步"
-    assert "第 1 步" in guide.step_label.text() and "窗口捕捉" in guide.caption.text()
-    for picture, _text in STREAM_GUIDE:
+    # Two pages of at most three rows, each row with its picture.
+    assert 0 < len(STREAM_DIFF) <= 3 and 0 < len(STREAM_SETUP) <= 3
+    for picture, _title, _words in STREAM_DIFF + STREAM_SETUP:
         assert (GUIDE_PICTURES / picture).is_file(), picture
-    assert guide.picture.pixmap() is not None and not guide.picture.pixmap().isNull()
-    for _ in range(len(STREAM_GUIDE) - 1):
-        guide.next_button.click()
-    assert guide.step == len(STREAM_GUIDE) - 1 and guide.next_button.text() == "完成"
-    assert not guide.back_button.isHidden()
+    guide = StreamGuideDialog(window)
+    assert len(guide.pictures) == len(STREAM_DIFF) + len(STREAM_SETUP)
+    assert all(label.pixmap() is not None and not label.pixmap().isNull() for label in guide.pictures)
+    assert guide.page == 0 and "直播模式下" in guide.page_label.text()
+    assert guide.back_button.isHidden() and guide.next_button.text() == "怎么设置"
+    guide.next_button.click()
+    assert guide.page == 1 and "怎么设置" in guide.page_label.text()
+    assert not guide.back_button.isHidden() and guide.next_button.text() == "知道了"
     guide.back_button.click()
-    assert guide.step == len(STREAM_GUIDE) - 2
+    assert guide.page == 0
     guide.close()
-
-
 def test_likes_are_copied_clear_around_and_the_border_plays(window):
     _full(window)
     window._set_stream_mode(True)
@@ -167,18 +167,6 @@ def test_in_safe_mode_only_the_stream_shows_the_marks(window):
     _lobby(window, hit=False)
     assert not window.like_card.isVisible() and not window.love.playing()
     assert window.notice.kind == "liked"
-
-
-def test_preview_shows_sample_likes_for_a_while(window):
-    window._set_stream_mode(True)
-    window._preview_marks()
-    assert window.like_card.isVisible() and window.love.playing() and window.panel.mode == "liked"
-    assert not _on_screen(window.like_card), "安全模式: only in the stream"
-    assert window._panel_hide_timer.isActive()
-    # A glance that finds no lobby does not take the sample away early.
-    window._on_glanced("ok", False)
-    assert window.panel.isVisible()
-    window._hide_panel_after_title()
 
 
 def test_the_stream_window_is_off_every_screen(window):

@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPlainTextEdit,
     QPushButton,
+    QStackedWidget,
     QStyledItemDelegate,
     QTableWidget,
     QTableWidgetItem,
@@ -737,67 +738,99 @@ class GuideDialog(Modal):
         _pointing(self)
 
 
-# 直播模式's setup in 直播姬, one step a page: (picture in assets, what to do).
-STREAM_GUIDE = (
-    ("stream-guide-1.png", "在直播姬点「素材」，选「窗口捕捉」"),
-    ("stream-guide-2.png", "窗口选「模仿者小工具·直播画面」，点「确定」"),
-    ("stream-guide-3.png", "它要在游戏画面的上面：新加的素材本来就在最上面"),
-    ("stream-guide-4.jpg", "点本工具的「预览」：直播画面里出现花朵边框就成功了"),
+# 直播模式's guide, two pages of three rows: (picture in assets, title, words).
+# Page 1, 直播模式下: what the player sees, side by side with what viewers see.
+STREAM_DIFF = (
+    ("stream-diff-1.jpg", "发现黑名单", "你看到右下角的名字；观众只看到红色提醒，看不到是谁"),
+    ("stream-diff-2.jpg", "遇到心动", "观众看到花朵边框和心动的名字"),
+    ("stream-diff-3.jpg", "黑名单页", "名字自动隐藏，直播时打开本工具也不会露出"),
+)
+# Page 2, how to add it in 直播姬.
+STREAM_SETUP = (
+    ("stream-setup-1.png", "第 1 步", "在直播姬点「素材」，选「窗口捕捉」"),
+    ("stream-setup-2.png", "第 2 步", "窗口选「模仿者小工具·直播画面」，点「确定」"),
+    ("stream-setup-3.png", "第 3 步", "它要在游戏画面上面：新加的素材本来就在最上面"),
 )
 GUIDE_PICTURES = Path(__file__).resolve().parent / "assets"
-GUIDE_WIDTH = 560
+# Each picture fits in this box, in logical pixels; the files are made at twice the size.
+PICTURE_BOX = (465, 150)
+WORDS_WIDTH = 170
 
 
 class StreamGuideDialog(Modal):
-    """How to add 直播模式's window in 直播姬, a step a page, each with a screenshot."""
+    """直播模式: what changes on stream (page 1) and how to add it in 直播姬 (page 2)."""
 
     def __init__(self, parent=None) -> None:  # noqa: ANN001
         super().__init__(parent)
-        layout = _frame(self, "直播模式设置")
-        self.step_label = QLabel()
-        self.step_label.setObjectName("sub")
-        layout.addWidget(self.step_label)
-        self.caption = QLabel()
-        self.caption.setWordWrap(True)
-        layout.addWidget(self.caption)
-        self.picture = QLabel()
-        self.picture.setAlignment(Qt.AlignCenter)
-        self.picture.setFixedWidth(GUIDE_WIDTH)
-        self.picture.setStyleSheet(f'border: 1px solid {THEME["border"]}; border-radius: 8px;')
-        layout.addWidget(self.picture)
+        layout = _frame(self, "直播模式")
+        self.page_label = QLabel()
+        self.page_label.setObjectName("sub")
+        layout.addWidget(self.page_label)
+        self.pages = QStackedWidget()
+        self.pictures: list[QLabel] = []
+        for rows in (STREAM_DIFF, STREAM_SETUP):
+            page = QWidget()
+            column = QVBoxLayout(page)
+            column.setContentsMargins(0, 4, 0, 0)
+            column.setSpacing(14)
+            for name, title, words in rows:
+                column.addLayout(self._row(name, title, words))
+            column.addStretch(1)
+            self.pages.addWidget(page)
+        layout.addWidget(self.pages)
         self.back_button = QPushButton("上一步")
         self.back_button.setAutoDefault(False)
-        self.back_button.clicked.connect(lambda: self.show_step(self.step - 1))
-        self.next_button = _primary("下一步", self._next)
+        self.back_button.clicked.connect(lambda: self.show_page(0))
+        self.next_button = _primary("怎么设置", self._next)
         _footer(self, self.back_button, self.next_button)
-        self.card.setMinimumWidth(GUIDE_WIDTH + 2 * 24)
         _pointing(self)
-        self.step = 0
-        self.show_step(0)
+        self.show_page(0)
 
-    def show_step(self, step: int) -> None:
-        self.step = max(0, min(step, len(STREAM_GUIDE) - 1))
-        name, text = STREAM_GUIDE[self.step]
-        self.step_label.setText(f"第 {self.step + 1} 步，共 {len(STREAM_GUIDE)} 步")
-        self.caption.setText(text)
-        picture = QPixmap(str(GUIDE_PICTURES / name))
-        if picture.isNull():
-            self.picture.clear()
-            self.picture.hide()
-        else:
+    def _row(self, name: str, title: str, words: str) -> QHBoxLayout:
+        row = QHBoxLayout()
+        row.setSpacing(16)
+        text = QVBoxLayout()
+        text.setSpacing(4)
+        heading = QLabel(title)
+        heading.setObjectName("guideTitle")
+        heading.setStyleSheet("font-weight: 600;")
+        text.addWidget(heading)
+        body = QLabel(words)
+        body.setObjectName("sub")
+        body.setWordWrap(True)
+        text.addWidget(body)
+        text.addStretch(1)
+        holder = QWidget()
+        holder.setFixedWidth(WORDS_WIDTH)
+        holder.setLayout(text)
+        row.addWidget(holder, 0, Qt.AlignTop)
+        picture = QLabel()
+        picture.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        image = QPixmap(str(GUIDE_PICTURES / name))
+        if not image.isNull():
             ratio = self.devicePixelRatioF()
-            # Made at twice the size it shows; never blown up past that.
-            width = min(GUIDE_WIDTH - 2, picture.width() // 2)
-            scaled = picture.scaledToWidth(round(width * ratio), Qt.SmoothTransformation)
-            scaled.setDevicePixelRatio(ratio)
-            self.picture.setPixmap(scaled)
-            self.picture.show()
-        self.back_button.setVisible(self.step > 0)
-        last = self.step == len(STREAM_GUIDE) - 1
-        self.next_button.setText("完成" if last else "下一步")
+            box_w, box_h = PICTURE_BOX
+            scale = min(box_w / (image.width() / 2), box_h / (image.height() / 2), 1.0)
+            size = (round(image.width() / 2 * scale), round(image.height() / 2 * scale))
+            shown = image.scaled(round(size[0] * ratio), round(size[1] * ratio), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            shown.setDevicePixelRatio(ratio)
+            picture.setPixmap(shown)
+            picture.setFixedSize(*size)
+            picture.setStyleSheet(f'border: 1px solid {THEME["border"]}; border-radius: 6px;')
+        self.pictures.append(picture)
+        row.addWidget(picture, 0, Qt.AlignTop)
+        row.addStretch(1)
+        return row
+
+    def show_page(self, page: int) -> None:
+        self.page = 0 if page <= 0 else 1
+        self.pages.setCurrentIndex(self.page)
+        self.page_label.setText("直播模式下（1/2）" if self.page == 0 else "怎么设置（2/2）")
+        self.back_button.setVisible(self.page == 1)
+        self.next_button.setText("怎么设置" if self.page == 0 else "知道了")
 
     def _next(self) -> None:
-        if self.step == len(STREAM_GUIDE) - 1:
-            self.accept()
+        if self.page == 0:
+            self.show_page(1)
         else:
-            self.show_step(self.step + 1)
+            self.accept()
