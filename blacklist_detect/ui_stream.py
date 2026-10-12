@@ -8,27 +8,27 @@ ever copied (no red ring, card or glow), so viewers never see who is on the list
 
 In 安全模式 the marks are made but never put on the streamer's screen (WA_DontShowOnScreen);
 this window is the only place they show. The window itself sits just off the screen, to the
-right of every monitor: the streamer never sees it (on screen, its green would fill any bare
-desktop around a windowed game), and a window capture still reads it, being a capture of the
-window and not of the screen. It is the size of the game's screen and mirrors it point for point.
+right of every monitor: the streamer never sees it, and a window capture still reads it, being
+a capture of the window and not of the screen. It is the size of the game's screen and mirrors it
+point for point.
 
-Behind the marks it is pure green, for the streaming app's 色度键 (color key) to take out.
+Behind the marks it is clear, and the streaming app keeps that: 哔哩哔哩直播姬 captures the
+window with its transparency, so the soft pink glow and the sheer silk look as they do over the
+game. It used to be pure green for a 色度键 to take out, which took the soft parts with it.
 
-In 直播姬 or OBS: add a second 窗口捕获, pick 模仿者小工具·直播画面, put it over the game,
-and give it a 色度键 filter on green.
+In 直播姬: add a second 窗口捕获, pick 模仿者小工具·直播画面, and put it over the game. A 色度键
+from before does no harm: there is no green left for it to take.
 """
 
 from __future__ import annotations
 
 from PySide6.QtCore import QPoint, QRect, Qt, QTimer
-from PySide6.QtGui import QColor, QPainter
+from PySide6.QtGui import QPainter
 from PySide6.QtWidgets import QApplication, QWidget
 
 from blacklist_detect.names import APP_NAME
 
 TITLE = f"{APP_NAME}·直播画面"
-# The color the streaming app keys out.
-KEY = QColor(0, 255, 0)
 FRAME_MS = 45
 
 
@@ -70,8 +70,8 @@ class StreamMirror(QWidget):
         return self._mode
 
     def enable(self, mode: str | bool) -> None:
-        """"key" (green behind the marks), "alpha" (clear), or "" / False to close it."""
-        mode = "key" if mode is True else (mode or "")
+        """Any true value opens it (clear behind the marks); "" or False closes it."""
+        mode = "on" if mode else ""
         self._mode = mode
         self.update()
         if mode:
@@ -130,8 +130,6 @@ class StreamMirror(QWidget):
             painter.end()
             return
         painter.setRenderHint(QPainter.Antialiasing)
-        if self._mode == "key":
-            painter.fillRect(self.rect(), KEY)
         origin = self._area.topLeft()
         for border in self._borders():
             painter.save()

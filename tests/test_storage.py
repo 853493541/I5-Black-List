@@ -384,14 +384,15 @@ def test_each_level_is_kept_once_agreed_to(tmp_path):
     store.auto_capture = True
     store.hit_sound = False
     store.check_blacklist = False
-    store.stream_mode = "key"
+    store.stream_mode = "on"
     store.save_settings()
     again = Store(tmp_path)
     assert (again.safe_mode, again.auto_capture, again.hit_sound) == (False, True, False)
-    assert (again.check_blacklist, again.check_likes, again.stream_mode) == (False, True, "key")
-    # v0.6.0's 透明 is on green now.
-    (tmp_path / "settings.json").write_text('{"stream_mode": "alpha"}', encoding="utf-8")
-    assert Store(tmp_path).stream_mode == "key"
+    assert (again.check_blacklist, again.check_likes, again.stream_mode) == (False, True, "on")
+    # What v0.6.0 and v0.6.1 saved is on.
+    for saved in ("key", "alpha"):
+        (tmp_path / "settings.json").write_text('{"stream_mode": "%s"}' % saved, encoding="utf-8")
+        assert Store(tmp_path).stream_mode == "on"
 
 
 def test_full_mode_and_auto_checks_need_the_question_answered(tmp_path):

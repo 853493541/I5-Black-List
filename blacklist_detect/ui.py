@@ -965,7 +965,7 @@ class MainWindow(QMainWindow):
         self.stream_preview.setEnabled(bool(self.store.stream_mode))
         check.add_row("直播模式", self.stream_switch, self.stream_preview, hint="观众只看到心动，看不到黑名单")
         # How to set it up, under the row while it is on.
-        self.stream_hint = QLabel("在直播软件里添加窗口捕获「模仿者小工具·直播画面」，再给它加「色度键」去掉绿色")
+        self.stream_hint = QLabel("在直播软件里添加窗口捕获「模仿者小工具·直播画面」，放在游戏画面上面就好")
         self.stream_hint.setObjectName("rowHint")
         self.stream_hint.setWordWrap(True)
         self.stream_hint.setVisible(bool(self.store.stream_mode))
@@ -2671,7 +2671,7 @@ class MainWindow(QMainWindow):
         self.store.save_settings()
 
     def _set_stream_mode(self, on: bool | str) -> None:
-        self.store.stream_mode = "key" if on else ""
+        self.store.stream_mode = "on" if on else ""
         self.store.save_settings()
         self.stream.enable(self.store.stream_mode)
         self.stream_preview.setEnabled(bool(self.store.stream_mode))

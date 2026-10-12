@@ -72,26 +72,32 @@ def test_the_choice_is_remembered_and_opens_the_window(window):
 
     assert not window.stream.enabled() and not window.stream_preview.isEnabled()
     assert window.stream_hint.isHidden()
-    # One switch: on is always green, for the streaming app's color key.
+    # One switch; the window is clear behind the marks, so no 色度键 is needed.
     window.stream_switch.click()
-    assert window.stream.enabled() and window.stream.isVisible() and window.stream.mode() == "key"
+    assert window.stream.enabled() and window.stream.isVisible() and window.stream.mode() == "on"
     assert window.stream.windowTitle() == TITLE == "模仿者小工具·直播画面"
-    assert Store(window.store.root).stream_mode == "key" and window.stream_preview.isEnabled()
+    assert Store(window.store.root).stream_mode == "on" and window.stream_preview.isEnabled()
     # How to set it up shows while it is on.
-    assert not window.stream_hint.isHidden() and "色度键" in window.stream_hint.text()
+    assert not window.stream_hint.isHidden() and "窗口捕获" in window.stream_hint.text()
+    assert "色度键" not in window.stream_hint.text()
     window.stream_switch.click()
     assert not window.stream.enabled() and not window.stream.isVisible() and not window.stream_preview.isEnabled()
     assert window.stream_hint.isHidden() and Store(window.store.root).stream_mode == ""
 
 
-def test_likes_are_copied_on_green_and_the_border_plays(window):
+def test_likes_are_copied_clear_around_and_the_border_plays(window):
     _full(window)
-    window._set_stream_mode("key")
+    window._set_stream_mode(True)
     _lobby(window, hit=False)
     assert window.panel.mode == "liked" and window.love.playing()
     assert window.stream.busy()
     inside = _pixel(window, window.like_card.geometry().center())
-    assert inside.name() != "#00ff00", "the 心动 card is copied where it is"
+    assert inside.alpha() > 200, "the 心动 card is copied where it is"
+    # Clear where nothing is drawn: no green, nothing for a 色度键 to take.
+    area = window.stream._area
+    assert _pixel(window, area.center()).alpha() == 0
+    image = window.stream.grab().toImage()
+    assert all(image.pixelColor(x, y).name() != "#00ff00" for x in range(0, image.width(), 97) for y in range(0, image.height(), 97))
     # The lobby goes: the copy is cleared.
     window._hide_panel_after_title()
     window.stream._step()
@@ -101,7 +107,7 @@ def test_likes_are_copied_on_green_and_the_border_plays(window):
 
 def test_nothing_about_the_blacklist_reaches_the_stream(window):
     _full(window)
-    window._set_stream_mode("key")
+    window._set_stream_mode(True)
     _lobby(window, hit=True)
     # The player sees the red ring, the card and the glow over the game, and no flower border ...
     assert window.panel.mode == "both" and _on_screen(window.hit_card) and window.alert.showing()
@@ -112,10 +118,10 @@ def test_nothing_about_the_blacklist_reaches_the_stream(window):
     assert window.stream._borders() == [window.stream_love]
     window.stream_love.stop()
     stream = window.stream._area
-    assert _pixel(window, window.hit_card.geometry().center()).name() == "#00ff00", "no 黑名单 card"
-    assert _pixel(window, window.panel.cover_geometry().center()).name() == "#00ff00", "no red ring"
-    assert _pixel(window, stream.topLeft() + QPoint(1, stream.height() // 2)).name() == "#00ff00", "no red glow"
-    assert _pixel(window, window.like_card.geometry().center()).name() != "#00ff00"
+    assert _pixel(window, window.hit_card.geometry().center()).alpha() == 0, "no 黑名单 card"
+    assert _pixel(window, window.panel.cover_geometry().center()).alpha() == 0, "no red ring"
+    assert _pixel(window, stream.topLeft() + QPoint(1, stream.height() // 2)).alpha() == 0, "no red glow"
+    assert _pixel(window, window.like_card.geometry().center()).alpha() > 200
     window._hide_panel_after_title()
 
 
@@ -125,7 +131,7 @@ def test_in_safe_mode_only_the_stream_shows_the_marks(window):
     # Made, and in the stream's copy ...
     assert window.like_card.isVisible() and window.love.playing()
     assert window.stream.busy()
-    assert _pixel(window, window.like_card.geometry().center()).name() != "#00ff00"
+    assert _pixel(window, window.like_card.geometry().center()).alpha() > 200
     # ... but never on the player's screen, where the corner box says it instead.
     for mark in (window.panel, window.like_card, window.clear_mark, window.love):
         assert not _on_screen(mark)
@@ -138,7 +144,7 @@ def test_in_safe_mode_only_the_stream_shows_the_marks(window):
 
 
 def test_preview_shows_sample_likes_for_a_while(window):
-    window._set_stream_mode("key")
+    window._set_stream_mode(True)
     window._preview_marks()
     assert window.like_card.isVisible() and window.love.playing() and window.panel.mode == "liked"
     assert not _on_screen(window.like_card), "安全模式: only in the stream"
