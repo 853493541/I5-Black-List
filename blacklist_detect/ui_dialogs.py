@@ -12,6 +12,7 @@ from PySide6.QtGui import (
     QPen,
 )
 from PySide6.QtWidgets import (
+    QFrame,
     QGridLayout,
     QHBoxLayout,
     QHeaderView,
@@ -438,11 +439,11 @@ class BatchAddDialog(Modal):
 
 
 class TagSuggestDialog(Modal):
-    """批量导入's second step: phrases several 原因 share, offered as 标签 before importing.
+    """批量导入's second step, in two parts: the 标签 to add, then how many people come in.
 
-    One row per phrase: its 标签 pill, 新标签 or 已有标签, and the records it goes on. All start
-    checked; a click or Space unchecks one. 导入 imports with the checked 标签 added, and
-    返回修改 goes back to the pasted text.
+    The 标签 are phrases several 原因 share, as pills under 新标签 and 已有标签. All start on;
+    a click turns one off or on again. 导入 imports with the 标签 left on, each added to the
+    records whose 原因 has it; 返回修改 goes back to the pasted text.
     """
 
     def __init__(self, suggestions: list[TagSuggestion], rows: list[tuple[str, tuple[str, ...], str, int]], parent=None) -> None:  # noqa: ANN001
@@ -450,91 +451,62 @@ class TagSuggestDialog(Modal):
         self.suggestions = list(suggestions)
         self.rows = list(rows)
         self.went_back = False
-        self._checked = [True] * len(self.suggestions)
-        layout = _frame(self, "添加标签")
-        intro = QLabel(f"将导入 {len(self.rows)} 人。以下内容在多人的原因中出现，可以添加为标签：")
-        intro.setWordWrap(True)
-        layout.addWidget(intro)
-        table = QTableWidget(len(self.suggestions), 4)
-        self.table = table
-        table.setObjectName("importPreview")
-        table.setAccessibleName("建议的标签")
-        table.setHorizontalHeaderLabels(["", "标签", "", "添加到"])
-        head = table.horizontalHeader()
-        head.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        head.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
-        head.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        head.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        head.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
-        table.setColumnWidth(0, 36)
-        table.verticalHeader().setVisible(False)
-        table.verticalHeader().setDefaultSectionSize(34)
-        table.setSelectionMode(QTableWidget.NoSelection)
-        table.setEditTriggers(QTableWidget.NoEditTriggers)
-        table.setShowGrid(False)
-        table.setWordWrap(False)
-        table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        table.setItemDelegateForColumn(0, _PickDelegate(table))
-        for column in (1, 2, 3):
-            table.setItemDelegateForColumn(column, _PreviewDelegate(table))
-        for index, suggestion in enumerate(self.suggestions):
-            names = [self.rows[row][0] for row in suggestion.rows]
-            shown = "、".join(names[:4]) + ("等" if len(names) > 4 else "")
-            pick = QTableWidgetItem("")
-            pill = QTableWidgetItem("")
-            pill.setData(Qt.UserRole + 3, (suggestion.tag,))
-            kind = QTableWidgetItem("已有标签" if suggestion.existing else "新标签")
-            kind.setData(Qt.UserRole + 4, THEME["muted"])
-            where = QTableWidgetItem(f"{len(names)} 人：{shown}")
-            where.setToolTip("、".join(names))
-            for column, item in enumerate((pick, pill, kind, where)):
-                item.setFlags(Qt.ItemIsEnabled)
-                table.setItem(index, column, item)
-            pick.setData(Qt.UserRole, True)
-        # Up to six rows show whole; more scroll. The frame, header and padding come on top.
-        shown_rows = min(len(self.suggestions), 6)
-        table.setFixedHeight(table.horizontalHeader().sizeHint().height() + 34 * shown_rows + 2 * table.frameWidth() + 24)
-        table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded if len(self.suggestions) > 6 else Qt.ScrollBarAlwaysOff)
-        table.setCursor(Qt.PointingHandCursor)
-        table.cellClicked.connect(self._toggle)
-        table.installEventFilter(self)
-        layout.addWidget(table)
-        self.summary = QLabel("")
-        self.summary.setObjectName("sub")
-        layout.addWidget(self.summary)
+        self.on = {suggestion.tag for suggestion in self.suggestions}
+        layout = _frame(self, "确认导入")
+        # 1. The 标签.
+        tags = QWidget()
+        column = QVBoxLayout(tags)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(10)
+        hint = QLabel("以下内容在多人的原因中出现，点选要添加的标签")
+        hint.setObjectName("sub")
+        hint.setWordWrap(True)
+        column.addWidget(hint)
+        self.pills: dict[str, TagPill] = {}
+        for title, existing in (("新标签", False), ("已有标签", True)):
+            group = [suggestion for suggestion in self.suggestions if suggestion.existing == existing]
+            if not group:
+                continue
+            row = QHBoxLayout()
+            row.setSpacing(12)
+            kind = QLabel(title)
+            kind.setObjectName("sub")
+            kind.setFixedWidth(QFontMetrics(kind.font()).horizontalAdvance("已有标签") + 4)
+            kind.setFixedHeight(TagPill("标签").sizeHint().height())
+            row.addWidget(kind, 0, Qt.AlignTop)
+            host = _FlowHost(gap=8)
+            for suggestion in group:
+                pill = TagPill(suggestion.tag, clickable=True, active=True)
+                pill.clicked.connect(self._toggle_tag)
+                host.addWidget(pill)
+                self.pills[suggestion.tag] = pill
+            row.addWidget(host, 1)
+            column.addLayout(row)
+        _field(layout, "添加标签", tags)
+        # 2. How many come in, apart from the 标签 by a line.
+        line = QFrame()
+        line.setFixedHeight(1)
+        line.setStyleSheet(f"background: {THEME['border']}; border: none;")
+        layout.addWidget(line)
+        self.count_label = QLabel(f"将导入 {len(self.rows)} 人")
+        layout.addWidget(self.count_label)
         back = QPushButton("返回修改")
         back.setAutoDefault(False)
         back.clicked.connect(self._back)
         self.import_button = _primary(f"导入 {len(self.rows)} 人", self.accept)
         _footer(self, back, self.import_button)
-        self.card.setMinimumWidth(560)
-        self._sync()
+        self.card.setMinimumWidth(520)
         _pointing(self)
 
     def picked(self) -> list[TagSuggestion]:
-        return [suggestion for suggestion, on in zip(self.suggestions, self._checked, strict=True) if on]
+        return [suggestion for suggestion in self.suggestions if suggestion.tag in self.on]
 
-    def tagged_count(self) -> int:
-        """How many of the imported records get at least one 标签 from here."""
-        return len({row for suggestion in self.picked() for row in suggestion.rows})
-
-    def _toggle(self, index: int, _column: int = 0) -> None:
-        if not 0 <= index < len(self.suggestions):
-            return
-        self._checked[index] = not self._checked[index]
-        self.table.item(index, 0).setData(Qt.UserRole, self._checked[index])
-        self.table.viewport().update()
-        self._sync()
-
-    def eventFilter(self, watched, event) -> bool:  # noqa: ANN001
-        if watched is self.table and event.type() == QEvent.Type.KeyPress and event.key() == Qt.Key_Space:
-            self._toggle(self.table.currentRow())
-            return True
-        return super().eventFilter(watched, event)
-
-    def _sync(self) -> None:
-        count = self.tagged_count()
-        self.summary.setText(f"将为其中 {count} 人添加标签" if count else "不添加标签")
+    def _toggle_tag(self, tag: str) -> None:
+        if tag in self.on:
+            self.on.discard(tag)
+        else:
+            self.on.add(tag)
+        self.pills[tag].set_active(tag in self.on)
 
     def _back(self) -> None:
         self.went_back = True

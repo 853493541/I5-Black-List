@@ -170,6 +170,7 @@ def main() -> int:
         ("dialog_import_empty", lambda: ui.BatchAddDialog(store.tag_catalog(), store.entries, parent=window)),
         ("dialog_import", lambda: _import_dialog(ui, store, window)),
         ("dialog_import_tags", lambda: _tag_dialog(store, window)),
+        ("dialog_import_tags_one_off", lambda: _tag_dialog(store, window, off="乱报")),
         ("dialog_guide", lambda: ui.GuideDialog(window)),
         ("dialog_like", lambda: _like_dialog(window)),
     ]
@@ -207,7 +208,7 @@ def _like_dialog(window):  # noqa: ANN001, ANN202
     return LikeDialog("丙丙的猫猫头", "猫猫", "救人很稳，开局就报点", title="编辑", allow_delete=True, parent=window)
 
 
-def _tag_dialog(store, window):  # noqa: ANN001, ANN202
+def _tag_dialog(store, window, off: str = ""):  # noqa: ANN001, ANN202
     """批量导入's second step, for a paste whose 原因 share phrases."""
     from blacklist_detect.importing import plan_import, suggest_tags
     from blacklist_detect.ui_dialogs import TagSuggestDialog
@@ -225,7 +226,13 @@ def _tag_dialog(store, window):  # noqa: ANN001, ANN202
         )
     )
     rows = [(r.name, r.tags, r.reason, -1) for r in plan_import(text, [], store.tag_catalog()) if r.checked]
-    return TagSuggestDialog(suggest_tags(rows, store.tag_catalog()), rows, parent=window)
+    dialog = TagSuggestDialog(suggest_tags(rows, store.tag_catalog()), rows, parent=window)
+    if off:
+        dialog._toggle_tag(off)
+        # The pill fades over 200 ms; the picture shows where it ends.
+        dialog.pills[off]._anim.stop()
+        dialog.pills[off]._set_blend(0.0)
+    return dialog
 
 
 def _import_dialog(ui, store, window):  # noqa: ANN001, ANN202

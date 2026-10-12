@@ -2624,13 +2624,13 @@ def test_batch_import_offers_shared_phrases_as_tags_before_importing(qapp, tmp_p
     answers = iter(["back", "import"])
 
     def confirm_exec(dialog):  # noqa: ANN001, ANN202
-        shown.append((len(dialog.rows), [s.tag for s in dialog.suggestions], dialog.summary.text()))
+        shown.append((len(dialog.rows), [s.tag for s in dialog.suggestions], dialog.count_label.text()))
         if next(answers) == "back":
             dialog._back()
             return QDialog.Rejected
-        # 演员 is unchecked: only 送人头 is added.
-        dialog._toggle([s.tag for s in dialog.suggestions].index("演员"))
-        assert dialog.summary.text() == "将为其中 2 人添加标签"
+        # 演员 is turned off: only 送人头 is added.
+        dialog.pills["演员"].clicked.emit("演员")
+        assert [s.tag for s in dialog.picked()] == ["送人头"]
         return QDialog.Accepted
 
     monkeypatch.setattr(BatchAddDialog, "exec", batch_exec)
@@ -2638,7 +2638,7 @@ def test_batch_import_offers_shared_phrases_as_tags_before_importing(qapp, tmp_p
     window._add_many_by_dialog()
     # 返回修改 showed the paste again; the second time it imported.
     assert len(shown) == 2
-    assert shown[0][0] == 4 and sorted(shown[0][1]) == ["演员", "送人头"] and shown[0][2] == "将为其中 4 人添加标签"
+    assert shown[0][0] == 4 and sorted(shown[0][1]) == ["演员", "送人头"] and shown[0][2] == "将导入 4 人"
     tags = {entry.name: entry.tags for entry in window.store.entries}
     assert tags == {"小明": ("送人头",), "小红": ("送人头",), "阿强": (), "丁丁": ()}
     assert "送人头" in window.store.tag_catalog()
