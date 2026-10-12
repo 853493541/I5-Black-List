@@ -27,7 +27,7 @@ os.environ["APPDATA"] = tempfile.mkdtemp(prefix="blacklist-check-")
 os.environ.setdefault("QT_QPA_PLATFORM", "windows")
 
 from PySide6.QtCore import Qt  # noqa: E402
-from PySide6.QtWidgets import QApplication, QDialog, QLabel  # noqa: E402
+from PySide6.QtWidgets import QApplication, QLabel  # noqa: E402
 
 LOBBY = REPO / "tests" / "fixtures" / "reference-lobby.png"
 results: list[tuple[str, bool, str]] = []
@@ -86,7 +86,7 @@ def main() -> int:
 
     # 1. A first open: the environment check runs with the real OCR, then the guide shows once.
     guides: list[int] = []
-    ui.GuideDialog.exec = lambda self: guides.append(1) or QDialog.Accepted
+    ui.GuideDialog.open = lambda self: guides.append(1)
     started = time.monotonic()
     window = ui.MainWindow()
     window.show()

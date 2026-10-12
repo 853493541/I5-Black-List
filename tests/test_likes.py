@@ -134,7 +134,7 @@ def test_a_record_shows_a_like_in_rose_with_its_nickname(window):
     assert [a.text() for a in window._seat_menu(0, 0).actions() if a.text()] == ["编辑", "复制名字"]
 
 
-def test_a_live_check_rings_likes_in_rose_and_joins_them_to_the_hit_card(window):
+def test_a_live_check_rings_likes_in_rose_and_splits_the_ring_with_a_hit(window):
     window.store.add_like("救人很稳的小明", "明哥")
     window.store.add_like("小红")
     names = [
@@ -156,22 +156,21 @@ def test_a_live_check_rings_likes_in_rose_and_joins_them_to_the_hit_card(window)
     assert len(card.findChildren(QLabel, "likeHeart")) == 2
     cover = window.panel.cover_geometry()
     assert card.x() + card.width() <= cover.x() < window.clear_mark.x()
-    # 黑名单 too: a red ring and one card, ⚠ names above and ♥ names below.
+    # 黑名单 too: the ring rose on the left and crimson on the right, a card on each side.
     hit = Hit(2, "坏人", "坏人", "", False, "", ("炸房",))
     window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
     hit_card = window.hit_card
-    assert window.panel.mode == "hit" and not window.clear_mark.isVisible()
+    assert window.panel.mode == "both" and window.panel.rings() == ("#c2306b", "#a8262f")
+    assert window.panel.ring() == "#a8262f" and not window.clear_mark.isVisible()
     assert hit_card.isVisible() and card.isVisible()
-    assert len(hit_card.findChildren(QLabel, "hitWarn")) == 1
-    assert (card.x(), card.width()) == (hit_card.x(), hit_card.width())
-    assert card.y() == hit_card.y() + hit_card.height() - 1
+    assert card.x() + card.width() <= cover.x() and hit_card.x() >= cover.x() + cover.width()
     # Nobody liked in the lobby: the green check, and no card.
     window._show_panel(CheckResult(True, "", names=names[2:], button_box=button))
     assert window.panel.mode == "clear" and not window.clear_mark.heart
     assert card.isVisible() is False
-    # A blacklisted player alone: the card has no marks.
+    # A blacklisted player alone: the red ring, and no 心动 card.
     window._show_panel(CheckResult(True, "", names=names[2:], hits=[hit], button_box=button))
-    assert hit_card.findChildren(QLabel, "hitWarn") == [] and card.isVisible() is False
+    assert window.panel.mode == "hit" and hit_card.isVisible() and card.isVisible() is False
     window.panel.hide()
     window.clear_mark.hide()
     window.hit_card.hide()
