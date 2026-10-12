@@ -47,6 +47,8 @@ def _no_game_window(monkeypatch):
         yield
         return
     monkeypatch.setattr(ui, "window_rect_at", lambda _x, _y, _order=(), innermost=True: None)
+    # Nor is any game in exclusive full screen.
+    monkeypatch.setattr(ui, "exclusive_fullscreen", lambda: False)
     yield
 
 

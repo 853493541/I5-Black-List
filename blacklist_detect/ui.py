@@ -46,7 +46,7 @@ from blacklist_detect.capture import (
     lock_foreground,
     virtual_origin,
 )
-from blacklist_detect.game_area import window_order, window_rect_at
+from blacklist_detect.game_area import exclusive_fullscreen, window_order, window_rect_at
 from blacklist_detect.hotkey import GlobalHotkey, parse_hotkey
 from blacklist_detect.importing import suggest_tags, with_tags
 from blacklist_detect.logs import log, mark_closed, mark_running, on_uncaught, setup_logging
@@ -3321,6 +3321,10 @@ class MainWindow(QMainWindow):
         if hits and self.store.hit_sound:
             play_hit_sound()
         if self.store.safe_mode:
+            self._show_notice(result)
+        elif exclusive_fullscreen():
+            # 完整模式 over a game in exclusive full screen: Windows shows nothing over it but a
+            # plain window, so the corner message comes too, as in 安全模式.
             self._show_notice(result)
         if not self._overlay_target():
             return

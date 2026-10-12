@@ -125,3 +125,24 @@ def window_rect_at(
     if right <= left or bottom <= top:
         return None
     return left, top, right, bottom
+
+
+_QUNS_RUNNING_D3D_FULL_SCREEN = 3
+
+
+def exclusive_fullscreen() -> bool:
+    """Whether a Direct3D program holds the screen in exclusive full screen, as Windows tells it.
+
+    Windows draws no other window over such a game: the marks over it would not be seen. A game
+    in borderless 全屏 (the usual kind now) is not this, and shows them. Asks Windows only."""
+    if sys.platform != "win32":
+        return False
+    import ctypes
+
+    state = ctypes.c_int(0)
+    try:
+        if ctypes.windll.shell32.SHQueryUserNotificationState(ctypes.byref(state)) != 0:
+            return False
+    except (AttributeError, OSError):
+        return False
+    return state.value == _QUNS_RUNNING_D3D_FULL_SCREEN
