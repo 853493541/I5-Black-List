@@ -18,6 +18,15 @@ The rules, line by line:
 * A list number or bullet in front is not part of a name: 1. 1、 ① - •.
 * A line with a date or a time is a chat's 谁 and 何时, not a player: its names start unchecked.
 * A list copied with 复制名单 keeps its own 标签, even ones this list has not seen.
+* A row copied from a spreadsheet or a Markdown table is 名字 then 原因, cell by cell; its
+  header row (名字 · 原因) and the |---| under it are left out.
+* ID：, 游戏名：, 昵称： and the like before a name are not part of it; 原因：, 理由：, 备注：
+  mark where the 原因 starts.
+* A line that is only 标签, such as 炸房：, heads the names under it, which all get those 标签,
+  until the next such line. 【炸房】小明 小红 gives the names on that line the 标签.
+* A line ending in ： with nothing after it, such as 以下是黑名单：, is a heading, not a name.
+  A title such as 避雷名单（持续更新） is shown but left unchecked.
+* Two English words with a space between them are one name: Lucky Star.
 
 Nothing is dropped without a word. A line that does not look like a name, such as a
 title, is kept but left unchecked. A name already on the list, or the start of one
@@ -49,7 +58,7 @@ ELSEWHERE = "elsewhere"
 
 _OPEN = "（"
 _CLOSE = "）"
-_BRACKETS = str.maketrans({"(": _OPEN, ")": _CLOSE, "【": _OPEN, "】": _CLOSE})
+_BRACKETS = str.maketrans({"(": _OPEN, ")": _CLOSE, "【": _OPEN, "】": _CLOSE, "[": _OPEN, "]": _CLOSE})
 # 1. 1、 1) ① - • in front of a line, or a number and a space.
 _LIST_MARK = re.compile(r"^\s*(?:\d{1,3}\s*[.、．)）:：]\s*|[①-⑳]\s*[.、．)）:：]?\s*|\d{1,3}\s+(?=\S)|[-•·*●▪]\s*)")
 # A date or a clock time: a line copied from a chat with who said it and when.
@@ -59,6 +68,28 @@ _NAME_SPLIT = re.compile(r"[，,、；;/|\s]+")
 _NAME_NOTE = re.compile(r"^\s*([^:：\-—－~～\s，,、；;/|]+)\s*[:：\-—－~～]+\s*(.+)$")
 # 其他：说明 in an old list is only the 原因.
 _OTHER = re.compile(r"^其他[:：]?")
+# Words before a name that say what it is, and words before a 原因.
+_NAME_LABEL = re.compile(r"^(?:游戏\s*ID|ID|Id|id|游戏名|角色名|角色|昵称|名字|名称|玩家)\s*[:：]\s*")
+_REASON_LABEL = re.compile(r"\s*[，,]?\s*(?:原因|理由|备注|说明)\s*[:：]\s*")
+# A table's header cells.
+_HEADER_CELLS = {"名字", "名称", "昵称", "id", "游戏名", "游戏id", "角色", "角色名", "玩家", "原因", "理由", "备注", "说明", "标签", "时间", "序号", "编号"}
+_RULE_CELL = re.compile(r"^:?-{2,}:?$")
+# Marks before a line that are not part of a name: emoji, arrows, symbols.
+_DECOR = re.compile(r"^[\s\u2190-\u2bff\u2600-\u27bf\U0001F000-\U0001FAFF\uFE0F\u200d★☆◆◇■□▶►→⇒>*#@]+")
+# A title over a list: shown, but not checked.
+_TITLE = re.compile(r"名单|避雷|以下|汇总|整理|持续更新")
+# 小明/小红/阿强 一起演: names joined by marks, then a space and what they did.
+_JOINED_NAMES = re.compile(r"^(\S+[/、，,；;|]\S+)\s+(\S.*)$")
+# A heading with no 标签: 以下是黑名单：, 避雷：, 其他：.
+_HEADING_WORDS = re.compile(r"名单|避雷|以下|汇总|整理|其他|其它")
+# Words a 原因 has and a name hardly does: 小红 送人头 is a name and what they did.
+_REASON_WORDS = re.compile(
+    "送人头|骂人|喷人|嘴臭|摆烂|秒退|傻逼|弱智|故意|不救|带节奏|白给|恶心|坑人|乱报|演戏|卖队友|搞心态|报点|不报|逃跑|退出"
+)
+# Two English words with a space between: one name.
+_LATIN_SPACE = re.compile(r"(?<=[A-Za-z0-9]) (?=[A-Za-z0-9])")
+# Not whitespace to the name splitter, so the space survives the split.
+_KEEP_SPACE = "\ue000"
 
 
 @dataclass
@@ -77,11 +108,101 @@ class ImportRow:
 
 
 def _clean(name: str) -> str:
-    return clean_stored_name(name)[:_MAX_NAME]
+    return clean_stored_name(name.replace(_KEEP_SPACE, " "))[:_MAX_NAME]
+
+
+def _split_names(text: str) -> list[str]:
+    return [word for word in _NAME_SPLIT.split(_LATIN_SPACE.sub(_KEEP_SPACE, text)) if word]
+
+
+def _tags_only(text: str, catalog: tuple[str, ...]) -> tuple[str, ...] | None:
+    """The 标签 when text is nothing but 标签, else None."""
+    words = [word for word in _NAME_SPLIT.split(text.strip(" :：")) if word]
+    if words and all(word in catalog for word in words):
+        return tuple(dict.fromkeys(words))
+    return None
+
+
+def _table_row(line: str) -> str | None:
+    """A spreadsheet or Markdown row as 名字：原因; "" for a header or rule row; None if not a row."""
+    if "\t" not in line and not line.strip().startswith("|"):
+        return None
+    cells = [cell.strip() for cell in re.split(r"[|\t]", line.strip().strip("|"))]
+    cells = [cell for cell in cells if cell]
+    if not cells or all(_RULE_CELL.match(cell) for cell in cells):
+        return ""
+    if all(cell.lower() in _HEADER_CELLS for cell in cells):
+        return ""
+    return cells[0] if len(cells) == 1 else f"{cells[0]}：{'，'.join(cells[1:])}"
+
+
+def _sections(text: str, catalog: tuple[str, ...]) -> list[tuple[str, tuple[str, ...]]]:
+    """The paste in blocks, each with the 标签 a heading line gives all the names in it."""
+    blocks: list[tuple[str, tuple[str, ...]]] = []
+    lines: list[str] = []
+    heading: tuple[str, ...] = ()
+    pending = ""
+
+    def close() -> None:
+        if lines:
+            blocks.append(("\n".join(lines), heading))
+            lines.clear()
+
+    for raw in text.translate(_BRACKETS).splitlines():
+        line = _LIST_MARK.sub("", _DECOR.sub("", raw), count=1).strip()
+        row = _table_row(line)
+        if row is not None:
+            line = row
+        line = _NAME_LABEL.sub("", line)
+        if not line:
+            lines.append("")
+            continue
+        named = _tags_only(line, catalog)
+        if named is not None and (line.endswith((":", "：")) or len(_split_names(line.strip(" :："))) == len(named)):
+            # 炸房： heads the names under it.
+            close()
+            heading = named
+            continue
+        if line.endswith((":", "：")) and _CLOSE not in line and _HEADING_WORDS.search(line):
+            # 以下是黑名单： is a heading, with no 标签.
+            close()
+            heading = ()
+            pending = ""
+            continue
+        if pending:
+            line = pending + line
+            pending = ""
+        elif line.endswith((":", "：")) and _CLOSE not in line and len(line.rstrip(":： ")) <= NAME_MAX:
+            # 小明： with the 原因 on the next line.
+            pending = line
+            continue
+        if line.startswith(_OPEN) and _CLOSE in line:
+            inside, rest = line[1:].split(_CLOSE, 1)
+            lead = _tags_only(inside, catalog)
+            if lead is not None and rest.strip():
+                # 【炸房】小明 小红: the names on this line get the 标签.
+                close()
+                blocks.append((rest, tuple(dict.fromkeys([*heading, *lead]))))
+                continue
+        # 名字 原因：说明 is 名字：说明. Inside brackets the label is dropped where the 原因 is read.
+        if _OPEN not in line:
+            parts = _REASON_LABEL.split(line, maxsplit=1)
+            if len(parts) == 2 and parts[0].strip():
+                line = f"{parts[0].strip()}：{parts[1]}"
+        lines.append(line)
+    if pending:
+        lines.append(pending)
+    close()
+    return blocks
+
+
+def _width(name: str) -> float:
+    """How much of the game's name room this takes: an English letter or digit is half a Chinese character."""
+    return sum(0.5 if ch.isascii() else 1 for ch in name)
 
 
 def _looks_odd(name: str) -> bool:
-    return len(name) > NAME_MAX or name.isdigit()
+    return _width(name) > NAME_MAX or name.isdigit() or bool(_TITLE.search(name))
 
 
 def _pieces(text: str) -> list[tuple[str, str | None, bool]]:
@@ -108,7 +229,7 @@ def _pieces(text: str) -> list[tuple[str, str | None, bool]]:
             closing = rest.find(_CLOSE, opening + 1)
             if closing >= 0:
                 note = rest[opening + 1 : closing]
-                rest = rest[closing + 1 :]
+                rest = _LIST_MARK.sub("", rest[closing + 1 :].lstrip("，,、；; "), count=1)
             else:
                 note = rest[opening + 1 :]
                 rest = ""
@@ -132,13 +253,25 @@ def _pieces(text: str) -> list[tuple[str, str | None, bool]]:
     return pieces
 
 
-def _read_plain(text: str, catalog: tuple[str, ...]) -> list[tuple[str, tuple[str, ...], str]]:
-    """A line without brackets: names, or one name with 标签 and 原因 after it."""
+def _read_plain(text: str, catalog: tuple[str, ...], pairs: bool = False) -> list[tuple[str, tuple[str, ...], str]]:
+    """A line without brackets: names, or one name with 标签 and 原因 after it.
+
+    名字 原因 with no 标签 in it is also two names. It is read as a name and its 原因 when the
+    second word sounds like one (送人头), or when the paste's other such lines carry 标签 (pairs).
+    """
+    spaced = text.split()
+    if len(spaced) == 2 and _clean(spaced[0]) and not any(tag in spaced[1] for tag in catalog):
+        if pairs or _REASON_WORDS.search(spaced[1]):
+            return [(_clean(spaced[0]), (), spaced[1][:_MAX_NOTE])]
+    joined = _JOINED_NAMES.match(text.strip())
+    if joined:
+        tags, reason = tags_and_reason(joined.group(2), catalog)
+        return [(_clean(name), tags, reason) for name in _split_names(joined.group(1)) if _clean(name)]
     matched = _NAME_NOTE.match(text)
     if matched and _clean(matched.group(1)):
         tags, reason = tags_and_reason(matched.group(2), catalog)
         return [(_clean(matched.group(1)), tags, reason)]
-    words = [word for word in _NAME_SPLIT.split(text.strip(_CLOSE)) if word]
+    words = _split_names(text.strip(_CLOSE))
     names: list[str] = []
     tags: list[str] = []
     notes: list[str] = []
@@ -147,7 +280,7 @@ def _read_plain(text: str, catalog: tuple[str, ...]) -> list[tuple[str, tuple[st
         if word in catalog:
             if word not in tags:
                 tags.append(word)
-        elif names and (detail or ":" in word or "：" in word or any(tag in word for tag in catalog) or len(_clean(word)) > NAME_MAX):
+        elif names and (detail or ":" in word or "：" in word or any(tag in word for tag in catalog) or _width(_clean(word)) > NAME_MAX):
             note = _OTHER.sub("", word).strip(":： ")
             if note:
                 notes.append(note)
@@ -159,19 +292,33 @@ def _read_plain(text: str, catalog: tuple[str, ...]) -> list[tuple[str, tuple[st
     return [(_clean(name), picked, reason[:_MAX_NOTE]) for name in names if _clean(name)]
 
 
+def _mostly_pairs(lines: list[str], catalog: tuple[str, ...]) -> bool:
+    """Whether this paste is 名字 原因, line by line: most of its two-word lines carry a 标签."""
+    two = [line.split() for line in lines if _OPEN not in line and len(line.split()) == 2]
+    tagged = [words for words in two if any(tag in words[1] for tag in catalog)]
+    return len(two) >= 2 and len(tagged) * 2 >= len(two)
+
+
 def _read(text: str, catalog: tuple[str, ...]) -> list[tuple[str, tuple[str, ...], str, bool]]:
     """(name, 标签, 原因, from a chat header line) for every person, in the paste's order."""
     if is_shared(text):
         return [(name, tags, reason, False) for name, tags, reason in parse_shared(text)]
     people: list[tuple[str, tuple[str, ...], str, bool]] = []
-    for names, note, header in _pieces(text or ""):
-        if note is None:
-            people.extend((name, tags, reason, header) for name, tags, reason in _read_plain(names, catalog))
-            continue
-        tags, reason = tags_and_reason(note, catalog)
-        for name in _NAME_SPLIT.split(names.strip(" :：-—－~～\t" + _CLOSE)):
-            if _clean(name):
-                people.append((_clean(name), tags, reason, header))
+    blocks = _sections(text or "", catalog)
+    pairs = _mostly_pairs([line for block, _heading in blocks for line in block.splitlines()], catalog)
+    for block, heading in blocks:
+        found: list[tuple[str, tuple[str, ...], str, bool]] = []
+        for names, note, header in _pieces(block):
+            if note is None:
+                found.extend((name, tags, reason, header) for name, tags, reason in _read_plain(names, catalog, pairs))
+                continue
+            tags, reason = tags_and_reason(_REASON_LABEL.sub("", note, count=1).strip(" :：，,"), catalog)
+            for name in _split_names(names.strip(" :：-—－~～\t" + _CLOSE)):
+                if _clean(name):
+                    found.append((_clean(name), tags, reason, header))
+        for name, tags, reason, header in found:
+            merged = order_tags(list(dict.fromkeys([*heading, *tags])), catalog) if heading else tags
+            people.append((name, merged, reason, header))
     return people
 
 
