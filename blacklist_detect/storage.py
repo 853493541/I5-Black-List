@@ -528,7 +528,7 @@ class Store:
                 self.entries = []
                 backup = _set_aside(self.blacklist_path)
                 _log_set_aside(exc, backup)
-                self.load_warning = "黑名单文件无法读取，已另存一份，名单从空白开始。"
+                self.load_warning = "黑名单文件已损坏，已备份原文件并新建空白名单。"
         self._load_likes()
         discovered = False
         stripped = False
@@ -597,7 +597,7 @@ class Store:
             self.likes = []
             backup = _set_aside(self.likes_path)
             _log_set_aside(exc, backup)
-            self.load_warning = "心动列表文件无法读取，已另存一份，列表从空白开始。"
+            self.load_warning = "心动列表文件已损坏，已备份原文件并新建空白列表。"
 
     def save_likes(self) -> None:
         _daily_backup(self.likes_path)
@@ -780,7 +780,7 @@ class Store:
             for raw in settings.get("custom_tags") or []:
                 self.add_custom_tag(str(raw))
         except (OSError, ValueError, AttributeError, TypeError):
-            self.load_warning = (self.load_warning + " 设置文件无法读取，没读到的设置用了默认值。").strip()
+            self.load_warning = (self.load_warning + " 设置文件已损坏，已恢复默认设置。").strip()
 
     def save_scans(self) -> None:
         _atomic_write(self.history_path, {"scans": self.scans[:_MAX_SCANS]})

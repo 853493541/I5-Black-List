@@ -40,7 +40,7 @@ def test_recheck_button_applies_a_later_tag(qapp, tmp_path, monkeypatch):
     window._show_list()
     assert window.blacklist_table.item(0, 1).text() == "炸房"
     button = next(item for item in window.findChildren(QPushButton) if item.text() == "重新标注")
-    assert button.toolTip() == "按原因补标签"
+    assert button.toolTip() == "按原因自动补全标签"
     button.click()
     assert window.blacklist_table.item(0, 1).text() == "炸房、场外"
     window.close()
@@ -156,7 +156,7 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     window._remove_tag("红名")
     assert window.store.custom_tags == ["红名"]
     window._remove_tag("红名")
-    assert asked == ["1 个名字使用「红名」：甲。确定删除？"] * 2
+    assert asked == ["有 1 人使用「红名」（甲），删除后这些玩家将不再带有该标签。确定删除吗？"] * 2
     assert window.store.custom_tags == []
     assert window.store.entries[-1].tags == ()
     window.close()
@@ -670,7 +670,7 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     assert window.panel.text() == ""
     assert window.panel.shining() is False
     assert window.panel.ring() == "#2f9e5e"
-    assert window.panel.toolTip() == "没有黑名单"
+    assert window.panel.toolTip() == "未发现黑名单"
     assert window.clear_mark.isVisible() is True
     cover = window.panel.cover_geometry()
     margin = window.clear_mark.margin
@@ -924,7 +924,7 @@ def test_a_cut_name_shows_once_with_the_rest_from_the_list(qapp, tmp_path, monke
     seat = window.history_table.cellWidget(0, 0)
     assert seat.findChild(QLabel, "rowListed") is None
     assert seat.findChild(QLabel, "rowName").text() == "无害虎皮吉尔曼"
-    assert window.history_table.item(0, 0).toolTip() == "画面是「无害虎皮」，黑名单里是「无害虎皮吉尔曼」"
+    assert window.history_table.item(0, 0).toolTip() == "识别为「无害虎皮」，匹配黑名单「无害虎皮吉尔曼」"
     assert seat.findChild(QLabel, "rowAction") is None
     # A name that differs in more than the cut may be someone else: the list's spelling stays beside it.
     other = window.history_table.cellWidget(0, 1)
@@ -1076,7 +1076,7 @@ def test_clear_buttons_split_into_cancel_and_confirm(qapp, tmp_path, monkeypatch
 
     def ask(_parent, title, body, confirm, *, danger=False):
         questions.append((title, confirm, danger))
-        assert "1 个名字" in body or "1 条记录" in body
+        assert "1 人" in body or "1 条记录" in body
         return answers.pop(0)
 
     monkeypatch.setattr("blacklist_detect.ui.ConfirmDialog.ask", ask)
@@ -1333,7 +1333,7 @@ def test_batch_import_previews_each_person_before_adding(qapp, tmp_path, monkeyp
     assert table.isHidden() is False
     shown = [(table.item(row, 0).text(), dialog.rows[row].checked, table.item(row, 3).text()) for row in range(table.rowCount())]
     assert shown == [
-        ("这游戏有这么多神人吗", False, "不像名字"),
+        ("这游戏有这么多神人吗", False, "疑似非名字"),
         ("名辅导可乐", True, "合并"),
         ("西西zo", True, ""),
         ("小小丑不会输", True, ""),
@@ -1358,7 +1358,7 @@ def test_batch_import_previews_each_person_before_adding(qapp, tmp_path, monkeyp
     # Text with no name in it says so.
     dialog.edit.setPlainText("，，，")
     dialog._refresh()
-    assert dialog.error.text() == "没有找到名字" and not dialog.import_button.isEnabled()
+    assert dialog.error.text() == "未识别到名字" and not dialog.import_button.isEnabled()
     dialog.close()
     # The window imports what was checked: new names added, the known one merged, with 撤销.
     said: list[tuple[str, object]] = []
@@ -1373,7 +1373,7 @@ def test_batch_import_previews_each_person_before_adding(qapp, tmp_path, monkeyp
 
     monkeypatch.setattr("blacklist_detect.ui.BatchAddDialog", Picked)
     window._add_many_by_dialog()
-    assert said[0][0] == "已添加 1 人，更新 1 人"
+    assert said[0][0] == "已添加 1 人，合并 1 人"
     assert [(e.name, e.reason) for e in window.store.entries] == [("名辅导可乐", "发言差；弱智"), ("西西zo", "挂机占麦")]
     said[0][1]()
     assert [e.name for e in window.store.entries] == ["名辅导可乐"]
@@ -2024,7 +2024,7 @@ def test_the_first_open_checks_the_environment_and_confirms_it(qapp, tmp_path, m
     window._on_worker(("warmup", "ok", None))
     assert jobs == ["warmup", "envcheck"]
     window._on_worker(("envcheck", "ok", _lobby(12)))
-    assert setup.title.text() == "环境确认"
+    assert setup.title.text() == "环境检查通过"
     assert setup.notes[2].text() == "12/12"
     assert window.store.env_checked == __version__
     assert Store(window.store.root).env_checked == __version__
@@ -2054,7 +2054,7 @@ def test_a_failed_check_says_where_and_can_be_retried(qapp, tmp_path, monkeypatc
     window.start_environment_check()
     _wait(qapp, 350)
     setup = window.setup
-    assert setup.title.text() == "环境有问题"
+    assert setup.title.text() == "环境检查未通过"
     assert setup.message.text() == "没有读到画面，请再试一次。"
     assert setup.buttons.isVisible()
     assert window.store.env_checked == ""
@@ -2065,7 +2065,7 @@ def test_a_failed_check_says_where_and_can_be_retried(qapp, tmp_path, monkeypatc
     assert jobs == ["warmup"]
     window._on_worker(("warmup", "ok", None))
     window._on_worker(("envcheck", "ok", _lobby(5)))
-    assert setup.title.text() == "环境有问题"
+    assert setup.title.text() == "环境检查未通过"
     assert "5 个名字" in setup.message.text()
     window.close()
 
@@ -2083,7 +2083,7 @@ def test_a_model_that_will_not_load_stops_the_check_at_its_step(qapp, tmp_path, 
     window.start_environment_check()
     _wait(qapp, 350)
     window._on_worker(("warmup", "err", OcrUnavailable("识别模型未就绪，请重新解压完整的安装包。")))
-    assert window.setup.title.text() == "环境有问题"
+    assert window.setup.title.text() == "环境检查未通过"
     assert "模型" in window.setup.message.text()
     assert window.setup.notes[1].text() == ""
     window.close()
@@ -2097,7 +2097,7 @@ def test_a_library_error_is_shown_in_plain_words(qapp, tmp_path, monkeypatch):
     window._picture_pending = "截图检查"
     window._on_worker(("picture", "err", OSError("cannot identify image file 'C:\\x\\a.png'")))
     shown = window._picture_dialog.summary.text()
-    assert "这张图片无法读取" in shown
+    assert "无法打开这张图片" in shown
     assert "cannot" not in shown and "png" not in shown
     window._picture_dialog.close()
     window.close()
@@ -2107,7 +2107,7 @@ def test_a_damaged_list_file_is_reported_without_its_error(tmp_path):
     (tmp_path / "blacklist.json").write_text("{ not json", encoding="utf-8")
     store = Store(tmp_path)
     assert store.entries == []
-    assert store.load_warning == "黑名单文件无法读取，已另存一份，名单从空白开始。"
+    assert store.load_warning == "黑名单文件已损坏，已备份原文件并新建空白名单。"
 
 
 def test_reset_then_restart_runs_the_check_and_the_guide_again(qapp, tmp_path, monkeypatch):
@@ -2223,7 +2223,7 @@ def test_the_start_with_windows_switch(qapp, tmp_path, monkeypatch):
     state["works"] = False
     switch.click()
     assert state["on"] is True and switch.isChecked() is True, "a change that failed does not show as made"
-    assert window.toast.text.text() == "没能更改开机启动"
+    assert window.toast.text.text() == "开机启动设置失败"
     state["works"] = True
     monkeypatch.setattr("blacklist_detect.ui._confirm", lambda *_args: True)
     window.close_mode.buttons["quit"].click()
@@ -2250,7 +2250,7 @@ def test_records_with_a_hit_are_marked_in_the_list(qapp, tmp_path, monkeypatch):
         if item.data(Qt.UserRole + 1) == "time":
             rows[item.data(Qt.UserRole)] = window.history_list.itemWidget(item)
     assert rows[0].findChild(QLabel, "recordHitCount").text() == "2"
-    assert rows[0].toolTip() == "2 人在黑名单里"
+    assert rows[0].toolTip() == "2 名黑名单玩家"
     assert rows[1].findChild(QLabel, "recordHitCount") is None
     # The ⚠ count sits at the right end of its row, away from the time.
     window.resize(900, 560)
@@ -2343,7 +2343,7 @@ def test_a_tag_beside_the_list_shows_only_its_names(qapp, tmp_path, monkeypatch)
     window.list_search.clear()
     # A tag no name carries says so.
     window.tag_list.setCurrentRow(3)
-    assert window.blacklist_table.isHidden() and window.list_hint.text() == "没有名字使用「挂机」"
+    assert window.blacklist_table.isHidden() and window.list_hint.text() == "没有使用「挂机」标签的玩家"
     # 全部 shows the whole list again; the tab badge counts it all the time.
     window.tag_list.setCurrentRow(0)
     assert _shown_names(window) == ["甲", "乙", "丙"]
@@ -2401,7 +2401,7 @@ def test_renaming_or_deleting_the_picked_tag(qapp, tmp_path, monkeypatch):
     asked: list[str] = []
     monkeypatch.setattr("blacklist_detect.ui._confirm", lambda _parent, text: asked.append(text) or True)
     window._remove_tag("闹房")
-    assert asked == ["1 个名字使用「闹房」：甲。确定删除？"]
+    assert asked == ["有 1 人使用「闹房」（甲），删除后这些玩家将不再带有该标签。确定删除吗？"]
     assert window._tag_filter == "" and window.tag_list.currentRow() == 0
     assert "闹房" not in window.store.tag_catalog()
     assert _shown_names(window) == ["甲", "乙"]
@@ -2551,12 +2551,12 @@ def test_dialogs_say_their_title_once_and_dim_the_window(qapp, tmp_path, monkeyp
     for made in (
         BatchAddDialog(window.store.tag_catalog(), parent=window),
         AddNameDialog(catalog=window.store.tag_catalog(), parent=window),
-        ConfirmDialog(window, "清空黑名单", "黑名单里的 1 个名字会被删除。", "清空", danger=True),
+        ConfirmDialog(window, "清空黑名单", "将删除黑名单中的 1 人，确定清空吗？", "清空", danger=True),
     ):
         assert isinstance(made, Modal) and made.windowFlags() & Qt.FramelessWindowHint
         assert made.heading.text() == made.windowTitle()
         made.close()
-    confirm = ConfirmDialog(window, "清空黑名单", "黑名单里的 1 个名字会被删除。", "清空", danger=True)
+    confirm = ConfirmDialog(window, "清空黑名单", "将删除黑名单中的 1 人，确定清空吗？", "清空", danger=True)
     assert confirm.cancel_button.text() == "取消" and confirm.cancel_button.isDefault()
     # Clicking outside a confirmation is the safe answer.
     confirm.show()

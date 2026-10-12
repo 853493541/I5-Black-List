@@ -558,7 +558,7 @@ class MainWindow(QMainWindow):
         self.more_menu = QMenu(self)
         self.share_action = self.more_menu.addAction("复制名单", self._share_list)
         _mark_menu_item(self.share_action, "copy")
-        self.share_action.setToolTip("复制整个名单。朋友在「批量导入」里粘贴即可。")
+        self.share_action.setToolTip("复制全部名单，好友可在「批量导入」中粘贴。")
         self.more_menu.addSeparator()
         self.clear_list_action = self.more_menu.addAction("清空黑名单", self._clear_list)
         _mark_menu_item(self.clear_list_action, "delete")
@@ -574,7 +574,7 @@ class MainWindow(QMainWindow):
         for column in range(4):
             item = self.blacklist_table.horizontalHeaderItem(column)
             if item is not None:
-                item.setToolTip("拖动换顺序，拖边缘改宽度")
+                item.setToolTip("拖动可调整列顺序，拖动边缘可调整列宽")
         header = self.blacklist_table.horizontalHeader()
         header.setStretchLastSection(False)
         for column in range(4):
@@ -689,7 +689,7 @@ class MainWindow(QMainWindow):
         self.tag_editor.returnPressed.connect(self._finish_tag_edit)
         self._tag_editing = ""
         recheck = QPushButton("重新标注")
-        recheck.setToolTip("按原因补标签")
+        recheck.setToolTip("按原因自动补全标签")
         recheck.setObjectName("sideAction")
         recheck.setFont(chinese_font(SMALL_PT))
         recheck.setIcon(line_icon("reload", 14, THEME["muted"]))
@@ -1060,12 +1060,12 @@ class MainWindow(QMainWindow):
     def _remove_tag(self, tag: str) -> None:
         names = [entry.name for entry in self.store.entries if tag in entry.tags]
         if not names:
-            text = f"没有名字使用「{tag}」。确定删除？"
+            text = f"确定删除标签「{tag}」吗？"
         else:
             shown = "、".join(names[:6])
             if len(names) > 6:
                 shown += "等"
-            text = f"{len(names)} 个名字使用「{tag}」：{shown}。确定删除？"
+            text = f"有 {len(names)} 人使用「{tag}」（{shown}），删除后这些玩家将不再带有该标签。确定删除吗？"
         if not _confirm(self, text):
             return
         if not self.store.remove_custom_tag(tag):
@@ -1077,7 +1077,7 @@ class MainWindow(QMainWindow):
         self.settings_label.setVisible(bool(text))
 
     def _ask_reset(self) -> None:
-        if not _confirm(self, "清空数据会删除角色名称、记录、黑名单、心动列表和设置。确定清空？"):
+        if not _confirm(self, "将删除角色名称、记录、黑名单、心动列表和全部设置，且无法恢复。确定清空吗？"):
             return
         self.store.reset()
         self.hotkey.clear()
@@ -1586,7 +1586,7 @@ class MainWindow(QMainWindow):
         elif count:
             self.list_empty.set_icon("search")
             query = self._search_text()
-            self.list_empty.set_text(f"没有找到「{query}」" if query else f"没有名字使用「{self._tag_filter}」")
+            self.list_empty.set_text(f"没有找到「{query}」" if query else f"没有使用「{self._tag_filter}」标签的玩家")
             self.empty_add_button.hide()
             self.empty_batch_button.hide()
             self.list_empty.show()
@@ -1697,7 +1697,7 @@ class MainWindow(QMainWindow):
         count = len(self.store.entries)
         if not count:
             return
-        if ConfirmDialog.ask(self, "清空黑名单", f"黑名单里的 {count} 个名字会被删除。", "清空", danger=True):
+        if ConfirmDialog.ask(self, "清空黑名单", f"将删除黑名单中的 {count} 人，确定清空吗？", "清空", danger=True):
             self._confirm_clear_list()
 
     def _confirm_clear_list(self) -> None:
@@ -1725,7 +1725,7 @@ class MainWindow(QMainWindow):
         if index < 0:
             return True
         listed = self.store.likes[index].name
-        if not ConfirmDialog.ask(self, "移到黑名单", f"「{listed}」在心动列表里。移到黑名单？", "移过来"):
+        if not ConfirmDialog.ask(self, "移到黑名单", f"「{listed}」在心动列表中，要移到黑名单吗？", "移到黑名单"):
             return False
         self.store.remove_like(index)
         self.likes_page.refresh()
@@ -1892,7 +1892,7 @@ class MainWindow(QMainWindow):
         if not count:
             return
         QApplication.clipboard().setText(share_text(self.store.entries))
-        self._say(f"已复制 {count} 人。朋友在「批量导入」里粘贴即可。")
+        self._say(f"已复制 {count} 人，好友可在「批量导入」中粘贴")
 
     def _add_by_dialog(self) -> None:
         picked = (self._tag_filter,) if self._tag_filter else ()
@@ -1915,13 +1915,13 @@ class MainWindow(QMainWindow):
         before = self.store.snapshot_entries()
         added, merged = self.store.import_rows(dialog.chosen)
         if not added and not merged:
-            self._say("名单里已经都有了")
+            self._say("这些玩家都已在名单中")
             return
         # A shared list may bring tags this list has not seen. They now show beside the list.
         self._refresh_tag_views()
         parts = [f"已添加 {added} 人"] if added else []
         if merged:
-            parts.append(f"更新 {merged} 人")
+            parts.append(f"合并 {merged} 人")
         self._say("，".join(parts), undo=lambda: self._put_back(before))
 
     def _taken_names(self, skip: int = -1) -> frozenset[str]:
@@ -2062,7 +2062,7 @@ class MainWindow(QMainWindow):
             line.addSpacing(3)
             line.addWidget(count, 0, Qt.AlignVCenter)
             line.addSpacing(6)
-            wrap.setToolTip(f"{hits} 人在黑名单里")
+            wrap.setToolTip(f"{hits} 名黑名单玩家")
         else:
             line.addStretch(1)
         remove = QPushButton("×")
@@ -2156,7 +2156,7 @@ class MainWindow(QMainWindow):
 
     def _ask_clear_history(self) -> None:
         count = len(self.store.scans)
-        if count and ConfirmDialog.ask(self, "清空记录", f"{count} 条记录会被删除。", "清空", danger=True):
+        if count and ConfirmDialog.ask(self, "清空记录", f"将删除全部 {count} 条记录，确定清空吗？", "清空", danger=True):
             self._clear_history()
 
     def _clear_history(self) -> None:
@@ -2319,9 +2319,9 @@ class MainWindow(QMainWindow):
         )
         line.addWidget(name_label, 1)
         if tail:
-            name_item.setToolTip(f"画面是「{title}」，黑名单里是「{listed}」")
+            name_item.setToolTip(f"识别为「{title}」，匹配黑名单「{listed}」")
         if like is not None:
-            name_item.setToolTip(f"画面是「{title}」，心动列表里是「{like.name}」")
+            name_item.setToolTip(f"识别为「{title}」，匹配心动「{like.name}」")
         if not unclear and not name_item.toolTip():
             name_item.setToolTip(label)
         if listed and tail is None:
@@ -2332,7 +2332,7 @@ class MainWindow(QMainWindow):
             listed_label.setStyleSheet(
                 f'color: {THEME["red"]}; background: transparent; font-family: "{chinese_family()}";'
             )
-            name_item.setToolTip(f"画面是「{title}」，黑名单里是「{listed}」")
+            name_item.setToolTip(f"识别为「{title}」，匹配黑名单「{listed}」")
             line.addWidget(listed_label, 0, Qt.AlignVCenter)
         if action:
             action_label = QLabel(action)
@@ -2516,7 +2516,7 @@ class MainWindow(QMainWindow):
             return
         key = _qt_key_name(event.key())
         if key is None:
-            self._set_settings_note("请按字母、数字，或 F1 到 F12。")
+            self._set_settings_note("请使用字母、数字或 F1–F12。")
             return
         modifiers = []
         flags = event.modifiers()
@@ -2530,7 +2530,7 @@ class MainWindow(QMainWindow):
             modifiers.append("Win")
         spec = parse_hotkey("+".join([*modifiers, key]))
         if spec is None:
-            self._set_settings_note("这个组合不能用。")
+            self._set_settings_note("该组合键不可用，请换一个。")
             return
         registered = self.hotkey.apply(spec)
         self.store.hotkey = spec.display
@@ -2539,12 +2539,12 @@ class MainWindow(QMainWindow):
         if registered:
             self._set_settings_note("")
         elif sys.platform != "win32":
-            self._set_settings_note("这台电脑不能用快捷键。")
+            self._set_settings_note("当前系统不支持快捷键。")
         else:
             self.store.hotkey = ""
             self.store.save_settings()
             self.hotkey_edit.clear()
-            self._set_settings_note("请换一个快捷键。")
+            self._set_settings_note("该快捷键已被占用，请换一个。")
         self.hotkey_edit.clearFocus()
         if self._status_kind == "idle":
             self._sync_watch_idle()
@@ -2618,7 +2618,7 @@ class MainWindow(QMainWindow):
             capture_top_band()
         except Exception as exc:  # noqa: BLE001 - every way the screen copy fails is shown the same way
             log.warning("Environment check: screen copy failed: %s", exc)
-            self._env_fail(0, _plain_error(exc, "没有读到画面。"))
+            self._env_fail(0, _plain_error(exc, "截屏失败，请重试。"))
             return
         self.setup.step(0, "ok")
         self.setup.step(1, "run")
@@ -2638,7 +2638,7 @@ class MainWindow(QMainWindow):
         if tries < 300:
             QTimer.singleShot(100, lambda: self._env_load_models(tries + 1))
             return
-        self._env_fail(1, "识别一直在忙，请稍后再试。")
+        self._env_fail(1, "正在识别中，请稍后再试。")
 
     def _env_models_ready(self) -> None:
         self._env_waiting = False
@@ -2653,17 +2653,17 @@ class MainWindow(QMainWindow):
         if tries < 300:
             QTimer.singleShot(100, lambda: self._env_sample(tries + 1))
             return
-        self._env_fail(2, "识别一直在忙，请稍后再试。")
+        self._env_fail(2, "正在识别中，请稍后再试。")
 
     def _on_env_sample(self, status: str, value) -> None:  # noqa: ANN001
         if status != "ok":
             log.warning("Environment check: sample lobby failed: %s", value)
-            self._env_fail(2, _plain_error(value, "识别没能完成。"))
+            self._env_fail(2, _plain_error(value, "识别失败，请重试。"))
             return
         read = sum(1 for slot in value.names if not slot.unclear)
         if not value.header_found or read < 10:
             log.warning("Environment check: lobby %s, %d names read", value.header_found, read)
-            self._env_fail(2, f"示例截图只读出 {read} 个名字，识别可能不准。")
+            self._env_fail(2, f"示例截图只识别出 {read} 个名字，结果可能不准确。")
             return
         log.info("Environment check passed: %d names read", read)
         self.setup.step(2, "ok", f"{read}/12")
@@ -2705,7 +2705,7 @@ class MainWindow(QMainWindow):
             return
         self._picture_pending = ""
         self._sync_picture_buttons()
-        self._picture_dialog = PictureResultDialog(title, error="识别一直在忙，请稍后再试。", parent=self)
+        self._picture_dialog = PictureResultDialog(title, error="正在识别中，请稍后再试。", parent=self)
         self._picture_dialog.open()
 
     def _sync_picture_buttons(self) -> None:
@@ -2720,7 +2720,7 @@ class MainWindow(QMainWindow):
         self._sync_picture_buttons()
         if status != "ok":
             log.warning("Picture check failed: %s", value)
-            error = _plain_error(value, "这张图片无法读取。")
+            error = _plain_error(value, "无法打开这张图片。")
             self._picture_dialog = PictureResultDialog(title, error=error, parent=self)
         else:
             log.info("Picture check: lobby %s, %d on the list", value.header_found, len(value.hits))
@@ -2730,7 +2730,7 @@ class MainWindow(QMainWindow):
     def _set_autostart(self, enabled: bool) -> None:
         if not autostart.set_enabled(enabled):
             log.warning("Could not change start with Windows to %s", enabled)
-            self._say("没能更改开机启动")
+            self._say("开机启动设置失败")
         self._sync_switch(self.autostart_switch, autostart.is_enabled())
 
     def _on_close_mode(self, key: str) -> None:
@@ -2765,7 +2765,7 @@ class MainWindow(QMainWindow):
         else:
             label = "检查失败"
         raw = str(problem).strip() or label
-        detail = _plain_error(problem, "检查没能完成，请稍后再试。")
+        detail = _plain_error(problem, "检查失败，请稍后重试。")
         if raw != self._problem:
             trace = (type(problem), problem, problem.__traceback__) if isinstance(problem, BaseException) else None
             expected = isinstance(problem, (OcrUnavailable, CaptureUnavailable))
@@ -3052,7 +3052,7 @@ class MainWindow(QMainWindow):
             return
         self.hit_card.hide()
         self.like_card.hide()
-        text = "没有黑名单"
+        text = "未发现黑名单"
         unclear = sum(1 for slot in result.names if slot.unclear)
         if unclear:
             text += f"\n{unclear} 人未识别"

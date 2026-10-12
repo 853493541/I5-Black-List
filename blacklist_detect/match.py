@@ -182,7 +182,7 @@ def seat_number(index: int) -> int:
 
 def format_hit(index: int, read_text: str, truncated: bool, entry_name: str, note: str) -> str:
     del index, truncated
-    line = f"画面是「{read_text}」，黑名单里有「{entry_name}」"
+    line = f"识别为「{read_text}」，匹配黑名单「{entry_name}」"
     if note.strip():
         line += f"。{note.strip()}"
     return line

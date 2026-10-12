@@ -206,7 +206,7 @@ class SetupCheck(QWidget):
         """环境确认, a full green bar, then the card fades away by itself."""
         self.state = "ok"
         self._target = 1.0
-        self.title.setText("环境确认")
+        self.title.setText("环境检查通过")
         self.mark.setPixmap(line_pixmap("check", 22, THEME["green"]))
         self.mark.show()
         self.apply_theme()
@@ -215,7 +215,7 @@ class SetupCheck(QWidget):
     def fail(self, index: int, message: str) -> None:
         self.state = "failed"
         self.step(index, "fail")
-        self.title.setText("环境有问题")
+        self.title.setText("环境检查未通过")
         self.mark.setPixmap(line_pixmap("warning", 22, THEME["red"]))
         self.mark.show()
         self.message.setText(message)

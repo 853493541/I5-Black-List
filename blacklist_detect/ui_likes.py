@@ -78,7 +78,7 @@ class LikeDialog(Modal):
         self.name_error = _field(layout, "名字", self.name_edit, aside=self.added_on if added_on else None)
         self.name_edit.textChanged.connect(self._clear_name_error)
         self.nickname_edit = QLineEdit(nickname)
-        self.nickname_edit.setPlaceholderText("遇到时显示这个")
+        self.nickname_edit.setPlaceholderText("遇到时显示的名字")
         _field(layout, "昵称", self.nickname_edit)
         self.detail_edit = QPlainTextEdit()
         self.detail_edit.setPlainText(reason)
@@ -196,7 +196,7 @@ class LikesPage(QWidget):
         self.table.customContextMenuRequested.connect(self._row_menu)
         self.table.installEventFilter(self)
         outer.addWidget(self.table, 1)
-        self.empty = EmptyState("heart", "心动列表还是空的", "遇到想再一起玩的人，就加到这里。")
+        self.empty = EmptyState("heart", "心动列表还是空的", "把想再一起玩的玩家加到这里。")
         self.empty_batch_button = self.empty.add_action(QPushButton("批量导入"))
         self.empty_batch_button.clicked.connect(self.import_many)
         self.empty_add_button = self.empty.add_action(QPushButton("添加"))
@@ -252,7 +252,7 @@ class LikesPage(QWidget):
             self.empty.set_text(f"没有找到「{self.search.text().strip()}」")
         else:
             self.empty.set_icon("heart")
-            self.empty.set_text("心动列表还是空的", "遇到想再一起玩的人，就加到这里。")
+            self.empty.set_text("心动列表还是空的", "把想再一起玩的玩家加到这里。")
         self.empty_batch_button.setVisible(not has_any)
         self.empty_add_button.setVisible(not has_any)
         table.setVisible(bool(rows))
@@ -284,7 +284,7 @@ class LikesPage(QWidget):
         if index < 0:
             return True
         listed = self.store.entries[index].name
-        if not ConfirmDialog.ask(self.window(), "移到心动列表", f"「{listed}」在黑名单里。移到心动列表？", "移过来"):
+        if not ConfirmDialog.ask(self.window(), "移到心动列表", f"「{listed}」在黑名单中，要移到心动列表吗？", "移到心动列表"):
             return False
         self.store.remove_at(index)
         return True
@@ -300,7 +300,7 @@ class LikesPage(QWidget):
         like = self.store.add_like(dialog.name, dialog.nickname, dialog.detail)
         if like is None:
             return
-        self._done(f"已加入心动列表「{like.shown()}」", before)
+        self._done(f"已将「{like.shown()}」加入心动列表", before)
 
     def edit(self, index: int) -> None:
         if not 0 <= index < len(self.store.likes):
@@ -338,11 +338,11 @@ class LikesPage(QWidget):
         before = (self.store.snapshot_likes(), self.store.snapshot_entries())
         added, merged = self.store.import_likes(dialog.chosen)
         if not added and not merged:
-            self._say("心动列表里已经都有了")
+            self._say("这些玩家都已在心动列表中")
             return
         parts = [f"已添加 {added} 人"] if added else []
         if merged:
-            parts.append(f"更新 {merged} 人")
+            parts.append(f"合并 {merged} 人")
         self._done("，".join(parts), before)
 
     def copy_list(self) -> None:
@@ -350,11 +350,11 @@ class LikesPage(QWidget):
         if not count:
             return
         QApplication.clipboard().setText(share_likes(self.store.likes))
-        self._say(f"已复制 {count} 人。朋友在「心动」的「批量导入」里粘贴即可。")
+        self._say(f"已复制 {count} 人，好友可在「心动」页的「批量导入」中粘贴")
 
     def clear(self) -> None:
         count = len(self.store.likes)
-        if not count or not ConfirmDialog.ask(self.window(), "清空心动列表", f"心动列表里的 {count} 个名字会被删除。", "清空", danger=True):
+        if not count or not ConfirmDialog.ask(self.window(), "清空心动列表", f"将删除心动列表中的 {count} 人，确定清空吗？", "清空", danger=True):
             return
         before = (self.store.snapshot_likes(), self.store.snapshot_entries())
         self.store.clear_likes()

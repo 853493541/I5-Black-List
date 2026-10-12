@@ -89,7 +89,7 @@ def test_seat_numbers():
 
     assert seat_number(0) == 1
     assert seat_number(6) == 7
-    assert format_hit(0, "无害虎皮", True, "无害虎皮猫", "") == "画面是「无害虎皮」，黑名单里有「无害虎皮猫」"
+    assert format_hit(0, "无害虎皮", True, "无害虎皮猫", "") == "识别为「无害虎皮」，匹配黑名单「无害虎皮猫」"
     assert "号" not in format_hit(6, "谁想救人", False, "谁想救人", "")
 
 

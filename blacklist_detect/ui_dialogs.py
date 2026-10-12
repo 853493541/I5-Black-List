@@ -310,7 +310,7 @@ class BatchAddDialog(Modal):
         self.entries = list(entries)
         self.elsewhere = list(elsewhere)
         here, there = ("心动列表", "黑名单") if likes else ("黑名单", "心动列表")
-        self._status = {MERGE: "合并", SAME: f"已在{here}", ODD: "不像名字", ELSEWHERE: f"在{there}中"}
+        self._status = {MERGE: "合并", SAME: f"已在{here}", ODD: "疑似非名字", ELSEWHERE: f"已在{there}"}
         self.rows: list[ImportRow] = []
         self.chosen: list[tuple[str, tuple[str, ...], str, int]] = []
         self._picked: dict[str, bool] = {}
@@ -395,7 +395,7 @@ class BatchAddDialog(Modal):
             self._paint_row(index)
         table.setVisible(bool(self.rows))
         typed = bool(self.edit.toPlainText().strip())
-        _say_error(self.error, "没有找到名字" if typed and not self.rows else "")
+        _say_error(self.error, "未识别到名字" if typed and not self.rows else "")
         self._sync_button()
 
     def _paint_row(self, index: int) -> None:
@@ -460,10 +460,10 @@ class PictureResultDialog(Modal):
         layout.addWidget(self.summary)
         self.seats: list[QLabel] = []
         if error:
-            self.summary.setText(f"没能检查：{error}")
+            self.summary.setText(f"检查失败：{error}")
         elif result is None or not result.header_found:
             reason = result.message if result is not None else ""
-            self.summary.setText(f"{reason}\n截图里要有「推演成功」大厅的画面。".strip())
+            self.summary.setText(f"{reason}\n请上传「推演成功」大厅的完整截图。".strip())
         else:
             # The seats say it: red ones are on the list, grey ones were not read.
             self.summary.hide()
@@ -494,7 +494,7 @@ class PictureResultDialog(Modal):
                     if tail:
                         # Cut short by the game: the name once, in full as the list has it.
                         cell.setText(hit.entry_name)
-                        cell.setToolTip(f"画面是「{shown}」，黑名单里是「{hit.entry_name}」")
+                        cell.setToolTip(f"识别为「{shown}」，匹配黑名单「{hit.entry_name}」")
                     else:
                         listed = "" if tail == "" else f"　黑名单：{hit.entry_name}"
                         cell.setText(shown + listed)
@@ -510,7 +510,7 @@ class PictureResultDialog(Modal):
                     shown = split_ellipsis(slot.visible)[0] or slot.visible
                     # 心动 shows the 昵称, or the full name as the list has it.
                     cell.setText(liked.shown())
-                    cell.setToolTip(f"画面是「{shown}」，心动列表里是「{liked.name}」")
+                    cell.setToolTip(f"识别为「{shown}」，匹配心动「{liked.name}」")
                     cell.setStyleSheet(base + f' color: {THEME["rose"]};')
                     wash = THEME["rose_wash"]
                     heart = QLabel()
@@ -542,14 +542,14 @@ class GuideDialog(Modal):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         layout = _frame(self, f"欢迎使用{APP_NAME}")
-        intro = QLabel("进入「推演成功」大厅时，它会读出十二个名字，并标出黑名单里的人。只读屏幕，不碰游戏。")
+        intro = QLabel("进入「推演成功」大厅时，自动识别 12 名玩家并标出黑名单玩家。仅读取屏幕画面，不修改游戏。")
         intro.setWordWrap(True)
         layout.addWidget(intro)
         layout.addSpacing(4)
         steps = (
-            ("edit", "1. 在右上角填上你的角色名称，记录里会标出你自己。"),
-            ("users", "2. 在「黑名单」里添加名字，或用「批量导入」粘贴朋友分享的名单。"),
-            ("check", "3. 进游戏就好。有黑名单的人时，「准备案件还原」按钮会被标红，旁边列出名字。"),
+            ("edit", "1. 在右上角填写你的角色名称，记录中会标出你自己。"),
+            ("users", "2. 在「黑名单」中添加玩家，或通过「批量导入」粘贴好友分享的名单。"),
+            ("check", "3. 进入游戏即可。遇到黑名单玩家时，「准备案件还原」按钮会标红，并在旁边列出名字。"),
         )
         accent = THEME["accent_line"] if THEME.get("scheme") == "dark" else THEME["accent"]
         self.steps: list[QLabel] = []

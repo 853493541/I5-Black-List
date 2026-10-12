@@ -109,9 +109,9 @@ def test_adding_a_blacklisted_name_asks_to_move_it(window, monkeypatch):
     said: list[tuple[str, object]] = []
     window.likes_page._say = lambda text, undo=None: said.append((text, undo))
     window.likes_page.add_one()
-    assert asked == ["「小明」在黑名单里。移到心动列表？"]
+    assert asked == ["「小明」在黑名单中，要移到心动列表吗？"]
     assert window.store.entries == [] and [e.name for e in window.store.likes] == ["小明"]
-    assert said[0][0] == "已加入心动列表「明哥」"
+    assert said[0][0] == "已将「明哥」加入心动列表"
     # 撤销 puts both lists back.
     said[0][1]()
     assert [e.name for e in window.store.entries] == ["小明"] and window.store.likes == []
@@ -128,7 +128,7 @@ def test_a_record_shows_a_like_in_rose_with_its_nickname(window):
     assert wrap.findChild(QLabel, "rowName").text() == "明哥"
     item = window.history_table.item(0, 0)
     assert item.foreground().color().name() == THEME["rose"]
-    assert "心动列表里是「救人很稳的小明」" in item.toolTip()
+    assert "匹配心动「救人很稳的小明」" in item.toolTip()
     # A seat no one listed offers both lists.
     assert [a.text() for a in window._seat_menu(0, 1).actions() if a.text()] == ["加入黑名单", "加入心动列表", "复制名字"]
     assert [a.text() for a in window._seat_menu(0, 0).actions() if a.text()] == ["编辑", "复制名字"]

@@ -27,7 +27,7 @@ class CaptureUnavailable(RuntimeError):
 
 def capture_capability_message() -> str:
     if sys.platform != "win32":
-        return "这台电脑不能直接检查游戏画面。请在「记录」里「上传截图」。"
+        return "无法读取游戏画面，可在「记录」中点「上传截图」检查。"
     return ""
 
 
@@ -55,7 +55,7 @@ def capture_displays() -> list:
         raise CaptureUnavailable(capture_capability_message())
     frame = _grab_screen()
     if frame is None or frame.size == 0:
-        raise CaptureUnavailable("没有读到画面，请再试一次。")
+        raise CaptureUnavailable("截屏失败，请重试。")
     return [frame]
 
 
@@ -65,7 +65,7 @@ def capture_top_band(fraction: float = TITLE_BAND_FRACTION) -> np.ndarray:
         raise CaptureUnavailable(capture_capability_message())
     frame = _grab_screen(height_fraction=fraction)
     if frame is None or frame.size == 0:
-        raise CaptureUnavailable("没有读到画面，请再试一次。")
+        raise CaptureUnavailable("截屏失败，请重试。")
     return frame
 
 
