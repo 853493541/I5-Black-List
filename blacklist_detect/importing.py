@@ -44,6 +44,8 @@ NEW = "new"
 MERGE = "merge"
 SAME = "same"
 ODD = "odd"
+# On the other list (黑名单 when importing into 心动, and the other way round).
+ELSEWHERE = "elsewhere"
 
 _OPEN = "（"
 _CLOSE = "）"
@@ -197,8 +199,13 @@ def _adds_to(row: ImportRow, entry: Entry) -> bool:
     return bool(set(row.tags) - set(entry.tags)) or merge_reason(entry.reason, row.reason) != entry.reason or longer
 
 
-def plan_import(text: str, entries: list[Entry], catalog: tuple[str, ...] = TAGS) -> list[ImportRow]:
-    """What 导入 would do with this paste: one row per person, checked if it changes the list."""
+def plan_import(
+    text: str, entries: list[Entry], catalog: tuple[str, ...] = TAGS, elsewhere: list[Entry] = ()
+) -> list[ImportRow]:
+    """What 导入 would do with this paste: one row per person, checked if it changes the list.
+
+    A name on the other list (elsewhere) is shown but unchecked: a player is on one list.
+    """
     rows: list[ImportRow] = []
     by_key: dict[str, ImportRow] = {}
     headers: set[str] = set()
@@ -220,6 +227,9 @@ def plan_import(text: str, entries: list[Entry], catalog: tuple[str, ...] = TAGS
     for row in rows:
         if _looks_odd(row.name) or fold(row.name) in headers:
             row.status, row.checked = ODD, False
+            continue
+        if any(fold(other.name) == fold(row.name) for other in elsewhere):
+            row.status, row.checked = ELSEWHERE, False
             continue
         row.target = _find(row.name, entries)
         if row.target >= 0:

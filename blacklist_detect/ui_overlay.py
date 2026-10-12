@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from blacklist_detect.ui_icons import pixmap as line_pixmap
 from blacklist_detect.ui_theme import (
     BODY_PT,
     OVERLAY_PT,
@@ -100,6 +101,10 @@ _CARD_LINE = "rgba(228, 196, 126, 220)"
 _INK = "#fff3e0"
 _TAG_WASH = "#2a0a0e"
 _TAG_INK = "#ffcf9e"
+# The 心动 card: rose, edged in the same gold.
+_LIKE_CARD = ("#a3346a", "#6b1c43")
+_LIKE_INK = "#fff0f6"
+_LIKE_HEART = "#ffb8d2"
 
 
 def _fade_in(widget: QWidget, ms: int = 120) -> None:
@@ -155,14 +160,15 @@ def _paint_ring(painter: QPainter, cover: QRectF, color: QColor, glow: QColor) -
 class _Fade(QWidget):
     """The bottom of a card that scrolls fades out, so the next name shows there is more."""
 
-    def __init__(self, parent: QWidget) -> None:
+    def __init__(self, parent: QWidget, bottom: str) -> None:
         super().__init__(parent)
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self._bottom = bottom
 
     def paintEvent(self, _event) -> None:  # noqa: ANN001
         painter = QPainter(self)
         fade = QLinearGradient(0, 0, 0, self.height())
-        bottom = QColor(_CARD[1])
+        bottom = QColor(self._bottom)
         fade.setColorAt(0.0, QColor(bottom.red(), bottom.green(), bottom.blue(), 0))
         fade.setColorAt(1.0, QColor(bottom.red(), bottom.green(), bottom.blue(), 235))
         painter.fillRect(self.rect(), fade)
@@ -177,6 +183,8 @@ class HitCard(QWidget):
     """
 
     margin = 0
+    _COLORS = _CARD
+    _NAME_INK = _INK
 
     def __init__(self) -> None:
         super().__init__(
@@ -213,7 +221,7 @@ class HitCard(QWidget):
         self.rows.setSpacing(4)
         self.scroll.setWidget(self.content)
         body_layout.addWidget(self.scroll)
-        self.fade = _Fade(self.scroll.viewport())
+        self.fade = _Fade(self.scroll.viewport(), self._COLORS[1])
         self.fade.hide()
         self.scroll.verticalScrollBar().valueChanged.connect(self._sync_fade)
         self.scroll.verticalScrollBar().rangeChanged.connect(self._sync_fade)
@@ -243,8 +251,11 @@ class HitCard(QWidget):
             label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             label.setFixedWidth(name_width)
             label.setStyleSheet(
-                f'color: {_INK}; background: transparent; font-family: "{family}"; font-size: {OVERLAY_PT}pt; font-weight: 600;'
+                f'color: {self._NAME_INK}; background: transparent; font-family: "{family}"; font-size: {OVERLAY_PT}pt; font-weight: 600;'
             )
+            lead = self._lead()
+            if lead is not None:
+                row.addWidget(lead, 0, Qt.AlignVCenter)
             row.addWidget(label, 0, Qt.AlignVCenter)
             row.addSpacing(8)
             for tag in tags[:3]:
@@ -284,11 +295,15 @@ class HitCard(QWidget):
         self.fade.setVisible(bar.maximum() > 0 and bar.value() < bar.maximum())
         self.fade.raise_()
 
+    def _lead(self) -> QWidget | None:
+        """What comes before each name. A hit needs nothing: the card is beside a red ring."""
+        return None
+
     def _apply_style(self) -> None:
         self.setStyleSheet(
             f"""
             QWidget#hitCard {{
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {_CARD[0]}, stop:1 {_CARD[1]});
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {self._COLORS[0]}, stop:1 {self._COLORS[1]});
                 border: 1px solid {_CARD_LINE};
                 border-radius: 8px;
             }}
@@ -322,6 +337,32 @@ class HitCard(QWidget):
         super().showEvent(event)
         _pin_topmost(self)
         _fade_in(self)
+
+
+class LikeCard(HitCard):
+    """心动 players in this lobby: the same card in rose, a heart before each name.
+
+    set_people gets each player as (what to show, ()): the 昵称, or the full name.
+    """
+
+    _COLORS = _LIKE_CARD
+    _NAME_INK = _LIKE_INK
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.body.setObjectName("likeCard")
+        self._apply_style()
+
+    def _lead(self) -> QWidget | None:
+        heart = QLabel()
+        heart.setObjectName("likeHeart")
+        heart.setPixmap(line_pixmap("heart", 16, _LIKE_HEART, stroke=1.8))
+        heart.setStyleSheet("background: transparent;")
+        return heart
+
+    def _apply_style(self) -> None:
+        super()._apply_style()
+        self.setStyleSheet(self.styleSheet().replace("QWidget#hitCard", "QWidget#likeCard"))
 
 
 class ClearMark(QWidget):

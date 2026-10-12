@@ -170,6 +170,9 @@ def _palette(name: str, dark: bool) -> dict[str, str]:
             "green": "#5fcb8c",
             "green_wash": "#1b3125",
             "green_hover": "#22402f",
+            "rose": "#f08bb0",
+            "rose_wash": "#3a2330",
+            "rose_hover": "#4a2b3c",
             "gray": "#8d95a3",
             "gray_wash": "#24282f",
             "gray_hover": "#2c313a",
@@ -207,6 +210,9 @@ def _palette(name: str, dark: bool) -> dict[str, str]:
             "green": "#1c7a3e",
             "green_wash": "#effaf3",
             "green_hover": "#e3f6eb",
+            "rose": "#c2306b",
+            "rose_wash": "#fff1f6",
+            "rose_hover": "#fde3ee",
             "gray": "#6b7280",
             "gray_wash": "#f3f4f6",
             "gray_hover": "#e6e8ec",
@@ -784,28 +790,28 @@ def _window_style(family: str) -> str:
             QTableWidget#recordNames::item:selected {{
                 background: transparent;
             }}
-            QTableWidget#blacklist {{
+            QTableWidget#blacklist, QTableWidget#likes {{
                 background: {t["surface"]};
                 border-radius: {CARD_RADIUS}px;
                 padding: 0;
                 outline: none;
             }}
-            QTableWidget#blacklist:focus {{
+            QTableWidget#blacklist:focus, QTableWidget#likes:focus {{
                 border: 1px solid {t["border"]};
                 outline: none;
             }}
-            QTableWidget#blacklist::item {{
+            QTableWidget#blacklist::item, QTableWidget#likes::item {{
                 background: {t["surface"]};
                 padding: 8px 12px;
                 border: none;
                 outline: none;
             }}
-            QTableWidget#blacklist::item:hover {{
+            QTableWidget#blacklist::item:hover, QTableWidget#likes::item:hover {{
                 background: {t["surface"]};
                 color: {t["text"]};
             }}
-            QTableWidget#blacklist::item:selected,
-            QTableWidget#blacklist::item:selected:hover {{
+            QTableWidget#blacklist::item:selected, QTableWidget#likes::item:selected,
+            QTableWidget#blacklist::item:selected:hover, QTableWidget#likes::item:selected:hover {{
                 background: {t["hover"]};
                 color: {t["text"]};
             }}

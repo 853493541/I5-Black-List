@@ -7,12 +7,20 @@ from dataclasses import dataclass
 
 @dataclass
 class Entry:
-    """One blacklist row: when it was added, the name, tags, and a written reason."""
+    """One listed player: when it was added, the name, tags, and a written reason.
+
+    A 心动 entry has no tags; its nickname, when set, is what a lobby shows for it.
+    """
 
     name: str
     reason: str = ""
     tags: tuple[str, ...] = ()
     added_at: str = ""
+    nickname: str = ""
+
+    def shown(self) -> str:
+        """What a lobby shows for this player: the nickname, or the full name."""
+        return self.nickname or self.name
 
 
 @dataclass(frozen=True)

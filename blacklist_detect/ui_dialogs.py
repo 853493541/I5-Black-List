@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from blacklist_detect.importing import MERGE, ODD, SAME, ImportRow, plan_import
+from blacklist_detect.importing import ELSEWHERE, MERGE, ODD, SAME, ImportRow, plan_import
 from blacklist_detect.match import clean_stored_name, fold, listed_tail, split_ellipsis
 from blacklist_detect.pipeline import CheckResult
 from blacklist_detect.ui_icons import pixmap as line_pixmap
@@ -299,14 +299,17 @@ class BatchAddDialog(Modal):
     unchecked by hand stays unchecked.
     """
 
-    _STATUS = {MERGE: "合并", SAME: "已在黑名单", ODD: "不像名字"}
-
-    def __init__(self, catalog: tuple[str, ...] = (), entries=(), parent=None) -> None:  # noqa: ANN001
+    def __init__(self, catalog: tuple[str, ...] = (), entries=(), parent=None, likes: bool = False, elsewhere=()) -> None:  # noqa: ANN001
         super().__init__(parent)
         from blacklist_detect.storage import TAGS
 
-        self.catalog = catalog or TAGS
+        # Into 心动 there are no 标签: the whole note is the 原因.
+        self.likes = likes
+        self.catalog = () if likes else (catalog or TAGS)
         self.entries = list(entries)
+        self.elsewhere = list(elsewhere)
+        here, there = ("心动列表", "黑名单") if likes else ("黑名单", "心动列表")
+        self._status = {MERGE: "合并", SAME: f"已在{here}", ODD: "不像名字", ELSEWHERE: f"在{there}中"}
         self.rows: list[ImportRow] = []
         self.chosen: list[tuple[str, tuple[str, ...], str, int]] = []
         self._picked: dict[str, bool] = {}
@@ -328,6 +331,7 @@ class BatchAddDialog(Modal):
         head.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         self.preview.setColumnWidth(0, 160)
         self.preview.setColumnWidth(1, 110)
+        self.preview.setColumnHidden(1, likes)
         self.preview.verticalHeader().setVisible(False)
         self.preview.verticalHeader().setDefaultSectionSize(30)
         self.preview.setSelectionMode(QTableWidget.NoSelection)
@@ -365,7 +369,7 @@ class BatchAddDialog(Modal):
 
     def _refresh(self) -> None:
         """Read the paste again and show who it brings."""
-        self.rows = plan_import(self.edit.toPlainText(), self.entries, self.catalog)
+        self.rows = plan_import(self.edit.toPlainText(), self.entries, self.catalog, self.elsewhere)
         for row in self.rows:
             picked = self._picked.get(fold(row.name))
             if picked is not None:
@@ -377,7 +381,7 @@ class BatchAddDialog(Modal):
             name.setToolTip(row.name)
             reason = QTableWidgetItem(row.reason)
             reason.setToolTip(row.reason)
-            status = QTableWidgetItem(self._STATUS.get(row.status, ""))
+            status = QTableWidgetItem(self._status.get(row.status, ""))
             if row.status == MERGE and 0 <= row.target < len(self.entries):
                 status.setToolTip(f"合并到「{self.entries[row.target].name}」")
             tags = QTableWidgetItem("")
@@ -434,10 +438,20 @@ class BatchAddDialog(Modal):
 SAMPLE_LOBBY = Path(__file__).resolve().parent / "assets" / "sample-lobby.jpg"
 
 
-class PictureResultDialog(Modal):
-    """What one picture check read: the twelve seats, with blacklist matches in red."""
+def _liked(slot, likes):  # noqa: ANN001, ANN202
+    """The 心动 entry this seat is, or None. The same rule as the lobby check."""
+    from blacklist_detect.match import NameLabel, match_label
 
-    def __init__(self, title: str, result: CheckResult | None = None, error: str = "", parent=None) -> None:
+    if slot.unclear or not likes:
+        return None
+    found = match_label(NameLabel(raw=slot.raw, visible=slot.visible, truncated=slot.truncated), list(likes))
+    return found[0].entry if found else None
+
+
+class PictureResultDialog(Modal):
+    """What one picture check read: the twelve seats, blacklist matches in red, 心动 in rose."""
+
+    def __init__(self, title: str, result: CheckResult | None = None, error: str = "", parent=None, likes=()) -> None:  # noqa: ANN001
         super().__init__(parent)
         layout = _frame(self, title)
         self.summary = QLabel()
@@ -491,6 +505,18 @@ class PictureResultDialog(Modal):
                     warn.setPixmap(line_pixmap("warning", 16, THEME["red"]))
                     warn.setStyleSheet("background: transparent;")
                     line.addWidget(warn)
+                elif (liked := _liked(slot, likes)) is not None:
+                    shown = split_ellipsis(slot.visible)[0] or slot.visible
+                    # 心动 shows the 昵称, or the full name as the list has it.
+                    cell.setText(liked.shown())
+                    cell.setToolTip(f"画面是「{shown}」，心动列表里是「{liked.name}」")
+                    cell.setStyleSheet(base + f' color: {THEME["rose"]};')
+                    wash = THEME["rose_wash"]
+                    heart = QLabel()
+                    heart.setObjectName("seatHeart")
+                    heart.setPixmap(line_pixmap("heart", 16, THEME["rose"]))
+                    heart.setStyleSheet("background: transparent;")
+                    line.addWidget(heart)
                 else:
                     cell.setText(split_ellipsis(slot.visible)[0] or slot.visible)
                     cell.setStyleSheet(base + f' color: {THEME["text"]};')

@@ -142,6 +142,39 @@ def match_label(label: NameLabel, entries: list[Entry]) -> list[NameMatch]:
     return hits
 
 
+def last_seen(entries: list[Entry], scans: list[dict]) -> tuple[dict[int, str], dict[int, int]]:
+    """When each listed name was last in a record, and how many listed names each record held.
+
+    Records are newest first, so the first record a name is found in is its latest. A seat can
+    only match a name that starts with the same four folded characters (or, for a short name,
+    is the same); grouping by that leaves match_label, which still decides, a handful to check.
+    """
+    found: dict[int, str] = {}
+    hits: dict[int, int] = {}
+    by_id = {id(entry): index for index, entry in enumerate(entries)}
+    groups: dict[str, list[Entry]] = {}
+    for entry in entries:
+        folded = fold(entry.name)
+        if folded:
+            groups.setdefault(folded[:MIN_PREFIX_CHARS], []).append(entry)
+    for number, scan in enumerate(scans):
+        for seat in scan.get("names", []):
+            if seat.get("unclear") or not str(seat.get("name") or ""):
+                continue
+            shown = str(seat["name"])
+            candidates = groups.get(fold(shown)[:MIN_PREFIX_CHARS], [])
+            if not candidates:
+                continue
+            matches = match_label(NameLabel(raw=shown, visible=shown, truncated=False), candidates)
+            if matches:
+                hits[number] = hits.get(number, 0) + 1
+            for match in matches:
+                index = by_id.get(id(match.entry))
+                if index is not None and index not in found:
+                    found[index] = str(scan.get("at", ""))
+    return found, hits
+
+
 def seat_number(index: int) -> int:
     """Top row, left to right, is 1–6. Bottom row, left to right, is 7–12."""
     return index + 1

@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from blacklist_detect.ui_icons import icon as line_icon
 from blacklist_detect.ui_icons import pixmap as line_pixmap
 from blacklist_detect.ui_kit import _KeyboardRing, activates
 from blacklist_detect.ui_theme import (
@@ -43,6 +44,24 @@ from blacklist_detect.ui_theme import (
     chinese_family,
     chinese_font,
 )
+
+_MENU_ICONS = {
+    "编辑": "edit",
+    "添加": "add",
+    "加入黑名单": "add",
+    "复制名字": "copy",
+    "删除": "delete",
+    "加入心动列表": "heart",
+}
+
+
+def _mark_menu_item(action, name: str = "") -> None:  # noqa: ANN001
+    """A menu line's icon: by its words, or the one named. 删除 is red."""
+    name = name or _MENU_ICONS.get(action.text(), "")
+    if not name:
+        return
+    action.setProperty("icon_name", name)
+    action.setIcon(line_icon(name, 16, THEME["red"] if name == "delete" else THEME["muted"]))
 
 
 def _zh_clock(moment: datetime) -> str:
@@ -914,7 +933,7 @@ class _PlainItemDelegate(QStyledItemDelegate):
             return
         option.state = option.state & ~QStyle.State_HasFocus
         super().paint(painter, option, index)
-        if isinstance(view, QTableWidget) and view.objectName() == "blacklist":
+        if isinstance(view, QTableWidget) and view.objectName() in ("blacklist", "likes"):
             _row_divider(painter, option.rect)
         if isinstance(view, QTableWidget) and view.objectName() == "blacklist" and option.state & QStyle.State_Selected:
             header = view.horizontalHeader()

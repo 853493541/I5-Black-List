@@ -49,10 +49,10 @@ from blacklist_detect.capture import (
 from blacklist_detect.hotkey import GlobalHotkey, parse_hotkey
 from blacklist_detect.logs import log, mark_closed, mark_running, on_uncaught, setup_logging
 from blacklist_detect.match import (
-    MIN_PREFIX_CHARS,
     NameLabel,
     fold,
     format_hit,
+    last_seen,
     listed_tail,
     match_label,
     seat_number,
@@ -93,10 +93,12 @@ from blacklist_detect.ui_kit import (
     TabButton,
     Toast,
 )
+from blacklist_detect.ui_likes import LikesPage
 from blacklist_detect.ui_overlay import (
     _COVER_OUTSET,
     ClearMark,
     HitCard,
+    LikeCard,
     LobbyPanel,
     _cover_radius,
     _pin_topmost,
@@ -137,6 +139,7 @@ from blacklist_detect.ui_widgets import (
     _DetailTip,
     _icon,
     _local_moment,
+    _mark_menu_item,
     _PlainItemDelegate,
     _zh_ago,
     _zh_clock,
@@ -350,6 +353,8 @@ class MainWindow(QMainWindow):
         self._closing = False
         self.panel = LobbyPanel()
         self.hit_card = HitCard()
+        # 心动 players in the lobby, under the hit card or beside the check.
+        self.like_card = LikeCard()
         self.clear_mark = ClearMark()
         self._panel_hide_timer = QTimer(self)
         self._panel_hide_timer.setSingleShot(True)
@@ -419,6 +424,9 @@ class MainWindow(QMainWindow):
         self.tabs.setDocumentMode(True)
         self.history_tab = self.tabs.addTab(self._history_page(), "记录")
         self.blacklist_tab = self.tabs.addTab(self._list_page(), "黑名单")
+        self.likes_page = LikesPage(self.store, self._say)
+        self.likes_page.changed.connect(self._likes_changed)
+        self.likes_tab = self.tabs.addTab(self.likes_page, "心动")
         self.settings_tab = self.tabs.addTab(self._settings_page(), "设置")
         self.tabs.tabBar().hide()
         self.tabs.currentChanged.connect(self._sync_tab_buttons)
@@ -1051,7 +1059,7 @@ class MainWindow(QMainWindow):
         self.settings_label.setVisible(bool(text))
 
     def _ask_reset(self) -> None:
-        if not _confirm(self, "清空数据会删除角色名称、记录、黑名单和设置。确定清空？"):
+        if not _confirm(self, "清空数据会删除角色名称、记录、黑名单、心动列表和设置。确定清空？"):
             return
         self.store.reset()
         self.hotkey.clear()
@@ -1084,8 +1092,10 @@ class MainWindow(QMainWindow):
         self._panel_hide_timer.stop()
         self.panel.hide()
         self.hit_card.hide()
+        self.like_card.hide()
         self.clear_mark.hide()
         self._reload_history()
+        self.likes_page.refresh()
 
     def _edit_player_name(self) -> None:
         """The chip becomes a box for the name, the same height and in the same place."""
@@ -1156,6 +1166,8 @@ class MainWindow(QMainWindow):
             self.search_icon.setIcon(line_icon("search", 16, THEME["muted"]))
         if hasattr(self, "history_empty"):
             self.history_empty.refresh()
+        if hasattr(self, "likes_page"):
+            self.likes_page.restyle()
 
     def _mark_theme_buttons(self) -> None:
         for name, swatch in self.theme_buttons.items():
@@ -1498,32 +1510,7 @@ class MainWindow(QMainWindow):
         cached = getattr(self, "_met_cache", None)
         if cached is not None and cached[0] == key:
             return cached[1]
-        found: dict[int, str] = {}
-        hits: dict[int, int] = {}
-        by_id = {id(entry): index for index, entry in enumerate(entries)}
-        # A seat can only match a name that starts with the same four folded characters (or,
-        # for a short name, is the same). Grouping by that key leaves match_label, which still
-        # decides, only a handful of names to look at instead of the whole list.
-        groups: dict[str, list[Entry]] = {}
-        for entry in entries:
-            folded = fold(entry.name)
-            if folded:
-                groups.setdefault(folded[:MIN_PREFIX_CHARS], []).append(entry)
-        for number, scan in enumerate(scans):
-            for seat in scan.get("names", []):
-                if seat.get("unclear") or not str(seat.get("name") or ""):
-                    continue
-                shown = str(seat["name"])
-                candidates = groups.get(fold(shown)[:MIN_PREFIX_CHARS], [])
-                if not candidates:
-                    continue
-                matches = match_label(NameLabel(raw=shown, visible=shown, truncated=False), candidates)
-                if matches:
-                    hits[number] = hits.get(number, 0) + 1
-                for match in matches:
-                    index = by_id.get(id(match.entry))
-                    if index is not None and index not in found:
-                        found[index] = str(scan.get("at", ""))
+        found, hits = last_seen(entries, scans)
         self._met_cache = (key, found, hits)
         return found
 
@@ -1671,6 +1658,12 @@ class MainWindow(QMainWindow):
     def _refresh_blacklist_tab(self) -> None:
         count = len(self.store.entries)
         self._set_tab_count(self.blacklist_tab, count)
+        if hasattr(self, "likes_tab"):
+            self._set_tab_count(self.likes_tab, len(self.store.likes))
+
+    def _likes_changed(self) -> None:
+        """心动 changed, and a move may have taken a name off 黑名单: redraw both and the record."""
+        self._refresh_tag_views()
 
     def _open_record_menu(self) -> None:
         button = self.record_more
@@ -1696,11 +1689,27 @@ class MainWindow(QMainWindow):
     def _list_changed(self) -> None:
         self._show_list()
         self._show_history_scan(self._selected_scan())
+        self.likes_page.refresh()
 
-    def _put_back(self, entries: list[Entry]) -> None:
+    def _put_back(self, entries: list[Entry], likes: list[Entry] | None = None) -> None:
         self.store.restore_entries(entries)
+        if likes is not None:
+            self.store.restore_likes(likes)
+            self.likes_page.refresh()
         self._refresh_tag_views()
         self._say("已撤销")
+
+    def _take_from_likes(self, name: str) -> bool:
+        """A name on 心动 moves to 黑名单 only when asked. True when it is not there, or was moved."""
+        index = self.store.like_index(name)
+        if index < 0:
+            return True
+        listed = self.store.likes[index].name
+        if not ConfirmDialog.ask(self, "移到黑名单", f"「{listed}」在心动列表里。移到黑名单？", "移过来"):
+            return False
+        self.store.remove_like(index)
+        self.likes_page.refresh()
+        return True
 
     def _say(self, text: str, undo=None) -> None:  # noqa: ANN001
         """Report a change in a toast. 撤销 stays for eight seconds."""
@@ -1763,7 +1772,8 @@ class MainWindow(QMainWindow):
         for keys, slot in (
             ("Ctrl+1", self._show_records_page),
             ("Ctrl+2", self._show_blacklist_page),
-            ("Ctrl+3", self._show_settings_page),
+            ("Ctrl+3", self._show_likes_page),
+            ("Ctrl+4", self._show_settings_page),
             ("Ctrl+F", self._focus_search),
             ("Ctrl+N", self._add_by_dialog),
             ("Ctrl+I", self._add_many_by_dialog),
@@ -1777,6 +1787,9 @@ class MainWindow(QMainWindow):
 
     def _show_blacklist_page(self) -> None:
         self.tabs.setCurrentIndex(self.blacklist_tab)
+
+    def _show_likes_page(self) -> None:
+        self.tabs.setCurrentIndex(self.likes_tab)
 
     def _show_settings_page(self) -> None:
         self.tabs.setCurrentIndex(self.settings_tab)
@@ -1829,6 +1842,8 @@ class MainWindow(QMainWindow):
             self._delete_entry(*args)
         elif kind == "seat":
             self._on_history_cell(*args)
+        elif kind == "like_seat":
+            self.likes_page.add_one(split_ellipsis(args[0])[0] or args[0])
         elif kind == "copy_text":
             self._copy_text(*args)
         elif kind == "tag_edit":
@@ -1864,15 +1879,17 @@ class MainWindow(QMainWindow):
         dialog = AddNameDialog(tags=picked, catalog=self.store.tag_catalog(), parent=self, taken=self._taken_names())
         if dialog.exec() != QDialog.Accepted or dialog.deleted:
             return
-        before = self.store.snapshot_entries()
+        before, likes = self.store.snapshot_entries(), self.store.snapshot_likes()
+        if not self._take_from_likes(dialog.name):
+            return
         entry = self.store.add(dialog.name, dialog.detail, tags=dialog.tags)
         if entry is None:
             return
         self._list_changed()
-        self._say(f"已添加「{entry.name}」", undo=lambda: self._put_back(before))
+        self._say(f"已添加「{entry.name}」", undo=lambda: self._put_back(before, likes))
 
     def _add_many_by_dialog(self) -> None:
-        dialog = BatchAddDialog(self.store.tag_catalog(), self.store.entries, parent=self)
+        dialog = BatchAddDialog(self.store.tag_catalog(), self.store.entries, parent=self, elsewhere=self.store.likes)
         if dialog.exec() != QDialog.Accepted or not dialog.chosen:
             return
         before = self.store.snapshot_entries()
@@ -1920,6 +1937,8 @@ class MainWindow(QMainWindow):
         self._list_changed()
 
     def _reload_history(self, select: int = 0) -> None:
+        if hasattr(self, "likes_page"):
+            self.likes_page.refresh()
         self.history_list.blockSignals(True)
         self.history_list.clear()
         folders: list[tuple[str, list[tuple[int, str]]]] = []
@@ -2175,17 +2194,22 @@ class MainWindow(QMainWindow):
         found = match_label(label, list(self.store.entries))
         return found[0] if found else None
 
+    def _history_like(self, shown: str) -> Entry | None:
+        found = match_label(NameLabel(raw=shown, visible=shown, truncated=False), list(self.store.likes))
+        return found[0].entry if found else None
+
     def _set_history_seat(self, row: int, column: int, seat: dict) -> str:
-        """Fill one seat. Returns hit, unclear or "" for the lobby summary."""
+        """Fill one seat. Returns hit, like, unclear or "" for the lobby summary."""
         unclear = bool(seat.get("unclear")) or not str(seat.get("name") or "")
         shown = "未识别" if unclear else str(seat.get("name"))
         visible = "未识别" if unclear else shown
         match = None if unclear else self._history_match(shown)
         stored = match.entry.name if match is not None else ""
-        mine = not unclear and match is None and self._is_my_name(shown)
+        like = None if unclear or match is not None else self._history_like(shown)
+        mine = not unclear and match is None and like is None and self._is_my_name(shown)
         if mine:
             action = "我"
-        elif unclear or match is not None:
+        elif unclear or match is not None or like is not None:
             action = ""
         else:
             action = "添加"
@@ -2199,12 +2223,16 @@ class MainWindow(QMainWindow):
         # Only a list name that differs in more than the cut keeps its 名单 note beside the name.
         tail = listed_tail(title, listed) if listed else None
         shown_name = listed if tail else title
+        if like is not None:
+            # 心动 shows the 昵称, or the full name as the list has it.
+            shown_name = like.shown()
         # Lobby order is not the player's number. Show the name until a later stage.
         label = title
         name_item = QTableWidgetItem(label)
         name_item.setData(Qt.UserRole, "" if unclear else title)
         name_item.setData(Qt.UserRole + 1, action)
         name_item.setData(Qt.UserRole + 2, stored)
+        name_item.setData(Qt.UserRole + 3, like.name if like is not None else "")
         name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
         name_font = record_font()
         name_item.setFont(name_font)
@@ -2216,6 +2244,10 @@ class MainWindow(QMainWindow):
             tone = THEME["red"]
             wash = THEME["red_wash"]
             hover = THEME["red_hover"]
+        elif like is not None:
+            tone = THEME["rose"]
+            wash = THEME["rose_wash"]
+            hover = THEME["rose_hover"]
         elif self._is_my_name(shown):
             tone = THEME["green"]
             wash = THEME["green_wash"]
@@ -2248,6 +2280,13 @@ class MainWindow(QMainWindow):
             warn.setAttribute(Qt.WA_TransparentForMouseEvents, True)
             warn.setStyleSheet("background: transparent;")
             line.addWidget(warn)
+        if like is not None:
+            heart = QLabel()
+            heart.setObjectName("seatHeart")
+            heart.setPixmap(line_pixmap("heart", 16, THEME["rose"]))
+            heart.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+            heart.setStyleSheet("background: transparent;")
+            line.addWidget(heart)
         name_label = _ElidedLabel(visible if unclear else shown_name)
         name_label.setObjectName("rowName")
         name_label.setFont(name_font)
@@ -2261,6 +2300,8 @@ class MainWindow(QMainWindow):
         line.addWidget(name_label, 1)
         if tail:
             name_item.setToolTip(f"画面是「{title}」，黑名单里是「{listed}」")
+        if like is not None:
+            name_item.setToolTip(f"画面是「{title}」，心动列表里是「{like.name}」")
         if not unclear and not name_item.toolTip():
             name_item.setToolTip(label)
         if listed and tail is None:
@@ -2294,7 +2335,7 @@ class MainWindow(QMainWindow):
                 action_label.hide()
             line.addWidget(action_label, 0, Qt.AlignVCenter)
         self.history_table.setCellWidget(row, column, wrap)
-        return "unclear" if unclear else "hit" if match is not None else ""
+        return "unclear" if unclear else "hit" if match is not None else "like" if like is not None else ""
 
     def _history_wrap_style(self, wash: str = "") -> str:
         """A seat: white with a thin gray outline, or filled when it means something (or is under the pointer)."""
@@ -2354,10 +2395,11 @@ class MainWindow(QMainWindow):
             return None
         action = str(item.data(Qt.UserRole + 1) or "")
         items = []
-        if item.data(Qt.UserRole + 2):
+        if item.data(Qt.UserRole + 2) or item.data(Qt.UserRole + 3):
             items.append(("编辑", ("seat", row, column)))
         elif action == "添加":
-            items.append(("添加", ("seat", row, column)))
+            items.append(("加入黑名单", ("seat", row, column)))
+            items.append(("加入心动列表", ("like_seat", shown)))
         items.append(("复制名字", ("copy_text", shown)))
         return self._menu(items)
 
@@ -2380,8 +2422,14 @@ class MainWindow(QMainWindow):
                     self._edit_entry(index)
                     return
             return
+        liked = str(item.data(Qt.UserRole + 3) or "")
+        if liked:
+            self.likes_page.edit(self.store.like_index(liked))
+            return
         dialog = AddNameDialog(shown, title="添加", catalog=self.store.tag_catalog(), parent=self, taken=self._taken_names())
         if dialog.exec() != QDialog.Accepted or dialog.deleted:
+            return
+        if not self._take_from_likes(dialog.name):
             return
         if self.store.add(dialog.name, dialog.detail, tags=dialog.tags) is None:
             return
@@ -2653,7 +2701,7 @@ class MainWindow(QMainWindow):
             self._picture_dialog = PictureResultDialog(title, error=error, parent=self)
         else:
             log.info("Picture check: lobby %s, %d on the list", value.header_found, len(value.hits))
-            self._picture_dialog = PictureResultDialog(title, result=value, parent=self)
+            self._picture_dialog = PictureResultDialog(title, result=value, parent=self, likes=self.store.likes)
         self._picture_dialog.open()
 
     def _set_autostart(self, enabled: bool) -> None:
@@ -2743,6 +2791,7 @@ class MainWindow(QMainWindow):
             self._panel_hide_timer.stop()
             self.panel.set_mode("checking", "检查中")
             self.hit_card.hide()
+            self.like_card.hide()
             self.clear_mark.hide()
         if not self.worker.request(fn):
             self._unlock_foreground()
@@ -2941,6 +2990,7 @@ class MainWindow(QMainWindow):
         self._panel_hide_timer.stop()
         self.panel.hide()
         self.hit_card.hide()
+        self.like_card.hide()
         self.clear_mark.hide()
         if not self.store.auto_capture:
             self._watch_timer.stop()
@@ -2953,6 +3003,7 @@ class MainWindow(QMainWindow):
             return
         self._open_panel("checking", "检查中", box)
         self.hit_card.hide()
+        self.like_card.hide()
         self.clear_mark.hide()
 
     def _show_panel(self, result: CheckResult) -> None:
@@ -2962,18 +3013,22 @@ class MainWindow(QMainWindow):
         if result.button_box is None:
             self._hide_panel_after_title()
             return
+        likes = self._likes_in(result)
         if result.hits:
             self.clear_mark.hide()
             self._open_panel("hit", "", result.button_box)
             self._show_hit_card(result.hits)
+            self._show_like_card(likes)
             return
         self.hit_card.hide()
+        self.like_card.hide()
         text = "没有黑名单"
         unclear = sum(1 for slot in result.names if slot.unclear)
         if unclear:
             text += f"\n{unclear} 人未识别"
         self._open_panel("clear", text, result.button_box)
         self._show_clear_mark()
+        self._show_like_card(likes)
 
     def _open_panel(self, mode: str, text: str, box) -> None:
         self._panel_hide_timer.stop()
@@ -3008,10 +3063,48 @@ class MainWindow(QMainWindow):
             people.append(person)
         if not people:
             self.hit_card.hide()
+            self.like_card.hide()
             self.clear_mark.hide()
             return
         self.hit_card.set_people(people, self.panel.cover_geometry().height())
         self._place_beside(self.hit_card)
+
+    def _likes_in(self, result: CheckResult) -> list[Entry]:
+        """心动 players in the lobby, in seat order, each once."""
+        found: list[Entry] = []
+        for slot in result.names:
+            label = NameLabel(raw=slot.raw, visible=slot.visible, truncated=slot.truncated, unclear=slot.unclear)
+            for match in match_label(label, list(self.store.likes)):
+                if all(match.entry is not seen for seen in found):
+                    found.append(match.entry)
+        return found
+
+    def _show_like_card(self, likes: list[Entry]) -> None:
+        """The 心动 card: under the hit card, or beside the check, or beside the cover."""
+        card = self.like_card
+        if not likes:
+            card.hide()
+            return
+        card.set_people([(like.shown(), ()) for like in likes], self.panel.cover_geometry().height())
+        if self.hit_card.isVisible():
+            x = self.hit_card.x()
+            y = self.hit_card.y() + self.hit_card.height() + 8
+            screen = QApplication.screenAt(self.hit_card.pos()) or QApplication.primaryScreen()
+            if screen is not None and y + card.height() > screen.availableGeometry().bottom() - 8:
+                y = self.hit_card.y() - card.height() - 8
+            card.move(int(x), int(y))
+            card.show()
+            _pin_topmost(card)
+        elif self.clear_mark.isVisible():
+            mark = self.clear_mark
+            cover = self.panel.cover_geometry()
+            x = mark.x() + mark.width() - mark.margin + 10
+            y = cover.y() + (cover.height() - card.height()) // 2
+            card.move(int(x), int(y))
+            card.show()
+            _pin_topmost(card)
+        else:
+            self._place_beside(card)
 
     def _show_clear_mark(self) -> None:
         self.clear_mark.set_size(self.panel.cover_geometry().height())
@@ -3157,17 +3250,6 @@ class MainWindow(QMainWindow):
 
 
 # A menu item's icon, by what it does. The ones that delete are red, so they stand out.
-_MENU_ICONS = {"编辑": "edit", "添加": "add", "复制名字": "copy", "删除": "delete"}
-
-
-def _mark_menu_item(action, name: str = "") -> None:  # noqa: ANN001
-    name = name or _MENU_ICONS.get(action.text(), "")
-    if not name:
-        return
-    action.setProperty("icon_name", name)
-    action.setIcon(line_icon(name, 16, THEME["red"] if name == "delete" else THEME["muted"]))
-
-
 def _plain_error(problem, fallback: str) -> str:  # noqa: ANN001
     """What a user may read about an error. The app's own errors are already plain Chinese;
     anything else (a library's message, often English, with paths) is logged and replaced."""

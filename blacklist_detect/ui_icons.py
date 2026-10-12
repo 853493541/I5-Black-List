@@ -193,8 +193,21 @@ def _picture(p: QPainter) -> None:
     p.drawPath(path)
 
 
+def _heart(p: QPainter) -> None:
+    path = QPainterPath(QPointF(12, 19.5))
+    path.cubicTo(5.5, 15, 3.5, 11.5, 3.5, 8.8)
+    path.cubicTo(3.5, 6.2, 5.5, 4.5, 7.8, 4.5)
+    path.cubicTo(9.6, 4.5, 11.1, 5.6, 12, 7.2)
+    path.cubicTo(12.9, 5.6, 14.4, 4.5, 16.2, 4.5)
+    path.cubicTo(18.5, 4.5, 20.5, 6.2, 20.5, 8.8)
+    path.cubicTo(20.5, 11.5, 18.5, 15, 12, 19.5)
+    path.closeSubpath()
+    p.drawPath(path)
+
+
 DRAWINGS: dict[str, Callable[[QPainter], None]] = {
     "add": _add,
+    "heart": _heart,
     "close": _close,
     "check": _check,
     "search": _search,

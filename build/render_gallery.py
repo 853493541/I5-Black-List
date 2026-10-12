@@ -81,12 +81,19 @@ def main() -> int:
     snap("records_empty_900")
     window.tabs.setCurrentIndex(window.blacklist_tab)
     snap("blacklist_empty_900")
+    if hasattr(window, "likes_tab"):
+        window.tabs.setCurrentIndex(window.likes_tab)
+        snap("likes_empty_900")
 
     store = window.store
     store.player_name = "阿强"
     store.add("霁玥吉尔曼", "开局就炸房，还骂人", tags=("炸房", "贴脸"))
     store.add("小猫爆锤大王", tags=("挂机",))
     store.add("gffdsd", "很长的原因文字" * 5, tags=("场外", "不尊重底牌", "炸房", "贴脸"))
+    if hasattr(store, "add_like"):
+        store.add_like("庚", "", "")
+        store.add_like("丙丙的猫猫头", "猫猫", "救人很稳，开局就报点")
+        store.add_like("戊", "", "")
     store.add_scan([{"seat": i + 1, "name": n, "unclear": not n} for i, n in enumerate(NAMES)], 1.2)
     window._show_list()
     window._reload_history()
@@ -100,6 +107,10 @@ def main() -> int:
         snap(f"records_{size[0]}")
         window.tabs.setCurrentIndex(window.blacklist_tab)
         snap(f"blacklist_{size[0]}")
+        if hasattr(window, "likes_tab"):
+            window.likes_page.refresh()
+            window.tabs.setCurrentIndex(window.likes_tab)
+            snap(f"likes_{size[0]}")
         window.tabs.setCurrentIndex(window.settings_tab)
         snap(f"settings_{size[0]}")
     window.resize(900, 560)
@@ -159,6 +170,7 @@ def main() -> int:
         ("dialog_import_empty", lambda: ui.BatchAddDialog(store.tag_catalog(), store.entries, parent=window)),
         ("dialog_import", lambda: _import_dialog(ui, store, window)),
         ("dialog_guide", lambda: ui.GuideDialog(window)),
+        ("dialog_like", lambda: _like_dialog(window)),
     ]
     slots = [NameSlot(i, (0, 0, 1, 1), n, n, False, 0.9, not n) for i, n in enumerate(NAMES)]
     hits = [Hit(1, "霁玥吉尔曼", "霁玥吉尔曼", "", False, ""), Hit(6, "gffdsd", "gffdsd", "", False, "")]
@@ -185,6 +197,12 @@ def main() -> int:
     _contact_sheet(out, args.label, shots)
     print(f"{len(shots)} pictures in {out}")
     os._exit(0)
+
+
+def _like_dialog(window):  # noqa: ANN001, ANN202
+    from blacklist_detect.ui_likes import LikeDialog
+
+    return LikeDialog("丙丙的猫猫头", "猫猫", "救人很稳，开局就报点", title="编辑", allow_delete=True, parent=window)
 
 
 def _import_dialog(ui, store, window):  # noqa: ANN001, ANN202
@@ -243,7 +261,7 @@ def _overlay_scenes(window, snap) -> None:  # noqa: ANN001
     button = QRect(220 // 2, 123 // 2, (x1 - x0) // 2, (y1 - y0) // 2)
     outset = _COVER_OUTSET
 
-    def scene(mode: str, text: str, beside=None) -> QPixmap:  # noqa: ANN001
+    def scene(mode: str, text: str, beside=None, likes=None) -> QPixmap:  # noqa: ANN001
         ratio = window.devicePixelRatioF()
         width, height = round(crop.width() / 2), round(crop.height() / 2)
         canvas = QPixmap(round(width * ratio), round(height * ratio))
@@ -265,7 +283,20 @@ def _overlay_scenes(window, snap) -> None:  # noqa: ANN001
             mark = beside.grab()
             left = cover.x() + cover.width() + 16 - beside.margin
             height = round(mark.height() / mark.devicePixelRatio())
-            painter.drawPixmap(QPoint(left, cover.center().y() - height // 2 + 1), mark)
+            top = cover.center().y() - height // 2 + 1
+            painter.drawPixmap(QPoint(left, top), mark)
+            if likes is not None:
+                likes.layout().activate()
+                card = likes.grab()
+                card_h = round(card.height() / card.devicePixelRatio())
+                if beside.margin:
+                    # Beside the check, like the app: after its badge.
+                    width = round(mark.width() / mark.devicePixelRatio())
+                    painter.drawPixmap(QPoint(left + width - beside.margin + 10, cover.center().y() - card_h // 2 + 1), card)
+                else:
+                    # Under the hit card, or over it when there is no room below.
+                    below = top + height + 8
+                    painter.drawPixmap(QPoint(left, below if below + card_h < canvas.height() / canvas.devicePixelRatio() - 4 else top - card_h - 8), card)
         painter.end()
         return canvas
 
@@ -277,6 +308,13 @@ def _overlay_scenes(window, snap) -> None:  # noqa: ANN001
     snap("overlay_hit_many", picture=scene("hit", "", window.hit_card))
     window.clear_mark.set_size(button.height() + outset * 2)
     snap("overlay_clear", picture=scene("clear", "没有黑名单", window.clear_mark))
+    like_card = getattr(window, "like_card", None)
+    if like_card is not None:
+        like_card.set_people([("猫猫", ()), ("阿强", ())], button.height())
+        snap("overlay_clear_likes", picture=scene("clear", "没有黑名单", window.clear_mark, like_card))
+        window.hit_card.set_people([("霁玥吉尔曼", ("炸房", "贴脸"))], button.height())
+        like_card.set_people([("猫猫", ())], button.height())
+        snap("overlay_hit_likes", picture=scene("hit", "", window.hit_card, like_card))
 
 
 def _header_scenes(window, snap) -> None:  # noqa: ANN001

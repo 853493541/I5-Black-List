@@ -114,6 +114,11 @@ def parse_shared(text: str) -> list[tuple[str, tuple[str, ...], str]]:
     return rows
 
 
+def _clean_nickname(raw: str) -> str:
+    """A nickname is shown as typed, on one line and short."""
+    return " ".join((raw or "").split())[:_MAX_NAME]
+
+
 def merge_reason(old: str, new: str) -> str:
     """Two reasons as one: a reason already said is not said twice."""
     old, new = (old or "").strip(), (new or "").strip()
@@ -353,9 +358,12 @@ class Store:
     def __init__(self, root: Path | None = None) -> None:
         self.root = root or app_dir()
         self.blacklist_path = self.root / "blacklist.json"
+        self.likes_path = self.root / "likes.json"
         self.settings_path = self.root / "settings.json"
         self.history_path = self.root / "history.json"
         self.entries: list[Entry] = []
+        # 心动: players worth meeting again. No tags; a nickname to show instead of the name.
+        self.likes: list[Entry] = []
         self.scans: list[dict] = []
         self.hotkey = DEFAULT_HOTKEY
         self.auto_capture = True
@@ -518,6 +526,7 @@ class Store:
                 backup = _set_aside(self.blacklist_path)
                 _log_set_aside(exc, backup)
                 self.load_warning = "黑名单文件无法读取，已另存一份，名单从空白开始。"
+        self._load_likes()
         discovered = False
         stripped = False
         for entry in self.entries:
@@ -562,6 +571,133 @@ class Store:
             self.save_scans()
         else:
             self.scans = collapsed
+
+    def _load_likes(self) -> None:
+        self.likes = []
+        if not self.likes_path.exists():
+            return
+        try:
+            data = json.loads(self.likes_path.read_text(encoding="utf-8"))
+            for item in data.get("likes", []):
+                name = clean_stored_name(str(item.get("name", "")))
+                if not name or any(fold(like.name) == fold(name) for like in self.likes):
+                    continue
+                self.likes.append(
+                    Entry(
+                        name=name[:_MAX_NAME],
+                        reason=str(item.get("reason", "")).strip()[:_MAX_NOTE],
+                        added_at=str(item.get("added_at", "")),
+                        nickname=_clean_nickname(str(item.get("nickname", ""))),
+                    )
+                )
+        except (OSError, ValueError, AttributeError, TypeError) as exc:
+            self.likes = []
+            backup = _set_aside(self.likes_path)
+            _log_set_aside(exc, backup)
+            self.load_warning = "心动列表文件无法读取，已另存一份，列表从空白开始。"
+
+    def save_likes(self) -> None:
+        _daily_backup(self.likes_path)
+        _atomic_write(
+            self.likes_path,
+            {
+                "likes": [
+                    {"name": like.name, "nickname": like.nickname, "reason": like.reason, "added_at": like.added_at}
+                    for like in self.likes
+                ]
+            },
+        )
+
+    def like_index(self, name: str) -> int:
+        """Where this name is on 心动, or -1."""
+        key = fold(clean_stored_name(name))
+        return next((index for index, like in enumerate(self.likes) if key and fold(like.name) == key), -1)
+
+    def entry_index(self, name: str) -> int:
+        """Where this name is on 黑名单, or -1."""
+        key = fold(clean_stored_name(name))
+        return next((index for index, entry in enumerate(self.entries) if key and fold(entry.name) == key), -1)
+
+    def add_like(self, name: str, nickname: str = "", reason: str = "") -> Entry | None:
+        """Add one name to 心动. None when it has no letters or digits, or is there already."""
+        cleaned = clean_stored_name(name)[:_MAX_NAME]
+        if not cleaned or self.like_index(cleaned) >= 0:
+            return None
+        like = Entry(
+            name=cleaned,
+            reason=(reason or "").strip()[:_MAX_NOTE],
+            added_at=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+            nickname=_clean_nickname(nickname),
+        )
+        self.likes.append(like)
+        self.save_likes()
+        return like
+
+    def update_like(self, index: int, name: str, nickname: str = "", reason: str = "") -> bool:
+        if not 0 <= index < len(self.likes):
+            return False
+        cleaned = clean_stored_name(name)[:_MAX_NAME]
+        found = self.like_index(cleaned)
+        if not cleaned or found not in (-1, index):
+            return False
+        current = self.likes[index]
+        self.likes[index] = Entry(
+            name=cleaned,
+            reason=(reason or "").strip()[:_MAX_NOTE],
+            added_at=current.added_at,
+            nickname=_clean_nickname(nickname),
+        )
+        self.save_likes()
+        return True
+
+    def remove_like(self, index: int) -> None:
+        if 0 <= index < len(self.likes):
+            del self.likes[index]
+            self.save_likes()
+
+    def snapshot_likes(self) -> list[Entry]:
+        return [Entry(like.name, like.reason, (), like.added_at, like.nickname) for like in self.likes]
+
+    def restore_likes(self, likes: list[Entry]) -> None:
+        """Put 心动 back as it was before an add, delete, or clear. Used by 撤销."""
+        self.likes = [Entry(like.name, like.reason, (), like.added_at, like.nickname) for like in likes]
+        self.save_likes()
+
+    def clear_likes(self) -> None:
+        self.likes = []
+        self.save_likes()
+
+    def import_likes(self, rows: list[tuple[str, tuple[str, ...], str, int]]) -> tuple[int, int]:
+        """Like import_rows, for 心动: each (name, _, 原因, -1) is added; (…, index) folds into it."""
+        stamp = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+        taken = {fold(like.name) for like in self.likes}
+        added = merged = 0
+        for name, _tags, reason, target in rows:
+            cleaned = clean_stored_name(name)[:_MAX_NAME]
+            key = fold(cleaned)
+            if not key:
+                continue
+            if 0 <= target < len(self.likes):
+                like = self.likes[target]
+                old = fold(like.name)
+                fuller = len(key) > len(old) and key.startswith(old) and key not in taken
+                self.likes[target] = Entry(
+                    name=cleaned if fuller else like.name,
+                    reason=merge_reason(like.reason, reason),
+                    added_at=like.added_at,
+                    nickname=like.nickname,
+                )
+                taken.add(key)
+                merged += 1
+                continue
+            if key in taken:
+                continue
+            taken.add(key)
+            self.likes.append(Entry(name=cleaned, reason=(reason or "").strip()[:_MAX_NOTE], added_at=stamp))
+            added += 1
+        if added or merged:
+            self.save_likes()
+        return added, merged
 
     def save_entries(self) -> None:
         _daily_backup(self.blacklist_path)
@@ -813,6 +949,7 @@ class Store:
     def reset(self) -> None:
         """Drop every saved name, record, and setting. The next open is a new app."""
         self.entries = []
+        self.likes = []
         self.scans = []
         self.hotkey = DEFAULT_HOTKEY
         self.auto_capture = True
@@ -834,6 +971,7 @@ class Store:
         self.close_to_tray = True
         self.load_warning = ""
         self.save_entries()
+        self.save_likes()
         self.save_scans()
         self.save_settings()
 

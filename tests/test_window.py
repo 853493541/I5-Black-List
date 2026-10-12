@@ -488,7 +488,7 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     assert window.history_table.cellWidget(0, 1).findChild(QLabel, "seatWarn") is None
     hit_menu = [a.text() for a in window._seat_menu(0, 0).actions() if a.text()]
     assert hit_menu == ["编辑", "复制名字"]
-    assert [a.text() for a in window._seat_menu(0, 1).actions() if a.text()] == ["添加", "复制名字"]
+    assert [a.text() for a in window._seat_menu(0, 1).actions() if a.text()] == ["加入黑名单", "加入心动列表", "复制名字"]
     assert window._seat_menu(1, 0) is None
     opened: list[int] = []
     monkeypatch.setattr(window, "_edit_entry", lambda index: opened.append(index))
@@ -629,8 +629,8 @@ def test_tabs_show_counts_as_badges(qapp, tmp_path, monkeypatch):
     window = MainWindow()
     window._watch_timer.stop()
     tabs = window._tab_buttons
-    assert [tab.name() for tab in tabs] == ["记录", "黑名单", "设置"]
-    assert [tab.count() for tab in tabs] == [0, 0, 0]
+    assert [tab.name() for tab in tabs] == ["记录", "黑名单", "心动", "设置"]
+    assert [tab.count() for tab in tabs] == [0, 0, 0, 0]
     narrow = tabs[window.blacklist_tab].sizeHint().width()
     window.store.add("甲")
     window.store.add("乙")
@@ -641,7 +641,7 @@ def test_tabs_show_counts_as_badges(qapp, tmp_path, monkeypatch):
     assert window.tabs.tabText(window.blacklist_tab) == "黑名单  2"
     tabs[2].click()
     assert window.tabs.currentIndex() == 2
-    assert [tab.isChecked() for tab in tabs] == [False, False, True]
+    assert [tab.isChecked() for tab in tabs] == [False, False, True, False]
     window.tabs.setCurrentIndex(window.blacklist_tab)
     assert tabs[window.blacklist_tab].isChecked()
     assert tabs[0].focusPolicy() == Qt.TabFocus
@@ -848,7 +848,7 @@ def test_auto_check_does_not_leave_the_current_tab(qapp, tmp_path, monkeypatch):
     window = MainWindow()
     window.worker.request = lambda fn, kind="check": True
     assert window.tabs.tabText(0).startswith("记录")
-    assert window.tabs.count() == 3
+    assert window.tabs.count() == 4
     settings = window.tabs.count() - 1
     window.tabs.setCurrentIndex(settings)
     window._start(lambda: None, live=True)
@@ -1667,9 +1667,11 @@ def test_keyboard_reaches_every_page_and_list(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
     window._watch_timer.stop()
-    # Ctrl+1/2/3 open the pages in their order; Ctrl+F lands on 黑名单.
+    # Ctrl+1/2/3/4 open the pages in their order; Ctrl+F lands on 黑名单.
+    window.shortcuts["Ctrl+4"].activated.emit()
+    assert window.tabs.currentIndex() == window.settings_tab == 3
     window.shortcuts["Ctrl+3"].activated.emit()
-    assert window.tabs.currentIndex() == window.settings_tab == 2
+    assert window.tabs.currentIndex() == window.likes_tab == 2
     window.shortcuts["Ctrl+1"].activated.emit()
     assert window.tabs.currentIndex() == window.history_tab == 0
     window.shortcuts["Ctrl+2"].activated.emit()
