@@ -13,6 +13,7 @@ from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, Qt
 from PySide6.QtGui import QEnterEvent, QFocusEvent, QFontMetrics, QKeyEvent, QMouseEvent
 from PySide6.QtWidgets import QApplication, QDialog, QHBoxLayout, QLabel, QPushButton
 
+from blacklist_detect import __version__
 from blacklist_detect.pipeline import CheckResult, Hit, NameSlot
 from blacklist_detect.storage import Store
 from blacklist_detect.ui import (
@@ -107,7 +108,7 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     window.store.scans[0]["at"] = seen.isoformat()
     window._show_list()
     assert window.blacklist_table.item(0, 3).text() == "3小时前"
-    assert window.windowTitle() == "黑名单检测 v0.3.0"
+    assert window.windowTitle() == f"黑名单检测 {__version__}"
     assert window.list_empty.isHidden() is True
     assert window.more_button.isHidden() is False
     assert window.blacklist_table.isHidden() is False

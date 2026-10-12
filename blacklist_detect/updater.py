@@ -33,7 +33,7 @@ MANIFEST_URL = f"https://github.com/{REPO}/releases/latest/download/version.json
 RELEASES_URL = f"https://github.com/{REPO}/releases/latest"
 DOWNLOADS = f"https://github.com/{REPO}/releases/download/"
 # The public half of the release key, made by `python build/release.py keygen`.
-PUBLIC_KEY = ""
+PUBLIC_KEY = "N4neQZQZcRKxH5DP/85SZr1cCq3s2sMaZFzG3lCiO14="
 
 FOLDER = "BlackListDetect"
 LAUNCHER = "黑名单检测.exe"
