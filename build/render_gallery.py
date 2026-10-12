@@ -171,6 +171,7 @@ def main() -> int:
         ("dialog_import", lambda: _import_dialog(ui, store, window)),
         ("dialog_guide", lambda: ui.GuideDialog(window)),
         ("dialog_like", lambda: _like_dialog(window)),
+        ("dialog_update", lambda: _update_dialog(window)),
     ]
     slots = [NameSlot(i, (0, 0, 1, 1), n, n, False, 0.9, not n) for i, n in enumerate(NAMES)]
     hits = [Hit(1, "霁玥吉尔曼", "霁玥吉尔曼", "", False, ""), Hit(6, "gffdsd", "gffdsd", "", False, "")]
@@ -197,6 +198,22 @@ def main() -> int:
     _contact_sheet(out, args.label, shots)
     print(f"{len(shots)} pictures in {out}")
     os._exit(0)
+
+
+def _update_dialog(window):  # noqa: ANN001, ANN202
+    from blacklist_detect.ui_update import UpdateDialog
+    from blacklist_detect.updater import DOWNLOADS, Release
+
+    release = Release(
+        "v0.4.0",
+        f"{DOWNLOADS}v0.4.0/BlackListDetect-v0.4.0-update.zip",
+        "0" * 64,
+        1_300_000,
+        base="v0.3.0",
+        notes=("心动列表：遇到想再一起玩的人，会用粉色标出来", "两位以上心动玩家时，画面边上会有花边", "程序可以自己更新了"),
+    )
+    window.update_pill.show()
+    return UpdateDialog(release, REPO, REPO / "dist", window)
 
 
 def _like_dialog(window):  # noqa: ANN001, ANN202

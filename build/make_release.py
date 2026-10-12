@@ -263,6 +263,8 @@ def _verify(stage: Path) -> None:
         problems.append(f"hits differ: {data['hits']}")
     if not data.get("single_instance"):
         problems.append("a second copy could not reach the first (QtNetwork)")
+    if not data.get("updates"):
+        problems.append("updates cannot be checked (cryptography, requests or certifi missing)")
     if data["platform"] != "windows" or not data["icon"]:
         problems.append(f"Qt platform {data['platform']!r}, icon loaded {data['icon']}")
     root = str(stage).lower()

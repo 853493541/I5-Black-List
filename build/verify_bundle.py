@@ -50,6 +50,22 @@ def main() -> int:
     glanced = glance_title(rgb[: int(rgb.shape[0] * 0.4)])
     capture_top_band()
 
+    # Updates: a signature checked with the bundled cryptography, and requests with its certificates.
+    import base64
+
+    import certifi
+    import requests
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+
+    from blacklist_detect import updater
+
+    signer = Ed25519PrivateKey.generate()
+    public = base64.b64encode(signer.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)).decode()
+    signed = updater.verify(b"version", base64.b64encode(signer.sign(b"version")).decode(), public)
+    requests.Session().close()
+    updates = signed and os.path.isfile(certifi.where())
+
     import psutil
 
     payload = {
@@ -62,6 +78,7 @@ def main() -> int:
         "hits": [hit.entry_name for hit in result.hits],
         "glance": glanced,
         "single_instance": single_instance,
+        "updates": updates,
         "modules": sorted({getattr(m, "__file__", None) or "" for m in list(sys.modules.values())} - {""}),
         "dlls": sorted({item.path for item in psutil.Process().memory_maps()}),
     }

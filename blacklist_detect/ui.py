@@ -35,7 +35,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from blacklist_detect import __version__, autostart
+from blacklist_detect import __version__, autostart, updater
 from blacklist_detect.capture import (
     CaptureUnavailable,
     allow_any_foreground,
@@ -131,6 +131,7 @@ from blacklist_detect.ui_theme import (
     use_theme,
     wants_dark,
 )
+from blacklist_detect.ui_update import UpdateChecker, UpdateDialog, restart_into_update
 from blacklist_detect.ui_widgets import (
     DayFolderIcon,
     TagListDelegate,
@@ -170,6 +171,10 @@ __all__ = [
     "notify_running_instance",
     "run_app",
 ]
+
+# Updates are looked for a little after the app opens, so the opening is not slowed, then every six hours.
+UPDATE_FIRST_MS = 20_000
+UPDATE_EVERY_MS = 6 * 60 * 60 * 1000
 
 
 def _claim_windows_app() -> None:
@@ -360,6 +365,20 @@ class MainWindow(QMainWindow):
         # Two or more 心动 players and no 黑名单: a border of silk and flowers, once per lobby.
         self.love = LoveBorder()
         self._love_played = False
+        # New versions from GitHub: checked quietly a while after opening and every few hours.
+        self.updates = UpdateChecker(self)
+        self.updates.found.connect(self._on_update_found)
+        self.updates.latest.connect(self._on_update_latest)
+        self.updates.failed.connect(self._on_update_failed)
+        self._release: updater.Release | None = None
+        self._update_asked = False
+        self._update_timer = QTimer(self)
+        self._update_timer.setInterval(UPDATE_EVERY_MS)
+        self._update_timer.timeout.connect(self._check_updates_quietly)
+        if updater.app_root() is not None:
+            QTimer.singleShot(UPDATE_FIRST_MS, self._check_updates_quietly)
+            self._update_timer.start()
+            QTimer.singleShot(3000, self._confirm_update)
         self._panel_hide_timer = QTimer(self)
         self._panel_hide_timer.setSingleShot(True)
         self._panel_hide_timer.timeout.connect(self._hide_panel_after_title)
@@ -456,6 +475,15 @@ class MainWindow(QMainWindow):
         right_row = QHBoxLayout(right)
         right_row.setContentsMargins(0, 0, 0, 4)
         right_row.setSpacing(0)
+        # A new version: a small pill before the status, which opens the update.
+        self.update_pill = QPushButton("有新版本")
+        self.update_pill.setObjectName("updatePill")
+        self.update_pill.setCursor(Qt.PointingHandCursor)
+        self.update_pill.setFocusPolicy(Qt.TabFocus)
+        self.update_pill.clicked.connect(self._open_update)
+        self.update_pill.hide()
+        right_row.addWidget(self.update_pill, 0, Qt.AlignVCenter)
+        right_row.addSpacing(10)
         # What checking is doing. A click flips 自动检查 and 手动检查.
         self.status_chip = StatusChip()
         self.status_chip.clicked.connect(self._cycle_capture_mode)
@@ -869,6 +897,17 @@ class MainWindow(QMainWindow):
         )
         self.close_mode.changed.connect(self._on_close_mode)
         general.add_row("关闭窗口时", self.close_mode)
+        self.update_button = QPushButton("检查更新")
+        self.update_button.setFont(ui_font())
+        self.update_button.setAutoDefault(False)
+        self.update_button.setCursor(Qt.PointingHandCursor)
+        self.update_button.clicked.connect(self._on_update_button)
+        general.add_row("更新", self.update_button)
+        self.update_hint = QLabel("")
+        self.update_hint.setObjectName("rowHint")
+        self.update_hint.setWordWrap(True)
+        self.update_hint.hide()
+        general.add_widget(self.update_hint, separated=False, indent=True)
 
         # 外观: how the window looks.
         look = section("外观")
@@ -3223,6 +3262,79 @@ class MainWindow(QMainWindow):
     def _set_tray(self, text: str) -> None:
         if self.tray is not None:
             self.tray.setToolTip(text[:120])
+
+    # --- Updates ---------------------------------------------------------------------------
+
+    def _check_updates_quietly(self) -> None:
+        if updater.app_root() is None or self._closing:
+            return
+        self._update_asked = False
+        self.updates.check()
+
+    def _on_update_button(self) -> None:
+        """检查更新, or, once a new version is known, 更新到 it."""
+        if self._release is not None:
+            self._open_update()
+            return
+        if updater.app_root() is None:
+            self._update_note("从源代码运行时不检查更新。")
+            return
+        if self.updates.check():
+            self._update_asked = True
+            self.update_button.setEnabled(False)
+            self.update_button.setText("正在检查…")
+            self._update_note("")
+
+    def _update_note(self, text: str) -> None:
+        self.update_hint.setText(text)
+        self.update_hint.setVisible(bool(text))
+
+    def _on_update_found(self, release: updater.Release) -> None:
+        log.info("Update available: %s", release.version)
+        self._release = release
+        ready = updater.staged_version(updater.app_root()) == release.version
+        self.update_pill.setText("新版本已就绪" if ready else "有新版本")
+        self.update_pill.setToolTip(f"{release.version}，点击查看")
+        self.update_pill.show()
+        self.update_button.setEnabled(True)
+        self.update_button.setText(f"更新到 {release.version}")
+        self._update_note("")
+        if self._update_asked:
+            self._update_asked = False
+            self._open_update()
+
+    def _on_update_latest(self) -> None:
+        self.update_button.setEnabled(True)
+        self.update_button.setText("检查更新")
+        if self._update_asked:
+            self._update_asked = False
+            self._update_note("已经是最新版本。")
+
+    def _on_update_failed(self, message: str) -> None:
+        self.update_button.setEnabled(True)
+        self.update_button.setText("检查更新")
+        if self._update_asked:
+            self._update_asked = False
+            self._update_note(message)
+
+    def _open_update(self) -> None:
+        if self._release is None:
+            return
+        dialog = UpdateDialog(self._release, updater.app_root(), self.store.root, self)
+        dialog.setAttribute(Qt.WA_DeleteOnClose, True)
+        dialog.restart_requested.connect(self._restart_for_update)
+        dialog.open()
+
+    def _restart_for_update(self) -> None:
+        root = updater.app_root()
+        if root is not None and restart_into_update(root):
+            log.info("Restarting into %s", self._release.version if self._release else "the update")
+            self.quit_app()
+
+    def _confirm_update(self) -> None:
+        """This version opened: tell the launcher, which would otherwise put the old one back."""
+        if updater.confirm_started(updater.app_root()):
+            self._say(f"已更新到 {__version__}")
 
     def quit_app(self) -> None:
         """Close for real, as 退出 in the tray menu does. The local installer asks for this before an update."""

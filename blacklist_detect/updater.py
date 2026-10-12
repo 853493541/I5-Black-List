@@ -1,0 +1,246 @@
+"""New versions, from the project's GitHub releases.
+
+Each release carries the small update zip (the app code, not the runtime or the models) and
+version.json, which names the version, what is new, the zip's address, size and SHA-256, and
+the oldest version the zip can be laid over. version.json.sig is an Ed25519 signature of
+version.json, made with a key that never leaves the publisher's PC; the app holds the public
+half, so a release that key did not sign is ignored even if the download page was taken over.
+
+The app only asks: it checks quietly, and a friend clicks 更新 to download. The zip is unpacked
+into update.new beside the app; the launcher lays it over the folder on the next start, keeping
+what it replaced in update.old, and puts that back if the new version never says it started.
+Nothing about the player is sent: the requests are plain downloads of public files.
+"""
+
+from __future__ import annotations
+
+import base64
+import hashlib
+import json
+import logging
+import shutil
+import zipfile
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from pathlib import Path, PurePosixPath
+
+from blacklist_detect import __version__
+
+log = logging.getLogger(__name__)
+
+REPO = "853493541/I5-Black-List"
+MANIFEST_URL = f"https://github.com/{REPO}/releases/latest/download/version.json"
+RELEASES_URL = f"https://github.com/{REPO}/releases/latest"
+DOWNLOADS = f"https://github.com/{REPO}/releases/download/"
+# The public half of the release key, made by `python build/release.py keygen`.
+PUBLIC_KEY = ""
+
+FOLDER = "BlackListDetect"
+LAUNCHER = "黑名单检测.exe"
+STAGED = "update.new"
+BACKUP = "update.old"
+PENDING = "update.check"
+VERSION_FILE = ".version"
+# What an update may put in the folder: the app, the launcher, the app's exe, the instructions.
+_ALLOWED_FILES = {LAUNCHER, "runtime/I5黑名单.exe", "使用说明.txt"}
+_ALLOWED_DIR = "blacklist_detect"
+MAX_SIZE = 100_000_000
+TIMEOUT = 10
+
+
+class UpdateError(Exception):
+    """Something went wrong; the message is for the player."""
+
+
+@dataclass(frozen=True)
+class Release:
+    version: str
+    url: str
+    sha256: str
+    size: int
+    base: str
+    notes: tuple[str, ...] = field(default_factory=tuple)
+
+    def needs_full(self, current: str = __version__) -> bool:
+        """The update zip only completes a folder at least as new as base."""
+        return parse_version(current) < parse_version(self.base)
+
+
+def parse_version(text: str) -> tuple[int, ...]:
+    """v0.4.0 -> (0, 4, 0). Anything unreadable sorts first."""
+    parts = text.strip().lstrip("vV").split(".")
+    try:
+        return tuple(int(part) for part in parts)
+    except ValueError:
+        return ()
+
+
+def app_root() -> Path | None:
+    """The folder the app runs from, when it is a release folder. None when run from the source."""
+    root = Path(__file__).resolve().parent.parent
+    if (root / "runtime").is_dir() and (root / LAUNCHER).is_file():
+        return root
+    return None
+
+
+def verify(manifest: bytes, signature: str, key: str | None = None) -> bool:
+    """True when signature (base64) is the release key's signature of manifest."""
+    from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+    key = PUBLIC_KEY if key is None else key
+    if not key:
+        return False
+    try:
+        public = Ed25519PublicKey.from_public_bytes(base64.b64decode(key))
+        public.verify(base64.b64decode(signature.strip()), manifest)
+    except (InvalidSignature, ValueError):
+        return False
+    return True
+
+
+def read_manifest(manifest: bytes) -> Release:
+    """version.json as a Release. Only zips from this project's releases are accepted."""
+    try:
+        data = json.loads(manifest.decode("utf-8"))
+        update = data["update"]
+        release = Release(
+            version=str(data["version"]),
+            url=str(update["url"]),
+            sha256=str(update["sha256"]).lower(),
+            size=int(update["size"]),
+            base=str(data.get("base", data["version"])),
+            notes=tuple(str(line) for line in data.get("notes", ())),
+        )
+    except (ValueError, KeyError, TypeError) as error:
+        raise UpdateError("更新信息无法读取。") from error
+    if not release.url.startswith(DOWNLOADS) or not parse_version(release.version):
+        raise UpdateError("更新信息无法读取。")
+    if not 0 < release.size <= MAX_SIZE or len(release.sha256) != 64:
+        raise UpdateError("更新信息无法读取。")
+    return release
+
+
+def _session():  # noqa: ANN202
+    import requests
+
+    session = requests.Session()
+    session.headers["User-Agent"] = f"BlackListDetect/{__version__}"
+    return session
+
+
+def fetch_release(session=None, current: str = __version__) -> Release | None:  # noqa: ANN001
+    """The newest release when it is newer than current and properly signed; None when there is none."""
+    import requests
+
+    session = session or _session()
+    try:
+        manifest = session.get(MANIFEST_URL, timeout=TIMEOUT)
+        if manifest.status_code == 404:
+            return None
+        manifest.raise_for_status()
+        signature = session.get(MANIFEST_URL + ".sig", timeout=TIMEOUT)
+        signature.raise_for_status()
+    except requests.RequestException as error:
+        log.info("Update check failed: %s", error)
+        raise UpdateError("没有连上更新服务器，请稍后再试。") from error
+    if not verify(manifest.content, signature.text):
+        log.warning("Update manifest has a bad signature")
+        raise UpdateError("更新信息的签名不对，已忽略。")
+    release = read_manifest(manifest.content)
+    return release if parse_version(release.version) > parse_version(current) else None
+
+
+def download(release: Release, folder: Path, progress: Callable[[int, int], None] | None = None, session=None) -> Path:  # noqa: ANN001
+    """Fetch the update zip into folder and check it is the one the release named."""
+    import requests
+
+    session = session or _session()
+    folder.mkdir(parents=True, exist_ok=True)
+    target = folder / f"{FOLDER}-{release.version}-update.zip"
+    digest = hashlib.sha256()
+    got = 0
+    try:
+        with session.get(release.url, stream=True, timeout=TIMEOUT) as response:
+            response.raise_for_status()
+            with open(target, "wb") as out:
+                for chunk in response.iter_content(64 * 1024):
+                    got += len(chunk)
+                    if got > release.size:
+                        raise UpdateError("下载的文件和更新信息不符，已停止。")
+                    digest.update(chunk)
+                    out.write(chunk)
+                    if progress is not None:
+                        progress(got, release.size)
+    except requests.RequestException as error:
+        log.info("Update download failed: %s", error)
+        target.unlink(missing_ok=True)
+        raise UpdateError("下载没有完成，请稍后再试。") from error
+    except UpdateError:
+        target.unlink(missing_ok=True)
+        raise
+    if got != release.size or digest.hexdigest() != release.sha256:
+        target.unlink(missing_ok=True)
+        raise UpdateError("下载的文件和更新信息不符，已停止。")
+    return target
+
+
+def _allowed(rel: PurePosixPath) -> bool:
+    if rel.is_absolute() or ".." in rel.parts or not rel.parts:
+        return False
+    if rel.parts[0] == _ALLOWED_DIR:
+        return "models" not in rel.parts and "__pycache__" not in rel.parts
+    return rel.as_posix() in _ALLOWED_FILES
+
+
+def stage(zip_path: Path, root: Path, version: str) -> Path:
+    """Unpack the update zip into root/update.new, for the launcher to lay over the folder."""
+    staged = root / STAGED
+    if staged.exists():
+        shutil.rmtree(staged)
+    staged.mkdir()
+    try:
+        with zipfile.ZipFile(zip_path) as bundle:
+            for item in bundle.infolist():
+                if item.is_dir():
+                    continue
+                parts = PurePosixPath(item.filename).parts
+                if not parts or parts[0] != FOLDER:
+                    continue
+                rel = PurePosixPath(*parts[1:]) if len(parts) > 1 else PurePosixPath()
+                if not _allowed(rel):
+                    log.warning("Update zip entry left out: %s", item.filename)
+                    continue
+                target = staged.joinpath(*rel.parts)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with bundle.open(item) as source, open(target, "wb") as out:
+                    shutil.copyfileobj(source, out)
+    except (zipfile.BadZipFile, OSError) as error:
+        shutil.rmtree(staged, ignore_errors=True)
+        raise UpdateError("更新文件无法解开，请稍后再试。") from error
+    if not (staged / _ALLOWED_DIR / "__init__.py").is_file():
+        shutil.rmtree(staged, ignore_errors=True)
+        raise UpdateError("更新文件不完整，已停止。")
+    (staged / VERSION_FILE).write_text(version, encoding="utf-8")
+    return staged
+
+
+def staged_version(root: Path | None) -> str:
+    """The version waiting in update.new, or ""."""
+    if root is None:
+        return ""
+    marker = root / STAGED / VERSION_FILE
+    try:
+        return marker.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def confirm_started(root: Path | None) -> bool:
+    """The new version is running: the launcher need not put the old one back. True if it had to be told."""
+    if root is None or not (root / PENDING).exists():
+        return False
+    (root / PENDING).unlink(missing_ok=True)
+    shutil.rmtree(root / BACKUP, ignore_errors=True)
+    log.info("Update to %s confirmed", __version__)
+    return True
