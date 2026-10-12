@@ -134,6 +134,7 @@ def test_a_hotkey_check_says_checking_then_no_lobby(window, monkeypatch):
 
 def test_a_failed_check_says_so_in_the_corner(window):
     window._live_check = True
+    window._manual_check = True
     window._rescan_active = True
     window._on_checked("err", RuntimeError("boom"))
     assert window.notice.kind == "error"
@@ -152,9 +153,19 @@ def test_a_click_puts_it_away(window):
     assert not window.notice.isVisible()
 
 
-def test_leaving_safe_mode_brings_the_marks_back_and_the_sound_stays(window):
-    window.store.consented = ["manual"]
-    window.auto_off.click()
+def test_an_automatic_check_that_finds_no_lobby_goes_quiet(window):
+    window.notice.show_checking(None)
+    window._live_check = True
+    window._manual_check = False
+    window._rescan_active = True
+    window._on_checked("ok", CheckResult(False, "没有找到"))
+    # Not 没有找到大厅: nobody pressed anything.
+    assert not window.notice.isVisible()
+
+
+def test_full_mode_brings_the_marks_back_and_the_sound_stays(window):
+    window.store.consented = ["full"]
+    window.full_on.click()
     assert window.store.safe_mode is False
     button, names = _lobby()
     window._live_check = True
@@ -168,7 +179,40 @@ def test_leaving_safe_mode_brings_the_marks_back_and_the_sound_stays(window):
     window.safe_on.click()
     assert window.store.safe_mode is True
     assert _marks(window) == []
-    assert window.store.auto_capture is False
+
+
+def test_auto_checks_work_in_safe_mode_too(window):
+    window.store.consented = ["auto"]
+    window.auto_on.click()
+    assert (window.store.safe_mode, window.store.auto_capture) == (True, True)
+    assert window._watch_timer.isActive()
+    button, names = _lobby()
+    window._live_check = True
+    window._on_lobby_placed(button)
+    window._show_panel(CheckResult(True, "", names=names, button_box=button))
+    assert _marks(window) == []
+    assert window.notice.kind == "clear"
+
+
+def test_remind_picks_the_lists(window):
+    window.store.add_like("小红")
+    button, names = _lobby()
+    hit = Hit(0, "坏人", "坏人", "", False, "", ("炸房",))
+    window._live_check = True
+    window.remind_blacklist.click()
+    assert window.store.check_blacklist is False
+    window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
+    assert window.notice.kind == "liked"
+    assert window.sounds == []
+    window.remind_blacklist.click()
+    window.remind_likes.click()
+    window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
+    assert window.notice.kind == "hit"
+    assert "心动" not in window.notice.lines.text()
+    from blacklist_detect.storage import Store
+
+    again = Store(window.store.root)
+    assert (again.check_blacklist, again.check_likes) == (True, False)
 
 
 def _answer(monkeypatch, answer: bool) -> list[tuple[str, str, str]]:  # noqa: ANN001
@@ -184,37 +228,44 @@ def _answer(monkeypatch, answer: bool) -> list[tuple[str, str, str]]:  # noqa: A
     return asked
 
 
-def test_turning_down_the_question_stays_in_safe_mode(window, monkeypatch):
+def test_turning_down_the_questions_changes_nothing(window, monkeypatch):
     asked = _answer(monkeypatch, False)
-    window.auto_on.click()
-    assert [title for title, _body, _cancel in asked] == ["开启自动检查"]
+    window.full_on.click()
     title, body, cancel = asked[0]
-    assert "游戏画面上" in body and "判定为异常" in body and "一直截取屏幕" in body
+    assert title == "开启完整模式"
+    assert "游戏画面上" in body and "判定为异常" in body
     assert cancel == "保持安全模式"
     assert window.store.safe_mode is True
-    assert window.store.auto_capture is False
     assert window.safe_on.isChecked() is True
+    window.auto_on.click()
+    title, body, cancel = asked[1]
+    assert title == "开启自动检查"
+    assert "截取屏幕" in body and "判定为异常" in body
+    assert cancel == "保持手动检查"
+    assert window.store.auto_capture is False
+    assert window.auto_off.isChecked() is True
     assert window.store.consented == []
-    # 手动检查 asks too, with its own words.
-    window.auto_off.click()
-    assert asked[1][0] == "开启手动检查"
-    assert "一直截取屏幕" not in asked[1][1]
-    assert window.store.safe_mode is True
 
 
-def test_each_mode_asks_once_and_the_answer_is_kept(window, monkeypatch):
+def test_each_question_is_asked_once_and_the_answer_is_kept(window, monkeypatch):
     from blacklist_detect.storage import Store
 
     asked = _answer(monkeypatch, True)
-    window.auto_on.click()
-    assert window.store.safe_mode is False and window.store.auto_capture is True
+    window.full_on.click()
     window.safe_on.click()
+    window.full_on.click()
     window.auto_on.click()
-    assert len(asked) == 1
     window.auto_off.click()
     window._cycle_capture_mode()
-    assert [title for title, _body, _cancel in asked] == ["开启自动检查", "开启手动检查"]
-    assert sorted(Store(window.store.root).consented) == ["auto", "manual"]
+    assert [title for title, _body, _cancel in asked] == ["开启完整模式", "开启自动检查"]
+    again = Store(window.store.root)
+    assert sorted(again.consented) == ["auto", "full"]
+    assert (again.safe_mode, again.auto_capture) == (False, True)
+    # Manual checks and 安全模式 never ask.
+    window.store.consented = []
+    window.auto_off.click()
+    window.safe_on.click()
+    assert len(asked) == 2
     # 清空数据 forgets it: the next player is asked again.
     window.store.reset()
     assert Store(window.store.root).consented == []

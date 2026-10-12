@@ -103,13 +103,13 @@ def test_blacklist_roundtrip(tmp_path):
     assert again.entries[0].reason == "常挂机"
     assert again.entries[0].tags == ()
     assert again.hotkey == "Ctrl+Shift+F8"
-    # 安全模式 is on by default, and it checks only on the hotkey.
+    # 安全模式 and 手动检查 by default.
     assert again.safe_mode is True
     assert again.auto_capture is False
-    store.safe_mode = False
     store.panel_pos = (12, 34)
     store.save_settings()
     assert Store(tmp_path).panel_pos == (12, 34)
+    store.consented = ["auto"]
     store.auto_capture = True
     store.save_settings()
     assert Store(tmp_path).auto_capture is True
@@ -376,14 +376,28 @@ def test_a_settings_file_from_before_counts_as_welcomed(tmp_path):
     assert store.auto_capture is False
 
 
-def test_safe_mode_off_keeps_auto_checks(tmp_path):
+def test_each_level_is_kept_once_agreed_to(tmp_path):
     store = Store(tmp_path)
+    assert (store.check_blacklist, store.check_likes, store.stream_mode) == (True, True, "")
+    store.consented = ["full", "auto"]
     store.safe_mode = False
     store.auto_capture = True
     store.hit_sound = False
+    store.check_blacklist = False
+    store.stream_mode = "alpha"
     store.save_settings()
     again = Store(tmp_path)
     assert (again.safe_mode, again.auto_capture, again.hit_sound) == (False, True, False)
+    assert (again.check_blacklist, again.check_likes, again.stream_mode) == (False, True, "alpha")
+
+
+def test_full_mode_and_auto_checks_need_the_question_answered(tmp_path):
+    # Settings saved without it (an older version, or edited by hand) open safe and manual.
+    (tmp_path / "settings.json").write_text(
+        '{"safe_mode": false, "auto_capture": true, "stream_mode": "nonsense"}', encoding="utf-8"
+    )
+    store = Store(tmp_path)
+    assert (store.safe_mode, store.auto_capture, store.stream_mode) == (True, False, "")
 
 
 def test_reset_makes_the_next_open_a_first_open(tmp_path):

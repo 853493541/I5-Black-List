@@ -16,6 +16,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
+    QCheckBox,
     QDialog,
     QFileDialog,
     QFrame,
@@ -110,6 +111,7 @@ from blacklist_detect.ui_overlay import (
     _pin_topmost,
     native_to_logical,
 )
+from blacklist_detect.ui_stream import StreamMirror
 from blacklist_detect.ui_theme import (
     APPEARANCES,
     BODY_PT,
@@ -177,21 +179,30 @@ __all__ = [
     "run_app",
 ]
 
-# What 自动检查 and 手动检查 put over the game, said once before either is turned on.
-_RISK = "本工具不读取、也不修改游戏，只是截取屏幕画面。但在游戏画面上显示内容{more}，仍有可能被游戏判定为异常。确定要开启吗？"
+# Said once before 完整模式 or 自动检查 is turned on, and agreed to before either runs.
+_NO_TOUCH = "本工具不读取、也不修改游戏，只截取屏幕画面。"
 CONSENT = {
+    "full": (
+        "开启完整模式",
+        "提醒会直接显示在游戏画面上：大厅按钮上的提示框、名单卡片、红色边缘光和花朵边框。\n\n"
+        + _NO_TOUCH
+        + "但在游戏画面上显示内容，仍有可能被游戏判定为异常。确定要开启吗？",
+        "开启完整模式",
+        "保持安全模式",
+    ),
     "auto": (
         "开启自动检查",
-        "进入「推演成功」大厅时自动截图检查，并把结果直接显示在游戏画面上（红框、名单和边框效果）。\n\n"
-        + _RISK.format(more="、一直截取屏幕"),
+        "进入「推演成功」大厅时自动检查，不用按快捷键。为此会每隔不到一秒截取一次屏幕顶部，"
+        "也会多占用一些电脑性能。\n\n"
+        + _NO_TOUCH
+        + "但一直截取屏幕，仍有可能被游戏判定为异常。确定要开启吗？",
         "开启自动检查",
-    ),
-    "manual": (
-        "开启手动检查",
-        "按快捷键时检查，并把结果直接显示在游戏画面上（红框、名单和边框效果）。\n\n" + _RISK.format(more=""),
-        "开启手动检查",
+        "保持手动检查",
     ),
 }
+
+# How long 直播模式's 预览 shows its sample marks.
+PREVIEW_MS = 8_000
 
 # Updates are looked for once each time the app opens, just after the window is up. A new version
 # found then is installed before the app is used.
@@ -391,6 +402,9 @@ class MainWindow(QMainWindow):
         # 安全模式: the result in a small box at the bottom right instead of over the game.
         self.notice = CornerNotice()
         self._notice_screen = None
+        # 直播模式: the 心动 marks, never the 黑名单 ones, in a window a streaming app can capture.
+        self.stream = StreamMirror(self)
+        self._preview_until = 0.0
         # New versions from GitHub: checked when the app opens and installed before it is used.
         self.updates = UpdateChecker(self)
         self.updates.found.connect(self._on_update_found)
@@ -442,6 +456,9 @@ class MainWindow(QMainWindow):
         # Focusable before the style is applied, so it keeps the input method like the rest.
         self.centralWidget().setFocusPolicy(Qt.ClickFocus)
         self._apply_style()
+        self._sync_overlay_target()
+        if self.store.stream_mode:
+            self.stream.enable(self.store.stream_mode)
         self.centralWidget().setFocus(Qt.FocusReason.OtherFocusReason)
         _caption_color(self)
         self._show_list()
@@ -876,12 +893,21 @@ class MainWindow(QMainWindow):
 
         # 检查: how and when a lobby is checked.
         check = section("检查")
-        # 安全模式 is a manual check with nothing over the game: the result shows in a corner box.
-        self.auto_mode = SegmentedControl(
-            [("safe", "安全模式"), ("auto", "自动检查"), ("manual", "手动检查")], self._capture_mode()
+        # 1 显示: 安全模式 shows the result in a corner box; 完整模式 draws it over the game.
+        self.display_mode = SegmentedControl(
+            [("safe", "安全模式"), ("full", "完整模式")], "safe" if self.store.safe_mode else "full"
         )
-        self.safe_on = self.auto_mode.buttons["safe"]
-        self.safe_on.setToolTip("按快捷键检查，结果显示在屏幕右下角，游戏画面上不显示任何内容")
+        self.display_mode.setAccessibleName("显示")
+        self.safe_on = self.display_mode.buttons["safe"]
+        self.full_on = self.display_mode.buttons["full"]
+        self.safe_on.setToolTip("结果显示在屏幕右下角，游戏画面上不显示任何内容")
+        self.full_on.setToolTip("结果直接显示在游戏画面上")
+        self.display_mode.changed.connect(self._on_display_mode)
+        check.add_row("显示", self.display_mode, hint="安全模式只在屏幕右下角提示")
+        # 2 方式: 自动检查 watches for the lobby; 手动检查 waits for the hotkey.
+        self.auto_mode = SegmentedControl(
+            [("auto", "自动检查"), ("manual", "手动检查")], "auto" if self.store.auto_capture else "manual"
+        )
         self.auto_on = self.auto_mode.buttons["auto"]
         self.auto_off = self.auto_mode.buttons["manual"]
         self.auto_mode.changed.connect(self._on_auto_mode)
@@ -892,17 +918,36 @@ class MainWindow(QMainWindow):
         self.hotkey_edit.setCursor(Qt.PointingHandCursor)
         self.hotkey_edit.installEventFilter(self)
         self.hotkey_edit.setAccessibleName("快捷键")
-        check.add_row("方式", self.auto_mode, self.hotkey_edit, hint="检查快捷键")
+        check.add_row("方式", self.auto_mode, self.hotkey_edit, hint="手动检查时使用")
         # Hotkey problems show right under the hotkey they are about.
         self.settings_label = QLabel("")
         self.settings_label.setObjectName("rowHint")
         self.settings_label.setWordWrap(True)
         self.settings_label.hide()
         check.add_widget(self.settings_label, separated=False, indent=True)
+        # 3 提醒: which lists a check looks for.
+        self.remind_blacklist = QCheckBox("黑名单")
+        self.remind_blacklist.setChecked(self.store.check_blacklist)
+        self.remind_blacklist.toggled.connect(self._set_remind_blacklist)
+        self.remind_likes = QCheckBox("心动")
+        self.remind_likes.setChecked(self.store.check_likes)
+        self.remind_likes.toggled.connect(self._set_remind_likes)
+        check.add_row("提醒", self.remind_blacklist, self.remind_likes)
         self.sound_switch = Switch(self.store.hit_sound)
         self.sound_switch.setAccessibleName("提示音")
         self.sound_switch.toggled.connect(self._set_hit_sound)
         check.add_row("提示音", self.sound_switch, hint="发现黑名单时响一声")
+        # 4 直播模式: a window for the streaming app, with the 心动 marks and never the 黑名单 ones.
+        self.stream_control = SegmentedControl([("off", "关"), ("key", "绿幕"), ("alpha", "透明")], self.store.stream_mode or "off")
+        self.stream_control.setAccessibleName("直播模式")
+        self.stream_control.changed.connect(self._set_stream_mode)
+        self.stream_preview = QPushButton("预览")
+        self.stream_preview.setFont(ui_font())
+        self.stream_preview.setAutoDefault(False)
+        self.stream_preview.setCursor(Qt.PointingHandCursor)
+        self.stream_preview.clicked.connect(self._preview_marks)
+        self.stream_preview.setEnabled(bool(self.store.stream_mode))
+        check.add_row("直播模式", self.stream_control, self.stream_preview, hint="观众只看到心动，看不到黑名单")
 
         # 常规: how the app starts and closes.
         general = section("常规")
@@ -1128,6 +1173,13 @@ class MainWindow(QMainWindow):
         self._sync_switch(self.autostart_switch, autostart.is_enabled())
         self.close_mode.set_current("tray" if self.store.close_to_tray else "quit")
         self._sync_switch(self.sound_switch, self.store.hit_sound)
+        self.display_mode.set_current("safe")
+        for box, on in ((self.remind_blacklist, True), (self.remind_likes, True)):
+            box.blockSignals(True)
+            box.setChecked(on)
+            box.blockSignals(False)
+        self.stream_control.set_current("off")
+        self.stream_preview.setEnabled(False)
         self.notice.hide()
         if not self._watch_timer.isActive():
             self.watch = LobbyWatch()
@@ -1151,6 +1203,8 @@ class MainWindow(QMainWindow):
         self.love.stop()
         self._love_played = False
         self.alert.stop()
+        self.stream.enable("")
+        self._sync_overlay_target()
         self._reload_history()
         self.likes_page.refresh()
 
@@ -2506,9 +2560,6 @@ class MainWindow(QMainWindow):
         self._show_history_scan(self._selected_scan())
 
     def _toggle_auto(self, checked: bool) -> None:
-        if checked and self.store.safe_mode:
-            self.store.safe_mode = False
-            self.notice.hide()
         self.store.auto_capture = bool(checked)
         self.store.save_settings()
         self._sync_auto_controls()
@@ -2522,62 +2573,109 @@ class MainWindow(QMainWindow):
         if self._status_kind in ("idle", "watch"):
             self._sync_watch_idle()
 
-    def _capture_mode(self) -> str:
-        if self.store.safe_mode:
-            return "safe"
-        return "auto" if self.store.auto_capture else "manual"
-
     def _cycle_capture_mode(self) -> None:
-        # 安全模式 is left only on purpose, in 设置.
-        if self.store.safe_mode:
-            self.tabs.setCurrentIndex(self.settings_tab)
-            return
         self._on_auto_mode("manual" if self.store.auto_capture else "auto")
 
     def _consent(self, mode: str) -> bool:
-        """The first time 自动检查 or 手动检查 is picked, say what it shows over the game and ask."""
+        """The first time 完整模式 or 自动检查 is picked, say what it does and ask."""
         if mode in self.store.consented:
             return True
-        title, body, confirm = CONSENT[mode]
-        if not ConfirmDialog.ask(self, title, body, confirm, cancel="保持安全模式"):
+        title, body, confirm, cancel = CONSENT[mode]
+        if not ConfirmDialog.ask(self, title, body, confirm, cancel=cancel):
             return False
         self.store.consented.append(mode)
         self.store.save_settings()
         return True
 
     def _on_auto_mode(self, key: str) -> None:
-        if key == "safe":
-            self._set_safe_mode(True)
-            return
-        if not self._consent(key):
+        if key == "auto" and not self._consent("auto"):
             # Declined: the choice goes back to where it was.
             self._sync_auto_controls()
             return
-        if self.store.safe_mode:
-            self.store.safe_mode = False
-            self.notice.hide()
         self._toggle_auto(key == "auto")
+
+    def _on_display_mode(self, key: str) -> None:
+        if key == "full" and not self._consent("full"):
+            self.display_mode.set_current("safe" if self.store.safe_mode else "full")
+            return
+        self._set_safe_mode(key == "safe")
 
     def _set_safe_mode(self, on: bool) -> None:
         self.store.safe_mode = bool(on)
+        self.store.save_settings()
+        self.display_mode.set_current("safe" if self.store.safe_mode else "full")
         if self.store.safe_mode:
-            # Off the game at once: no auto checks, and nothing left drawn over it.
-            self._toggle_auto(False)
+            # Off the game at once: nothing left drawn over it.
             self._hide_panel_after_title()
         else:
             self.notice.hide()
-            self.store.save_settings()
-            self._sync_auto_controls()
-        if self._status_kind in ("idle", "watch"):
-            self._sync_watch_idle()
+        self._sync_overlay_target()
+        self._sync_status_tip()
+
+    def _overlay_target(self) -> str:
+        """Where the marks go: "screen" over the game (完整模式), "stream" only into 直播模式's
+        window (安全模式 with 直播模式), or "" nowhere (安全模式)."""
+        if not self.store.safe_mode:
+            return "screen"
+        return "stream" if self.store.stream_mode else ""
+
+    def _sync_overlay_target(self) -> None:
+        """Marks meant only for the stream are made but never put on the screen."""
+        hidden = self._overlay_target() == "stream"
+        marks = (self.panel, self.hit_card, self.like_card, self.clear_mark, self.love, self.alert)
+        if self._overlay_target() == "" or any(mark.testAttribute(Qt.WA_DontShowOnScreen) != hidden for mark in marks):
+            # Changed only while nothing shows: a window already on screen would stay there.
+            self._hide_panel_after_title()
+            for mark in marks:
+                mark.setAttribute(Qt.WA_DontShowOnScreen, hidden)
+
+    def _set_remind_blacklist(self, on: bool) -> None:
+        self.store.check_blacklist = bool(on)
+        self.store.save_settings()
+
+    def _set_remind_likes(self, on: bool) -> None:
+        self.store.check_likes = bool(on)
+        self.store.save_settings()
 
     def _set_hit_sound(self, on: bool) -> None:
         self.store.hit_sound = bool(on)
         self.store.save_settings()
 
+    def _set_stream_mode(self, mode: str) -> None:
+        self.store.stream_mode = mode if mode in ("key", "alpha") else ""
+        self.store.save_settings()
+        self.stream.enable(self.store.stream_mode)
+        self.stream_preview.setEnabled(bool(self.store.stream_mode))
+        self._sync_overlay_target()
+
+    def _preview_marks(self) -> None:
+        """直播模式's 预览: two sample 心动 players near the bottom of the screen for a few seconds."""
+        screen = QApplication.primaryScreen()
+        if screen is None or not self.store.stream_mode:
+            return
+        area, ratio = screen.geometry(), screen.devicePixelRatio()
+        origin_x, origin_y = virtual_origin()
+        left = area.x() + area.width() // 2 - 130
+        top = area.y() + area.height() - 140
+
+        # The box in desktop pixels, as a check gives it: the monitor's corner plus scaled offsets.
+        def native(x: float, y: float) -> tuple[int, int]:
+            return round(area.x() + (x - area.x()) * ratio) - origin_x, round(area.y() + (y - area.y()) * ratio) - origin_y
+
+        box = (*native(left, top), *native(left + 260, top + 74))
+        self._live_check = True
+        self._love_played = False
+        self._open_panel("liked", "未发现黑名单", box)
+        self._show_clear_mark(heart=True)
+        self._show_like_card([Entry("示例心动"), Entry("示例玩家")])
+        self._play_love()
+        # No lobby is on screen: the watch must not take the sample away before its time.
+        self._preview_until = time.perf_counter() + PREVIEW_MS / 1000
+        self._panel_hide_timer.start(PREVIEW_MS)
+
     def _sync_auto_controls(self) -> None:
         """The 方式 choice and the header's tooltip both follow the saved mode."""
-        self.auto_mode.set_current(self._capture_mode())
+        self.auto_mode.set_current("auto" if self.store.auto_capture else "manual")
         self._sync_status_tip()
 
     def _begin_hotkey(self) -> None:
@@ -3001,7 +3099,7 @@ class MainWindow(QMainWindow):
         elif was_error:
             self._sync_watch_idle()
         if not value:
-            if self.panel.isVisible():
+            if self.panel.isVisible() and time.perf_counter() >= self._preview_until:
                 self._hide_panel_after_title()
         else:
             self._panel_hide_timer.stop()
@@ -3029,6 +3127,7 @@ class MainWindow(QMainWindow):
             return
         rescan = self._rescan_active
         self._rescan_active = False
+        manual = self._manual_check
         elapsed = None
         if self._check_started is not None:
             elapsed = time.perf_counter() - self._check_started
@@ -3042,8 +3141,10 @@ class MainWindow(QMainWindow):
             if self.store.auto_capture:
                 self.watch.retry_after(time.perf_counter())
             self._hide_panel_after_title()
-            if self.store.safe_mode and self._live_check:
+            if self.store.safe_mode and self._live_check and manual:
                 self.notice.show_error(_plain_error(value, "请稍后再试。"), self._notice_screen)
+            elif self.notice.kind == "checking":
+                self.notice.hide()
             return
         result: CheckResult = value
         if not result.header_found:
@@ -3055,8 +3156,10 @@ class MainWindow(QMainWindow):
             if self.store.auto_capture:
                 self.watch.retry_after(time.perf_counter())
             self._hide_panel_after_title()
-            if self.store.safe_mode and self._live_check:
+            if self.store.safe_mode and self._live_check and manual:
                 self.notice.show_missing(self._notice_screen)
+            elif self.notice.kind == "checking":
+                self.notice.hide()
             return
         self._manual_check = False
         self._clear_problem()
@@ -3156,7 +3259,7 @@ class MainWindow(QMainWindow):
             self._watch_timer.stop()
 
     def _on_lobby_placed(self, box) -> None:
-        if self._closing or not self._live_check or self.store.safe_mode:
+        if self._closing or not self._live_check or not self._overlay_target():
             return
         # A finished cover stays put. A second pass must not turn it yellow again.
         if self.panel.isVisible() and self.panel.mode in ("clear", "liked", "hit", "both"):
@@ -3171,22 +3274,24 @@ class MainWindow(QMainWindow):
         if not self._live_check or not result.header_found:
             self._hide_panel_after_title()
             return
-        if result.hits and self.store.hit_sound:
+        hits = self._hits_in(result)
+        if hits and self.store.hit_sound:
             play_hit_sound()
         if self.store.safe_mode:
             self._show_notice(result)
+        if not self._overlay_target():
             return
         if result.button_box is None:
             self._hide_panel_after_title()
             return
         likes = self._likes_in(result)
-        if result.hits:
+        if hits:
             self.clear_mark.hide()
             # A 黑名单 player is the news; the border would bury it.
             self.love.stop()
             # 心动 players too: the ring is rose on their side, and their card is on the left.
             self._open_panel("both" if likes else "hit", "", result.button_box)
-            self._show_hit_card(result.hits)
+            self._show_hit_card(hits)
             if self.hit_card.isVisible():
                 self._show_like_card(likes)
                 self._show_alert()
@@ -3205,10 +3310,14 @@ class MainWindow(QMainWindow):
         if len(likes) >= 2 and not self._love_played:
             self._play_love()
 
+    def _hits_in(self, result: CheckResult) -> list[Hit]:
+        """黑名单 players in the lobby, when 提醒 looks for them."""
+        return list(result.hits) if self.store.check_blacklist else []
+
     def _show_notice(self, result: CheckResult) -> None:
         """安全模式: who is in the lobby, in the box at the bottom right of the game's screen."""
         people: list[tuple[str, tuple[str, ...]]] = []
-        for hit in result.hits:
+        for hit in self._hits_in(result):
             person = (hit.entry_name, tuple(hit.tags))
             if person not in people:
                 people.append(person)
@@ -3283,8 +3392,10 @@ class MainWindow(QMainWindow):
         self._place_beside(self.hit_card)
 
     def _likes_in(self, result: CheckResult) -> list[Entry]:
-        """心动 players in the lobby, in seat order, each once."""
+        """心动 players in the lobby, in seat order, each once, when 提醒 looks for them."""
         found: list[Entry] = []
+        if not self.store.check_likes:
+            return found
         for slot in result.names:
             label = NameLabel(raw=slot.raw, visible=slot.visible, truncated=slot.truncated, unclear=slot.unclear)
             for match in match_label(label, list(self.store.likes)):
@@ -3345,10 +3456,7 @@ class MainWindow(QMainWindow):
         chip = getattr(self, "status_chip", None)
         if chip is None:
             return
-        if self.store.safe_mode:
-            flip = "安全模式：按快捷键检查，结果显示在屏幕右下角\n点击打开设置"
-        else:
-            flip = "切换为手动检查" if self.store.auto_capture else "切换为自动检查"
+        flip = "切换为手动检查" if self.store.auto_capture else "切换为自动检查"
         chip.setToolTip(f"{self._watch_tip}\n{flip}" if self._watch_tip else flip)
         # 记录's empty page says how a check starts.
         empty = getattr(self, "history_empty", None)
@@ -3361,8 +3469,6 @@ class MainWindow(QMainWindow):
     def _sync_watch_idle(self) -> None:
         if self.store.auto_capture:
             self._set_result("自动检查中", "watchOn", "watch")
-        elif self.store.safe_mode:
-            self._set_result("安全模式", "watchOff", "idle")
         else:
             self._set_result("手动检查", "watchOff", "idle")
 
@@ -3518,6 +3624,8 @@ class MainWindow(QMainWindow):
         self.alert.stop()
         self.alert.close()
         self.notice.close()
+        self.stream.enable("")
+        self.stream.close()
         self.hotkey.clear()
         self.worker.stop()
         # A check or a model load cannot be interrupted. Ending the thread under it crashes on exit.

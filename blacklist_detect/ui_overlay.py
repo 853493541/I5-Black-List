@@ -57,7 +57,8 @@ def native_to_logical(x: float, y: float, screens=None) -> tuple[float, float, f
 
 
 def _pin_topmost(widget) -> None:
-    if sys.platform != "win32":
+    # A mark made only for 直播模式's window is never put on the screen.
+    if sys.platform != "win32" or widget.testAttribute(Qt.WA_DontShowOnScreen):
         return
     import ctypes
 

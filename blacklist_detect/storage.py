@@ -369,7 +369,8 @@ class Store:
         self.likes: list[Entry] = []
         self.scans: list[dict] = []
         self.hotkey = DEFAULT_HOTKEY
-        self.auto_capture = True
+        # 方式: 自动检查 watches for the lobby; 手动检查 (the default) checks on the hotkey.
+        self.auto_capture = False
         self.save_debug_frames = False
         self.panel_pos: tuple[int, int] | None = None
         self.window_size: tuple[int, int] | None = None
@@ -388,12 +389,18 @@ class Store:
         self.env_checked = ""
         # × hides the window to the tray (the app keeps checking), or quits.
         self.close_to_tray = True
-        # 安全模式: checks only on the hotkey, nothing drawn over the game; the result shows in a
-        # small box at the bottom right. On unless turned off, also for settings saved before it.
+        # 显示: 安全模式 draws nothing over the game, the result shows in a small box at the bottom
+        # right; 完整模式 (False) draws the marks over it. On unless turned off, also for old settings.
         self.safe_mode = True
+        # 提醒: which lists a check looks for.
+        self.check_blacklist = True
+        self.check_likes = True
         # 提示音: the system warning sound when a 黑名单 player is found.
         self.hit_sound = True
-        # The modes the player chose after being told what they show over the game: auto, manual.
+        # 直播模式: a window for a streaming app with the 心动 marks only. "" off, "key" on green
+        # for the streaming app to key out, "alpha" on a clear background.
+        self.stream_mode = ""
+        # What the player agreed to after being told the risk: "full" (完整模式), "auto" (自动检查).
         self.consented: list[str] = []
         self.load_warning = ""
         # Whether the welcome guide has been shown. A settings file from before this was saved
@@ -512,8 +519,10 @@ class Store:
         self.column_widths = list(DEFAULT_COLUMN_WIDTHS)
         self.load_warning = ""
         self._load_settings()
-        # 安全模式 checks only on the hotkey.
-        if self.safe_mode:
+        # 完整模式 and 自动检查 only once agreed to; settings from before the question fall back.
+        if "full" not in self.consented:
+            self.safe_mode = True
+        if "auto" not in self.consented:
             self.auto_capture = False
         if self.blacklist_path.exists():
             try:
@@ -752,6 +761,9 @@ class Store:
                 "close_to_tray": self.close_to_tray,
                 "safe_mode": self.safe_mode,
                 "hit_sound": self.hit_sound,
+                "check_blacklist": self.check_blacklist,
+                "check_likes": self.check_likes,
+                "stream_mode": self.stream_mode,
                 "consented": list(self.consented),
             },
         )
@@ -762,7 +774,7 @@ class Store:
         try:
             settings = json.loads(self.settings_path.read_text(encoding="utf-8"))
             self.hotkey = str(settings.get("hotkey", "") or "") or DEFAULT_HOTKEY
-            self.auto_capture = bool(settings.get("auto_capture", True))
+            self.auto_capture = bool(settings.get("auto_capture", False))
             self.save_debug_frames = bool(settings.get("save_debug_frames", False))
             self.panel_pos = _panel_pos(settings.get("panel_pos"))
             self.window_size = _window_size(settings.get("window_size"))
@@ -788,8 +800,12 @@ class Store:
             self.close_to_tray = bool(settings.get("close_to_tray", True))
             self.safe_mode = bool(settings.get("safe_mode", True))
             self.hit_sound = bool(settings.get("hit_sound", True))
+            self.check_blacklist = bool(settings.get("check_blacklist", True))
+            self.check_likes = bool(settings.get("check_likes", True))
+            stream = settings.get("stream_mode", "")
+            self.stream_mode = stream if stream in ("key", "alpha") else ""
             agreed = settings.get("consented") or []
-            self.consented = [mode for mode in ("auto", "manual") if isinstance(agreed, list) and mode in agreed]
+            self.consented = [mode for mode in ("full", "auto") if isinstance(agreed, list) and mode in agreed]
             for raw in settings.get("hidden_tags") or []:
                 tag = clean_tag(str(raw))
                 if tag in TAGS and tag not in self.hidden_tags:
@@ -972,7 +988,7 @@ class Store:
         self.likes = []
         self.scans = []
         self.hotkey = DEFAULT_HOTKEY
-        # 安全模式 is on again, and it checks only on the hotkey.
+        # 安全模式 and 手动检查 again, until agreed to otherwise.
         self.auto_capture = False
         self.save_debug_frames = False
         self.panel_pos = None
@@ -991,7 +1007,10 @@ class Store:
         self.welcomed = False
         self.close_to_tray = True
         self.safe_mode = True
+        self.check_blacklist = True
+        self.check_likes = True
         self.hit_sound = True
+        self.stream_mode = ""
         self.consented = []
         self.load_warning = ""
         self.save_entries()
