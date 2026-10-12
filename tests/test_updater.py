@@ -335,3 +335,14 @@ def test_a_release_needing_the_full_package_sends_to_the_download_page(window, t
     assert opened == [updater.RELEASES_URL] and dialog.isVisible()
     dialog.skip.click()
     assert not dialog.isVisible() and not window._updating
+
+
+def test_the_app_ends_its_process_when_the_window_is_gone(monkeypatch):
+    # PaddleOCR's threads would keep Python waiting at exit: the window gone, the process left.
+    from blacklist_detect import __main__ as entry
+
+    ended: list[int] = []
+    monkeypatch.setattr("blacklist_detect.ui.run_app", lambda background=False: 0)
+    monkeypatch.setattr(entry.os, "_exit", ended.append)
+    assert entry.main([]) == 0
+    assert ended == [0]

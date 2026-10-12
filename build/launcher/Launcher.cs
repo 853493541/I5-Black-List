@@ -177,7 +177,10 @@ static class Updates
         {
             if (Directory.Exists(staged))
             {
-                // Never under a copy running from this folder: it holds its files open. The next start does it.
+                // Never under a copy running from this folder: it holds its files open. A copy that was
+                // just asked to close can take a few seconds; past that, the next start does it.
+                for (int i = 0; i < 75 && RunningHere(root); i++)
+                    System.Threading.Thread.Sleep(200);
                 if (RunningHere(root))
                     return null;
                 Apply(root, staged, backup, pending);

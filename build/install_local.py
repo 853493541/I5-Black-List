@@ -205,6 +205,12 @@ def main() -> int:
         if (root / old).is_file():
             (root / old).unlink()
             print(f"Removed {old} (renamed).")
+    # An update downloaded from GitHub but not laid over yet is older than what is installed now.
+    for leftover in ("update.new", "update.old"):
+        if (root / leftover).is_dir():
+            shutil.rmtree(root / leftover)
+            print(f"Removed {leftover}.")
+    (root / "update.check").unlink(missing_ok=True)
     copied, removed = sync_tree(REPO / "blacklist_detect", root / "blacklist_detect")
     launcher = root / EXE_NAME
     if args.launcher.is_file() and not _same(args.launcher, launcher):

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import os
 import sys
 
 
@@ -17,7 +19,17 @@ def main(argv: list[str] | None = None) -> int:
     from blacklist_detect.autostart import BACKGROUND
     from blacklist_detect.ui import run_app
 
-    return run_app(background=BACKGROUND in args)
+    code = run_app(background=BACKGROUND in args)
+    _end(code)
+    return code
+
+
+def _end(code: int) -> None:
+    """Leave now. By the time the window is gone everything is saved and closed, but PaddleOCR
+    leaves threads behind that Python would wait on for ever: the app vanished from the screen
+    and the tray, while its process stayed, holding its memory and blocking the next update."""
+    logging.shutdown()
+    os._exit(code)
 
 
 def _check_cli(args: list[str]) -> int:
