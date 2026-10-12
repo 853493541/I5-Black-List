@@ -391,7 +391,7 @@ class BatchAddDialog(Modal):
             tags = QTableWidgetItem("")
             tags.setData(Qt.UserRole + 3, row.tags)
             tags.setToolTip("、".join(row.tags))
-            status.setData(Qt.UserRole + 4, THEME["accent_line"] if row.status == MERGE else THEME["muted"])
+            status.setData(Qt.UserRole + 4, (THEME["accent_line"] if THEME.get("scheme") == "dark" else THEME["accent"]) if row.status == MERGE else THEME["muted"])
             for column, item in enumerate((name, tags, reason, status)):
                 item.setFlags(Qt.ItemIsEnabled)
                 table.setItem(index, column, item)
@@ -763,7 +763,7 @@ DISPLAY_DIFF = (
 GUIDE_PICTURES = Path(__file__).resolve().parent / "assets"
 # Each picture fits in this box, in logical pixels; the files are made at twice the size.
 PICTURE_BOX = (465, 150)
-WORDS_WIDTH = 170
+WORDS_WIDTH = 186
 
 
 class PictureGuideDialog(Modal):

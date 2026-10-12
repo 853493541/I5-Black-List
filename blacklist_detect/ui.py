@@ -926,7 +926,8 @@ class MainWindow(QMainWindow):
         self.hotkey_edit = QLineEdit()
         self.hotkey_edit.setReadOnly(True)
         self.hotkey_edit.setPlaceholderText("无")
-        self.hotkey_edit.setFixedWidth(slot)
+        # Room for the longest key there is, Ctrl+Shift+Alt+F12 aside: Ctrl+Alt+F12.
+        self.hotkey_edit.setFixedWidth(max(slot, metrics.horizontalAdvance("Ctrl+Alt+F12") + 32))
         self.hotkey_edit.setCursor(Qt.PointingHandCursor)
         self.hotkey_edit.installEventFilter(self)
         self.hotkey_edit.setAccessibleName("快捷键")

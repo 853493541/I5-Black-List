@@ -494,7 +494,7 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     window._hover_history_cell(1, 0)
     assert window.history_table.cellWidget(1, 0).styleSheet() == window._history_wrap_style("")
     assert window.history_table.viewport().cursor().shape() == Qt.ArrowCursor
-    assert window.history_table.item(1, 0).foreground().color().name() == "#6b7280"
+    assert window.history_table.item(1, 0).foreground().color().name() == THEME["gray"]
     assert window.history_table.item(1, 0).data(Qt.UserRole) in ("", None)
     assert window.history_table.cellWidget(1, 0).findChild(QLabel, "rowAction") is None
     window.store.add("纪戴宁")
@@ -1416,7 +1416,7 @@ def test_batch_import_previews_each_person_before_adding(qapp, tmp_path, monkeyp
     ]
     # 标签 are drawn as the list's red pills; 合并 is in the accent.
     assert table.item(2, 1).data(Qt.UserRole + 3) == ("挂机",) and table.item(2, 2).text() == "挂机占麦"
-    assert table.item(1, 3).data(Qt.UserRole + 4) == THEME["accent_line"]
+    assert table.item(1, 3).data(Qt.UserRole + 4) == THEME["accent"]
     assert dialog.import_button.text() == "导入 4 人"
     # A click on a row unchecks it, and it stays unchecked while the text changes.
     dialog._toggle(4)

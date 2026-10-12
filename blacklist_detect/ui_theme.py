@@ -182,7 +182,9 @@ def _palette(name: str, dark: bool) -> dict[str, str]:
             "chip_bg": "#2d323b",
             "chip_text": "#d5d9e0",
             "chip_off_bg": "#22262d",
-            "chip_off_line": "#4a505c",
+            "chip_off_line": "#6e7685",
+            # Edges of controls that have no words on them, 3:1 against the card (WCAG 1.4.11).
+            "field_line": "#6e7685",
             "toast_bg": "#e7e9ee",
             "toast_text": "#15171b",
             "toast_action": _LIGHT[name][5],
@@ -213,7 +215,7 @@ def _palette(name: str, dark: bool) -> dict[str, str]:
             "rose": "#c2306b",
             "rose_wash": "#fff1f6",
             "rose_hover": "#fde3ee",
-            "gray": "#6b7280",
+            "gray": "#626977",
             "gray_wash": "#f3f4f6",
             "gray_hover": "#e6e8ec",
             "danger": "#b3261e",
@@ -222,7 +224,8 @@ def _palette(name: str, dark: bool) -> dict[str, str]:
             "chip_bg": "#eef0f3",
             "chip_text": "#3f4654",
             "chip_off_bg": "#f7f8fa",
-            "chip_off_line": "#c5cad3",
+            "chip_off_line": "#8b93a1",
+            "field_line": "#8b93a1",
             "toast_bg": "#1f2633",
             "toast_text": "#f3f5f8",
             "toast_action": _DARK[name][0],
@@ -392,7 +395,7 @@ def _input_rules(family: str) -> str:
                 font-weight: 400;
                 background: {t["surface"]};
                 color: {t["text"]};
-                border: 1px solid {t["border"]};
+                border: 1px solid {t["field_line"]};
                 border-radius: {RADIUS}px;
                 padding: 6px 10px;
                 selection-background-color: {t["selected"]};
@@ -597,7 +600,8 @@ def _kit_rules(family: str) -> str:
                 border: none;
                 border-radius: {RADIUS}px;
                 padding: 0;
-                min-height: 0;
+                min-height: {CONTROL_H - 4}px;
+                min-width: {CONTROL_H - 4}px;
             }}
             QPushButton#iconButton:hover {{ background: {t["hover"]}; }}
             QPushButton#iconButton:pressed {{ background: {t["selected"]}; }}
