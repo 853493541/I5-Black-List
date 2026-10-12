@@ -350,7 +350,7 @@ class LikesPage(QWidget):
         if not count:
             return
         QApplication.clipboard().setText(share_likes(self.store.likes))
-        self._say(f"已复制 {count} 人，好友可在「心动」页的「批量导入」中粘贴")
+        self._say(f"已复制 {count} 人")
 
     def clear(self) -> None:
         count = len(self.store.likes)

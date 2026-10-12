@@ -182,22 +182,16 @@ __all__ = [
 ]
 
 # Said once before 完整模式 or 自动检查 is turned on, and agreed to before either runs.
-_NO_TOUCH = "本工具不读取、也不修改游戏，只截取屏幕画面。"
 CONSENT = {
     "full": (
         "开启完整模式",
-        "提醒会直接显示在游戏画面上：大厅按钮上的提示框、名单卡片、红色边缘光和花朵边框。\n\n"
-        + _NO_TOUCH
-        + "但在游戏画面上显示内容，仍有可能被游戏判定为异常。确定要开启吗？",
+        "提醒会直接显示在游戏画面上，有可能被游戏判定为异常。确定开启吗？",
         "开启完整模式",
         "保持安全模式",
     ),
     "auto": (
         "开启自动检查",
-        "进入「推演成功」大厅时自动检查，不用按快捷键。为此会每隔不到一秒截取一次屏幕顶部，"
-        "也会多占用一些电脑性能。\n\n"
-        + _NO_TOUCH
-        + "但一直截取屏幕，仍有可能被游戏判定为异常。确定要开启吗？",
+        "进大厅时自动检查，不用按快捷键。需要一直截屏，更占性能，也有可能被游戏判定为异常。确定开启吗？",
         "开启自动检查",
         "保持手动检查",
     ),
@@ -859,7 +853,7 @@ class MainWindow(QMainWindow):
         column.addWidget(record)
         column.addStretch(1)
         body.addWidget(self.record_column, 1)
-        self.history_empty = EmptyState("records", "还没有记录", "进入「推演成功」大厅时会自动检查，结果会记录在这里。")
+        self.history_empty = EmptyState("records", "还没有记录", "进入「推演成功」大厅时自动检查")
         self.history_hint = self.history_empty.title
         self.picture_empty_button = self.history_empty.add_action(QPushButton("上传截图"))
         self.picture_empty_button.clicked.connect(self.check_picture)
@@ -919,7 +913,7 @@ class MainWindow(QMainWindow):
         self.safe_on.setToolTip("结果显示在屏幕右下角，游戏画面上不显示任何内容")
         self.full_on.setToolTip("结果直接显示在游戏画面上")
         self.display_mode.changed.connect(self._on_display_mode)
-        check.add_row("显示", self.display_mode, hint="安全模式只在屏幕右下角提示")
+        check.add_row("显示", self.display_mode)
         # 2 方式: 自动检查 watches for the lobby; 手动检查 waits for the hotkey.
         self.auto_mode = SegmentedControl(
             [("auto", "自动检查"), ("manual", "手动检查")], "auto" if self.store.auto_capture else "manual"
@@ -934,7 +928,7 @@ class MainWindow(QMainWindow):
         self.hotkey_edit.setCursor(Qt.PointingHandCursor)
         self.hotkey_edit.installEventFilter(self)
         self.hotkey_edit.setAccessibleName("快捷键")
-        check.add_row("方式", self.auto_mode, self.hotkey_edit, hint="手动检查时使用")
+        check.add_row("方式", self.auto_mode, self.hotkey_edit)
         # Hotkey problems show right under the hotkey they are about.
         self.settings_label = QLabel("")
         self.settings_label.setObjectName("rowHint")
@@ -952,7 +946,8 @@ class MainWindow(QMainWindow):
         self.sound_switch = Switch(self.store.hit_sound)
         self.sound_switch.setAccessibleName("提示音")
         self.sound_switch.toggled.connect(self._set_hit_sound)
-        check.add_row("提示音", self.sound_switch, hint="发现黑名单时响一声")
+        self.sound_switch.setToolTip("发现黑名单时响一声")
+        check.add_row("提示音", self.sound_switch)
         # 4 直播模式: a window for the streaming app, with the 心动 marks and never the 黑名单 ones.
         self.stream_switch = Switch(bool(self.store.stream_mode))
         self.stream_switch.setAccessibleName("直播模式")
@@ -963,9 +958,10 @@ class MainWindow(QMainWindow):
         self.stream_preview.setCursor(Qt.PointingHandCursor)
         self.stream_preview.clicked.connect(self._preview_marks)
         self.stream_preview.setEnabled(bool(self.store.stream_mode))
-        check.add_row("直播模式", self.stream_switch, self.stream_preview, hint="观众只看到心动，看不到黑名单")
+        self.stream_switch.setToolTip("观众只看到心动，看不到黑名单")
+        check.add_row("直播模式", self.stream_switch, self.stream_preview)
         # How to set it up, under the row while it is on.
-        self.stream_hint = QLabel("在直播软件里添加窗口捕获「模仿者小工具·直播画面」，放在游戏画面上面就好")
+        self.stream_hint = QLabel("直播软件添加窗口捕获「模仿者小工具·直播画面」，放在游戏上层")
         self.stream_hint.setObjectName("rowHint")
         self.stream_hint.setWordWrap(True)
         self.stream_hint.setVisible(bool(self.store.stream_mode))
@@ -2012,7 +2008,7 @@ class MainWindow(QMainWindow):
         if not count:
             return
         QApplication.clipboard().setText(share_text(self.store.entries))
-        self._say(f"已复制 {count} 人，好友可在「批量导入」中粘贴")
+        self._say(f"已复制 {count} 人")
 
     def _add_by_dialog(self) -> None:
         picked = (self._tag_filter,) if self._tag_filter else ()
@@ -3550,8 +3546,8 @@ class MainWindow(QMainWindow):
         if empty is not None:
             spec = parse_hotkey(self.store.hotkey)
             key = spec.display if spec is not None else "快捷键"
-            how = "进入「推演成功」大厅时会自动检查" if self.store.auto_capture else f"在「推演成功」大厅按 {key} 检查"
-            empty.set_text("还没有记录", f"{how}，结果会记录在这里。")
+            how = "进入「推演成功」大厅时自动检查" if self.store.auto_capture else f"在「推演成功」大厅按 {key} 检查"
+            empty.set_text("还没有记录", how)
 
     def _sync_watch_idle(self) -> None:
         if self.store.auto_capture:

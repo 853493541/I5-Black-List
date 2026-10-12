@@ -69,10 +69,10 @@ def test_the_words_for_each_result():
 
 
 def test_the_empty_record_page_says_to_press_the_hotkey(window):
-    assert window.history_empty.hint.text() == "在「推演成功」大厅按 Alt+1 检查，结果会记录在这里。"
+    assert window.history_empty.hint.text() == "在「推演成功」大厅按 Alt+1 检查"
     window.store.consented = ["auto"]
     window.auto_on.click()
-    assert window.history_empty.hint.text() == "进入「推演成功」大厅时会自动检查，结果会记录在这里。"
+    assert window.history_empty.hint.text() == "进入「推演成功」大厅时自动检查"
 
 
 def test_a_hit_shows_in_the_corner_and_sounds_with_nothing_over_the_game(window):
@@ -241,7 +241,7 @@ def test_turning_down_the_questions_changes_nothing(window, monkeypatch):
     window.auto_on.click()
     title, body, cancel = asked[1]
     assert title == "开启自动检查"
-    assert "截取屏幕" in body and "判定为异常" in body
+    assert "截屏" in body and "判定为异常" in body
     assert cancel == "保持手动检查"
     assert window.store.auto_capture is False
     assert window.auto_off.isChecked() is True

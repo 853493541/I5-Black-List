@@ -2239,7 +2239,7 @@ def test_the_disclaimer_comes_first_and_declining_closes_the_app(qapp, tmp_path,
     notice = window.findChild(DisclaimerDialog)
     assert notice is not None and notice.isVisible() and notice.isModal()
     text = " ".join(point.text() for point in notice.points)
-    assert "与网易" in text and "自行承担" in text and "不会上传" in text
+    assert "与网易" in text and "自行承担" in text and "只保存在本机" in text
     assert window.findChild(GuideDialog) is None
     # 同意: kept, and the welcome guide follows on a new PC.
     notice.agree_button.click()
