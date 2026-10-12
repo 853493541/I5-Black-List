@@ -124,12 +124,14 @@ def publish(args: argparse.Namespace) -> int:
     if _gh("release", "view", __version__, "--repo", updater.REPO, check=False).returncode == 0:
         raise SystemExit(f"{__version__} is already published. Raise __version__ for a new release.")
     notes = OUT / "release-notes.md"
-    lines = [f"- {line}" for line in _notes()]
+    lines = ["**更新内容**", "", *(f"- {line}" for line in _notes())]
     lines += [
         "",
-        "**已经装了 v0.4.0 或更新版本**：程序会提示「有新版本」，点「更新」即可。",
-        f"**更早的版本**：下载 {_zip('update').name}，解压到原来的文件夹，选择替换同名文件。",
-        f"**第一次装**：下载 {_zip('full').name}（或问朋友要），解压后双击「黑名单检测.exe」。",
+        "**安装与更新**",
+        "",
+        "- 已安装 v0.4.0 及以上：打开程序，按提示更新",
+        f"- 更早版本：下载 {_zip('update').name}，解压覆盖原文件夹",
+        f"- 首次安装：下载 {_zip('full').name}，解压后运行「黑名单检测.exe」",
     ]
     notes.write_text("\n".join(lines) + "\n", encoding="utf-8")
     command = [

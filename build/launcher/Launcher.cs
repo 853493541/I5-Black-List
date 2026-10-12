@@ -16,14 +16,16 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Drawing;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Windows.Forms;
 
 static class Launcher
 {
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    static extern int MessageBoxW(IntPtr owner, string text, string caption, uint type);
+    [DllImport("user32.dll")]
+    static extern bool SetProcessDPIAware();
 
     [STAThread]
     static int Main(string[] args)
@@ -51,12 +53,12 @@ static class Launcher
         }
         string news = Updates.Run(root);
         if (news != null && !applyOnly)
-            MessageBoxW(IntPtr.Zero, news, "黑名单检测", 0x30);
+            Notice(news, SystemIcons.Warning);
         if (applyOnly)
             return news == null ? 0 : 2;
         if (!File.Exists(python))
         {
-            MessageBoxW(IntPtr.Zero, "缺少运行环境。请解压整个压缩包后再双击本程序。", "黑名单检测", 0x10);
+            Notice("缺少运行环境，请解压完整的压缩包后再打开。", SystemIcons.Error);
             return 1;
         }
         var command = new StringBuilder("-m blacklist_detect");
@@ -73,6 +75,64 @@ static class Launcher
         start.EnvironmentVariables["QT_QPA_PLATFORM"] = "windows";
         Process.Start(start);
         return 0;
+    }
+
+    // A message in a window of its own, sized for Chinese text: the system message box is
+    // cramped. The text beside an icon, 确定 in a gray band along the bottom, as in Windows 11.
+    static void Notice(string text, Icon icon)
+    {
+        SetProcessDPIAware();
+        Application.EnableVisualStyles();
+        using (var form = new Form())
+        {
+            // Sizes are in 96-DPI pixels, scaled here by the screen's DPI; the font scales by itself.
+            float k;
+            using (Graphics screen = form.CreateGraphics())
+                k = screen.DpiX / 96F;
+            Func<int, int> px = v => (int)Math.Round(v * k);
+            form.AutoScaleMode = AutoScaleMode.None;
+            form.Text = "黑名单检测";
+            form.Font = new Font("Microsoft YaHei UI", 10.5F);
+            form.FormBorderStyle = FormBorderStyle.FixedDialog;
+            form.MaximizeBox = false;
+            form.MinimizeBox = false;
+            form.ShowInTaskbar = true;
+            form.TopMost = true;
+            form.StartPosition = FormStartPosition.CenterScreen;
+            form.BackColor = Color.White;
+            form.ClientSize = new Size(px(460), px(176));
+            try { form.Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch (Exception) { }
+            var picture = new PictureBox
+            {
+                Image = new Icon(icon, px(32), px(32)).ToBitmap(),
+                SizeMode = PictureBoxSizeMode.Zoom,
+                Location = new Point(px(28), px(36)),
+                Size = new Size(px(32), px(32)),
+            };
+            var words = new Label
+            {
+                Text = text,
+                Location = new Point(px(76), px(24)),
+                Size = new Size(px(360), px(60)),
+                TextAlign = ContentAlignment.MiddleLeft,
+            };
+            var band = new Panel { Dock = DockStyle.Bottom, Height = px(64), BackColor = Color.FromArgb(243, 243, 243) };
+            var ok = new Button
+            {
+                Text = "确定",
+                DialogResult = DialogResult.OK,
+                Size = new Size(px(108), px(36)),
+                Location = new Point(px(460 - 24 - 108), px(14)),
+                FlatStyle = FlatStyle.System,
+            };
+            band.Controls.Add(ok);
+            form.Controls.Add(picture);
+            form.Controls.Add(words);
+            form.Controls.Add(band);
+            form.AcceptButton = ok;
+            form.CancelButton = ok;
+            form.ShowDialog();
+        }
     }
 
     // One argument, quoted the way Windows splits a command line back into arguments.
@@ -123,14 +183,14 @@ static class Updates
             if (File.Exists(pending))
             {
                 Restore(root, backup, pending);
-                return "新版本没能正常打开，已换回原来的版本。";
+                return "新版本启动失败，已恢复到之前的版本。";
             }
         }
         catch (Exception error)
         {
             try { Restore(root, backup, pending); } catch (Exception) { }
             try { Directory.Delete(staged, true); } catch (Exception) { }
-            return "更新没有完成，已保留原来的版本。" + Environment.NewLine + error.Message;
+            return "更新未完成，已保留当前版本。" + Environment.NewLine + error.Message;
         }
         return null;
     }

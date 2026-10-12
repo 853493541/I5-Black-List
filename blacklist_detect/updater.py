@@ -114,11 +114,11 @@ def read_manifest(manifest: bytes) -> Release:
             notes=tuple(str(line) for line in data.get("notes", ())),
         )
     except (ValueError, KeyError, TypeError) as error:
-        raise UpdateError("更新信息无法读取。") from error
+        raise UpdateError("更新信息无效") from error
     if not release.url.startswith(DOWNLOADS) or not parse_version(release.version):
-        raise UpdateError("更新信息无法读取。")
+        raise UpdateError("更新信息无效")
     if not 0 < release.size <= MAX_SIZE or len(release.sha256) != 64:
-        raise UpdateError("更新信息无法读取。")
+        raise UpdateError("更新信息无效")
     return release
 
 
@@ -144,10 +144,10 @@ def fetch_release(session=None, current: str = __version__) -> Release | None:  
         signature.raise_for_status()
     except requests.RequestException as error:
         log.info("Update check failed: %s", error)
-        raise UpdateError("没有连上更新服务器，请稍后再试。") from error
+        raise UpdateError("无法连接更新服务器，请稍后重试") from error
     if not verify(manifest.content, signature.text):
         log.warning("Update manifest has a bad signature")
-        raise UpdateError("更新信息的签名不对，已忽略。")
+        raise UpdateError("更新信息校验失败")
     release = read_manifest(manifest.content)
     return release if parse_version(release.version) > parse_version(current) else None
 
@@ -168,7 +168,7 @@ def download(release: Release, folder: Path, progress: Callable[[int, int], None
                 for chunk in response.iter_content(64 * 1024):
                     got += len(chunk)
                     if got > release.size:
-                        raise UpdateError("下载的文件和更新信息不符，已停止。")
+                        raise UpdateError("文件校验失败，已取消更新")
                     digest.update(chunk)
                     out.write(chunk)
                     if progress is not None:
@@ -176,13 +176,13 @@ def download(release: Release, folder: Path, progress: Callable[[int, int], None
     except requests.RequestException as error:
         log.info("Update download failed: %s", error)
         target.unlink(missing_ok=True)
-        raise UpdateError("下载没有完成，请稍后再试。") from error
+        raise UpdateError("下载失败，请检查网络后重试") from error
     except UpdateError:
         target.unlink(missing_ok=True)
         raise
     if got != release.size or digest.hexdigest() != release.sha256:
         target.unlink(missing_ok=True)
-        raise UpdateError("下载的文件和更新信息不符，已停止。")
+        raise UpdateError("文件校验失败，已取消更新")
     return target
 
 
@@ -218,10 +218,10 @@ def stage(zip_path: Path, root: Path, version: str) -> Path:
                     shutil.copyfileobj(source, out)
     except (zipfile.BadZipFile, OSError) as error:
         shutil.rmtree(staged, ignore_errors=True)
-        raise UpdateError("更新文件无法解开，请稍后再试。") from error
+        raise UpdateError("更新文件损坏，请重试") from error
     if not (staged / _ALLOWED_DIR / "__init__.py").is_file():
         shutil.rmtree(staged, ignore_errors=True)
-        raise UpdateError("更新文件不完整，已停止。")
+        raise UpdateError("更新文件不完整，请重试")
     (staged / VERSION_FILE).write_text(version, encoding="utf-8")
     return staged
 

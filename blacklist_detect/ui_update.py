@@ -56,7 +56,7 @@ class UpdateChecker(QObject):
         except Exception:  # noqa: BLE001 - a broken check must never take the app down
             log.exception("Update check failed")
             self._busy = False
-            self.failed.emit("检查更新时出错了，请稍后再试。")
+            self.failed.emit("检查失败，请稍后重试")
             return
         self._busy = False
         if release is None:
@@ -83,7 +83,7 @@ class _Download(QObject):
             return
         except Exception:  # noqa: BLE001
             log.exception("Update download failed")
-            self.failed.emit("更新没有完成，请稍后再试。")
+            self.failed.emit("更新失败，请稍后重试")
             return
         self.done.emit(release.version)
 
@@ -99,7 +99,7 @@ def restart_into_update(root: Path) -> bool:
 
 
 class UpdateDialog(Modal):
-    """新版本: what is new, then 更新 → a progress bar → 立即重启.
+    """发现新版本: what is new, then 立即更新 → a progress bar → 立即重启.
 
     restart is called when the player wants the new version now; the window quits for it.
     """
@@ -115,11 +115,11 @@ class UpdateDialog(Modal):
         self._download.progress.connect(self._on_progress)
         self._download.done.connect(self._on_done)
         self._download.failed.connect(self._on_failed)
-        layout = self.frame(f"新版本 {release.version}")
-        self.summary = QLabel(f"当前是 {__version__}。")
+        layout = self.frame(f"发现新版本 {release.version}")
+        self.summary = QLabel(f"当前版本 {__version__}")
         self.summary.setObjectName("sub")
         layout.addWidget(self.summary)
-        self.notes = QLabel("\n".join(f"· {line}" for line in release.notes) or "· 一些改进")
+        self.notes = QLabel("\n".join(f"· {line}" for line in release.notes) or "· 问题修复和体验优化")
         self.notes.setWordWrap(True)
         self.notes.setTextInteractionFlags(Qt.TextSelectableByMouse)
         layout.addWidget(self.notes)
@@ -134,24 +134,24 @@ class UpdateDialog(Modal):
         self.status.setWordWrap(True)
         self.status.hide()
         layout.addWidget(self.status)
-        self.action = _primary("更新", self._act)
+        self.action = _primary("立即更新", self._act)
         _footer(self, self.action)
         self.card.setMinimumWidth(460)
         _pointing(self)
         self._state = "offer"
         if release.needs_full():
             self._state = "full"
-            self._say("这次更新包含识别环境的变化，需要重新下载完整安装包，解压后替换原来的文件夹。名单和设置不会丢。")
-            self.action.setText("打开下载页")
+            self._say("此版本需要下载完整安装包，名单和设置会保留")
+            self.action.setText("前往下载")
         elif root is None:
             self._state = "source"
-            self._say("从源代码运行时不能自动更新。")
+            self._say("源码运行不支持更新")
             self.action.setEnabled(False)
         elif updater.staged_version(root) == release.version:
             self._ready()
         else:
             size = release.size / 1e6
-            self.summary.setText(f"当前是 {__version__}，更新约 {max(size, 0.1):.1f} MB。")
+            self.summary.setText(f"当前版本 {__version__} · {max(size, 0.1):.1f} MB")
 
     def _say(self, text: str) -> None:
         self.status.setText(text)
@@ -170,7 +170,7 @@ class UpdateDialog(Modal):
     def _start(self) -> None:
         self._state = "downloading"
         self.action.setEnabled(False)
-        self.action.setText("正在下载…")
+        self.action.setText("下载中…")
         self.bar.setValue(0)
         self.bar.show()
         self._say("")
@@ -185,7 +185,7 @@ class UpdateDialog(Modal):
     def _ready(self) -> None:
         self._state = "ready"
         self.bar.hide()
-        self._say("已经准备好了。重新打开后就是新版本，名单和设置都会保留。")
+        self._say("下载完成，重启后生效")
         self.action.setEnabled(True)
         self.action.setText("立即重启")
 

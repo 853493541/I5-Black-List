@@ -220,6 +220,8 @@ def window(tmp_path, monkeypatch):  # noqa: ANN001, ANN201
 
 
 def test_a_found_release_shows_in_the_header_and_settings(window, tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QApplication
+
     from blacklist_detect.ui_update import UpdateDialog
 
     root = tmp_path / "BlackListDetect"
@@ -232,18 +234,27 @@ def test_a_found_release_shows_in_the_header_and_settings(window, tmp_path, monk
     # Asked for by the button: the answer shows under it.
     monkeypatch.setattr(window.updates, "check", lambda: True)
     window._on_update_button()
-    assert window.update_button.text() == "正在检查…" and not window.update_button.isEnabled()
-    window._on_update_failed("没有连上更新服务器，请稍后再试。")
-    assert window.update_hint.text() == "没有连上更新服务器，请稍后再试。" and window.update_button.isEnabled()
+    assert window.update_button.text() == "检查中…" and not window.update_button.isEnabled()
+    window._on_update_failed("无法连接更新服务器，请稍后重试")
+    # Beside the button, not under it, and wide enough to read.
+    window.resize(1000, 640)
+    window.tabs.setCurrentIndex(window.settings_tab)
+    window.show()
+    QApplication.processEvents()
+    hint, button = window.update_hint, window.update_button
+    assert hint.parentWidget() is button.parentWidget()
+    assert hint.isVisible() and hint.width() > hint.fontMetrics().horizontalAdvance(hint.text())
+    assert hint.x() > button.x() + button.width() and abs(hint.geometry().center().y() - button.geometry().center().y()) <= 2
+    assert window.update_hint.text() == "无法连接更新服务器，请稍后重试" and window.update_button.isEnabled()
     # Found quietly: the pill and the button change; nothing opens by itself.
     release = updater.read_manifest(_manifest(base="v0.1.0"))
     window._on_update_found(release)
     assert not window.update_pill.isHidden() and window.update_pill.text() == "有新版本"
-    assert window.update_button.text() == "更新到 v9.0.0"
+    assert window.update_button.text() == "有更新"
     assert window.findChild(UpdateDialog) is None
     window._on_update_button()
     dialog = window.findChild(UpdateDialog)
-    assert dialog is not None and dialog.action.text() == "更新" and "心动列表" in dialog.notes.text()
+    assert dialog is not None and dialog.action.text() == "立即更新" and "心动列表" in dialog.notes.text()
     dialog.reject()
 
 
@@ -257,11 +268,11 @@ def test_the_dialog_walks_from_download_to_restart(window, tmp_path, monkeypatch
     started: list[str] = []
     monkeypatch.setattr(dialog._download, "start", lambda rel, where, folder: started.append(rel.version))
     dialog.action.click()
-    assert started == ["v9.0.0"] and dialog.action.text() == "正在下载…" and not dialog.action.isEnabled()
+    assert started == ["v9.0.0"] and dialog.action.text() == "下载中…" and not dialog.action.isEnabled()
     dialog._on_progress(50, 100)
     assert dialog.bar.value() == 500
-    dialog._on_failed("下载没有完成，请稍后再试。")
-    assert dialog.action.text() == "重试" and dialog.status.text() == "下载没有完成，请稍后再试。"
+    dialog._on_failed("下载失败，请检查网络后重试")
+    assert dialog.action.text() == "重试" and dialog.status.text() == "下载失败，请检查网络后重试"
     dialog._on_done("v9.0.0")
     assert dialog.action.text() == "立即重启" and dialog.action.isEnabled()
     asked: list[bool] = []
@@ -270,5 +281,5 @@ def test_the_dialog_walks_from_download_to_restart(window, tmp_path, monkeypatch
     assert asked == [True]
     # A release that needs the full package sends the player to the download page instead.
     full = UpdateDialog(updater.read_manifest(_manifest(base="v8.0.0")), root, tmp_path, window)
-    assert full.action.text() == "打开下载页" and "完整安装包" in full.status.text()
+    assert full.action.text() == "前往下载" and "完整安装包" in full.status.text()
     full.reject()

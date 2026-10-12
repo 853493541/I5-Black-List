@@ -359,27 +359,24 @@ def _update_scenes(window, snap, over_window) -> None:  # noqa: ANN001
         "0" * 64,
         1_900_000,
         base="v0.3.0",
-        notes=("心动列表可以按最近遇到排序", "修复了偶尔认不出「推演成功」的问题"),
+        notes=("心动列表支持按最近遇到排序", "修复偶尔无法识别大厅的问题"),
     )
     header = window.status_chip.parentWidget().parentWidget()
     window.resize(1000, 640)
     window.tabs.setCurrentIndex(window.settings_tab)
     snap("update_settings_idle")
     window.update_button.setEnabled(False)
-    window.update_button.setText("正在检查…")
+    window.update_button.setText("检查中…")
     snap("update_settings_checking")
     window._update_asked = True
     window._on_update_latest()
     snap("update_settings_latest")
     window._update_asked = True
-    window._on_update_failed("没有连上更新服务器，请稍后再试。")
+    window._on_update_failed("无法连接更新服务器，请稍后重试")
     snap("update_settings_failed")
     window._on_update_found(release)
     snap("update_settings_found")
     snap("update_header_new", header)
-    window.update_pill.setText("新版本已就绪")
-    snap("update_header_ready", header)
-    window.update_pill.setText("有新版本")
 
     def dialog_shot(name: str, prepare, base: str = "v0.3.0") -> None:  # noqa: ANN001
         shown = Release(release.version, release.url, release.sha256, release.size, base=base, notes=release.notes)
@@ -396,7 +393,7 @@ def _update_scenes(window, snap, over_window) -> None:  # noqa: ANN001
 
     def failed(dialog) -> None:  # noqa: ANN001
         dialog.action.click()
-        dialog._on_failed("下载没有完成，请稍后再试。")
+        dialog._on_failed("下载失败，请检查网络后重试")
 
     dialog_shot("update_dialog_offer", lambda dialog: None)
     dialog_shot("update_dialog_downloading", downloading)

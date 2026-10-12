@@ -92,6 +92,7 @@ from blacklist_detect.ui_kit import (
     Switch,
     TabButton,
     Toast,
+    _InlineHint,
 )
 from blacklist_detect.ui_likes import LikesPage
 from blacklist_detect.ui_love import LoveBorder
@@ -898,12 +899,12 @@ class MainWindow(QMainWindow):
         self.update_button.setAutoDefault(False)
         self.update_button.setCursor(Qt.PointingHandCursor)
         self.update_button.clicked.connect(self._on_update_button)
-        general.add_row("更新", self.update_button)
-        self.update_hint = QLabel("")
-        self.update_hint.setObjectName("rowHint")
-        self.update_hint.setWordWrap(True)
+        # What the last check found, in gray right after the button.
+        self.update_hint = _InlineHint("")
         self.update_hint.hide()
-        general.add_widget(self.update_hint, separated=False, indent=True)
+        update_row = general.add_row("更新", self.update_button, stretch=False)
+        update_row.addSpacing(4)
+        update_row.addWidget(self.update_hint, 1, Qt.AlignVCenter)
 
         # 外观: how the window looks.
         look = section("外观")
@@ -3273,27 +3274,26 @@ class MainWindow(QMainWindow):
             self._open_update()
             return
         if updater.app_root() is None:
-            self._update_note("从源代码运行时不检查更新。")
+            self._update_note("源码运行不支持更新")
             return
         if self.updates.check():
             self._update_asked = True
             self.update_button.setEnabled(False)
-            self.update_button.setText("正在检查…")
+            self.update_button.setText("检查中…")
             self._update_note("")
 
     def _update_note(self, text: str) -> None:
         self.update_hint.setText(text)
+        self.update_hint.setToolTip(text)
         self.update_hint.setVisible(bool(text))
 
     def _on_update_found(self, release: updater.Release) -> None:
         log.info("Update available: %s", release.version)
         self._release = release
-        ready = updater.staged_version(updater.app_root()) == release.version
-        self.update_pill.setText("新版本已就绪" if ready else "有新版本")
         self.update_pill.setToolTip(f"{release.version}，点击查看")
         self.update_pill.show()
         self.update_button.setEnabled(True)
-        self.update_button.setText(f"更新到 {release.version}")
+        self.update_button.setText("有更新")
         self._update_note("")
         if self._update_asked:
             self._update_asked = False
@@ -3304,7 +3304,7 @@ class MainWindow(QMainWindow):
         self.update_button.setText("检查更新")
         if self._update_asked:
             self._update_asked = False
-            self._update_note("已经是最新版本。")
+            self._update_note("已是最新版本")
 
     def _on_update_failed(self, message: str) -> None:
         self.update_button.setEnabled(True)
