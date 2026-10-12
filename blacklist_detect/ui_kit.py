@@ -646,8 +646,10 @@ class ConfirmDialog(Modal):
         _pointing(self)
 
     @classmethod
-    def ask(cls, parent: QWidget | None, title: str, body: str, confirm: str, *, danger: bool = False) -> bool:
-        return cls(parent, title, body, confirm, danger=danger).exec() == QDialog.Accepted
+    def ask(
+        cls, parent: QWidget | None, title: str, body: str, confirm: str, *, cancel: str = "取消", danger: bool = False
+    ) -> bool:
+        return cls(parent, title, body, confirm, cancel=cancel, danger=danger).exec() == QDialog.Accepted
 
 
 class EmptyState(QWidget):

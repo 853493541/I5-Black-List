@@ -393,6 +393,8 @@ class Store:
         self.safe_mode = True
         # 提示音: the system warning sound when a 黑名单 player is found.
         self.hit_sound = True
+        # The modes the player chose after being told what they show over the game: auto, manual.
+        self.consented: list[str] = []
         self.load_warning = ""
         # Whether the welcome guide has been shown. A settings file from before this was saved
         # counts as welcomed; no settings file at all is a first open.
@@ -750,6 +752,7 @@ class Store:
                 "close_to_tray": self.close_to_tray,
                 "safe_mode": self.safe_mode,
                 "hit_sound": self.hit_sound,
+                "consented": list(self.consented),
             },
         )
 
@@ -785,6 +788,8 @@ class Store:
             self.close_to_tray = bool(settings.get("close_to_tray", True))
             self.safe_mode = bool(settings.get("safe_mode", True))
             self.hit_sound = bool(settings.get("hit_sound", True))
+            agreed = settings.get("consented") or []
+            self.consented = [mode for mode in ("auto", "manual") if isinstance(agreed, list) and mode in agreed]
             for raw in settings.get("hidden_tags") or []:
                 tag = clean_tag(str(raw))
                 if tag in TAGS and tag not in self.hidden_tags:
@@ -987,6 +992,7 @@ class Store:
         self.close_to_tray = True
         self.safe_mode = True
         self.hit_sound = True
+        self.consented = []
         self.load_warning = ""
         self.save_entries()
         self.save_likes()

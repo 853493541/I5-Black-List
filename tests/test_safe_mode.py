@@ -69,6 +69,7 @@ def test_the_words_for_each_result():
 
 def test_the_empty_record_page_says_to_press_the_hotkey(window):
     assert window.history_empty.hint.text() == "在「推演成功」大厅按 Alt+1 检查，结果会记录在这里。"
+    window.store.consented = ["auto"]
     window.auto_on.click()
     assert window.history_empty.hint.text() == "进入「推演成功」大厅时会自动检查，结果会记录在这里。"
 
@@ -152,6 +153,7 @@ def test_a_click_puts_it_away(window):
 
 
 def test_leaving_safe_mode_brings_the_marks_back_and_the_sound_stays(window):
+    window.store.consented = ["manual"]
     window.auto_off.click()
     assert window.store.safe_mode is False
     button, names = _lobby()
@@ -167,3 +169,52 @@ def test_leaving_safe_mode_brings_the_marks_back_and_the_sound_stays(window):
     assert window.store.safe_mode is True
     assert _marks(window) == []
     assert window.store.auto_capture is False
+
+
+def _answer(monkeypatch, answer: bool) -> list[tuple[str, str, str]]:  # noqa: ANN001
+    from blacklist_detect import ui
+
+    asked: list[tuple[str, str, str]] = []
+
+    def ask(_parent, title, body, confirm, **kwargs):  # noqa: ANN001, ANN202
+        asked.append((title, body, kwargs.get("cancel", "")))
+        return answer
+
+    monkeypatch.setattr(ui.ConfirmDialog, "ask", staticmethod(ask))
+    return asked
+
+
+def test_turning_down_the_question_stays_in_safe_mode(window, monkeypatch):
+    asked = _answer(monkeypatch, False)
+    window.auto_on.click()
+    assert [title for title, _body, _cancel in asked] == ["开启自动检查"]
+    title, body, cancel = asked[0]
+    assert "游戏画面上" in body and "判定为异常" in body and "一直截取屏幕" in body
+    assert cancel == "保持安全模式"
+    assert window.store.safe_mode is True
+    assert window.store.auto_capture is False
+    assert window.safe_on.isChecked() is True
+    assert window.store.consented == []
+    # 手动检查 asks too, with its own words.
+    window.auto_off.click()
+    assert asked[1][0] == "开启手动检查"
+    assert "一直截取屏幕" not in asked[1][1]
+    assert window.store.safe_mode is True
+
+
+def test_each_mode_asks_once_and_the_answer_is_kept(window, monkeypatch):
+    from blacklist_detect.storage import Store
+
+    asked = _answer(monkeypatch, True)
+    window.auto_on.click()
+    assert window.store.safe_mode is False and window.store.auto_capture is True
+    window.safe_on.click()
+    window.auto_on.click()
+    assert len(asked) == 1
+    window.auto_off.click()
+    window._cycle_capture_mode()
+    assert [title for title, _body, _cancel in asked] == ["开启自动检查", "开启手动检查"]
+    assert sorted(Store(window.store.root).consented) == ["auto", "manual"]
+    # 清空数据 forgets it: the next player is asked again.
+    window.store.reset()
+    assert Store(window.store.root).consented == []

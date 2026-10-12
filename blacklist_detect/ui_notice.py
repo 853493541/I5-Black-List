@@ -10,10 +10,10 @@ import sys
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont, QScreen
-from PySide6.QtWidgets import QApplication, QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from blacklist_detect.ui_overlay import _pin_topmost
-from blacklist_detect.ui_theme import BODY_PT, SECTION_PT, chinese_family, chinese_font
+from blacklist_detect.ui_theme import BODY_PT, TITLE_PT, chinese_family, chinese_font
 
 # How long a result stays up.
 NOTICE_MS = 8_000
@@ -23,19 +23,18 @@ CHECKING_MS = 20_000
 _MAX_LINES = 5
 _MARGIN = 20
 
-# The box sits over the game, so it keeps these colors in 浅色 and 深色.
-_BACK = "#1f1d22"
-_EDGE = "#3b3740"
+# The box sits over the game, so it keeps these colors in 浅色 and 深色. Each result is a
+# solid block of its own color, white text on it, to be seen from the corner of the eye.
 _TITLE = "#ffffff"
-_TEXT = "#e9e5ee"
-_MUTED = "#a7a1ad"
-_ACCENTS = {
-    "hit": "#e5484d",
-    "clear": "#30a46c",
-    "liked": "#e5689d",
-    "checking": "#d6b26a",
-    "missing": "#8b8590",
-    "error": "#e0a03a",
+_TEXT = "rgba(255, 255, 255, 235)"
+_EDGE = "rgba(255, 255, 255, 70)"
+_FILLS = {
+    "hit": ("#e0323e", "#b81f2b"),
+    "clear": ("#2f9e5e", "#237a48"),
+    "liked": ("#e0558f", "#c03b74"),
+    "checking": ("#3a3740", "#2a272f"),
+    "missing": ("#55505c", "#423e48"),
+    "error": ("#c9822a", "#a5681c"),
 }
 
 
@@ -91,7 +90,7 @@ def _round_corners(widget: QWidget) -> None:
 
 
 class CornerNotice(QWidget):
-    """One message at a time: a colored bar on the left, a title, and a few short lines."""
+    """One message at a time on a block of color: a large title and a few short lines."""
 
     def __init__(self) -> None:
         super().__init__(
@@ -111,18 +110,14 @@ class CornerNotice(QWidget):
         row = QHBoxLayout(self)
         row.setContentsMargins(0, 0, 0, 0)
         row.setSpacing(0)
-        self.bar = QFrame()
-        self.bar.setObjectName("noticeBar")
-        self.bar.setFixedWidth(5)
-        row.addWidget(self.bar)
         body = QWidget()
         body.setObjectName("noticeBody")
         column = QVBoxLayout(body)
-        column.setContentsMargins(14, 11, 18, 12)
-        column.setSpacing(4)
+        column.setContentsMargins(20, 14, 22, 16)
+        column.setSpacing(6)
         self.title = QLabel("")
         self.title.setObjectName("noticeTitle")
-        title_font = chinese_font(SECTION_PT)
+        title_font = chinese_font(TITLE_PT)
         title_font.setWeight(QFont.Weight.DemiBold)
         self.title.setFont(title_font)
         column.addWidget(self.title)
@@ -139,11 +134,14 @@ class CornerNotice(QWidget):
 
     def _style(self, kind: str) -> None:
         family = chinese_family()
+        top, bottom = _FILLS.get(kind, _FILLS["missing"])
         self.setStyleSheet(
             f"""
-            QWidget#cornerNotice {{ background: {_BACK}; border: 1px solid {_EDGE}; }}
+            QWidget#cornerNotice {{
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {top}, stop:1 {bottom});
+                border: 1px solid {_EDGE};
+            }}
             QWidget#noticeBody {{ background: transparent; }}
-            QFrame#noticeBar {{ background: {_ACCENTS.get(kind, _ACCENTS["missing"])}; border: none; }}
             QLabel#noticeTitle {{ color: {_TITLE}; background: transparent; font-family: "{family}"; }}
             QLabel#noticeLines {{ color: {_TEXT}; background: transparent; font-family: "{family}"; }}
             """
@@ -155,10 +153,10 @@ class CornerNotice(QWidget):
         self.title.setText(title)
         self.lines.setText("\n".join(lines))
         self.lines.setVisible(bool(lines))
-        self.setMinimumWidth(260)
+        self.setMinimumWidth(300)
         self.layout().activate()
         self.adjustSize()
-        width = min(max(self.sizeHint().width(), 260), 420)
+        width = min(max(self.sizeHint().width(), 300), 460)
         self.resize(width, self.sizeHint().height())
         screen = screen or QApplication.primaryScreen()
         if screen is not None:

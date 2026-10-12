@@ -67,7 +67,9 @@ def window(qapp, tmp_path, monkeypatch):  # noqa: ANN001, ANN201
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     made = MainWindow()
-    made._on_auto_mode("auto")  # The marks over the game, as before 安全模式.
+    # The marks over the game, as before 安全模式, agreed to once.
+    made.store.consented = ["auto", "manual"]
+    made._on_auto_mode("auto")
     made._watch_timer.stop()
     yield made
     made.close()

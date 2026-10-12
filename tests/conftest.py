@@ -17,6 +17,22 @@ _status = {"code": 0}
 
 
 @pytest.fixture(autouse=True)
+def _no_open_questions(monkeypatch):
+    """A question nobody answers would wait forever. A test that means to ask answers it itself."""
+    try:
+        from blacklist_detect.ui_kit import ConfirmDialog
+    except ImportError:
+        yield
+        return
+
+    def unanswered(dialog):  # noqa: ANN001, ANN202
+        raise AssertionError(f"A question was asked and not answered: {dialog.windowTitle() or dialog.body.text()}")
+
+    monkeypatch.setattr(ConfirmDialog, "exec", unanswered)
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _keep_windows():
     yield
     try:

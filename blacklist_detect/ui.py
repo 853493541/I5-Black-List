@@ -177,6 +177,22 @@ __all__ = [
     "run_app",
 ]
 
+# What 自动检查 and 手动检查 put over the game, said once before either is turned on.
+_RISK = "本工具不读取、也不修改游戏，只是截取屏幕画面。但在游戏画面上显示内容{more}，仍有可能被游戏判定为异常。确定要开启吗？"
+CONSENT = {
+    "auto": (
+        "开启自动检查",
+        "进入「推演成功」大厅时自动截图检查，并把结果直接显示在游戏画面上（红框、名单和边框效果）。\n\n"
+        + _RISK.format(more="、一直截取屏幕"),
+        "开启自动检查",
+    ),
+    "manual": (
+        "开启手动检查",
+        "按快捷键时检查，并把结果直接显示在游戏画面上（红框、名单和边框效果）。\n\n" + _RISK.format(more=""),
+        "开启手动检查",
+    ),
+}
+
 # Updates are looked for once each time the app opens, just after the window is up. A new version
 # found then is installed before the app is used.
 UPDATE_FIRST_MS = 1_000
@@ -2514,11 +2530,26 @@ class MainWindow(QMainWindow):
         if self.store.safe_mode:
             self.tabs.setCurrentIndex(self.settings_tab)
             return
-        self._toggle_auto(not self.store.auto_capture)
+        self._on_auto_mode("manual" if self.store.auto_capture else "auto")
+
+    def _consent(self, mode: str) -> bool:
+        """The first time 自动检查 or 手动检查 is picked, say what it shows over the game and ask."""
+        if mode in self.store.consented:
+            return True
+        title, body, confirm = CONSENT[mode]
+        if not ConfirmDialog.ask(self, title, body, confirm, cancel="保持安全模式"):
+            return False
+        self.store.consented.append(mode)
+        self.store.save_settings()
+        return True
 
     def _on_auto_mode(self, key: str) -> None:
         if key == "safe":
             self._set_safe_mode(True)
+            return
+        if not self._consent(key):
+            # Declined: the choice goes back to where it was.
+            self._sync_auto_controls()
             return
         if self.store.safe_mode:
             self.store.safe_mode = False
