@@ -7,15 +7,15 @@ lobby with no 黑名单 player, the 心动 card, and the flower border. Nothing 
 ever copied (no red ring, card or glow), so viewers never see who is on the list.
 
 In 安全模式 the marks are made but never put on the streamer's screen (WA_DontShowOnScreen);
-this window is the only place they show. It sits under every other window, so on the
-streamer's own screen the game hides it. Where nothing is shown it is clear.
+this window is the only place they show. The window itself sits just off the screen, to the
+right of every monitor: the streamer never sees it (on screen, its green would fill any bare
+desktop around a windowed game), and a window capture still reads it, being a capture of the
+window and not of the screen. It is the size of the game's screen and mirrors it point for point.
 
-Behind the marks it is either pure green (绿幕), for the streaming app's 抠图 (color key) to
-take out, or clear (透明), for a capture that keeps transparency. Green works everywhere but
-turns the soft red glow murky at its edges; clear keeps the glow as it is.
+Behind the marks it is pure green, for the streaming app's 色度键 (color key) to take out.
 
-In 直播姬 or OBS: add a second 窗口捕获, pick 模仿者小工具·直播画面, put it over the game;
-with 绿幕, give it a color key filter on green.
+In 直播姬 or OBS: add a second 窗口捕获, pick 模仿者小工具·直播画面, put it over the game,
+and give it a 色度键 filter on green.
 """
 
 from __future__ import annotations
@@ -57,6 +57,8 @@ class StreamMirror(QWidget):
         self._window = window
         self._active = False
         self._mode = ""
+        # The screen this window mirrors; it is shown somewhere else, off the screen.
+        self._area = QRect()
         self._tick = QTimer(self)
         self._tick.setInterval(FRAME_MS)
         self._tick.timeout.connect(self._step)
@@ -73,7 +75,7 @@ class StreamMirror(QWidget):
         self._mode = mode
         self.update()
         if mode:
-            self.setGeometry(self._screen())
+            self._place(self._screen())
             self.show()
             self.lower()
             self._tick.start()
@@ -99,6 +101,12 @@ class StreamMirror(QWidget):
         """Whether a 心动 mark is showing now."""
         return bool(self._marks()) or bool(self._borders())
 
+    def _place(self, area: QRect) -> None:
+        """Mirror area (the game's screen), from a spot just right of every monitor."""
+        self._area = QRect(area)
+        right = max((screen.geometry().right() for screen in QApplication.screens()), default=area.right())
+        self.setGeometry(QRect(right + 64, area.y(), area.width(), area.height()))
+
     def _screen(self) -> QRect:
         panel = self._window.panel
         point = panel.cover_geometry().center() if panel.isVisible() else QPoint(0, 0)
@@ -109,8 +117,8 @@ class StreamMirror(QWidget):
         busy = self.busy()
         if busy:
             area = self._screen()
-            if self.geometry() != area:
-                self.setGeometry(area)
+            if area != self._area:
+                self._place(area)
         # Painted while something shows, and once more after, to clear it.
         if busy or self._active:
             self._active = busy
@@ -124,7 +132,7 @@ class StreamMirror(QWidget):
         painter.setRenderHint(QPainter.Antialiasing)
         if self._mode == "key":
             painter.fillRect(self.rect(), KEY)
-        origin = self.geometry().topLeft()
+        origin = self._area.topLeft()
         for border in self._borders():
             painter.save()
             painter.translate(border.geometry().topLeft() - origin)

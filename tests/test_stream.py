@@ -56,7 +56,8 @@ def _lobby(window, hit: bool) -> None:  # noqa: ANN001
 def _pixel(window, point):  # noqa: ANN001, ANN202
     image = window.stream.grab().toImage()
     ratio = image.devicePixelRatio()
-    local = point - window.stream.geometry().topLeft()
+    # The window mirrors the game's screen (_area), shown off the screen.
+    local = point - window.stream._area.topLeft()
     return image.pixelColor(round(local.x() * ratio), round(local.y() * ratio))
 
 
@@ -110,7 +111,7 @@ def test_nothing_about_the_blacklist_reaches_the_stream(window):
     assert window.stream_love.playing() and not _on_screen(window.stream_love)
     assert window.stream._borders() == [window.stream_love]
     window.stream_love.stop()
-    stream = window.stream.geometry()
+    stream = window.stream._area
     assert _pixel(window, window.hit_card.geometry().center()).name() == "#00ff00", "no 黑名单 card"
     assert _pixel(window, window.panel.cover_geometry().center()).name() == "#00ff00", "no red ring"
     assert _pixel(window, stream.topLeft() + QPoint(1, stream.height() // 2)).name() == "#00ff00", "no red glow"
@@ -145,4 +146,18 @@ def test_preview_shows_sample_likes_for_a_while(window):
     # A glance that finds no lobby does not take the sample away early.
     window._on_glanced("ok", False)
     assert window.panel.isVisible()
+    window._hide_panel_after_title()
+
+
+def test_the_stream_window_is_off_every_screen(window):
+    """On screen its green would fill any bare desktop round a windowed game; a window capture
+    reads it wherever it is."""
+    window._set_stream_mode(True)
+    _lobby(window, hit=False)
+    window.stream._step()
+    shown = window.stream.geometry()
+    assert all(not screen.geometry().intersects(shown) for screen in QApplication.screens())
+    # It mirrors the game's screen, size for size.
+    assert window.stream._area == (QApplication.screenAt(window.panel.cover_geometry().center()) or QApplication.primaryScreen()).geometry()
+    assert shown.size() == window.stream._area.size()
     window._hide_panel_after_title()
