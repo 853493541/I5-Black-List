@@ -93,8 +93,13 @@ _BRASS_LINE = QColor(255, 240, 200, 150)
 _EDGE = QColor(0, 0, 0, 150)
 RED = "#a8262f"
 GREEN = "#2f9e5e"
+ROSE = "#c2306b"
 _RED_GLOW = QColor(220, 60, 70, 140)
 _GREEN_GLOW = QColor(52, 200, 110, 130)
+_ROSE_GLOW = QColor(235, 95, 155, 140)
+# The badge beside a lobby with 心动 players: the check badge's twin, pink with a heart.
+_HEART_FILL = "#d6457f"
+_WARN_INK = "#ff9a8f"
 # The card beside a red ring: crimson, edged in gold, like the ring.
 _CARD = ("#7a1620", "#4e0c13")
 _CARD_LINE = "rgba(228, 196, 126, 220)"
@@ -144,6 +149,21 @@ def _glow(painter: QPainter, shape, color: QColor, round_shape: bool = False) ->
             painter.drawRoundedRect(grown, radius + step, radius + step)
 
 
+def _heart_path(cx: float, cy: float, size: float) -> QPainterPath:
+    """A heart about size wide, centered on (cx, cy)."""
+    u = size / 17.0
+    x0, y0 = cx - 8.5 * u, cy - 7.5 * u
+    path = QPainterPath(QPointF(x0 + 8.5 * u, y0 + 15 * u))
+    path.cubicTo(x0 + 2 * u, y0 + 10.5 * u, x0, y0 + 7 * u, x0, y0 + 4.3 * u)
+    path.cubicTo(x0, y0 + 1.7 * u, x0 + 2 * u, y0, x0 + 4.3 * u, y0)
+    path.cubicTo(x0 + 6.1 * u, y0, x0 + 7.6 * u, y0 + 1.1 * u, x0 + 8.5 * u, y0 + 2.7 * u)
+    path.cubicTo(x0 + 9.4 * u, y0 + 1.1 * u, x0 + 10.9 * u, y0, x0 + 12.7 * u, y0)
+    path.cubicTo(x0 + 15 * u, y0, x0 + 17 * u, y0 + 1.7 * u, x0 + 17 * u, y0 + 4.3 * u)
+    path.cubicTo(x0 + 17 * u, y0 + 7 * u, x0 + 15 * u, y0 + 10.5 * u, x0 + 8.5 * u, y0 + 15 * u)
+    path.closeSubpath()
+    return path
+
+
 def _paint_ring(painter: QPainter, cover: QRectF, color: QColor, glow: QColor) -> None:
     """Like the check mark's edge, and nothing more: the color, a gold rim around it, a glow outside."""
     radius = _cover_radius(round(cover.height()))
@@ -186,6 +206,14 @@ class HitCard(QWidget):
     _COLORS = _CARD
     _NAME_INK = _INK
 
+    @staticmethod
+    def name_width(names: list[str]) -> int:
+        """How wide the name column is for these names, so two cards can line up."""
+        font = chinese_font(OVERLAY_PT)
+        font.setWeight(QFont.Weight.DemiBold)
+        metrics = QFontMetrics(font)
+        return max((metrics.horizontalAdvance(name) for name in names), default=0)
+
     def __init__(self) -> None:
         super().__init__(
             None,
@@ -198,6 +226,10 @@ class HitCard(QWidget):
         self.setAttribute(Qt.WA_ShowWithoutActivating, True)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setFocusPolicy(Qt.NoFocus)
+        # The edge another card is joined to ("top" or "bottom"), whose corners are square.
+        self._joined = ""
+        # A mark before each name: a hit card joined to the 心动 card says which half is which.
+        self._marked = False
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         self.body = QWidget()
@@ -227,17 +259,20 @@ class HitCard(QWidget):
         self.scroll.verticalScrollBar().rangeChanged.connect(self._sync_fade)
         self._apply_style()
 
-    def set_people(self, people: list[tuple[str, tuple[str, ...]]], height: int) -> None:
+    def set_joined(self, edge: str, marked: bool = False) -> None:
+        """Join another card at this edge ("top", "bottom", or "" for none), before set_people."""
+        self._joined = edge
+        self._marked = marked
+        self._apply_style()
+
+    def set_people(self, people: list[tuple[str, tuple[str, ...]]], height: int, name_width: int = 0) -> None:
         del height  # The card keeps its own size; it is centered on the button beside it.
         self.rows.setAlignment(Qt.AlignLeft | Qt.AlignTop)
         _clear_layout(self.rows)
         family = chinese_family()
         name_font = chinese_font(OVERLAY_PT)
         name_font.setWeight(QFont.Weight.DemiBold)
-        name_width = 0
-        if people:
-            metrics = QFontMetrics(name_font)
-            name_width = max(metrics.horizontalAdvance(name) for name, _tags in people)
+        name_width = max(name_width, self.name_width([name for name, _tags in people]))
         for name, tags in people:
             person = QWidget()
             person.setStyleSheet("background: transparent;")
@@ -296,8 +331,23 @@ class HitCard(QWidget):
         self.fade.raise_()
 
     def _lead(self) -> QWidget | None:
-        """What comes before each name. A hit needs nothing: the card is beside a red ring."""
-        return None
+        """What comes before each name. Alone beside a red ring a hit needs nothing; joined to
+        the 心动 card, a warning mark."""
+        if not self._marked:
+            return None
+        warn = QLabel()
+        warn.setObjectName("hitWarn")
+        warn.setPixmap(line_pixmap("warning", 16, _WARN_INK, stroke=1.8))
+        warn.setStyleSheet("background: transparent;")
+        return warn
+
+    def _radii(self) -> str:
+        top = "0" if self._joined == "top" else "8px"
+        bottom = "0" if self._joined == "bottom" else "8px"
+        return (
+            f"border-top-left-radius: {top}; border-top-right-radius: {top};"
+            f" border-bottom-left-radius: {bottom}; border-bottom-right-radius: {bottom};"
+        )
 
     def _apply_style(self) -> None:
         self.setStyleSheet(
@@ -305,7 +355,7 @@ class HitCard(QWidget):
             QWidget#hitCard {{
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {self._COLORS[0]}, stop:1 {self._COLORS[1]});
                 border: 1px solid {_CARD_LINE};
-                border-radius: 8px;
+                {self._radii()}
             }}
             QScrollArea#hitScroll, QWidget#hitRows {{
                 background: transparent;
@@ -366,10 +416,15 @@ class LikeCard(HitCard):
 
 
 class ClearMark(QWidget):
-    """The check beside a clear accept button: emerald with a gold rim and a soft glow, like the ring."""
+    """The check beside a clear accept button: emerald with a gold rim and a soft glow, like the ring.
+
+    With 心动 players in the lobby it is the same badge in pink, with a heart.
+    """
 
     # The window reaches this far past the badge on each side, for the glow.
     margin = _GLOW
+    # A heart instead of the check, for a lobby with 心动 players.
+    heart = False
 
     def __init__(self) -> None:
         super().__init__(
@@ -386,6 +441,11 @@ class ClearMark(QWidget):
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.setFocusPolicy(Qt.NoFocus)
 
+    def set_heart(self, heart: bool) -> None:
+        """A pink heart instead of the green check: the lobby has 心动 players and no 黑名单."""
+        self.heart = bool(heart)
+        self.update()
+
     def set_size(self, height: int) -> None:
         side = max(16, round(int(height) * 0.7))
         self.setFixedSize(side + 2 * _GLOW, side + 2 * _GLOW)
@@ -398,10 +458,16 @@ class ClearMark(QWidget):
         painter.setRenderHint(QPainter.Antialiasing)
         box = self.badge()
         side = box.width()
-        _glow(painter, (box, side / 2), _GREEN_GLOW, round_shape=True)
+        _glow(painter, (box, side / 2), _ROSE_GLOW if self.heart else _GREEN_GLOW, round_shape=True)
         painter.setPen(QPen(_GOLD, max(1.5, side * 0.06)))
-        painter.setBrush(QColor(GREEN))
+        painter.setBrush(QColor(_HEART_FILL if self.heart else GREEN))
         painter.drawEllipse(box.adjusted(1, 1, -1, -1))
+        if self.heart:
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor("#ffffff"))
+            painter.drawPath(_heart_path(box.center().x(), box.center().y() + side * 0.03, side * 0.5))
+            painter.end()
+            return
         pen = QPen(QColor("#ffffff"), max(2.0, side * 0.08))
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
@@ -426,6 +492,7 @@ class LobbyPanel(QWidget):
     While a check runs, a block of antique gold hides the button, with 检查中 in the middle and
     a glint passing over it now and then. A hit rings the button in crimson and a clear lobby in
     emerald, each edged in gold with a soft glow, like the check mark; the button shows through.
+    A clear lobby with 心动 players is ringed in rose.
     The window reaches _GLOW past the cover on each side, for that glow.
     """
 
@@ -460,7 +527,7 @@ class LobbyPanel(QWidget):
 
     def ring(self) -> str:
         """The ring's color, or "" when there is none."""
-        return {"hit": RED, "clear": GREEN}.get(self.mode, "")
+        return {"hit": RED, "clear": GREEN, "liked": ROSE}.get(self.mode, "")
 
     def cover(self) -> QRectF:
         """The cover inside the window: the button and its outset, without the room for the glow."""
@@ -496,7 +563,8 @@ class LobbyPanel(QWidget):
             return
         color = self.ring()
         if color:
-            _paint_ring(painter, cover, QColor(color), _RED_GLOW if self.mode == "hit" else _GREEN_GLOW)
+            glow = {"hit": _RED_GLOW, "liked": _ROSE_GLOW}.get(self.mode, _GREEN_GLOW)
+            _paint_ring(painter, cover, QColor(color), glow)
 
     def _paint_brass(self, painter: QPainter, cover: QRectF) -> None:
         """Opaque antique gold: the button must not show through while it is being checked."""
@@ -558,7 +626,8 @@ class LobbyPanel(QWidget):
         appearing = not self.isVisible()
         self.setFixedSize(width + 2 * _GLOW, height + 2 * _GLOW)
         self.move(int(round(left)) - _GLOW, int(round(top)) - _GLOW)
-        self._apply_input(mode == "clear")
+        # Clear, or clear with 心动 players: a click reaches the button.
+        self._apply_input(mode in ("clear", "liked"))
         self.set_mode(mode, text)
         self.show()
         _pin_topmost(self)

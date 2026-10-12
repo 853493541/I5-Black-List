@@ -257,8 +257,8 @@ def _overlay_scenes(window, snap) -> None:  # noqa: ANN001
     lobby = QImage(str(REPO / "tests" / "fixtures" / "reference-lobby.png"))
     # 准备案件还原 in that screenshot, as the check finds it; the capture is at twice the scale.
     x0, y0, x1, y1 = 1498, 1518, 2010, 1667
-    crop = QRectF(x0 - 220, y0 - 123, 1500, 300)
-    button = QRect(220 // 2, 123 // 2, (x1 - x0) // 2, (y1 - y0) // 2)
+    crop = QRectF(x0 - 420, y0 - 123, 1700, 300)
+    button = QRect(420 // 2, 123 // 2, (x1 - x0) // 2, (y1 - y0) // 2)
     outset = _COVER_OUTSET
 
     def scene(mode: str, text: str, beside=None, likes=None) -> QPixmap:  # noqa: ANN001
@@ -282,21 +282,20 @@ def _overlay_scenes(window, snap) -> None:  # noqa: ANN001
             beside.resize(beside.size())
             mark = beside.grab()
             left = cover.x() + cover.width() + 16 - beside.margin
-            height = round(mark.height() / mark.devicePixelRatio())
-            top = cover.center().y() - height // 2 + 1
+            mark_h = round(mark.height() / mark.devicePixelRatio())
+            top = cover.center().y() - mark_h // 2 + 1
+            card = likes.grab() if likes is not None else None
+            card_h = round(card.height() / card.devicePixelRatio()) if card is not None else 0
+            if card is not None and not beside.margin:
+                # One card: the 黑名单 half, then the 心动 half sharing its gold edge.
+                total = mark_h + card_h - 1
+                top = min(cover.center().y() - total // 2 + 1, height - 8 - total)
+                painter.drawPixmap(QPoint(left, top + mark_h - 1), card)
+            elif card is not None:
+                # The heart badge on the right, the 心动 card on the left, as in the app.
+                card_w = round(card.width() / card.devicePixelRatio())
+                painter.drawPixmap(QPoint(cover.x() - 16 - card_w, cover.center().y() - card_h // 2 + 1), card)
             painter.drawPixmap(QPoint(left, top), mark)
-            if likes is not None:
-                likes.layout().activate()
-                card = likes.grab()
-                card_h = round(card.height() / card.devicePixelRatio())
-                if beside.margin:
-                    # Beside the check, like the app: after its badge.
-                    width = round(mark.width() / mark.devicePixelRatio())
-                    painter.drawPixmap(QPoint(left + width - beside.margin + 10, cover.center().y() - card_h // 2 + 1), card)
-                else:
-                    # Under the hit card, or over it when there is no room below.
-                    below = top + height + 8
-                    painter.drawPixmap(QPoint(left, below if below + card_h < canvas.height() / canvas.devicePixelRatio() - 4 else top - card_h - 8), card)
         painter.end()
         return canvas
 
@@ -310,11 +309,24 @@ def _overlay_scenes(window, snap) -> None:  # noqa: ANN001
     snap("overlay_clear", picture=scene("clear", "没有黑名单", window.clear_mark))
     like_card = getattr(window, "like_card", None)
     if like_card is not None:
+        like_card.set_joined("")
         like_card.set_people([("猫猫", ()), ("阿强", ())], button.height())
-        snap("overlay_clear_likes", picture=scene("clear", "没有黑名单", window.clear_mark, like_card))
-        window.hit_card.set_people([("霁玥吉尔曼", ("炸房", "贴脸"))], button.height())
-        like_card.set_people([("猫猫", ())], button.height())
+        window.clear_mark.set_heart(True)
+        snap("overlay_clear_likes", picture=scene("liked", "没有黑名单", window.clear_mark, like_card))
+        window.clear_mark.set_heart(False)
+        hated = [("霁玥吉尔曼", ("炸房", "贴脸"))]
+        liked = [("猫猫", ()), ("阿强", ())]
+        width = window.hit_card.name_width([name for name, _tags in hated + liked])
+        window.hit_card.set_joined("bottom", marked=True)
+        like_card.set_joined("top")
+        window.hit_card.set_people(hated, button.height(), width)
+        like_card.set_people(liked, button.height(), width)
+        both = max(window.hit_card.width(), like_card.width())
+        for card in (window.hit_card, like_card):
+            card.setFixedWidth(both)
         snap("overlay_hit_likes", picture=scene("hit", "", window.hit_card, like_card))
+        window.hit_card.set_joined("")
+        like_card.set_joined("")
 
 
 def _header_scenes(window, snap) -> None:  # noqa: ANN001

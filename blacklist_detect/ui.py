@@ -2999,7 +2999,7 @@ class MainWindow(QMainWindow):
         if self._closing or not self._live_check:
             return
         # A finished cover stays put. A second pass must not turn it yellow again.
-        if self.panel.isVisible() and self.panel.mode in ("clear", "hit"):
+        if self.panel.isVisible() and self.panel.mode in ("clear", "liked", "hit"):
             return
         self._open_panel("checking", "检查中", box)
         self.hit_card.hide()
@@ -3017,8 +3017,7 @@ class MainWindow(QMainWindow):
         if result.hits:
             self.clear_mark.hide()
             self._open_panel("hit", "", result.button_box)
-            self._show_hit_card(result.hits)
-            self._show_like_card(likes)
+            self._show_hit_card(result.hits, likes)
             return
         self.hit_card.hide()
         self.like_card.hide()
@@ -3026,8 +3025,9 @@ class MainWindow(QMainWindow):
         unclear = sum(1 for slot in result.names if slot.unclear)
         if unclear:
             text += f"\n{unclear} 人未识别"
-        self._open_panel("clear", text, result.button_box)
-        self._show_clear_mark()
+        # 心动 players and no 黑名单: a rose ring, the heart badge, and their names on the left.
+        self._open_panel("liked" if likes else "clear", text, result.button_box)
+        self._show_clear_mark(heart=bool(likes))
         self._show_like_card(likes)
 
     def _open_panel(self, mode: str, text: str, box) -> None:
@@ -3052,7 +3052,9 @@ class MainWindow(QMainWindow):
             text,
         )
 
-    def _show_hit_card(self, hits: list[Hit]) -> None:
+    def _show_hit_card(self, hits: list[Hit], likes: list[Entry] = ()) -> None:  # noqa: B006
+        """The 黑名单 card beside the cover. With 心动 players too, their rose half joins under it:
+        one card, ⚠ names above a gold line and ♥ names below."""
         people: list[tuple[str, tuple[str, ...]]] = []
         seen: set[tuple[str, tuple[str, ...]]] = set()
         for hit in hits:
@@ -3066,8 +3068,38 @@ class MainWindow(QMainWindow):
             self.like_card.hide()
             self.clear_mark.hide()
             return
-        self.hit_card.set_people(people, self.panel.cover_geometry().height())
-        self._place_beside(self.hit_card)
+        height = self.panel.cover_geometry().height()
+        if not likes:
+            self.like_card.hide()
+            self.hit_card.set_joined("")
+            self.hit_card.set_people(people, height)
+            self._place_beside(self.hit_card)
+            return
+        shown = [(like.shown(), ()) for like in likes]
+        width = HitCard.name_width([name for name, _tags in people + shown])
+        self.hit_card.set_joined("bottom", marked=True)
+        self.like_card.set_joined("top")
+        self.hit_card.set_people(people, height, width)
+        self.like_card.set_people(shown, height, width)
+        both = max(self.hit_card.width(), self.like_card.width())
+        for card in (self.hit_card, self.like_card):
+            card.setFixedWidth(both)
+        # The two halves sit as one card beside the cover, sharing the gold line between them.
+        total = self.hit_card.height() + self.like_card.height() - 1
+        cover = self.panel.cover_geometry()
+        x = cover.x() + cover.width() + 16
+        y = cover.y() + (cover.height() - total) // 2
+        screen = QApplication.screenAt(cover.topLeft()) or QApplication.primaryScreen()
+        if screen is not None:
+            area = screen.availableGeometry()
+            if x + both > area.right() - 8:
+                x = cover.x() - 16 - both
+            y = max(area.top() + 8, min(y, area.bottom() - total - 8))
+        self.hit_card.move(int(x), int(y))
+        self.like_card.move(int(x), int(y) + self.hit_card.height() - 1)
+        for card in (self.hit_card, self.like_card):
+            card.show()
+            _pin_topmost(card)
 
     def _likes_in(self, result: CheckResult) -> list[Entry]:
         """心动 players in the lobby, in seat order, each once."""
@@ -3080,33 +3112,29 @@ class MainWindow(QMainWindow):
         return found
 
     def _show_like_card(self, likes: list[Entry]) -> None:
-        """The 心动 card: under the hit card, or beside the check, or beside the cover."""
+        """The 心动 card on the left of the cover, centered on it, inside the screen."""
         card = self.like_card
         if not likes:
             card.hide()
             return
+        card.set_joined("")
         card.set_people([(like.shown(), ()) for like in likes], self.panel.cover_geometry().height())
-        if self.hit_card.isVisible():
-            x = self.hit_card.x()
-            y = self.hit_card.y() + self.hit_card.height() + 8
-            screen = QApplication.screenAt(self.hit_card.pos()) or QApplication.primaryScreen()
-            if screen is not None and y + card.height() > screen.availableGeometry().bottom() - 8:
-                y = self.hit_card.y() - card.height() - 8
-            card.move(int(x), int(y))
-            card.show()
-            _pin_topmost(card)
-        elif self.clear_mark.isVisible():
-            mark = self.clear_mark
-            cover = self.panel.cover_geometry()
-            x = mark.x() + mark.width() - mark.margin + 10
-            y = cover.y() + (cover.height() - card.height()) // 2
-            card.move(int(x), int(y))
-            card.show()
-            _pin_topmost(card)
-        else:
-            self._place_beside(card)
+        cover = self.panel.cover_geometry()
+        x = cover.x() - 16 - card.width()
+        y = cover.y() + (cover.height() - card.height()) // 2
+        screen = QApplication.screenAt(cover.topLeft()) or QApplication.primaryScreen()
+        if screen is not None:
+            area = screen.availableGeometry()
+            if x < area.left() + 8:
+                # No room on the left: after the badge on the right.
+                x = self.clear_mark.x() + self.clear_mark.width() - self.clear_mark.margin + 10
+            y = max(area.top() + 8, min(y, area.bottom() - card.height() - 8))
+        card.move(int(x), int(y))
+        card.show()
+        _pin_topmost(card)
 
-    def _show_clear_mark(self) -> None:
+    def _show_clear_mark(self, heart: bool = False) -> None:
+        self.clear_mark.set_heart(heart)
         self.clear_mark.set_size(self.panel.cover_geometry().height())
         self._place_beside(self.clear_mark)
 
