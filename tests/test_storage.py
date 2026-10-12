@@ -103,7 +103,10 @@ def test_blacklist_roundtrip(tmp_path):
     assert again.entries[0].reason == "常挂机"
     assert again.entries[0].tags == ()
     assert again.hotkey == "Ctrl+Shift+F8"
-    assert again.auto_capture is True
+    # 安全模式 is on by default, and it checks only on the hotkey.
+    assert again.safe_mode is True
+    assert again.auto_capture is False
+    store.safe_mode = False
     store.panel_pos = (12, 34)
     store.save_settings()
     assert Store(tmp_path).panel_pos == (12, 34)
@@ -271,7 +274,9 @@ def test_reset_returns_a_new_application(tmp_path):
     assert again.scans == []
     assert again.player_name == ""
     assert again.hotkey == "Alt+1"
-    assert again.auto_capture is True
+    assert again.safe_mode is True
+    assert again.hit_sound is True
+    assert again.auto_capture is False
     assert again.theme == "蓝色"
     assert again.custom_tags == []
     assert again.hidden_tags == []
@@ -361,12 +366,24 @@ def test_first_run_is_kept_until_the_guide_is_shown(tmp_path):
 
 
 def test_a_settings_file_from_before_counts_as_welcomed(tmp_path):
-    (tmp_path / "settings.json").write_text('{"hit_sound": true}', encoding="utf-8")
+    (tmp_path / "settings.json").write_text('{"hit_sound": false, "auto_capture": true}', encoding="utf-8")
     store = Store(tmp_path)
     assert store.first_run is False
-    # 提示音 is gone: an old file's setting is ignored, and dropped on the next save.
+    # 提示音 is read again.
+    assert store.hit_sound is False
+    # A file from before 安全模式 opens in 安全模式, which checks only on the hotkey.
+    assert store.safe_mode is True
+    assert store.auto_capture is False
+
+
+def test_safe_mode_off_keeps_auto_checks(tmp_path):
+    store = Store(tmp_path)
+    store.safe_mode = False
+    store.auto_capture = True
+    store.hit_sound = False
     store.save_settings()
-    assert "hit_sound" not in (tmp_path / "settings.json").read_text(encoding="utf-8")
+    again = Store(tmp_path)
+    assert (again.safe_mode, again.auto_capture, again.hit_sound) == (False, True, False)
 
 
 def test_reset_makes_the_next_open_a_first_open(tmp_path):

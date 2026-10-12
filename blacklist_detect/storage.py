@@ -388,6 +388,11 @@ class Store:
         self.env_checked = ""
         # × hides the window to the tray (the app keeps checking), or quits.
         self.close_to_tray = True
+        # 安全模式: checks only on the hotkey, nothing drawn over the game; the result shows in a
+        # small box at the bottom right. On unless turned off, also for settings saved before it.
+        self.safe_mode = True
+        # 提示音: the system warning sound when a 黑名单 player is found.
+        self.hit_sound = True
         self.load_warning = ""
         # Whether the welcome guide has been shown. A settings file from before this was saved
         # counts as welcomed; no settings file at all is a first open.
@@ -505,6 +510,9 @@ class Store:
         self.column_widths = list(DEFAULT_COLUMN_WIDTHS)
         self.load_warning = ""
         self._load_settings()
+        # 安全模式 checks only on the hotkey.
+        if self.safe_mode:
+            self.auto_capture = False
         if self.blacklist_path.exists():
             try:
                 data = json.loads(self.blacklist_path.read_text(encoding="utf-8"))
@@ -740,6 +748,8 @@ class Store:
                 "env_checked": self.env_checked,
                 "welcomed": self.welcomed,
                 "close_to_tray": self.close_to_tray,
+                "safe_mode": self.safe_mode,
+                "hit_sound": self.hit_sound,
             },
         )
 
@@ -773,6 +783,8 @@ class Store:
             self.env_checked = str(settings.get("env_checked", "") or "")
             self.welcomed = bool(settings.get("welcomed", True))
             self.close_to_tray = bool(settings.get("close_to_tray", True))
+            self.safe_mode = bool(settings.get("safe_mode", True))
+            self.hit_sound = bool(settings.get("hit_sound", True))
             for raw in settings.get("hidden_tags") or []:
                 tag = clean_tag(str(raw))
                 if tag in TAGS and tag not in self.hidden_tags:
@@ -955,7 +967,8 @@ class Store:
         self.likes = []
         self.scans = []
         self.hotkey = DEFAULT_HOTKEY
-        self.auto_capture = True
+        # 安全模式 is on again, and it checks only on the hotkey.
+        self.auto_capture = False
         self.save_debug_frames = False
         self.panel_pos = None
         self.window_size = None
@@ -972,6 +985,8 @@ class Store:
         self.env_checked = ""
         self.welcomed = False
         self.close_to_tray = True
+        self.safe_mode = True
+        self.hit_sound = True
         self.load_warning = ""
         self.save_entries()
         self.save_likes()

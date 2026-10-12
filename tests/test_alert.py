@@ -18,6 +18,7 @@ def window(tmp_path, monkeypatch):  # noqa: ANN001, ANN201
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     made = MainWindow()
+    made._on_auto_mode("auto")  # The marks over the game, as before 安全模式.
     made._watch_timer.stop()
     yield made
     made.close()

@@ -68,6 +68,7 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
+    window._on_auto_mode("auto")  # The marks over the game, as before 安全模式.
     assert window.list_hint.text() == "黑名单还是空的"
     assert window.list_empty.isHidden() is False
     assert window.more_button.isHidden() is True
@@ -386,6 +387,7 @@ def test_elapsed_time_is_not_shown_in_the_record_list(qapp, tmp_path, monkeypatc
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
+    window._on_auto_mode("auto")  # The marks over the game, as before 安全模式.
     assert window.status_chip.text() == "自动检查中"
     assert window.status_chip.toolTip() == "切换为手动检查"
     window.store.add_scan([{"seat": 1, "name": "莓有橘子甜", "unclear": False}], 0.254)
@@ -508,10 +510,22 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     window.close()
 
 
-def test_capture_mode_defaults_to_auto(qapp, tmp_path, monkeypatch):
+def test_capture_mode_defaults_to_safe_mode(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
+    # 安全模式: nothing is watched; the hotkey checks.
+    assert window.safe_on.isChecked() is True
+    assert window.store.safe_mode is True
+    assert window.store.auto_capture is False
+    assert window._watch_timer.isActive() is False
+    assert window.status_chip.text() == "安全模式"
+    assert window.status_chip.key_text() == "Alt+1"
+    assert window.hotkey_edit.isEnabled() is True
+    # 自动检查 leaves 安全模式, and it is kept.
+    window.auto_on.click()
+    assert window.store.safe_mode is False
+    assert Store(window.store.root).safe_mode is False
     assert window.auto_on.isChecked() is True
     assert window.auto_off.isChecked() is False
     assert window.store.auto_capture is True
@@ -547,6 +561,7 @@ def test_header_cycle_switches_capture_mode(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
+    window._on_auto_mode("auto")  # The marks over the game, as before 安全模式.
     window.show()
     chip = window.status_chip
     assert isinstance(chip, StatusChip)
@@ -653,6 +668,7 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
+    window._on_auto_mode("auto")  # The marks over the game, as before 安全模式.
     window._live_check = True
     button = (100, 400, 280, 460)
     window._on_lobby_placed(button)
@@ -776,6 +792,7 @@ def test_panel_covers_the_accept_button(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
+    window._on_auto_mode("auto")  # The marks over the game, as before 安全模式.
     window._live_check = True
     window.store.panel_pos = (12, 12)
     button = (100, 400, 280, 460)
@@ -825,6 +842,7 @@ def test_a_finished_lobby_is_not_checked_again(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
+    window._on_auto_mode("auto")  # The marks over the game, as before 安全模式.
     window._watch_timer.stop()
     window._live_check = True
     calls = []
@@ -847,6 +865,7 @@ def test_auto_check_does_not_leave_the_current_tab(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
+    window._on_auto_mode("auto")  # The marks over the game, as before 安全模式.
     window.worker.request = lambda fn, kind="check": True
     assert window.tabs.tabText(0).startswith("记录")
     assert window.tabs.count() == 4
@@ -946,6 +965,7 @@ def test_corner_reports_refresh_and_skip(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
+    window._on_auto_mode("auto")  # The marks over the game, as before 安全模式.
     seat = NameSlot(0, (0, 0, 1, 1), "纪戴宁", "纪戴宁", False, 1.0, False)
     window.store.add_scan([{"seat": 1, "name": "纪戴宁", "unclear": False}])
     window._on_checked("ok", CheckResult(True, "", names=[seat]))
@@ -960,6 +980,7 @@ def test_hotkey_saves_on_the_key_press(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
+    window._on_auto_mode("auto")  # The marks over the game, as before 安全模式.
     window.show()
     assert window.hotkey_edit.isEnabled() is False
     monkeypatch.setattr(window.hotkey, "apply", lambda _spec: True)
@@ -1024,6 +1045,7 @@ def test_reset_asks_before_clearing_everything(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
+    window._on_auto_mode("auto")  # The marks over the game, as before 安全模式.
     buttons = [button.text() for button in window.findChildren(QPushButton)]
     assert "清空数据" in buttons and "清除数据且复原" not in buttons and "打开数据文件夹" not in buttons
     window.store.add("甲", tags=("炸房",))
@@ -1048,10 +1070,12 @@ def test_reset_asks_before_clearing_everything(qapp, tmp_path, monkeypatch):
     assert window.store.theme == "蓝色"
     assert window.store.tag_catalog() == ("炸房", "贴脸", "挂机", "场外", "不尊重底牌")
     assert window.hotkey_edit.text() == "Alt+1"
-    assert window.hotkey_edit.isEnabled() is False
-    assert window.auto_on.isChecked() is True
+    # 安全模式 is back on: checks on the hotkey only.
+    assert window.store.safe_mode is True
+    assert window.hotkey_edit.isEnabled() is True
+    assert window.safe_on.isChecked() is True
     # Every control that shows a setting goes back with it.
-    assert window.status_chip.toolTip() == "切换为手动检查"
+    assert window.status_chip.text() == "安全模式"
     again = Store(window.store.root)
     assert again.entries == []
     assert again.scans == []
@@ -1153,6 +1177,7 @@ def test_a_failed_check_is_shown_and_clears_when_checks_work(qapp, tmp_path, mon
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
+    window._on_auto_mode("auto")  # The marks over the game, as before 安全模式.
     window._watch_timer.stop()
     window._on_worker(("glance", "err", OcrUnavailable("识别模型未就绪，请重新解压完整的安装包。")))
     assert window.status_chip.text() == "识别模型未就绪"
@@ -1173,6 +1198,7 @@ def test_the_model_load_is_shown_until_it_finishes(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
+    window._on_auto_mode("auto")  # The marks over the game, as before 安全模式.
     window._watch_timer.stop()
     window.worker.request = lambda *args, **kwargs: True
     window.start_warmup()
@@ -1550,9 +1576,15 @@ def test_settings_are_grouped_into_titled_cards(qapp, tmp_path, monkeypatch):
     # 版本 is not shown.
     assert "版本" not in [label.text() for label in window.findChildren(QLabel)]
     window.hide()
-    # 提示音 is gone.
-    assert "提示音" not in [label.text() for label in window.findChildren(QLabel)]
+    assert window.sound_switch.isChecked() is True
+    # In 安全模式 a click on the header's status opens 设置; it never leaves 安全模式 by itself.
+    window.tabs.setCurrentIndex(0)
+    window._cycle_capture_mode()
+    assert window.tabs.currentIndex() == window.settings_tab
+    assert window.store.safe_mode is True
     # The 方式 choice follows a click on the header's status, and the other way round.
+    window.auto_on.click()
+    assert window.store.safe_mode is False
     window._cycle_capture_mode()
     assert window.auto_mode.current() == "manual"
     window.auto_on.click()
