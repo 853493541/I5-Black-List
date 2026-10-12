@@ -4,7 +4,7 @@ import pytest
 
 pytest.importorskip("PySide6")
 
-from PySide6.QtCore import Qt  # noqa: E402
+from PySide6.QtCore import QRect, Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication, QDialog, QLabel  # noqa: E402
 
 from blacklist_detect.importing import ELSEWHERE, MERGE, plan_import  # noqa: E402
@@ -153,7 +153,7 @@ def test_a_live_check_rings_likes_in_rose_and_splits_the_ring_with_a_hit(window)
     assert window.panel.mode == "liked" and window.panel.ring() == "#c2306b"
     assert card.isVisible() and window.clear_mark.isVisible() and window.clear_mark.heart
     assert [label.text() for label in card.findChildren(QLabel, "hitName")] == ["明哥", "小红"]
-    assert len(card.findChildren(QLabel, "likeHeart")) == 2
+    assert [f.property("tone") for f in card.findChildren(QLabel, "likeFlower")] == ["pink", "blue"]
     cover = window.panel.cover_geometry()
     assert card.x() + card.width() <= cover.x() < window.clear_mark.x()
     # 黑名单 too: the ring rose on the left and crimson on the right, a card on each side.
@@ -174,6 +174,56 @@ def test_a_live_check_rings_likes_in_rose_and_splits_the_ring_with_a_hit(window)
     window.panel.hide()
     window.clear_mark.hide()
     window.hit_card.hide()
+
+
+def test_two_likes_and_no_hit_play_the_border_once_per_lobby(window):
+    window.store.add_like("小明")
+    window.store.add_like("小红")
+    names = [
+        NameSlot(0, (0, 0, 1, 1), "小明", "小明", False, 0.9, False),
+        NameSlot(1, (0, 0, 1, 1), "小红", "小红", False, 0.9, False),
+        NameSlot(2, (0, 0, 1, 1), "坏人", "坏人", False, 0.9, False),
+    ]
+    screen = QApplication.primaryScreen().availableGeometry()
+    left = screen.left() + screen.width() // 2 - 90
+    button = (left, screen.top() + 300, left + 180, screen.top() + 360)
+    window._live_check = True
+    window._on_lobby_placed(button)
+    # One 心动 player: the marks, no border.
+    window._show_panel(CheckResult(True, "", names=names[:1], button_box=button))
+    assert window.panel.mode == "liked" and not window.love.playing()
+    # Two: the border, over the screen, parted around the button and its marks.
+    window._show_panel(CheckResult(True, "", names=names, button_box=button))
+    assert window.love.playing()
+    assert window.love.geometry() == (QApplication.screenAt(window.panel.cover_geometry().center()) or QApplication.primaryScreen()).geometry()
+    gap = window.love._gap.translated(window.love.x(), window.love.y())
+    assert gap.contains(window.like_card.geometry().toRectF()) and gap.contains(window.panel.cover_geometry().toRectF())
+    # The same lobby checked again does not play it again.
+    window.love.stop()
+    window._show_panel(CheckResult(True, "", names=names, button_box=button))
+    assert not window.love.playing()
+    # A 黑名单 player stops it; leaving the lobby lets the next one play it.
+    window._hide_panel_after_title()
+    window._on_lobby_placed(button)
+    window._show_panel(CheckResult(True, "", names=names, button_box=button))
+    assert window.love.playing()
+    hit = Hit(2, "坏人", "坏人", "", False, "", ())
+    window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
+    assert not window.love.playing()
+    window._hide_panel_after_title()
+
+
+def test_the_border_ends_by_itself(window, monkeypatch):
+    from blacklist_detect.ui_love import DURATION
+
+    window.love.play(QApplication.primaryScreen().geometry(), QRect(500, 700, 300, 80))
+    assert window.love.isVisible() and window.love.playing()
+    monkeypatch.setattr(window.love, "elapsed", lambda: DURATION - 0.5)
+    window.love._step()
+    assert window.love.playing()
+    monkeypatch.setattr(window.love, "elapsed", lambda: DURATION)
+    window.love._step()
+    assert not window.love.playing() and not window.love.isVisible()
 
 
 def test_copying_likes_reads_back_in_the_import(window):

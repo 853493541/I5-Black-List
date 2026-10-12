@@ -310,6 +310,21 @@ def _overlay_scenes(window, snap) -> None:  # noqa: ANN001
         window.clear_mark.set_heart(False)
         window.hit_card.set_people([("霁玥吉尔曼", ("炸房", "贴脸"))], button.height())
         snap("overlay_hit_likes", picture=scene("both", "", window.hit_card, like_card))
+    if hasattr(window, "love"):
+        # The border for two or more 心动 players, over the whole lobby, two seconds in.
+        ratio = window.devicePixelRatioF()
+        width, height = lobby.width() // 2, lobby.height() // 2
+        canvas = QPixmap(round(width * ratio), round(height * ratio))
+        canvas.setDevicePixelRatio(ratio)
+        painter = QPainter(canvas)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform)
+        painter.drawImage(QRectF(0, 0, width, height), lobby)
+        keep = QRectF(x0 / 2 - 200, y0 / 2 - 10, (x1 - x0) / 2 + 300, (y1 - y0) / 2 + 20)
+        gap = QRectF(keep.left() - 28, keep.top() - 30, keep.width() + 56, height - keep.top() + 30)
+        window.love.paint_at(painter, 2.0, width, height, gap)
+        painter.end()
+        snap("overlay_love", picture=canvas)
 
 
 def _header_scenes(window, snap) -> None:  # noqa: ANN001

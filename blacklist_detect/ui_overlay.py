@@ -15,6 +15,8 @@ from PySide6.QtGui import (
     QPainter,
     QPainterPath,
     QPen,
+    QPixmap,
+    QRadialGradient,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -25,7 +27,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from blacklist_detect.ui_icons import pixmap as line_pixmap
 from blacklist_detect.ui_theme import (
     BODY_PT,
     OVERLAY_PT,
@@ -98,18 +99,21 @@ ROSE = "#c2306b"
 _RED_GLOW = QColor(220, 60, 70, 140)
 _GREEN_GLOW = QColor(52, 200, 110, 130)
 _ROSE_GLOW = QColor(235, 95, 155, 140)
-# The badge beside a lobby with 心动 players: the check badge's twin, pink with a heart.
-_HEART_FILL = "#d6457f"
 # The card beside a red ring: crimson, edged in gold, like the ring.
 _CARD = ("#7a1620", "#4e0c13")
 _CARD_LINE = "rgba(228, 196, 126, 220)"
 _INK = "#fff3e0"
 _TAG_WASH = "#2a0a0e"
 _TAG_INK = "#ffcf9e"
-# The 心动 card: rose, edged in the same gold.
-_LIKE_CARD = ("#a3346a", "#6b1c43")
-_LIKE_INK = "#fff0f6"
-_LIKE_HEART = "#ffb8d2"
+# 心动 is softer than the rest: pale pink and lavender edged in rose-gold, with knots of small
+# pink and blue flowers, like the silk and flowers of the border that greets two or more of them.
+_ROSE_GOLD = QColor("#f3c1d0")
+_LIKE_GLOW = QColor(255, 150, 200, 120)
+_LIKE_BAND = ("#ff9cc4", "#d7c6ff")
+_LIKE_CARD = ("#fff4f9", "#fadcec")
+_LIKE_EDGE = "#e8a7bd"
+_LIKE_INK = "#8a2d55"
+_FLOWER_TONES = {"pink": ("#fff0f6", "#ff9cc4", "#ff6fa6"), "blue": ("#f2f9ff", "#a8d6ff", "#6fb4ff")}
 
 
 def _fade_in(widget: QWidget, ms: int = 120) -> None:
@@ -136,6 +140,11 @@ def _across(box: QRectF, colors: tuple[QColor, ...]) -> QBrush:
     """One color, or two: the first on the left half, the second on the right, blended in the middle."""
     if len(colors) == 1:
         return QBrush(colors[0])
+    if len(colors) == 3:
+        shade = QLinearGradient(box.topLeft(), box.topRight())
+        for at, each in zip((0.0, 0.5, 1.0), colors, strict=True):
+            shade.setColorAt(at, each)
+        return QBrush(shade)
     left, right = colors
     shade = QLinearGradient(box.topLeft(), box.topRight())
     shade.setColorAt(0.0, left)
@@ -179,6 +188,81 @@ def _heart_path(cx: float, cy: float, size: float) -> QPainterPath:
     path.cubicTo(x0 + 17 * u, y0 + 7 * u, x0 + 15 * u, y0 + 10.5 * u, x0 + 8.5 * u, y0 + 15 * u)
     path.closeSubpath()
     return path
+
+
+def _alpha(color: str | QColor, alpha: float) -> QColor:
+    shade = QColor(color)
+    shade.setAlphaF(max(0.0, min(1.0, alpha)))
+    return shade
+
+
+def _flower(painter: QPainter, x: float, y: float, r: float, tone: str = "pink", turn: float = 0.0, halo: float = 2.2) -> None:
+    """Five soft petals, deep at the heart and pale at the tips, in a faint glow of their own."""
+    if r < 0.5:
+        return
+    light, mid, deep = _FLOWER_TONES[tone]
+    painter.save()
+    painter.translate(x, y)
+    painter.rotate(turn)
+    painter.setPen(Qt.NoPen)
+    if halo > 0:
+        glow = QRadialGradient(QPointF(0, 0), r * halo)
+        glow.setColorAt(0, _alpha(mid, 0.45))
+        glow.setColorAt(1, _alpha(mid, 0))
+        painter.setBrush(glow)
+        painter.drawEllipse(QPointF(0, 0), r * halo, r * halo)
+    for i in range(5):
+        painter.save()
+        painter.rotate(i * 72)
+        petal = QLinearGradient(QPointF(0, 0), QPointF(0, -r * 1.05))
+        petal.setColorAt(0, QColor(deep))
+        petal.setColorAt(0.55, QColor(mid))
+        petal.setColorAt(1, QColor(light))
+        painter.setBrush(petal)
+        painter.setPen(QPen(_alpha("#ffffff", 0.55), max(0.6, r * 0.05)))
+        painter.drawEllipse(QRectF(-r * 0.36, -r * 1.05, r * 0.72, r * 0.82))
+        painter.restore()
+    painter.setPen(Qt.NoPen)
+    painter.setBrush(QColor("#fff6d8"))
+    painter.drawEllipse(QPointF(0, 0), r * 0.2, r * 0.2)
+    painter.restore()
+
+
+def _knot(painter: QPainter, x: float, y: float, size: float, halo: float = 2.2) -> None:
+    """A knot of flowers: two pink, two blue, overlapping."""
+    for dx, dy, scale, tone, turn in ((-0.55, 0.15, 0.62, "pink", 12), (0.5, 0.05, 0.55, "blue", 40), (0.0, -0.35, 0.75, "pink", 64), (0.1, 0.55, 0.38, "blue", 25)):
+        _flower(painter, x + dx * size, y + dy * size, scale * size, tone, turn, halo)
+
+
+def _sparkle(painter: QPainter, x: float, y: float, r: float, alpha: float = 1.0) -> None:
+    """A four-point glint with a small halo."""
+    if alpha <= 0.01 or r < 0.5:
+        return
+    halo = QRadialGradient(QPointF(x, y), r * 1.6)
+    halo.setColorAt(0, QColor(255, 240, 250, round(140 * alpha)))
+    halo.setColorAt(1, QColor(255, 200, 230, 0))
+    painter.setPen(Qt.NoPen)
+    painter.setBrush(halo)
+    painter.drawEllipse(QPointF(x, y), r * 1.6, r * 1.6)
+    star = QPainterPath(QPointF(x, y - r))
+    for px, py in ((r * 0.16, -r * 0.16), (r, 0), (r * 0.16, r * 0.16), (0, r), (-r * 0.16, r * 0.16), (-r, 0), (-r * 0.16, -r * 0.16)):
+        star.lineTo(x + px, y + py)
+    star.closeSubpath()
+    painter.setBrush(_alpha("#ffffff", alpha))
+    painter.drawPath(star)
+
+
+def flower_pixmap(radius: float, tone: str, ratio: float = 2.0) -> QPixmap:
+    """One flower, for the start of a name on the 心动 card."""
+    side = round(radius * 2.4)
+    image = QPixmap(round(side * ratio), round(side * ratio))
+    image.setDevicePixelRatio(ratio)
+    image.fill(Qt.transparent)
+    painter = QPainter(image)
+    painter.setRenderHint(QPainter.Antialiasing)
+    _flower(painter, side / 2, side / 2 + radius * 0.05, radius, tone, 18 if tone == "pink" else 40, halo=1.15)
+    painter.end()
+    return image
 
 
 def _paint_ring(painter: QPainter, cover: QRectF, color: tuple[QColor, ...], glow: tuple[QColor, ...]) -> None:
@@ -378,29 +462,68 @@ class HitCard(QWidget):
 
 
 class LikeCard(HitCard):
-    """心动 players in this lobby: the same card in rose, a heart before each name.
+    """心动 players in this lobby: a pale pink card edged in rose-gold, a flower before each name
+    and a knot of flowers on its top edge.
 
     set_people gets each player as (what to show, ()): the 昵称, or the full name.
     """
 
     _COLORS = _LIKE_CARD
     _NAME_INK = _LIKE_INK
+    # Room above the card for the knot on its edge.
+    top = 12
 
     def __init__(self) -> None:
         super().__init__()
         self.body.setObjectName("likeCard")
+        self.layout().setContentsMargins(0, self.top, 0, 0)
+        self._leads = 0
+        self.knot = _CardKnot(self)
         self._apply_style()
 
+    def set_people(self, people: list[tuple[str, tuple[str, ...]]], height: int) -> None:
+        self._leads = 0
+        super().set_people(people, height)
+        body = self.body.layout().sizeHint()
+        self.setFixedSize(body.width(), body.height() + self.top)
+        self.knot.move((self.width() - self.knot.width()) // 2, 0)
+        self.knot.raise_()
+
     def _lead(self) -> QWidget | None:
-        heart = QLabel()
-        heart.setObjectName("likeHeart")
-        heart.setPixmap(line_pixmap("heart", 16, _LIKE_HEART, stroke=1.8))
-        heart.setStyleSheet("background: transparent;")
-        return heart
+        tone = "pink" if self._leads % 2 == 0 else "blue"
+        self._leads += 1
+        bloom = QLabel()
+        bloom.setObjectName("likeFlower")
+        bloom.setProperty("tone", tone)
+        bloom.setPixmap(flower_pixmap(7.5, tone, max(2.0, self.devicePixelRatioF())))
+        bloom.setStyleSheet("background: transparent;")
+        return bloom
 
     def _apply_style(self) -> None:
         super()._apply_style()
-        self.setStyleSheet(self.styleSheet().replace("QWidget#hitCard", "QWidget#likeCard"))
+        self.setStyleSheet(
+            self.styleSheet()
+            .replace("QWidget#hitCard", "QWidget#likeCard")
+            .replace(f"border: 1px solid {_CARD_LINE};", f"border: 1px solid {_LIKE_EDGE};")
+            .replace("border-radius: 8px;", "border-radius: 10px;", 1)
+            .replace("rgba(228, 196, 126, 50)", "rgba(232, 167, 189, 60)")
+            .replace("rgba(228, 196, 126, 210)", "rgba(232, 167, 189, 220)")
+        )
+
+
+class _CardKnot(QWidget):
+    """The knot of flowers on the 心动 card's top edge."""
+
+    def __init__(self, parent: QWidget) -> None:
+        super().__init__(parent)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self.setFixedSize(40, 28)
+
+    def paintEvent(self, _event) -> None:  # noqa: ANN001
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        _knot(painter, self.width() / 2, 12, 10, halo=1.3)
+        painter.end()
 
 
 class ClearMark(QWidget):
@@ -446,16 +569,14 @@ class ClearMark(QWidget):
         painter.setRenderHint(QPainter.Antialiasing)
         box = self.badge()
         side = box.width()
-        _glow(painter, (box, side / 2), _ROSE_GLOW if self.heart else _GREEN_GLOW, round_shape=True)
-        painter.setPen(QPen(_GOLD, max(1.5, side * 0.06)))
-        painter.setBrush(QColor(_HEART_FILL if self.heart else GREEN))
-        painter.drawEllipse(box.adjusted(1, 1, -1, -1))
         if self.heart:
-            painter.setPen(Qt.NoPen)
-            painter.setBrush(QColor("#ffffff"))
-            painter.drawPath(_heart_path(box.center().x(), box.center().y() + side * 0.03, side * 0.5))
+            self._paint_heart(painter, box)
             painter.end()
             return
+        _glow(painter, (box, side / 2), _GREEN_GLOW, round_shape=True)
+        painter.setPen(QPen(_GOLD, max(1.5, side * 0.06)))
+        painter.setBrush(QColor(GREEN))
+        painter.drawEllipse(box.adjusted(1, 1, -1, -1))
         pen = QPen(QColor("#ffffff"), max(2.0, side * 0.08))
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
@@ -467,6 +588,31 @@ class ClearMark(QWidget):
         tick.lineTo(box.left() + side * 0.73, box.top() + side * 0.36)
         painter.drawPath(tick)
         painter.end()
+
+    def _paint_heart(self, painter: QPainter, box: QRectF) -> None:
+        """A pale pink disc in a rose-gold rim, a deep pink heart, a glint at its shoulder."""
+        side = box.width()
+        center = box.center()
+        _glow(painter, (box, side / 2), _LIKE_GLOW, round_shape=True)
+        fill = QRadialGradient(center, side / 2)
+        fill.setColorAt(0, QColor("#fff3f8"))
+        fill.setColorAt(1, QColor("#f7b3cb"))
+        painter.setPen(QPen(_ROSE_GOLD, max(1.5, side * 0.04)))
+        painter.setBrush(fill)
+        painter.drawEllipse(box.adjusted(1, 1, -1, -1))
+        painter.setPen(QPen(_alpha("#ffffff", 0.7), 1))
+        painter.setBrush(Qt.NoBrush)
+        inner = max(3.0, side * 0.08)
+        painter.drawEllipse(box.adjusted(inner, inner, -inner, -inner))
+        heart = QLinearGradient(QPointF(center.x(), center.y() - side * 0.25), QPointF(center.x(), center.y() + side * 0.25))
+        heart.setColorAt(0, QColor("#ff7fb0"))
+        heart.setColorAt(1, QColor("#d92f6b"))
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(heart)
+        painter.drawPath(_heart_path(center.x(), center.y() + side * 0.03, side * 0.48))
+        painter.setBrush(_alpha("#ffffff", 0.7))
+        painter.drawEllipse(QPointF(center.x() - side * 0.11, center.y() - side * 0.07), side * 0.05, side * 0.035)
+        _sparkle(painter, box.right() - side * 0.08, box.top() + side * 0.1, max(3.0, side * 0.09))
 
     def showEvent(self, event) -> None:  # noqa: ANN001
         super().showEvent(event)
@@ -554,10 +700,30 @@ class LobbyPanel(QWidget):
         if self.mode == "checking":
             self._paint_brass(painter, cover)
             return
+        if self.mode == "liked":
+            self._paint_liked(painter, cover)
+            return
         colors = self.rings()
         if colors:
             glows = {RED: _RED_GLOW, ROSE: _ROSE_GLOW, GREEN: _GREEN_GLOW}
             _paint_ring(painter, cover, tuple(QColor(c) for c in colors), tuple(glows[c] for c in colors))
+
+    def _paint_liked(self, painter: QPainter, cover: QRectF) -> None:
+        """心动 and no 黑名单: a pink glow, a rose-gold rim, a pink-lavender band, flowers on two corners."""
+        radius = _cover_radius(round(cover.height()))
+        _glow(painter, (cover, radius), _LIKE_GLOW)
+        painter.setBrush(Qt.NoBrush)
+        for inset, pen in (
+            (1.1, QPen(_ROSE_GOLD, 2.2)),
+            (4.7, QPen(_across(cover, (QColor(_LIKE_BAND[0]), QColor(_LIKE_BAND[1]), QColor(_LIKE_BAND[0]))), 5)),
+            (7.7, QPen(_alpha("#ffffff", 0.6), 1)),
+        ):
+            painter.setPen(pen)
+            painter.drawRoundedRect(cover.adjusted(inset, inset, -inset, -inset), max(1.0, radius - inset), max(1.0, radius - inset))
+        # Inside the corners, so the flowers stay within the window.
+        size = max(8.0, min(13.0, cover.height() * 0.17))
+        _knot(painter, cover.left() + size * 0.7, cover.top() + size * 0.7, size, halo=1.2)
+        _knot(painter, cover.right() - size * 0.7, cover.bottom() - size * 0.7, size, halo=1.2)
 
     def _paint_brass(self, painter: QPainter, cover: QRectF) -> None:
         """Opaque antique gold: the button must not show through while it is being checked."""
@@ -662,6 +828,9 @@ class LobbyPanel(QWidget):
         radius = _cover_radius(height - 2 * _GLOW)
         if self.mode == "checking":
             painter.drawRoundedRect(_GLOW, _GLOW, width - 2 * _GLOW, height - 2 * _GLOW, radius, radius)
+        elif self.mode == "liked":
+            # Square, so the flowers on its corners are not cut off; clicks pass through anyway.
+            painter.drawRect(0, 0, width, height)
         else:
             painter.drawRoundedRect(0, 0, width, height, radius + _GLOW, radius + _GLOW)
         painter.end()
