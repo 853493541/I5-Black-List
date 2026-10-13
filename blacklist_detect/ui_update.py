@@ -83,6 +83,8 @@ class Download(QObject):
             updater.stage(zipped, root, release.version)
             zipped.unlink(missing_ok=True)
         except updater.UpdateError as error:
+            cause = f" ({error.__cause__})" if error.__cause__ else ""
+            log.warning("Update to %s failed: %s%s", release.version, error, cause)
             self.failed.emit(str(error))
             return
         except Exception:  # noqa: BLE001
@@ -159,12 +161,14 @@ class UpdateDialog(Modal):
         self._state = "idle"
         self.close_button.hide()
         if root is None:
+            log.info("Update %s found, but this copy runs from source.", release.version)
             self.close_button.show()
             self._state = "source"
             self._say("源码运行不支持更新")
             self.skip.hide()
             self.action.setText("知道了")
         elif release.needs_full():
+            log.info("Update %s needs the full package; the player is sent to download it.", release.version)
             self._state = "full"
             self._say("此版本需要下载完整安装包，名单和设置会保留")
             self.action.setText("前往下载")

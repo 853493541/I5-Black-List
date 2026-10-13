@@ -429,6 +429,8 @@ class MainWindow(QMainWindow):
         # New versions from GitHub: checked when the app opens and installed before it is used.
         self.updates = UpdateChecker(self)
         self.updates.found.connect(self._on_update_found)
+        self.updates.latest.connect(lambda: log.info("Update check: %s is the newest.", __version__))
+        self.updates.failed.connect(lambda message: log.warning("Update check failed: %s", message))
         self._release: updater.Release | None = None
         self._updating = False
         if updater.app_root() is not None:
@@ -495,6 +497,8 @@ class MainWindow(QMainWindow):
                 self._watch_timer.setInterval(60_000)
             self._watch_timer.start()
         self._sync_watch_idle()
+        if self.store.load_warning:
+            log.warning("At start: %s", self.store.load_warning)
         notice = self.store.load_warning or capture_capability_message()
         if notice:
             self._set_result(notice, "hit", "error")
@@ -2621,6 +2625,8 @@ class MainWindow(QMainWindow):
         self._show_history_scan(self._selected_scan())
 
     def _toggle_auto(self, checked: bool) -> None:
+        if bool(checked) != self.store.auto_capture:
+            log.info("方式: %s.", "自动检查" if checked else "手动检查")
         self.store.auto_capture = bool(checked)
         self.store.save_settings()
         self._sync_auto_controls()
@@ -2645,7 +2651,9 @@ class MainWindow(QMainWindow):
             return True
         title, body, confirm, cancel = CONSENT[mode]
         if not ConfirmDialog.ask(self, title, body, confirm, cancel=cancel):
+            log.info("Declined %s.", "完整模式" if mode == "full" else "自动检查")
             return False
+        log.info("Agreed to %s.", "完整模式" if mode == "full" else "自动检查")
         self.store.consented.append(mode)
         self.store.save_settings()
         return True
@@ -2667,6 +2675,8 @@ class MainWindow(QMainWindow):
         self._set_safe_mode(key == "safe")
 
     def _set_safe_mode(self, on: bool) -> None:
+        if bool(on) != self.store.safe_mode:
+            log.info("显示: %s.", "安全模式" if on else "完整模式")
         self.store.safe_mode = bool(on)
         self.store.save_settings()
         if self.store.safe_mode and self.store.auto_capture:
@@ -2700,10 +2710,13 @@ class MainWindow(QMainWindow):
                 mark.setAttribute(Qt.WA_DontShowOnScreen, hidden)
 
     def _set_hit_sound(self, on: bool) -> None:
+        log.info("提示音 %s.", "on" if on else "off")
         self.store.hit_sound = bool(on)
         self.store.save_settings()
 
     def _set_stream_mode(self, on: bool | str) -> None:
+        if bool(on) != bool(self.store.stream_mode):
+            log.info("直播模式 %s.", "on" if on else "off")
         self.store.stream_mode = "on" if on else ""
         self.store.save_settings()
         self.stream.enable(self.store.stream_mode)
@@ -2741,8 +2754,8 @@ class MainWindow(QMainWindow):
             self.hotkey.clear()
             return
         spec = parse_hotkey(self.store.hotkey)
-        if spec is not None and self.hotkey.active != spec.display:
-            self.hotkey.apply(spec)
+        if spec is not None and self.hotkey.active != spec.display and not self.hotkey.apply(spec):
+            log.warning("Hotkey %s did not register: another program holds it, or this PC has none.", spec.display)
 
     def _take_hotkey(self, event) -> None:
         if event.isAutoRepeat():
@@ -2771,6 +2784,7 @@ class MainWindow(QMainWindow):
             self._set_settings_note("这个组合键用不了，请换一个")
             return
         registered = self.hotkey.apply(spec)
+        log.info("Hotkey set to %s%s.", spec.display, "" if registered else ", which did not register")
         self.store.hotkey = spec.display
         self.store.save_settings()
         self.hotkey_edit.setText(spec.display)
@@ -3428,6 +3442,7 @@ class MainWindow(QMainWindow):
         elif exclusive_fullscreen():
             # 完整模式 over a game in exclusive full screen: Windows shows nothing over it but a
             # plain window, so the corner message comes too, as in 安全模式.
+            log.info("The game is in exclusive full screen: the corner message is shown too.")
             self._show_notice(result)
         if not self._overlay_target():
             return
@@ -3524,6 +3539,7 @@ class MainWindow(QMainWindow):
         self.stream.set_frame(frame)
         size = (frame.width(), frame.height())
         if size != tuple(self.store.stream_size):
+            log.info("直播模式's window now matches the game's window: %dx%d.", *size)
             self.store.stream_size = size
             self.store.save_settings()
 
@@ -3758,6 +3774,8 @@ class MainWindow(QMainWindow):
 
     def _update_skipped(self, _result: int) -> None:
         # 跳过: this version goes on; the next start tries again.
+        if self._updating:
+            log.info("Update to %s not installed: the window was closed (跳过 or 前往下载).", self._release.version if self._release else "?")
         self._updating = False
 
     def _quiet_update_failed(self, message: str) -> None:
@@ -3769,12 +3787,17 @@ class MainWindow(QMainWindow):
         root = updater.app_root()
         if root is not None and restart_into_update(root, background=not self.isVisible()):
             log.info("Restarting into %s", self._release.version if self._release else "the update")
+            self._updating = False
             self.quit_app()
         else:
+            log.warning("Update downloaded, but the launcher to install it was not found.")
             self._updating = False
 
     def _confirm_update(self) -> None:
         """This version opened: tell the launcher, which would otherwise put the old one back."""
+        said = updater.launcher_result(updater.app_root())
+        if said:
+            log.warning("Launcher: %s", said) if "失败" in said or "未完成" in said else log.info("Launcher: %s", said)
         if updater.confirm_started(updater.app_root()):
             self._say(f"已更新到 {__version__}")
 

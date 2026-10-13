@@ -165,6 +165,14 @@ static class Updates
     const string Pending = "update.check";
     // Files the update added, which a roll back removes.
     const string Added = ".added";
+    // A line on what happened, for the app to put in its log at its next start.
+    const string Result = "update.result";
+
+    static void Say(string root, string text)
+    {
+        try { File.WriteAllText(Path.Combine(root, Result), DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss ") + text); }
+        catch (Exception) { }
+    }
 
     // Lay a waiting update over the folder, or put the old files back after a failed one.
     // Returns a message for the player, or null when there is nothing to say.
@@ -182,13 +190,18 @@ static class Updates
                 for (int i = 0; i < 75 && RunningHere(root); i++)
                     System.Threading.Thread.Sleep(200);
                 if (RunningHere(root))
+                {
+                    Say(root, "update waiting: the app was still open, it goes in at the next start");
                     return null;
+                }
                 Apply(root, staged, backup, pending);
+                Say(root, "update installed");
                 return null;
             }
             if (File.Exists(pending))
             {
                 Restore(root, backup, pending);
+                Say(root, "新版本启动失败，已恢复到之前的版本 (the new version never confirmed it started)");
                 return "新版本启动失败，已恢复到之前的版本。";
             }
         }
@@ -196,6 +209,7 @@ static class Updates
         {
             try { Restore(root, backup, pending); } catch (Exception) { }
             try { Directory.Delete(staged, true); } catch (Exception) { }
+            Say(root, "更新未完成，已保留当前版本: " + error.GetType().Name + ": " + error.Message);
             return "更新未完成，已保留当前版本。" + Environment.NewLine + error.Message;
         }
         return null;

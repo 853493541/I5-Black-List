@@ -6,7 +6,7 @@ the oldest version the zip can be laid over. version.json.sig is an Ed25519 sign
 version.json, made with a key that never leaves the publisher's PC; the app holds the public
 half, so a release that key did not sign is ignored even if the download page was taken over.
 
-The app only asks: it checks once when it opens (and when 检查更新 is clicked), and a friend
+The app only asks: it checks once when it opens, and a friend
 clicks 更新 to download. The zip is unpacked into update.new beside the app; the launcher
 lays it over the folder on the next start, keeping
 what it replaced in update.old, and puts that back if the new version never says it started.
@@ -337,6 +337,22 @@ def staged_version(root: Path | None) -> str:
         return marker.read_text(encoding="utf-8").strip()
     except OSError:
         return ""
+
+
+RESULT = "update.result"
+
+
+def launcher_result(root: Path | None) -> str:
+    """What the launcher did at the last start, if it did anything, once: it writes it here."""
+    if root is None:
+        return ""
+    path = root / RESULT
+    try:
+        said = path.read_text(encoding="utf-8").strip()
+        path.unlink()
+    except OSError:
+        return ""
+    return said
 
 
 def confirm_started(root: Path | None) -> bool:
