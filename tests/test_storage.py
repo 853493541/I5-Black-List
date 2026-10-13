@@ -437,3 +437,27 @@ def test_a_snapshot_puts_the_list_back(tmp_path):
     store.restore_entries(before)
     again = Store(tmp_path)
     assert [(e.name, e.tags, e.reason) for e in again.entries] == [("甲", ("炸房",), "说明")]
+
+
+def test_love_counts_are_kept_and_junk_is_the_default(tmp_path):
+    """心动人数: which numbers of 心动 players play 心动特效. 3 stands for 2人以上."""
+    import json
+
+    from blacklist_detect.storage import DEFAULT_LOVE_COUNTS
+
+    store = Store(tmp_path)
+    assert store.love_counts == DEFAULT_LOVE_COUNTS == (2, 3)
+    assert [store.love_for(n) for n in (0, 1, 2, 3, 7)] == [False, False, True, True, True]
+    store.love_counts = (1,)
+    store.save_settings()
+    again = Store(tmp_path)
+    assert again.love_counts == (1,)
+    assert [again.love_for(n) for n in (0, 1, 2, 3)] == [False, True, False, False]
+    settings = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
+    for junk in ([], [0, 4], "1", [True], None, [2.0]):
+        settings["love_counts"] = junk
+        (tmp_path / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
+        assert Store(tmp_path).love_counts == DEFAULT_LOVE_COUNTS, junk
+    settings["love_counts"] = [3, 1, 3]
+    (tmp_path / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
+    assert Store(tmp_path).love_counts == (1, 3)

@@ -1,4 +1,4 @@
-"""心动音乐: a few seconds of wedding music when two or more 心动 players are in one lobby.
+"""心动音乐: a few seconds of wedding music for 心动 players in one lobby (as many as 心动人数 says).
 
 Five tunes, all public domain: Wagner's Bridal Chorus (1850) as church organ, music box and 8-bit,
 Pachelbel's Canon on harp, and church bells. build/wedding_tunes.py plays them into the WAV files,
@@ -70,8 +70,9 @@ class WeddingMusic:
         return self._rng.choice(pool)
 
     def lobby(self, likes: list[str], choice: str) -> str:
-        """A lobby with these 心动 players: play, if there are two or more and not just now for them."""
-        if len(likes) < 2 or not self.pick(choice):
+        """A lobby with these 心动 players, as many as 心动特效 plays for: play, unless it just did
+        for them."""
+        if not likes or not self.pick(choice):
             return ""
         players = frozenset(likes)
         now = self._clock()

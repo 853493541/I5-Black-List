@@ -157,7 +157,7 @@ class LikesPage(QWidget):
         self.search.textChanged.connect(self.refresh)
         toolbar.addWidget(self.search, 1)
         toolbar.addStretch(1)
-        # 心动特效: the scene and the music for two or more 心动 players, here beside the players it
+        # 心动特效: the scene and the music for 心动 players in a lobby, here beside the players it
         # is for, and shown on an empty list too. The window gives the page the way to open it.
         self.effects_button = QPushButton("心动特效")
         self.effects_button.setIcon(line_icon("heart", 16, THEME["rose"]))

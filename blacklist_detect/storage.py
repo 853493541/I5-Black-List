@@ -358,6 +358,20 @@ def _set_aside(path: Path) -> Path:
 
 
 
+# 心动特效 plays for a lobby with this many 心动 players: 1人, 2人, and 3 for 2人以上 (more than two).
+LOVE_COUNTS = (1, 2, 3)
+DEFAULT_LOVE_COUNTS = (2, 3)
+
+
+def _love_counts(value: object) -> tuple[int, ...]:
+    """The 心动人数 ticked, as saved. None ticked, or nothing it knows, is the default."""
+    if isinstance(value, list):
+        counts = tuple(count for count in LOVE_COUNTS if any(type(v) is int and v == count for v in value))
+        if counts:
+            return counts
+    return DEFAULT_LOVE_COUNTS
+
+
 def _choice(value: object, default: str) -> str:
     """A 心动特效 choice as saved: a key, "random" or "off". Anything else is the default; the
     scene and the music each fall back on their own when a key they do not know comes in."""
@@ -398,11 +412,12 @@ class Store:
         # 显示: 安全模式 marks nothing on the game, the result comes as messages at the bottom right
         # of the screen; 完整模式 (False) draws the marks over it. On unless turned off, also for old settings.
         self.safe_mode = True
-        # 心动特效, for two or more 心动 players: the scene over the game and the wedding music. Each is a
-        # key (love_scenes.SCENES, ui_music.TUNE_LIST), "random" or "off". 经典花边 with 婚礼进行曲 · 管风琴
-        # until another is chosen.
+        # 心动特效: the scene over the game and the wedding music. Each is a key (love_scenes.SCENES,
+        # ui_music.TUNE_LIST), "random" or "off". 经典花边 with 婚礼进行曲 · 管风琴 until another is chosen.
         self.love_scene = "classic"
         self.love_music = "organ"
+        # For how many 心动 players in a lobby they play (LOVE_COUNTS): two or more until changed.
+        self.love_counts = DEFAULT_LOVE_COUNTS
         # 直播模式: a window for a streaming app with the 心动 marks only, clear behind them. "" off, "on" on.
         self.stream_mode = ""
         # What the player agreed to after being told the risk: "full" (完整模式). "auto" (自动检查) was
@@ -749,6 +764,10 @@ class Store:
             },
         )
 
+    def love_for(self, likes: int) -> bool:
+        """Whether 心动特效 plays for a lobby with this many 心动 players."""
+        return likes > 0 and min(likes, LOVE_COUNTS[-1]) in self.love_counts
+
     def save_settings(self) -> None:
         _atomic_write(
             self.settings_path,
@@ -773,6 +792,7 @@ class Store:
                 "safe_mode": self.safe_mode,
                 "love_scene": self.love_scene,
                 "love_music": self.love_music,
+                "love_counts": list(self.love_counts),
                 "stream_mode": self.stream_mode,
                 "consented": list(self.consented),
                 "disclaimer_accepted": self.disclaimer_accepted,
@@ -813,6 +833,7 @@ class Store:
             self.safe_mode = bool(settings.get("safe_mode", True))
             self.love_scene = _choice(settings.get("love_scene"), "classic")
             self.love_music = _choice(settings.get("love_music"), "organ")
+            self.love_counts = _love_counts(settings.get("love_counts"))
             # v0.6.0 saved "key" (green) or "alpha" (clear), v0.6.1 "key": each is on, and clear now.
             self.stream_mode = "on" if settings.get("stream_mode") in ("on", "key", "alpha") else ""
             self.disclaimer_accepted = settings.get("disclaimer_accepted") is True
@@ -1022,6 +1043,7 @@ class Store:
         self.safe_mode = True
         self.love_scene = "classic"
         self.love_music = "organ"
+        self.love_counts = DEFAULT_LOVE_COUNTS
         self.stream_mode = ""
         self.consented = []
         self.disclaimer_accepted = False

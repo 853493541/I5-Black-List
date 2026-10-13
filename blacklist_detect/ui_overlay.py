@@ -107,7 +107,7 @@ _INK = "#fff3e0"
 _TAG_WASH = "#2a0a0e"
 _TAG_INK = "#ffcf9e"
 # 心动 is softer than the rest: pale pink and lavender edged in rose-gold, with knots of small
-# pink and blue flowers, like the silk and flowers of the border that greets two or more of them.
+# pink and blue flowers, like the silk and flowers of the border that greets them.
 _ROSE_GOLD = QColor("#f3c1d0")
 _LIKE_GLOW = QColor(255, 150, 200, 120)
 _LIKE_BAND = ("#ff9cc4", "#d7c6ff")

@@ -1,6 +1,8 @@
-"""心动 › 心动特效: which scene plays over the game, and which wedding music, for two or more 心动
-players in a lobby. Each can be one of them, 随机 or 无; the choice is saved as it is made. The
-default comes first (经典花边, 婚礼进行曲 · 管风琴), then the others, then 随机, and 无 last, in red.
+"""心动 › 心动特效: for how many 心动 players in a lobby, which scene plays over the game, and which
+wedding music. 心动人数 is three choices that go together: 1人, 2人, 2人以上 (2人 and 2人以上
+until changed). The scene and the music can each be one of them, 随机 or 无; every choice is saved as it
+is made. The default comes first (经典花边, 婚礼进行曲 · 管风琴), then the others, then 随机, and 无
+last, in red.
 
 A preview plays the chosen scene over the fake-name sample lobby, with the app's own marks on it.
 """
@@ -11,7 +13,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QElapsedTimer, QPoint, QPointF, QRectF, QSize, Qt, QTimer
 from PySide6.QtGui import QPainter, QPixmap
-from PySide6.QtWidgets import QButtonGroup, QLabel, QPushButton, QSizePolicy, QWidget
+from PySide6.QtWidgets import QButtonGroup, QPushButton, QSizePolicy, QWidget
 
 from blacklist_detect import love_scenes
 from blacklist_detect.love_scenes import DESIGN, sample_stage
@@ -26,6 +28,8 @@ SAMPLE_LOBBY = Path(__file__).resolve().parent / "assets" / "sample-lobby.jpg"
 
 # A moment of the bare lobby between one play of the scene and the next.
 PAUSE_S = 0.7
+# 心动人数: the choices, by the count each stands for (storage.LOVE_COUNTS).
+COUNT_NAMES = ((1, "1人"), (2, "2人"), (3, "2人以上"))
 
 
 def _sample_marks() -> list[tuple[QPixmap, QPoint]]:
@@ -131,11 +135,9 @@ class LoveEffectsDialog(Modal):
         self.store = store
         self.music = music
         layout = self.frame("心动特效")
-        note = QLabel("一局遇到 2 个以上心动时播放")
-        note.setObjectName("sub")
-        layout.addWidget(note)
         self.preview = ScenePreview()
         layout.addWidget(self.preview, 0, Qt.AlignHCenter)
+        self.count_boxes = self._counts(layout)
         scenes = [*love_scenes.SCENES, ("random", "随机"), ("off", "无")]
         tunes = [*((key, name) for key, name, _file in TUNE_LIST), ("random", "随机"), ("off", "无")]
         self.scene_buttons = self._choices(layout, "特效", scenes, store.love_scene, self._pick_scene)
@@ -170,6 +172,32 @@ class LoveEffectsDialog(Modal):
             buttons[key] = button
         _field(layout, label, host)
         return buttons
+
+    def _counts(self, layout) -> dict[int, QPushButton]:  # noqa: ANN001
+        """Like the rows under it, but any of them can be on together."""
+        host = _FlowHost(gap=8)
+        buttons: dict[int, QPushButton] = {}
+        for count, name in COUNT_NAMES:
+            button = QPushButton(name)
+            button.setObjectName("segment")
+            button.setProperty("place", "only")
+            button.setCheckable(True)
+            button.setAutoDefault(False)
+            button.setChecked(count in self.store.love_counts)
+            button.clicked.connect(lambda _checked=False, count=count: self._pick_count(count))
+            host.addWidget(button)
+            buttons[count] = button
+        _field(layout, "心动人数", host)
+        return buttons
+
+    def _pick_count(self, count: int) -> None:
+        ticked = tuple(each for each, box in self.count_boxes.items() if box.isChecked())
+        if not ticked:
+            # One stays on: 无 is how the effect is turned off.
+            self.count_boxes[count].setChecked(True)
+            return
+        self.store.love_counts = ticked
+        self.store.save_settings()
 
     @staticmethod
     def _current(buttons: dict[str, QPushButton], saved: str, default: str) -> str:

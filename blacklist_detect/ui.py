@@ -3461,7 +3461,7 @@ class MainWindow(QMainWindow):
             return
         hits = self._hits_in(result)
         likes = self._likes_in(result)
-        if not hits:
+        if not hits and self.store.love_for(len(likes)):
             # Never with a 黑名单 player: the warning is the news then, not the music.
             self.music.lobby([like.name for like in likes], self.store.love_music)
         if self.store.safe_mode:
@@ -3501,7 +3501,7 @@ class MainWindow(QMainWindow):
         self._open_panel("liked" if likes else "clear", text, result.button_box)
         self._show_clear_mark(heart=bool(likes))
         self._show_like_card(likes)
-        if len(likes) >= 2 and not self._love_played:
+        if self.store.love_for(len(likes)) and not self._love_played:
             self._play_love()
 
     def _hits_in(self, result: CheckResult) -> list[Hit]:

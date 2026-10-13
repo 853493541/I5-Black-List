@@ -126,6 +126,17 @@ def test_the_picker_saves_each_choice_and_previews_it(qapp, tmp_path, monkeypatc
     assert dialog.scene_buttons["off"].property("off") is True and dialog.scene_buttons["random"].property("off") is False
     assert dialog.preview.scene == "classic"
     assert dialog.play_button.text() == "预览"
+    # 心动人数: three choices that go together, 2人 and 2人以上 on to begin with.
+    assert [box.text() for box in dialog.count_boxes.values()] == ["1人", "2人", "2人以上"]
+    assert [box.isChecked() for box in dialog.count_boxes.values()] == [False, True, True]
+    dialog.count_boxes[1].click()
+    assert store.love_counts == (1, 2, 3) and Store(store.root).love_counts == (1, 2, 3)
+    dialog.count_boxes[2].click()
+    dialog.count_boxes[3].click()
+    assert store.love_counts == (1,) and Store(store.root).love_counts == (1,)
+    # The last one stays on: 无 turns the effect off.
+    dialog.count_boxes[1].click()
+    assert dialog.count_boxes[1].isChecked() and store.love_counts == (1,)
     dialog.scene_buttons["butterfly"].click()
     assert store.love_scene == "butterfly" and dialog.preview.scene == "butterfly"
     assert Store(store.root).love_scene == "butterfly"

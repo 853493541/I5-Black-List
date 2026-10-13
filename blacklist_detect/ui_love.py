@@ -1,4 +1,4 @@
-"""The scene that greets two or more 心动 players in a lobby, over the game.
+"""The scene that greets 心动 players in a lobby (as many as 心动人数 says), over the game.
 
 Which scene plays is the player's choice in 心动 › 心动特效: one of love_scenes.SCENES, 随机 (any
 but the one just played), or 关闭. It plays once, about five seconds, then goes. The bottom of the
