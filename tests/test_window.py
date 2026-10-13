@@ -2960,3 +2960,21 @@ def test_the_game_is_where_the_lobby_puts_it_when_its_window_is_a_picture_viewer
     assert game_rect((1, 2, 3, 4), None) == (1, 2, 3, 4)
     # A window nowhere near the lobby: left as it was found.
     assert game_rect((3000, 0, 3800, 600), lobby) == (3000, 0, 3800, 600)
+
+
+def test_the_cards_are_in_scale_with_the_lobby(qapp):
+    """The 心动 and 黑名单 cards are their own size beside a full-screen game's button, and smaller
+    beside a smaller one (a game in a window, a video of it), down to a size still easy to read."""
+    from blacklist_detect.ui_overlay import CARD_MIN_PT, FULL_COVER, HitCard, LikeCard
+
+    for card in (LikeCard(), HitCard()):
+        people = [("心动小鹿", ()), ("心动星星", ())]
+        card.set_people(people, FULL_COVER + 20)
+        full = card.height()
+        assert f"{OVERLAY_PT}pt" in card.findChild(QLabel, "hitName").styleSheet()
+        card.set_people(people, FULL_COVER // 2)
+        assert card.height() < full * 0.8, "half the button, a smaller card"
+        assert card.findChild(QLabel, "hitName").font().pointSizeF() < OVERLAY_PT
+        card.set_people(people, 10)
+        assert card.findChild(QLabel, "hitName").font().pointSizeF() == CARD_MIN_PT
+        card.deleteLater()

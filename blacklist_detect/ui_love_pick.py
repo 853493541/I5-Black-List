@@ -52,7 +52,7 @@ def _sample_marks() -> list[tuple[QPixmap, QPoint]]:
     mark_h = round(mark.height() / mark.devicePixelRatio())
     marks.append((mark, QPoint(cover.right() + 17 - heart.margin, cover.center().y() - mark_h // 2 + 1)))
     card = LikeCard()
-    card.set_people([("心动小鹿", ()), ("心动星星", ())], button.height())
+    card.set_people([("心动小鹿", ()), ("心动星星", ())], cover.height())
     card.layout().activate()
     shot = card.grab()
     card_w = round(shot.width() / shot.devicePixelRatio())

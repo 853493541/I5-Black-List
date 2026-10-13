@@ -182,3 +182,16 @@ def test_a_stray_symbol_on_the_countdown_is_not_part_of_it():
     ]
     anchor = find_anchor(lines, REF_W, REF_H)
     assert anchor.found and anchor.countdown_seconds == 10
+
+
+def test_the_game_screen_is_placed_from_the_title_and_countdown():
+    """Measured on a MuMu recording at 3840x2160: the game between MuMu's tab bar, its black side
+    bars and the bottom was (142, 90, 3678, 2075); the title's middle (1908, 354), the countdown's 240
+    lower. The estimate lands within 1% of the game's height on every edge."""
+    from blacklist_detect.layout import Anchor, game_screen
+
+    anchor = Anchor(True, "", scale=1.0, title_box=(1608, 258, 2208, 450), countdown_box=(1700, 574, 2116, 614))
+    estimate = game_screen(anchor)
+    truth = (142, 90, 3678, 2075)
+    assert all(abs(got - want) <= 0.01 * 1985 for got, want in zip(estimate, truth, strict=True)), estimate
+    assert game_screen(Anchor(False, "")) is None

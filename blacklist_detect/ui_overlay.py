@@ -80,6 +80,11 @@ def _pin_topmost(widget) -> None:
 
 
 _COVER_OUTSET = 3
+# The cover's height round 准备案件还原 on a full-screen game 1080 px high (logical): the cards
+# beside it are their own size there, and smaller with a smaller game (a window, a video of it),
+# down to CARD_MIN_PT, so they stay in scale with the lobby.
+FULL_COVER = 82
+CARD_MIN_PT = 9.0
 # Room around a mark, inside its window, for its glow.
 _GLOW = 9
 # A result ring, from the outside in: a gold rim, then the color.
@@ -351,11 +356,16 @@ class HitCard(QWidget):
         self._apply_style()
 
     def set_people(self, people: list[tuple[str, tuple[str, ...]]], height: int) -> None:
-        del height  # The card keeps its own size; it is centered on the button beside it.
+        """height: the cover's round the button the card is beside; the names are sized to it."""
         self.rows.setAlignment(Qt.AlignLeft | Qt.AlignTop)
         _clear_layout(self.rows)
         family = chinese_family()
-        name_font = chinese_font(OVERLAY_PT)
+        point = round(max(CARD_MIN_PT, OVERLAY_PT * min(1.0, height / FULL_COVER)), 1)
+        self.scale = point / OVERLAY_PT
+        pad_x, pad_y = round(12 * self.scale), round(8 * self.scale)
+        self.body.layout().setContentsMargins(pad_x, pad_y, pad_x, pad_y)
+        self.rows.setSpacing(max(2, round(4 * self.scale)))
+        name_font = chinese_font(point)
         name_font.setWeight(QFont.Weight.DemiBold)
         name_width = 0
         if people:
@@ -374,7 +384,7 @@ class HitCard(QWidget):
             label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             label.setFixedWidth(name_width)
             label.setStyleSheet(
-                f'color: {self._NAME_INK}; background: transparent; font-family: "{family}"; font-size: {OVERLAY_PT}pt; font-weight: 600;'
+                f'color: {self._NAME_INK}; background: transparent; font-family: "{family}"; font-size: {point}pt; font-weight: 600;'
             )
             lead = self._lead()
             if lead is not None:
@@ -496,7 +506,7 @@ class LikeCard(HitCard):
         bloom = QLabel()
         bloom.setObjectName("likeFlower")
         bloom.setProperty("tone", tone)
-        bloom.setPixmap(flower_pixmap(7.5, tone, max(2.0, self.devicePixelRatioF())))
+        bloom.setPixmap(flower_pixmap(7.5 * getattr(self, "scale", 1.0), tone, max(2.0, self.devicePixelRatioF())))
         bloom.setStyleSheet("background: transparent;")
         return bloom
 

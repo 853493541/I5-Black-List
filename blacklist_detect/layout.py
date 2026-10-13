@@ -317,21 +317,29 @@ def find_anchor(lines: list[OcrLine], image_width: int, image_height: int) -> An
     )
 
 
+# The whole game screen of a 16:9 game (MuMu's default, the PC client's), in title-countdown gaps
+# (from the title's middle down to the countdown's): its height, and from the title's middle up to
+# its top edge. The title is in the middle across. Measured on MuMu at 3840x2160 and in a video of
+# it: 8.25 and 8.34 high, 1.10 and 1.14 to the top. The reference shot is a crop of the lobby, not
+# a whole screen, so it says nothing about where the screen ends.
+GAME_HEIGHT_GAPS = 8.3
+GAME_TOP_GAPS = 1.12
+GAME_ASPECT = 16 / 9
+
+
 def game_screen(anchor: Anchor) -> tuple[float, float, float, float] | None:
-    """Where the whole game screen is, placed from the title as the name strips are: the reference
-    shot, scaled. Its edges land within about 2% of the game's height. A game narrower than the
-    reference (16:9, against its 1.93:1) is narrower than this by its side margins."""
-    if not anchor.found or anchor.title_box is None or anchor.scale <= 0:
+    """Where the whole game screen is, from the lobby's title and countdown: within about 2% of
+    its height for a 16:9 game. A game of another shape is centered on the same title."""
+    if not anchor.found or anchor.title_box is None or anchor.countdown_box is None:
         return None
     title_x, title_y = _center(anchor.title_box)
-    ref_x, ref_y = _center(_frac_to_px(TITLE_BOX, REF_W, REF_H))
-    scale = anchor.scale
-    return (
-        title_x - ref_x * scale,
-        title_y - ref_y * scale,
-        title_x + (REF_W - ref_x) * scale,
-        title_y + (REF_H - ref_y) * scale,
-    )
+    gap = _center(anchor.countdown_box)[1] - title_y
+    if gap <= 0:
+        return None
+    height = GAME_HEIGHT_GAPS * gap
+    width = height * GAME_ASPECT
+    top = title_y - GAME_TOP_GAPS * gap
+    return (title_x - width / 2, top, title_x + width / 2, top + height)
 
 
 def _map_box(
