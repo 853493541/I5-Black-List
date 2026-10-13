@@ -48,11 +48,11 @@ from blacklist_detect.capture import (
 )
 from blacklist_detect.diagnostics import (
     CpuWindow,
-    SpeedResult,
+    SelfTest,
     export_logs,
     machine_line,
     power_note,
-    run_speed_test,
+    run_self_test,
     screens_line,
     summary_text,
 )
@@ -94,6 +94,7 @@ from blacklist_detect.ui_dialogs import (
     DisplayGuideDialog,
     GuideDialog,
     PictureResultDialog,
+    SelfTestDialog,
     StreamGuideDialog,
     TagSuggestDialog,
     _confirm,
@@ -449,7 +450,7 @@ class MainWindow(QMainWindow):
         # When the recognition last ran: a model idle for a while reads its first lobby slower.
         self._last_ocr_at: float | None = None
         self._cpu: CpuWindow | None = None
-        self._speed: SpeedResult | None = None
+        self._self_test: SelfTest | None = None
         self._problem = ""
         self._glance_pause_until = 0.0
         self._warm_started: float | None = None
@@ -1016,15 +1017,15 @@ class MainWindow(QMainWindow):
         # 数据: starting over.
         # 帮助: when something is wrong, what a friend can do and send.
         helping = section("帮助")
-        self.speed_button = QPushButton("测试")
-        self.speed_button.setFont(ui_font())
-        self.speed_button.setAutoDefault(False)
-        self.speed_button.setCursor(Qt.PointingHandCursor)
-        self.speed_button.setToolTip("用示例截图测一下这台电脑检查一次要多久")
-        self.speed_button.clicked.connect(self._start_speed_test)
-        self.speed_result = QLabel("")
-        self.speed_result.setObjectName("rowHint")
-        helping.add_row("检查速度", self.speed_button, self.speed_result)
+        self.test_button = QPushButton("开始")
+        self.test_button.setFont(ui_font())
+        self.test_button.setAutoDefault(False)
+        self.test_button.setCursor(Qt.PointingHandCursor)
+        self.test_button.setToolTip("完整检查一次示例大厅，看截屏、识别、速度和快捷键是否正常")
+        self.test_button.clicked.connect(self._start_self_test)
+        self.test_status = QLabel("")
+        self.test_status.setObjectName("rowHint")
+        helping.add_row("自检", self.test_button, self.test_status)
         self.export_button = QPushButton("导出")
         self.export_button.setFont(ui_font())
         self.export_button.setAutoDefault(False)
@@ -2851,32 +2852,41 @@ class MainWindow(QMainWindow):
     def _show_disclaimer(self) -> None:
         DisclaimerDialog(self, asking=False).exec()
 
-    def _start_speed_test(self) -> None:
-        """检查速度: the screen copied once and the sample lobby read three times, on the worker."""
-        if not self.worker.request(lambda: run_speed_test(SAMPLE_LOBBY), kind="speedtest"):
-            self.speed_result.setText("正在识别，请稍后再试")
+    def _start_self_test(self) -> None:
+        """自检: a whole check of the sample lobby on the worker, then a report."""
+        if not self.worker.request(lambda: run_self_test(SAMPLE_LOBBY), kind="selftest"):
+            self.test_status.setText("正在识别，请稍后再试")
             return
-        log.info("Speed test started.")
-        self._speed_started_cpu = CpuWindow()
-        self.speed_button.setEnabled(False)
-        self.speed_result.setText("正在测试，大约 10 秒…")
+        log.info("Self-test started.")
+        self._test_cpu = CpuWindow()
+        self.test_button.setEnabled(False)
+        self.test_status.setText("正在测试，大约 10 秒…")
 
-    def _on_speed_test(self, status: str, value) -> None:  # noqa: ANN001
-        self.speed_button.setEnabled(True)
-        load = self._speed_started_cpu.stop() if getattr(self, "_speed_started_cpu", None) else ""
-        if status != "ok":
-            log.warning("Speed test could not run: %s", value)
-            self.speed_result.setText(_plain_error(value, "无法测试，请稍后再试"))
-            return
-        self._speed = value
-        log.info("Speed test: %.2f s (%s); %s%s", value.typical(), value.verdict(), value.line(), f"; {load}" if load else "")
-        self.speed_result.setText(f"检查一次约 {value.typical():.1f} 秒，{value.verdict()}")
+    def _on_self_test(self, status: str, value) -> None:  # noqa: ANN001
+        self.test_button.setEnabled(True)
+        self.test_status.setText("")
+        test = value if status == "ok" else SelfTest(error=_plain_error(value, "请稍后再试"))
+        numbers = self._test_cpu.numbers() if getattr(self, "_test_cpu", None) else None
+        if numbers is not None:
+            test.cpu_busy, test.cpu_own = numbers
+        test.auto = bool(self.store.auto_capture)
+        spec = parse_hotkey(self.store.hotkey)
+        if spec is None:
+            test.hotkey_error = "还没有设置快捷键，请在「方式」里设置"
+        elif self.hotkey.active != spec.display:
+            test.hotkey_error = f"{spec.display} 没有生效，可能被其他程序占用了，请在「方式」里换一个"
+        else:
+            test.hotkey = spec.display
+        self._self_test = test
+        log.info("%s", test.text())
+        SelfTestDialog(test, self._export_logs, self).exec()
 
     def _export_logs(self) -> None:
-        """日志: the logs and a summary of this computer in one zip on the Desktop, shown in Explorer."""
+        """日志: the computer, the last 自检 and the logs in one text file on the Desktop, shown in Explorer."""
         try:
-            summary = summary_text(self.store, self._speed, inference_device())
-            target = export_logs(self.store.root, summary)
+            summary = summary_text(self.store, inference_device())
+            report = self._self_test.text() if self._self_test is not None else ""
+            target = export_logs(self.store.root, summary, report)
         except OSError as exc:
             log.warning("Logs could not be exported: %s", exc)
             self._say("无法导出日志，请检查桌面是否可写")
@@ -3201,8 +3211,8 @@ class MainWindow(QMainWindow):
         if job == "envcheck":
             self._on_env_sample(status, value)
             return
-        if job == "speedtest":
-            self._on_speed_test(status, value)
+        if job == "selftest":
+            self._on_self_test(status, value)
             return
         self._on_checked(status, value)
 

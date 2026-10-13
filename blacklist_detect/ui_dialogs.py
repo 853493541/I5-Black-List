@@ -864,3 +864,40 @@ class DisplayGuideDialog(PictureGuideDialog):
 
     def __init__(self, parent=None) -> None:  # noqa: ANN001
         super().__init__("显示", [("你在屏幕上看到的", DISPLAY_DIFF)], parent)
+
+
+class SelfTestDialog(Modal):
+    """自检's report: one row a step, marked fine, could be better, or wrong, and a way to send it."""
+
+    _MARKS = {"ok": ("check", "green"), "warn": ("warning", "warning"), "bad": ("warning", "red")}
+
+    def __init__(self, test, on_export, parent=None) -> None:  # noqa: ANN001
+        super().__init__(parent)
+        layout = _frame(self, "自检")
+        self.headline = QLabel(test.headline())
+        self.headline.setObjectName("sub")
+        layout.addWidget(self.headline)
+        self.items: list[tuple[str, str, str]] = test.rows()
+        grid = QGridLayout()
+        grid.setHorizontalSpacing(12)
+        grid.setVerticalSpacing(10)
+        for row, (tone, item, text) in enumerate(self.items):
+            icon_name, color = self._MARKS[tone]
+            mark = QLabel()
+            mark.setPixmap(line_pixmap(icon_name, 18, THEME[color]))
+            grid.addWidget(mark, row, 0, Qt.AlignTop)
+            name = QLabel(item)
+            name.setStyleSheet("font-weight: 600;")
+            grid.addWidget(name, row, 1, Qt.AlignTop)
+            words = QLabel(text)
+            words.setWordWrap(True)
+            grid.addWidget(words, row, 2)
+        grid.setColumnStretch(2, 1)
+        layout.addLayout(grid)
+        self.export_button = QPushButton("导出日志")
+        self.export_button.setAutoDefault(False)
+        self.export_button.setToolTip("存到桌面，发给帮你看问题的人。不含任何玩家名字")
+        self.export_button.clicked.connect(on_export)
+        _footer(self, self.export_button, _primary("知道了", self.accept))
+        self.card.setMinimumWidth(460)
+        _pointing(self)
