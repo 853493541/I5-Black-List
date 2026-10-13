@@ -1,10 +1,11 @@
 """香槟金 Champagne Toast: a toast in light, bubbles and gold confetti.
 
-Warm champagne light fills the edges. Two crystal flutes rise in the bottom left and clink at
-their rims with a starburst; bubbles stream up from them and from both lower corners, catching
-the light; a burst of gold foil confetti (squares and thin curls) is thrown up from the clink and
-flutters down, turning and flashing gold and white as each piece catches the light. A thin
-art-deco gold fan opens in the top right corner. At the end it all settles and fades.
+Warm champagne light fills the edges, and soft beams fall from the top right corner, drifting.
+Two crystal flutes rise in the bottom left, bubbles climbing in the wine, and clink at their rims
+with a starburst and a few bright drops; bubbles stream up from them and from both lower corners,
+catching the light; a burst of gold and rose-gold foil (squares and thin curls) is thrown up from
+the clink and flutters down, turning and flashing white as each piece catches the light. At the
+end it all settles and fades.
 """
 
 from __future__ import annotations
@@ -23,14 +24,14 @@ if TYPE_CHECKING:
 
 DURATION = 5.0
 GOLDS = ("#f7e2a6", "#e9c46a", "#d4a64a", "#fff4d0", "#f2d7b6")
-FOIL = ("#e9c46a", "#f4d58d", "#d9a7a0", "#fff1cf", "#c9a24a")
+FOIL = ("#e9c46a", "#f4d58d", "#d9a7a0", "#fff1cf", "#c9a24a", "#f0b8a8")
 
 
 def make(stage: Stage):  # noqa: ANN201
     width, height, gap = stage.width, stage.height, stage.gap
     u = stage.unit()
     rnd = random.Random(17)
-    clink = QPointF(118 * u, height - 270 * u)
+    clink = QPointF(140 * u, height - 330 * u)
     names = QRectF(width * 0.13, height * 0.29, width * 0.81, height * 0.55)
     bubbles = []
     for _ in range(80):
@@ -46,16 +47,16 @@ def make(stage: Stage):  # noqa: ANN201
             y0 = height + 10 * u
         bubbles.append((rnd.uniform(0.3, 3.6), x, y0, rnd.uniform(120, 230) * u, rnd.uniform(2.0, 6.5) * u, rnd.uniform(0, 6.28)))
     confetti = []
-    for _ in range(70):
-        angle = math.radians(rnd.uniform(-112, -66))
-        speed = rnd.uniform(520, 980) * u
+    for _ in range(110):
+        angle = math.radians(rnd.uniform(-118, -58))
+        speed = rnd.uniform(560, 1080) * u
         confetti.append(
             dict(
                 vx=math.cos(angle) * speed,
                 vy=math.sin(angle) * speed,
                 spin=rnd.uniform(-420, 420),
                 flip=rnd.uniform(5, 11),
-                size=rnd.uniform(5, 10) * u,
+                size=rnd.uniform(6, 13) * u,
                 color=rnd.choice(FOIL),
                 curl=rnd.random() < 0.3,
                 phase=rnd.uniform(0, 6.28),
@@ -66,6 +67,9 @@ def make(stage: Stage):  # noqa: ANN201
         dict(x=rnd.uniform(0.0, 1.0) * width, start=rnd.uniform(1.4, 3.6), fall=rnd.uniform(60, 120) * u, spin=rnd.uniform(-300, 300), flip=rnd.uniform(5, 10), size=rnd.uniform(5, 9) * u, color=rnd.choice(FOIL), phase=rnd.uniform(0, 6.28))
         for _ in range(40)
     ]
+    # Bubbles inside each flute: (side, x across the bowl, start, speed, size).
+    fizz = [(rnd.choice((-1, 1)), rnd.uniform(-0.55, 0.55), rnd.uniform(0, 1), rnd.uniform(0.35, 0.7), rnd.uniform(0.9, 2.0)) for _ in range(26)]
+    drops = [(rnd.uniform(-150, -30), rnd.uniform(160, 300) * u, rnd.uniform(2.0, 4.2) * u) for _ in range(9)]
 
     light = Wash(lambda q, w, h: _champagne_wash(q, 9.0, w, h, u, 0.0))
 
@@ -75,9 +79,9 @@ def make(stage: Stage):  # noqa: ANN201
         p.save()
         p.setOpacity(life)
         light.paint(p, width, height, gap, ease_out(win(t, 0.0, 0.9)) * (1 - leave))
-        _fan(p, t, QPointF(width, 0), u, leave)
+        _beams(p, t, QPointF(width, 0), width, height, u, leave)
         _bubbles(p, t, bubbles, names, u, 1 - leave)
-        _flutes(p, t, clink, u, leave)
+        _flutes(p, t, clink, fizz, drops, u, leave)
         _confetti(p, t, confetti, clink, names, height, u, 1 - leave)
         _rain(p, t, rain, names, height, u, 1 - leave)
         p.restore()
@@ -104,37 +108,54 @@ def _champagne_wash(p: QPainter, t: float, width: float, height: float, u: float
         p.fillRect(QRectF(0, 0, width, height), g)
 
 
-def _fan(p: QPainter, t: float, corner: QPointF, u: float, leave: float) -> None:
-    """An art-deco sunburst opening from the top right corner: fine gold rays and stepped arcs."""
-    open_ = ease_out(win(t, 0.35, 1.4)) * (1 - leave)
-    if open_ <= 0:
+def _beams(p: QPainter, t: float, corner: QPointF, width: float, height: float, u: float, leave: float) -> None:
+    """Soft beams of warm light falling from the top right corner, slowly sweeping, with a glow
+    where they start: light through a high window, not lines."""
+    a = ease_out(win(t, 0.3, 1.3)) * (1 - leave)
+    if a <= 0:
         return
-    reach = 250 * u
-    p.setBrush(Qt.NoBrush)
-    for i in range(13):
-        angle = math.radians(90 + 90 * i / 12 * open_)
-        end = QPointF(corner.x() + math.cos(angle) * reach, corner.y() + math.sin(angle) * reach)
-        p.setPen(QPen(gradient(corner, end, ((0, "#f7e2a6", 0.9), (1, "#e9c46a", 0))), (1.4 if i % 3 == 0 else 0.8) * u))
-        p.drawLine(corner, end)
-    for r, w, a in ((90, 1.4, 0.85), (140, 0.9, 0.6), (190, 1.6, 0.7), (205, 0.7, 0.45)):
-        rr = r * u
-        box = QRectF(corner.x() - rr, corner.y() - rr, 2 * rr, 2 * rr)
-        p.setPen(QPen(col("#efd18a", a * open_), w * u))
-        p.drawArc(box, 180 * 16, int(90 * 16 * open_))
-    shine = win(t, 1.5, 2.3)
-    if 0 < shine < 1:
-        angle = math.radians(90 + 90 * shine)
-        q = QPointF(corner.x() + math.cos(angle) * 190 * u, corner.y() + math.sin(angle) * 190 * u)
-        star(p, q.x(), q.y(), 18 * u * math.sin(math.pi * shine), "#ffffff", 1.0)
+    p.save()
     p.setPen(Qt.NoPen)
+    reach = math.hypot(width, height) * 0.42
+    for i, (base, spread, strength) in enumerate(((122, 9, 0.16), (136, 6, 0.11), (150, 10, 0.13), (163, 7, 0.08))):
+        sway = 3.5 * math.sin(t * 0.7 + i * 1.3)
+        mid = math.radians(base + sway)
+        fall = QRadialGradient(corner, reach)
+        fall.setColorAt(0, col("#fff2cc", strength * a))
+        fall.setColorAt(0.4, col("#f6d58e", strength * 0.4 * a))
+        fall.setColorAt(1, col("#f6d58e", 0))
+        p.setBrush(fall)
+        # Three widths laid over one another, so the beam is brightest in its middle and has no edge.
+        for share in (1.0, 0.62, 0.3):
+            half = math.radians(spread * share / 2)
+            tip_l = QPointF(corner.x() + math.cos(mid - half) * reach, corner.y() + math.sin(mid - half) * reach)
+            tip_r = QPointF(corner.x() + math.cos(mid + half) * reach, corner.y() + math.sin(mid + half) * reach)
+            beam = QPainterPath(QPointF(corner.x() - 24 * u * share, corner.y()))
+            beam.lineTo(tip_l)
+            beam.lineTo(tip_r)
+            beam.lineTo(QPointF(corner.x(), corner.y() + 24 * u * share))
+            beam.closeSubpath()
+            p.drawPath(beam)
+    soft_dot(p, corner.x() - 20 * u, corner.y() + 20 * u, 210 * u, "#fff0c8", 0.5 * a)
+    # Motes drifting in the light.
+    for k in range(14):
+        s = (k * 0.618 + t * 0.06) % 1.0
+        angle = math.radians(120 + 38 * ((k * 0.377) % 1.0))
+        dist = (0.12 + 0.5 * s) * reach
+        x = corner.x() + math.cos(angle) * dist + 8 * u * math.sin(t * 1.3 + k)
+        y = corner.y() + math.sin(angle) * dist
+        twinkle = 0.5 + 0.5 * math.sin(t * 3.1 + k * 2.1)
+        soft_dot(p, x, y, (2.2 + 1.6 * twinkle) * u, "#fff6dc", 0.55 * a * (1 - s) * twinkle)
+    p.restore()
 
 
-def _flute(p: QPainter, base: QPointF, tilt: float, u: float, alpha: float, fill: float) -> None:
-    """A crystal champagne flute: tall bowl with golden wine, a fine stem and a foot."""
+def _flute(p: QPainter, base: QPointF, tilt: float, u: float, alpha: float, fill: float, t: float, fizz: list[tuple], side: int) -> None:
+    """A crystal champagne flute: tall bowl with golden wine and bubbles climbing in it, a fine stem
+    and a foot."""
     p.save()
     p.translate(base)
     p.rotate(tilt)
-    h = 150 * u
+    h = 210 * u
     bowl = QPainterPath(QPointF(-17 * u, -h))
     bowl.cubicTo(QPointF(-17 * u, -h * 0.55), QPointF(-12 * u, -h * 0.42), QPointF(-2 * u, -h * 0.38))
     bowl.lineTo(QPointF(2 * u, -h * 0.38))
@@ -147,6 +168,22 @@ def _flute(p: QPainter, base: QPointF, tilt: float, u: float, alpha: float, fill
     p.setPen(Qt.NoPen)
     p.setBrush(gradient(QPointF(-17 * u, 0), QPointF(17 * u, 0), ((0, "#e8b94e", 0.75 * alpha), (0.45, "#fbe6a6", 0.85 * alpha), (1, "#c9952f", 0.75 * alpha))))
     p.drawPath(liquid)
+    # Bubbles climbing in the wine, from the bottom of the bowl to the surface.
+    p.save()
+    p.setClipPath(liquid)
+    bottom = -h * 0.38
+    for f_side, across, start, speed, size in fizz:
+        if f_side != side:
+            continue
+        k = (start + t * speed) % 1.0
+        y = bottom - (bottom - level) * k
+        x = across * 15 * u * (0.4 + 0.6 * k) + 1.2 * u * math.sin(t * 6 + start * 9)
+        p.setBrush(col("#fffbea", 0.85 * alpha))
+        p.drawEllipse(QPointF(x, y), size * u * (0.6 + 0.6 * k), size * u * (0.6 + 0.6 * k))
+    p.restore()
+    # The surface: a bright line of foam.
+    p.setBrush(col("#fffbea", 0.7 * alpha))
+    p.drawRect(QRectF(-16 * u, level - 1.2 * u, 32 * u, 2.4 * u))
     p.setBrush(gradient(QPointF(-17 * u, 0), QPointF(17 * u, 0), ((0, "#ffffff", 0.18 * alpha), (0.3, "#ffffff", 0.05 * alpha), (1, "#ffffff", 0.12 * alpha))))
     p.setPen(QPen(col("#fffaf0", 0.85 * alpha), 1.2 * u))
     p.drawPath(bowl)
@@ -159,7 +196,7 @@ def _flute(p: QPainter, base: QPointF, tilt: float, u: float, alpha: float, fill
     p.restore()
 
 
-def _flutes(p: QPainter, t: float, clink: QPointF, u: float, leave: float) -> None:
+def _flutes(p: QPainter, t: float, clink: QPointF, fizz: list[tuple], drops: list[tuple], u: float, leave: float) -> None:
     rise = ease_out(win(t, 0.25, 1.0))
     if rise <= 0:
         return
@@ -167,9 +204,23 @@ def _flutes(p: QPainter, t: float, clink: QPointF, u: float, leave: float) -> No
     meet = ease_back(win(t, 0.85, 1.15), 2.4)
     tilt = 16 - 6 * meet
     gap = (1 - meet) * 40 * u
-    base_y = clink.y() + 150 * u + (1 - rise) * 120 * u
-    _flute(p, QPointF(clink.x() - 46 * u - gap, base_y), tilt, u, alpha, 0.72)
-    _flute(p, QPointF(clink.x() + 46 * u + gap, base_y), -tilt, u, alpha, 0.66)
+    base_y = clink.y() + 210 * u + (1 - rise) * 140 * u
+    # A warm glow behind the glasses, so the crystal reads on the dark lobby.
+    soft_dot(p, clink.x(), clink.y() + 90 * u, 170 * u, "#f6d58e", 0.28 * alpha)
+    _flute(p, QPointF(clink.x() - 64 * u - gap, base_y), tilt, u, alpha, 0.72, t, fizz, -1)
+    _flute(p, QPointF(clink.x() + 64 * u + gap, base_y), -tilt, u, alpha, 0.66, t, fizz, 1)
+    # A few bright drops thrown up by the clink, falling back.
+    for angle, speed, size in drops:
+        age = t - 1.12
+        if not 0 < age < 1.1:
+            continue
+        rad = math.radians(angle)
+        x = clink.x() + math.cos(rad) * speed * age
+        y = clink.y() + math.sin(rad) * speed * age + 420 * u * age * age
+        fade = min(1.0, (1.1 - age) / 0.4) * (1 - leave)
+        soft_dot(p, x, y, size * 2.6, "#fff3cf", 0.45 * fade)
+        p.setBrush(col("#fffbea", 0.95 * fade))
+        p.drawEllipse(QPointF(x, y), size * 0.7, size)
     burst = win(t, 1.12, 1.6)
     if 0 < burst < 1:
         k = math.sin(math.pi * burst)

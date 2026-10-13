@@ -36,39 +36,50 @@ def make(stage: Stage):  # noqa: ANN201
     width, height = stage.width, stage.height
     u = stage.unit()
     rnd = random.Random(9)
+    names = QRectF(width * 0.13, height * 0.29, width * 0.81, height * 0.55)
     strings = []
-    for side, xs in ((1, (40, 100, 160)), (-1, (38, 96, 152))):
+    for side, xs in ((1, (46, 120, 190)), (-1, (44, 116, 184))):
         for k, x in enumerate(xs):
-            count = rnd.choice((4, 5, 4)) if side > 0 else 3
+            at = (x * u) if side > 0 else width - x * u
+            gap = rnd.uniform(94, 106) * u
+            sizes = [rnd.uniform(72, 86) * u for _ in range(4)]
+            # As many cranes as hang clear of the players' cards, swaying included.
+            count = 0
+            for i, size in enumerate(sizes):
+                along = 30 * u + gap * (i + 0.5)
+                reach = QRectF(at - size * 0.6, along - size * 0.5, size * 1.2, size * 0.85)
+                if reach.intersects(names):
+                    break
+                count += 1
+            count = max(1, count)
             strings.append(
                 dict(
-                    x=(x * u) if side > 0 else width - x * u,
+                    x=at,
                     count=count,
-                    gap=rnd.uniform(70, 80) * u,
+                    gap=gap,
                     start=0.2 + 0.12 * k + (0.1 if side < 0 else 0),
                     phase=rnd.uniform(0, 6.28),
                     papers=[rnd.randrange(len(PAPERS)) for _ in range(count)],
-                    sizes=[rnd.uniform(54, 66) * u for _ in range(count)],
+                    sizes=sizes[:count],
                     spins=[rnd.uniform(0, 6.28) for _ in range(count)],
                 )
             )
     flock = [
         dict(
-            start=0.45 + 0.13 * i + rnd.uniform(0, 0.1),
-            y=rnd.uniform(30, 78) * u,
-            size=rnd.uniform(62, 82) * u,
+            start=0.45 + 0.2 * i + rnd.uniform(0, 0.1),
+            y=rnd.uniform(26, 58) * u,
+            size=rnd.uniform(74, 92) * u,
             paper=rnd.randrange(len(PAPERS)),
             phase=rnd.uniform(0, 6.28),
             speed=rnd.uniform(470, 560) * u,
             bob=rnd.uniform(6, 14) * u,
         )
-        for i in range(7)
+        for i in range(5)
     ]
     motes = [
         (rnd.uniform(0.2, 3.4), rnd.uniform(0.0, 1.0) * width, rnd.uniform(0.7, 1.05) * height, rnd.uniform(18, 46) * u, rnd.uniform(1.2, 2.8) * u, rnd.uniform(0, 6.28))
         for _ in range(40)
     ]
-    names = QRectF(width * 0.13, height * 0.29, width * 0.81, height * 0.55)
 
     def paint(p: QPainter, t: float) -> None:
         life = win(t, 0.0, 0.35)
@@ -96,9 +107,9 @@ def _sunset(p: QPainter, t: float, width: float, height: float, u: float, leave:
         warm.setColorAt(0.45, col("#ff8f86", 0.26 * a))
         warm.setColorAt(1, col("#ff8f86", 0))
         p.fillRect(QRectF(0, 0, width, height), warm)
-    dusk = QRadialGradient(QPointF(0, 0), 520 * u)
-    dusk.setColorAt(0, col("#e7a6d8", 0.4 * a))
-    dusk.setColorAt(1, col("#e7a6d8", 0))
+    dusk = QRadialGradient(QPointF(0, 0), 480 * u)
+    dusk.setColorAt(0, col("#f4b9cf", 0.26 * a))
+    dusk.setColorAt(1, col("#f4b9cf", 0))
     p.fillRect(QRectF(0, 0, width, height), dusk)
     sun = QPointF(width * 0.83, height * 0.035)
     glow = QRadialGradient(sun, 330 * u)
@@ -173,6 +184,8 @@ def _garland(p: QPainter, t: float, string: dict, u: float, leave: float) -> Non
         cy = top.y() + math.cos(sway) * along
         turn = math.cos(t * 0.9 + string["spins"][i])
         size = string["sizes"][i]
+        # Light through the paper: a faint warm glow behind each crane, so it reads on the dark lobby.
+        soft_dot(p, cx, cy, size * 0.62, "#ffd9b8", 0.22)
         _crane(p, cx, cy + size * 0.08, size, PAPERS[string["papers"][i]], 0.32 + 0.04 * math.sin(t * 2 + i), turn if abs(turn) > 0.12 else 0.12)
         p.setBrush(col("#fff1dd", 0.9))
         p.drawEllipse(QPointF(cx, cy + string["gap"] * 0.5), 2.0 * u, 2.0 * u)

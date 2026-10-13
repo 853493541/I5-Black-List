@@ -1,9 +1,11 @@
 """雪纺 Runway Chiffon: the lobby becomes the end of a runway.
 
 Sheer chiffon in ivory, blush and rose billows in from both sides as if a fan were blowing it,
-its free edges lit; two-strand pearl necklaces drape from the top corners, a drop pearl swinging
-below each; light runs along the pearls; camera flashes pop at the edges like a front row; pearl
-dust rises along the fabric. At the end the chiffon is pulled away and the pearls lift off.
+its free edges lit, and settles like stage curtains tied back: full at the top, gathered at the
+middle by a blush satin sash with a pearl hanging from it, flaring out below. Two-strand pearl
+necklaces drape from the top corners, a drop pearl swinging below each; light runs along the
+pearls; soft camera flashes pop at the edges like a front row; pearl dust rises along the fabric.
+At the end the chiffon is pulled away and the pearls lift off.
 """
 
 from __future__ import annotations
@@ -23,6 +25,9 @@ if TYPE_CHECKING:
 DURATION = 5.0
 # Soft light throughout: drawn at one pixel per point and scaled up on a sharper screen, to keep 30 fps.
 MAX_RATIO = 1.0
+# Where the curtains are gathered, as a part of the height, and how far in they reach there.
+TIE = 0.52
+GATHER = 0.34
 # Each veil: color, how far in it reaches (part of the width), phase, alpha.
 VEILS = (
     ("#f0a9c6", 0.098, 0.0, 0.40),
@@ -63,6 +68,7 @@ def make(stage: Stage):  # noqa: ANN201
         for side in (1, -1):
             for color, reach, phase, alpha in VEILS:
                 _veil(p, t, side, color, reach, phase, alpha, width, height, u, leave)
+            _sash(p, t, side, width, height, u, leave)
         _dust(p, t, dust, u, 1 - leave)
         for side in (1, -1):
             _necklace(p, t, side, width, height, u, sprites, leave)
@@ -84,10 +90,16 @@ def _stage(p: QPainter, t: float, width: float, height: float, u: float, leave: 
 
 
 def _edge(y: float, t: float, reach: float, phase: float, height: float, flutter: float, u: float) -> float:
-    """How far in the chiffon reaches at height y: fuller in the middle, rippling upward."""
-    k = y / height
-    profile = 0.5 + 0.5 * math.sin(math.pi * clamp(k * 0.95 + 0.04) ** 0.85)
-    amp = (12 + 34 * flutter) * u
+    """How far in the chiffon reaches at height y: full at the top, gathered in at the tie, flaring
+    out below; rippling, less where it is gathered."""
+    k = clamp(y / height)
+    if k < TIE:
+        s = k / TIE
+        profile = 1.0 - (1.0 - GATHER) * s * s * (3 - 2 * s)
+    else:
+        s = (k - TIE) / (1 - TIE)
+        profile = GATHER + 0.5 * s * s * (3 - 2 * s)
+    amp = (12 + 34 * flutter) * u * (0.3 + 0.7 * min(1.0, abs(k - TIE) * 3))
     wave = (
         0.55 * math.sin(2 * math.pi * k / 0.62 + 2.3 * t + phase)
         + 0.3 * math.sin(2 * math.pi * k / 0.24 - 3.2 * t + 2 * phase)
@@ -145,6 +157,57 @@ def _veil(p, t, side, color, reach, phase, alpha, width, height, u, leave) -> No
     p.setPen(QPen(col("#ffffff", 0.6 * open_), 1.4 * u))
     p.drawPath(rim)
     p.setPen(Qt.NoPen)
+
+
+def _sash(p: QPainter, t: float, side: int, width: float, height: float, u: float, leave: float) -> None:
+    """A blush satin sash round the gathered chiffon, tied in a small bow, a pearl on a gold cord
+    hanging from the knot."""
+    a = ease_out(win(t, 0.9, 1.4)) * (1 - leave)
+    if a <= 0:
+        return
+    reach = VEILS[0][1] * width * GATHER + 10 * u
+    y = height * TIE
+    band = 22 * u
+
+    def place(x: float) -> float:
+        return x if side > 0 else width - x
+
+    left, right = sorted((place(-4 * u), place(reach)))
+    p.save()
+    p.setOpacity(p.opacity() * a)
+    p.setPen(Qt.NoPen)
+    p.setBrush(col("#4a1328", 0.18))
+    p.drawRoundedRect(QRectF(left, y - band / 2 + 3 * u, right - left, band), band / 2, band / 2)
+    satin = QLinearGradient(QPointF(0, y - band / 2), QPointF(0, y + band / 2))
+    for at, color in ((0.0, "#c77a96"), (0.3, "#f6d3dc"), (0.45, "#fff7f8"), (0.62, "#efc0cf"), (1.0, "#b56b86")):
+        satin.setColorAt(at, col(color))
+    p.setBrush(satin)
+    p.drawRoundedRect(QRectF(left, y - band / 2, right - left, band), band / 2, band / 2)
+    knot = QPointF(place(reach - 4 * u), y)
+    swing = math.radians(6 * math.sin(t * 1.6 + side))
+    hang = 46 * u
+    tip = QPointF(knot.x() + math.sin(swing) * hang, knot.y() + math.cos(swing) * hang)
+    p.setPen(gold_pen(1.2 * u, 0.95, 20 * u))
+    p.drawLine(knot, tip)
+    p.setPen(Qt.NoPen)
+    # The bow: two satin loops either side of the knot, lit on their upper edge.
+    for mirror in (1, -1):
+        p.save()
+        p.translate(knot)
+        p.scale(mirror, 1)
+        p.rotate(-34)
+        loop = QPainterPath(QPointF(0, 0))
+        loop.cubicTo(QPointF(12 * u, -20 * u), QPointF(42 * u, -18 * u), QPointF(40 * u, 0))
+        loop.cubicTo(QPointF(38 * u, 14 * u), QPointF(12 * u, 14 * u), QPointF(0, 0))
+        fill = QLinearGradient(QPointF(0, -14 * u), QPointF(0, 12 * u))
+        for at, color in ((0.0, "#fff3f6"), (0.35, "#f6cbd8"), (1.0, "#b8668a")):
+            fill.setColorAt(at, col(color))
+        p.setBrush(fill)
+        p.drawPath(loop)
+        p.restore()
+    pearl(p, knot.x(), knot.y(), 8 * u)
+    pearl(p, tip.x(), tip.y() + 6 * u, 8.5 * u)
+    p.restore()
 
 
 def _pearl_sprite(r: float) -> QImage:
@@ -216,7 +279,7 @@ def _necklace(p, t, side, width, height, u, sprites, leave) -> None:  # noqa: AN
             rr = r * ease_back(grow, 2.2)
             p.drawImage(QRectF(point.x() - rr * 2, point.y() - rr * 2, rr * 4, rr * 4), sprite)
             if shine > 0.05:
-                glint(p, point.x() - rr * 0.36, point.y() - rr * 0.38, rr * (1.4 + 3.2 * shine), shine)
+                glint(p, point.x() - rr * 0.36, point.y() - rr * 0.38, rr * (1.2 + 1.8 * shine), 0.8 * shine)
             p.restore()
         if size == 5.6 and shown >= count * 0.98:
             # The drop pearl: a teardrop on a short gold link, swinging under the lowest point.
@@ -261,14 +324,14 @@ def _flashes(p: QPainter, t: float, flashes: list[tuple], u: float) -> None:
         if age < 0 or age > 0.32:
             continue
         k = math.exp(-age * 14)
-        burst = QRadialGradient(QPointF(x, y), 110 * u)
-        burst.setColorAt(0, col("#ffffff", 0.6 * k))
-        burst.setColorAt(0.25, col("#ffe4ee", 0.22 * k))
+        burst = QRadialGradient(QPointF(x, y), 90 * u)
+        burst.setColorAt(0, col("#ffffff", 0.36 * k))
+        burst.setColorAt(0.25, col("#ffe4ee", 0.14 * k))
         burst.setColorAt(1, col("#ffe4ee", 0))
         p.setPen(Qt.NoPen)
         p.setBrush(burst)
-        p.drawEllipse(QPointF(x, y), 110 * u, 110 * u)
-        glint(p, x, y, 30 * u * (0.6 + 0.4 * k), k)
+        p.drawEllipse(QPointF(x, y), 90 * u, 90 * u)
+        glint(p, x, y, 18 * u * (0.6 + 0.4 * k), 0.85 * k)
 
 
 def _dust(p: QPainter, t: float, dust: list[tuple], u: float, a: float) -> None:

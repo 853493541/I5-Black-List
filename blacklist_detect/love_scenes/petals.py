@@ -104,21 +104,22 @@ def _leak(p: QPainter, t: float, width: float, height: float, u: float) -> None:
 
 
 def _petals_wash(p: QPainter, t: float, width: float, height: float, u: float) -> None:
-    """Warm light low on the left and a soft rose vignette round the edges."""
+    """Warm light low on the left and a faint rose glow at the edges: light, not a frame. A strong
+    pink over the dark blue lobby turns to a muddy mauve."""
     a = ease_out(win(t, 0.0, 0.9))
     warm = QRadialGradient(QPointF(0, height), 520 * u)
     warm.setColorAt(0, col("#ffe6ee", 0.34 * a))
     warm.setColorAt(0.5, col("#ffb3cb", 0.10 * a))
     warm.setColorAt(1, col("#ffb3cb", 0))
     p.fillRect(QRectF(0, 0, width, height), warm)
-    edge = 110 * u
+    edge = 90 * u
     for start, end, rect in (
         (QPointF(0, 0), QPointF(edge, 0), QRectF(0, 0, edge, height)),
         (QPointF(width, 0), QPointF(width - edge, 0), QRectF(width - edge, 0, edge, height)),
         (QPointF(0, 0), QPointF(0, edge), QRectF(0, 0, width, edge)),
         (QPointF(0, height), QPointF(0, height - edge), QRectF(0, height - edge, width, edge)),
     ):
-        p.fillRect(rect, gradient(start, end, ((0, "#e5789d", 0.24), (1, "#e5789d", 0)), a))
+        p.fillRect(rect, gradient(start, end, ((0, "#f29ab8", 0.11), (1, "#f29ab8", 0)), a))
 
 
 def _bokeh(width: float, height: float, u: float) -> list[tuple]:
@@ -300,12 +301,13 @@ def _petal_paint(p, t, petals, sprites, names, layers, u, width, height) -> None
 # ---------------------------------------------------------------- bouquets
 
 # Each corner's bouquet, in units from its corner: (along, out, radius, variety, opens at).
+# Two deep, two blush and one ivory: the deep ones give the pale ones something to stand against.
 ROSES = (
-    (84, 62, 56, "ivory", 0.30),
-    (190, 40, 42, "blush", 0.48),
-    (42, 168, 42, "blush", 0.58),
+    (84, 62, 56, "blush", 0.30),
+    (190, 40, 42, "rose", 0.48),
+    (42, 168, 42, "ivory", 0.58),
     (150, 134, 31, "rose", 0.70),
-    (262, 26, 27, "ivory", 0.84),
+    (262, 26, 27, "blush", 0.84),
 )
 BUDS = ((302, 62, 13, "rose", 0.9), (18, 262, 12, "blush", 0.95), (232, 104, 11, "ivory", 1.0))
 # Eucalyptus: (angle from the long edge, length, leaves, starts at).
@@ -367,71 +369,3 @@ def _sprig(p: QPainter, t: float, angle: float, length: float, leaves: int, u: f
         p.setPen(QPen(col("#eef2ea", 0.35), 0.8 * u))
         p.drawLine(QPointF(x, y), QPointF(cx + nx * r * 0.5, cy + ny * r * 0.5))
         p.setPen(Qt.NoPen)
-
-
-def _rose(p: QPainter, x: float, y: float, r: float, bloom: float, variety: str, turn: float) -> None:
-    """A garden rose seen from above: a tight spiral heart, cupped petals opening ring by ring."""
-    if r < 0.6:
-        return
-    base, middle, tip = TONES[variety]
-    p.save()
-    p.translate(x, y)
-    p.rotate(turn)
-    shadow = QRadialGradient(QPointF(r * 0.12, r * 0.18), r * 1.35)
-    shadow.setColorAt(0, col("#2b0a18", 0.38 * min(1.0, bloom * 2)))
-    shadow.setColorAt(1, col("#2b0a18", 0))
-    p.setPen(Qt.NoPen)
-    p.setBrush(shadow)
-    p.drawEllipse(QPointF(r * 0.12, r * 0.18), r * 1.35, r * 1.35)
-    rings = (
-        # count, length, spread out from the heart, opens at, turn
-        (6, 0.72, 0.42, 0.45, 0),
-        (5, 0.62, 0.28, 0.3, 30),
-        (5, 0.50, 0.16, 0.16, 12),
-        (4, 0.38, 0.07, 0.04, 50),
-    )
-    for count, length, spread, opens, offset in rings:
-        k = ease_back(clamp((bloom - opens) / 0.5), 1.4)
-        if k <= 0:
-            continue
-        for i in range(count):
-            p.save()
-            p.rotate(offset + i * 360 / count)
-            p.translate(0, -r * spread * k)
-            size = r * length * (0.55 + 0.45 * k)
-            petal = QPainterPath(QPointF(-size * 0.18, 0))
-            petal.cubicTo(QPointF(-size * 0.78, -size * 0.18), QPointF(-size * 0.7, -size * 0.98), QPointF(0, -size))
-            petal.cubicTo(QPointF(size * 0.7, -size * 0.98), QPointF(size * 0.78, -size * 0.18), QPointF(size * 0.18, 0))
-            petal.closeSubpath()
-            shade = QRadialGradient(QPointF(0, size * 0.1), size * 1.05)
-            shade.setColorAt(0, col(base))
-            shade.setColorAt(0.55, col(middle))
-            shade.setColorAt(1, col(tip))
-            p.setBrush(shade)
-            p.setPen(QPen(col("#fff8fa", 0.6), max(0.6, r * 0.022)))
-            p.drawPath(petal)
-            # The rolled-back edge catches the light.
-            p.setPen(QPen(col("#ffffff", 0.55), max(0.7, r * 0.03)))
-            rim = QPainterPath(QPointF(-size * 0.5, -size * 0.78))
-            rim.quadTo(QPointF(0, -size * 1.06), QPointF(size * 0.5, -size * 0.78))
-            p.drawPath(rim)
-            p.restore()
-    # The tight heart: a swirl of the deepest shade.
-    heart = r * 0.2
-    p.setBrush(QRadialGradient(QPointF(0, 0), heart * 1.2))
-    swirl = QRadialGradient(QPointF(0, 0), heart * 1.3)
-    swirl.setColorAt(0, col(base))
-    swirl.setColorAt(1, col(middle))
-    p.setBrush(swirl)
-    p.setPen(QPen(col(tip, 0.8), max(0.6, r * 0.02)))
-    p.drawEllipse(QPointF(0, 0), heart, heart)
-    p.setBrush(Qt.NoBrush)
-    p.setPen(QPen(col(base, 0.9), max(0.7, r * 0.03)))
-    spiral = QPainterPath(QPointF(heart * 0.7, 0))
-    for step in range(1, 40):
-        angle = step * 0.32
-        radius = heart * 0.7 * (1 - step / 44)
-        spiral.lineTo(QPointF(math.cos(angle) * radius, math.sin(angle) * radius))
-    p.drawPath(spiral)
-    p.restore()
-

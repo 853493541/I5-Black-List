@@ -54,9 +54,9 @@ EDGE = "#a6587a"
 def make(stage: Stage):  # noqa: ANN201
     width, height, gap = stage.width, stage.height, stage.gap
     u = stage.unit()
-    band = 26 * u
-    top_y = 52 * u
-    left_x = 26 * u
+    band = 32 * u
+    top_y = 56 * u
+    left_x = 30 * u
     bow = QPointF(width * 0.17, top_y)
     inset = 56 * u
     dust = _dust(bow, u)
@@ -75,7 +75,7 @@ def make(stage: Stage):  # noqa: ANN201
         _band(p, -2 * u, top_y, reach_h, band, True, t, u, [(bow.x() + s * (width - bow.x()), a) for s, a in sheens])
         # Where the top ribbon lies over the side one, a little shade.
         p.fillRect(QRectF(left_x - band / 2, top_y + band / 2, band, 3 * u), col("#6b2140", 0.18 * min(reach_h / (width + 1), 1)))
-        size = 1.05 * ease_back(win(t, 0.75, 1.35), 1.6) * (1 - ease_in(win(t, 4.15, 4.65)))
+        size = 1.3 * ease_back(win(t, 0.75, 1.35), 1.6) * (1 - ease_in(win(t, 4.15, 4.65)))
         if size > 0.01:
             _bow(p, t, bow, size, u)
         _dust_paint(p, t, dust, u, 1 - leave)

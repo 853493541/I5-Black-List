@@ -1,9 +1,10 @@
 """蝶梦 Glass Butterflies: iridescent butterflies flutter in and settle into a heart.
 
-A lavender-to-teal haze rises at the edges. Glass-winged butterflies, their wings shifting from
-lilac through periwinkle to aqua as they turn, fly in from both sides on looping paths, leaving
-trails of shimmer, and settle into a heart outline in the top left where they keep breathing their
-wings. Two larger ones land beside the 心动 heart. At the end they lift off and fly out.
+A faint lavender-to-teal haze rises at the edges. Butterflies with iridescent wings, deep at the
+body and bright at the tips, edged in a dark margin with white spots, shift from lilac through
+periwinkle to aqua as they turn. They fly in from both sides on looping paths, leaving trails of
+shimmer, land with a small sparkle and settle into a heart in the top left, where they keep
+breathing their wings. Two larger ones land beside the 心动 heart. At the end they lift off and fly out.
 """
 
 from __future__ import annotations
@@ -23,7 +24,9 @@ from blacklist_detect.love_scenes.draw import (
     ease_out,
     gradient,
     heart_points,
+    lengths,
     mix,
+    point_at,
     soft_dot,
     spectrum,
     star,
@@ -41,13 +44,17 @@ def make(stage: Stage):  # noqa: ANN201
     width, height = stage.width, stage.height
     u = stage.unit()
     rnd = random.Random(23)
-    heart = heart_points(width * 0.112, height * 0.19, 226 * u, 11)
-    outline = heart_points(width * 0.112, height * 0.19, 226 * u, 90)
-    perches = [(q, rnd.uniform(25, 31) * u, rnd.uniform(-30, 30)) for q in heart]
+    outline = heart_points(width * 0.112, height * 0.2, 250 * u, 90)
+    # Ten perches evenly spaced along the heart's outline, one in its top dip: two either side of
+    # the dip would sit close, the outline folding back there.
+    fine = heart_points(width * 0.112, height * 0.2, 250 * u, 360)
+    along = lengths([*fine, fine[0]])
+    heart = [point_at([*fine, fine[0]], along, along[-1] * i / 10)[0] for i in range(10)]
+    perches = [(q, rnd.uniform(30, 35) * u, rnd.uniform(-30, 30)) for q in heart]
     # One lands beside the 心动 heart by the button, one in the top right.
     badge = stage.heart()
-    perches.append((QPointF(badge.x() + 50 * u, badge.y() - 34 * u), 36 * u, 24))
-    perches.append((QPointF(width * 0.91, height * 0.13), 44 * u, -18))
+    perches.append((QPointF(badge.x() + 52 * u, badge.y() - 38 * u), 42 * u, 24))
+    perches.append((QPointF(width * 0.91, height * 0.13), 52 * u, -18))
     flies = []
     for k, (spot, size, angle) in enumerate(perches):
         side = -1 if k % 3 else 1
@@ -66,7 +73,7 @@ def make(stage: Stage):  # noqa: ANN201
             )
         )
     wanderers = [
-        dict(y=rnd.uniform(0.15, 0.85) * height, speed=rnd.uniform(160, 240) * u, size=rnd.uniform(14, 20) * u, start=rnd.uniform(0.3, 2.6), hue=rnd.random(), phase=rnd.uniform(0, 6.28), side=rnd.choice((-1, 1)))
+        dict(y=rnd.uniform(0.15, 0.85) * height, speed=rnd.uniform(160, 240) * u, size=rnd.uniform(18, 24) * u, start=rnd.uniform(0.3, 2.6), hue=rnd.random(), phase=rnd.uniform(0, 6.28), side=rnd.choice((-1, 1)))
         for _ in range(5)
     ]
 
@@ -83,6 +90,7 @@ def make(stage: Stage):  # noqa: ANN201
             _wander(p, t, w, width, u)
         for fly in flies:
             _fly(p, t, fly, u, leave)
+            _landing(p, t, fly, u)
         p.restore()
 
     return paint
@@ -99,10 +107,10 @@ def _haze(p: QPainter, t: float, width: float, height: float, u: float, leave: f
         (QPointF(width, 0), QPointF(width - edge, 0), QRectF(width - edge, 0, edge, height), mix("#7fd6e8", "#b49cff", drift)),
         (QPointF(0, 0), QPointF(0, edge * 0.7), QRectF(0, 0, width, edge * 0.7), "#c7b2ff"),
     ):
-        p.fillRect(rect, gradient(start, end, ((0, color.name() if hasattr(color, "name") else color, 0.30), (1, "#c7b2ff", 0)), a))
+        p.fillRect(rect, gradient(start, end, ((0, color.name() if hasattr(color, "name") else color, 0.16), (1, "#c7b2ff", 0)), a))
     for cx, cy, r in ((0.11, 0.2, 230), (0.9, 0.14, 180)):
         g = QRadialGradient(QPointF(width * cx, height * cy), r * u)
-        g.setColorAt(0, col("#e9ddff", 0.22 * a))
+        g.setColorAt(0, col("#e9ddff", 0.2 * a))
         g.setColorAt(1, col("#e9ddff", 0))
         p.fillRect(QRectF(0, 0, width, height), g)
 
@@ -145,14 +153,14 @@ def _fly(p: QPainter, t: float, fly: dict, u: float, leave: float) -> None:
 
 
 def _butterfly(p: QPainter, at: QPointF, size: float, angle: float, open_: float, hue: float, alpha: float, perched: float) -> None:
-    """Seen from above: four glassy wings, each with a gradient through the spectrum, white veins and
-    a bright rim; a slim dark body. Wings narrow as they close, as they would seen from above."""
+    """Seen from above: four wings, deep near the body and bright iridescent at the tips, each edged
+    in a dark margin with a few white spots, with fine dark veins and a thin light rim; a slim dark
+    body. Wings narrow as they close, as they would seen from above."""
     p.save()
     p.translate(at)
     p.rotate(angle)
     if perched > 0.5:
-        soft_dot(p, 0, 0, size * 2.2, spectrum(WINGS, hue), 0.28 * alpha)
-    p.scale(1, 1)
+        soft_dot(p, 0, 0, size * 2.2, spectrum(WINGS, hue), 0.24 * alpha)
     for side in (-1, 1):
         p.save()
         p.scale(side * (0.18 + 0.82 * open_), 1)
@@ -162,34 +170,62 @@ def _butterfly(p: QPainter, at: QPointF, size: float, angle: float, open_: float
         lower = QPainterPath(QPointF(0, size * 0.04))
         lower.cubicTo(QPointF(size * 0.55, size * 0.05), QPointF(size * 0.9, size * 0.35), QPointF(size * 0.7, size * 0.7))
         lower.cubicTo(QPointF(size * 0.5, size * 0.95), QPointF(size * 0.15, size * 0.65), QPointF(0, size * 0.18))
-        for wing, k in ((upper, 0.0), (lower, 0.35)):
-            fill = gradient(
-                QPointF(0, 0),
-                QPointF(size * 1.1, -size * 0.6 if k == 0 else size * 0.7),
-                ((0, spectrum(WINGS, hue + k).name(), 0.75 * alpha), (0.55, spectrum(WINGS, hue + k + 0.25).name(), 0.6 * alpha), (1, spectrum(WINGS, hue + k + 0.5).name(), 0.45 * alpha)),
-            )
+        for wing, k, tip in ((upper, 0.0, QPointF(size * 1.05, -size * 0.65)), (lower, 0.35, QPointF(size * 0.75, size * 0.75))):
+            bright = spectrum(WINGS, hue + k + 0.25)
+            deep = mix(spectrum(WINGS, hue + k), "#2b1d5c", 0.55)
+            fill = gradient(QPointF(0, 0), tip, ((0, deep.name(), 0.92 * alpha), (0.45, spectrum(WINGS, hue + k).name(), 0.88 * alpha), (0.85, bright.name(), 0.85 * alpha), (1, "#ffffff", 0.8 * alpha)))
+            p.setPen(Qt.NoPen)
             p.setBrush(fill)
-            p.setPen(QPen(col("#ffffff", 0.85 * alpha), max(0.7, size * 0.04)))
             p.drawPath(wing)
-        p.setBrush(Qt.NoBrush)
-        p.setPen(QPen(col("#ffffff", 0.45 * alpha), max(0.5, size * 0.02)))
-        for end in ((0.95, -0.7), (0.7, -0.85), (1.0, -0.35), (0.65, 0.55)):
+            # The dark margin: a wide stroke of the outline, only its inner half showing.
+            p.save()
+            p.setClipPath(wing)
+            p.setBrush(Qt.NoBrush)
+            p.setPen(QPen(col("#231a48", 0.62 * alpha), size * 0.2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            p.drawPath(wing)
+            p.restore()
+            p.setBrush(Qt.NoBrush)
+            p.setPen(QPen(col("#ffffff", 0.5 * alpha), max(0.5, size * 0.022)))
+            p.drawPath(wing)
+        # Fine dark veins.
+        p.setPen(QPen(col("#2b1d5c", 0.35 * alpha), max(0.4, size * 0.018)))
+        for end in ((0.95, -0.7), (0.7, -0.85), (1.0, -0.35), (0.65, 0.55), (0.45, 0.7)):
             vein = QPainterPath(QPointF(size * 0.05, 0))
-            vein.quadTo(QPointF(size * end[0] * 0.5, size * end[1] * 0.3), QPointF(size * end[0] * 0.92, size * end[1] * 0.92))
+            vein.quadTo(QPointF(size * end[0] * 0.5, size * end[1] * 0.3), QPointF(size * end[0] * 0.86, size * end[1] * 0.86))
             p.drawPath(vein)
-        # A white eyespot near each upper wing tip.
+        # White spots in the margin.
         p.setPen(Qt.NoPen)
-        p.setBrush(col("#ffffff", 0.75 * alpha))
-        p.drawEllipse(QPointF(size * 0.8, -size * 0.55), size * 0.07, size * 0.07)
+        p.setBrush(col("#ffffff", 0.85 * alpha))
+        for sx, sy, r in ((0.95, -0.5, 0.055), (0.82, -0.72, 0.045), (1.0, -0.3, 0.04), (0.62, 0.62, 0.045)):
+            p.drawEllipse(QPointF(size * sx, size * sy), size * r, size * r)
         p.restore()
     p.setPen(Qt.NoPen)
-    p.setBrush(col("#2a2348", 0.9 * alpha))
+    p.setBrush(gradient(QPointF(-size * 0.06, 0), QPointF(size * 0.06, 0), ((0, "#2a2348", 0.95 * alpha), (0.5, "#5a4c8a", 0.95 * alpha), (1, "#2a2348", 0.95 * alpha))))
     p.drawRoundedRect(QRectF(-size * 0.06, -size * 0.32, size * 0.12, size * 0.72), size * 0.06, size * 0.06)
     p.setPen(QPen(col("#2a2348", 0.8 * alpha), max(0.5, size * 0.025)))
     p.drawLine(QPointF(0, -size * 0.3), QPointF(-size * 0.22, -size * 0.6))
     p.drawLine(QPointF(0, -size * 0.3), QPointF(size * 0.22, -size * 0.6))
     p.setPen(Qt.NoPen)
+    p.setBrush(col("#d9ccff", 0.9 * alpha))
+    for tip in (QPointF(-size * 0.22, -size * 0.6), QPointF(size * 0.22, -size * 0.6)):
+        p.drawEllipse(tip, size * 0.035, size * 0.035)
     p.restore()
+
+
+def _landing(p: QPainter, t: float, fly: dict, u: float) -> None:
+    """A small burst of sparkle where a butterfly settles."""
+    age = t - fly["arrive"]
+    if not 0 < age < 0.7:
+        return
+    k = age / 0.7
+    spot = fly["spot"]
+    fade = 1 - k
+    color = spectrum(WINGS, fly["hue"] + t * 0.12)
+    soft_dot(p, spot.x(), spot.y(), fly["size"] * (1.2 + 1.6 * k), color, 0.35 * fade)
+    for i in range(6):
+        a = math.radians(i * 60 + fly["phase"] * 30)
+        r = fly["size"] * (0.6 + 1.5 * ease_out(k))
+        star(p, spot.x() + math.cos(a) * r, spot.y() + math.sin(a) * r, 5 * u * fade, "#ffffff", 0.9 * fade)
 
 
 def _trail(p: QPainter, t: float, fly: dict, u: float) -> None:

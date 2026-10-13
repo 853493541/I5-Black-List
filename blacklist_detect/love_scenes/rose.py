@@ -13,8 +13,8 @@ from blacklist_detect.love_scenes.draw import clamp, col, ease_back
 # (heart, body, edge) by variety.
 VARIETIES = {
     "ivory": ("#c98b9c", "#f4dbe1", "#fffaf8"),
-    "blush": ("#b8577a", "#efadc0", "#fde7ee"),
-    "rose": ("#7e2148", "#cf6d91", "#f7c3d3"),
+    "blush": ("#a94770", "#e994b0", "#fbd9e4"),
+    "rose": ("#5c0f30", "#a83a68", "#d9709a"),
 }
 SHADE = "#3a0c1e"
 LIGHT = math.radians(-128)  # from the upper left
@@ -69,8 +69,8 @@ def rose(p: QPainter, x: float, y: float, r: float, bloom: float, variety: str, 
             fill = QLinearGradient(QPointF(0, size * 0.05), QPointF(0, -size))
             fill.setColorAt(0, mix(heart, SHADE, 0.35))
             fill.setColorAt(0.4, mix(body, heart, 0.45 * (1 - lit)))
-            fill.setColorAt(0.85, mix(edge, "#ffffff", 0.35 * lit))
-            fill.setColorAt(1, mix(edge, "#ffffff", 0.5 * lit))
+            fill.setColorAt(0.85, mix(edge, "#ffffff", 0.22 * lit))
+            fill.setColorAt(1, mix(edge, "#ffffff", 0.34 * lit))
             p.setBrush(fill)
             p.setPen(QPen(col(mix(heart, SHADE, 0.3), 0.32), max(0.5, r * 0.012)))
             p.drawPath(petal)

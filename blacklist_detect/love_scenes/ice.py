@@ -49,8 +49,10 @@ def make(stage: Stage):  # noqa: ANN201
     u = stage.unit()
     rnd = random.Random(14)
     heart_at = QPointF(width * 0.118, height * 0.175)
-    facets = _facets(heart_at, 128 * u, rnd)
+    facets = _facets(heart_at, 150 * u, rnd)
     frost = _frost(width, height, u, rnd)
+    # The grown frost, drawn once and laid on from then on: {(device size, transform): image}.
+    frost_drawn: dict[tuple, QImage] = {}
     dust = [
         (
             rnd.uniform(0.3, 3.4),
@@ -73,7 +75,7 @@ def make(stage: Stage):  # noqa: ANN201
         p.setOpacity(life)
         night.paint(p, width, height, gap, ease_out(win(t, 0.0, 0.8)) * (1 - leave))
         _soft_aurora(p, t, width, height, u, leave)
-        _frost_paint(p, t, frost, u, leave)
+        _frost_paint(p, t, frost, u, leave, frost_drawn)
         _dust(p, t, dust, u, 1 - leave)
         _heart(p, t, heart_at, facets, u)
         p.restore()
@@ -126,7 +128,7 @@ def _aurora(p: QPainter, t: float, width: float, height: float, u: float, leave:
         (92, 100, 11, -0.7, 2.2, 0.6, 0.33),
         (44, 160, 20, 0.5, 4.1, 0.55, 0.66),
     )
-    rays = 128
+    rays = 96
     step = width / rays
     title = width * 0.535
     p.setPen(Qt.NoPen)
@@ -139,23 +141,48 @@ def _aurora(p: QPainter, t: float, width: float, height: float, u: float, leave:
             lift = 46 * u * math.exp(-(((x - title) / (width * 0.11)) ** 2))
             y = hem * u - lift + ripple * u * (math.sin(k * 7.3 + t * speed + phase) + 0.45 * math.sin(k * 17.1 - t * speed * 1.7 + phase * 2))
             hems.append(y * (0.35 + 0.65 * grow) - rise)
-        for i in range(rays):
-            x = i * step
-            k = x / width
-            y = (hems[i] + hems[i + 1]) / 2
-            fold = 0.5 + 0.5 * (0.5 + 0.5 * math.sin(k * 29 + t * 1.3 + phase)) * (0.65 + 0.35 * math.sin(k * 11 - t * 0.8))
-            a = bright * fold * grow * fade
-            if a < 0.02:
-                continue
-            color = spectrum(AURORA, k * 1.3 + t * 0.16 + offset)
-            top = y - tall * u * (0.88 + 0.12 * math.sin(k * 5 + t + phase))
-            ray = QLinearGradient(QPointF(0, top), QPointF(0, y + 7 * u))
-            ray.setColorAt(0, mix(color, color, 0, 0))
-            ray.setColorAt(0.7, mix(color, color, 0, a * 0.42))
-            ray.setColorAt(0.93, mix(color, "#ffffff", 0.25, a))
-            ray.setColorAt(1, mix(color, color, 0, 0))
-            p.setBrush(ray)
-            p.drawRect(QRectF(x, top, step + 0.6, y + 7 * u - top))
+        # The curtain at an even strength on a layer of its own, as strips that follow the hem on
+        # both sides with no antialiased edge (they meet without a seam or a step); then its folds
+        # and finer rays cut in with one horizontal mask, so they vary smoothly, never strip by strip.
+        tops = [hems[i] - tall * u * (0.88 + 0.12 * math.sin((i * step / width) * 5 + t + phase)) for i in range(rays + 1)]
+        a = bright * 1.25 * grow * fade
+        if a >= 0.02:
+            device = p.device()
+            layer = QImage(device.width(), device.height(), QImage.Format_ARGB32_Premultiplied)
+            layer.fill(Qt.transparent)
+            lp = QPainter(layer)
+            lp.setTransform(p.transform())
+            lp.setPen(Qt.NoPen)
+            for i in range(rays):
+                x = i * step
+                k = (x + step / 2) / width
+                color = spectrum(AURORA, k * 1.3 + t * 0.16 + offset)
+                hem_y = (hems[i] + hems[i + 1]) / 2
+                top = (tops[i] + tops[i + 1]) / 2
+                ray = QLinearGradient(QPointF(0, top), QPointF(0, hem_y + 9 * u))
+                ray.setColorAt(0, mix(color, color, 0, 0))
+                ray.setColorAt(0.62, mix(color, color, 0, a * 0.38))
+                ray.setColorAt(0.9, mix(color, "#ffffff", 0.2, a * 0.92))
+                ray.setColorAt(1, mix(color, color, 0, 0))
+                lp.setBrush(ray)
+                lp.drawPolygon(QPolygonF([
+                    QPointF(x, tops[i]), QPointF(x + step, tops[i + 1]),
+                    QPointF(x + step, hems[i + 1] + 9 * u), QPointF(x, hems[i] + 9 * u),
+                ]))
+            mask = QLinearGradient(QPointF(0, 0), QPointF(width, 0))
+            for s_ in range(161):
+                k = s_ / 160
+                folds = 0.5 + 0.5 * math.sin(k * 29 + t * 1.3 + phase)
+                streaks = 0.5 + 0.5 * math.sin(k * 83 - t * 1.7 + phase * 3)
+                strength = (0.25 + 0.75 * folds) * (0.45 + 0.55 * streaks ** 2) * (0.7 + 0.3 * math.sin(k * 11 - t * 0.8))
+                mask.setColorAt(k, col("#000000", clamp(strength)))
+            lp.setCompositionMode(QPainter.CompositionMode_DestinationIn)
+            lp.fillRect(QRectF(0, 0, width, height), mask)
+            lp.end()
+            p.save()
+            p.resetTransform()
+            p.drawImage(0, 0, layer)
+            p.restore()
         band = QPainterPath(QPointF(0, hems[0] - 40 * u))
         for i in range(0, rays + 1, 4):
             band.lineTo(QPointF(i * step, hems[i] - 40 * u))
@@ -168,16 +195,16 @@ def _aurora(p: QPainter, t: float, width: float, height: float, u: float, leave:
             haze.setColorAt(k, mix(spectrum(AURORA, k * 1.3 + t * 0.16 + offset), "#ffffff", 0.1, 0.16 * bright * grow * fade))
         p.setBrush(haze)
         p.drawPath(band)
-        # A bright, thin hem line where the curtain ends.
+        # A soft glow along the hem where the curtain ends, not a drawn line.
         hem_line = QPainterPath(QPointF(0, hems[0]))
         for i in range(1, rays + 1):
             hem_line.lineTo(QPointF(i * step, hems[i]))
         shade = QLinearGradient(QPointF(0, 0), QPointF(width, 0))
         for s in range(9):
             k = s / 8
-            shade.setColorAt(k, mix(spectrum(AURORA, k * 1.3 + t * 0.16 + offset), "#ffffff", 0.45, 0.7 * bright * grow * fade))
+            shade.setColorAt(k, mix(spectrum(AURORA, k * 1.3 + t * 0.16 + offset), "#ffffff", 0.35, 0.22 * bright * grow * fade))
         p.setBrush(Qt.NoBrush)
-        p.setPen(QPen(shade, 1.2 * u))
+        p.setPen(QPen(shade, 5 * u, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
         p.drawPath(hem_line)
         p.setPen(Qt.NoPen)
 
@@ -297,16 +324,27 @@ def _frost(width: float, height: float, u: float, rnd: random.Random) -> list[tu
     return segments
 
 
-def _frost_paint(p: QPainter, t: float, segments: list[tuple], u: float, leave: float) -> None:
+def _frost_lines(p: QPainter, core: QPainterPath, u: float, fade: float) -> None:
+    p.setBrush(Qt.NoBrush)
+    p.setPen(QPen(col("#5fb8ff", 0.25 * fade), 5 * u, Qt.SolidLine, Qt.RoundCap))
+    p.drawPath(core)
+    p.setPen(QPen(col("#cdeeff", 0.85 * fade), 1.3 * u, Qt.SolidLine, Qt.RoundCap))
+    p.drawPath(core)
+    p.setPen(Qt.NoPen)
+
+
+def _frost_paint(p: QPainter, t: float, segments: list[tuple], u: float, leave: float, drawn: dict) -> None:
     fade = 1 - leave
     if fade <= 0:
         return
     speed = 360 * u
     core = QPainterPath()
     tips = []
+    grown = True
     for a, b, born, depth in segments:
         length = math.dist((a.x(), a.y()), (b.x(), b.y()))
         k = clamp((t - born) * speed / max(length, 1e-3))
+        grown = grown and k >= 1
         if k <= 0:
             continue
         end = QPointF(a.x() + (b.x() - a.x()) * k, a.y() + (b.y() - a.y()) * k)
@@ -314,12 +352,28 @@ def _frost_paint(p: QPainter, t: float, segments: list[tuple], u: float, leave: 
         core.lineTo(end)
         if k >= 1 and depth >= 1:
             tips.append((b, depth))
-    p.setBrush(Qt.NoBrush)
-    p.setPen(QPen(col("#5fb8ff", 0.25 * fade), 5 * u, Qt.SolidLine, Qt.RoundCap))
-    p.drawPath(core)
-    p.setPen(QPen(col("#cdeeff", 0.85 * fade), 1.3 * u, Qt.SolidLine, Qt.RoundCap))
-    p.drawPath(core)
-    p.setPen(Qt.NoPen)
+    device = p.device()
+    if not grown or device is None:
+        _frost_lines(p, core, u, fade)
+    else:
+        # Grown: the wide glowing strokes are the costly part and no longer change, only fade.
+        transform = p.transform()
+        key = (device.width(), device.height(), transform.m11(), transform.m22(), transform.dx(), transform.dy())
+        if key not in drawn:
+            image = QImage(device.width(), device.height(), QImage.Format_ARGB32_Premultiplied)
+            image.fill(Qt.transparent)
+            inner = QPainter(image)
+            inner.setRenderHint(QPainter.Antialiasing)
+            inner.setTransform(transform)
+            _frost_lines(inner, core, u, 1.0)
+            inner.end()
+            drawn.clear()
+            drawn[key] = image
+        p.save()
+        p.resetTransform()
+        p.setOpacity(p.opacity() * fade)
+        p.drawImage(0, 0, drawn[key])
+        p.restore()
     for index, (point, depth) in enumerate(tips):
         r = (3.6 - 0.6 * depth) * u
         diamond = QPolygonF([QPointF(point.x(), point.y() - r), QPointF(point.x() + r * 0.6, point.y()), QPointF(point.x(), point.y() + r), QPointF(point.x() - r * 0.6, point.y())])
