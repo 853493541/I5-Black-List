@@ -114,6 +114,7 @@ from blacklist_detect.ui_kit import (
 )
 from blacklist_detect.ui_likes import LikesPage
 from blacklist_detect.ui_love import LoveBorder
+from blacklist_detect.ui_music import WeddingMusic
 from blacklist_detect.ui_notice import CornerNotice, play_hit_sound
 from blacklist_detect.ui_overlay import (
     _COVER_OUTSET,
@@ -412,6 +413,8 @@ class MainWindow(QMainWindow):
         # Two or more 心动 players and no 黑名单: a border of silk and flowers, once per lobby.
         self.love = LoveBorder()
         self._love_played = False
+        # 心动音乐: the same lobby, in either 显示, also gets a few seconds of wedding music.
+        self.music = WeddingMusic()
         # 黑名单 players in the lobby: a red glow at the screen's edges while the result is up.
         self.alert = AlertGlow()
         # 安全模式: the result in messages at the bottom right of the screen instead of over the game.
@@ -961,14 +964,22 @@ class MainWindow(QMainWindow):
         self.settings_label.setWordWrap(True)
         self.settings_label.hide()
         check.add_widget(self.settings_label, separated=False, indent=True)
-        self.sound_switch = Switch(self.store.hit_sound)
+        # 3 提示音: the chime for 黑名单, and 心动音乐 beside it, each with ▶ to hear it now.
+        # They share a row, so 设置 still fits on one screen.
+        self.sound_switch = Switch(self.store.hit_sound, text="黑名单")
         self.sound_switch.setAccessibleName("提示音")
         self.sound_switch.toggled.connect(self._set_hit_sound)
         self.sound_switch.setToolTip("发现黑名单时响一声")
-        # ▶: hear it now.
         self.sound_play = IconButton("play", "试听")
         self.sound_play.clicked.connect(lambda: play_hit_sound())
-        check.add_row("提示音", self.sound_switch, self.sound_play)
+        self.music_switch = Switch(self.store.love_music, text="心动音乐")
+        self.music_switch.toggled.connect(self._set_love_music)
+        self.music_switch.setToolTip("遇到两名以上心动玩家时，随机放一段婚礼音乐")
+        self.music_play = IconButton("play", "试听心动音乐")
+        self.music_play.clicked.connect(lambda: self.music.preview())
+        apart = QWidget()
+        apart.setFixedWidth(20)
+        check.add_row("提示音", self.sound_switch, self.sound_play, apart, self.music_switch, self.music_play)
         # 4 直播模式: a window for the streaming app, with the marks and never a 黑名单 name.
         self.stream_switch = Switch(bool(self.store.stream_mode))
         self.stream_switch.setAccessibleName("直播模式")
@@ -1228,6 +1239,7 @@ class MainWindow(QMainWindow):
         self._sync_switch(self.autostart_switch, autostart.is_enabled())
         self.close_mode.set_current("tray" if self.store.close_to_tray else "quit")
         self._sync_switch(self.sound_switch, self.store.hit_sound)
+        self._sync_switch(self.music_switch, self.store.love_music)
         self.display_mode.set_current("safe")
         self._sync_switch(self.stream_switch, False)
         self.notice.hide()
@@ -2714,6 +2726,10 @@ class MainWindow(QMainWindow):
         self.store.hit_sound = bool(on)
         self.store.save_settings()
 
+    def _set_love_music(self, on: bool) -> None:
+        self.store.love_music = bool(on)
+        self.store.save_settings()
+
     def _set_stream_mode(self, on: bool | str) -> None:
         if bool(on) != bool(self.store.stream_mode):
             log.info("直播模式 %s.", "on" if on else "off")
@@ -3435,8 +3451,12 @@ class MainWindow(QMainWindow):
             self._hide_panel_after_title()
             return
         hits = self._hits_in(result)
+        likes = self._likes_in(result)
         if hits and self.store.hit_sound:
             play_hit_sound()
+        elif not hits and self.store.love_music:
+            # Never with a 黑名单 player: the warning is the news then, not the music.
+            self.music.lobby([like.name for like in likes])
         if self.store.safe_mode:
             self._show_notice(result)
         elif exclusive_fullscreen():
@@ -3452,7 +3472,6 @@ class MainWindow(QMainWindow):
         self._game_box = result.button_box
         self._game_windows = result.windows
         self._frame_stream()
-        likes = self._likes_in(result)
         if hits:
             self.clear_mark.hide()
             # A 黑名单 player is the news; the border would bury it.

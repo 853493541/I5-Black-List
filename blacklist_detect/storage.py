@@ -394,6 +394,8 @@ class Store:
         self.safe_mode = True
         # 提示音: the system warning sound when a 黑名单 player is found.
         self.hit_sound = True
+        # 心动音乐: a few seconds of wedding music for two or more 心动 players. Off until turned on.
+        self.love_music = False
         # 直播模式: a window for a streaming app with the 心动 marks only, clear behind them. "" off, "on" on.
         self.stream_mode = ""
         # What the player agreed to after being told the risk: "full" (完整模式), "auto" (自动检查).
@@ -765,6 +767,7 @@ class Store:
                 "close_to_tray": self.close_to_tray,
                 "safe_mode": self.safe_mode,
                 "hit_sound": self.hit_sound,
+                "love_music": self.love_music,
                 "stream_mode": self.stream_mode,
                 "consented": list(self.consented),
                 "disclaimer_accepted": self.disclaimer_accepted,
@@ -805,6 +808,7 @@ class Store:
             self.close_to_tray = bool(settings.get("close_to_tray", True))
             self.safe_mode = bool(settings.get("safe_mode", True))
             self.hit_sound = bool(settings.get("hit_sound", True))
+            self.love_music = settings.get("love_music") is True
             # v0.6.0 saved "key" (green) or "alpha" (clear), v0.6.1 "key": each is on, and clear now.
             self.stream_mode = "on" if settings.get("stream_mode") in ("on", "key", "alpha") else ""
             self.disclaimer_accepted = settings.get("disclaimer_accepted") is True
@@ -1016,6 +1020,7 @@ class Store:
         self.close_to_tray = True
         self.safe_mode = True
         self.hit_sound = True
+        self.love_music = False
         self.stream_mode = ""
         self.consented = []
         self.disclaimer_accepted = False
