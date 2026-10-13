@@ -43,7 +43,6 @@ class LoveBorder(QWidget):
         self._rng = rng or random.Random()
         self._gap = QRectF()
         self._badge: QPointF | None = None
-        self._cards: tuple[QPointF, ...] = ()
         self._made: dict[tuple, object] = {}
         self._buffers: dict[tuple, QImage] = {}
         self._clock = QElapsedTimer()
@@ -51,13 +50,12 @@ class LoveBorder(QWidget):
         self._tick.setInterval(33)
         self._tick.timeout.connect(self._step)
 
-    def play(self, area: QRect, keep_clear: QRect, badge: QPoint | None = None, cards: tuple[QPoint, ...] = ()) -> bool:
+    def play(self, area: QRect, keep_clear: QRect, badge: QPoint | None = None) -> bool:
         """Cover area (the game's screen) and play, leaving keep_clear (the button and its marks) bare.
 
-        badge is the 心动 heart and cards the middle of each 心动 player's card, on the screen.
-        Returns False when 设置 says 关闭.
+        badge is the 心动 heart, on the screen. Returns False when 心动特效 says 无.
         """
-        scene = love_scenes.choose(self.choice, self._last, len(cards), self._rng)
+        scene = love_scenes.choose(self.choice, self._last, self._rng)
         if not scene:
             return False
         self.scene = self._last = scene
@@ -66,7 +64,6 @@ class LoveBorder(QWidget):
         self._gap = QRectF(clear.left() - 28, clear.top() - 30, clear.width() + 56, area.height() - clear.top() + 30)
         origin = QPointF(area.topLeft())
         self._badge = QPointF(badge) - origin if badge is not None else None
-        self._cards = tuple(QPointF(card) - origin for card in cards)
         self._made = {}
         self._clock.start()
         self._tick.start()
@@ -102,7 +99,7 @@ class LoveBorder(QWidget):
 
     def paint_at(self, painter: QPainter, t: float, width: float, height: float, gap: QRectF | None = None) -> None:
         """The scene at t seconds into its play, on a width by height area (this window, or 直播模式's)."""
-        stage = Stage(width, height, gap if gap is not None else self._gap, self._badge, self._cards)
+        stage = Stage(width, height, gap if gap is not None else self._gap, self._badge)
         paint, limit = self._made_for(stage)
         ratio = painter.device().devicePixelRatioF() if painter.device() is not None else 1.0
         if limit is None or ratio <= limit + 0.01:
@@ -122,8 +119,7 @@ class LoveBorder(QWidget):
     def _made_for(self, stage: Stage):  # noqa: ANN202
         gap = stage.gap
         badge = (stage.badge.x(), stage.badge.y()) if stage.badge is not None else None
-        key = (self.scene, round(stage.width), round(stage.height), gap.x(), gap.y(), gap.width(), gap.height(), badge,
-               tuple((card.x(), card.y()) for card in stage.cards))
+        key = (self.scene, round(stage.width), round(stage.height), gap.x(), gap.y(), gap.width(), gap.height(), badge)
         if key not in self._made:
             module = love_scenes.load(self.scene)
             self._made[key] = (module.make(stage), getattr(module, "MAX_RATIO", None))

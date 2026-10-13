@@ -1,4 +1,4 @@
-"""心动特效: the ten scenes, choosing one or a random one, and 设置's picker with its preview."""
+"""心动特效: the nine scenes, choosing one or a random one, and the picker with its preview."""
 
 import random
 
@@ -6,7 +6,7 @@ import pytest
 
 pytest.importorskip("PySide6")
 
-from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt  # noqa: E402
+from PySide6.QtCore import QPointF, QRect, QRectF, Qt  # noqa: E402
 from PySide6.QtGui import QImage, QPainter  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
@@ -55,26 +55,25 @@ def test_every_scene_plays_through_and_keeps_the_button_bare(qapp, key):
 @pytest.mark.parametrize("key", KEYS)
 def test_every_scene_fits_another_window_shape(qapp, key):
     """A windowed emulator is narrower and taller than the lobby the scenes were drawn on."""
-    stage = Stage(900, 640, QRectF(300, 540, 330, 100), badge=QPointF(600, 580), cards=(QPointF(700, 200), QPointF(450, 380), QPointF(200, 200)))
+    stage = Stage(900, 640, QRectF(300, 540, 330, 100), badge=QPointF(600, 580))
     _frames(stage, key)
 
 
 def test_choosing_one_random_or_none():
     rng = random.Random(5)
-    assert choose("off", "", 2, rng) == ""
-    assert choose("ice", "ice", 2, rng) == "ice"
+    assert choose("off", "", rng) == ""
+    assert choose("ice", "ice", rng) == "ice"
     picks = []
     last = ""
     for _ in range(80):
-        last = choose("random", last, 2, rng)
+        last = choose("random", last, rng)
         picks.append(last)
     assert set(picks) == set(KEYS)
     assert all(a != b for a, b in zip(picks, picks[1:], strict=False))
-    # 命运红线 needs the 心动 cards: without them random skips it and a choice of it gets 经典.
-    assert "thread" not in {choose("random", "", 0, rng) for _ in range(60)}
-    assert choose("thread", "", 0, rng) == "classic"
-    # A key from another version: random.
-    assert choose("disco", "", 2, rng) in KEYS
+    # 命运红线 is gone: a player who had it, or a key from another version, gets 经典花边.
+    assert "thread" not in KEYS and len(KEYS) == 9
+    assert choose("thread", "", rng) == "classic"
+    assert choose("disco", "", rng) == "classic"
 
 
 def test_the_border_plays_the_choice_and_nothing_when_off(qapp):
@@ -83,15 +82,14 @@ def test_the_border_plays_the_choice_and_nothing_when_off(qapp):
     border = LoveBorder(random.Random(3))
     area = QApplication.primaryScreen().geometry()
     keep = QRect(area.center().x() - 150, area.bottom() - 120, 300, 80)
-    cards = (QPoint(area.left() + 400, area.top() + 300), QPoint(area.left() + 900, area.top() + 500))
     border.choice = "off"
-    assert border.play(area, keep, keep.center(), cards) is False
+    assert border.play(area, keep, keep.center()) is False
     assert not border.playing()
-    border.choice = "thread"
-    assert border.play(area, keep, keep.center(), cards) is True
-    assert border.scene == "thread" and border.playing() and border.duration() == 5.0
-    # The cards come in on the screen; the scene gets them in its own window.
-    assert border._cards[0] == QPointF(cards[0] - area.topLeft())
+    border.choice = "stars"
+    assert border.play(area, keep, keep.center()) is True
+    assert border.scene == "stars" and border.playing() and border.duration() == love_scenes.load("stars").DURATION
+    # The heart comes in on the screen; the scene gets it in its own window.
+    assert border._badge == QPointF(keep.center() - area.topLeft())
     image = QImage(area.width() * 2, area.height() * 2, QImage.Format_ARGB32_Premultiplied)
     image.setDevicePixelRatio(2.0)
     image.fill(Qt.transparent)

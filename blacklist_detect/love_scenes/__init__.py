@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import importlib
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from types import ModuleType
 
 from PySide6.QtCore import QPointF, QRectF
@@ -25,7 +25,6 @@ SCENES: tuple[tuple[str, str], ...] = (
     ("petals", "花雨"),
     ("ice", "冰蓝极光"),
     ("stars", "星河许愿"),
-    ("thread", "命运红线"),
     ("cranes", "纸鹤晚霞"),
     ("butterfly", "蝶梦"),
     ("champagne", "香槟"),
@@ -41,14 +40,12 @@ class Stage:
 
     gap: the bottom area around the button and its marks, which stays bare.
     badge: the 心动 heart beside the button.
-    cards: the middle of each 心动 player's card, for scenes that point at them.
     """
 
     width: float
     height: float
     gap: QRectF
     badge: QPointF | None = None
-    cards: tuple[QPointF, ...] = field(default_factory=tuple)
 
     def unit(self) -> float:
         return min(self.width / DESIGN[0], self.height / DESIGN[1])
@@ -64,35 +61,23 @@ def load(key: str) -> ModuleType:
     return importlib.import_module(f"{__name__}.{key}")
 
 
-def needs_cards(key: str) -> bool:
-    """命运红线 ties a thread round each 心动 player's card: without them it cannot play."""
-    return key == "thread"
-
-
-def choose(choice: str, last: str, cards: int, rng: random.Random) -> str:
-    """The scene to play for a 设置 choice: a key, "random" (any but the last one), or "off" ("")."""
+def choose(choice: str, last: str, rng: random.Random) -> str:
+    """The scene to play for a 心动特效 choice: a key, "random" (any but the last one), or "off" ("").
+    A key this version does not have (命运红线, gone in v0.8.2) plays 经典花边, the default."""
     if choice == "off":
         return ""
-    playable = [key for key in KEYS if cards >= 2 or not needs_cards(key)]
-    if choice in playable:
-        return choice
     if choice in KEYS:
-        # Chosen but not playable here (命运红线 with no cards to tie): the first border instead.
+        return choice
+    if choice != "random":
         return "classic"
-    pool = [key for key in playable if key != last] or playable
+    pool = [key for key in KEYS if key != last] or list(KEYS)
     return rng.choice(pool)
 
 
 def sample_stage(width: float = DESIGN[0], height: float = DESIGN[1]) -> Stage:
-    """The fake-name sample lobby's stage: its button, heart and two 心动 cards (心动小鹿, 心动星星)."""
+    """The fake-name sample lobby's stage: its button and the heart beside it."""
     s = width / DESIGN[0]
     # 准备案件还原 and the marks either side of it, as the app leaves them clear.
     keep = QRectF(549 * s, 749 * s, 556 * s, 94 * s)
     gap = QRectF(keep.left() - 28 * s, keep.top() - 30 * s, keep.width() + 56 * s, height - keep.top() + 30 * s)
-    return Stage(
-        width,
-        height,
-        gap,
-        badge=QPointF(1052 * s, 796 * s),
-        cards=(QPointF(1437 * s, 343 * s), QPointF(990 * s, 573 * s)),
-    )
+    return Stage(width, height, gap, badge=QPointF(1052 * s, 796 * s))

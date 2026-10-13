@@ -3447,7 +3447,7 @@ class MainWindow(QMainWindow):
         self._show_clear_mark(heart=bool(likes))
         self._show_like_card(likes)
         if len(likes) >= 2 and not self._love_played:
-            self._play_love(self._like_cards(result))
+            self._play_love()
 
     def _hits_in(self, result: CheckResult) -> list[Hit]:
         """黑名单 players in the lobby."""
@@ -3482,7 +3482,7 @@ class MainWindow(QMainWindow):
             if mark.isVisible():
                 _pin_topmost(mark)
 
-    def _play_love(self, cards: tuple[QPoint, ...] = ()) -> None:
+    def _play_love(self) -> None:
         """The 心动 scene over the game, parted around the button, the badge and the 心动 card."""
         cover = self.panel.cover_geometry()
         keep = cover
@@ -3495,25 +3495,7 @@ class MainWindow(QMainWindow):
         self._love_played = True
         badge = self.clear_mark.geometry().center() if self.clear_mark.isVisible() else None
         self.love.choice = self.store.love_scene
-        self.love.play(self._game_area(screen), keep, badge, cards)
-
-    def _like_cards(self, result: CheckResult) -> tuple[QPoint, ...]:
-        """The middle of each 心动 player's card on the screen: their name as read, and the portrait
-        above it, about two and a half names up."""
-        origin_x, origin_y = virtual_origin()
-        likes = list(self.store.likes)
-        cards = []
-        for slot in result.names:
-            if slot.unclear:
-                continue
-            label = NameLabel(raw=slot.raw, visible=slot.visible, truncated=slot.truncated, unclear=slot.unclear)
-            if not match_label(label, likes):
-                continue
-            left, top, right, bottom = slot.box
-            x, y, ratio = native_to_logical(left + origin_x, top + origin_y)
-            width, height = (right - left) / ratio, (bottom - top) / ratio
-            cards.append(QPoint(round(x + width / 2), round(y + height / 2 - 2.65 * height)))
-        return tuple(cards)
+        self.love.play(self._game_area(screen), keep, badge)
 
     def _frame_stream(self) -> None:
         """直播模式's window takes the size and place of the game's whole window, the one a
