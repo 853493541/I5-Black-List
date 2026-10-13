@@ -317,6 +317,23 @@ def find_anchor(lines: list[OcrLine], image_width: int, image_height: int) -> An
     )
 
 
+def game_screen(anchor: Anchor) -> tuple[float, float, float, float] | None:
+    """Where the whole game screen is, placed from the title as the name strips are: the reference
+    shot, scaled. Its edges land within about 2% of the game's height. A game narrower than the
+    reference (16:9, against its 1.93:1) is narrower than this by its side margins."""
+    if not anchor.found or anchor.title_box is None or anchor.scale <= 0:
+        return None
+    title_x, title_y = _center(anchor.title_box)
+    ref_x, ref_y = _center(_frac_to_px(TITLE_BOX, REF_W, REF_H))
+    scale = anchor.scale
+    return (
+        title_x - ref_x * scale,
+        title_y - ref_y * scale,
+        title_x + (REF_W - ref_x) * scale,
+        title_y + (REF_H - ref_y) * scale,
+    )
+
+
 def _map_box(
     frac: tuple[float, float, float, float],
     title_c: tuple[float, float],

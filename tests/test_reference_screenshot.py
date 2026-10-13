@@ -110,6 +110,11 @@ def test_a_lobby_in_a_small_window_on_a_big_screen_is_found(shrink):
     assert result.countdown_seconds == 10 and result.ready_count == 11
     read = [slot.visible for slot in result.names]
     assert sum(1 for got, want in zip(read, SAMPLE_NAMES, strict=True) if got == want) >= 11, read
+    # The whole game screen, placed from the lobby: within 2.5% of its height on every edge.
+    left, top = (3840 - lobby.width) // 2, (2160 - lobby.height) // 2
+    truth = (left, top, left + lobby.width, top + lobby.height)
+    assert result.game_box is not None
+    assert all(abs(got - want) <= 0.025 * lobby.height for got, want in zip(result.game_box, truth, strict=True)), (result.game_box, truth)
 
 
 def test_the_same_lobby_again_is_read_where_it_was_and_a_moved_one_is_searched_for():

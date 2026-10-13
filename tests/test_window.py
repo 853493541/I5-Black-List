@@ -2936,3 +2936,27 @@ def test_the_welcome_says_how_a_check_starts(qapp, tmp_path, monkeypatch):
     guide.close()
     window.close()
 
+
+
+def test_the_game_is_where_the_lobby_puts_it_when_its_window_is_a_picture_viewer():
+    """game_rect: the window under the lobby is the game's own when it fits the lobby (an
+    emulator's surface, a full-screen game); a picture of the lobby in 照片 sits in a bigger window,
+    with toolbars and bars round it, and then the lobby's own estimate is used, inside that window."""
+    from blacklist_detect.game_area import game_rect
+
+    lobby = (500.0, 300.0, 2430.0, 1300.0)  # 1000 high
+    # MuMu's game surface: the lobby's estimate within a few pixels. The window, exactly.
+    assert game_rect((510, 290, 2420, 1310), lobby) == (510, 290, 2420, 1310)
+    # A 16:9 game is narrower than the reference shot: still its window.
+    assert game_rect((577, 300, 2355, 1300), lobby) == (577, 300, 2355, 1300)
+    # 照片: toolbar above, bar below, dark margins at the sides. The lobby's estimate.
+    assert game_rect((380, 210, 3250, 1410), lobby) == (500, 300, 2430, 1300)
+    # A full-screen window much wider than the lobby (an overlay, the desktop): the estimate.
+    assert game_rect((0, 0, 3840, 1600), lobby) == (500, 300, 2430, 1300)
+    # Part of the picture off its window: only what the window shows.
+    assert game_rect((380, 210, 2000, 1410), lobby) == (500, 300, 2000, 1300)
+    # No window found: the estimate; no estimate: the window as found.
+    assert game_rect(None, lobby) == (500, 300, 2430, 1300)
+    assert game_rect((1, 2, 3, 4), None) == (1, 2, 3, 4)
+    # A window nowhere near the lobby: left as it was found.
+    assert game_rect((3000, 0, 3800, 600), lobby) == (3000, 0, 3800, 600)

@@ -57,7 +57,7 @@ from blacklist_detect.diagnostics import (
     screens_line,
     summary_text,
 )
-from blacklist_detect.game_area import exclusive_fullscreen, window_order, window_rect_at
+from blacklist_detect.game_area import exclusive_fullscreen, game_rect, window_order, window_rect_at
 from blacklist_detect.hotkey import GlobalHotkey, parse_hotkey
 from blacklist_detect.importing import suggest_tags, with_tags
 from blacklist_detect.logs import log, mark_closed, mark_running, on_uncaught, setup_logging
@@ -444,6 +444,8 @@ class MainWindow(QMainWindow):
         # The lobby's button, in desktop pixels: the game's window is the one under it, in the
         # order the windows were in at the screenshot.
         self._game_box = None
+        # The whole game screen as the lobby places it, in the same pixels (CheckResult.game_box).
+        self._game_screen = None
         self._game_windows: tuple[int, ...] = ()
         # New versions from GitHub: checked when the app opens and installed before it is used.
         self.updates = UpdateChecker(self)
@@ -3529,6 +3531,7 @@ class MainWindow(QMainWindow):
             self._hide_panel_after_title()
             return
         self._game_box = result.button_box
+        self._game_screen = result.game_box
         self._game_windows = result.windows
         self._frame_stream()
         if self.store.stream_mode:
@@ -3628,7 +3631,9 @@ class MainWindow(QMainWindow):
 
     def _window_frame(self, screen, innermost: bool) -> QRect:  # noqa: ANN001
         """Where the game is drawn, for the border and the glow: its window when it sits in one (a
-        windowed client, an emulator), else the whole screen."""
+        windowed client, an emulator), else the whole screen. A window much bigger than the lobby
+        (a picture of it in 照片) gives way to where the lobby puts the game (game_area.game_rect).
+        innermost=False is the whole top-level window, what a 窗口捕捉 captures, as it is."""
         area = screen.geometry()
         if self._game_box is None:
             return area
@@ -3637,6 +3642,9 @@ class MainWindow(QMainWindow):
         found = window_rect_at(
             (left + right) // 2 + origin_x, (top + bottom) // 2 + origin_y, self._game_windows, innermost=innermost
         )
+        if innermost and self._game_screen is not None:
+            g_left, g_top, g_right, g_bottom = self._game_screen
+            found = game_rect(found, (g_left + origin_x, g_top + origin_y, g_right + origin_x, g_bottom + origin_y))
         if found is None:
             return area
         x, y, ratio = native_to_logical(found[0], found[1])

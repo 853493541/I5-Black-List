@@ -127,6 +127,38 @@ def window_rect_at(
     return left, top, right, bottom
 
 
+# How far a window's top and bottom may be from where the lobby puts the game screen, in the
+# game's height, for the window to be the game's own: an emulator's game surface or a full-screen
+# game. A program showing a picture of the lobby (照片, 媒体播放器, 资源管理器) is bigger, by its
+# toolbars and the bars round the picture. The lobby's own estimate is good to about 2%.
+FIT = 0.04
+
+
+def game_rect(window, estimate):  # noqa: ANN001, ANN201
+    """The game's screen, in desktop pixels: the window under the lobby when it fits the lobby,
+    else where the lobby puts it, inside that window. Either may be None."""
+    if estimate is None:
+        return window
+    left, top, right, bottom = estimate
+    height = bottom - top
+    if height <= 0:
+        return window
+    if window is None:
+        return tuple(int(round(value)) for value in estimate)
+    w_left, w_top, w_right, w_bottom = window
+    if (
+        abs(w_top - top) <= FIT * height
+        and abs(w_bottom - bottom) <= FIT * height
+        and w_right - w_left <= right - left + 2 * FIT * height
+    ):
+        return window
+    inside = (max(w_left, left), max(w_top, top), min(w_right, right), min(w_bottom, bottom))
+    if inside[2] - inside[0] < height / 2 or inside[3] - inside[1] < height / 2:
+        # The window is not around the lobby at all: keep what was found.
+        return window
+    return tuple(int(round(value)) for value in inside)
+
+
 _QUNS_RUNNING_D3D_FULL_SCREEN = 3
 
 

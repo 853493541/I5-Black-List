@@ -9,7 +9,15 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-from blacklist_detect.layout import Anchor, contains_title, countdown_in, find_anchor, ready_in, snap_button_box
+from blacklist_detect.layout import (
+    Anchor,
+    contains_title,
+    countdown_in,
+    find_anchor,
+    game_screen,
+    ready_in,
+    snap_button_box,
+)
 from blacklist_detect.match import (
     NameLabel,
     format_hit,
@@ -62,6 +70,8 @@ class CheckResult:
     hits: list[Hit] = field(default_factory=list)
     preview_rgb: np.ndarray | None = None
     button_box: tuple[int, int, int, int] | None = None
+    # The whole game screen as the lobby places it (layout.game_screen), in the same pixels.
+    game_box: tuple[float, float, float, float] | None = None
     # Seconds each step took (capture, find, read), for the log.
     timings: dict[str, float] = field(default_factory=dict)
     # The windows front to back at the screenshot, to find the game's window in (game_area).
@@ -120,6 +130,7 @@ def check_frames(frames: list[np.ndarray], entries: list[Entry], engine=None, on
         on_lobby(button)
     result = _read_names(reader, frame, anchor, entries)
     result.button_box = button
+    result.game_box = game_screen(anchor)
     result.timings["find"] = found - started
     result.timings["read"] = time.perf_counter() - found
     if at_spot:
