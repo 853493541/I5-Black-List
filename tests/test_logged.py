@@ -31,9 +31,9 @@ def _said(caplog) -> str:  # noqa: ANN001
 def test_the_update_checks_outcome_is_logged(window, caplog):
     caplog.set_level(logging.INFO, logger="blacklist_detect")
     window.updates.latest.emit()
-    window.updates.failed.emit("无法连接更新服务器，请稍后再试")
+    window.updates.failed.emit("连不上更新服务器，等会儿再试")
     said = _said(caplog)
-    assert "is the newest" in said and "Update check failed: 无法连接更新服务器" in said
+    assert "is the newest" in said and "Update check failed: 连不上更新服务器" in said
 
 
 def test_a_failed_download_is_logged_with_its_cause(tmp_path, monkeypatch, caplog):
@@ -44,11 +44,11 @@ def test_a_failed_download_is_logged_with_its_cause(tmp_path, monkeypatch, caplo
     release = updater.Release(version="v9.9.9", url="u.zip", sha256="0" * 64, size=10, base="v0.6.0")
 
     def broken(*_args, **_kwargs):  # noqa: ANN002, ANN003, ANN202
-        raise updater.UpdateError("下载的更新包坏了，请重试") from OSError("disk full")
+        raise updater.UpdateError("更新包坏了，再试一次") from OSError("disk full")
 
     monkeypatch.setattr(updater, "download", broken)
     Download()._run(release, tmp_path, tmp_path)
-    assert "Update to v9.9.9 failed: 下载的更新包坏了，请重试 (disk full)" in _said(caplog)
+    assert "Update to v9.9.9 failed: 更新包坏了，再试一次 (disk full)" in _said(caplog)
 
 
 def test_what_the_launcher_did_is_read_once(tmp_path):

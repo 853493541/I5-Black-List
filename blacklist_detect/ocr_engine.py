@@ -326,7 +326,7 @@ class OcrEngine:
             from paddleocr import PaddleOCR
         except ImportError as exc:
             log.warning("PaddleOCR could not be imported", exc_info=True)
-            raise OcrUnavailable("识别功能没装好，请重新解压完整的安装包") from exc
+            raise OcrUnavailable("识别功能没装好，重新解压一遍安装包") from exc
         kwargs: dict = {
             "use_doc_orientation_classify": False,
             "use_doc_unwarping": False,
@@ -348,7 +348,7 @@ class OcrEngine:
             # For whoever reads the log: run `python -m blacklist_detect download-models`, or point
             # BLACKLIST_DETECT_MODEL_DIR at the model folder. The user only needs to reinstall.
             log.warning("The PaddleOCR detection/recognition models did not load", exc_info=True)
-            raise OcrUnavailable("识别功能没装好，请重新解压完整的安装包") from exc
+            raise OcrUnavailable("识别功能没装好，重新解压一遍安装包") from exc
         return self._ocr
 
     def _ensure_name_rec(self):
@@ -361,7 +361,7 @@ class OcrEngine:
             from paddleocr import TextRecognition
         except ImportError as exc:
             log.warning("PaddleOCR TextRecognition could not be imported", exc_info=True)
-            raise OcrUnavailable("识别功能没装好，请重新解压完整的安装包") from exc
+            raise OcrUnavailable("识别功能没装好，重新解压一遍安装包") from exc
         try:
             name_kwargs: dict = {
                 "model_name": "PP-OCRv6_medium_rec",
@@ -376,7 +376,7 @@ class OcrEngine:
                 sampler.batch_size = 12
         except Exception as exc:
             log.warning("The PP-OCRv6 name recognition model did not load", exc_info=True)
-            raise OcrUnavailable("识别功能没装好，请重新解压完整的安装包") from exc
+            raise OcrUnavailable("识别功能没装好，重新解压一遍安装包") from exc
         return self._name_rec
 
 

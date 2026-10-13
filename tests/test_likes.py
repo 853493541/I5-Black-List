@@ -110,7 +110,7 @@ def test_a_blacklisted_name_is_refused_not_moved(window, monkeypatch):
     monkeypatch.setattr(ui_likes.LikeDialog, "exec", run)
     window.likes_page.add_one()
     # A player is on one list: a 黑名单 name stays there and is not added to 心动.
-    assert dialogs[0].name_error.text() == "这个玩家已在黑名单里"
+    assert dialogs[0].name_error.text() == "已经在黑名单里了"
     assert dialogs[0].result() != QDialog.Accepted
     assert [entry.name for entry in window.store.entries] == ["小明"] and window.store.likes == []
 

@@ -58,7 +58,7 @@ class UpdateChecker(QObject):
         except Exception:  # noqa: BLE001 - a broken check must never take the app down
             log.exception("Update check failed")
             self._busy = False
-            self.failed.emit("无法检查更新，请稍后再试")
+            self.failed.emit("检查更新失败，等会儿再试")
             return
         self._busy = False
         if release is None:
@@ -89,7 +89,7 @@ class Download(QObject):
             return
         except Exception:  # noqa: BLE001
             log.exception("Update download failed")
-            self.failed.emit("无法更新，请稍后再试")
+            self.failed.emit("更新失败，等会儿再试")
             return
         self.done.emit(release.version)
 
@@ -172,7 +172,7 @@ class UpdateDialog(Modal):
         elif release.needs_full():
             log.info("Update %s needs the full package; the player is sent to download it.", release.version)
             self._state = "full"
-            self._say("这个版本要下载完整安装包，名单和设置都会保留")
+            self._say("这次要下载完整安装包，名单和设置不会丢")
             self.action.setText("前往下载")
         else:
             self.band.hide()

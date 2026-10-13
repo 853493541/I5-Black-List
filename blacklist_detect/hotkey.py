@@ -145,7 +145,7 @@ class GlobalHotkey:
 
         user32 = ctypes.windll.user32
         if not user32.RegisterHotKey(None, self._id, spec.win_modifiers, spec.vk):
-            self.error = "这个组合键用不了，请换一个"
+            self.error = "这个键用不了，换一个"
             return False
 
         owner = self

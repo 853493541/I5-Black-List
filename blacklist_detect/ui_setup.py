@@ -132,8 +132,6 @@ class SetupCheck(QWidget):
         self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._anim.finished.connect(self._after_fade)
         self.state = "idle"
-        # The first check on this version, or one asked for from 设置.
-        self.first = True
         host.installEventFilter(self)
         self.hide()
 
@@ -171,10 +169,9 @@ class SetupCheck(QWidget):
         )
         _pointing(self)
 
-    def start(self, first: bool = True) -> None:
+    def start(self) -> None:
         self.state = "running"
-        self.first = first
-        self.title.setText("正在做首次检查" if first else "正在检查")
+        self.title.setText("正在检查")
         self.mark.hide()
         self.message.hide()
         self.buttons.hide()
@@ -218,7 +215,7 @@ class SetupCheck(QWidget):
     def fail(self, index: int, message: str) -> None:
         self.state = "failed"
         self.step(index, "fail")
-        self.title.setText("首次检查没通过" if self.first else "检查没通过")
+        self.title.setText("检查没通过")
         self.mark.setPixmap(line_pixmap("warning", 22, THEME["red"]))
         self.mark.show()
         self.message.setText(message)

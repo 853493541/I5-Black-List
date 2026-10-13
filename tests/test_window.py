@@ -161,7 +161,9 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     window.store.add("甲", tags=("红名",))
     asked: list[str] = []
 
-    def confirm(_parent, text: str) -> bool:
+    def confirm(_parent, text: str, title: str, button: str) -> bool:
+        # The dialog says what it does: its title and its button, not 模仿者小工具 and 确定.
+        assert (title, button) == ("删除标签", "删除")
         asked.append(text)
         return len(asked) > 1
 
@@ -1186,7 +1188,7 @@ def test_the_add_dialog_refuses_a_name_already_on_the_list(qapp):
     dialog.name_edit.setText(" GFFDSD ")
     dialog._accept()
     assert dialog.result() != QDialog.Accepted
-    assert dialog.name_error.text() == "这个玩家已在黑名单里"
+    assert dialog.name_error.text() == "已经在黑名单里了"
     dialog.name_edit.setText("★☆★")
     dialog._accept()
     assert dialog.name_error.text() == "名字里要有文字或数字"
@@ -1242,17 +1244,17 @@ def test_a_failed_check_is_shown_and_clears_when_checks_work(qapp, tmp_path, mon
     window._on_display_mode("full")
     window._on_auto_mode("auto")
     window._watch_timer.stop()
-    window._on_worker(("glance", "err", OcrUnavailable("识别功能没装好，请重新解压完整的安装包")))
+    window._on_worker(("glance", "err", OcrUnavailable("识别功能没装好，重新解压一遍安装包")))
     assert window.status_chip.text() == "识别还没准备好"
     assert window.status_chip.tone() == "hit"
     # What went wrong, in full, under the pointer.
-    assert window.status_chip.toolTip() == "识别功能没装好，请重新解压完整的安装包"
+    assert window.status_chip.toolTip() == "识别功能没装好，重新解压一遍安装包"
     # No file path, library name or command: those go to the log, not to the user.
     assert "app.log" not in window.status_chip.toolTip()
     assert "PaddleOCR" not in window.status_chip.toolTip()
     assert window._glance_pause_until > 0
     window._on_worker(("check", "err", RuntimeError("坏了")))
-    assert window.status_chip.text() == "无法检查"
+    assert window.status_chip.text() == "检查失败"
     window._on_worker(("glance", "ok", False))
     assert window.status_chip.text() == "自动检查中"
     window.close()
@@ -2134,7 +2136,7 @@ def test_the_first_open_checks_the_environment_and_confirms_it(qapp, tmp_path, m
     assert window.store.env_checked == ""
     assert window.start_environment_check() is True
     setup = window.setup
-    assert setup.isVisible() and setup.title.text() == "正在做首次检查"
+    assert setup.isVisible() and setup.title.text() == "正在检查"
     _wait(qapp, 350)
     # 屏幕截图 passed; the models load next, then the sample lobby is read.
     assert jobs == ["warmup"]
@@ -2171,7 +2173,7 @@ def test_a_failed_check_says_where_and_can_be_retried(qapp, tmp_path, monkeypatc
     window.start_environment_check()
     _wait(qapp, 350)
     setup = window.setup
-    assert setup.title.text() == "首次检查没通过"
+    assert setup.title.text() == "检查没通过"
     assert setup.message.text() == "没有读到画面，请再试一次。"
     assert setup.buttons.isVisible()
     assert window.store.env_checked == ""
@@ -2182,7 +2184,7 @@ def test_a_failed_check_says_where_and_can_be_retried(qapp, tmp_path, monkeypatc
     assert jobs == ["warmup"]
     window._on_worker(("warmup", "ok", None))
     window._on_worker(("envcheck", "ok", _lobby(5)))
-    assert setup.title.text() == "首次检查没通过"
+    assert setup.title.text() == "检查没通过"
     assert "5 个名字" in setup.message.text()
     window.close()
 
@@ -2211,7 +2213,7 @@ def test_settings_runs_the_same_check_on_the_sample_lobby(qapp, tmp_path, monkey
     for slot in wrong.names[:3]:
         slot.visible = "别人"
     window._on_worker(("envcheck", "ok", wrong))
-    assert setup.title.text() == "检查没通过" and "读对了 9 个" in setup.message.text()
+    assert setup.title.text() == "检查没通过" and "读对 9 个" in setup.message.text()
     setup.retry_button.click()
     _wait(qapp, 350)
     assert setup.title.text() == "正在检查"
@@ -2232,8 +2234,8 @@ def test_a_model_that_will_not_load_stops_the_check_at_its_step(qapp, tmp_path, 
     window.show()
     window.start_environment_check()
     _wait(qapp, 350)
-    window._on_worker(("warmup", "err", OcrUnavailable("识别功能没装好，请重新解压完整的安装包")))
-    assert window.setup.title.text() == "首次检查没通过"
+    window._on_worker(("warmup", "err", OcrUnavailable("识别功能没装好，重新解压一遍安装包")))
+    assert window.setup.title.text() == "检查没通过"
     assert "识别功能没装好" in window.setup.message.text()
     assert window.setup.notes[1].text() == ""
     window.close()
@@ -2247,7 +2249,7 @@ def test_a_library_error_is_shown_in_plain_words(qapp, tmp_path, monkeypatch):
     window._picture_pending = "截图检查"
     window._on_worker(("picture", "err", OSError("cannot identify image file 'C:\\x\\a.png'")))
     shown = window._picture_dialog.summary.text()
-    assert "无法打开这张图片" in shown
+    assert "这张图打不开" in shown
     assert "cannot" not in shown and "png" not in shown
     window._picture_dialog.close()
     window.close()
@@ -2257,7 +2259,7 @@ def test_a_damaged_list_file_is_reported_without_its_error(tmp_path):
     (tmp_path / "blacklist.json").write_text("{ not json", encoding="utf-8")
     store = Store(tmp_path)
     assert store.entries == []
-    assert store.load_warning == "黑名单文件打不开，已另存一份备份，先用空名单"
+    assert store.load_warning == "黑名单文件坏了，已备份，先用空名单"
 
 
 def test_reset_then_restart_runs_the_check_and_the_guide_again(qapp, tmp_path, monkeypatch):
@@ -2321,7 +2323,7 @@ def test_the_disclaimer_comes_first_and_declining_closes_the_app(qapp, tmp_path,
     assert notice is not None and notice.isVisible() and notice.isModal()
     text = " ".join(point.text() for point in notice.points)
     assert len(notice.points) == 3
-    assert "与网易" in text and "无注入游戏" in text and "自行承担" in text
+    assert "和网易" in text and "无注入游戏" in text and "自行承担" in text
     assert window.findChild(GuideDialog) is None
     # 同意: kept, and the welcome guide follows on a new PC.
     notice.agree_button.click()
@@ -2413,7 +2415,7 @@ def test_the_start_with_windows_switch(qapp, tmp_path, monkeypatch):
     state["works"] = False
     switch.click()
     assert state["on"] is True and switch.isChecked() is True, "a change that failed does not show as made"
-    assert window.toast.text.text() == "无法设置开机启动"
+    assert window.toast.text.text() == "开机启动没设上"
     state["works"] = True
     monkeypatch.setattr("blacklist_detect.ui._confirm", lambda *_args: True)
     window.close_mode.buttons["quit"].click()
@@ -2589,7 +2591,7 @@ def test_renaming_or_deleting_the_picked_tag(qapp, tmp_path, monkeypatch):
     assert _shown_names(window) == ["甲"]
     # Deleting a tag that names carry asks first, then goes back to 全部.
     asked: list[str] = []
-    monkeypatch.setattr("blacklist_detect.ui._confirm", lambda _parent, text: asked.append(text) or True)
+    monkeypatch.setattr("blacklist_detect.ui._confirm", lambda _parent, text, *_rest: asked.append(text) or True)
     window._remove_tag("闹房")
     assert asked == ["「闹房」1 人正在使用，是否确定删除？"]
     assert window._tag_filter == "" and window.tag_list.currentRow() == 0

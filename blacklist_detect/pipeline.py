@@ -80,7 +80,7 @@ def check_image(path: str | Path, entries: list[Entry], engine=None) -> CheckRes
 def check_frames(frames: list[np.ndarray], entries: list[Entry], engine=None, on_lobby=None) -> CheckResult:
     """Header-scan each monitor copy and read names only on the one that matches."""
     if not frames:
-        return CheckResult(False, "无法截屏，请重试")
+        return CheckResult(False, "截屏失败，再试一次")
     reader = engine or get_engine()
     chosen: tuple[np.ndarray, Anchor, list[OcrLine]] | None = None
     last_reason = "没有找到「推演成功」大厅"

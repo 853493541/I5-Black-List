@@ -109,9 +109,9 @@ class LikeDialog(Modal):
         elif not key:
             problem = "名字里要有文字或数字"
         elif key in self.taken:
-            problem = "这个玩家已在心动列表里"
+            problem = "已经在心动里了"
         elif key in self.blacklisted:
-            problem = "这个玩家已在黑名单里"
+            problem = "已经在黑名单里了"
         else:
             problem = ""
         if problem:
@@ -303,7 +303,7 @@ class LikesPage(QWidget):
         like = self.store.add_like(dialog.name, dialog.nickname, dialog.detail)
         if like is None:
             return
-        self._done(f"已将「{like.shown()}」加入心动列表", before)
+        self._done(f"「{like.shown()}」加进心动了", before)
 
     def edit(self, index: int) -> None:
         if not 0 <= index < len(self.store.likes):
@@ -341,7 +341,7 @@ class LikesPage(QWidget):
         before = (self.store.snapshot_likes(), self.store.snapshot_entries())
         added, merged = self.store.import_likes(dialog.chosen)
         if not added and not merged:
-            self._say("这些玩家都已在心动列表里")
+            self._say("都已经在心动里了")
             return
         parts = [f"已添加 {added} 人"] if added else []
         if merged:
@@ -357,7 +357,7 @@ class LikesPage(QWidget):
 
     def clear(self) -> None:
         count = len(self.store.likes)
-        if not count or not ConfirmDialog.ask(self.window(), "清空心动列表", f"将删除 {count} 条心动，确定清空吗？", "清空", danger=True):
+        if not count or not ConfirmDialog.ask(self.window(), "清空心动", f"将删除 {count} 条心动，确定清空吗？", "清空", danger=True):
             return
         before = (self.store.snapshot_likes(), self.store.snapshot_entries())
         self.store.clear_likes()

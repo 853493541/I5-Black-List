@@ -227,7 +227,7 @@ class AddNameDialog(Modal):
         elif not key:
             problem = "名字里要有文字或数字"
         elif key in self.taken:
-            problem = "这个玩家已在黑名单里"
+            problem = "已经在黑名单里了"
         else:
             problem = ""
         if problem:
@@ -600,7 +600,7 @@ class PictureResultDialog(Modal):
         layout.addWidget(self.summary)
         self.seats: list[QLabel] = []
         if error:
-            self.summary.setText(f"无法检查：{error}")
+            self.summary.setText(f"检查失败：{error}")
         elif result is None or not result.header_found:
             reason = result.message if result is not None else ""
             self.summary.setText(f"{reason}\n请用「推演成功」大厅的完整截图".strip())
@@ -698,7 +698,7 @@ class PictureResultDialog(Modal):
 
 # 使用声明: what the app is and is not, and who answers for using it.
 DISCLAIMER = (
-    "本工具是玩家自制的免费工具，与网易及《第五人格》官方无关。",
+    "玩家自制的免费工具，和网易、第五人格官方无关。",
     "本工具会进行截图并且在工具内分析，然后展示结果，无注入游戏。",
     "使用第三方工具可能违反游戏用户协议，由此带来的任何后果（包括账号处罚）由使用者自行承担。",
 )
@@ -782,8 +782,8 @@ STREAM_GUIDE = (
 )
 # 显示's guide: what the player sees in each mode.
 DISPLAY_DIFF = (
-    ("display-diff-1.jpg", "发现黑名单", "安全模式只在右下角提示；完整模式在游戏画面上标出是谁"),
-    ("display-diff-2.jpg", "遇到心动", "完整模式还会在游戏画面上显示花朵边框"),
+    ("display-diff-1.jpg", "发现黑名单", "安全模式只在右下角提示，完整模式直接标在游戏上"),
+    ("display-diff-2.jpg", "遇到心动", "完整模式还有花边"),
 )
 GUIDE_PICTURES = Path(__file__).resolve().parent / "assets"
 # Each picture fits in this box, in logical pixels; the files are made at twice the size.

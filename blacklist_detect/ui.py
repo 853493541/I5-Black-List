@@ -242,7 +242,7 @@ def run_app(background: bool = False) -> int:
         log.critical("The window could not open", exc_info=True)
         from PySide6.QtWidgets import QMessageBox
 
-        QMessageBox.critical(None, APP_NAME, "无法启动，请重新解压完整的安装包后再试")
+        QMessageBox.critical(None, APP_NAME, "打不开，重新解压一遍安装包")
         return 1
     try:
         log.info("Computer: %s; screens %s", machine_line(), screens_line())
@@ -477,8 +477,6 @@ class MainWindow(QMainWindow):
         self._warm_error = ""
         self._env_waiting = False
         self.setup = None
-        # The check is the first on this version (首次检查), or one asked for from 设置.
-        self._env_first = True
         self._picture_pending = ""
         self._picture_dialog = None
         # The last glance, kept by the worker thread to skip a screen that has not changed.
@@ -1209,7 +1207,7 @@ class MainWindow(QMainWindow):
             if len(names) > 6:
                 shown += "等"
             text = f"「{tag}」{len(names)} 人正在使用，是否确定删除？"
-        if not _confirm(self, text):
+        if not _confirm(self, text, "删除标签", "删除"):
             return
         if not self.store.remove_custom_tag(tag):
             return
@@ -1220,7 +1218,7 @@ class MainWindow(QMainWindow):
         self.settings_label.setVisible(bool(text))
 
     def _ask_reset(self) -> None:
-        if not _confirm(self, "清空数据后无法恢复，是否确定清空？"):
+        if not _confirm(self, "清空数据后无法恢复，是否确定清空？", "清空数据", "清空"):
             return
         self.store.reset()
         self.hotkey.clear()
@@ -2092,7 +2090,7 @@ class MainWindow(QMainWindow):
         before = self.store.snapshot_entries()
         added, merged = self.store.import_rows(rows)
         if not added and not merged:
-            self._say("这些玩家都已在黑名单里")
+            self._say("都已经在黑名单里了")
             return
         # A shared list may bring tags this list has not seen. They now show beside the list.
         self._refresh_tag_views()
@@ -2333,7 +2331,7 @@ class MainWindow(QMainWindow):
 
     def _ask_clear_history(self) -> None:
         count = len(self.store.scans)
-        if count and ConfirmDialog.ask(self, "清空记录", f"会删除全部 {count} 条记录，确定清空吗？", "清空", danger=True):
+        if count and ConfirmDialog.ask(self, "清空记录", f"将删除 {count} 条记录，确定清空吗？", "清空", danger=True):
             self._clear_history()
 
     def _clear_history(self) -> None:
@@ -2766,7 +2764,7 @@ class MainWindow(QMainWindow):
             return
         key = _qt_key_name(event.key())
         if key is None:
-            self._set_settings_note("请用字母、数字或 F1–F12")
+            self._set_settings_note("用字母、数字或 F1–F12")
             return
         modifiers = []
         flags = event.modifiers()
@@ -2780,7 +2778,7 @@ class MainWindow(QMainWindow):
             modifiers.append("Win")
         spec = parse_hotkey("+".join([*modifiers, key]))
         if spec is None:
-            self._set_settings_note("这个组合键用不了，请换一个")
+            self._set_settings_note("这个键用不了，换一个")
             return
         registered = self.hotkey.apply(spec)
         log.info("Hotkey set to %s%s.", spec.display, "" if registered else ", which did not register")
@@ -2795,7 +2793,7 @@ class MainWindow(QMainWindow):
             self.store.hotkey = ""
             self.store.save_settings()
             self.hotkey_edit.clear()
-            self._set_settings_note("这个快捷键已被其他程序占用，请换一个")
+            self._set_settings_note("这个键被别的程序占了，换一个")
         self.hotkey_edit.clearFocus()
         if self._status_kind == "idle":
             self._sync_watch_idle()
@@ -2872,7 +2870,7 @@ class MainWindow(QMainWindow):
             target = export_logs(self.store.root, summary)
         except OSError as exc:
             log.warning("Logs could not be exported: %s", exc)
-            self._say("无法导出日志，桌面上存不了文件")
+            self._say("桌面存不了文件，日志没导出")
             return
         log.info("Logs exported.")
         self._say(f"已存到桌面：{target.name}")
@@ -2909,7 +2907,6 @@ class MainWindow(QMainWindow):
             return False
         if force:
             log.info("检查 started from 设置.")
-        self._env_first = not force
         if self.setup is None:
             from blacklist_detect.ui_setup import SetupCheck
 
@@ -2920,7 +2917,7 @@ class MainWindow(QMainWindow):
         return True
 
     def _run_environment_check(self) -> None:
-        self.setup.start(first=self._env_first)
+        self.setup.start()
         # The lobby watch waits, so the check has the reader to itself.
         self._glance_pause_until = time.perf_counter() + 3600
         self.setup.step(0, "run")
@@ -2931,7 +2928,7 @@ class MainWindow(QMainWindow):
             capture_top_band()
         except Exception as exc:  # noqa: BLE001 - every way the screen copy fails is shown the same way
             log.warning("Environment check: screen copy failed: %s", exc)
-            self._env_fail(0, _plain_error(exc, "无法截屏，请重试"))
+            self._env_fail(0, _plain_error(exc, "截屏失败，再试一次"))
             return
         self.setup.step(0, "ok")
         self.setup.step(1, "run")
@@ -2951,7 +2948,7 @@ class MainWindow(QMainWindow):
         if tries < 300:
             QTimer.singleShot(100, lambda: self._env_load_models(tries + 1))
             return
-        self._env_fail(1, "正在识别，请稍后再试")
+        self._env_fail(1, "正在识别，稍等一下")
 
     def _env_models_ready(self) -> None:
         self._env_waiting = False
@@ -2966,19 +2963,19 @@ class MainWindow(QMainWindow):
         if tries < 300:
             QTimer.singleShot(100, lambda: self._env_sample(tries + 1))
             return
-        self._env_fail(2, "正在识别，请稍后再试")
+        self._env_fail(2, "正在识别，稍等一下")
 
     def _on_env_sample(self, status: str, value) -> None:  # noqa: ANN001
         if status != "ok":
             log.warning("Environment check: sample lobby failed: %s", value)
-            self._env_fail(2, _plain_error(value, "无法识别，请重试"))
+            self._env_fail(2, _plain_error(value, "识别失败，再试一次"))
             return
         # The sample lobby's names are known: each one read is checked against them.
         seats = sorted(value.names, key=lambda slot: slot.index)
         right = sum(1 for slot, name in zip(seats, SAMPLE_NAMES, strict=False) if not slot.unclear and slot.visible == name)
         if not value.header_found or right < 10:
             log.warning("Environment check: lobby %s, %d of 12 names read right", value.header_found, right)
-            self._env_fail(2, f"示例截图只读对了 {right} 个名字，结果可能不准")
+            self._env_fail(2, f"示例图只读对 {right} 个名字，可能不准")
             return
         log.info("Environment check passed: %d of 12 names read right", right)
         self.setup.step(2, "ok", f"{right}/12")
@@ -3020,7 +3017,7 @@ class MainWindow(QMainWindow):
             return
         self._picture_pending = ""
         self._sync_picture_buttons()
-        self._picture_dialog = PictureResultDialog(title, error="正在识别，请稍后再试", parent=self)
+        self._picture_dialog = PictureResultDialog(title, error="正在识别，稍等一下", parent=self)
         self._picture_dialog.open()
 
     def _sync_picture_buttons(self) -> None:
@@ -3035,7 +3032,7 @@ class MainWindow(QMainWindow):
         self._sync_picture_buttons()
         if status != "ok":
             log.warning("Picture check failed: %s", value)
-            error = _plain_error(value, "无法打开这张图片")
+            error = _plain_error(value, "这张图打不开")
             self._picture_dialog = PictureResultDialog(title, error=error, parent=self)
         else:
             log.info("Picture check: lobby %s, %d on the list", value.header_found, len(value.hits))
@@ -3048,7 +3045,7 @@ class MainWindow(QMainWindow):
     def _set_autostart(self, enabled: bool) -> None:
         if not autostart.set_enabled(enabled):
             log.warning("Could not change start with Windows to %s", enabled)
-            self._say("无法设置开机启动")
+            self._say("开机启动没设上")
         self._sync_switch(self.autostart_switch, autostart.is_enabled())
 
     def _on_close_mode(self, key: str) -> None:
@@ -3079,11 +3076,11 @@ class MainWindow(QMainWindow):
         if isinstance(problem, OcrUnavailable):
             label = "识别还没准备好"
         elif isinstance(problem, CaptureUnavailable):
-            label = "无法读取屏幕"
+            label = "读不到屏幕"
         else:
-            label = "无法检查"
+            label = "检查失败"
         raw = str(problem).strip() or label
-        detail = _plain_error(problem, "无法检查，请稍后再试")
+        detail = _plain_error(problem, "检查失败，等会儿再试")
         if raw != self._problem:
             trace = (type(problem), problem, problem.__traceback__) if isinstance(problem, BaseException) else None
             expected = isinstance(problem, (OcrUnavailable, CaptureUnavailable))
@@ -3205,7 +3202,7 @@ class MainWindow(QMainWindow):
 
     def _on_warmed(self, status: str, value) -> None:
         self._warm_state = "ready" if status == "ok" else "failed"
-        self._warm_error = "" if status == "ok" else _plain_error(value, "识别还没准备好，请稍后再试")
+        self._warm_error = "" if status == "ok" else _plain_error(value, "识别还没准备好，稍等一下")
         if self._env_waiting:
             if status == "ok":
                 self._env_models_ready()
@@ -3275,7 +3272,7 @@ class MainWindow(QMainWindow):
                 self.watch.retry_after(time.perf_counter())
             self._hide_panel_after_title()
             if self.store.safe_mode and self._live_check and manual:
-                self.notice.show_error(_plain_error(value, "请稍后再试"), self._notice_screen)
+                self.notice.show_error(_plain_error(value, "等会儿再试"), self._notice_screen)
             elif self.notice.kind == "checking":
                 self.notice.hide()
             return
