@@ -24,6 +24,15 @@ NAME_CONFIDENCE_MIN = 0.55
 TITLE_CANDIDATES = 4
 # Four characters measure about 3 to 3.5 times as wide as tall at any window size.
 TITLE_SHAPE = (2.0, 6.0)
+# Where the lobby's other lines sit, in the title's own height (dy, from its top) and width (dx,
+# from its middle), the same at any window size: 模仿者狂欢 and 倒计时 just under it, 准备就绪
+# above the button. Measured on the reference lobby and the sample; generous on every side.
+LOBBY_BANDS = (
+    ((0.9, 2.3), 1.1),  # 模仿者狂欢（12人狂欢）, 倒计时 10 秒
+    ((6.0, 7.4), 0.9),  # 准备就绪：11/12
+)
+# The check looks among more of the tallest lines than the glance: it is asked for once, not every second.
+LOBBY_TITLE_CANDIDATES = 8
 
 _ENGINE: OcrEngine | None = None
 _CONSOLE_HIDDEN = False
@@ -233,6 +242,69 @@ class OcrEngine:
         else:
             result = engine.ocr(bgr, cls=False)
         return parse_ocr_output(result)
+
+    def read_lobby_lines(self, bgr: np.ndarray) -> list[OcrLine] | None:
+        """The lines a check needs, without reading the rest of the screen: 推演成功 from the tallest
+        few lines, then only the lines where the lobby's header and 准备就绪 sit under it.
+
+        Reading every line of a busy screen is what made a check slow on a CPU (6 s on a laptop with
+        a game in an emulator). [] when no title is among the tallest lines: no lobby. None when it
+        cannot be done this way; the caller then reads everything.
+        """
+        engine = self._ensure()
+        inner = getattr(getattr(engine, "paddlex_pipeline", None), "_pipeline", None)
+        det = getattr(inner, "text_det_model", None)
+        rec = getattr(inner, "text_rec_model", None)
+        sort_boxes = getattr(inner, "_sort_boxes", None)
+        crop = getattr(inner, "_crop_by_polys", None)
+        if det is None or rec is None or sort_boxes is None or crop is None:
+            return None
+        found = next(iter(det([bgr], **inner.get_text_det_params())))
+        polys = list(sort_boxes(found["dt_polys"]))
+        if not polys:
+            return []
+        crops = list(crop(bgr, polys))
+        boxes = [_as_box(poly) for poly in polys]
+
+        def read(indexes: list[int]) -> dict[int, OcrLine]:
+            """These lines read, by their index; one that reads as nothing is left out."""
+            picked = [i for i in indexes if boxes[i] is not None and crops[i].size]
+            out: dict[int, OcrLine] = {}
+            if not picked:
+                return out
+            for i, result in zip(picked, rec([crops[i] for i in picked]), strict=False):
+                text, score = _recognition_text([result])
+                if text and score >= inner.text_rec_score_thresh:
+                    out[i] = OcrLine(text, score, boxes[i])
+            return out
+
+        shaped = []
+        for i, box in enumerate(boxes):
+            if box is None:
+                continue
+            width, height = box[2] - box[0], box[3] - box[1]
+            if height > 0 and TITLE_SHAPE[0] <= width / height <= TITLE_SHAPE[1]:
+                shaped.append((height, i))
+        shaped.sort(reverse=True)
+        tall = [i for _height, i in shaped[:LOBBY_TITLE_CANDIDATES]]
+        tall_lines = read(tall)
+        titles = [line for line in tall_lines.values() if "推演成功" in line.text.replace(" ", "")]
+        if not titles:
+            return []
+        wanted: set[int] = set()
+        for title in titles:
+            left, top, right, bottom = title.box
+            title_h, title_w, middle = bottom - top, right - left, (left + right) / 2
+            for i, box in enumerate(boxes):
+                if box is None or box == title.box:
+                    continue
+                dy = ((box[1] + box[3]) / 2 - top) / max(title_h, 1.0)
+                dx = ((box[0] + box[2]) / 2 - middle) / max(title_w, 1.0)
+                if any(low <= dy <= high and abs(dx) <= reach for (low, high), reach in LOBBY_BANDS):
+                    wanted.add(i)
+        # A wanted line that was among the tallest is read already.
+        known = [tall_lines[i] for i in sorted(wanted) if i in tall_lines]
+        return [*titles, *known, *read(sorted(i for i in wanted if i not in tall_lines)).values()]
 
     def read_tallest_lines(self, bgr: np.ndarray, keep: int = TITLE_CANDIDATES) -> list[OcrLine]:
         """Find every text line, but read only the tallest ones. For the 推演成功 glance.

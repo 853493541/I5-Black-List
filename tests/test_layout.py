@@ -170,3 +170,15 @@ def test_ready_count_is_not_a_thirteenth_name():
     assert anchor.countdown_seconds == 6
     assert anchor.ready_count == 8
     assert len(anchor.name_boxes) == 12
+
+
+def test_a_stray_symbol_on_the_countdown_is_not_part_of_it():
+    # Read from a smaller lobby on a big screen: 「倒计时」 then 「¥10秒」.
+    lines = [
+        _line("推演成功", TITLE_BOX),
+        _line("模仿者狂欢（12人狂欢）", MODE_BOX),
+        _line("倒计时", (0.466, 0.253, 0.535, 0.296)),
+        _line("¥10秒", (0.525, 0.253, 0.604, 0.296)),
+    ]
+    anchor = find_anchor(lines, REF_W, REF_H)
+    assert anchor.found and anchor.countdown_seconds == 10

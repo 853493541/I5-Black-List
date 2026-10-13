@@ -137,10 +137,43 @@ def same_band(previous: np.ndarray | None, current: np.ndarray, tolerance: float
 
 
 def _locate(engine, rgb: np.ndarray) -> tuple[Anchor, list[OcrLine]]:
+    """Find the lobby: first by reading only the title and the few lines under it, and only if
+    that cannot tell, by reading every line on the screen."""
     small, factor = downscale_rgb(rgb, max_width=1280)
-    lines = scale_lines(engine.read_bgr(rgb_to_bgr(small)), factor)
+    bgr = rgb_to_bgr(small)
     height, width = rgb.shape[:2]
+    quick = getattr(engine, "read_lobby_lines", None)
+    lines = quick(bgr) if quick is not None else None
+    if lines is not None:
+        lines = scale_lines(lines, factor)
+        anchor = find_anchor(lines, width, height)
+        # Found, or no 推演成功 among the tallest lines: no lobby here. Either way, the answer.
+        if anchor.found or not contains_title(lines):
+            return anchor, lines
+        if factor > 1.0:
+            # The title is there, but the lines under it were too small to read once the screen was
+            # shrunk (a game window on a big screen): read them again, sharp, from the full copy.
+            sharp = _under_title(engine, rgb, lines)
+            anchor = find_anchor(sharp, width, height)
+            if anchor.found:
+                return anchor, sharp
+    lines = scale_lines(engine.read_bgr(bgr), factor)
     return find_anchor(lines, width, height), lines
+
+
+def _under_title(engine, rgb: np.ndarray, lines: list[OcrLine]) -> list[OcrLine]:
+    """The lines around 推演成功, read from the full-size copy: the title, the header under it and
+    准备就绪, which sit within a few title-heights of it (see ocr_engine.LOBBY_BANDS)."""
+    title = next(line for line in lines if "推演成功" in line.text.replace(" ", ""))
+    left, top, right, bottom = title.box
+    title_w, title_h, middle = right - left, bottom - top, (left + right) / 2
+    height, width = rgb.shape[:2]
+    x0, x1 = max(0, int(middle - 1.4 * title_w)), min(width, int(middle + 1.4 * title_w))
+    y0, y1 = max(0, int(top - 0.4 * title_h)), min(height, int(top + 7.6 * title_h))
+    if x1 - x0 < 8 or y1 - y0 < 8:
+        return lines
+    found = engine.read_bgr(rgb_to_bgr(rgb[y0:y1, x0:x1]))
+    return [OcrLine(line.text, line.confidence, (line.box[0] + x0, line.box[1] + y0, line.box[2] + x0, line.box[3] + y0)) for line in found]
 
 
 def _crop(rgb: np.ndarray, box: tuple[int, int, int, int], scale: float) -> np.ndarray:

@@ -88,3 +88,25 @@ def test_the_glance_sees_the_title_in_the_reference_band():
     rgb = load_rgb(FIXTURE)
     assert glance_title(rgb[: int(rgb.shape[0] * 0.4)]) is True
     assert glance_title(rgb[int(rgb.shape[0] * 0.5) :]) is False
+
+
+@pytest.mark.parametrize("shrink", [1, 2, 4])
+def test_a_lobby_in_a_small_window_on_a_big_screen_is_found(shrink):
+    """An emulator's window on a 4K screen: the screen is shrunk to find text, so the lines under the
+    title are read again from the full copy. Found down to a quarter of the screen's width."""
+    import numpy as np
+    from PIL import Image
+
+    from blacklist_detect.pipeline import check_rgb
+    from blacklist_detect.ui import SAMPLE_LOBBY
+
+    lobby = Image.open(SAMPLE_LOBBY).convert("RGB")
+    if shrink > 1:
+        lobby = lobby.reduce(shrink)
+    screen = Image.new("RGB", (3840, 2160), (40, 44, 52))
+    screen.paste(lobby, ((3840 - lobby.width) // 2, (2160 - lobby.height) // 2))
+    result = check_rgb(np.asarray(screen), [])
+    assert result.header_found, result.message
+    assert result.countdown_seconds == 10 and result.ready_count == 11
+    read = [slot.visible for slot in result.names]
+    assert sum(1 for got, want in zip(read, SAMPLE_NAMES, strict=True) if got == want) >= 11, read

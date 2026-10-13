@@ -168,7 +168,8 @@ def _assemble_mode(lines: list[OcrLine]) -> OcrLine | None:
 def _assemble_countdown(lines: list[OcrLine]) -> tuple[OcrLine, int] | None:
     """倒计时, a seconds count, and 秒. The count is not required to be 10.
 
-    The detector often splits 「倒计时」 from 「10秒」. Those pieces are one line.
+    The detector often splits 「倒计时」 from 「10秒」. Those pieces are one line. A stray symbol the
+    reader adds to a piece (「¥10秒」, a smaller lobby on a big screen) is not part of it.
     """
     bases = [line for line in lines if "倒计时" in _norm(line.text)]
     best: tuple[float, OcrLine, int] | None = None
@@ -182,11 +183,11 @@ def _assemble_countdown(lines: list[OcrLine]) -> tuple[OcrLine, int] | None:
                 continue
             if other.box[0] - base.box[2] > limit:
                 continue
-            token = _norm(other.text)
+            token = _plain(other.text)
             if re.fullmatch(r"\d{1,3}|秒|\d{1,3}秒", token):
                 group.append(other)
         ordered = sorted(group, key=lambda line: line.box[0])
-        text = "".join(_norm(line.text) for line in ordered)
+        text = "".join(_plain(line.text) for line in ordered)
         count = re.search(r"倒计时[:：]?(\d{1,3})秒", text)
         if not count:
             continue
@@ -199,6 +200,11 @@ def _assemble_countdown(lines: list[OcrLine]) -> tuple[OcrLine, int] | None:
     if best is None:
         return None
     return best[1], best[2]
+
+
+def _plain(text: str) -> str:
+    """A piece of text as _norm gives it, without symbols: letters, digits and Chinese stay."""
+    return re.sub(r"[^\w:：]", "", _norm(text))
 
 
 def contains_title(lines: list[OcrLine]) -> bool:

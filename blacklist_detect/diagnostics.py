@@ -280,9 +280,15 @@ class FlowTest:
         return "\n".join(lines)
 
 
+# How wide the sample lobby is laid on the screen copy: a game window, as in an emulator, not the whole screen.
+LOBBY_SHARE = 0.64
+
+
 def run_flow_test(sample: Path, rounds: int = 3) -> FlowTest:
     """Runs on the worker thread: the screen copied as a check copies it, then 自动检查 and the
-    hotkey on the sample lobby made the size of that copy, so each costs what it costs here."""
+    hotkey on that copy with the sample lobby laid in the middle of it, the size of a game window.
+    Whatever else is on the screen is still there around it, so finding the lobby costs what it
+    costs here."""
     import numpy as np
     from PIL import Image
 
@@ -304,9 +310,9 @@ def run_flow_test(sample: Path, rounds: int = 3) -> FlowTest:
         return test
     test.size = (width, height)
     lobby = Image.open(sample).convert("RGB")
-    scale = min(width / lobby.width, height / lobby.height)
+    scale = min(width * LOBBY_SHARE / lobby.width, height * LOBBY_SHARE / lobby.height)
     lobby = lobby.resize((round(lobby.width * scale), round(lobby.height * scale)), Image.LANCZOS)
-    screen = Image.new("RGB", (width, height))
+    screen = Image.fromarray(frames[0]).convert("RGB")
     screen.paste(lobby, ((width - lobby.width) // 2, (height - lobby.height) // 2))
     rgb = np.asarray(screen)
     try:
