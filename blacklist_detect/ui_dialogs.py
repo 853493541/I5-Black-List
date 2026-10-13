@@ -777,10 +777,10 @@ class GuideDialog(Modal):
 
 
 # 直播模式's guide, one page of two rows: (picture in assets, title, words). What viewers see,
-# side by side with what the player sees, then how to add it in 直播姬.
+# side by side with what the player sees (both 完整模式, the same moment), then how to add it in 直播姬.
 STREAM_GUIDE = (
-    ("stream-diff-1.jpg", "观众看到什么", "直播模式下观众不会看到黑名单，仍然可以看到心动列表"),
-    ("stream-setup-2.png", "怎么设置", "在直播姬添加「窗口捕捉」，选「模仿者小工具·直播画面」，点「确定」"),
+    ("stream-diff-1.jpg", "观众看到什么", "观众看不到黑名单，能看到心动"),
+    ("stream-setup-2.png", "怎么设置", "在直播姬添加窗口捕捉"),
 )
 # 显示's guide: what the player sees in each mode.
 DISPLAY_DIFF = (
