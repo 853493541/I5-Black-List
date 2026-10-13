@@ -699,10 +699,8 @@ class PictureResultDialog(Modal):
 # 使用声明: what the app is and is not, and who answers for using it.
 DISCLAIMER = (
     "本工具是玩家自制的免费工具，与网易及《第五人格》官方无关。",
-    "只截取屏幕、在本机识别文字，不读取、不修改游戏，也不替你操作游戏。",
+    "本工具会进行截图并且在工具内分析，然后展示结果，无注入游戏。",
     "使用第三方工具可能违反游戏用户协议，由此带来的任何后果（包括账号处罚）由使用者自行承担。",
-    "名单和记录只保存在本机，除检查更新外不联网。",
-    "识别结果可能有误，请以游戏里为准。请友善使用，不要用它骚扰或针对其他玩家。",
 )
 
 
@@ -747,10 +745,10 @@ class GuideDialog(Modal):
         super().__init__(parent)
         layout = _frame(self, f"欢迎使用{APP_NAME}")
         steps = (
-            ("edit", "右上角填好你的游戏名"),
+            ("edit", "右上角填写游戏名称"),
             ("users", "在「黑名单」里加上不想遇到的人"),
             ("search", how),
-            ("warning", "遇到黑名单玩家时会提醒你"),
+            ("warning", "遇到黑名单会提醒你"),
         )
         accent = THEME["accent_line"] if THEME.get("scheme") == "dark" else THEME["accent"]
         self.steps: list[QLabel] = []

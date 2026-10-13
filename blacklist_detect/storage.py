@@ -405,7 +405,8 @@ class Store:
         self.love_music = "organ"
         # 直播模式: a window for a streaming app with the 心动 marks only, clear behind them. "" off, "on" on.
         self.stream_mode = ""
-        # What the player agreed to after being told the risk: "full" (完整模式), "auto" (自动检查).
+        # What the player agreed to after being told the risk: "full" (完整模式). "auto" (自动检查) was
+        # asked about before v0.8.1 and is kept, but no longer needed.
         self.consented: list[str] = []
         # 使用声明: read and agreed to before the app is used, once per PC.
         self.disclaimer_accepted = False
@@ -531,11 +532,11 @@ class Store:
         self.column_widths = list(DEFAULT_COLUMN_WIDTHS)
         self.load_warning = ""
         self._load_settings()
-        # 完整模式 and 自动检查 only once agreed to; settings from before the question fall back.
+        # 完整模式 only once agreed to; settings from before the question fall back.
         if "full" not in self.consented:
             self.safe_mode = True
-        # 安全模式 checks on the hotkey only.
-        if "auto" not in self.consented or self.safe_mode:
+        # 安全模式 checks on the hotkey only. 自动检查 is not asked about since v0.8.1.
+        if self.safe_mode:
             self.auto_capture = False
         if self.blacklist_path.exists():
             try:

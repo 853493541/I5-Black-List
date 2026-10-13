@@ -95,30 +95,24 @@ def test_the_page_lists_names_with_their_nicknames(window):
     assert page.table.isHidden() and "没有找到" in page.empty.title.text()
 
 
-def test_adding_a_blacklisted_name_asks_to_move_it(window, monkeypatch):
+def test_a_blacklisted_name_is_refused_not_moved(window, monkeypatch):
     from blacklist_detect import ui_likes
 
     window.store.add("小明", reason="炸房")
-    asked: list[str] = []
-    monkeypatch.setattr(ui_likes.ConfirmDialog, "ask", staticmethod(lambda _p, _t, text, *_a, **_k: asked.append(text) or True))
+    dialogs = []
 
-    class Picked:
-        def __init__(self, *_args, **_kwargs) -> None:
-            self.name, self.nickname, self.detail, self.deleted = "小明", "明哥", "其实还行", False
+    def run(dialog) -> int:  # noqa: ANN001
+        dialogs.append(dialog)
+        dialog.name_edit.setText("小明")
+        dialog._accept()
+        return dialog.result()
 
-        def exec(self) -> int:
-            return QDialog.Accepted
-
-    monkeypatch.setattr(ui_likes, "LikeDialog", Picked)
-    said: list[tuple[str, object]] = []
-    window.likes_page._say = lambda text, undo=None: said.append((text, undo))
+    monkeypatch.setattr(ui_likes.LikeDialog, "exec", run)
     window.likes_page.add_one()
-    assert asked == ["「小明」在黑名单中，要移到心动列表吗？"]
-    assert window.store.entries == [] and [e.name for e in window.store.likes] == ["小明"]
-    assert said[0][0] == "已将「明哥」加入心动列表"
-    # 撤销 puts both lists back.
-    said[0][1]()
-    assert [e.name for e in window.store.entries] == ["小明"] and window.store.likes == []
+    # A player is on one list: a 黑名单 name stays there and is not added to 心动.
+    assert dialogs[0].name_error.text() == "这个玩家已在黑名单里"
+    assert dialogs[0].result() != QDialog.Accepted
+    assert [entry.name for entry in window.store.entries] == ["小明"] and window.store.likes == []
 
 
 def test_a_record_shows_a_like_in_rose_with_its_nickname(window):

@@ -377,6 +377,19 @@ def test_a_settings_file_from_before_counts_as_welcomed(tmp_path):
     assert store.auto_capture is False
 
 
+def test_auto_check_needs_no_answer_of_its_own(tmp_path):
+    # 自动检查 is not asked about: it is kept with 完整模式 agreed to, and only 安全模式 turns it off.
+    store = Store(tmp_path)
+    store.consented = ["full"]
+    store.safe_mode = False
+    store.auto_capture = True
+    store.save_settings()
+    assert Store(tmp_path).auto_capture is True
+    store.safe_mode = True
+    store.save_settings()
+    assert Store(tmp_path).auto_capture is False
+
+
 def test_each_level_is_kept_once_agreed_to(tmp_path):
     store = Store(tmp_path)
     assert store.stream_mode == ""

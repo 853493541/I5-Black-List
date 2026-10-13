@@ -1,6 +1,6 @@
 """心动 › 心动特效: which scene plays over the game, and which wedding music, for two or more 心动
-players in a lobby. Each can be one of them, 随机 or 关闭; the choice is saved as it is made. The
-default comes first (经典花边, 婚礼进行曲 · 管风琴), 随机 second, and 关闭 last, in red.
+players in a lobby. Each can be one of them, 随机 or 无; the choice is saved as it is made. The
+default comes first (经典花边, 婚礼进行曲 · 管风琴), then the others, then 随机, and 无 last, in red.
 
 A preview plays the chosen scene over the fake-name sample lobby, with the app's own marks on it.
 """
@@ -131,14 +131,13 @@ class LoveEffectsDialog(Modal):
         self.store = store
         self.music = music
         layout = self.frame("心动特效")
-        note = QLabel("同一局遇到两名以上心动玩家时播放")
+        note = QLabel("一局遇到 2 个以上心动时播放")
         note.setObjectName("sub")
         layout.addWidget(note)
         self.preview = ScenePreview()
         layout.addWidget(self.preview, 0, Qt.AlignHCenter)
-        scenes = [love_scenes.SCENES[0], ("random", "随机"), *love_scenes.SCENES[1:], ("off", "关闭")]
-        named = [(key, name) for key, name, _file in TUNE_LIST]
-        tunes = [named[0], ("random", "随机"), *named[1:], ("off", "关闭")]
+        scenes = [*love_scenes.SCENES, ("random", "随机"), ("off", "无")]
+        tunes = [*((key, name) for key, name, _file in TUNE_LIST), ("random", "随机"), ("off", "无")]
         self.scene_buttons = self._choices(layout, "特效", scenes, store.love_scene, self._pick_scene)
         self.music_buttons = self._choices(layout, "音乐", tunes, store.love_music, self._pick_music)
         self.play_button = QPushButton("预览")
@@ -160,7 +159,7 @@ class LoveEffectsDialog(Modal):
             button = QPushButton(name)
             button.setObjectName("segment")
             button.setProperty("place", "only")
-            # 关闭 in red, as an action that turns something off.
+            # 无 in red: it turns the effect off.
             button.setProperty("off", key == "off")
             button.setCheckable(True)
             button.setAutoDefault(False)

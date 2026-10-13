@@ -120,9 +120,10 @@ def test_the_picker_saves_each_choice_and_previews_it(qapp, tmp_path, monkeypatc
     store = Store()
     played: list = []
     dialog = LoveEffectsDialog(store, WeddingMusic(play=played.append, rng=random.Random(1)))
-    # The default first, 随机 second, 关闭 last and in red.
-    assert list(dialog.scene_buttons) == ["classic", "random", *KEYS[1:], "off"]
-    assert list(dialog.music_buttons) == ["organ", "random", *TUNE_KEYS[1:], "off"]
+    # The default first, then the others, 随机, and 无 last and in red.
+    assert list(dialog.scene_buttons) == [*KEYS, "random", "off"] and KEYS[0] == "classic"
+    assert list(dialog.music_buttons) == [*TUNE_KEYS, "random", "off"] and TUNE_KEYS[0] == "organ"
+    assert dialog.scene_buttons["off"].text() == dialog.music_buttons["off"].text() == "无"
     assert dialog.scene_buttons["classic"].isChecked() and dialog.music_buttons["organ"].isChecked()
     assert dialog.scene_buttons["off"].property("off") is True and dialog.scene_buttons["random"].property("off") is False
     assert dialog.preview.scene == "classic"

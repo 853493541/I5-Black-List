@@ -169,7 +169,7 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     window._remove_tag("红名")
     assert window.store.custom_tags == ["红名"]
     window._remove_tag("红名")
-    assert asked == ["「红名」有 1 人在用（甲），删除后他们会去掉这个标签。确定删除吗？"] * 2
+    assert asked == ["「红名」1 人正在使用，是否确定删除？"] * 2
     assert window.store.custom_tags == []
     assert window.store.entries[-1].tags == ()
     window.close()
@@ -1160,7 +1160,7 @@ def test_clear_buttons_split_into_cancel_and_confirm(qapp, tmp_path, monkeypatch
 
     def ask(_parent, title, body, confirm, *, danger=False):
         questions.append((title, confirm, danger))
-        assert "1 人" in body or "1 条记录" in body
+        assert "1 条" in body
         return answers.pop(0)
 
     monkeypatch.setattr("blacklist_detect.ui.ConfirmDialog.ask", ask)
@@ -2320,7 +2320,8 @@ def test_the_disclaimer_comes_first_and_declining_closes_the_app(qapp, tmp_path,
     notice = window.findChild(DisclaimerDialog)
     assert notice is not None and notice.isVisible() and notice.isModal()
     text = " ".join(point.text() for point in notice.points)
-    assert "与网易" in text and "自行承担" in text and "只保存在本机" in text
+    assert len(notice.points) == 3
+    assert "与网易" in text and "无注入游戏" in text and "自行承担" in text
     assert window.findChild(GuideDialog) is None
     # 同意: kept, and the welcome guide follows on a new PC.
     notice.agree_button.click()
@@ -2590,7 +2591,7 @@ def test_renaming_or_deleting_the_picked_tag(qapp, tmp_path, monkeypatch):
     asked: list[str] = []
     monkeypatch.setattr("blacklist_detect.ui._confirm", lambda _parent, text: asked.append(text) or True)
     window._remove_tag("闹房")
-    assert asked == ["「闹房」有 1 人在用（甲），删除后他们会去掉这个标签。确定删除吗？"]
+    assert asked == ["「闹房」1 人正在使用，是否确定删除？"]
     assert window._tag_filter == "" and window.tag_list.currentRow() == 0
     assert "闹房" not in window.store.tag_catalog()
     assert _shown_names(window) == ["甲", "乙"]

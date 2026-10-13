@@ -194,19 +194,13 @@ __all__ = [
     "run_app",
 ]
 
-# Said once before 完整模式 or 自动检查 is turned on, and agreed to before either runs.
+# Said once before 完整模式 is turned on, and agreed to before it runs.
 CONSENT = {
     "full": (
         "开启完整模式",
-        "提醒会直接显示在游戏画面上，有可能被游戏当成异常。确定开启吗？",
+        "特效直接显示在游戏窗口，可能被游戏当成异常。",
         "开启完整模式",
         "保持安全模式",
-    ),
-    "auto": (
-        "开启自动检查",
-        "进大厅时自动检查，不用按快捷键。它会一直截屏，比较占电脑资源，也有可能被游戏当成异常。确定开启吗？",
-        "开启自动检查",
-        "保持手动检查",
     ),
 }
 
@@ -1214,7 +1208,7 @@ class MainWindow(QMainWindow):
             shown = "、".join(names[:6])
             if len(names) > 6:
                 shown += "等"
-            text = f"「{tag}」有 {len(names)} 人在用（{shown}），删除后他们会去掉这个标签。确定删除吗？"
+            text = f"「{tag}」{len(names)} 人正在使用，是否确定删除？"
         if not _confirm(self, text):
             return
         if not self.store.remove_custom_tag(tag):
@@ -1226,7 +1220,7 @@ class MainWindow(QMainWindow):
         self.settings_label.setVisible(bool(text))
 
     def _ask_reset(self) -> None:
-        if not _confirm(self, "会删除游戏名、记录、黑名单、心动列表和所有设置，删除后无法恢复。确定清空吗？"):
+        if not _confirm(self, "清空数据后无法恢复，是否确定清空？"):
             return
         self.store.reset()
         self.hotkey.clear()
@@ -1868,7 +1862,7 @@ class MainWindow(QMainWindow):
         count = len(self.store.entries)
         if not count:
             return
-        if ConfirmDialog.ask(self, "清空黑名单", f"会删除黑名单里的 {count} 人，确定清空吗？", "清空", danger=True):
+        if ConfirmDialog.ask(self, "清空黑名单", f"将删除 {count} 条黑名单，确定清空吗？", "清空", danger=True):
             self._confirm_clear_list()
 
     def _confirm_clear_list(self) -> None:
@@ -2659,7 +2653,7 @@ class MainWindow(QMainWindow):
             self._sync_watch_idle()
 
     def _consent(self, mode: str) -> bool:
-        """The first time 完整模式 or 自动检查 is picked, say what it does and ask."""
+        """The first time 完整模式 is picked, say what it does and ask."""
         if mode in self.store.consented:
             return True
         title, body, confirm, cancel = CONSENT[mode]
@@ -2673,10 +2667,6 @@ class MainWindow(QMainWindow):
 
     def _on_auto_mode(self, key: str) -> None:
         if key == "auto" and self.store.safe_mode:
-            self._sync_auto_controls()
-            return
-        if key == "auto" and not self._consent("auto"):
-            # Declined: the choice goes back to where it was.
             self._sync_auto_controls()
             return
         self._toggle_auto(key == "auto")

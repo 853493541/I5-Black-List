@@ -281,21 +281,11 @@ def test_turning_down_the_questions_changes_nothing(window, monkeypatch):
     window.full_on.click()
     title, body, cancel = asked[0]
     assert title == "开启完整模式"
-    assert "游戏画面上" in body and "当成异常" in body
+    assert body == "特效直接显示在游戏窗口，可能被游戏当成异常。"
     assert cancel == "保持安全模式"
     assert window.store.safe_mode is True
     assert window.safe_on.isChecked() is True
-    # 自动检查 is asked about in 完整模式, the only place it can be picked.
-    window.store.consented = ["full"]
-    window.full_on.click()
-    window.auto_on.click()
-    title, body, cancel = asked[1]
-    assert title == "开启自动检查"
-    assert "截屏" in body and "当成异常" in body
-    assert cancel == "保持手动检查"
-    assert window.store.auto_capture is False
-    assert window.auto_off.isChecked() is True
-    assert window.store.consented == ["full"]
+    assert window.store.consented == []
 
 
 def test_each_question_is_asked_once_and_the_answer_is_kept(window, monkeypatch):
@@ -308,15 +298,16 @@ def test_each_question_is_asked_once_and_the_answer_is_kept(window, monkeypatch)
     window.auto_on.click()
     window.auto_off.click()
     window.auto_on.click()
-    assert [title for title, _body, _cancel in asked] == ["开启完整模式", "开启自动检查"]
+    # Only 完整模式 asks; 自动检查 is turned on without a question.
+    assert [title for title, _body, _cancel in asked] == ["开启完整模式"]
     again = Store(window.store.root)
-    assert sorted(again.consented) == ["auto", "full"]
+    assert again.consented == ["full"]
     assert (again.safe_mode, again.auto_capture) == (False, True)
     # Manual checks and 安全模式 never ask.
     window.store.consented = []
     window.auto_off.click()
     window.safe_on.click()
-    assert len(asked) == 2
+    assert len(asked) == 1
     # 清空数据 forgets it: the next player is asked again.
     window.store.reset()
     assert Store(window.store.root).consented == []

@@ -1,8 +1,8 @@
 """心动: players worth meeting again, the other side of 黑名单.
 
 A 心动 player has a name, a 昵称, and a 原因; no 标签. When a lobby has one, the app shows
-the 昵称, or the full name when there is none. A player is on one list at a time: putting a
-黑名单 name on 心动, or the other way round, asks to move it.
+the 昵称, or the full name when there is none. A player is on one list at a time: a 黑名单
+name is refused here, and putting a 心动 name on 黑名单 asks to move it.
 
 The page is laid out like 黑名单 without the 标签 column: search, 心动特效, 批量导入, 添加, and
 under 更多, 复制名单 and 清空心动列表.
@@ -60,11 +60,14 @@ class LikeDialog(Modal):
         allow_delete: bool = False,
         added_at: str = "",
         taken: frozenset[str] | set[str] = frozenset(),
+        blacklisted: frozenset[str] | set[str] = frozenset(),
         parent=None,  # noqa: ANN001
     ) -> None:
         super().__init__(parent)
         # Folded names already on 心动. Saving one of them again would make a second row.
         self.taken = frozenset(taken)
+        # Folded names on 黑名单: a player is on one list, and 黑名单 is not moved to 心动.
+        self.blacklisted = frozenset(blacklisted)
         self.name = name
         self.nickname = nickname
         self.detail = reason
@@ -107,6 +110,8 @@ class LikeDialog(Modal):
             problem = "名字里要有文字或数字"
         elif key in self.taken:
             problem = "这个玩家已在心动列表里"
+        elif key in self.blacklisted:
+            problem = "这个玩家已在黑名单里"
         else:
             problem = ""
         if problem:
@@ -285,25 +290,16 @@ class LikesPage(QWidget):
     def _taken(self, skip: int = -1) -> frozenset[str]:
         return frozenset(fold(like.name) for index, like in enumerate(self.store.likes) if index != skip)
 
-    def take_from_blacklist(self, name: str) -> bool:
-        """A name on 黑名单 moves here only when asked. True when it is not there, or was moved."""
-        index = self.store.entry_index(name)
-        if index < 0:
-            return True
-        listed = self.store.entries[index].name
-        if not ConfirmDialog.ask(self.window(), "移到心动列表", f"「{listed}」在黑名单中，要移到心动列表吗？", "移到心动列表"):
-            return False
-        self.store.remove_at(index)
-        return True
+    def _blacklisted(self) -> frozenset[str]:
+        return frozenset(fold(entry.name) for entry in self.store.entries)
 
     def add_one(self, name: str = "") -> None:
-        dialog = LikeDialog(name if isinstance(name, str) else "", taken=self._taken(), parent=self.window())
+        dialog = LikeDialog(
+            name if isinstance(name, str) else "", taken=self._taken(), blacklisted=self._blacklisted(), parent=self.window()
+        )
         if dialog.exec() != QDialog.Accepted or dialog.deleted:
             return
-        # Taken before a move off 黑名单, so 撤销 puts the name back there too.
         before = (self.store.snapshot_likes(), self.store.snapshot_entries())
-        if not self.take_from_blacklist(dialog.name):
-            return
         like = self.store.add_like(dialog.name, dialog.nickname, dialog.detail)
         if like is None:
             return
@@ -315,7 +311,7 @@ class LikesPage(QWidget):
         like = self.store.likes[index]
         dialog = LikeDialog(
             like.name, like.nickname, like.reason, title="编辑", allow_delete=True,
-            added_at=like.added_at, taken=self._taken(skip=index), parent=self.window(),
+            added_at=like.added_at, taken=self._taken(skip=index), blacklisted=self._blacklisted(), parent=self.window(),
         )
         if dialog.exec() != QDialog.Accepted:
             return
@@ -361,7 +357,7 @@ class LikesPage(QWidget):
 
     def clear(self) -> None:
         count = len(self.store.likes)
-        if not count or not ConfirmDialog.ask(self.window(), "清空心动列表", f"将删除心动列表中的 {count} 人，确定清空吗？", "清空", danger=True):
+        if not count or not ConfirmDialog.ask(self.window(), "清空心动列表", f"将删除 {count} 条心动，确定清空吗？", "清空", danger=True):
             return
         before = (self.store.snapshot_likes(), self.store.snapshot_entries())
         self.store.clear_likes()
