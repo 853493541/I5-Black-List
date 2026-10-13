@@ -48,11 +48,16 @@ def test_the_lobby_is_found_from_the_lines_under_its_title_alone():
     assert anchor.found and engine.full_reads == 0, "the rest of the screen is never read"
 
 
-def test_no_title_among_the_tallest_lines_means_no_lobby_at_once():
+def test_no_title_among_the_tallest_lines_is_still_searched_for_fully():
+    # Bigger text than the game's title elsewhere on the screen must not hide a lobby.
     rgb = np.zeros((720, 1280, 3), dtype=np.uint8)
+    engine = _Engine([], full=_header(1280, 720))
+    anchor, _lines = pipeline._locate(engine, rgb)
+    assert anchor.found and engine.full_reads == 1
+    # And with no lobby at all, the answer is no.
     engine = _Engine([])
     anchor, _lines = pipeline._locate(engine, rgb)
-    assert not anchor.found and engine.full_reads == 0
+    assert not anchor.found and engine.full_reads == 1
 
 
 def test_lines_too_small_on_a_shrunk_screen_are_read_again_sharp():

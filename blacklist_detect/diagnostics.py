@@ -199,10 +199,10 @@ STEPS = (("capture", "截屏"), ("glance", "发现大厅"), ("find", "找名单"
 
 @dataclass
 class FlowTest:
-    """环境测试's timings: the two ways a check starts, each step, on the sample lobby the size of
-    this screen. 自动检查: a glance at the top of the screen sees 推演成功, then the lobby is found
-    and read. The hotkey: the screen is copied, then the lobby is found and read; three times,
-    the first after nothing has been read for a while, the others warm."""
+    """环境测试's timings: the two ways a check starts, each step, on the sample lobby laid in the
+    real screen copy. 自动检查: a glance at the top of the screen sees 推演成功, then the lobby is
+    found and read. The hotkey: the screen is copied, then the lobby is found and read; three
+    times, the first searching for the lobby, the others finding it where it was."""
 
     size: tuple[int, int] = (0, 0)
     screens: int = 1
@@ -258,8 +258,8 @@ class FlowTest:
             slowest = max(steps, key=steps.get)
             words = dict(STEPS)[slowest]
             out.append(f"最慢的一步是「{words}」：{steps[slowest]:.1f} 秒")
-        if self.runs and self.first_total() > 2 * max(self.hotkey_total(), 0.1) and self.first_total() > 2:
-            out.append(f"隔一会儿后的第一次检查较慢（{self.first_total():.1f} 秒），之后会快")
+        if self.runs and self.first_total() > 1.5 * max(self.hotkey_total(), 0.1) and self.first_total() > 1:
+            out.append(f"第一次检查要先找大厅（{self.first_total():.1f} 秒）；窗口不动，之后每次约 {self.hotkey_total():.1f} 秒")
         return out
 
     def text(self) -> str:
@@ -293,9 +293,12 @@ def run_flow_test(sample: Path, rounds: int = 3) -> FlowTest:
     from PIL import Image
 
     from blacklist_detect.capture import capture_displays
-    from blacklist_detect.ocr_engine import inference_device
+    from blacklist_detect.ocr_engine import get_engine, inference_device
     from blacklist_detect.pipeline import check_rgb, glance_title
 
+    engine = get_engine()
+    # Each way starts by searching for the lobby, as a first check does.
+    engine.lobby_spot = None
     test = FlowTest(device=inference_device(), power=power_note())
     window = CpuWindow()
     width, height = 1920, 1080
@@ -325,7 +328,9 @@ def run_flow_test(sample: Path, rounds: int = 3) -> FlowTest:
         test.glance = time.perf_counter() - started
         result = check_rgb(rgb, [])
         test.auto = {key: result.timings[key] for key in ("find", "read") if key in result.timings}
-        # The hotkey: a screen copy each time, then the check.
+        # The hotkey: a screen copy each time, then the check; the first searches, the others find
+        # the lobby where it was.
+        engine.lobby_spot = None
         for _ in range(rounds):
             started = time.perf_counter()
             capture_displays()
@@ -334,10 +339,11 @@ def run_flow_test(sample: Path, rounds: int = 3) -> FlowTest:
             run = {"capture": copy}
             run.update({key: result.timings[key] for key in ("find", "read") if key in result.timings})
             test.runs.append(run)
-        read = ["" if slot.unclear else slot.visible for slot in sorted(result.names, key=lambda slot: slot.index)]
-        test.right = sum(1 for got, want in zip(read, SAMPLE_NAMES, strict=False) if got == want)
+        # 识别测试 counts the names read right, on the sample at full size (the window sets test.right).
     except Exception as exc:  # noqa: BLE001
         test.error = f"无法识别：{exc}"
+    # The sample is not where a real lobby will be.
+    engine.lobby_spot = None
     numbers = window.numbers()
     if numbers is not None:
         test.cpu_busy, test.cpu_own = numbers

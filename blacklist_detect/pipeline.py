@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
 
-from blacklist_detect.layout import Anchor, contains_title, find_anchor, snap_button_box
+from blacklist_detect.layout import Anchor, contains_title, countdown_in, find_anchor, ready_in, snap_button_box
 from blacklist_detect.match import (
     NameLabel,
     format_hit,
@@ -78,14 +78,28 @@ def check_image(path: str | Path, entries: list[Entry], engine=None) -> CheckRes
 
 
 def check_frames(frames: list[np.ndarray], entries: list[Entry], engine=None, on_lobby=None) -> CheckResult:
-    """Header-scan each monitor copy and read names only on the one that matches."""
+    """Header-scan each monitor copy and read names only on the one that matches.
+
+    Where the lobby was last time is tried first: a game's window seldom moves between lobbies, so
+    the search is skipped when its title looks as it did (see _at_spot)."""
     if not frames:
         return CheckResult(False, "截屏失败，再试一次")
     reader = engine or get_engine()
     chosen: tuple[np.ndarray, Anchor, list[OcrLine]] | None = None
     last_reason = "没有找到「推演成功」大厅"
     started = time.perf_counter()
-    for frame in frames:
+    spot = getattr(reader, "lobby_spot", None)
+    at_spot = False
+    if isinstance(spot, LobbySpot) and hasattr(reader, "read_crops"):
+        for frame in frames:
+            if frame.shape[:2] != spot.size:
+                continue
+            anchor, _lines = _at_spot(reader, frame, spot)
+            if anchor.found:
+                chosen = (frame, anchor, _lines)
+                at_spot = True
+                break
+    for frame in frames if chosen is None else ():
         anchor, _lines = _locate(reader, frame)
         if anchor.found:
             chosen = (frame, anchor, _lines)
@@ -97,6 +111,9 @@ def check_frames(frames: list[np.ndarray], entries: list[Entry], engine=None, on
         result.timings["find"] = time.perf_counter() - started
         return result
     frame, anchor, _lines = chosen
+    if not at_spot and hasattr(reader, "lobby_spot"):
+        # Found by searching: remember where, for the next check.
+        reader.lobby_spot = _remember(frame, anchor, _lines)
     button = snap_button_box(frame, anchor.button_box)
     found = time.perf_counter()
     if on_lobby is not None and button is not None:
@@ -105,6 +122,8 @@ def check_frames(frames: list[np.ndarray], entries: list[Entry], engine=None, on
     result.button_box = button
     result.timings["find"] = found - started
     result.timings["read"] = time.perf_counter() - found
+    if at_spot:
+        result.timings["spot"] = 1.0
     return result
 
 
@@ -137,8 +156,9 @@ def same_band(previous: np.ndarray | None, current: np.ndarray, tolerance: float
 
 
 def _locate(engine, rgb: np.ndarray) -> tuple[Anchor, list[OcrLine]]:
-    """Find the lobby: first by reading only the title and the few lines under it, and only if
-    that cannot tell, by reading every line on the screen."""
+    """Find the lobby: first by reading only the title and the few lines under it, and when that
+    does not find it, by reading every line on the screen. So the quick way can only be faster,
+    never miss a lobby the full read would find; a press with no lobby on screen pays for both."""
     small, factor = downscale_rgb(rgb, max_width=1280)
     bgr = rgb_to_bgr(small)
     height, width = rgb.shape[:2]
@@ -147,10 +167,9 @@ def _locate(engine, rgb: np.ndarray) -> tuple[Anchor, list[OcrLine]]:
     if lines is not None:
         lines = scale_lines(lines, factor)
         anchor = find_anchor(lines, width, height)
-        # Found, or no 推演成功 among the tallest lines: no lobby here. Either way, the answer.
-        if anchor.found or not contains_title(lines):
+        if anchor.found:
             return anchor, lines
-        if factor > 1.0:
+        if factor > 1.0 and contains_title(lines):
             # The title is there, but the lines under it were too small to read once the screen was
             # shrunk (a game window on a big screen): read them again, sharp, from the full copy.
             sharp = _under_title(engine, rgb, lines)
@@ -159,6 +178,65 @@ def _locate(engine, rgb: np.ndarray) -> tuple[Anchor, list[OcrLine]]:
                 return anchor, sharp
     lines = scale_lines(engine.read_bgr(bgr), factor)
     return find_anchor(lines, width, height), lines
+
+
+# The title as a small gray picture, to tell whether the lobby is still where it was: the same window
+# shows the same pixels, a moved or resized one does not. Mean difference per pixel, 0 to 255.
+SPOT_THUMB = (96, 24)
+SPOT_STILL = 12.0
+
+
+@dataclass(frozen=True)
+class LobbySpot:
+    """Where the last lobby was: the search's own anchor, the title as a thumbnail, and where the
+    countdown and 准备就绪 lines were, read again each time since they change."""
+
+    size: tuple[int, int]
+    anchor: Anchor
+    thumb: np.ndarray
+    lines: tuple[tuple[float, float, float, float] | None, tuple[float, float, float, float] | None]
+
+
+def _thumb(rgb: np.ndarray, box) -> np.ndarray:  # noqa: ANN001
+    left, top, right, bottom = (int(round(value)) for value in box)
+    crop = rgb[max(0, top):max(top + 1, bottom), max(0, left):max(left + 1, right)]
+    return np.asarray(Image.fromarray(crop).convert("L").resize(SPOT_THUMB, Image.BILINEAR), dtype=np.float32)
+
+
+def _remember(frame: np.ndarray, anchor: Anchor, lines: list[OcrLine]) -> LobbySpot | None:
+    if anchor.title_box is None:
+        return None
+    ready = next((line.box for line in lines if ready_in(line.text) is not None), None)
+    return LobbySpot(frame.shape[:2], anchor, _thumb(frame, anchor.title_box), (anchor.countdown_box, ready))
+
+
+def _cut(rgb: np.ndarray, box) -> np.ndarray:  # noqa: ANN001
+    """A text line cut out for reading, with a little room round it, as BGR."""
+    left, top, right, bottom = box
+    pad = 0.15 * (bottom - top)
+    height, width = rgb.shape[:2]
+    x0, x1 = max(0, int(left - pad)), min(width, int(right + pad))
+    y0, y1 = max(0, int(top - pad)), min(height, int(bottom + pad))
+    return rgb_to_bgr(rgb[y0:y1, x0:x1])
+
+
+def _at_spot(engine, rgb: np.ndarray, spot: LobbySpot) -> tuple[Anchor, list[OcrLine]]:  # noqa: ANN001
+    """The lobby where it was last time, without searching. The title must look as it did, pixel
+    for pixel; then the search's own anchor is used, so the names are cut and read exactly as a
+    search would, and only the countdown and 准备就绪 are read again where they were. A window that
+    moved, changed size or shows something else is searched for as usual."""
+    title = spot.anchor.title_box
+    if title is None or float(np.abs(_thumb(rgb, title) - spot.thumb).mean()) > SPOT_STILL:
+        return Anchor(False, "没有找到「推演成功」大厅"), []
+    boxes = [box for box in spot.lines if box is not None]
+    read = engine.read_crops([_cut(rgb, box) for box in boxes]) if boxes else []
+    if read is None:
+        return Anchor(False, "没有找到「推演成功」大厅"), []
+    texts = dict(zip(boxes, (text for text, _score in read), strict=False))
+    countdown_box, ready_box = spot.lines
+    seconds = countdown_in(texts.get(countdown_box, "")) if countdown_box is not None else None
+    ready = ready_in(texts.get(ready_box, "")) if ready_box is not None else None
+    return replace(spot.anchor, countdown_seconds=seconds, ready_count=ready), []
 
 
 def _under_title(engine, rgb: np.ndarray, lines: list[OcrLine]) -> list[OcrLine]:

@@ -486,6 +486,7 @@ class MainWindow(QMainWindow):
         # The last 环境测试, for 导出日志; whether the one running ends in its report.
         self._flow_test: FlowTest | None = None
         self._env_report = False
+        self._env_right = 0
         self._picture_pending = ""
         self._picture_dialog = None
         # The last glance, kept by the worker thread to skip a screen that has not changed.
@@ -2989,6 +2990,7 @@ class MainWindow(QMainWindow):
             self._env_fail(2, f"示例图只读对 {right} 个名字，可能不准")
             return
         log.info("Environment check passed: %d of 12 names read right", right)
+        self._env_right = right
         self.setup.step(2, "ok", f"{right}/12")
         self.store.env_checked = __version__
         self.store.save_settings()
@@ -3007,6 +3009,9 @@ class MainWindow(QMainWindow):
 
     def _on_flow_test(self, status: str, value) -> None:  # noqa: ANN001
         test = value if status == "ok" else FlowTest(error=_plain_error(value, "识别失败，再试一次"))
+        # How well names are read is the full-size sample's count: the timed runs use it shrunk to a
+        # window's size, and shrinking a picture blurs its letters as a game's own window does not.
+        test.right = self._env_right
         self._flow_test = test
         log.info("%s", test.text())
         if test.error:
@@ -3159,6 +3164,8 @@ class MainWindow(QMainWindow):
         note = ", ".join(f"{name} {steps[name]:.2f} s" for name in ("capture", "find", "read") if name in steps)
         if steps.get("screens", 1) != 1:
             note += f", {int(steps['screens'])} screens"
+        if steps.get("spot"):
+            note += ", where the lobby was last time"
         if self._pressed_at is not None:
             note += f"; {time.perf_counter() - self._pressed_at:.2f} s since the hotkey"
         if steps.get("wait", 0) >= 0.2:

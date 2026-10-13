@@ -224,6 +224,8 @@ class OcrEngine:
     def __init__(self) -> None:
         self._ocr = None
         self._name_rec = None
+        # Where the last lobby was, or None. See pipeline._at_spot.
+        self.lobby_spot = None
 
     def warmup(self) -> None:
         self._ensure()
@@ -242,6 +244,18 @@ class OcrEngine:
         else:
             result = engine.ocr(bgr, cls=False)
         return parse_ocr_output(result)
+
+    def read_crops(self, crops: list[np.ndarray]) -> list[tuple[str, float]] | None:
+        """Read text lines already cut out (BGR), without looking for them first. None when the
+        reader cannot do that; the caller then does without."""
+        engine = self._ensure()
+        inner = getattr(getattr(engine, "paddlex_pipeline", None), "_pipeline", None)
+        rec = getattr(inner, "text_rec_model", None)
+        if rec is None:
+            return None
+        if not crops:
+            return []
+        return [_recognition_text([result]) for result in rec(crops)]
 
     def read_lobby_lines(self, bgr: np.ndarray) -> list[OcrLine] | None:
         """The lines a check needs, without reading the rest of the screen: 推演成功 from the tallest

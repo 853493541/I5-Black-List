@@ -207,6 +207,18 @@ def _plain(text: str) -> str:
     return re.sub(r"[^\w:：]", "", _norm(text))
 
 
+def countdown_in(text: str) -> int | None:
+    """The seconds in one line read as 倒计时 10 秒, or None."""
+    found = _COUNTDOWN_RE.search(_plain(text))
+    return int(found.group(1)) if found else None
+
+
+def ready_in(text: str) -> int | None:
+    """The players ready in one line read as 准备就绪：11/12, or None."""
+    found = _READY_RE.search(unicodedata.normalize("NFKC", text or ""))
+    return int(found.group(1)) if found else None
+
+
 def contains_title(lines: list[OcrLine]) -> bool:
     """True when this frame shows the match-found title 推演成功."""
     return any("推演成功" in _norm(line.text) for line in lines)

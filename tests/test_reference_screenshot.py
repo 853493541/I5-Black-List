@@ -110,3 +110,36 @@ def test_a_lobby_in_a_small_window_on_a_big_screen_is_found(shrink):
     assert result.countdown_seconds == 10 and result.ready_count == 11
     read = [slot.visible for slot in result.names]
     assert sum(1 for got, want in zip(read, SAMPLE_NAMES, strict=True) if got == want) >= 11, read
+
+
+def test_the_same_lobby_again_is_read_where_it_was_and_a_moved_one_is_searched_for():
+    """After a lobby is found, the next check reads its header where it was and skips the search;
+    the names are cut where the search put them, so they read the same. A moved window is searched for."""
+    import numpy as np
+    from PIL import Image
+
+    from blacklist_detect.ocr_engine import get_engine
+    from blacklist_detect.pipeline import check_rgb
+    from blacklist_detect.ui import SAMPLE_LOBBY
+
+    engine = get_engine()
+    engine.lobby_spot = None
+    lobby = Image.open(SAMPLE_LOBBY).convert("RGB").reduce(2)
+
+    def screen(x: int, y: int) -> np.ndarray:
+        canvas = Image.new("RGB", (3840, 2160), (40, 44, 52))
+        canvas.paste(lobby, (x, y))
+        return np.asarray(canvas)
+
+    here = screen(900, 500)
+    first = check_rgb(here, [])
+    assert first.header_found and "spot" not in first.timings
+    again = check_rgb(here, [])
+    assert again.header_found and again.timings.get("spot") == 1.0
+    assert [s.visible for s in again.names] == [s.visible for s in first.names]
+    assert (again.button_box, again.ready_count, again.countdown_seconds) == (first.button_box, 11, 10)
+    # The window moved: the remembered spot no longer shows the title, so the lobby is searched for.
+    moved = check_rgb(screen(1500, 300), [])
+    assert moved.header_found and "spot" not in moved.timings
+    assert moved.button_box != first.button_box
+    engine.lobby_spot = None
