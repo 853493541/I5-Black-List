@@ -1,8 +1,9 @@
 """心动音乐: a few seconds of wedding music when two or more 心动 players are in one lobby.
 
-The tune is Wagner's Bridal Chorus (1850, public domain) in three takes: church organ, music box
-and 8-bit. build/wedding_tunes.py plays them into the WAV files, so no recording is used and a
-stream can carry them. One take is picked at random each time, never the same one twice running.
+Five tunes, all public domain: Wagner's Bridal Chorus (1850) as church organ, music box and 8-bit,
+Pachelbel's Canon on harp, and church bells. build/wedding_tunes.py plays them into the WAV files,
+so no recording is used and a stream can carry them. 设置 picks one, 随机 (a different one each
+time), or 关闭.
 """
 
 from __future__ import annotations
@@ -14,20 +15,32 @@ from collections.abc import Callable
 from pathlib import Path
 
 ASSETS = Path(__file__).resolve().parent / "assets"
-TUNES = tuple(ASSETS / name for name in ("wedding-organ.wav", "wedding-music-box.wav", "wedding-8bit.wav"))
+# (key, name in 设置, file), in the order 设置 lists them.
+TUNE_LIST: tuple[tuple[str, str, str], ...] = (
+    ("organ", "婚礼合唱 · 管风琴", "wedding-organ.wav"),
+    ("music-box", "婚礼合唱 · 八音盒", "wedding-music-box.wav"),
+    ("8bit", "婚礼合唱 · 8-bit", "wedding-8bit.wav"),
+    ("canon", "卡农 · 竖琴", "wedding-canon.wav"),
+    ("bells", "婚礼钟声", "wedding-bells.wav"),
+)
+KEYS = tuple(key for key, _name, _file in TUNE_LIST)
+TUNES = {key: ASSETS / file for key, _name, file in TUNE_LIST}
 # The same 心动 players found again this soon are the same lobby, checked again: no second tune.
 SAME_LOBBY_S = 60.0
 
 
-def play_tune(path: Path) -> None:
-    """Start a tune at the system volume without waiting for it. It cuts off any sound still
-    playing, the chime included, as Windows plays one at a time."""
-    if sys.platform != "win32" or not path.is_file():
+def play_tune(path: Path | None) -> None:
+    """Start a tune at the system volume without waiting for it, or with None stop whatever plays.
+    Windows plays one sound at a time, so a tune cuts off the chime and the other way round."""
+    if sys.platform != "win32":
         return
     try:
         import winsound
 
-        winsound.PlaySound(str(path), winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT)
+        if path is None:
+            winsound.PlaySound(None, 0)
+        elif path.is_file():
+            winsound.PlaySound(str(path), winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT)
     except Exception:
         pass
 
@@ -37,38 +50,43 @@ class WeddingMusic:
 
     def __init__(
         self,
-        play: Callable[[Path], None] = play_tune,
+        play: Callable[[Path | None], None] = play_tune,
         rng: random.Random | None = None,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._play = play
         self._rng = rng or random.Random()
         self._clock = clock
-        self._last_tune: Path | None = None
+        self._last_tune = ""
         self._last_lobby: frozenset[str] = frozenset()
         self._last_at = float("-inf")
 
-    def pick(self) -> Path:
-        """Any tune but the one just played."""
-        choices = [tune for tune in TUNES if tune != self._last_tune] or list(TUNES)
-        self._last_tune = self._rng.choice(choices)
-        return self._last_tune
+    def pick(self, choice: str) -> str:
+        """The tune for a 设置 choice: its key, "random" (any but the one just played), or "off" ("")."""
+        if choice in TUNES:
+            return choice
+        if choice != "random":
+            return ""
+        pool = [key for key in KEYS if key != self._last_tune] or list(KEYS)
+        return self._rng.choice(pool)
 
-    def lobby(self, likes: list[str]) -> Path | None:
+    def lobby(self, likes: list[str], choice: str) -> str:
         """A lobby with these 心动 players: play, if there are two or more and not just now for them."""
-        if len(likes) < 2:
-            return None
+        if len(likes) < 2 or not self.pick(choice):
+            return ""
         players = frozenset(likes)
         now = self._clock()
         if players == self._last_lobby and now - self._last_at < SAME_LOBBY_S:
-            return None
+            return ""
         self._last_lobby, self._last_at = players, now
-        tune = self.pick()
-        self._play(tune)
+        return self.preview(choice)
+
+    def preview(self, choice: str) -> str:
+        """Play the tune for a choice now; 关闭 stops whatever is playing."""
+        tune = self.pick(choice)
+        self._last_tune = tune or self._last_tune
+        self._play(TUNES[tune] if tune else None)
         return tune
 
-    def preview(self) -> Path:
-        """▶ in 设置: one of the tunes, now."""
-        tune = self.pick()
-        self._play(tune)
-        return tune
+    def stop(self) -> None:
+        self._play(None)

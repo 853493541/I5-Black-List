@@ -218,10 +218,10 @@ def test_two_likes_and_no_hit_play_the_border_once_per_lobby(window):
 
 
 def test_the_border_ends_by_itself(window, monkeypatch):
-    from blacklist_detect.ui_love import DURATION
-
     window.love.play(QApplication.primaryScreen().geometry(), QRect(500, 700, 300, 80))
     assert window.love.isVisible() and window.love.playing()
+    # Each scene has its own length.
+    DURATION = window.love.duration()
     monkeypatch.setattr(window.love, "elapsed", lambda: DURATION - 0.5)
     window.love._step()
     assert window.love.playing()

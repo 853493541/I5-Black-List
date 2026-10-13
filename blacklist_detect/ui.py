@@ -114,6 +114,7 @@ from blacklist_detect.ui_kit import (
 )
 from blacklist_detect.ui_likes import LikesPage
 from blacklist_detect.ui_love import LoveBorder
+from blacklist_detect.ui_love_pick import LoveEffectsDialog
 from blacklist_detect.ui_music import WeddingMusic
 from blacklist_detect.ui_notice import CornerNotice, play_hit_sound
 from blacklist_detect.ui_overlay import (
@@ -415,6 +416,8 @@ class MainWindow(QMainWindow):
         self._love_played = False
         # 心动音乐: the same lobby, in either 显示, also gets a few seconds of wedding music.
         self.music = WeddingMusic()
+        # Which scene and which music: 设置 › 心动特效.
+        self.love.choice = self.store.love_scene
         # 黑名单 players in the lobby: a red glow at the screen's edges while the result is up.
         self.alert = AlertGlow()
         # 安全模式: the result in messages at the bottom right of the screen instead of over the game.
@@ -964,22 +967,23 @@ class MainWindow(QMainWindow):
         self.settings_label.setWordWrap(True)
         self.settings_label.hide()
         check.add_widget(self.settings_label, separated=False, indent=True)
-        # 3 提示音: the chime for 黑名单, and 心动音乐 beside it, each with ▶ to hear it now.
-        # They share a row, so 设置 still fits on one screen.
+        # 3 提示音: the chime for 黑名单 with ▶ to hear it now, and 心动特效 beside it: the scene and the
+        # music for two or more 心动 players. They share a row, so 设置 still fits on one screen.
         self.sound_switch = Switch(self.store.hit_sound, text="黑名单")
         self.sound_switch.setAccessibleName("提示音")
         self.sound_switch.toggled.connect(self._set_hit_sound)
         self.sound_switch.setToolTip("发现黑名单时响一声")
         self.sound_play = IconButton("play", "试听")
         self.sound_play.clicked.connect(lambda: play_hit_sound())
-        self.music_switch = Switch(self.store.love_music, text="心动音乐")
-        self.music_switch.toggled.connect(self._set_love_music)
-        self.music_switch.setToolTip("遇到两名以上心动玩家时，随机放一段婚礼音乐")
-        self.music_play = IconButton("play", "试听心动音乐")
-        self.music_play.clicked.connect(lambda: self.music.preview())
+        self.effects_button = QPushButton("心动特效")
+        self.effects_button.setFont(ui_font())
+        self.effects_button.setAutoDefault(False)
+        self.effects_button.setCursor(Qt.PointingHandCursor)
+        self.effects_button.setToolTip("同一局遇到两名以上心动玩家时的特效和音乐")
+        self.effects_button.clicked.connect(self._show_love_effects)
         apart = QWidget()
         apart.setFixedWidth(20)
-        check.add_row("提示音", self.sound_switch, self.sound_play, apart, self.music_switch, self.music_play)
+        check.add_row("提示音", self.sound_switch, self.sound_play, apart, self.effects_button)
         # 4 直播模式: a window for the streaming app, with the marks and never a 黑名单 name.
         self.stream_switch = Switch(bool(self.store.stream_mode))
         self.stream_switch.setAccessibleName("直播模式")
@@ -1239,7 +1243,7 @@ class MainWindow(QMainWindow):
         self._sync_switch(self.autostart_switch, autostart.is_enabled())
         self.close_mode.set_current("tray" if self.store.close_to_tray else "quit")
         self._sync_switch(self.sound_switch, self.store.hit_sound)
-        self._sync_switch(self.music_switch, self.store.love_music)
+        self.love.choice = self.store.love_scene
         self.display_mode.set_current("safe")
         self._sync_switch(self.stream_switch, False)
         self.notice.hide()
@@ -2726,9 +2730,9 @@ class MainWindow(QMainWindow):
         self.store.hit_sound = bool(on)
         self.store.save_settings()
 
-    def _set_love_music(self, on: bool) -> None:
-        self.store.love_music = bool(on)
-        self.store.save_settings()
+    def _show_love_effects(self) -> None:
+        LoveEffectsDialog(self.store, self.music, self).exec()
+        self.love.choice = self.store.love_scene
 
     def _set_stream_mode(self, on: bool | str) -> None:
         if bool(on) != bool(self.store.stream_mode):
@@ -3454,9 +3458,9 @@ class MainWindow(QMainWindow):
         likes = self._likes_in(result)
         if hits and self.store.hit_sound:
             play_hit_sound()
-        elif not hits and self.store.love_music:
+        elif not hits:
             # Never with a 黑名单 player: the warning is the news then, not the music.
-            self.music.lobby([like.name for like in likes])
+            self.music.lobby([like.name for like in likes], self.store.love_music)
         if self.store.safe_mode:
             self._show_notice(result)
         elif exclusive_fullscreen():
@@ -3495,7 +3499,7 @@ class MainWindow(QMainWindow):
         self._show_clear_mark(heart=bool(likes))
         self._show_like_card(likes)
         if len(likes) >= 2 and not self._love_played:
-            self._play_love()
+            self._play_love(self._like_cards(result))
 
     def _hits_in(self, result: CheckResult) -> list[Hit]:
         """黑名单 players in the lobby."""
@@ -3530,8 +3534,8 @@ class MainWindow(QMainWindow):
             if mark.isVisible():
                 _pin_topmost(mark)
 
-    def _play_love(self) -> None:
-        """The border over the game, parted around the button, the badge and the 心动 card."""
+    def _play_love(self, cards: tuple[QPoint, ...] = ()) -> None:
+        """The 心动 scene over the game, parted around the button, the badge and the 心动 card."""
         cover = self.panel.cover_geometry()
         keep = cover
         for mark in (self.clear_mark, self.like_card):
@@ -3541,7 +3545,27 @@ class MainWindow(QMainWindow):
         if screen is None:
             return
         self._love_played = True
-        self.love.play(self._game_area(screen), keep)
+        badge = self.clear_mark.geometry().center() if self.clear_mark.isVisible() else None
+        self.love.choice = self.store.love_scene
+        self.love.play(self._game_area(screen), keep, badge, cards)
+
+    def _like_cards(self, result: CheckResult) -> tuple[QPoint, ...]:
+        """The middle of each 心动 player's card on the screen: their name as read, and the portrait
+        above it, about two and a half names up."""
+        origin_x, origin_y = virtual_origin()
+        likes = list(self.store.likes)
+        cards = []
+        for slot in result.names:
+            if slot.unclear:
+                continue
+            label = NameLabel(raw=slot.raw, visible=slot.visible, truncated=slot.truncated, unclear=slot.unclear)
+            if not match_label(label, likes):
+                continue
+            left, top, right, bottom = slot.box
+            x, y, ratio = native_to_logical(left + origin_x, top + origin_y)
+            width, height = (right - left) / ratio, (bottom - top) / ratio
+            cards.append(QPoint(round(x + width / 2), round(y + height / 2 - 2.65 * height)))
+        return tuple(cards)
 
     def _frame_stream(self) -> None:
         """直播模式's window takes the size and place of the game's whole window, the one a
