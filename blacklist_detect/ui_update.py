@@ -19,6 +19,7 @@ from PySide6.QtWidgets import QLabel, QProgressBar, QPushButton, QWidget
 
 from blacklist_detect import __version__, updater
 from blacklist_detect.names import launcher_in
+from blacklist_detect.paths import child_env
 from blacklist_detect.ui_dialogs import _primary
 from blacklist_detect.ui_kit import Modal
 from blacklist_detect.ui_theme import _pointing
@@ -104,7 +105,8 @@ def restart_into_update(root: Path, background: bool = False) -> bool:
         return False
     flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
     command = [str(launcher), "--wait-pid", str(os.getpid())] + (["--background"] if background else [])
-    subprocess.Popen(command, cwd=str(root), creationflags=flags, close_fds=True)  # noqa: S603
+    # Not this process's OMP_NUM_THREADS=1: the new version would read names on one core.
+    subprocess.Popen(command, cwd=str(root), creationflags=flags, close_fds=True, env=child_env())  # noqa: S603
     return True
 
 

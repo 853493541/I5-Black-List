@@ -35,7 +35,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from blacklist_detect import __version__, autostart, livehime, single, updater
+from blacklist_detect import __version__, autostart, livehime, paths, single, updater
 from blacklist_detect.capture import (
     CaptureUnavailable,
     allow_any_foreground,
@@ -253,6 +253,8 @@ def run_app(background: bool = False) -> int:
         return 1
     try:
         log.info("Computer: %s; screens %s", machine_line(), screens_line())
+        if paths.inherited_threads is not None:
+            log.info("Started with OMP_NUM_THREADS=%s from the program that started it; dropped.", paths.inherited_threads)
     except Exception:  # noqa: BLE001 - the summary must never stop the app
         log.info("Computer: unknown")
     if mark_running():
@@ -2939,7 +2941,7 @@ class MainWindow(QMainWindow):
         if sys.platform == "win32":
             import subprocess
 
-            subprocess.Popen(["explorer", "/select,", str(target)])
+            subprocess.Popen(["explorer", "/select,", str(target)], env=paths.child_env())
 
     def _on_stream_switch(self, on: bool) -> None:
         """The switch: the first time it is turned on, how to set it up comes with it."""

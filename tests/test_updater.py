@@ -489,3 +489,33 @@ def test_a_new_install_keeps_the_listed_order():
     assert updater.mirrors()[0] == ""
     updater._remember(updater.MIRRORS[1])
     assert updater.mirrors()[0] == updater.MIRRORS[1]
+
+
+def test_the_next_copy_does_not_inherit_one_thread(monkeypatch, tmp_path):
+    """Paddle sets OMP_NUM_THREADS=1 in the app's process. Handed to the copy the app restarts into
+    for an update, it left the OCR one core: names read 3 to 5 times slower until a fresh start."""
+    import subprocess
+    import sys
+
+    from blacklist_detect import paths, ui_update
+
+    monkeypatch.setenv("OMP_NUM_THREADS", "1")
+    monkeypatch.setenv("__KMP_REGISTERED_LIB_6428", "00007FF88960C554-cafed84f-libiomp5md.dll")
+    monkeypatch.setenv("BLACKLIST_TEST_KEPT", "yes")
+    env = paths.child_env()
+    assert "OMP_NUM_THREADS" not in env and not any(key.startswith("__KMP_REGISTERED_LIB_") for key in env)
+    assert env["BLACKLIST_TEST_KEPT"] == "yes" and env.get("PATH") == __import__("os").environ.get("PATH")
+    # The update restart starts the launcher with it.
+    started = []
+    with monkeypatch.context() as patch:
+        patch.setattr(ui_update, "launcher_in", lambda _root: tmp_path / "模仿者小工具.exe")
+        patch.setattr(ui_update.subprocess, "Popen", lambda *args, **kwargs: started.append(kwargs))
+        assert ui_update.restart_into_update(tmp_path)
+    assert "OMP_NUM_THREADS" not in started[0]["env"] and started[0]["env"]["BLACKLIST_TEST_KEPT"] == "yes"
+    # A copy started with it anyway (by v0.8.4 or older) drops it before Paddle loads.
+    probe = (
+        "import os; import blacklist_detect.__main__; from blacklist_detect import paths; "
+        "print(os.environ.get('OMP_NUM_THREADS'), paths.inherited_threads)"
+    )
+    out = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True, env={**__import__("os").environ, "OMP_NUM_THREADS": "1"}, check=True)
+    assert out.stdout.split() == ["None", "1"]
