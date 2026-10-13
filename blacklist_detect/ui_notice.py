@@ -324,9 +324,15 @@ class _Card(QWidget):
 
     def fit(self, width: int) -> None:
         self.setFixedWidth(width)
+        # A card used before keeps the sizes its rows had then, until they are worked out again:
+        # without this, two 心动 names after one were cut to the height of one.
+        self.list.layout().invalidate()
+        self.list.updateGeometry()
         layout = self.layout()
+        layout.invalidate()
+        layout.activate()
         height = layout.totalHeightForWidth(width) if layout.hasHeightForWidth() else layout.sizeHint().height()
-        self.setFixedHeight(max(height, layout.minimumSize().height()))
+        self.setFixedHeight(max(height, layout.sizeHint().height(), layout.minimumSize().height()))
 
     def paintEvent(self, _event) -> None:  # noqa: ANN001
         look = self.look

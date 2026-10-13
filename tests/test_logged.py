@@ -44,11 +44,11 @@ def test_a_failed_download_is_logged_with_its_cause(tmp_path, monkeypatch, caplo
     release = updater.Release(version="v9.9.9", url="u.zip", sha256="0" * 64, size=10, base="v0.6.0")
 
     def broken(*_args, **_kwargs):  # noqa: ANN002, ANN003, ANN202
-        raise updater.UpdateError("更新文件损坏，请重试") from OSError("disk full")
+        raise updater.UpdateError("下载的更新包坏了，请重试") from OSError("disk full")
 
     monkeypatch.setattr(updater, "download", broken)
     Download()._run(release, tmp_path, tmp_path)
-    assert "Update to v9.9.9 failed: 更新文件损坏，请重试 (disk full)" in _said(caplog)
+    assert "Update to v9.9.9 failed: 下载的更新包坏了，请重试 (disk full)" in _said(caplog)
 
 
 def test_what_the_launcher_did_is_read_once(tmp_path):

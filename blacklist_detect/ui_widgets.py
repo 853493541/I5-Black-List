@@ -86,6 +86,10 @@ def _zh_date(stamp: str) -> str:
     return f"{moment.year}-{moment.month:02d}-{moment.day:02d}"
 
 
+# 最近遇到 for someone not met in any record yet.
+NEVER_MET = "—"
+
+
 def _zh_ago(stamp: str) -> str:
     moment = _local_moment(stamp)
     if moment is None:
@@ -726,14 +730,16 @@ class ThemeSwatch(_KeyboardRing, QWidget):
 
     _square = 28
     _badge = 16
+    # How far the ✓ badge stands above the square. Less than half the badge, so the swatch fits a
+    # compact row of 设置 whole, with its rounded bottom.
+    _hang = 6
 
     def __init__(self, name: str, color: str) -> None:
         super().__init__()
         self._name = name
         self._color = color
         self._selected = False
-        hang = self._badge // 2
-        self.setFixedSize(self._square + hang, self._square + hang)
+        self.setFixedSize(self._square + self._badge // 2, self._square + self._hang)
         self.setCursor(Qt.PointingHandCursor)
         self.setFocusPolicy(Qt.TabFocus)
         self.setToolTip(name)
@@ -747,7 +753,8 @@ class ThemeSwatch(_KeyboardRing, QWidget):
 
     def paintEvent(self, _event) -> None:  # noqa: ANN001
         painter = QPainter(self)
-        hang = self._badge // 2
+        hang = self._hang
+        half = self._badge // 2
         painter.setRenderHint(QPainter.Antialiasing)
         painter.setPen(Qt.NoPen)
         painter.setBrush(QColor(self._color))
@@ -759,9 +766,9 @@ class ThemeSwatch(_KeyboardRing, QWidget):
         painter.setRenderHint(QPainter.Antialiasing)
         painter.setPen(Qt.NoPen)
         painter.setBrush(QColor(THEME["green"]))
-        painter.drawEllipse(self._square - hang, 0, self._badge, self._badge)
+        painter.drawEllipse(self._square - half, 0, self._badge, self._badge)
         center_x = self._square
-        center_y = hang
+        center_y = half
         pen = QPen(QColor("#ffffff"), 2)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)

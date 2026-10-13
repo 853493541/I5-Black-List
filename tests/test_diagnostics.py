@@ -22,22 +22,22 @@ def test_a_working_pc_reports_all_fine():
     assert test.typical() == pytest.approx(1.3)
     assert test.headline() == "一切正常"
     assert [item for _tone, item, _text in test.rows()] == ["截屏", "识别", "速度", "快捷键"]
-    assert ("ok", "识别", "示例大厅 12 个名字读对 12 个") in test.rows()
+    assert ("ok", "识别", "示例大厅的 12 个名字都读对了") in test.rows()
     assert ("ok", "速度", "检查一次约 1.3 秒，正常") in test.rows()
 
 
 def test_each_problem_shows_in_the_report():
     slow = _test(runs=[9.0, SPEED_SLOW + 1, SPEED_SLOW + 1], cpu_busy=95.0, cpu_own=20.0)
-    assert slow.headline() == "有问题"
+    assert slow.headline() == "有问题要处理"
     assert ("warn", "电脑", "其他程序占用了较多 CPU，关掉一些再试会更快") in slow.rows()
     assert _test(runs=[9.0, SPEED_FINE + 0.5, SPEED_FINE + 0.5]).headline() == "能用，但有可以改进的地方"
     misread = _test(read=["小林同学", *[""] * 11])
-    assert ("warn", "识别", "示例大厅 12 个名字读对 1 个") in misread.rows()
+    assert ("warn", "识别", "示例大厅的 12 个名字读对了 1 个") in misread.rows()
     assert ("bad", "截屏", "无法截屏：黑屏") in _test(capture_error="黑屏").rows()
     assert ("bad", "快捷键", "Alt+1 没有生效") in _test(hotkey_error="Alt+1 没有生效").rows()
     assert ("ok", "方式", "自动检查：进大厅会自己检查") in _test(auto=True).rows()
     text = slow.text()
-    assert text.startswith("自检：有问题") and "✗ 速度" in text and "CPU 95% (this app 20%)" in text
+    assert text.startswith("自检：有问题要处理") and "✗ 速度" in text and "CPU 95% (this app 20%)" in text
 
 
 def test_the_cpu_window_says_how_busy_the_computer_was():
@@ -102,7 +102,7 @@ def test_the_self_test_ends_in_a_report(window, monkeypatch):
     assert window.shown_reports[-1].items[-1][0] == "bad"
     # A test that could not run still reports.
     window._on_self_test("err", RuntimeError("坏了"))
-    assert window.shown_reports[-1].headline.text() == "有问题"
+    assert window.shown_reports[-1].headline.text() == "有问题要处理"
 
 
 def test_export_puts_one_file_where_it_says(window, tmp_path, monkeypatch):

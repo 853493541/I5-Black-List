@@ -17,9 +17,9 @@ from pathlib import Path
 ASSETS = Path(__file__).resolve().parent / "assets"
 # (key, name in 设置, file), in the order 设置 lists them.
 TUNE_LIST: tuple[tuple[str, str, str], ...] = (
-    ("organ", "婚礼合唱 · 管风琴", "wedding-organ.wav"),
-    ("music-box", "婚礼合唱 · 八音盒", "wedding-music-box.wav"),
-    ("8bit", "婚礼合唱 · 8-bit", "wedding-8bit.wav"),
+    ("organ", "婚礼进行曲 · 管风琴", "wedding-organ.wav"),
+    ("music-box", "婚礼进行曲 · 八音盒", "wedding-music-box.wav"),
+    ("8bit", "婚礼进行曲 · 8-bit", "wedding-8bit.wav"),
     ("canon", "卡农 · 竖琴", "wedding-canon.wav"),
     ("bells", "婚礼钟声", "wedding-bells.wav"),
 )

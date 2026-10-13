@@ -20,7 +20,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPlainTextEdit,
     QPushButton,
-    QStackedWidget,
     QStyledItemDelegate,
     QTableWidget,
     QTableWidgetItem,
@@ -36,6 +35,7 @@ from blacklist_detect.ui_icons import pixmap as line_pixmap
 from blacklist_detect.ui_kit import Modal
 from blacklist_detect.ui_theme import (
     GAP,
+    SMALL_PT,
     THEME,
     _pointing,
     chinese_family,
@@ -297,7 +297,7 @@ class BatchAddDialog(Modal):
     """Paste a list, see what each person does to the list, then import the ones left checked.
 
     Under the box, one row per person: 合并 when the name is on the list already (its new
-    标签 and 原因 are added to it), 已在黑名单 when it brings nothing new, and 疑似非名字 for a
+    标签 and 原因 are added to it), 已在黑名单 when it brings nothing new, and 可能不是名字 for a
     line that is not a name, such as a title. Those two start unchecked. A click on a row,
     or Space, checks or unchecks it. The rows follow the text as it changes; a row
     unchecked by hand stays unchecked.
@@ -313,7 +313,7 @@ class BatchAddDialog(Modal):
         self.entries = list(entries)
         self.elsewhere = list(elsewhere)
         here, there = ("心动列表", "黑名单") if likes else ("黑名单", "心动列表")
-        self._status = {MERGE: "合并", SAME: f"已在{here}", ODD: "疑似非名字", ELSEWHERE: f"已在{there}"}
+        self._status = {MERGE: "合并", SAME: f"已在{here}", ODD: "可能不是名字", ELSEWHERE: f"已在{there}"}
         self.rows: list[ImportRow] = []
         self.chosen: list[tuple[str, tuple[str, ...], str, int]] = []
         self._picked: dict[str, bool] = {}
@@ -492,7 +492,7 @@ class TagSuggestDialog(Modal):
         table = QTableWidget(len(self.rows), 3)
         self.people = table
         table.setObjectName("importPreview")
-        table.setAccessibleName("将添加的人")
+        table.setAccessibleName("要添加的人")
         table.setHorizontalHeaderLabels([f"名字  {len(self.rows)}", "标签", "原因"])
         head = table.horizontalHeader()
         head.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
@@ -566,6 +566,17 @@ class TagSuggestDialog(Modal):
 SAMPLE_LOBBY = Path(__file__).resolve().parent / "assets" / "sample-lobby.jpg"
 
 
+def _is_me(slot, me: str) -> bool:
+    """Whether this seat is the player's own 游戏名. The same rule as 记录."""
+    from blacklist_detect.match import NameLabel, match_label
+    from blacklist_detect.model import Entry
+
+    if slot.unclear or not me:
+        return False
+    shown = split_ellipsis(slot.visible)[0] or slot.visible
+    return bool(match_label(NameLabel(raw=shown, visible=shown, truncated=False), [Entry(me)]))
+
+
 def _liked(slot, likes):  # noqa: ANN001, ANN202
     """The 心动 entry this seat is, or None. The same rule as the lobby check."""
     from blacklist_detect.match import NameLabel, match_label
@@ -579,7 +590,9 @@ def _liked(slot, likes):  # noqa: ANN001, ANN202
 class PictureResultDialog(Modal):
     """What one picture check read: the twelve seats, blacklist matches in red, 心动 in rose."""
 
-    def __init__(self, title: str, result: CheckResult | None = None, error: str = "", parent=None, likes=(), hide_hits: bool = False) -> None:  # noqa: ANN001
+    def __init__(  # noqa: ANN001
+        self, title: str, result: CheckResult | None = None, error: str = "", parent=None, likes=(), hide_hits: bool = False, me: str = ""
+    ) -> None:
         super().__init__(parent)
         layout = _frame(self, title)
         self.summary = QLabel()
@@ -590,7 +603,7 @@ class PictureResultDialog(Modal):
             self.summary.setText(f"无法检查：{error}")
         elif result is None or not result.header_found:
             reason = result.message if result is not None else ""
-            self.summary.setText(f"{reason}\n请上传「推演成功」大厅的完整截图。".strip())
+            self.summary.setText(f"{reason}\n请用「推演成功」大厅的完整截图".strip())
         else:
             # The seats say it: red ones are on the list, grey ones were not read.
             self.summary.hide()
@@ -611,6 +624,8 @@ class PictureResultDialog(Modal):
                 cell = QLabel()
                 base = f'font-family: "{chinese_family()}"; background: transparent;'
                 wash = ""
+                # Marks that go after the name, such as 我.
+                after: list[QWidget] = []
                 if slot.unclear:
                     cell.setText("未识别")
                     cell.setStyleSheet(base + f' color: {THEME["gray"]};')
@@ -648,6 +663,19 @@ class PictureResultDialog(Modal):
                     heart.setPixmap(line_pixmap("heart", 16, THEME["rose"]))
                     heart.setStyleSheet("background: transparent;")
                     line.addWidget(heart)
+                elif _is_me(slot, me):
+                    # The player's own seat: green, with 我 after the name, as on 记录.
+                    cell.setText(split_ellipsis(slot.visible)[0] or slot.visible)
+                    cell.setStyleSheet(base + f' color: {THEME["green"]};')
+                    wash = THEME["green_wash"]
+                    mine = QLabel("我")
+                    mine.setObjectName("seatMe")
+                    mine.setStyleSheet(
+                        f'color: {THEME["chip_text"]}; background: {THEME["chip_bg"]}; border: 1px solid {THEME["chip_bg"]};'
+                        f' border-radius: 9px; padding: 1px 8px;'
+                        f' font-family: "{chinese_family()}"; font-size: {SMALL_PT}pt;'
+                    )
+                    after.append(mine)
                 else:
                     cell.setText(split_ellipsis(slot.visible)[0] or slot.visible)
                     cell.setStyleSheet(base + f' color: {THEME["text"]};')
@@ -657,6 +685,8 @@ class PictureResultDialog(Modal):
                     f"QWidget#seatTile {{ background: {wash or THEME['surface']}; border: 1px solid {line_color}; border-radius: 6px; }}"
                 )
                 line.addWidget(cell, 1)
+                for mark in after:
+                    line.addWidget(mark, 0, Qt.AlignVCenter)
                 grid.addWidget(tile, slot.index // 2, slot.index % 2)
                 self.seats.append(cell)
             layout.addLayout(grid)
@@ -708,15 +738,19 @@ class DisclaimerDialog(Modal):
 
 
 class GuideDialog(Modal):
-    """Shown once on a new PC: what the app does and the three things to set up."""
+    """Shown once on a new PC: what to set up, how a check starts, and what it shows.
 
-    def __init__(self, parent=None) -> None:
+    how: how a check starts in the mode the app is in, such as 「在「推演成功」大厅按 Alt+1 检查」.
+    """
+
+    def __init__(self, parent=None, how: str = "在「推演成功」大厅按快捷键检查") -> None:  # noqa: ANN001
         super().__init__(parent)
         layout = _frame(self, f"欢迎使用{APP_NAME}")
         steps = (
             ("edit", "右上角填好你的游戏名"),
             ("users", "在「黑名单」里加上不想遇到的人"),
-            ("check", "发现黑名单玩家时会有红色提醒"),
+            ("search", how),
+            ("warning", "遇到黑名单玩家时会提醒你"),
         )
         accent = THEME["accent_line"] if THEME.get("scheme") == "dark" else THEME["accent"]
         self.steps: list[QLabel] = []
@@ -766,6 +800,37 @@ PICTURE_BOX = (465, 150)
 WORDS_WIDTH = 186
 
 
+class _Pages(QWidget):
+    """Pages, one shown at a time, as tall as the one shown. A QStackedWidget works out its
+    height from every page, so a short page got the blank space of the longest."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._column = QVBoxLayout(self)
+        self._column.setContentsMargins(0, 0, 0, 0)
+        self._pages: list[QWidget] = []
+        self._current = 0
+
+    def addWidget(self, page: QWidget) -> None:  # noqa: N802 - as QStackedWidget names it
+        self._column.addWidget(page)
+        page.setVisible(not self._pages)
+        self._pages.append(page)
+
+    def setCurrentIndex(self, index: int) -> None:  # noqa: N802
+        self._current = index
+        for number, page in enumerate(self._pages):
+            page.setVisible(number == index)
+
+    def currentIndex(self) -> int:  # noqa: N802
+        return self._current
+
+    def count(self) -> int:
+        return len(self._pages)
+
+    def widget(self, index: int) -> QWidget:
+        return self._pages[index]
+
+
 class PictureGuideDialog(Modal):
     """A guide in pages of up to three rows, each row its words beside its picture.
 
@@ -779,8 +844,10 @@ class PictureGuideDialog(Modal):
         self.headings = [heading for heading, _rows in pages]
         self.page_label = QLabel()
         self.page_label.setObjectName("sub")
+        # One page needs no heading: the title says it.
+        self.page_label.setVisible(len(pages) > 1)
         layout.addWidget(self.page_label)
-        self.pages = QStackedWidget()
+        self.pages = _Pages()
         self.pictures: list[QLabel] = []
         for _heading, rows in pages:
             page = QWidget()
@@ -856,14 +923,18 @@ class StreamGuideDialog(PictureGuideDialog):
     """直播模式: what changes on stream (page 1) and how to add it in 直播姬 (page 2)."""
 
     def __init__(self, parent=None) -> None:  # noqa: ANN001
-        super().__init__("直播模式", [("直播模式下", STREAM_DIFF), ("怎么设置", STREAM_SETUP)], parent)
+        super().__init__("直播模式", [("观众看到什么", STREAM_DIFF), ("怎么设置", STREAM_SETUP)], parent)
 
 
 class DisplayGuideDialog(PictureGuideDialog):
     """显示: 安全模式 and 完整模式 side by side."""
 
     def __init__(self, parent=None) -> None:  # noqa: ANN001
-        super().__init__("显示", [("你在屏幕上看到的", DISPLAY_DIFF)], parent)
+        super().__init__("显示", [("", DISPLAY_DIFF)], parent)
+
+
+# 导出日志's tooltip, in 设置 and in 自检's report.
+EXPORT_TIP = "存到桌面，可以发给帮你看问题的人（不含玩家名字）"
 
 
 class SelfTestDialog(Modal):
@@ -896,7 +967,7 @@ class SelfTestDialog(Modal):
         layout.addLayout(grid)
         self.export_button = QPushButton("导出日志")
         self.export_button.setAutoDefault(False)
-        self.export_button.setToolTip("存到桌面，发给帮你看问题的人。不含任何玩家名字")
+        self.export_button.setToolTip(EXPORT_TIP)
         self.export_button.clicked.connect(on_export)
         _footer(self, self.export_button, _primary("知道了", self.accept))
         self.card.setMinimumWidth(460)

@@ -87,8 +87,8 @@ def test_the_page_lists_names_with_their_nicknames(window):
     window._show_list()
     assert window._tab_buttons[window.likes_tab].count() == 2
     rows = [[page.table.item(r, c).text() for c in range(4)] for r in range(page.table.rowCount())]
-    # Newest first; 昵称 beside the name.
-    assert rows == [["小红", "", "", ""], ["救人很稳的小明", "明哥", "上把救了我", ""]]
+    # Newest first; 昵称 beside the name; a dash for 最近遇到 until they are met.
+    assert rows == [["小红", "", "", "—"], ["救人很稳的小明", "明哥", "上把救了我", "—"]]
     page.search.setText("明哥")
     assert page.table.rowCount() == 1
     page.search.setText("没有这个")

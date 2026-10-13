@@ -87,6 +87,7 @@ from blacklist_detect.pipeline import (
 from blacklist_detect.storage import Store, clean_tag, describe_entry, tag_text
 from blacklist_detect.ui_alert import AlertGlow
 from blacklist_detect.ui_dialogs import (
+    EXPORT_TIP,
     SAMPLE_LOBBY,
     AddNameDialog,
     BatchAddDialog,
@@ -114,7 +115,7 @@ from blacklist_detect.ui_kit import (
 )
 from blacklist_detect.ui_likes import LikesPage
 from blacklist_detect.ui_love import LoveBorder
-from blacklist_detect.ui_love_pick import LoveEffectsDialog
+from blacklist_detect.ui_love_pick import LoveEffectsDialog, effects_summary
 from blacklist_detect.ui_music import WeddingMusic
 from blacklist_detect.ui_notice import CornerNotice, play_hit_sound
 from blacklist_detect.ui_overlay import (
@@ -156,6 +157,7 @@ from blacklist_detect.ui_theme import (
 )
 from blacklist_detect.ui_update import Download, UpdateChecker, UpdateDialog, restart_into_update
 from blacklist_detect.ui_widgets import (
+    NEVER_MET,
     DayFolderIcon,
     TagListDelegate,
     TagPill,
@@ -199,13 +201,13 @@ __all__ = [
 CONSENT = {
     "full": (
         "开启完整模式",
-        "提醒会直接显示在游戏画面上，有可能被游戏判定为异常。确定开启吗？",
+        "提醒会直接显示在游戏画面上，有可能被游戏当成异常。确定开启吗？",
         "开启完整模式",
         "保持安全模式",
     ),
     "auto": (
         "开启自动检查",
-        "进大厅时自动检查，不用按快捷键。需要一直截屏，更占性能，也有可能被游戏判定为异常。确定开启吗？",
+        "进大厅时自动检查，不用按快捷键。它会一直截屏，比较占电脑资源，也有可能被游戏当成异常。确定开启吗？",
         "开启自动检查",
         "保持手动检查",
     ),
@@ -369,6 +371,18 @@ class CheckWorker(QThread):
         self._queue.put(None)
 
 
+
+def _lobby_summary(kinds: list[str]) -> str:
+    """A checked lobby in a few words, from each seat's kind (hit, like, unclear or ""):
+    「2 名黑名单 · 1 名心动 · 1 人未识别」, or 「未发现黑名单」."""
+    hits, likes, unclear = kinds.count("hit"), kinds.count("like"), kinds.count("unclear")
+    parts = [f"{hits} 名黑名单"] if hits else ["未发现黑名单"]
+    if likes:
+        parts.append(f"{likes} 名心动")
+    if unclear:
+        parts.append(f"{unclear} 人未识别")
+    return " · ".join(parts)
+
 class MainWindow(QMainWindow):
     uncaught = Signal(str)
 
@@ -524,6 +538,7 @@ class MainWindow(QMainWindow):
         self.history_tab = self.tabs.addTab(self._history_page(), "记录")
         self.blacklist_tab = self.tabs.addTab(self._list_page(), "黑名单")
         self.likes_page = LikesPage(self.store, self._say)
+        self.likes_page.show_effects = self._show_love_effects
         self.likes_page.changed.connect(self._likes_changed)
         self.likes_tab = self.tabs.addTab(self.likes_page, "心动")
         self.settings_tab = self.tabs.addTab(self._settings_page(), "设置")
@@ -569,8 +584,8 @@ class MainWindow(QMainWindow):
         right_row.addWidget(self.profile_chip, 0, Qt.AlignVCenter)
         self.player_edit = QLineEdit(self.store.player_name)
         self.player_edit.setObjectName("nameEdit")
-        self.player_edit.setPlaceholderText("游戏里的名字")
-        self.player_edit.setAccessibleName("角色名称")
+        self.player_edit.setPlaceholderText("游戏名")
+        self.player_edit.setAccessibleName("游戏名")
         self.player_edit.setFixedWidth(180)
         self.player_edit.hide()
         self.player_edit.installEventFilter(self)
@@ -634,12 +649,16 @@ class MainWindow(QMainWindow):
         self.toolbar_buttons = (batch, add)
         toolbar.addWidget(batch)
         toolbar.addWidget(add)
-        # 复制名单 and 清空黑名单 are used now and then, so they wait under 更多 instead of beside 添加.
+        # 复制名单, 按原因补标签 and 清空黑名单 are used now and then, so they wait under 更多 instead of
+        # beside 添加.
         self.more_button = IconButton("more", "更多")
         self.more_menu = QMenu(self)
         self.share_action = self.more_menu.addAction("复制名单", self._share_list)
         _mark_menu_item(self.share_action, "copy")
         self.share_action.setToolTip("复制全部名单，好友在「批量导入」里粘贴即可")
+        # Tags for what each 原因 already says, such as 场外 for 「场外说话」.
+        self.recheck_action = self.more_menu.addAction("按原因补标签", self._recheck_tags)
+        _mark_menu_item(self.recheck_action, "reload")
         self.more_menu.addSeparator()
         self.clear_list_action = self.more_menu.addAction("清空黑名单", self._clear_list)
         _mark_menu_item(self.clear_list_action, "delete")
@@ -653,10 +672,6 @@ class MainWindow(QMainWindow):
         name_header.on_eye = self._toggle_name_hiding
         self.blacklist_table.setHorizontalHeader(name_header)
         self.blacklist_table.setHorizontalHeaderLabels(["名字", "标签", "原因", "最近遇到"])
-        for column in range(4):
-            item = self.blacklist_table.horizontalHeaderItem(column)
-            if item is not None:
-                item.setToolTip("拖动可调整列顺序，拖动边缘可调整列宽")
         header = self.blacklist_table.horizontalHeader()
         header.setStretchLastSection(False)
         for column in range(4):
@@ -770,16 +785,6 @@ class MainWindow(QMainWindow):
         self.tag_editor.installEventFilter(self)
         self.tag_editor.returnPressed.connect(self._finish_tag_edit)
         self._tag_editing = ""
-        recheck = QPushButton("重新标注")
-        recheck.setToolTip("按原因自动补全标签")
-        recheck.setObjectName("sideAction")
-        recheck.setFont(chinese_font(SMALL_PT))
-        recheck.setIcon(line_icon("reload", 14, THEME["muted"]))
-        recheck.setAutoDefault(False)
-        recheck.setCursor(Qt.PointingHandCursor)
-        recheck.clicked.connect(self._recheck_tags)
-        self.recheck_button = recheck
-        column.addWidget(recheck)
         self._fill_tag_list()
         return side
 
@@ -809,7 +814,7 @@ class MainWindow(QMainWindow):
         self.history_list.itemClicked.connect(self._on_history_clicked)
         side_layout.addWidget(self.history_list, 1)
         # A lobby from a picture, read the way a live check reads it.
-        self.picture_button = QPushButton("上传截图")
+        self.picture_button = QPushButton("用截图检查")
         self.picture_button.setObjectName("sideAction")
         self.picture_button.setFont(chinese_font(SMALL_PT))
         self.picture_button.setIcon(line_icon("picture", 14, THEME["muted"]))
@@ -837,9 +842,10 @@ class MainWindow(QMainWindow):
         catalog.setFont(record_font())
         head.addWidget(catalog)
         head.addStretch(1)
-        self.record_time = QLabel("")
-        self.record_time.setObjectName("sub")
-        head.addWidget(self.record_time)
+        # What this lobby had. The time is in the list on the left already.
+        self.record_summary = QLabel("")
+        self.record_summary.setObjectName("sub")
+        head.addWidget(self.record_summary)
         self.record_more = IconButton("more", "更多")
         self.record_menu = QMenu(self)
         self.delete_record_action = self.record_menu.addAction("删除", self._delete_history)
@@ -883,7 +889,7 @@ class MainWindow(QMainWindow):
         body.addWidget(self.record_column, 1)
         self.history_empty = EmptyState("records", "还没有记录", "进入「推演成功」大厅时自动检查")
         self.history_hint = self.history_empty.title
-        self.picture_empty_button = self.history_empty.add_action(QPushButton("上传截图"))
+        self.picture_empty_button = self.history_empty.add_action(QPushButton("用截图检查"))
         self.picture_empty_button.clicked.connect(self.check_picture)
         body.addWidget(self.history_empty, 1)
         layout.addLayout(body, 1)
@@ -938,7 +944,7 @@ class MainWindow(QMainWindow):
         self.display_mode.setAccessibleName("显示")
         self.safe_on = self.display_mode.buttons["safe"]
         self.full_on = self.display_mode.buttons["full"]
-        self.safe_on.setToolTip("结果以消息显示在屏幕右下角，不在游戏画面上做标记")
+        self.safe_on.setToolTip("结果显示在屏幕右下角，不在游戏画面上做标记")
         self.full_on.setToolTip("结果直接显示在游戏画面上")
         self.display_mode.changed.connect(self._on_display_mode)
         # ⓘ: the two, side by side, in pictures.
@@ -969,23 +975,14 @@ class MainWindow(QMainWindow):
         self.settings_label.setWordWrap(True)
         self.settings_label.hide()
         check.add_widget(self.settings_label, separated=False, indent=True)
-        # 3 提示音: the chime for 黑名单 with ▶ to hear it now, and 心动特效 beside it: the scene and the
-        # music for two or more 心动 players. They share a row, so 设置 still fits on one screen.
+        # 3 提示音: the chime for 黑名单, with ▶ to hear it now.
         self.sound_switch = Switch(self.store.hit_sound, text="黑名单")
         self.sound_switch.setAccessibleName("提示音")
         self.sound_switch.toggled.connect(self._set_hit_sound)
         self.sound_switch.setToolTip("发现黑名单时响一声")
         self.sound_play = IconButton("play", "试听")
         self.sound_play.clicked.connect(lambda: play_hit_sound())
-        self.effects_button = QPushButton("心动特效")
-        self.effects_button.setFont(ui_font())
-        self.effects_button.setAutoDefault(False)
-        self.effects_button.setCursor(Qt.PointingHandCursor)
-        self.effects_button.setToolTip("同一局遇到两名以上心动玩家时的特效和音乐")
-        self.effects_button.clicked.connect(self._show_love_effects)
-        apart = QWidget()
-        apart.setFixedWidth(20)
-        check.add_row("提示音", self.sound_switch, self.sound_play, apart, self.effects_button)
+        check.add_row("提示音", self.sound_switch, self.sound_play)
         # 4 直播模式: a window for the streaming app, with the marks and never a 黑名单 name.
         self.stream_switch = Switch(bool(self.store.stream_mode))
         self.stream_switch.setAccessibleName("直播模式")
@@ -1034,26 +1031,35 @@ class MainWindow(QMainWindow):
             self.theme_buttons[name] = swatch
             swatches.addWidget(swatch, 0, Qt.AlignVCenter)
         look.add_row("主题色", swatch_host)
+        # 心动特效: the scene and the music for two or more 心动 players, chosen in a picker with a preview.
+        self.effects_button = QPushButton("选择")
+        self.effects_button.setFont(ui_font())
+        self.effects_button.setAutoDefault(False)
+        self.effects_button.setCursor(Qt.PointingHandCursor)
+        self.effects_button.setToolTip("同一局遇到两名以上心动玩家时的特效和音乐")
+        self.effects_button.clicked.connect(self._show_love_effects)
+        self.effects_note = QLabel("")
+        self.effects_note.setObjectName("rowHint")
+        look.add_row("心动特效", self.effects_button, self.effects_note)
+        self._sync_effects_note()
 
-        # 数据: starting over.
-        # 帮助: when something is wrong, what a friend can do and send.
+        # 帮助: when something is wrong, what a friend can do and send. 自检 and its log share a row.
         helping = section("帮助")
         self.test_button = QPushButton("开始")
         self.test_button.setFont(ui_font())
         self.test_button.setAutoDefault(False)
         self.test_button.setCursor(Qt.PointingHandCursor)
-        self.test_button.setToolTip("完整检查一次示例大厅，看截屏、识别、速度和快捷键是否正常")
+        self.test_button.setToolTip("检查截屏、识别、速度和快捷键")
         self.test_button.clicked.connect(self._start_self_test)
         self.test_status = QLabel("")
         self.test_status.setObjectName("rowHint")
-        helping.add_row("自检", self.test_button, self.test_status)
-        self.export_button = QPushButton("导出")
+        self.export_button = QPushButton("导出日志")
         self.export_button.setFont(ui_font())
         self.export_button.setAutoDefault(False)
         self.export_button.setCursor(Qt.PointingHandCursor)
-        self.export_button.setToolTip("把日志存到桌面，发给帮你看问题的人。不含任何玩家名字")
+        self.export_button.setToolTip(EXPORT_TIP)
         self.export_button.clicked.connect(self._export_logs)
-        helping.add_row("日志", self.export_button)
+        helping.add_row("自检", self.test_button, self.export_button, self.test_status)
         # 关于: this version, 检查更新 and 使用声明 in one row, so 设置 still fits on one screen.
         self.version_label = QLabel(__version__)
         self.update_button = QPushButton("检查更新")
@@ -1238,7 +1244,7 @@ class MainWindow(QMainWindow):
         self.settings_label.setVisible(bool(text))
 
     def _ask_reset(self) -> None:
-        if not _confirm(self, "会删除角色名称、记录、黑名单、心动列表和所有设置，删除后无法恢复。确定清空吗？"):
+        if not _confirm(self, "会删除游戏名、记录、黑名单、心动列表和所有设置，删除后无法恢复。确定清空吗？"):
             return
         self.store.reset()
         self.hotkey.clear()
@@ -1256,6 +1262,7 @@ class MainWindow(QMainWindow):
         self.close_mode.set_current("tray" if self.store.close_to_tray else "quit")
         self._sync_switch(self.sound_switch, self.store.hit_sound)
         self.love.choice = self.store.love_scene
+        self._sync_effects_note()
         self.display_mode.set_current("safe")
         self._sync_switch(self.stream_switch, False)
         self.notice.hide()
@@ -1334,7 +1341,6 @@ class MainWindow(QMainWindow):
         if hasattr(self, "tag_list"):
             self.tag_add.refresh()
             self.tag_list.viewport().update()
-            self.recheck_button.setIcon(line_icon("reload", 14, THEME["muted"]))
         if hasattr(self, "picture_button"):
             self.picture_button.setIcon(line_icon("picture", 14, THEME["muted"]))
         if hasattr(self, "watch_label"):
@@ -1735,7 +1741,9 @@ class MainWindow(QMainWindow):
             table.setItem(row, 1, tags_item)
             detail = " ".join(entry.reason.split())
             table.setItem(row, 2, self._list_cell(detail, None, font, ink))
-            table.setItem(row, 3, self._list_cell(met.get(index, ""), None, font, ink))
+            # Never met: a dash, in gray, rather than an empty cell that looks unfinished.
+            seen = met.get(index, "")
+            table.setItem(row, 3, self._list_cell(seen or NEVER_MET, None, font, ink if seen else QColor(THEME["muted"])))
             table.setRowHeight(row, ROW_H)
         table.setUpdatesEnabled(True)
         self._blacklist_hover = -1
@@ -1744,7 +1752,6 @@ class MainWindow(QMainWindow):
         self._hide_detail_tip()
         self._refresh_blacklist_tab()
         count = len(self.store.entries)
-        self.recheck_button.setVisible(count > 0)
         self.list_search.setVisible(count > 0 or bool(self._search_text()))
         self.more_button.setVisible(count > 0)
         for button in self.toolbar_buttons:
@@ -2107,7 +2114,7 @@ class MainWindow(QMainWindow):
         before = self.store.snapshot_entries()
         added, merged = self.store.import_rows(rows)
         if not added and not merged:
-            self._say("这些玩家都已在名单中")
+            self._say("这些玩家都已在黑名单里")
             return
         # A shared list may bring tags this list has not seen. They now show beside the list.
         self._refresh_tag_views()
@@ -2376,16 +2383,15 @@ class MainWindow(QMainWindow):
         self._mark_selected_record()
         self.history_table.setRowCount(0)
         if row < 0 or row >= len(self.store.scans):
-            self.record_time.setText("")
+            self.record_summary.setText("")
             return
-        day, clock = self._day_and_clock(str(self.store.scans[row].get("at", "")))
-        self.record_time.setText(f"{day} {clock}".strip())
         names = self.store.scans[row].get("names", [])
         self.history_table.setRowCount((len(names) + 1) // 2)
         kinds = []
         for index, seat in enumerate(names):
             kinds.append(self._set_history_seat(index // 2, index % 2, seat))
             self.history_table.setRowHeight(index // 2, ROW_H + 4)
+        self.record_summary.setText(_lobby_summary(kinds))
         self._fit_record_card()
 
     def _fit_record_card(self) -> None:
@@ -2745,6 +2751,13 @@ class MainWindow(QMainWindow):
     def _show_love_effects(self) -> None:
         LoveEffectsDialog(self.store, self.music, self).exec()
         self.love.choice = self.store.love_scene
+        self._sync_effects_note()
+
+    def _sync_effects_note(self) -> None:
+        """What 心动特效 is set to, in gray beside its button."""
+        note = getattr(self, "effects_note", None)
+        if note is not None:
+            note.setText(effects_summary(self.store.love_scene, self.store.love_music))
 
     def _set_stream_mode(self, on: bool | str) -> None:
         if bool(on) != bool(self.store.stream_mode):
@@ -2881,7 +2894,7 @@ class MainWindow(QMainWindow):
         self.store.first_run = False
         self.store.save_settings()
         # Over the window without a nested event loop: this runs from the setup screen's fade.
-        guide = GuideDialog(self)
+        guide = GuideDialog(self, self._how_to_check())
         guide.setAttribute(Qt.WA_DeleteOnClose, True)
         guide.open()
 
@@ -2935,7 +2948,7 @@ class MainWindow(QMainWindow):
             target = export_logs(self.store.root, summary, report)
         except OSError as exc:
             log.warning("Logs could not be exported: %s", exc)
-            self._say("无法导出日志，请检查桌面是否可写")
+            self._say("无法导出日志，桌面上存不了文件")
             return
         log.info("Logs exported.")
         self._say(f"已存到桌面：{target.name}")
@@ -3084,7 +3097,7 @@ class MainWindow(QMainWindow):
         busy = bool(self._picture_pending)
         for button in (self.picture_button, self.picture_empty_button):
             button.setEnabled(not busy)
-            button.setText("正在识别" if busy else "上传截图")
+            button.setText("正在识别" if busy else "用截图检查")
 
     def _on_picture(self, status: str, value) -> None:  # noqa: ANN001
         title = self._picture_pending or "截图检查"
@@ -3097,7 +3110,8 @@ class MainWindow(QMainWindow):
         else:
             log.info("Picture check: lobby %s, %d on the list", value.header_found, len(value.hits))
             self._picture_dialog = PictureResultDialog(
-                title, result=value, parent=self, likes=self.store.likes, hide_hits=bool(self.store.stream_mode)
+                title, result=value, parent=self, likes=self.store.likes, hide_hits=bool(self.store.stream_mode),
+                me=self.store.player_name,
             )
         self._picture_dialog.open()
 
@@ -3128,7 +3142,7 @@ class MainWindow(QMainWindow):
     def _show_uncaught(self, text: str) -> None:
         # The exception and its trace are already in the log; the user sees only that something failed.
         del text
-        self._set_result("程序出错", "hit", "error")
+        self._set_result("出了点问题", "hit", "error")
 
     def _report_problem(self, problem) -> None:  # noqa: ANN001
         """Say what went wrong in the header and the tray. A check that silently stops is worse than an error."""
@@ -3733,10 +3747,15 @@ class MainWindow(QMainWindow):
         # 记录's empty page says how a check starts.
         empty = getattr(self, "history_empty", None)
         if empty is not None:
-            spec = parse_hotkey(self.store.hotkey)
-            key = spec.display if spec is not None else "快捷键"
-            how = "进入「推演成功」大厅时自动检查" if self.store.auto_capture else f"在「推演成功」大厅按 {key} 检查"
-            empty.set_text("还没有记录", how)
+            empty.set_text("还没有记录", self._how_to_check())
+
+    def _how_to_check(self) -> str:
+        """How a check starts now, for 记录's empty page and the welcome guide."""
+        if self.store.auto_capture:
+            return "进入「推演成功」大厅时自动检查"
+        spec = parse_hotkey(self.store.hotkey)
+        key = spec.display if spec is not None else "快捷键"
+        return f"在「推演成功」大厅按 {key} 检查"
 
     def _sync_watch_idle(self) -> None:
         if self.store.auto_capture:

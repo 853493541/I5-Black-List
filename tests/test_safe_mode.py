@@ -309,7 +309,7 @@ def test_turning_down_the_questions_changes_nothing(window, monkeypatch):
     window.full_on.click()
     title, body, cancel = asked[0]
     assert title == "开启完整模式"
-    assert "游戏画面上" in body and "判定为异常" in body
+    assert "游戏画面上" in body and "当成异常" in body
     assert cancel == "保持安全模式"
     assert window.store.safe_mode is True
     assert window.safe_on.isChecked() is True
@@ -319,7 +319,7 @@ def test_turning_down_the_questions_changes_nothing(window, monkeypatch):
     window.auto_on.click()
     title, body, cancel = asked[1]
     assert title == "开启自动检查"
-    assert "截屏" in body and "判定为异常" in body
+    assert "截屏" in body and "当成异常" in body
     assert cancel == "保持手动检查"
     assert window.store.auto_capture is False
     assert window.auto_off.isChecked() is True
@@ -364,3 +364,21 @@ def test_full_mode_adds_the_corner_message_over_an_exclusive_full_screen_game(wi
     window._hide_panel_after_title()
     window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
     assert window.notice.isVisible() and window.notice.kind == "hit"
+
+
+def test_the_heart_card_grows_for_more_names_after_fewer(window):
+    """Two 心动 names after one were cut to the height of one: the card kept its old size."""
+    from blacklist_detect.ui_notice import CornerNotice
+
+    notice = CornerNotice()
+    screen = QApplication.primaryScreen()
+    heights = []
+    for likes in (["小红"], ["小红", "小明"], ["小红", "小明", "阿强"], ["小红"]):
+        notice.show_result([], likes, 0, screen)
+        _arrive(notice)
+        assert notice.likes.height() >= notice.likes.sizeHint().height(), likes
+        heights.append(notice.likes.height())
+        notice.hide()
+    assert heights[0] < heights[1] < heights[2] and heights[3] == heights[0]
+    notice.close()
+

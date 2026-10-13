@@ -42,7 +42,7 @@ from blacklist_detect.ui_dialogs import (
 from blacklist_detect.ui_icons import icon as line_icon
 from blacklist_detect.ui_kit import ConfirmDialog, EmptyState, IconButton, Modal
 from blacklist_detect.ui_theme import ROW_H, THEME, _page, _pointing
-from blacklist_detect.ui_widgets import _mark_menu_item, _PlainItemDelegate, _zh_ago, _zh_date
+from blacklist_detect.ui_widgets import NEVER_MET, _mark_menu_item, _PlainItemDelegate, _zh_ago, _zh_date
 
 # Columns of the list.
 NAME, NICKNAME, REASON, MET = range(4)
@@ -137,6 +137,7 @@ class LikesPage(QWidget):
         super().__init__(parent)
         self.store = store
         self._say = say
+        self.show_effects = lambda: None
         self._met_cache: tuple | None = None
         outer = QVBoxLayout(self)
         _page(outer)
@@ -163,6 +164,10 @@ class LikesPage(QWidget):
         self.more_menu = QMenu(self)
         self.copy_action = self.more_menu.addAction("复制名单", self.copy_list)
         _mark_menu_item(self.copy_action, "copy")
+        # 心动特效 lives in 设置 › 外观; it is here too, beside the players it is for. The window
+        # gives the page the way to open it.
+        self.effects_action = self.more_menu.addAction("心动特效", lambda: self.show_effects())
+        _mark_menu_item(self.effects_action, "heart")
         self.more_menu.addSeparator()
         self.clear_action = self.more_menu.addAction("清空心动列表", self.clear)
         _mark_menu_item(self.clear_action, "delete")
@@ -235,7 +240,7 @@ class LikesPage(QWidget):
         table.setRowCount(len(rows))
         for row, index in enumerate(rows):
             like = self.store.likes[index]
-            cells = (like.name, like.nickname, like.reason, _zh_ago(met[index]) if index in met else "")
+            cells = (like.name, like.nickname, like.reason, _zh_ago(met[index]) if index in met else NEVER_MET)
             for column, text in enumerate(cells):
                 item = QTableWidgetItem(" ".join(text.split()) if column == REASON else text)
                 item.setData(Qt.UserRole, index)
@@ -338,7 +343,7 @@ class LikesPage(QWidget):
         before = (self.store.snapshot_likes(), self.store.snapshot_entries())
         added, merged = self.store.import_likes(dialog.chosen)
         if not added and not merged:
-            self._say("这些玩家都已在心动列表中")
+            self._say("这些玩家都已在心动列表里")
             return
         parts = [f"已添加 {added} 人"] if added else []
         if merged:

@@ -21,6 +21,21 @@ from blacklist_detect.ui_theme import DIALOG_PAD, _pointing
 from blacklist_detect.ui_widgets import _FlowHost
 
 SAMPLE_LOBBY = Path(__file__).resolve().parent / "assets" / "sample-lobby.jpg"
+
+
+def effects_summary(scene: str, music: str) -> str:
+    """What 心动特效 is set to, in a few words, as 设置 shows it: 随机特效，不放音乐."""
+    scenes = dict(love_scenes.SCENES)
+    tunes = {key: name for key, name, _file in TUNE_LIST}
+    if scene == "off":
+        first = "不放特效"
+    else:
+        first = scenes.get(scene, "随机特效")
+    if music == "random":
+        second = "随机音乐"
+    else:
+        second = tunes.get(music, "不放音乐")
+    return f"{first}，{second}"
 # A moment of the bare lobby between one play of the scene and the next.
 PAUSE_S = 0.7
 
@@ -34,7 +49,7 @@ def _sample_marks() -> list[tuple[QPixmap, QPoint]]:
     cover = button.adjusted(-_COVER_OUTSET, -_COVER_OUTSET, _COVER_OUTSET, _COVER_OUTSET)
     panel = LobbyPanel()
     panel.setFixedSize(cover.width() + 2 * _GLOW, cover.height() + 2 * _GLOW)
-    panel.set_mode("liked", "没有黑名单")
+    panel.set_mode("liked", "未发现黑名单")
     panel._shine.stop()
     panel._glint(0.3)
     marks = [(panel.grab(), cover.topLeft() - QPoint(_GLOW, _GLOW))]

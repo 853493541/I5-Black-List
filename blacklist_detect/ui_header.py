@@ -184,7 +184,7 @@ class ProfileChip(_KeyboardRing, QAbstractButton):
         self.setCursor(Qt.PointingHandCursor)
         self.setAttribute(Qt.WA_Hover, True)
         self.setFixedHeight(_CHIP_H)
-        self.setAccessibleName("角色名称")
+        self.setAccessibleName("游戏名")
         self._name = ""
         self._hover = False
 
@@ -193,7 +193,7 @@ class ProfileChip(_KeyboardRing, QAbstractButton):
 
     def set_name(self, name: str) -> None:
         self._name = name.strip()
-        self.setToolTip(self._name or "角色名称")
+        self.setToolTip(self._name or "游戏名")
         self.updateGeometry()
         self.update()
 
@@ -202,7 +202,7 @@ class ProfileChip(_KeyboardRing, QAbstractButton):
         return chinese_font(BODY_PT)
 
     def _shown(self) -> str:
-        return QFontMetrics(self._font()).elidedText(self._name or "角色名称", Qt.ElideRight, self._NAME_MAX)
+        return QFontMetrics(self._font()).elidedText(self._name or "游戏名", Qt.ElideRight, self._NAME_MAX)
 
     def sizeHint(self) -> QSize:
         text = QFontMetrics(self._font()).horizontalAdvance(self._shown())

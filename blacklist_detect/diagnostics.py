@@ -238,7 +238,10 @@ class SelfTest:
             rows.append(("bad", "识别", "示例大厅没有认出来"))
         else:
             right = self.correct()
-            rows.append(("ok" if right == len(SAMPLE_NAMES) else "warn", "识别", f"示例大厅 12 个名字读对 {right} 个"))
+            if right == len(SAMPLE_NAMES):
+                rows.append(("ok", "识别", "示例大厅的 12 个名字都读对了"))
+            else:
+                rows.append(("warn", "识别", f"示例大厅的 12 个名字读对了 {right} 个"))
         if self.runs:
             verdict = self.verdict()
             tone = {"正常": "ok", "有点慢": "warn"}.get(verdict, "bad")
@@ -259,7 +262,7 @@ class SelfTest:
     def headline(self) -> str:
         tones = [tone for tone, _item, _text in self.rows()]
         if "bad" in tones:
-            return "有问题"
+            return "有问题要处理"
         if "warn" in tones:
             return "能用，但有可以改进的地方"
         return "一切正常"

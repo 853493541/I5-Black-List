@@ -32,16 +32,16 @@ def qapp():
     return QApplication.instance() or QApplication([])
 
 
-def test_recheck_button_applies_a_later_tag(qapp, tmp_path, monkeypatch):
+def test_recheck_applies_a_later_tag(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
     window.store.add("甲", tags=("炸房",), reason="这人场外说话")
     window._show_list()
     assert window.blacklist_table.item(0, 1).text() == "炸房"
-    button = next(item for item in window.findChildren(QPushButton) if item.text() == "重新标注")
-    assert button.toolTip() == "按原因自动补全标签"
-    button.click()
+    # 按原因补标签 waits under 更多, with 复制名单 and 清空黑名单.
+    assert [action.text() for action in window.more_menu.actions() if action.text()] == ["复制名单", "按原因补标签", "清空黑名单"]
+    window.recheck_action.trigger()
     assert window.blacklist_table.item(0, 1).text() == "炸房、场外"
     window.close()
 
@@ -104,9 +104,9 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     assert window.blacklist_table.currentRow() == -1
     labels = [button.text() for button in window.findChildren(QPushButton)]
     assert "批量导入" in labels
-    assert [action.text() for action in window.more_menu.actions() if action.text()] == ["复制名单", "清空黑名单"]
+    assert [action.text() for action in window.more_menu.actions() if action.text()] == ["复制名单", "按原因补标签", "清空黑名单"]
     assert window.blacklist_table.columnCount() == 4
-    assert window.blacklist_table.item(0, 3).text() == ""
+    assert window.blacklist_table.item(0, 3).text() == "—", "not met yet"
     edited = AddNameDialog(
         "罪玥吉尔曼",
         window.store.entries[0].tags,
@@ -469,7 +469,7 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     window._paint_history_hover(0, 0, True)
     assert action.isHidden() is False
     assert window.history_table.cellWidget(0, 0).styleSheet() == window._history_wrap_style(THEME["gray_wash"])
-    assert window.record_time.text().endswith(clock)
+    assert window.record_summary.text().startswith("未发现黑名单")
     window._paint_history_hover(0, 0, False)
     assert action.isHidden() is True
     window.player_edit.setText("纪戴宁")
@@ -632,14 +632,14 @@ def test_the_name_is_changed_from_the_header(qapp, tmp_path, monkeypatch):
     window.resize(900, 560)
     window.show()
     chip = window.profile_chip
-    assert chip.name() == "" and chip.accessibleName() == "角色名称"
+    assert chip.name() == "" and chip.accessibleName() == "游戏名"
     assert chip.x() > window.status_chip.x(), "the name is at the far right"
     place = chip.geometry()
     chip.click()
     edit = window.player_edit
     # The chip turns into a box for the name, where the chip was.
     assert edit.isVisible() and chip.isHidden()
-    assert edit.placeholderText() == "游戏里的名字"
+    assert edit.placeholderText() == "游戏名"
     assert edit.height() == place.height() and edit.geometry().left() == place.left()
     edit.setText("纪戴宁")
     edit.returnPressed.emit()
@@ -1225,10 +1225,10 @@ def test_a_failed_check_is_shown_and_clears_when_checks_work(qapp, tmp_path, mon
     window._on_display_mode("full")
     window._on_auto_mode("auto")
     window._watch_timer.stop()
-    window._on_worker(("glance", "err", OcrUnavailable("识别模型未就绪，请重新解压完整的安装包。")))
+    window._on_worker(("glance", "err", OcrUnavailable("识别功能没装好，请重新解压完整的安装包")))
     assert window.status_chip.text() == "识别还没准备好"
     assert window.status_chip.tone() == "hit"
-    assert window.status_chip.toolTip() == "识别模型未就绪，请重新解压完整的安装包。\n切换为手动检查"
+    assert window.status_chip.toolTip() == "识别功能没装好，请重新解压完整的安装包\n切换为手动检查"
     # No file path, library name or command: those go to the log, not to the user.
     assert "app.log" not in window.status_chip.toolTip()
     assert "PaddleOCR" not in window.status_chip.toolTip()
@@ -1408,7 +1408,7 @@ def test_batch_import_previews_each_person_before_adding(qapp, tmp_path, monkeyp
     assert table.isHidden() is False
     shown = [(table.item(row, 0).text(), dialog.rows[row].checked, table.item(row, 3).text()) for row in range(table.rowCount())]
     assert shown == [
-        ("这游戏有这么多神人吗", False, "疑似非名字"),
+        ("这游戏有这么多神人吗", False, "可能不是名字"),
         ("名辅导可乐", True, "合并"),
         ("西西zo", True, ""),
         ("小小丑不会输", True, ""),
@@ -1482,8 +1482,8 @@ def test_a_picture_check_opens_its_result(qapp, tmp_path, monkeypatch):
     assert shown.seats[0].text() == "名0大王"
     assert shown.seats[3].text() == "未识别"
     assert window.picture_button.isEnabled() is True
-    assert window.picture_button.text() == "上传截图"
-    assert window.picture_empty_button.text() == "上传截图"
+    assert window.picture_button.text() == "用截图检查"
+    assert window.picture_empty_button.text() == "用截图检查"
     # It lives on 记录, not in 设置.
     assert window.tabs.widget(window.history_tab).isAncestorOf(window.picture_button)
     assert window.tabs.widget(window.history_tab).isAncestorOf(window.picture_empty_button)
@@ -2097,14 +2097,14 @@ def test_the_first_open_checks_the_environment_and_confirms_it(qapp, tmp_path, m
     assert window.store.env_checked == ""
     assert window.start_environment_check() is True
     setup = window.setup
-    assert setup.isVisible() and setup.title.text() == "正在检查环境"
+    assert setup.isVisible() and setup.title.text() == "正在做首次检查"
     _wait(qapp, 350)
     # 屏幕截图 passed; the models load next, then the sample lobby is read.
     assert jobs == ["warmup"]
     window._on_worker(("warmup", "ok", None))
     assert jobs == ["warmup", "envcheck"]
     window._on_worker(("envcheck", "ok", _lobby(12)))
-    assert setup.title.text() == "环境检查通过"
+    assert setup.title.text() == "准备好了"
     assert setup.notes[2].text() == "12/12"
     assert window.store.env_checked == __version__
     assert Store(window.store.root).env_checked == __version__
@@ -2134,7 +2134,7 @@ def test_a_failed_check_says_where_and_can_be_retried(qapp, tmp_path, monkeypatc
     window.start_environment_check()
     _wait(qapp, 350)
     setup = window.setup
-    assert setup.title.text() == "环境检查未通过"
+    assert setup.title.text() == "首次检查没通过"
     assert setup.message.text() == "没有读到画面，请再试一次。"
     assert setup.buttons.isVisible()
     assert window.store.env_checked == ""
@@ -2145,7 +2145,7 @@ def test_a_failed_check_says_where_and_can_be_retried(qapp, tmp_path, monkeypatc
     assert jobs == ["warmup"]
     window._on_worker(("warmup", "ok", None))
     window._on_worker(("envcheck", "ok", _lobby(5)))
-    assert setup.title.text() == "环境检查未通过"
+    assert setup.title.text() == "首次检查没通过"
     assert "5 个名字" in setup.message.text()
     window.close()
 
@@ -2162,9 +2162,9 @@ def test_a_model_that_will_not_load_stops_the_check_at_its_step(qapp, tmp_path, 
     window.show()
     window.start_environment_check()
     _wait(qapp, 350)
-    window._on_worker(("warmup", "err", OcrUnavailable("识别模型未就绪，请重新解压完整的安装包。")))
-    assert window.setup.title.text() == "环境检查未通过"
-    assert "模型" in window.setup.message.text()
+    window._on_worker(("warmup", "err", OcrUnavailable("识别功能没装好，请重新解压完整的安装包")))
+    assert window.setup.title.text() == "首次检查没通过"
+    assert "识别功能没装好" in window.setup.message.text()
     assert window.setup.notes[1].text() == ""
     window.close()
 
@@ -2187,7 +2187,7 @@ def test_a_damaged_list_file_is_reported_without_its_error(tmp_path):
     (tmp_path / "blacklist.json").write_text("{ not json", encoding="utf-8")
     store = Store(tmp_path)
     assert store.entries == []
-    assert store.load_warning == "黑名单文件已损坏，已备份原文件并新建空白名单。"
+    assert store.load_warning == "黑名单文件打不开，已另存一份备份，先用空名单"
 
 
 def test_reset_then_restart_runs_the_check_and_the_guide_again(qapp, tmp_path, monkeypatch):
@@ -2765,3 +2765,62 @@ def test_batch_import_offers_shared_phrases_as_tags_before_importing(qapp, tmp_p
     assert tags == {"小明": ("送人头",), "小红": ("送人头",), "阿强": (), "丁丁": ()}
     assert "送人头" in window.store.tag_catalog()
     window.close()
+
+
+def test_settings_show_whole_swatches_and_the_effects_choice(qapp, tmp_path, monkeypatch):
+    """At the size 设置 just fits, each 主题色 swatch is drawn whole; 心动特效 sits in 外观 with what it is set to."""
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    window.resize(900, 760)
+    window.tabs.setCurrentIndex(window.settings_tab)
+    window.show()
+    for _ in range(5):
+        qapp.processEvents()
+    for swatch in window.theme_buttons.values():
+        assert swatch.visibleRegion().boundingRect().height() == swatch.height(), "a swatch is cut off"
+    assert window.effects_note.text() == "随机特效，不放音乐"
+    window.store.love_scene, window.store.love_music = "thread", "canon"
+    window._sync_effects_note()
+    assert window.effects_note.text() == "命运红线，卡农 · 竖琴"
+    # 心动 has it too, under 更多.
+    assert "心动特效" in [action.text() for action in window.likes_page.more_menu.actions()]
+    window.close()
+
+
+def test_a_record_says_what_it_found_and_a_picture_marks_me(qapp, tmp_path, monkeypatch):
+    from blacklist_detect.ui_dialogs import PictureResultDialog
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    window.store.add("坏人")
+    window.store.add_like("小红")
+    window.store.player_name = "我自己"
+    names = ["坏人", "小红", "", "我自己"]
+    window.store.add_scan([{"seat": i + 1, "name": n, "unclear": not n} for i, n in enumerate(names)], 1.0)
+    window._reload_history()
+    # The header says what the lobby had; the time is in the list on the left.
+    assert window.record_summary.text() == "1 名黑名单 · 1 名心动 · 1 人未识别"
+    slots = [NameSlot(i, (0, 0, 1, 1), n, n, False, 0.9, not n) for i, n in enumerate(names)]
+    dialog = PictureResultDialog("截图检查", result=CheckResult(True, "", names=slots, hits=[]), me="我自己", parent=window)
+    assert [label.text() for label in dialog.findChildren(QLabel, "seatMe")] == ["我"]
+    dialog.close()
+    window.close()
+
+
+def test_the_welcome_says_how_a_check_starts(qapp, tmp_path, monkeypatch):
+    from blacklist_detect.ui_dialogs import GuideDialog
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    guide = GuideDialog(window, window._how_to_check())
+    steps = [label.text() for label in guide.steps]
+    assert any("推演成功" in step and "检查" in step for step in steps)
+    guide.close()
+    window.close()
+

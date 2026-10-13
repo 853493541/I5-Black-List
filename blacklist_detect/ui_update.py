@@ -135,9 +135,11 @@ class UpdateDialog(Modal):
         self.summary = QLabel(f"当前版本 {__version__}" if full else f"当前版本 {__version__} · {size:.1f} MB")
         self.summary.setObjectName("sub")
         layout.addWidget(self.summary)
-        self.notes = QLabel("\n".join(f"· {line}" for line in release.notes) or "· 问题修复和体验优化")
+        self.notes = QLabel("\n".join(f"· {line}" for line in release.notes))
         self.notes.setWordWrap(True)
         self.notes.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        # No notes: nothing, rather than a line that says nothing.
+        self.notes.setVisible(bool(release.notes))
         layout.addWidget(self.notes)
         self.bar = QProgressBar()
         self.bar.setRange(0, 1000)
@@ -164,13 +166,13 @@ class UpdateDialog(Modal):
             log.info("Update %s found, but this copy runs from source.", release.version)
             self.close_button.show()
             self._state = "source"
-            self._say("源码运行不支持更新")
+            self._say("源码运行时不能更新")
             self.skip.hide()
             self.action.setText("知道了")
         elif release.needs_full():
             log.info("Update %s needs the full package; the player is sent to download it.", release.version)
             self._state = "full"
-            self._say("此版本需要下载完整安装包，名单和设置会保留")
+            self._say("这个版本要下载完整安装包，名单和设置都会保留")
             self.action.setText("前往下载")
         else:
             self.band.hide()

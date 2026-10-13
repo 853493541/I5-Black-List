@@ -1,6 +1,6 @@
 """The environment check shown the first time the app opens, and after an update.
 
-A card over the window: a progress bar and three steps (屏幕截图, 识别模型, 识别测试).
+A card over the window: a progress bar and three steps (屏幕截图, 识别功能, 识别测试).
 When all pass it says 环境确认 and fades away; when one fails it says which and why,
 and offers 重试. The window runs the steps; this widget only shows them.
 """
@@ -31,7 +31,7 @@ from blacklist_detect.ui_theme import (
 )
 from blacklist_detect.ui_widgets import _watch_mark
 
-STEPS = ("屏幕截图", "识别模型", "识别测试")
+STEPS = ("屏幕截图", "识别功能", "识别测试")
 _SCALE = 1000
 
 
@@ -171,7 +171,7 @@ class SetupCheck(QWidget):
 
     def start(self) -> None:
         self.state = "running"
-        self.title.setText("正在检查环境")
+        self.title.setText("正在做首次检查")
         self.mark.hide()
         self.message.hide()
         self.buttons.hide()
@@ -206,7 +206,7 @@ class SetupCheck(QWidget):
         """环境确认, a full green bar, then the card fades away by itself."""
         self.state = "ok"
         self._target = 1.0
-        self.title.setText("环境检查通过")
+        self.title.setText("准备好了")
         self.mark.setPixmap(line_pixmap("check", 22, THEME["green"]))
         self.mark.show()
         self.apply_theme()
@@ -215,7 +215,7 @@ class SetupCheck(QWidget):
     def fail(self, index: int, message: str) -> None:
         self.state = "failed"
         self.step(index, "fail")
-        self.title.setText("环境检查未通过")
+        self.title.setText("首次检查没通过")
         self.mark.setPixmap(line_pixmap("warning", 22, THEME["red"]))
         self.mark.show()
         self.message.setText(message)

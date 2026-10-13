@@ -232,7 +232,7 @@ def find_anchor(lines: list[OcrLine], image_width: int, image_height: int) -> An
     if countdown is None:
         missing.append("倒计时 … 秒")
     if missing:
-        return Anchor(False, "未识别到「推演成功」大厅。", ready_count=ready_count)
+        return Anchor(False, "没找到「推演成功」大厅", ready_count=ready_count)
 
     assert title is not None and mode is not None and countdown is not None
     countdown_line, seconds = countdown
@@ -245,7 +245,7 @@ def find_anchor(lines: list[OcrLine], image_width: int, image_height: int) -> An
     ref_title_c = _center(ref_title)
     ref_dy = _center(ref_count)[1] - ref_title_c[1]
     if ref_dy <= 0:
-        return Anchor(False, "无法定位大厅，请截取完整的「推演成功」画面。")
+        return Anchor(False, "没找到「推演成功」大厅，请用完整的大厅截图")
 
     best: tuple[float, OcrLine, OcrLine, OcrLine, int, float] | None = None
     for title in titles:
@@ -274,7 +274,7 @@ def find_anchor(lines: list[OcrLine], image_width: int, image_height: int) -> An
     if best is None:
         return Anchor(
             False,
-            "无法定位大厅，请截取完整的「推演成功」画面。",
+            "没找到「推演成功」大厅，请用完整的大厅截图",
             ready_count=ready_count,
         )
 

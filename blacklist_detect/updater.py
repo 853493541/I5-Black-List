@@ -149,11 +149,11 @@ def read_manifest(manifest: bytes) -> Release:
             mirrors=tuple(str(item) for item in data.get("mirrors", ()) if _good_mirror(str(item))),
         )
     except (ValueError, KeyError, TypeError) as error:
-        raise UpdateError("更新信息无效") from error
+        raise UpdateError("无法读取更新信息，请稍后再试") from error
     if not release.url.startswith(DOWNLOADS) or not parse_version(release.version):
-        raise UpdateError("更新信息无效")
+        raise UpdateError("无法读取更新信息，请稍后再试")
     if not 0 < release.size <= MAX_SIZE or len(release.sha256) != 64:
-        raise UpdateError("更新信息无效")
+        raise UpdateError("无法读取更新信息，请稍后再试")
     return release
 
 
@@ -242,7 +242,7 @@ def fetch_release(session=None, current: str = __version__) -> Release | None:  
             log.info("Update check went through %s", prefix)
         return release if parse_version(release.version) > parse_version(current) else None
     if forged:
-        raise UpdateError("无法验证更新信息")
+        raise UpdateError("无法读取更新信息，请稍后再试")
     if missing == len(tried):
         # Nowhere has a version.json: nothing published yet.
         return None
@@ -284,7 +284,7 @@ def download(release: Release, folder: Path, progress: Callable[[int, int], None
         # Not the zip the release named: another address may pass the right one.
         log.warning("Update download through %s did not match the release", prefix or "GitHub")
         target.unlink(missing_ok=True)
-        failure = UpdateError("无法验证下载的文件，已取消更新")
+        failure = UpdateError("下载的更新包有问题，已取消更新")
     raise failure
 
 
@@ -320,10 +320,10 @@ def stage(zip_path: Path, root: Path, version: str) -> Path:
                     shutil.copyfileobj(source, out)
     except (zipfile.BadZipFile, OSError) as error:
         shutil.rmtree(staged, ignore_errors=True)
-        raise UpdateError("更新文件损坏，请重试") from error
+        raise UpdateError("下载的更新包坏了，请重试") from error
     if not (staged / _ALLOWED_DIR / "__init__.py").is_file():
         shutil.rmtree(staged, ignore_errors=True)
-        raise UpdateError("更新文件不完整，请重试")
+        raise UpdateError("下载的更新包不完整，请重试")
     (staged / VERSION_FILE).write_text(version, encoding="utf-8")
     return staged
 
