@@ -169,7 +169,7 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     window._remove_tag("红名")
     assert window.store.custom_tags == ["红名"]
     window._remove_tag("红名")
-    assert asked == ["有 1 人使用「红名」（甲），删除后这些玩家将不再带有该标签。确定删除吗？"] * 2
+    assert asked == ["「红名」有 1 人在用（甲），删除后他们会去掉这个标签。确定删除吗？"] * 2
     assert window.store.custom_tags == []
     assert window.store.entries[-1].tags == ()
     window.close()
@@ -494,7 +494,7 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     window._hover_history_cell(1, 0)
     assert window.history_table.cellWidget(1, 0).styleSheet() == window._history_wrap_style("")
     assert window.history_table.viewport().cursor().shape() == Qt.ArrowCursor
-    assert window.history_table.item(1, 0).foreground().color().name() == "#6b7280"
+    assert window.history_table.item(1, 0).foreground().color().name() == THEME["gray"]
     assert window.history_table.item(1, 0).data(Qt.UserRole) in ("", None)
     assert window.history_table.cellWidget(1, 0).findChild(QLabel, "rowAction") is None
     window.store.add("纪戴宁")
@@ -975,7 +975,7 @@ def test_a_cut_name_shows_once_with_the_rest_from_the_list(qapp, tmp_path, monke
     seat = window.history_table.cellWidget(0, 0)
     assert seat.findChild(QLabel, "rowListed") is None
     assert seat.findChild(QLabel, "rowName").text() == "无害虎皮吉尔曼"
-    assert window.history_table.item(0, 0).toolTip() == "识别为「无害虎皮」，匹配黑名单「无害虎皮吉尔曼」"
+    assert window.history_table.item(0, 0).toolTip() == "读到「无害虎皮」，是黑名单里的「无害虎皮吉尔曼」"
     assert seat.findChild(QLabel, "rowAction") is None
     # A name that differs in more than the cut may be someone else: the list's spelling stays beside it.
     other = window.history_table.cellWidget(0, 1)
@@ -1169,10 +1169,10 @@ def test_the_add_dialog_refuses_a_name_already_on_the_list(qapp):
     dialog.name_edit.setText(" GFFDSD ")
     dialog._accept()
     assert dialog.result() != QDialog.Accepted
-    assert dialog.name_error.text() == "该玩家已在黑名单中"
+    assert dialog.name_error.text() == "这个玩家已在黑名单里"
     dialog.name_edit.setText("★☆★")
     dialog._accept()
-    assert dialog.name_error.text() == "名字需包含文字或数字"
+    assert dialog.name_error.text() == "名字里要有文字或数字"
     dialog.name_edit.setText("新名字")
     dialog._accept()
     assert dialog.result() == QDialog.Accepted
@@ -1226,7 +1226,7 @@ def test_a_failed_check_is_shown_and_clears_when_checks_work(qapp, tmp_path, mon
     window._on_auto_mode("auto")
     window._watch_timer.stop()
     window._on_worker(("glance", "err", OcrUnavailable("识别模型未就绪，请重新解压完整的安装包。")))
-    assert window.status_chip.text() == "识别模型未就绪"
+    assert window.status_chip.text() == "识别还没准备好"
     assert window.status_chip.tone() == "hit"
     assert window.status_chip.toolTip() == "识别模型未就绪，请重新解压完整的安装包。\n切换为手动检查"
     # No file path, library name or command: those go to the log, not to the user.
@@ -1234,7 +1234,7 @@ def test_a_failed_check_is_shown_and_clears_when_checks_work(qapp, tmp_path, mon
     assert "PaddleOCR" not in window.status_chip.toolTip()
     assert window._glance_pause_until > 0
     window._on_worker(("check", "err", RuntimeError("坏了")))
-    assert window.status_chip.text() == "检查失败"
+    assert window.status_chip.text() == "无法检查"
     window._on_worker(("glance", "ok", False))
     assert window.status_chip.text() == "自动检查中"
     window.close()
@@ -1251,7 +1251,7 @@ def test_the_model_load_is_shown_until_it_finishes(qapp, tmp_path, monkeypatch):
     window._watch_timer.stop()
     window.worker.request = lambda *args, **kwargs: True
     window.start_warmup()
-    assert window.status_chip.text() == "正在加载识别模型"
+    assert window.status_chip.text() == "正在准备识别"
     window._on_worker(("warmup", "ok", None))
     assert window.status_chip.text() == "自动检查中"
     window.close()
@@ -1416,7 +1416,7 @@ def test_batch_import_previews_each_person_before_adding(qapp, tmp_path, monkeyp
     ]
     # 标签 are drawn as the list's red pills; 合并 is in the accent.
     assert table.item(2, 1).data(Qt.UserRole + 3) == ("挂机",) and table.item(2, 2).text() == "挂机占麦"
-    assert table.item(1, 3).data(Qt.UserRole + 4) == THEME["accent_line"]
+    assert table.item(1, 3).data(Qt.UserRole + 4) == THEME["accent"]
     assert dialog.import_button.text() == "导入 4 人"
     # A click on a row unchecks it, and it stays unchecked while the text changes.
     dialog._toggle(4)
@@ -1433,7 +1433,7 @@ def test_batch_import_previews_each_person_before_adding(qapp, tmp_path, monkeyp
     # Text with no name in it says so.
     dialog.edit.setPlainText("，，，")
     dialog._refresh()
-    assert dialog.error.text() == "未识别到名字" and not dialog.import_button.isEnabled()
+    assert dialog.error.text() == "没有读到名字" and not dialog.import_button.isEnabled()
     dialog.close()
     # The window imports what was checked: new names added, the known one merged, with 撤销.
     said: list[tuple[str, object]] = []
@@ -2342,7 +2342,7 @@ def test_the_start_with_windows_switch(qapp, tmp_path, monkeypatch):
     state["works"] = False
     switch.click()
     assert state["on"] is True and switch.isChecked() is True, "a change that failed does not show as made"
-    assert window.toast.text.text() == "开机启动设置失败"
+    assert window.toast.text.text() == "无法设置开机启动"
     state["works"] = True
     monkeypatch.setattr("blacklist_detect.ui._confirm", lambda *_args: True)
     window.close_mode.buttons["quit"].click()
@@ -2520,7 +2520,7 @@ def test_renaming_or_deleting_the_picked_tag(qapp, tmp_path, monkeypatch):
     asked: list[str] = []
     monkeypatch.setattr("blacklist_detect.ui._confirm", lambda _parent, text: asked.append(text) or True)
     window._remove_tag("闹房")
-    assert asked == ["有 1 人使用「闹房」（甲），删除后这些玩家将不再带有该标签。确定删除吗？"]
+    assert asked == ["「闹房」有 1 人在用（甲），删除后他们会去掉这个标签。确定删除吗？"]
     assert window._tag_filter == "" and window.tag_list.currentRow() == 0
     assert "闹房" not in window.store.tag_catalog()
     assert _shown_names(window) == ["甲", "乙"]
@@ -2670,12 +2670,12 @@ def test_dialogs_say_their_title_once_and_dim_the_window(qapp, tmp_path, monkeyp
     for made in (
         BatchAddDialog(window.store.tag_catalog(), parent=window),
         AddNameDialog(catalog=window.store.tag_catalog(), parent=window),
-        ConfirmDialog(window, "清空黑名单", "将删除黑名单中的 1 人，确定清空吗？", "清空", danger=True),
+        ConfirmDialog(window, "清空黑名单", "会删除黑名单里的 1 人，确定清空吗？", "清空", danger=True),
     ):
         assert isinstance(made, Modal) and made.windowFlags() & Qt.FramelessWindowHint
         assert made.heading.text() == made.windowTitle()
         made.close()
-    confirm = ConfirmDialog(window, "清空黑名单", "将删除黑名单中的 1 人，确定清空吗？", "清空", danger=True)
+    confirm = ConfirmDialog(window, "清空黑名单", "会删除黑名单里的 1 人，确定清空吗？", "清空", danger=True)
     assert confirm.cancel_button.text() == "取消" and confirm.cancel_button.isDefault()
     # Clicking outside a confirmation is the safe answer.
     confirm.show()

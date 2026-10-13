@@ -45,11 +45,14 @@ def window_order() -> tuple[int, ...]:
     return tuple(order)
 
 
-def window_rect_at(x: int, y: int, order: tuple[int, ...] = ()) -> tuple[int, int, int, int] | None:
+def window_rect_at(
+    x: int, y: int, order: tuple[int, ...] = (), innermost: bool = True
+) -> tuple[int, int, int, int] | None:
     """(left, top, right, bottom) in screen pixels of what draws at (x, y): the client area of
     the innermost window there, this app's windows passed over. order: the windows front to back
-    when the screenshot was taken (window_order); without it, as they are now. None when nothing
-    is found."""
+    when the screenshot was taken (window_order); without it, as they are now. innermost=False
+    stops at the top-level window: the whole emulator, what a streaming app's 窗口捕捉 captures.
+    None when nothing is found."""
     if sys.platform != "win32":
         return None
     import ctypes
@@ -106,7 +109,7 @@ def window_rect_at(x: int, y: int, order: tuple[int, ...] = ()) -> tuple[int, in
     if not hwnd:
         return None
     # Down to the innermost window that draws there: an emulator's game surface, not its frame.
-    for _ in range(16):
+    for _ in range(16 if innermost else 0):
         point = wintypes.POINT(x, y)
         user32.ScreenToClient(hwnd, ctypes.byref(point))
         child = user32.ChildWindowFromPointEx(hwnd, point, _CWP_SKIPINVISIBLE | _CWP_SKIPTRANSPARENT)
@@ -122,3 +125,24 @@ def window_rect_at(x: int, y: int, order: tuple[int, ...] = ()) -> tuple[int, in
     if right <= left or bottom <= top:
         return None
     return left, top, right, bottom
+
+
+_QUNS_RUNNING_D3D_FULL_SCREEN = 3
+
+
+def exclusive_fullscreen() -> bool:
+    """Whether a Direct3D program holds the screen in exclusive full screen, as Windows tells it.
+
+    Windows draws no other window over such a game: the marks over it would not be seen. A game
+    in borderless 全屏 (the usual kind now) is not this, and shows them. Asks Windows only."""
+    if sys.platform != "win32":
+        return False
+    import ctypes
+
+    state = ctypes.c_int(0)
+    try:
+        if ctypes.windll.shell32.SHQueryUserNotificationState(ctypes.byref(state)) != 0:
+            return False
+    except (AttributeError, OSError):
+        return False
+    return state.value == _QUNS_RUNNING_D3D_FULL_SCREEN

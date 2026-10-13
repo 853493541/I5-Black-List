@@ -60,6 +60,8 @@ class StreamMirror(QWidget):
         self._mode = ""
         # The screen this window mirrors; it is shown somewhere else, off the screen.
         self._area = QRect()
+        # The game's window as a streaming app's 窗口捕捉 sees it, once a check has found it.
+        self._frame = QRect()
         self._tick = QTimer(self)
         self._tick.setInterval(FRAME_MS)
         self._tick.timeout.connect(self._step)
@@ -116,7 +118,16 @@ class StreamMirror(QWidget):
         right = max((screen.geometry().right() for screen in QApplication.screens()), default=area.right())
         self.setGeometry(QRect(right + 64, area.y(), area.width(), area.height()))
 
+    def set_frame(self, frame: QRect) -> None:
+        """Mirror the game's window from now on: the same size as the 窗口捕捉 of the game, so the
+        two line up when both fill the canvas. A full-screen game's window is the screen."""
+        self._frame = QRect(frame)
+        if self.enabled() and self._frame.size() != self.size():
+            self._place(self._frame)
+
     def _screen(self) -> QRect:
+        if not self._frame.isEmpty():
+            return self._frame
         panel = self._window.panel
         point = panel.cover_geometry().center() if panel.isVisible() else QPoint(0, 0)
         screen = QApplication.screenAt(point) or QApplication.primaryScreen()

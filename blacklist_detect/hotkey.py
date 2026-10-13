@@ -135,7 +135,7 @@ class GlobalHotkey:
             return True
         if sys.platform != "win32":
             self.active = ""
-            self.error = "快捷键已保存，但当前系统暂不支持。"
+            self.error = "已保存，但这台电脑用不了快捷键"
             return False
         import ctypes
         from ctypes import wintypes
@@ -145,7 +145,7 @@ class GlobalHotkey:
 
         user32 = ctypes.windll.user32
         if not user32.RegisterHotKey(None, self._id, spec.win_modifiers, spec.vk):
-            self.error = "该组合键不可用，请换一个。"
+            self.error = "这个组合键用不了，请换一个"
             return False
 
         owner = self

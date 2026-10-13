@@ -348,3 +348,19 @@ def test_each_question_is_asked_once_and_the_answer_is_kept(window, monkeypatch)
     # 清空数据 forgets it: the next player is asked again.
     window.store.reset()
     assert Store(window.store.root).consented == []
+
+
+def test_full_mode_adds_the_corner_message_over_an_exclusive_full_screen_game(window, monkeypatch):
+    from blacklist_detect import ui
+
+    window.store.consented = ["full"]
+    window.full_on.click()
+    button, names = _lobby()
+    hit = Hit(0, "坏人", "坏人", "", False, "", ("炸房",))
+    window._live_check = True
+    window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
+    assert not window.notice.isVisible(), "a borderless or windowed game sees the marks"
+    monkeypatch.setattr(ui, "exclusive_fullscreen", lambda: True)
+    window._hide_panel_after_title()
+    window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
+    assert window.notice.isVisible() and window.notice.kind == "hit"

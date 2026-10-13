@@ -104,9 +104,9 @@ class LikeDialog(Modal):
         if not self.name_edit.text().strip():
             problem = "请填写名字"
         elif not key:
-            problem = "名字需包含文字或数字"
+            problem = "名字里要有文字或数字"
         elif key in self.taken:
-            problem = "该玩家已在心动列表中"
+            problem = "这个玩家已在心动列表里"
         else:
             problem = ""
         if problem:
@@ -196,7 +196,7 @@ class LikesPage(QWidget):
         self.table.customContextMenuRequested.connect(self._row_menu)
         self.table.installEventFilter(self)
         outer.addWidget(self.table, 1)
-        self.empty = EmptyState("heart", "心动列表还是空的", "把想再一起玩的玩家加到这里。")
+        self.empty = EmptyState("heart", "心动列表还是空的", "把想再一起玩的人加到这里")
         self.empty_batch_button = self.empty.add_action(QPushButton("批量导入"))
         self.empty_batch_button.clicked.connect(self.import_many)
         self.empty_add_button = self.empty.add_action(QPushButton("添加"))
@@ -252,7 +252,7 @@ class LikesPage(QWidget):
             self.empty.set_text(f"没有找到「{self.search.text().strip()}」")
         else:
             self.empty.set_icon("heart")
-            self.empty.set_text("心动列表还是空的", "把想再一起玩的玩家加到这里。")
+            self.empty.set_text("心动列表还是空的", "把想再一起玩的人加到这里")
         self.empty_batch_button.setVisible(not has_any)
         self.empty_add_button.setVisible(not has_any)
         table.setVisible(bool(rows))

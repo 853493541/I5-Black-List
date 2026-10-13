@@ -43,6 +43,7 @@ from blacklist_detect.ui_theme import (
 )
 from blacklist_detect.ui_widgets import (
     TagPill,
+    masked_name,
     _FlowHost,
     _zh_date,
     paint_tag_row,
@@ -224,9 +225,9 @@ class AddNameDialog(Modal):
         if not self.name_edit.text().strip():
             problem = "请填写名字"
         elif not key:
-            problem = "名字需包含文字或数字"
+            problem = "名字里要有文字或数字"
         elif key in self.taken:
-            problem = "该玩家已在黑名单中"
+            problem = "这个玩家已在黑名单里"
         else:
             problem = ""
         if problem:
@@ -390,14 +391,14 @@ class BatchAddDialog(Modal):
             tags = QTableWidgetItem("")
             tags.setData(Qt.UserRole + 3, row.tags)
             tags.setToolTip("、".join(row.tags))
-            status.setData(Qt.UserRole + 4, THEME["accent_line"] if row.status == MERGE else THEME["muted"])
+            status.setData(Qt.UserRole + 4, (THEME["accent_line"] if THEME.get("scheme") == "dark" else THEME["accent"]) if row.status == MERGE else THEME["muted"])
             for column, item in enumerate((name, tags, reason, status)):
                 item.setFlags(Qt.ItemIsEnabled)
                 table.setItem(index, column, item)
             self._paint_row(index)
         table.setVisible(bool(self.rows))
         typed = bool(self.edit.toPlainText().strip())
-        _say_error(self.error, "未识别到名字" if typed and not self.rows else "")
+        _say_error(self.error, "没有读到名字" if typed and not self.rows else "")
         self._sync_button()
 
     def _paint_row(self, index: int) -> None:
@@ -462,7 +463,7 @@ class TagSuggestDialog(Modal):
         column = QVBoxLayout(tags)
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(10)
-        hint = QLabel("点击标签可取消添加")
+        hint = QLabel("点标签可以取消")
         hint.setObjectName("sub")
         hint.setWordWrap(True)
         column.addWidget(hint)
@@ -578,7 +579,7 @@ def _liked(slot, likes):  # noqa: ANN001, ANN202
 class PictureResultDialog(Modal):
     """What one picture check read: the twelve seats, blacklist matches in red, 心动 in rose."""
 
-    def __init__(self, title: str, result: CheckResult | None = None, error: str = "", parent=None, likes=()) -> None:  # noqa: ANN001
+    def __init__(self, title: str, result: CheckResult | None = None, error: str = "", parent=None, likes=(), hide_hits: bool = False) -> None:  # noqa: ANN001
         super().__init__(parent)
         layout = _frame(self, title)
         self.summary = QLabel()
@@ -586,7 +587,7 @@ class PictureResultDialog(Modal):
         layout.addWidget(self.summary)
         self.seats: list[QLabel] = []
         if error:
-            self.summary.setText(f"检查失败：{error}")
+            self.summary.setText(f"无法检查：{error}")
         elif result is None or not result.header_found:
             reason = result.message if result is not None else ""
             self.summary.setText(f"{reason}\n请上传「推演成功」大厅的完整截图。".strip())
@@ -617,10 +618,13 @@ class PictureResultDialog(Modal):
                     hit = hits[slot.index]
                     shown = split_ellipsis(slot.visible)[0] or slot.visible
                     tail = listed_tail(shown, hit.entry_name)
-                    if tail:
+                    if hide_hits:
+                        # 直播模式: the dialog may be on stream; the name is masked.
+                        cell.setText(masked_name(shown))
+                    elif tail:
                         # Cut short by the game: the name once, in full as the list has it.
                         cell.setText(hit.entry_name)
-                        cell.setToolTip(f"识别为「{shown}」，匹配黑名单「{hit.entry_name}」")
+                        cell.setToolTip(f"读到「{shown}」，是黑名单里的「{hit.entry_name}」")
                     else:
                         listed = "" if tail == "" else f"　黑名单：{hit.entry_name}"
                         cell.setText(shown + listed)
@@ -636,7 +640,7 @@ class PictureResultDialog(Modal):
                     shown = split_ellipsis(slot.visible)[0] or slot.visible
                     # 心动 shows the 昵称, or the full name as the list has it.
                     cell.setText(liked.shown())
-                    cell.setToolTip(f"识别为「{shown}」，匹配心动「{liked.name}」")
+                    cell.setToolTip(f"读到「{shown}」，是心动里的「{liked.name}」")
                     cell.setStyleSheet(base + f' color: {THEME["rose"]};')
                     wash = THEME["rose_wash"]
                     heart = QLabel()
@@ -668,7 +672,7 @@ DISCLAIMER = (
     "只截取屏幕、在本机识别文字，不读取、不修改游戏，也不替你操作游戏。",
     "使用第三方工具可能违反游戏用户协议，由此带来的任何后果（包括账号处罚）由使用者自行承担。",
     "名单和记录只保存在本机，除检查更新外不联网。",
-    "识别结果可能有误，请以游戏内为准。请勿用于骚扰或针对其他玩家。",
+    "识别结果可能有误，请以游戏里为准。请友善使用，不要用它骚扰或针对其他玩家。",
 )
 
 
@@ -712,7 +716,7 @@ class GuideDialog(Modal):
         steps = (
             ("edit", "右上角填好你的游戏名"),
             ("users", "在「黑名单」里加上不想遇到的人"),
-            ("check", "检测到黑名单会有红色提示"),
+            ("check", "发现黑名单玩家时会有红色提醒"),
         )
         accent = THEME["accent_line"] if THEME.get("scheme") == "dark" else THEME["accent"]
         self.steps: list[QLabel] = []
@@ -749,17 +753,17 @@ STREAM_DIFF = (
 STREAM_SETUP = (
     ("stream-setup-1.png", "第 1 步", "在直播姬点「素材」，选「窗口捕捉」"),
     ("stream-setup-2.png", "第 2 步", "窗口选「模仿者小工具·直播画面」，点「确定」"),
-    ("stream-setup-3.png", "第 3 步", "它要在游戏画面上面：新加的素材本来就在最上面"),
+    ("stream-setup-3.png", "第 3 步", "直播画面要在游戏画面上面，新加的素材默认就在最上面"),
 )
 # 显示's guide: what the player sees in each mode.
 DISPLAY_DIFF = (
     ("display-diff-1.jpg", "发现黑名单", "安全模式只在右下角提示；完整模式在游戏画面上标出是谁"),
-    ("display-diff-2.jpg", "遇到心动", "完整模式还会放花朵边框"),
+    ("display-diff-2.jpg", "遇到心动", "完整模式还会在游戏画面上显示花朵边框"),
 )
 GUIDE_PICTURES = Path(__file__).resolve().parent / "assets"
 # Each picture fits in this box, in logical pixels; the files are made at twice the size.
 PICTURE_BOX = (465, 150)
-WORDS_WIDTH = 170
+WORDS_WIDTH = 186
 
 
 class PictureGuideDialog(Modal):

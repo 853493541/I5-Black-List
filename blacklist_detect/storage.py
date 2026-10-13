@@ -402,6 +402,9 @@ class Store:
         self.disclaimer_accepted = False
         # 直播模式's guide: shown by itself the first time it is turned on.
         self.stream_guided = False
+        # 直播模式's window: the size of the game's window at the last check, so the 窗口捕捉 a
+        # streamer set up keeps its size from one start to the next. (0, 0) until a check finds it.
+        self.stream_size = (0, 0)
         self.load_warning = ""
         # Whether the welcome guide has been shown. A settings file from before this was saved
         # counts as welcomed; no settings file at all is a first open.
@@ -766,6 +769,7 @@ class Store:
                 "consented": list(self.consented),
                 "disclaimer_accepted": self.disclaimer_accepted,
                 "stream_guided": self.stream_guided,
+                "stream_size": list(self.stream_size),
             },
         )
 
@@ -805,6 +809,9 @@ class Store:
             self.stream_mode = "on" if settings.get("stream_mode") in ("on", "key", "alpha") else ""
             self.disclaimer_accepted = settings.get("disclaimer_accepted") is True
             self.stream_guided = settings.get("stream_guided") is True
+            size = settings.get("stream_size")
+            if isinstance(size, list) and len(size) == 2 and all(isinstance(v, int) and 0 <= v <= 20000 for v in size):
+                self.stream_size = (size[0], size[1])
             agreed = settings.get("consented") or []
             self.consented = [mode for mode in ("full", "auto") if isinstance(agreed, list) and mode in agreed]
             for raw in settings.get("hidden_tags") or []:
@@ -1013,6 +1020,9 @@ class Store:
         self.consented = []
         self.disclaimer_accepted = False
         self.stream_guided = False
+        # 直播模式's window: the size of the game's window at the last check, so the 窗口捕捉 a
+        # streamer set up keeps its size from one start to the next. (0, 0) until a check finds it.
+        self.stream_size = (0, 0)
         self.load_warning = ""
         self.save_entries()
         self.save_likes()

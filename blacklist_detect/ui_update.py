@@ -58,7 +58,7 @@ class UpdateChecker(QObject):
         except Exception:  # noqa: BLE001 - a broken check must never take the app down
             log.exception("Update check failed")
             self._busy = False
-            self.failed.emit("检查失败，请稍后重试")
+            self.failed.emit("无法检查更新，请稍后再试")
             return
         self._busy = False
         if release is None:
@@ -87,7 +87,7 @@ class Download(QObject):
             return
         except Exception:  # noqa: BLE001
             log.exception("Update download failed")
-            self.failed.emit("更新失败，请稍后重试")
+            self.failed.emit("无法更新，请稍后再试")
             return
         self.done.emit(release.version)
 

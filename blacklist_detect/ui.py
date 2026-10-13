@@ -46,7 +46,7 @@ from blacklist_detect.capture import (
     lock_foreground,
     virtual_origin,
 )
-from blacklist_detect.game_area import window_order, window_rect_at
+from blacklist_detect.game_area import exclusive_fullscreen, window_order, window_rect_at
 from blacklist_detect.hotkey import GlobalHotkey, parse_hotkey
 from blacklist_detect.importing import suggest_tags, with_tags
 from blacklist_detect.logs import log, mark_closed, mark_running, on_uncaught, setup_logging
@@ -232,7 +232,7 @@ def run_app(background: bool = False) -> int:
         log.critical("The window could not open", exc_info=True)
         from PySide6.QtWidgets import QMessageBox
 
-        QMessageBox.critical(None, APP_NAME, "程序启动失败，请重新解压完整的安装包后再试。")
+        QMessageBox.critical(None, APP_NAME, "无法启动，请重新解压完整的安装包后再试")
         return 1
     if mark_running():
         log.warning("The last run ended without closing: it was ended from outside (Task Manager, a tool, or a power loss).")
@@ -404,6 +404,9 @@ class MainWindow(QMainWindow):
         self._notice_screen = None
         # 直播模式: the marks, never a 黑名单 name, in a window a streaming app can capture.
         self.stream = StreamMirror(self)
+        if all(self.store.stream_size):
+            # The game's window size from the last check; where it is comes with the next one.
+            self.stream.set_frame(QRect(0, 0, *self.store.stream_size))
         # The lobby's button, in desktop pixels: the game's window is the one under it, in the
         # order the windows were in at the screenshot.
         self._game_box = None
@@ -605,7 +608,7 @@ class MainWindow(QMainWindow):
         self.more_menu = QMenu(self)
         self.share_action = self.more_menu.addAction("复制名单", self._share_list)
         _mark_menu_item(self.share_action, "copy")
-        self.share_action.setToolTip("复制全部名单，好友可在「批量导入」中粘贴。")
+        self.share_action.setToolTip("复制全部名单，好友在「批量导入」里粘贴即可")
         self.more_menu.addSeparator()
         self.clear_list_action = self.more_menu.addAction("清空黑名单", self._clear_list)
         _mark_menu_item(self.clear_list_action, "delete")
@@ -923,7 +926,8 @@ class MainWindow(QMainWindow):
         self.hotkey_edit = QLineEdit()
         self.hotkey_edit.setReadOnly(True)
         self.hotkey_edit.setPlaceholderText("无")
-        self.hotkey_edit.setFixedWidth(slot)
+        # Room for the longest key there is, Ctrl+Shift+Alt+F12 aside: Ctrl+Alt+F12.
+        self.hotkey_edit.setFixedWidth(max(slot, metrics.horizontalAdvance("Ctrl+Alt+F12") + 32))
         self.hotkey_edit.setCursor(Qt.PointingHandCursor)
         self.hotkey_edit.installEventFilter(self)
         self.hotkey_edit.setAccessibleName("快捷键")
@@ -1153,7 +1157,7 @@ class MainWindow(QMainWindow):
             shown = "、".join(names[:6])
             if len(names) > 6:
                 shown += "等"
-            text = f"有 {len(names)} 人使用「{tag}」（{shown}），删除后这些玩家将不再带有该标签。确定删除吗？"
+            text = f"「{tag}」有 {len(names)} 人在用（{shown}），删除后他们会去掉这个标签。确定删除吗？"
         if not _confirm(self, text):
             return
         if not self.store.remove_custom_tag(tag):
@@ -1165,7 +1169,7 @@ class MainWindow(QMainWindow):
         self.settings_label.setVisible(bool(text))
 
     def _ask_reset(self) -> None:
-        if not _confirm(self, "将删除角色名称、记录、黑名单、心动列表和全部设置，且无法恢复。确定清空吗？"):
+        if not _confirm(self, "会删除角色名称、记录、黑名单、心动列表和所有设置，删除后无法恢复。确定清空吗？"):
             return
         self.store.reset()
         self.hotkey.clear()
@@ -1719,6 +1723,9 @@ class MainWindow(QMainWindow):
             header.locked = bool(self.store.stream_mode)
             header.viewport().update()
         self._show_list()
+        # 记录 masks its 黑名单 seats in 直播模式 too.
+        if hasattr(self, "history_table"):
+            self._show_history_scan(self._selected_scan())
 
     def _sync_detail_tip(self, row: int, column: int) -> None:
         text = self._reason_for_row(row) if column == 2 else ""
@@ -1800,7 +1807,7 @@ class MainWindow(QMainWindow):
         count = len(self.store.entries)
         if not count:
             return
-        if ConfirmDialog.ask(self, "清空黑名单", f"将删除黑名单中的 {count} 人，确定清空吗？", "清空", danger=True):
+        if ConfirmDialog.ask(self, "清空黑名单", f"会删除黑名单里的 {count} 人，确定清空吗？", "清空", danger=True):
             self._confirm_clear_list()
 
     def _confirm_clear_list(self) -> None:
@@ -2271,7 +2278,7 @@ class MainWindow(QMainWindow):
 
     def _ask_clear_history(self) -> None:
         count = len(self.store.scans)
-        if count and ConfirmDialog.ask(self, "清空记录", f"将删除全部 {count} 条记录，确定清空吗？", "清空", danger=True):
+        if count and ConfirmDialog.ask(self, "清空记录", f"会删除全部 {count} 条记录，确定清空吗？", "清空", danger=True):
             self._clear_history()
 
     def _clear_history(self) -> None:
@@ -2361,6 +2368,10 @@ class MainWindow(QMainWindow):
         if like is not None:
             # 心动 shows the 昵称, or the full name as the list has it.
             shown_name = like.shown()
+        # 直播模式: this page may be on stream, so a 黑名单 name is masked like on the 黑名单 page.
+        hide = match is not None and bool(self.store.stream_mode)
+        if hide:
+            shown_name, listed, tail, title = masked_name(shown_name), "", None, masked_name(title)
         # Lobby order is not the player's number. Show the name until a later stage.
         label = title
         name_item = QTableWidgetItem(label)
@@ -2433,10 +2444,10 @@ class MainWindow(QMainWindow):
             f'color: {name_color}; background: transparent; font-family: "{chinese_family()}"; font-size: {BODY_PT}pt;'
         )
         line.addWidget(name_label, 1)
-        if tail:
-            name_item.setToolTip(f"识别为「{title}」，匹配黑名单「{listed}」")
+        if tail and not hide:
+            name_item.setToolTip(f"读到「{title}」，是黑名单里的「{listed}」")
         if like is not None:
-            name_item.setToolTip(f"识别为「{title}」，匹配心动「{like.name}」")
+            name_item.setToolTip(f"读到「{title}」，是心动里的「{like.name}」")
         if not unclear and not name_item.toolTip():
             name_item.setToolTip(label)
         if listed and tail is None:
@@ -2447,7 +2458,7 @@ class MainWindow(QMainWindow):
             listed_label.setStyleSheet(
                 f'color: {THEME["red"]}; background: transparent; font-family: "{chinese_family()}";'
             )
-            name_item.setToolTip(f"识别为「{title}」，匹配黑名单「{listed}」")
+            name_item.setToolTip(f"读到「{title}」，是黑名单里的「{listed}」")
             line.addWidget(listed_label, 0, Qt.AlignVCenter)
         if action:
             action_label = QLabel(action)
@@ -2705,7 +2716,7 @@ class MainWindow(QMainWindow):
             return
         key = _qt_key_name(event.key())
         if key is None:
-            self._set_settings_note("请使用字母、数字或 F1–F12。")
+            self._set_settings_note("请用字母、数字或 F1–F12")
             return
         modifiers = []
         flags = event.modifiers()
@@ -2719,7 +2730,7 @@ class MainWindow(QMainWindow):
             modifiers.append("Win")
         spec = parse_hotkey("+".join([*modifiers, key]))
         if spec is None:
-            self._set_settings_note("该组合键不可用，请换一个。")
+            self._set_settings_note("这个组合键用不了，请换一个")
             return
         registered = self.hotkey.apply(spec)
         self.store.hotkey = spec.display
@@ -2728,12 +2739,12 @@ class MainWindow(QMainWindow):
         if registered:
             self._set_settings_note("")
         elif sys.platform != "win32":
-            self._set_settings_note("当前系统不支持快捷键。")
+            self._set_settings_note("这台电脑用不了快捷键")
         else:
             self.store.hotkey = ""
             self.store.save_settings()
             self.hotkey_edit.clear()
-            self._set_settings_note("该快捷键已被占用，请换一个。")
+            self._set_settings_note("这个快捷键已被其他程序占用，请换一个")
         self.hotkey_edit.clearFocus()
         if self._status_kind == "idle":
             self._sync_watch_idle()
@@ -2768,7 +2779,7 @@ class MainWindow(QMainWindow):
             return
         self._warm_state = "loading"
         self._warm_started = time.perf_counter()
-        self._set_result("正在加载识别模型", "idle", "loading")
+        self._set_result("正在准备识别", "idle", "loading")
 
     def show_first_run_guide(self) -> None:
         """Once per PC: 使用声明 to agree to, then, on a new PC, the welcome guide."""
@@ -2848,7 +2859,7 @@ class MainWindow(QMainWindow):
             capture_top_band()
         except Exception as exc:  # noqa: BLE001 - every way the screen copy fails is shown the same way
             log.warning("Environment check: screen copy failed: %s", exc)
-            self._env_fail(0, _plain_error(exc, "截屏失败，请重试。"))
+            self._env_fail(0, _plain_error(exc, "无法截屏，请重试"))
             return
         self.setup.step(0, "ok")
         self.setup.step(1, "run")
@@ -2868,7 +2879,7 @@ class MainWindow(QMainWindow):
         if tries < 300:
             QTimer.singleShot(100, lambda: self._env_load_models(tries + 1))
             return
-        self._env_fail(1, "正在识别中，请稍后再试。")
+        self._env_fail(1, "正在识别，请稍后再试")
 
     def _env_models_ready(self) -> None:
         self._env_waiting = False
@@ -2883,17 +2894,17 @@ class MainWindow(QMainWindow):
         if tries < 300:
             QTimer.singleShot(100, lambda: self._env_sample(tries + 1))
             return
-        self._env_fail(2, "正在识别中，请稍后再试。")
+        self._env_fail(2, "正在识别，请稍后再试")
 
     def _on_env_sample(self, status: str, value) -> None:  # noqa: ANN001
         if status != "ok":
             log.warning("Environment check: sample lobby failed: %s", value)
-            self._env_fail(2, _plain_error(value, "识别失败，请重试。"))
+            self._env_fail(2, _plain_error(value, "无法识别，请重试"))
             return
         read = sum(1 for slot in value.names if not slot.unclear)
         if not value.header_found or read < 10:
             log.warning("Environment check: lobby %s, %d names read", value.header_found, read)
-            self._env_fail(2, f"示例截图只识别出 {read} 个名字，结果可能不准确。")
+            self._env_fail(2, f"示例截图只识别出 {read} 个名字，结果可能不准")
             return
         log.info("Environment check passed: %d names read", read)
         self.setup.step(2, "ok", f"{read}/12")
@@ -2935,7 +2946,7 @@ class MainWindow(QMainWindow):
             return
         self._picture_pending = ""
         self._sync_picture_buttons()
-        self._picture_dialog = PictureResultDialog(title, error="正在识别中，请稍后再试。", parent=self)
+        self._picture_dialog = PictureResultDialog(title, error="正在识别，请稍后再试", parent=self)
         self._picture_dialog.open()
 
     def _sync_picture_buttons(self) -> None:
@@ -2950,17 +2961,19 @@ class MainWindow(QMainWindow):
         self._sync_picture_buttons()
         if status != "ok":
             log.warning("Picture check failed: %s", value)
-            error = _plain_error(value, "无法打开这张图片。")
+            error = _plain_error(value, "无法打开这张图片")
             self._picture_dialog = PictureResultDialog(title, error=error, parent=self)
         else:
             log.info("Picture check: lobby %s, %d on the list", value.header_found, len(value.hits))
-            self._picture_dialog = PictureResultDialog(title, result=value, parent=self, likes=self.store.likes)
+            self._picture_dialog = PictureResultDialog(
+                title, result=value, parent=self, likes=self.store.likes, hide_hits=bool(self.store.stream_mode)
+            )
         self._picture_dialog.open()
 
     def _set_autostart(self, enabled: bool) -> None:
         if not autostart.set_enabled(enabled):
             log.warning("Could not change start with Windows to %s", enabled)
-            self._say("开机启动设置失败")
+            self._say("无法设置开机启动")
         self._sync_switch(self.autostart_switch, autostart.is_enabled())
 
     def _on_close_mode(self, key: str) -> None:
@@ -2989,13 +3002,13 @@ class MainWindow(QMainWindow):
     def _report_problem(self, problem) -> None:  # noqa: ANN001
         """Say what went wrong in the header and the tray. A check that silently stops is worse than an error."""
         if isinstance(problem, OcrUnavailable):
-            label = "识别模型未就绪"
+            label = "识别还没准备好"
         elif isinstance(problem, CaptureUnavailable):
             label = "无法读取屏幕"
         else:
-            label = "检查失败"
+            label = "无法检查"
         raw = str(problem).strip() or label
-        detail = _plain_error(problem, "检查失败，请稍后重试。")
+        detail = _plain_error(problem, "无法检查，请稍后再试")
         if raw != self._problem:
             trace = (type(problem), problem, problem.__traceback__) if isinstance(problem, BaseException) else None
             expected = isinstance(problem, (OcrUnavailable, CaptureUnavailable))
@@ -3102,7 +3115,7 @@ class MainWindow(QMainWindow):
 
     def _on_warmed(self, status: str, value) -> None:
         self._warm_state = "ready" if status == "ok" else "failed"
-        self._warm_error = "" if status == "ok" else _plain_error(value, "识别模型未就绪。")
+        self._warm_error = "" if status == "ok" else _plain_error(value, "识别还没准备好，请稍后再试")
         if self._env_waiting:
             if status == "ok":
                 self._env_models_ready()
@@ -3172,7 +3185,7 @@ class MainWindow(QMainWindow):
                 self.watch.retry_after(time.perf_counter())
             self._hide_panel_after_title()
             if self.store.safe_mode and self._live_check and manual:
-                self.notice.show_error(_plain_error(value, "请稍后再试。"), self._notice_screen)
+                self.notice.show_error(_plain_error(value, "请稍后再试"), self._notice_screen)
             elif self.notice.kind == "checking":
                 self.notice.hide()
             return
@@ -3309,6 +3322,10 @@ class MainWindow(QMainWindow):
             play_hit_sound()
         if self.store.safe_mode:
             self._show_notice(result)
+        elif exclusive_fullscreen():
+            # 完整模式 over a game in exclusive full screen: Windows shows nothing over it but a
+            # plain window, so the corner message comes too, as in 安全模式.
+            self._show_notice(result)
         if not self._overlay_target():
             return
         if result.button_box is None:
@@ -3316,6 +3333,7 @@ class MainWindow(QMainWindow):
             return
         self._game_box = result.button_box
         self._game_windows = result.windows
+        self._frame_stream()
         likes = self._likes_in(result)
         if hits:
             self.clear_mark.hide()
@@ -3388,7 +3406,28 @@ class MainWindow(QMainWindow):
         self._love_played = True
         self.love.play(self._game_area(screen), keep)
 
+    def _frame_stream(self) -> None:
+        """直播模式's window takes the size and place of the game's whole window, the one a
+        streaming app's 窗口捕捉 captures: an emulator with its frame, or a full-screen game."""
+        if not self.store.stream_mode or self._game_box is None:
+            return
+        left, top, right, bottom = self._game_box
+        origin_x, origin_y = virtual_origin()
+        x, y, _ratio = native_to_logical((left + right) / 2 + origin_x, (top + bottom) / 2 + origin_y)
+        screen = QApplication.screenAt(QPoint(int(x), int(y))) or QApplication.primaryScreen()
+        if screen is None:
+            return
+        frame = self._window_frame(screen, innermost=False)
+        self.stream.set_frame(frame)
+        size = (frame.width(), frame.height())
+        if size != tuple(self.store.stream_size):
+            self.store.stream_size = size
+            self.store.save_settings()
+
     def _game_area(self, screen) -> QRect:  # noqa: ANN001
+        return self._window_frame(screen, innermost=True)
+
+    def _window_frame(self, screen, innermost: bool) -> QRect:  # noqa: ANN001
         """Where the game is drawn, for the border and the glow: its window when it sits in one (a
         windowed client, an emulator), else the whole screen."""
         area = screen.geometry()
@@ -3396,16 +3435,19 @@ class MainWindow(QMainWindow):
             return area
         origin_x, origin_y = virtual_origin()
         left, top, right, bottom = self._game_box
-        found = window_rect_at((left + right) // 2 + origin_x, (top + bottom) // 2 + origin_y, self._game_windows)
+        found = window_rect_at(
+            (left + right) // 2 + origin_x, (top + bottom) // 2 + origin_y, self._game_windows, innermost=innermost
+        )
         if found is None:
             return area
         x, y, ratio = native_to_logical(found[0], found[1])
         rect = QRect(round(x), round(y), round((found[2] - found[0]) / ratio), round((found[3] - found[1]) / ratio))
-        rect = rect.intersected(area)
+        # Marks stay on the screen; the whole window is what a 窗口捕捉 sees, even partly off it.
+        shown = rect.intersected(area)
         # Not much bigger than the button: not the game's window (a tooltip, a stray control).
-        if rect.width() < 3 * (right - left) / ratio or rect.height() < 3 * (bottom - top) / ratio:
+        if shown.width() < 3 * (right - left) / ratio or shown.height() < 3 * (bottom - top) / ratio:
             return area
-        return rect
+        return shown if innermost else rect
 
     def _open_panel(self, mode: str, text: str, box) -> None:
         self._panel_hide_timer.stop()
