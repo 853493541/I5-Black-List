@@ -215,16 +215,23 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     assert window.history_list.count() == 2, "today's heading and the lobby"
     window._show_history_scan(0)
 
-    # --- 12. 设置: 检查 again from 帮助, and 导出日志. ----------------------------------------------
+    # --- 12. 设置: 环境测试 from 帮助, timed for real, and its report; then 导出日志. -----------------
+    from blacklist_detect.ui_dialogs import FlowReportDialog
+
     window._show_settings_page()
     window.test_button.click()
-    _wait(qapp, lambda: window.setup.state in ("ok", "failed"))
-    assert window.setup.state == "ok" and window.setup.title.text() == "准备好了"
-    window.setup._dismiss()
+    _wait(qapp, lambda: window.findChild(FlowReportDialog) is not None or window.setup.state == "failed")
+    report = window.findChild(FlowReportDialog)
+    assert report is not None, window.setup.message.text()
+    test = window._flow_test
+    assert test.right == 12 and test.glance_found and len(test.runs) == 3
+    assert test.hotkey_total() > 0 and set(test.hotkey()) == {"capture", "find", "read"}
+    assert report.headline.text().startswith("检查一次约")
+    report.accept()
     from blacklist_detect import diagnostics
 
     real_export = diagnostics.export_logs
-    monkeypatch.setattr(ui, "export_logs", lambda root, summary: real_export(root, summary, tmp_path / "desk"))
+    monkeypatch.setattr(ui, "export_logs", lambda root, summary, report="": real_export(root, summary, tmp_path / "desk", report=report))
     import subprocess
 
     monkeypatch.setattr(subprocess, "Popen", lambda *_a, **_k: None)
@@ -232,6 +239,7 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     exported = list((tmp_path / "desk").glob("*.txt"))
     assert len(exported) == 1
     text = exported[0].read_text(encoding="utf-8")
+    assert "==== 最近一次环境测试 ====" in text
     for name in ("路人乙", "心动小鹿", "小林同学"):
         assert name not in text, "the log a friend sends holds no player's name"
 

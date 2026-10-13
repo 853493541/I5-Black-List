@@ -49,9 +49,11 @@ from blacklist_detect.capture import (
 from blacklist_detect.diagnostics import (
     SAMPLE_NAMES,
     CpuWindow,
+    FlowTest,
     export_logs,
     machine_line,
     power_note,
+    run_flow_test,
     screens_line,
     summary_text,
 )
@@ -91,6 +93,7 @@ from blacklist_detect.ui_dialogs import (
     BatchAddDialog,
     DisclaimerDialog,
     DisplayGuideDialog,
+    FlowReportDialog,
     GuideDialog,
     PictureResultDialog,
     StreamGuideDialog,
@@ -480,6 +483,9 @@ class MainWindow(QMainWindow):
         self._warm_error = ""
         self._env_waiting = False
         self.setup = None
+        # The last 环境测试, for 导出日志; whether the one running ends in its report.
+        self._flow_test: FlowTest | None = None
+        self._env_report = False
         self._picture_pending = ""
         self._picture_dialog = None
         # The last glance, kept by the worker thread to skip a screen that has not changed.
@@ -1023,9 +1029,9 @@ class MainWindow(QMainWindow):
                 swatches.addWidget(swatch, 0, Qt.AlignVCenter)
             look.add_row("主题色", swatch_host)
 
-        # 帮助: when something is wrong, what a friend can do and send. 检查 and its log share a row.
+        # 帮助: when something is wrong, what a friend can do and send. 环境测试 and its log share a row.
         helping = section("帮助")
-        # 检查: the check from the first open, again: the screen copy, the models, the sample lobby.
+        # 环境测试: the first open's test again, then a report of where a check's time goes.
         self.test_button = QPushButton("开始")
         self.test_button.setFont(ui_font())
         self.test_button.setAutoDefault(False)
@@ -1036,7 +1042,7 @@ class MainWindow(QMainWindow):
         self.export_button.setAutoDefault(False)
         self.export_button.setCursor(Qt.PointingHandCursor)
         self.export_button.clicked.connect(self._export_logs)
-        helping.add_row("检查", self.test_button, self.export_button)
+        helping.add_row("环境测试", self.test_button, self.export_button)
         # 关于: this version, 检查更新 and 使用声明 in one row, so 设置 still fits on one screen.
         self.version_label = QLabel(__version__)
         self.update_button = QPushButton("检查更新")
@@ -2867,10 +2873,11 @@ class MainWindow(QMainWindow):
         DisclaimerDialog(self, asking=False).exec()
 
     def _export_logs(self) -> None:
-        """日志: the computer and the logs in one text file on the Desktop, shown in Explorer."""
+        """日志: the computer, the last 环境测试 and the logs in one text file on the Desktop, shown in Explorer."""
         try:
             summary = summary_text(self.store, inference_device())
-            target = export_logs(self.store.root, summary)
+            report = self._flow_test.text() if self._flow_test is not None else ""
+            target = export_logs(self.store.root, summary, report=report)
         except OSError as exc:
             log.warning("Logs could not be exported: %s", exc)
             self._say("桌面存不了文件，日志没导出")
@@ -2901,15 +2908,16 @@ class MainWindow(QMainWindow):
         if not self.start_environment_check():
             self.show_first_run_guide()
 
-    # --- Environment check: 屏幕截图, 识别模型, 识别测试 -------------------------------
+    # --- 环境测试: 屏幕截图, 识别功能, 识别测试, then 自动检查 and 手动检查 timed ---------------
 
     def start_environment_check(self, force: bool = False) -> bool:
-        """Run the check on the first open and after an update, or from 设置 › 检查 (force).
-        False when it is not due."""
+        """Run the test on the first open and after an update, or from 设置 › 环境测试 (force), which
+        ends in a report of the timings. False when it is not due."""
         if not force and self.store.env_checked == __version__:
             return False
+        self._env_report = force
         if force:
-            log.info("检查 started from 设置.")
+            log.info("环境测试 started from 设置.")
         if self.setup is None:
             from blacklist_detect.ui_setup import SetupCheck
 
@@ -2984,8 +2992,36 @@ class MainWindow(QMainWindow):
         self.setup.step(2, "ok", f"{right}/12")
         self.store.env_checked = __version__
         self.store.save_settings()
+        # Then the two ways a check starts, timed on the sample the size of this screen.
+        self.setup.step(3, "run")
+        self._env_flow(0)
+
+    def _env_flow(self, tries: int) -> None:
+        sample = SAMPLE_LOBBY
+        if self.worker.request(lambda: run_flow_test(sample), kind="flowtest"):
+            return
+        if tries < 300:
+            QTimer.singleShot(100, lambda: self._env_flow(tries + 1))
+            return
+        self._env_fail(3, "正在识别，稍等一下")
+
+    def _on_flow_test(self, status: str, value) -> None:  # noqa: ANN001
+        test = value if status == "ok" else FlowTest(error=_plain_error(value, "识别失败，再试一次"))
+        self._flow_test = test
+        log.info("%s", test.text())
+        if test.error:
+            self._env_fail(3, test.error)
+            return
+        tone = {"正常": "ok", "有点慢": "ok", "很慢": "ok"}[test.verdict()]
+        self.setup.step(3, tone, f"{test.auto_total():.1f} 秒")
+        self.setup.step(4, tone, f"{test.hotkey_total():.1f} 秒")
         self._glance_pause_until = 0.0
-        self.setup.succeed()
+        if self._env_report:
+            self.setup.succeed(fade=False)
+            FlowReportDialog(test, self._export_logs, self).open()
+            self.setup._dismiss()
+        else:
+            self.setup.succeed()
 
     def _env_fail(self, index: int, message: str) -> None:
         log.warning("Environment check failed at %s: %s", index, message)
@@ -3200,6 +3236,9 @@ class MainWindow(QMainWindow):
             return
         if job == "envcheck":
             self._on_env_sample(status, value)
+            return
+        if job == "flowtest":
+            self._on_flow_test(status, value)
             return
         self._on_checked(status, value)
 

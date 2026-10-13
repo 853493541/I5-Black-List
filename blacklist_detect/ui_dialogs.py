@@ -924,3 +924,94 @@ class DisplayGuideDialog(PictureGuideDialog):
         super().__init__("显示", [("", DISPLAY_DIFF)], parent)
 
 
+
+
+# The colors of 环境测试's bars, one per step, in STEPS order.
+_STEP_COLORS = {"capture": "#8fa3bf", "glance": "#a58bff", "find": "#4f8fdc", "read": "#e58aa8"}
+
+
+class _FlowBar(QWidget):
+    """One way a check starts as a bar on a shared time scale: a part per step, its seconds under it."""
+
+    def __init__(self, title: str, parts: list[tuple[str, str, float]], scale: float, parent=None) -> None:  # noqa: ANN001
+        super().__init__(parent)
+        self.title = title
+        self.parts = parts
+        self.scale = max(scale, 0.1)
+        self.setMinimumHeight(64)
+        self.setMinimumWidth(420)
+
+    def total(self) -> float:
+        return sum(seconds for _key, _words, seconds in self.parts)
+
+    def paintEvent(self, _event) -> None:  # noqa: ANN001
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        metrics = QFontMetrics(self.font())
+        line = metrics.height()
+        painter.setPen(QColor(THEME["text"]))
+        painter.drawText(QRectF(0, 0, self.width(), line), Qt.AlignLeft | Qt.AlignVCenter, self.title)
+        painter.drawText(QRectF(0, 0, self.width(), line), Qt.AlignRight | Qt.AlignVCenter, f"{self.total():.1f} 秒")
+        top = line + 6
+        bar_h = 14.0
+        x = 0.0
+        width = self.width()
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(THEME["surface_alt"]))
+        painter.drawRoundedRect(QRectF(0, top, width, bar_h), 4, 4)
+        labels = []
+        for key, words, seconds in self.parts:
+            span = width * seconds / self.scale
+            if span <= 0:
+                continue
+            painter.setBrush(QColor(_STEP_COLORS.get(key, THEME["accent"])))
+            painter.drawRoundedRect(QRectF(x, top, max(span, 2.0), bar_h), 3, 3)
+            labels.append((x, f"{words} {seconds:.2f}"))
+            x += span
+        painter.setPen(QColor(THEME["muted"]))
+        left = 0.0
+        for at, text in labels:
+            # Each part's seconds under it, never on top of the one before.
+            spot = max(at, left)
+            painter.drawText(QRectF(spot, top + bar_h + 4, metrics.horizontalAdvance(text) + 4, line), Qt.AlignLeft, text)
+            left = spot + metrics.horizontalAdvance(text) + 12
+        painter.end()
+
+
+class FlowReportDialog(Modal):
+    """环境测试's report: how long a check takes here, as two bars (手动检查 and 自动检查) split by step,
+    then why, in plain words, and a way to send it."""
+
+    def __init__(self, test, on_export, parent=None) -> None:  # noqa: ANN001
+        from blacklist_detect.diagnostics import STEPS
+
+        super().__init__(parent)
+        layout = _frame(self, "环境测试")
+        words = dict(STEPS)
+        self.headline = QLabel(f"检查一次约 {test.hotkey_total():.1f} 秒，{test.verdict()}")
+        self.headline.setStyleSheet("font-weight: 600;")
+        layout.addWidget(self.headline)
+        hotkey = [(key, words[key], seconds) for key, seconds in test.hotkey().items()]
+        auto = [("glance", words["glance"], test.glance), *((key, words[key], seconds) for key, seconds in test.auto.items())]
+        scale = max(test.hotkey_total(), test.auto_total())
+        self.bars = [_FlowBar("手动检查（快捷键）", hotkey, scale), _FlowBar("自动检查", auto, scale)]
+        for bar in self.bars:
+            layout.addWidget(bar)
+        facts = [f"识别用 {'显卡' if test.device.startswith('gpu') else 'CPU'}", f"屏幕 {test.size[0]}×{test.size[1]}"]
+        if test.cpu_busy is not None:
+            facts.append(f"CPU {test.cpu_busy:.0f}%（本工具 {test.cpu_own or 0:.0f}%）")
+        facts.append(f"示例名字读对 {test.right}/12")
+        self.facts = QLabel(" · ".join(facts))
+        self.facts.setObjectName("sub")
+        self.facts.setWordWrap(True)
+        layout.addWidget(self.facts)
+        self.causes = QLabel("\n".join(f"· {cause}" for cause in test.causes()))
+        self.causes.setWordWrap(True)
+        self.causes.setVisible(bool(test.causes()))
+        layout.addWidget(self.causes)
+        self.export_button = QPushButton("导出日志")
+        self.export_button.setAutoDefault(False)
+        self.export_button.clicked.connect(on_export)
+        _footer(self, self.export_button, _primary("知道了", self.accept))
+        self.card.setMinimumWidth(500)
+        _pointing(self)

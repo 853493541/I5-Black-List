@@ -1,6 +1,7 @@
-"""The environment check shown the first time the app opens, after an update, and from 设置 › 检查.
+"""环境测试, shown the first time the app opens, after an update, and from 设置 › 环境测试.
 
-A card over the window: a progress bar and three steps (屏幕截图, 识别功能, 识别测试).
+A card over the window: a progress bar and five steps: 屏幕截图, 识别功能 and 识别测试 (the
+environment), then 自动检查 and 手动检查 timed on the sample lobby.
 When all pass it says 准备好了 and fades away; when one fails it says which and why,
 and offers 重试. The window runs the steps; this widget only shows them.
 """
@@ -8,6 +9,7 @@ and offers 重试. The window runs the steps; this widget only shows them.
 from __future__ import annotations
 
 from PySide6.QtCore import QEasingCurve, QEvent, QObject, QPropertyAnimation, Qt, QTimer, Signal
+from PySide6.QtGui import QFontMetrics
 from PySide6.QtWidgets import (
     QFrame,
     QGraphicsOpacityEffect,
@@ -31,7 +33,7 @@ from blacklist_detect.ui_theme import (
 )
 from blacklist_detect.ui_widgets import _watch_mark
 
-STEPS = ("屏幕截图", "识别功能", "识别测试")
+STEPS = ("屏幕截图", "识别功能", "识别测试", "自动检查", "手动检查")
 _SCALE = 1000
 
 
@@ -94,6 +96,9 @@ class SetupCheck(QWidget):
             note = QLabel("")
             note.setObjectName("setupNote")
             note.setFont(chinese_font(SMALL_PT))
+            # Room for the longest note ("12/12", "10.5 秒") from the start, so none is cut or jumps.
+            note.setMinimumWidth(QFontMetrics(note.font()).horizontalAdvance("88.8 秒") + 4)
+            note.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
             line.addWidget(note)
             column.addLayout(line)
             self.icons.append(icon)
@@ -171,7 +176,7 @@ class SetupCheck(QWidget):
 
     def start(self) -> None:
         self.state = "running"
-        self.title.setText("正在检查")
+        self.title.setText("正在测试环境")
         self.mark.hide()
         self.message.hide()
         self.buttons.hide()
@@ -202,20 +207,21 @@ class SetupCheck(QWidget):
             icon.setPixmap(_watch_mark(THEME["border"]))
         self.notes[index].setText(note)
 
-    def succeed(self) -> None:
-        """环境确认, a full green bar, then the card fades away by itself."""
+    def succeed(self, fade: bool = True) -> None:
+        """准备好了, a full green bar, then the card fades away by itself (unless a report follows)."""
         self.state = "ok"
         self._target = 1.0
         self.title.setText("准备好了")
         self.mark.setPixmap(line_pixmap("check", 22, THEME["green"]))
         self.mark.show()
         self.apply_theme()
-        QTimer.singleShot(1300, self._fade_out)
+        if fade:
+            QTimer.singleShot(1300, self._fade_out)
 
     def fail(self, index: int, message: str) -> None:
         self.state = "failed"
         self.step(index, "fail")
-        self.title.setText("检查没通过")
+        self.title.setText("环境测试没通过")
         self.mark.setPixmap(line_pixmap("warning", 22, THEME["red"]))
         self.mark.show()
         self.message.setText(message)

@@ -2114,6 +2114,17 @@ def _wait(qapp, ms: int) -> None:
         qapp.processEvents()
 
 
+def _flow():  # noqa: ANN202
+    """A 环境测试 timing as a quick PC gives it."""
+    from blacklist_detect.diagnostics import FlowTest
+
+    return FlowTest(
+        size=(3840, 2160), device="cpu", capture=0.09, glance=0.23, glance_found=True,
+        auto={"find": 0.55, "read": 0.8}, runs=[{"capture": 0.09, "find": 0.46, "read": 0.72}] * 3,
+        right=12, cpu_busy=40.0, cpu_own=30.0,
+    )
+
+
 def _lobby(read: int) -> CheckResult:
     """The sample lobby with its first `read` names read right."""
     from blacklist_detect.diagnostics import SAMPLE_NAMES
@@ -2136,15 +2147,19 @@ def test_the_first_open_checks_the_environment_and_confirms_it(qapp, tmp_path, m
     assert window.store.env_checked == ""
     assert window.start_environment_check() is True
     setup = window.setup
-    assert setup.isVisible() and setup.title.text() == "正在检查"
+    assert setup.isVisible() and setup.title.text() == "正在测试环境"
     _wait(qapp, 350)
     # 屏幕截图 passed; the models load next, then the sample lobby is read.
     assert jobs == ["warmup"]
     window._on_worker(("warmup", "ok", None))
     assert jobs == ["warmup", "envcheck"]
     window._on_worker(("envcheck", "ok", _lobby(12)))
-    assert setup.title.text() == "准备好了"
     assert setup.notes[2].text() == "12/12"
+    # Then 自动检查 and 手动检查 are timed on the sample, on the worker.
+    assert jobs == ["warmup", "envcheck", "flowtest"]
+    window._on_worker(("flowtest", "ok", _flow()))
+    assert setup.title.text() == "准备好了"
+    assert setup.notes[3].text() == "1.6 秒" and setup.notes[4].text() == "1.3 秒"
     assert window.store.env_checked == __version__
     assert Store(window.store.root).env_checked == __version__
     # Once confirmed for this version, it does not run again.
@@ -2173,7 +2188,7 @@ def test_a_failed_check_says_where_and_can_be_retried(qapp, tmp_path, monkeypatc
     window.start_environment_check()
     _wait(qapp, 350)
     setup = window.setup
-    assert setup.title.text() == "检查没通过"
+    assert setup.title.text() == "环境测试没通过"
     assert setup.message.text() == "没有读到画面，请再试一次。"
     assert setup.buttons.isVisible()
     assert window.store.env_checked == ""
@@ -2184,7 +2199,7 @@ def test_a_failed_check_says_where_and_can_be_retried(qapp, tmp_path, monkeypatc
     assert jobs == ["warmup"]
     window._on_worker(("warmup", "ok", None))
     window._on_worker(("envcheck", "ok", _lobby(5)))
-    assert setup.title.text() == "检查没通过"
+    assert setup.title.text() == "环境测试没通过"
     assert "5 个名字" in setup.message.text()
     window.close()
 
@@ -2204,7 +2219,7 @@ def test_settings_runs_the_same_check_on_the_sample_lobby(qapp, tmp_path, monkey
     # 设置 › 检查 › 开始: the panel from the first open, though this version was checked already.
     window.test_button.click()
     setup = window.setup
-    assert setup.isVisible() and setup.title.text() == "正在检查"
+    assert setup.isVisible() and setup.title.text() == "正在测试环境"
     _wait(qapp, 350)
     window._on_worker(("warmup", "ok", None))
     assert jobs == ["warmup", "envcheck"]
@@ -2213,12 +2228,30 @@ def test_settings_runs_the_same_check_on_the_sample_lobby(qapp, tmp_path, monkey
     for slot in wrong.names[:3]:
         slot.visible = "别人"
     window._on_worker(("envcheck", "ok", wrong))
-    assert setup.title.text() == "检查没通过" and "读对 9 个" in setup.message.text()
+    assert setup.title.text() == "环境测试没通过" and "读对 9 个" in setup.message.text()
     setup.retry_button.click()
     _wait(qapp, 350)
-    assert setup.title.text() == "正在检查"
+    assert setup.title.text() == "正在测试环境"
     window._on_worker(("envcheck", "ok", _lobby(12)))
-    assert setup.title.text() == "准备好了" and setup.notes[2].text() == "12/12"
+    assert setup.notes[2].text() == "12/12"
+    # From 设置 it ends in the report: where a check's time goes, as bars, and why.
+    from blacklist_detect.ui_dialogs import FlowReportDialog
+
+    slow = _flow()
+    slow.runs = [{"capture": 0.1, "find": 6.2, "read": 0.9}] * 3
+    slow.cpu_busy, slow.cpu_own = 95.0, 25.0
+    window._on_worker(("flowtest", "ok", slow))
+    report = window.findChild(FlowReportDialog)
+    assert report is not None and report.isVisible()
+    assert report.headline.text() == "检查一次约 7.2 秒，很慢"
+    assert [bar.title for bar in report.bars] == ["手动检查（快捷键）", "自动检查"]
+    assert [key for key, _words, _s in report.bars[0].parts] == ["capture", "find", "read"]
+    assert "其中别的程序占 70%" in report.causes.text() and "最慢的一步是「找名单」：6.2 秒" in report.causes.text()
+    report.grab()
+    assert not setup.isVisible()
+    # 导出日志 carries the report.
+    assert "环境测试：检查一次约 7.2 秒，很慢" in window._flow_test.text()
+    report.accept()
     window.close()
 
 
@@ -2235,7 +2268,7 @@ def test_a_model_that_will_not_load_stops_the_check_at_its_step(qapp, tmp_path, 
     window.start_environment_check()
     _wait(qapp, 350)
     window._on_worker(("warmup", "err", OcrUnavailable("识别功能没装好，重新解压一遍安装包")))
-    assert window.setup.title.text() == "检查没通过"
+    assert window.setup.title.text() == "环境测试没通过"
     assert "识别功能没装好" in window.setup.message.text()
     assert window.setup.notes[1].text() == ""
     window.close()

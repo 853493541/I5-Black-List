@@ -1,10 +1,11 @@
-"""Why a check was slow, and one text file of the logs a friend can send.
+"""Why a check was slow, the 环境测试 that measures it, and one text file of the logs a friend can send.
 
 The log says where each check's time went. This adds what explains it: how busy the computer was
 while the check ran (and how much of that was this app), whether a laptop ran on battery or
-battery saver, and once at each start, what the computer is. The export puts that summary and the
-logs in one text file on the Desktop. Nothing here holds a player's name or the lists; the summary
-is for whoever reads the file, and is never shown in the app.
+battery saver, and once at each start, what the computer is. FlowTest times the two ways a check
+starts, 自动检查 and the hotkey, step by step on the bundled sample lobby. The export puts the
+summary, the last 环境测试 and the logs in one text file on the Desktop. Nothing here holds a
+player's name or the lists.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ import os
 import platform
 import sys
 import time
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from blacklist_detect import __version__
@@ -188,6 +190,154 @@ SAMPLE_NAMES = ("小林同学", "白日梦想家", "路过的猫", "一只团子
                 "晚风吹过", "摸鱼大师", "示例坏人", "心动星星", "柠檬汽水", "棉花糖")  # fmt: skip
 
 
+# A hotkey check, warm, in seconds: up to the first is fine, up to the second slow, beyond very slow.
+SPEED_FINE = 3.0
+SPEED_SLOW = 6.0
+# Steps the report draws as bars: (key, words).
+STEPS = (("capture", "截屏"), ("glance", "发现大厅"), ("find", "找名单"), ("read", "读名字"))
+
+
+@dataclass
+class FlowTest:
+    """环境测试's timings: the two ways a check starts, each step, on the sample lobby the size of
+    this screen. 自动检查: a glance at the top of the screen sees 推演成功, then the lobby is found
+    and read. The hotkey: the screen is copied, then the lobby is found and read; three times,
+    the first after nothing has been read for a while, the others warm."""
+
+    size: tuple[int, int] = (0, 0)
+    screens: int = 1
+    device: str = "cpu"
+    capture: float = 0.0
+    glance: float = 0.0
+    glance_found: bool = False
+    auto: dict[str, float] = field(default_factory=dict)
+    runs: list[dict[str, float]] = field(default_factory=list)
+    right: int = 0
+    error: str = ""
+    cpu_busy: float | None = None
+    cpu_own: float | None = None
+    power: str = ""
+
+    def hotkey(self) -> dict[str, float]:
+        """A warm hotkey check, step by step: the middle of the later runs."""
+        warm = self.runs[1:] or self.runs
+        if not warm:
+            return {}
+        ordered = sorted(warm, key=lambda run: sum(run.values()))
+        return ordered[len(ordered) // 2]
+
+    def hotkey_total(self) -> float:
+        return sum(self.hotkey().values())
+
+    def auto_total(self) -> float:
+        return self.glance + sum(self.auto.values())
+
+    def first_total(self) -> float:
+        return sum(self.runs[0].values()) if self.runs else 0.0
+
+    def verdict(self) -> str:
+        seconds = self.hotkey_total()
+        if seconds <= SPEED_FINE:
+            return "正常"
+        if seconds <= SPEED_SLOW:
+            return "有点慢"
+        return "很慢"
+
+    def causes(self) -> list[str]:
+        """Why it took as long as it did, in plain words, the biggest reason first."""
+        if self.error:
+            return [self.error]
+        out = []
+        others = None if self.cpu_busy is None or self.cpu_own is None else self.cpu_busy - self.cpu_own
+        if others is not None and others >= 40:
+            out.append(f"电脑很忙：CPU 用了 {self.cpu_busy:.0f}%，其中别的程序占 {others:.0f}%（比如游戏），关掉一些会更快")
+        if "battery" in self.power:
+            out.append("笔记本在用电池，接上电源会更快")
+        steps = self.hotkey()
+        if steps and self.verdict() != "正常":
+            slowest = max(steps, key=steps.get)
+            words = dict(STEPS)[slowest]
+            out.append(f"最慢的一步是「{words}」：{steps[slowest]:.1f} 秒")
+        if self.runs and self.first_total() > 2 * max(self.hotkey_total(), 0.1) and self.first_total() > 2:
+            out.append(f"隔一会儿后的第一次检查较慢（{self.first_total():.1f} 秒），之后会快")
+        return out
+
+    def text(self) -> str:
+        """The report for the log and the export, with the numbers behind it."""
+        if self.error:
+            return f"环境测试：没完成，{self.error}"
+        lines = [
+            f"环境测试：检查一次约 {self.hotkey_total():.1f} 秒，{self.verdict()}",
+            f"  手动检查（快捷键）：{self.hotkey_total():.2f} s = " + " + ".join(f"{dict(STEPS)[k]} {v:.2f}" for k, v in self.hotkey().items()),
+            f"  自动检查：{self.auto_total():.2f} s = 发现大厅 {self.glance:.2f}" + "".join(f" + {dict(STEPS)[k]} {v:.2f}" for k, v in self.auto.items()),
+            "  每次手动检查：" + ", ".join(f"{sum(run.values()):.2f}" for run in self.runs) + " s",
+            f"  示例大厅的 12 个名字读对 {self.right} 个；识别用 {self.device}；屏幕 {self.size[0]}x{self.size[1]}"
+            + (f"，{self.screens} 块" if self.screens != 1 else ""),
+        ]
+        if self.cpu_busy is not None:
+            lines.append(f"  CPU {self.cpu_busy:.0f}%（本工具 {self.cpu_own or 0:.0f}%）" + (f"；{self.power}" if self.power else ""))
+        lines += [f"  · {cause}" for cause in self.causes()]
+        return "\n".join(lines)
+
+
+def run_flow_test(sample: Path, rounds: int = 3) -> FlowTest:
+    """Runs on the worker thread: the screen copied as a check copies it, then 自动检查 and the
+    hotkey on the sample lobby made the size of that copy, so each costs what it costs here."""
+    import numpy as np
+    from PIL import Image
+
+    from blacklist_detect.capture import capture_displays
+    from blacklist_detect.ocr_engine import inference_device
+    from blacklist_detect.pipeline import check_rgb, glance_title
+
+    test = FlowTest(device=inference_device(), power=power_note())
+    window = CpuWindow()
+    width, height = 1920, 1080
+    try:
+        started = time.perf_counter()
+        frames = capture_displays()
+        test.capture = time.perf_counter() - started
+        height, width = frames[0].shape[:2]
+        test.screens = len(frames)
+    except Exception as exc:  # noqa: BLE001 - the report says it, whatever went wrong
+        test.error = f"无法截屏：{exc}"
+        return test
+    test.size = (width, height)
+    lobby = Image.open(sample).convert("RGB")
+    scale = min(width / lobby.width, height / lobby.height)
+    lobby = lobby.resize((round(lobby.width * scale), round(lobby.height * scale)), Image.LANCZOS)
+    screen = Image.new("RGB", (width, height))
+    screen.paste(lobby, ((width - lobby.width) // 2, (height - lobby.height) // 2))
+    rgb = np.asarray(screen)
+    try:
+        # 自动检查: the glance at the top of the screen, as the watch takes it, then the check.
+        from blacklist_detect.capture import TITLE_BAND_FRACTION
+
+        band = rgb[: max(1, int(height * TITLE_BAND_FRACTION))]
+        started = time.perf_counter()
+        test.glance_found = glance_title(band)
+        test.glance = time.perf_counter() - started
+        result = check_rgb(rgb, [])
+        test.auto = {key: result.timings[key] for key in ("find", "read") if key in result.timings}
+        # The hotkey: a screen copy each time, then the check.
+        for _ in range(rounds):
+            started = time.perf_counter()
+            capture_displays()
+            copy = time.perf_counter() - started
+            result = check_rgb(rgb, [])
+            run = {"capture": copy}
+            run.update({key: result.timings[key] for key in ("find", "read") if key in result.timings})
+            test.runs.append(run)
+        read = ["" if slot.unclear else slot.visible for slot in sorted(result.names, key=lambda slot: slot.index)]
+        test.right = sum(1 for got, want in zip(read, SAMPLE_NAMES, strict=False) if got == want)
+    except Exception as exc:  # noqa: BLE001
+        test.error = f"无法识别：{exc}"
+    numbers = window.numbers()
+    if numbers is not None:
+        test.cpu_busy, test.cpu_own = numbers
+    return test
+
+
 def summary_text(store, device: str) -> str:  # noqa: ANN001
     """What the export says about this computer and the app's settings. Counts only, no names."""
     lines = [
@@ -203,13 +353,15 @@ def summary_text(store, device: str) -> str:  # noqa: ANN001
     return "\n".join(lines) + "\n"
 
 
-def export_logs(root: Path, summary: str, folder: Path | None = None) -> Path:
-    """One text file on the Desktop (unless told where): the computer, then the logs, oldest first.
-    Returns its path."""
+def export_logs(root: Path, summary: str, folder: Path | None = None, report: str = "") -> Path:
+    """One text file on the Desktop (unless told where): the computer, the last 环境测试, then the
+    logs, oldest first. Returns its path."""
     folder = folder or desktop()
     folder.mkdir(parents=True, exist_ok=True)
     target = folder / f"模仿者小工具_日志_{time.strftime('%Y%m%d-%H%M')}.txt"
     parts = ["==== 电脑和设置 ====", summary]
+    if report:
+        parts += ["==== 最近一次环境测试 ====", report, ""]
     logs = log_dir(root)
     # app.log.3 is the oldest, app.log the newest; crash.log last.
     files: list[Path] = []

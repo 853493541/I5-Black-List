@@ -58,7 +58,7 @@ def test_export_puts_one_file_where_it_says(window, tmp_path, monkeypatch):
     from blacklist_detect import ui
 
     real = diagnostics.export_logs
-    monkeypatch.setattr(ui, "export_logs", lambda root, summary: real(root, summary, tmp_path / "desk"))
+    monkeypatch.setattr(ui, "export_logs", lambda root, summary, report="": real(root, summary, tmp_path / "desk", report=report))
     opened = []
     import subprocess
 
