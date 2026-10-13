@@ -12,18 +12,14 @@ from blacklist_detect.ui_notice import Message, result_messages  # noqa: E402
 
 @pytest.fixture
 def window(tmp_path, monkeypatch):  # noqa: ANN001, ANN201
-    from blacklist_detect import ui
     from blacklist_detect.ui import MainWindow
 
     QApplication.instance() or QApplication([])
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
-    sounds: list[int] = []
-    monkeypatch.setattr(ui, "play_hit_sound", lambda: sounds.append(1))
     made = MainWindow()
     made._watch_timer.stop()
     made.store.disclaimer_accepted = True
-    made.sounds = sounds
     yield made
     made.notice.hide()
     made.close()
@@ -87,7 +83,7 @@ def test_the_empty_record_page_says_to_press_the_hotkey(window):
     assert window.history_empty.hint.text() == "进入「推演成功」大厅时自动检查"
 
 
-def test_a_hit_shows_in_the_corner_and_sounds_with_nothing_over_the_game(window):
+def test_a_hit_shows_in_the_corner_with_nothing_over_the_game(window):
     window.store.add_like("小红")
     button, names = _lobby()
     window._live_check = True
@@ -109,7 +105,6 @@ def test_a_hit_shows_in_the_corner_and_sounds_with_nothing_over_the_game(window)
     assert notice.likes.isVisible() and notice.likes.kind == "liked"
     assert notice.likes.title.text() == "发现 1 名心动玩家"
     assert notice.likes.names() == ["小红"]
-    assert window.sounds == [1]
     # At the bottom right of the screen, above the taskbar; 心动 just above the other.
     area = QApplication.primaryScreen().availableGeometry()
     box, above = notice.main.geometry(), notice.likes.geometry()
@@ -126,7 +121,7 @@ def test_a_hit_shows_in_the_corner_and_sounds_with_nothing_over_the_game(window)
     assert notice._timer.interval() == 8_000
 
 
-def test_a_clear_lobby_and_no_sound(window):
+def test_a_clear_lobby(window):
     button, names = _lobby()
     window._live_check = True
     window._show_panel(CheckResult(True, "", names=names, button_box=button))
@@ -134,18 +129,6 @@ def test_a_clear_lobby_and_no_sound(window):
     assert window.notice.kind == "clear"
     _arrive(window.notice)
     assert not window.notice.likes.isVisible()
-    assert window.sounds == []
-
-
-def test_the_sound_can_be_turned_off(window):
-    window.sound_switch.click()
-    assert window.store.hit_sound is False
-    button, names = _lobby()
-    window._live_check = True
-    hit = Hit(0, "坏人", "坏人", "", False, "", ())
-    window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
-    assert window.notice.kind == "hit"
-    assert window.sounds == []
 
 
 def test_a_hotkey_check_says_checking_then_no_lobby(window, monkeypatch):
@@ -222,7 +205,7 @@ def test_an_automatic_check_that_finds_no_lobby_goes_quiet(window):
     assert not window.notice.isVisible()
 
 
-def test_full_mode_brings_the_marks_back_and_the_sound_stays(window):
+def test_full_mode_brings_the_marks_back(window):
     window.store.consented = ["full"]
     window.full_on.click()
     assert window.store.safe_mode is False
@@ -233,7 +216,6 @@ def test_full_mode_brings_the_marks_back_and_the_sound_stays(window):
     window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
     assert "panel" in _marks(window) and "hit_card" in _marks(window) and "alert" in _marks(window)
     assert not window.notice.isVisible()
-    assert window.sounds == [1]
     # Back to 安全模式: everything over the game goes at once.
     window.safe_on.click()
     assert window.store.safe_mode is True
@@ -242,13 +224,11 @@ def test_full_mode_brings_the_marks_back_and_the_sound_stays(window):
 
 def test_safe_mode_checks_on_the_hotkey_only(window):
     window.store.consented = ["full", "auto"]
-    # 手动检查 comes first, and in 安全模式 自动检查 cannot be picked, from 设置 or the header.
+    # 手动检查 comes first, and in 安全模式 自动检查 cannot be picked.
     assert list(window.auto_mode.buttons) == ["manual", "auto"]
     assert window.auto_off.isChecked() and not window.auto_on.isEnabled()
     window.auto_on.click()
-    window._cycle_capture_mode()
     assert window.store.auto_capture is False and not window._watch_timer.isActive()
-    assert "安全模式" in window.status_chip.toolTip()
     # 完整模式 allows it; back to 安全模式, it is 手动检查 again.
     window.full_on.click()
     assert window.auto_on.isEnabled()
@@ -263,14 +243,6 @@ def test_safe_mode_checks_on_the_hotkey_only(window):
     window.store.auto_capture = True
     window.store.save_settings()
     assert Store(window.store.root).auto_capture is False
-
-
-def test_the_sound_can_be_heard_from_settings(window):
-    from blacklist_detect.ui_notice import HIT_SOUND
-
-    assert HIT_SOUND.is_file()
-    window.sound_play.click()
-    assert window.sounds == [1]
 
 
 def test_both_lists_are_always_checked(window):
@@ -335,7 +307,7 @@ def test_each_question_is_asked_once_and_the_answer_is_kept(window, monkeypatch)
     window.full_on.click()
     window.auto_on.click()
     window.auto_off.click()
-    window._cycle_capture_mode()
+    window.auto_on.click()
     assert [title for title, _body, _cancel in asked] == ["开启完整模式", "开启自动检查"]
     again = Store(window.store.root)
     assert sorted(again.consented) == ["auto", "full"]

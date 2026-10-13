@@ -112,6 +112,7 @@ def test_the_border_plays_the_choice_and_nothing_when_off(qapp):
 def test_the_picker_saves_each_choice_and_previews_it(qapp, tmp_path, monkeypatch):
     from blacklist_detect.storage import Store
     from blacklist_detect.ui_love_pick import LoveEffectsDialog
+    from blacklist_detect.ui_music import KEYS as TUNE_KEYS
     from blacklist_detect.ui_music import TUNES, WeddingMusic
 
     monkeypatch.setenv("APPDATA", str(tmp_path))
@@ -119,9 +120,13 @@ def test_the_picker_saves_each_choice_and_previews_it(qapp, tmp_path, monkeypatc
     store = Store()
     played: list = []
     dialog = LoveEffectsDialog(store, WeddingMusic(play=played.append, rng=random.Random(1)))
-    assert list(dialog.scene_buttons) == ["random", *KEYS, "off"]
-    assert dialog.scene_buttons["random"].isChecked() and dialog.music_buttons["off"].isChecked()
-    assert dialog.preview.scene in KEYS
+    # The default first, 随机 second, 关闭 last and in red.
+    assert list(dialog.scene_buttons) == ["classic", "random", *KEYS[1:], "off"]
+    assert list(dialog.music_buttons) == ["organ", "random", *TUNE_KEYS[1:], "off"]
+    assert dialog.scene_buttons["classic"].isChecked() and dialog.music_buttons["organ"].isChecked()
+    assert dialog.scene_buttons["off"].property("off") is True and dialog.scene_buttons["random"].property("off") is False
+    assert dialog.preview.scene == "classic"
+    assert dialog.play_button.text() == "预览"
     dialog.scene_buttons["butterfly"].click()
     assert store.love_scene == "butterfly" and dialog.preview.scene == "butterfly"
     assert Store(store.root).love_scene == "butterfly"

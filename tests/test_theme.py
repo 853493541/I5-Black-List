@@ -86,6 +86,7 @@ def test_the_appearance_is_saved(tmp_path):
 def test_dark_switches_the_window_and_back(qapp, tmp_path, monkeypatch):
     from blacklist_detect.ui import MainWindow, TagPill
 
+    monkeypatch.setattr("blacklist_detect.ui.THEME_PICKER", True)
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()

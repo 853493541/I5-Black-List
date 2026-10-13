@@ -47,12 +47,11 @@ from blacklist_detect.capture import (
     virtual_origin,
 )
 from blacklist_detect.diagnostics import (
+    SAMPLE_NAMES,
     CpuWindow,
-    SelfTest,
     export_logs,
     machine_line,
     power_note,
-    run_self_test,
     screens_line,
     summary_text,
 )
@@ -87,7 +86,6 @@ from blacklist_detect.pipeline import (
 from blacklist_detect.storage import Store, clean_tag, describe_entry, tag_text
 from blacklist_detect.ui_alert import AlertGlow
 from blacklist_detect.ui_dialogs import (
-    EXPORT_TIP,
     SAMPLE_LOBBY,
     AddNameDialog,
     BatchAddDialog,
@@ -95,12 +93,11 @@ from blacklist_detect.ui_dialogs import (
     DisplayGuideDialog,
     GuideDialog,
     PictureResultDialog,
-    SelfTestDialog,
     StreamGuideDialog,
     TagSuggestDialog,
     _confirm,
 )
-from blacklist_detect.ui_header import ProfileChip, StatusChip
+from blacklist_detect.ui_header import CheckPanel, ProfileChip, StatusChip
 from blacklist_detect.ui_icons import icon as line_icon
 from blacklist_detect.ui_icons import pixmap as line_pixmap
 from blacklist_detect.ui_kit import (
@@ -115,9 +112,9 @@ from blacklist_detect.ui_kit import (
 )
 from blacklist_detect.ui_likes import LikesPage
 from blacklist_detect.ui_love import LoveBorder
-from blacklist_detect.ui_love_pick import LoveEffectsDialog, effects_summary
+from blacklist_detect.ui_love_pick import LoveEffectsDialog
 from blacklist_detect.ui_music import WeddingMusic
-from blacklist_detect.ui_notice import CornerNotice, play_hit_sound
+from blacklist_detect.ui_notice import CornerNotice
 from blacklist_detect.ui_overlay import (
     _COVER_OUTSET,
     ClearMark,
@@ -216,6 +213,10 @@ CONSENT = {
 # Updates are looked for once each time the app opens, just after the window is up. A new version
 # found then is installed before the app is used.
 UPDATE_FIRST_MS = 1_000
+
+# 主题色, the accent picker in 设置 › 外观, is hidden for now. True brings the row back. While it is
+# hidden every window wears the default accent; a choice saved before waits in the settings.
+THEME_PICKER = False
 
 
 def _claim_windows_app() -> None:
@@ -391,7 +392,7 @@ class MainWindow(QMainWindow):
         self.uncaught.connect(self._show_uncaught)
         self.setWindowTitle(f"{APP_NAME} {__version__}")
         self.store = Store()
-        use_theme(self.store.theme, self.store.appearance)
+        use_theme(self._theme(), self.store.appearance)
         self.setMinimumSize(900, 560)
         saved = self.store.window_size or (900, 560)
         self.resize(saved[0], saved[1])
@@ -430,7 +431,7 @@ class MainWindow(QMainWindow):
         self._love_played = False
         # 心动音乐: the same lobby, in either 显示, also gets a few seconds of wedding music.
         self.music = WeddingMusic()
-        # Which scene and which music: 设置 › 心动特效.
+        # Which scene and which music: 心动 › 心动特效.
         self.love.choice = self.store.love_scene
         # 黑名单 players in the lobby: a red glow at the screen's edges while the result is up.
         self.alert = AlertGlow()
@@ -474,7 +475,6 @@ class MainWindow(QMainWindow):
         # When the recognition last ran: a model idle for a while reads its first lobby slower.
         self._last_ocr_at: float | None = None
         self._cpu: CpuWindow | None = None
-        self._self_test: SelfTest | None = None
         self._problem = ""
         self._glance_pause_until = 0.0
         self._warm_started: float | None = None
@@ -483,6 +483,8 @@ class MainWindow(QMainWindow):
         self._warm_error = ""
         self._env_waiting = False
         self.setup = None
+        # The check is the first on this version (首次检查), or one asked for from 设置.
+        self._env_first = True
         self._picture_pending = ""
         self._picture_dialog = None
         # The last glance, kept by the worker thread to skip a screen that has not changed.
@@ -566,9 +568,9 @@ class MainWindow(QMainWindow):
         right_row = QHBoxLayout(right)
         right_row.setContentsMargins(0, 0, 0, 4)
         right_row.setSpacing(0)
-        # What checking is doing. A click flips 自动检查 and 手动检查.
+        # What checking is doing. A click opens the 检查 settings under it.
         self.status_chip = StatusChip()
-        self.status_chip.clicked.connect(self._cycle_capture_mode)
+        self.status_chip.clicked.connect(lambda: self.check_panel.toggle())
         right_row.addWidget(self.status_chip, 0, Qt.AlignVCenter)
         right_row.addSpacing(12)
         divider = QFrame()
@@ -595,6 +597,8 @@ class MainWindow(QMainWindow):
         header_row.addWidget(right, 0, Qt.AlignBottom)
         self._sync_tab_buttons(self.tabs.currentIndex())
         outer.addWidget(header)
+        self.check_panel.attach(root, self.status_chip)
+        self.tabs.currentChanged.connect(lambda _index: self.check_panel.close_panel())
         outer.addWidget(self.tabs)
         self.toast = Toast(root)
 
@@ -655,7 +659,6 @@ class MainWindow(QMainWindow):
         self.more_menu = QMenu(self)
         self.share_action = self.more_menu.addAction("复制名单", self._share_list)
         _mark_menu_item(self.share_action, "copy")
-        self.share_action.setToolTip("复制全部名单，好友在「批量导入」里粘贴即可")
         # Tags for what each 原因 already says, such as 场外 for 「场外说话」.
         self.recheck_action = self.more_menu.addAction("按原因补标签", self._recheck_tags)
         _mark_menu_item(self.recheck_action, "reload")
@@ -897,9 +900,10 @@ class MainWindow(QMainWindow):
 
     def _settings_page(self) -> QWidget:
         """One card per row, like settings grouped with like, all on one screen:
-        检查, 常规, 外观, then 数据 at the foot, where starting over is out of the way.
+        常规, 外观, then 帮助 at the foot, where starting over is out of the way.
 
-        角色名称 is in the header, and 标签 beside the list on 黑名单.
+        检查 (显示, 方式, 直播模式) opens from the status pill in the header, 角色名称 is in the
+        header too, 标签 beside the list on 黑名单, and 心动特效 on 心动.
         """
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -935,8 +939,8 @@ class MainWindow(QMainWindow):
             cards.addWidget(card)
             return card
 
-        # 检查: how and when a lobby is checked.
-        check = section("检查")
+        # 检查: how and when a lobby is checked, in a card that opens from the status pill.
+        check = SettingsSection("检查", metrics.horizontalAdvance("直播模式") + 20)
         # 1 显示: 安全模式 shows the result in a corner box; 完整模式 draws it over the game.
         self.display_mode = SegmentedControl(
             [("safe", "安全模式"), ("full", "完整模式")], "safe" if self.store.safe_mode else "full"
@@ -944,8 +948,6 @@ class MainWindow(QMainWindow):
         self.display_mode.setAccessibleName("显示")
         self.safe_on = self.display_mode.buttons["safe"]
         self.full_on = self.display_mode.buttons["full"]
-        self.safe_on.setToolTip("结果显示在屏幕右下角，不在游戏画面上做标记")
-        self.full_on.setToolTip("结果直接显示在游戏画面上")
         self.display_mode.changed.connect(self._on_display_mode)
         # ⓘ: the two, side by side, in pictures.
         self.display_guide = IconButton("info", "显示说明")
@@ -975,23 +977,16 @@ class MainWindow(QMainWindow):
         self.settings_label.setWordWrap(True)
         self.settings_label.hide()
         check.add_widget(self.settings_label, separated=False, indent=True)
-        # 3 提示音: the chime for 黑名单, with ▶ to hear it now.
-        self.sound_switch = Switch(self.store.hit_sound, text="黑名单")
-        self.sound_switch.setAccessibleName("提示音")
-        self.sound_switch.toggled.connect(self._set_hit_sound)
-        self.sound_switch.setToolTip("发现黑名单时响一声")
-        self.sound_play = IconButton("play", "试听")
-        self.sound_play.clicked.connect(lambda: play_hit_sound())
-        check.add_row("提示音", self.sound_switch, self.sound_play)
-        # 4 直播模式: a window for the streaming app, with the marks and never a 黑名单 name.
+        # 3 直播模式: a window for the streaming app, with the marks and never a 黑名单 name.
         self.stream_switch = Switch(bool(self.store.stream_mode))
         self.stream_switch.setAccessibleName("直播模式")
         self.stream_switch.toggled.connect(self._on_stream_switch)
-        self.stream_switch.setToolTip("观众看得到红色提醒，看不到黑名单的名字")
         # ⓘ: what viewers see, and how to set it up in 直播姬, with screenshots.
         self.stream_guide = IconButton("info", "直播模式说明")
         self.stream_guide.clicked.connect(self._show_stream_guide)
         check.add_row("直播模式", self.stream_switch, self.stream_guide)
+        # Put over the window under the pill once the header is built.
+        self.check_panel = CheckPanel(check)
 
         # 常规: how the app starts and closes.
         general = section("常规")
@@ -1020,46 +1015,33 @@ class MainWindow(QMainWindow):
         self.appearance_buttons: dict[str, QPushButton] = self.appearance_control.buttons
         self.appearance_control.changed.connect(self._set_appearance)
         look.add_row("模式", self.appearance_control)
-        swatch_host = QWidget()
-        swatches = QHBoxLayout(swatch_host)
-        swatches.setSpacing(8)
-        swatches.setContentsMargins(0, 0, 0, 0)
         self.theme_buttons: dict[str, ThemeSwatch] = {}
-        for name in THEMES:
-            swatch = ThemeSwatch(name, THEMES[name]["accent"])
-            swatch.chosen.connect(self._set_theme)
-            self.theme_buttons[name] = swatch
-            swatches.addWidget(swatch, 0, Qt.AlignVCenter)
-        look.add_row("主题色", swatch_host)
-        # 心动特效: the scene and the music for two or more 心动 players, chosen in a picker with a preview.
-        self.effects_button = QPushButton("选择")
-        self.effects_button.setFont(ui_font())
-        self.effects_button.setAutoDefault(False)
-        self.effects_button.setCursor(Qt.PointingHandCursor)
-        self.effects_button.setToolTip("同一局遇到两名以上心动玩家时的特效和音乐")
-        self.effects_button.clicked.connect(self._show_love_effects)
-        self.effects_note = QLabel("")
-        self.effects_note.setObjectName("rowHint")
-        look.add_row("心动特效", self.effects_button, self.effects_note)
-        self._sync_effects_note()
+        if THEME_PICKER:
+            swatch_host = QWidget()
+            swatches = QHBoxLayout(swatch_host)
+            swatches.setSpacing(8)
+            swatches.setContentsMargins(0, 0, 0, 0)
+            for name in THEMES:
+                swatch = ThemeSwatch(name, THEMES[name]["accent"])
+                swatch.chosen.connect(self._set_theme)
+                self.theme_buttons[name] = swatch
+                swatches.addWidget(swatch, 0, Qt.AlignVCenter)
+            look.add_row("主题色", swatch_host)
 
-        # 帮助: when something is wrong, what a friend can do and send. 自检 and its log share a row.
+        # 帮助: when something is wrong, what a friend can do and send. 检查 and its log share a row.
         helping = section("帮助")
+        # 检查: the check from the first open, again: the screen copy, the models, the sample lobby.
         self.test_button = QPushButton("开始")
         self.test_button.setFont(ui_font())
         self.test_button.setAutoDefault(False)
         self.test_button.setCursor(Qt.PointingHandCursor)
-        self.test_button.setToolTip("检查截屏、识别、速度和快捷键")
-        self.test_button.clicked.connect(self._start_self_test)
-        self.test_status = QLabel("")
-        self.test_status.setObjectName("rowHint")
+        self.test_button.clicked.connect(lambda: self.start_environment_check(force=True))
         self.export_button = QPushButton("导出日志")
         self.export_button.setFont(ui_font())
         self.export_button.setAutoDefault(False)
         self.export_button.setCursor(Qt.PointingHandCursor)
-        self.export_button.setToolTip(EXPORT_TIP)
         self.export_button.clicked.connect(self._export_logs)
-        helping.add_row("自检", self.test_button, self.export_button, self.test_status)
+        helping.add_row("检查", self.test_button, self.export_button)
         # 关于: this version, 检查更新 and 使用声明 in one row, so 设置 still fits on one screen.
         self.version_label = QLabel(__version__)
         self.update_button = QPushButton("检查更新")
@@ -1260,9 +1242,7 @@ class MainWindow(QMainWindow):
             autostart.set_enabled(False)
         self._sync_switch(self.autostart_switch, autostart.is_enabled())
         self.close_mode.set_current("tray" if self.store.close_to_tray else "quit")
-        self._sync_switch(self.sound_switch, self.store.hit_sound)
         self.love.choice = self.store.love_scene
-        self._sync_effects_note()
         self.display_mode.set_current("safe")
         self._sync_switch(self.stream_switch, False)
         self.notice.hide()
@@ -1270,7 +1250,7 @@ class MainWindow(QMainWindow):
             self.watch = LobbyWatch()
             self._watch_timer.start()
         self._sync_watch_idle()
-        use_theme(self.store.theme, self.store.appearance)
+        use_theme(self._theme(), self.store.appearance)
         self._mark_appearance_buttons()
         icon = _icon()
         self.setWindowIcon(icon)
@@ -1364,6 +1344,10 @@ class MainWindow(QMainWindow):
         if hasattr(self, "likes_page"):
             self.likes_page.restyle()
 
+    def _theme(self) -> str:
+        """The accent the windows wear: the one chosen in 主题色, or the default while it is hidden."""
+        return self.store.theme if THEME_PICKER else "蓝色"
+
     def _mark_theme_buttons(self) -> None:
         for name, swatch in self.theme_buttons.items():
             # Show each accent as it looks in the current 浅色/深色, not always the light one.
@@ -1402,7 +1386,7 @@ class MainWindow(QMainWindow):
 
     def _restyle(self) -> None:
         """Repaint every window after the accent color or 浅色/深色 changed."""
-        use_theme(self.store.theme, self.store.appearance)
+        use_theme(self._theme(), self.store.appearance)
         icon = _icon()
         self.setWindowIcon(icon)
         if self.tray is not None:
@@ -2674,11 +2658,6 @@ class MainWindow(QMainWindow):
         if self._status_kind in ("idle", "watch"):
             self._sync_watch_idle()
 
-    def _cycle_capture_mode(self) -> None:
-        if self.store.safe_mode and not self.store.auto_capture:
-            return  # 安全模式 checks on the hotkey only
-        self._on_auto_mode("manual" if self.store.auto_capture else "auto")
-
     def _consent(self, mode: str) -> bool:
         """The first time 完整模式 or 自动检查 is picked, say what it does and ask."""
         if mode in self.store.consented:
@@ -2743,21 +2722,9 @@ class MainWindow(QMainWindow):
             for mark in marks:
                 mark.setAttribute(Qt.WA_DontShowOnScreen, hidden)
 
-    def _set_hit_sound(self, on: bool) -> None:
-        log.info("提示音 %s.", "on" if on else "off")
-        self.store.hit_sound = bool(on)
-        self.store.save_settings()
-
     def _show_love_effects(self) -> None:
         LoveEffectsDialog(self.store, self.music, self).exec()
         self.love.choice = self.store.love_scene
-        self._sync_effects_note()
-
-    def _sync_effects_note(self) -> None:
-        """What 心动特效 is set to, in gray beside its button."""
-        note = getattr(self, "effects_note", None)
-        if note is not None:
-            note.setText(effects_summary(self.store.love_scene, self.store.love_music))
 
     def _set_stream_mode(self, on: bool | str) -> None:
         if bool(on) != bool(self.store.stream_mode):
@@ -2770,11 +2737,10 @@ class MainWindow(QMainWindow):
         self._sync_name_hiding()
 
     def _sync_auto_controls(self) -> None:
-        """The 方式 choice and the header's tooltip both follow the saved mode. In 安全模式 it is
+        """The 方式 choice and the header's pill both follow the saved mode. In 安全模式 it is
         手动检查, and 自动检查 cannot be picked."""
         self.auto_mode.set_current("auto" if self.store.auto_capture else "manual")
         self.auto_on.setEnabled(not self.store.safe_mode)
-        self.auto_on.setToolTip("安全模式下只能手动检查" if self.store.safe_mode else "")
         self._sync_status_tip()
 
     def _begin_hotkey(self) -> None:
@@ -2793,8 +2759,6 @@ class MainWindow(QMainWindow):
         manual = not self.store.auto_capture
         self.hotkey_edit.setEnabled(manual)
         self.hotkey_edit.setCursor(Qt.PointingHandCursor if manual else Qt.ArrowCursor)
-        # Greyed out in 自动 mode: say why, instead of leaving a dead field.
-        self.hotkey_edit.setToolTip("" if manual else "手动检查时使用")
         if not manual:
             self.hotkey.clear()
             return
@@ -2911,41 +2875,11 @@ class MainWindow(QMainWindow):
     def _show_disclaimer(self) -> None:
         DisclaimerDialog(self, asking=False).exec()
 
-    def _start_self_test(self) -> None:
-        """自检: a whole check of the sample lobby on the worker, then a report."""
-        if not self.worker.request(lambda: run_self_test(SAMPLE_LOBBY), kind="selftest"):
-            self.test_status.setText("正在识别，请稍后再试")
-            return
-        log.info("Self-test started.")
-        self._test_cpu = CpuWindow()
-        self.test_button.setEnabled(False)
-        self.test_status.setText("正在测试，大约 10 秒…")
-
-    def _on_self_test(self, status: str, value) -> None:  # noqa: ANN001
-        self.test_button.setEnabled(True)
-        self.test_status.setText("")
-        test = value if status == "ok" else SelfTest(error=_plain_error(value, "请稍后再试"))
-        numbers = self._test_cpu.numbers() if getattr(self, "_test_cpu", None) else None
-        if numbers is not None:
-            test.cpu_busy, test.cpu_own = numbers
-        test.auto = bool(self.store.auto_capture)
-        spec = parse_hotkey(self.store.hotkey)
-        if spec is None:
-            test.hotkey_error = "还没有设置快捷键，请在「方式」里设置"
-        elif self.hotkey.active != spec.display:
-            test.hotkey_error = f"{spec.display} 没有生效，可能被其他程序占用了，请在「方式」里换一个"
-        else:
-            test.hotkey = spec.display
-        self._self_test = test
-        log.info("%s", test.text())
-        SelfTestDialog(test, self._export_logs, self).exec()
-
     def _export_logs(self) -> None:
-        """日志: the computer, the last 自检 and the logs in one text file on the Desktop, shown in Explorer."""
+        """日志: the computer and the logs in one text file on the Desktop, shown in Explorer."""
         try:
             summary = summary_text(self.store, inference_device())
-            report = self._self_test.text() if self._self_test is not None else ""
-            target = export_logs(self.store.root, summary, report)
+            target = export_logs(self.store.root, summary)
         except OSError as exc:
             log.warning("Logs could not be exported: %s", exc)
             self._say("无法导出日志，桌面上存不了文件")
@@ -2979,9 +2913,13 @@ class MainWindow(QMainWindow):
     # --- Environment check: 屏幕截图, 识别模型, 识别测试 -------------------------------
 
     def start_environment_check(self, force: bool = False) -> bool:
-        """Run the check on the first open and after an update. False when it is not due."""
+        """Run the check on the first open and after an update, or from 设置 › 检查 (force).
+        False when it is not due."""
         if not force and self.store.env_checked == __version__:
             return False
+        if force:
+            log.info("检查 started from 设置.")
+        self._env_first = not force
         if self.setup is None:
             from blacklist_detect.ui_setup import SetupCheck
 
@@ -2992,7 +2930,7 @@ class MainWindow(QMainWindow):
         return True
 
     def _run_environment_check(self) -> None:
-        self.setup.start()
+        self.setup.start(first=self._env_first)
         # The lobby watch waits, so the check has the reader to itself.
         self._glance_pause_until = time.perf_counter() + 3600
         self.setup.step(0, "run")
@@ -3045,13 +2983,15 @@ class MainWindow(QMainWindow):
             log.warning("Environment check: sample lobby failed: %s", value)
             self._env_fail(2, _plain_error(value, "无法识别，请重试"))
             return
-        read = sum(1 for slot in value.names if not slot.unclear)
-        if not value.header_found or read < 10:
-            log.warning("Environment check: lobby %s, %d names read", value.header_found, read)
-            self._env_fail(2, f"示例截图只识别出 {read} 个名字，结果可能不准")
+        # The sample lobby's names are known: each one read is checked against them.
+        seats = sorted(value.names, key=lambda slot: slot.index)
+        right = sum(1 for slot, name in zip(seats, SAMPLE_NAMES, strict=False) if not slot.unclear and slot.visible == name)
+        if not value.header_found or right < 10:
+            log.warning("Environment check: lobby %s, %d of 12 names read right", value.header_found, right)
+            self._env_fail(2, f"示例截图只读对了 {right} 个名字，结果可能不准")
             return
-        log.info("Environment check passed: %d names read", read)
-        self.setup.step(2, "ok", f"{read}/12")
+        log.info("Environment check passed: %d of 12 names read right", right)
+        self.setup.step(2, "ok", f"{right}/12")
         self.store.env_checked = __version__
         self.store.save_settings()
         self._glance_pause_until = 0.0
@@ -3271,9 +3211,6 @@ class MainWindow(QMainWindow):
         if job == "envcheck":
             self._on_env_sample(status, value)
             return
-        if job == "selftest":
-            self._on_self_test(status, value)
-            return
         self._on_checked(status, value)
 
     def _on_warmed(self, status: str, value) -> None:
@@ -3482,9 +3419,7 @@ class MainWindow(QMainWindow):
             return
         hits = self._hits_in(result)
         likes = self._likes_in(result)
-        if hits and self.store.hit_sound:
-            play_hit_sound()
-        elif not hits:
+        if not hits:
             # Never with a 黑名单 player: the warning is the news then, not the music.
             self.music.lobby([like.name for like in likes], self.store.love_music)
         if self.store.safe_mode:
@@ -3735,15 +3670,11 @@ class MainWindow(QMainWindow):
         _pin_topmost(widget)
 
     def _sync_status_tip(self) -> None:
-        """The pill's tooltip: what went wrong, when something did, and what a click does."""
+        """The pill's tooltip: what went wrong, when something did."""
         chip = getattr(self, "status_chip", None)
         if chip is None:
             return
-        if self.store.auto_capture:
-            flip = "切换为手动检查"
-        else:
-            flip = "安全模式下只能手动检查" if self.store.safe_mode else "切换为自动检查"
-        chip.setToolTip(f"{self._watch_tip}\n{flip}" if self._watch_tip else flip)
+        chip.setToolTip(self._watch_tip)
         # 记录's empty page says how a check starts.
         empty = getattr(self, "history_empty", None)
         if empty is not None:

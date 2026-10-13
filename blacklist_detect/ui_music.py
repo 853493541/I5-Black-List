@@ -30,8 +30,7 @@ SAME_LOBBY_S = 60.0
 
 
 def play_tune(path: Path | None) -> None:
-    """Start a tune at the system volume without waiting for it, or with None stop whatever plays.
-    Windows plays one sound at a time, so a tune cuts off the chime and the other way round."""
+    """Start a tune at the system volume without waiting for it, or with None stop whatever plays."""
     if sys.platform != "win32":
         return
     try:
@@ -62,7 +61,7 @@ class WeddingMusic:
         self._last_at = float("-inf")
 
     def pick(self, choice: str) -> str:
-        """The tune for a 设置 choice: its key, "random" (any but the one just played), or "off" ("")."""
+        """The tune for a 心动特效 choice: its key, "random" (any but the one just played), or "off" ("")."""
         if choice in TUNES:
             return choice
         if choice != "random":

@@ -1,7 +1,7 @@
 """The right end of the window's header: what checking is doing, and whose app this is.
 
-StatusChip is a tinted pill with a dot and a few words. A click flips 自动检查 and 手动检查;
-under the pointer the dot turns into the flip arrows to say so.
+StatusChip is a tinted pill with a dot and a few words. A click opens CheckPanel under it, the
+检查 settings (显示, 方式, 直播模式); under the pointer the dot turns into a gear to say so.
 
 ProfileChip shows 角色名称 the way an app shows its account, at the far right, with a pen.
 A click turns it into a box for the name, in the same place (see MainWindow._edit_player_name).
@@ -9,13 +9,13 @@ A click turns it into a box for the name, in the same place (see MainWindow._edi
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPoint, QRectF, QSize, Qt
+from PySide6.QtCore import QEvent, QObject, QPoint, QRectF, QSize, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen
-from PySide6.QtWidgets import QAbstractButton, QWidget
+from PySide6.QtWidgets import QAbstractButton, QApplication, QFrame, QVBoxLayout, QWidget
 
 from blacklist_detect.ui_icons import pixmap as line_pixmap
 from blacklist_detect.ui_kit import _KeyboardRing, activates
-from blacklist_detect.ui_theme import BODY_PT, SMALL_PT, THEME, _mix, chinese_font
+from blacklist_detect.ui_theme import BODY_PT, CARD_RADIUS, SMALL_PT, THEME, _mix, chinese_font
 
 _CHIP_H = 30
 
@@ -128,8 +128,8 @@ class StatusChip(_KeyboardRing, QAbstractButton):
         middle = self.height() / 2
         x = self._PAD_L
         if self._hover or self.show_ring():
-            # Under the pointer the dot becomes the flip arrows: a click changes the mode.
-            painter.drawPixmap(QPoint(x, round(middle - self._MARK / 2)), line_pixmap("reload", self._MARK, ink))
+            # Under the pointer the dot becomes a gear: a click opens the 检查 settings.
+            painter.drawPixmap(QPoint(x, round(middle - self._MARK / 2)), line_pixmap("settings", self._MARK, ink))
         else:
             center = QRectF(x + self._MARK / 2 - 4, middle - 4, 8, 8)
             if dot is None:
@@ -161,6 +161,101 @@ class StatusChip(_KeyboardRing, QAbstractButton):
             painter.drawText(key, Qt.AlignCenter, self._key)
         if self.show_ring():
             _ring(painter, body)
+
+
+class CheckPanel(QFrame):
+    """检查's settings in a card under the status pill: 显示, 方式 and 直播模式.
+
+    It lies over the window the way a menu does. Esc, a click anywhere else in the window, a page
+    change or the pill again closes it. A question or a guide it opens comes over the window as a
+    dialog and leaves it open, so the answer shows in it.
+    """
+
+    _SHADOW = 16
+    _DROP = 4
+    _GAP = 6
+
+    def __init__(self, card: QWidget, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("checkPanel")
+        self.card = card
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(self._SHADOW, self._SHADOW - self._DROP, self._SHADOW, self._SHADOW + self._DROP)
+        layout.addWidget(card)
+        self.anchor: QWidget | None = None
+        self.hide()
+
+    def attach(self, host: QWidget, anchor: QWidget) -> None:
+        """Lie over host, under anchor (the pill)."""
+        self.setParent(host)
+        self.anchor = anchor
+        host.installEventFilter(self)
+        self.hide()
+
+    def toggle(self) -> None:
+        if self.isVisible():
+            self.close_panel()
+        else:
+            self.open_panel()
+
+    def open_panel(self) -> None:
+        if self.anchor is None or self.parentWidget() is None:
+            return
+        self._place()
+        self.show()
+        self.raise_()
+        app = QApplication.instance()
+        if app is not None:
+            app.installEventFilter(self)
+        self.card.setFocus(Qt.PopupFocusReason)
+
+    def close_panel(self) -> None:
+        app = QApplication.instance()
+        if app is not None:
+            app.removeEventFilter(self)
+        self.hide()
+
+    def _place(self) -> None:
+        """Its card's right edge under the pill's, kept inside the window."""
+        self.adjustSize()
+        host = self.parentWidget()
+        corner = self.anchor.mapTo(host, QPoint(self.anchor.width(), self.anchor.height()))
+        x = corner.x() + self._SHADOW - self.width()
+        y = corner.y() + self._GAP - (self._SHADOW - self._DROP)
+        self.move(max(0, min(x, host.width() - self.width())), max(0, y))
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        kind = event.type()
+        if watched is self.parentWidget() and kind == QEvent.Type.Resize and self.isVisible():
+            self._place()
+        elif kind == QEvent.Type.MouseButtonPress and self.isVisible() and isinstance(watched, QWidget):
+            # Only a click in this window counts: a dialog this opened is a window of its own.
+            inside = watched is self or self.isAncestorOf(watched)
+            on_pill = self.anchor is not None and (watched is self.anchor or self.anchor.isAncestorOf(watched))
+            if not inside and not on_pill and watched.window() is self.window():
+                self.close_panel()
+        return False
+
+    def keyPressEvent(self, event) -> None:  # noqa: ANN001
+        if event.key() == Qt.Key_Escape:
+            self.close_panel()
+            if self.anchor is not None:
+                self.anchor.setFocus(Qt.OtherFocusReason)
+            return
+        super().keyPressEvent(event)
+
+    def paintEvent(self, _event) -> None:  # noqa: ANN001
+        # A soft shadow under the card, as under a dialog: rounded layers, each adding a little shade.
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(0, 0, 0, 8 if THEME.get("scheme") == "dark" else 4))
+        box = QRectF(self.card.geometry())
+        steps = 10
+        for step in range(steps, 0, -1):
+            grow = step * self._SHADOW / steps
+            rect = box.adjusted(-grow, -grow + self._DROP, grow, grow + self._DROP)
+            painter.drawRoundedRect(rect, CARD_RADIUS + grow, CARD_RADIUS + grow)
 
 
 def _initial(name: str) -> str:

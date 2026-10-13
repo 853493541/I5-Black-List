@@ -1,6 +1,6 @@
 """The scene that greets two or more 心动 players in a lobby, over the game.
 
-Which scene plays is the player's choice in 设置 › 心动特效: one of love_scenes.SCENES, 随机 (any
+Which scene plays is the player's choice in 心动 › 心动特效: one of love_scenes.SCENES, 随机 (any
 but the one just played), or 关闭. It plays once, about five seconds, then goes. The bottom of the
 scene parts around the accept button and its marks, and clicks pass through the whole window to
 the game.
@@ -36,7 +36,7 @@ class LoveBorder(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.setFocusPolicy(Qt.NoFocus)
-        # 设置's choice: a scene's key, "random" or "off".
+        # 心动特效's choice: a scene's key, "random" or "off".
         self.choice = "random"
         self.scene = "classic"
         self._last = ""

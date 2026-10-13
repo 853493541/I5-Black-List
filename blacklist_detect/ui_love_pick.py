@@ -1,5 +1,6 @@
-"""设置 › 心动特效: which scene plays over the game, and which wedding music, for two or more 心动
-players in a lobby. Each can be one of them, 随机 or 关闭; the choice is saved as it is made.
+"""心动 › 心动特效: which scene plays over the game, and which wedding music, for two or more 心动
+players in a lobby. Each can be one of them, 随机 or 关闭; the choice is saved as it is made. The
+default comes first (经典花边, 婚礼进行曲 · 管风琴), 随机 second, and 关闭 last, in red.
 
 A preview plays the chosen scene over the fake-name sample lobby, with the app's own marks on it.
 """
@@ -23,19 +24,6 @@ from blacklist_detect.ui_widgets import _FlowHost
 SAMPLE_LOBBY = Path(__file__).resolve().parent / "assets" / "sample-lobby.jpg"
 
 
-def effects_summary(scene: str, music: str) -> str:
-    """What 心动特效 is set to, in a few words, as 设置 shows it: 随机特效，不放音乐."""
-    scenes = dict(love_scenes.SCENES)
-    tunes = {key: name for key, name, _file in TUNE_LIST}
-    if scene == "off":
-        first = "不放特效"
-    else:
-        first = scenes.get(scene, "随机特效")
-    if music == "random":
-        second = "随机音乐"
-    else:
-        second = tunes.get(music, "不放音乐")
-    return f"{first}，{second}"
 # A moment of the bare lobby between one play of the scene and the next.
 PAUSE_S = 0.7
 
@@ -148,18 +136,19 @@ class LoveEffectsDialog(Modal):
         layout.addWidget(note)
         self.preview = ScenePreview()
         layout.addWidget(self.preview, 0, Qt.AlignHCenter)
-        scenes = [("random", "随机"), *love_scenes.SCENES, ("off", "关闭")]
-        tunes = [("random", "随机"), *((key, name) for key, name, _file in TUNE_LIST), ("off", "关闭")]
+        scenes = [love_scenes.SCENES[0], ("random", "随机"), *love_scenes.SCENES[1:], ("off", "关闭")]
+        named = [(key, name) for key, name, _file in TUNE_LIST]
+        tunes = [named[0], ("random", "随机"), *named[1:], ("off", "关闭")]
         self.scene_buttons = self._choices(layout, "特效", scenes, store.love_scene, self._pick_scene)
         self.music_buttons = self._choices(layout, "音乐", tunes, store.love_music, self._pick_music)
-        self.play_button = QPushButton("一起预览")
+        self.play_button = QPushButton("预览")
         self.play_button.setAutoDefault(False)
         self.play_button.clicked.connect(self.play_both)
         self.footer(self.play_button, _primary("完成", self.accept))
         # As wide as the preview: the choices wrap under it, and it fits the smallest window.
         self.card.setFixedWidth(ScenePreview.WIDTH + 2 * DIALOG_PAD)
         _pointing(self)
-        self.preview.show_scene(self._current(self.scene_buttons, store.love_scene, "random"))
+        self.preview.show_scene(self._current(self.scene_buttons, store.love_scene, "classic"))
 
     def _choices(self, layout, label: str, items, current: str, pick) -> dict[str, QPushButton]:  # noqa: ANN001
         host = _FlowHost(gap=8)
@@ -171,6 +160,8 @@ class LoveEffectsDialog(Modal):
             button = QPushButton(name)
             button.setObjectName("segment")
             button.setProperty("place", "only")
+            # 关闭 in red, as an action that turns something off.
+            button.setProperty("off", key == "off")
             button.setCheckable(True)
             button.setAutoDefault(False)
             button.setChecked(key == (current if current in known else items[0][0]))
@@ -197,7 +188,7 @@ class LoveEffectsDialog(Modal):
 
     def play_both(self) -> None:
         """The scene from its start and the music with it, as a lobby would get them."""
-        self.preview.show_scene(self._current(self.scene_buttons, self.store.love_scene, "random"))
+        self.preview.show_scene(self._current(self.scene_buttons, self.store.love_scene, "classic"))
         self.music.preview(self.store.love_music)
 
     def done(self, result: int) -> None:  # noqa: A003

@@ -22,8 +22,8 @@ def _music():  # noqa: ANN202
     return WeddingMusic(play=played.append, rng=random.Random(1), clock=clock), played, clock
 
 
-def test_the_tunes_are_short_and_like_the_chime():
-    """Five tunes, each about five seconds, mono 16-bit 44.1 kHz as hit.wav is."""
+def test_the_tunes_are_short():
+    """Five tunes, each about five seconds, mono 16-bit 44.1 kHz."""
     assert KEYS == ("organ", "music-box", "8bit", "canon", "bells")
     for key, tune in TUNES.items():
         assert tune.is_file(), key
@@ -76,20 +76,17 @@ def window(tmp_path, monkeypatch):  # noqa: ANN001, ANN201
     pytest.importorskip("PySide6")
     from PySide6.QtWidgets import QApplication
 
-    from blacklist_detect import ui
     from blacklist_detect.ui import MainWindow
 
     QApplication.instance() or QApplication([])
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
-    chimes: list[int] = []
-    monkeypatch.setattr(ui, "play_hit_sound", lambda: chimes.append(1))
     made = MainWindow()
     made._watch_timer.stop()
     made.store.disclaimer_accepted = True
     tunes: list = []
     made.music = WeddingMusic(play=tunes.append, rng=random.Random(2))
-    made.chimes, made.tunes = chimes, tunes
+    made.tunes = tunes
     made.store.add_like("小红")
     made.store.add_like("小明")
     made._live_check = True
@@ -116,17 +113,15 @@ def _lobby(hit: bool = False):  # noqa: ANN202
     return CheckResult(True, "", names=names, hits=hits, button_box=button)
 
 
-def test_music_is_off_until_chosen(window):
+def test_the_organ_plays_until_another_is_chosen(window):
     from blacklist_detect.storage import Store
 
-    assert window.store.love_music == "off"
+    assert window.store.love_music == "organ"
     window._show_panel(_lobby())
-    assert window.tunes == []
-    window.store.love_music = "random"
+    assert window.tunes == [TUNES["organ"]]
+    window.store.love_music = "off"
     window.store.save_settings()
-    assert Store(window.store.root).love_music == "random"
-    window._show_panel(_lobby())
-    assert len(window.tunes) == 1
+    assert Store(window.store.root).love_music == "off"
 
 
 @pytest.mark.parametrize("safe", [True, False])
@@ -138,16 +133,16 @@ def test_music_plays_in_either_display_mode(window, safe):
     assert window.tunes == [TUNES["bells"]]
 
 
-def test_a_blacklist_player_means_the_chime_not_the_music(window):
+def test_a_blacklist_player_means_no_music(window):
     window.store.love_music = "random"
     window._show_panel(_lobby(hit=True))
-    assert window.tunes == [] and window.chimes == [1]
+    assert window.tunes == []
 
 
-def test_clearing_the_data_turns_the_music_off_and_the_scene_back_to_random(window, monkeypatch):
-    window.store.love_music = "organ"
+def test_clearing_the_data_puts_the_effects_back_to_their_defaults(window, monkeypatch):
+    window.store.love_music = "canon"
     window.store.love_scene = "ice"
     monkeypatch.setattr("blacklist_detect.ui._confirm", lambda *_args: True)
     window._ask_reset()
-    assert (window.store.love_music, window.store.love_scene) == ("off", "random")
-    assert window.love.choice == "random"
+    assert (window.store.love_music, window.store.love_scene) == ("organ", "classic")
+    assert window.love.choice == "classic"

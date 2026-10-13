@@ -776,18 +776,11 @@ class GuideDialog(Modal):
         _pointing(self)
 
 
-# 直播模式's guide, two pages of three rows: (picture in assets, title, words).
-# Page 1, 直播模式下: what the player sees, side by side with what viewers see.
-STREAM_DIFF = (
-    ("stream-diff-1.jpg", "发现黑名单", "你看到右下角的名字；观众只看到红色提醒，看不到是谁"),
-    ("stream-diff-2.jpg", "遇到心动", "观众看到花朵边框和心动的名字"),
-    ("stream-diff-3.jpg", "黑名单页", "名字自动隐藏，直播时打开本工具也不会露出"),
-)
-# Page 2, how to add it in 直播姬.
-STREAM_SETUP = (
-    ("stream-setup-1.png", "第 1 步", "在直播姬点「素材」，选「窗口捕捉」"),
-    ("stream-setup-2.png", "第 2 步", "窗口选「模仿者小工具·直播画面」，点「确定」"),
-    ("stream-setup-3.png", "第 3 步", "直播画面要在游戏画面上面，新加的素材默认就在最上面"),
+# 直播模式's guide, one page of two rows: (picture in assets, title, words). What viewers see,
+# side by side with what the player sees, then how to add it in 直播姬.
+STREAM_GUIDE = (
+    ("stream-diff-1.jpg", "观众看到什么", "直播模式下观众不会看到黑名单，仍然可以看到心动列表"),
+    ("stream-setup-2.png", "怎么设置", "在直播姬添加「窗口捕捉」，选「模仿者小工具·直播画面」，点「确定」"),
 )
 # 显示's guide: what the player sees in each mode.
 DISPLAY_DIFF = (
@@ -920,10 +913,10 @@ class PictureGuideDialog(Modal):
 
 
 class StreamGuideDialog(PictureGuideDialog):
-    """直播模式: what changes on stream (page 1) and how to add it in 直播姬 (page 2)."""
+    """直播模式: what viewers see, and how to add it in 直播姬."""
 
     def __init__(self, parent=None) -> None:  # noqa: ANN001
-        super().__init__("直播模式", [("观众看到什么", STREAM_DIFF), ("怎么设置", STREAM_SETUP)], parent)
+        super().__init__("直播模式", [("", STREAM_GUIDE)], parent)
 
 
 class DisplayGuideDialog(PictureGuideDialog):
@@ -933,42 +926,3 @@ class DisplayGuideDialog(PictureGuideDialog):
         super().__init__("显示", [("", DISPLAY_DIFF)], parent)
 
 
-# 导出日志's tooltip, in 设置 and in 自检's report.
-EXPORT_TIP = "存到桌面，可以发给帮你看问题的人（不含玩家名字）"
-
-
-class SelfTestDialog(Modal):
-    """自检's report: one row a step, marked fine, could be better, or wrong, and a way to send it."""
-
-    _MARKS = {"ok": ("check", "green"), "warn": ("warning", "warning"), "bad": ("warning", "red")}
-
-    def __init__(self, test, on_export, parent=None) -> None:  # noqa: ANN001
-        super().__init__(parent)
-        layout = _frame(self, "自检")
-        self.headline = QLabel(test.headline())
-        self.headline.setObjectName("sub")
-        layout.addWidget(self.headline)
-        self.items: list[tuple[str, str, str]] = test.rows()
-        grid = QGridLayout()
-        grid.setHorizontalSpacing(12)
-        grid.setVerticalSpacing(10)
-        for row, (tone, item, text) in enumerate(self.items):
-            icon_name, color = self._MARKS[tone]
-            mark = QLabel()
-            mark.setPixmap(line_pixmap(icon_name, 18, THEME[color]))
-            grid.addWidget(mark, row, 0, Qt.AlignTop)
-            name = QLabel(item)
-            name.setStyleSheet("font-weight: 600;")
-            grid.addWidget(name, row, 1, Qt.AlignTop)
-            words = QLabel(text)
-            words.setWordWrap(True)
-            grid.addWidget(words, row, 2)
-        grid.setColumnStretch(2, 1)
-        layout.addLayout(grid)
-        self.export_button = QPushButton("导出日志")
-        self.export_button.setAutoDefault(False)
-        self.export_button.setToolTip(EXPORT_TIP)
-        self.export_button.clicked.connect(on_export)
-        _footer(self, self.export_button, _primary("知道了", self.accept))
-        self.card.setMinimumWidth(460)
-        _pointing(self)

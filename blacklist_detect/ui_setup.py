@@ -1,7 +1,7 @@
-"""The environment check shown the first time the app opens, and after an update.
+"""The environment check shown the first time the app opens, after an update, and from 设置 › 检查.
 
 A card over the window: a progress bar and three steps (屏幕截图, 识别功能, 识别测试).
-When all pass it says 环境确认 and fades away; when one fails it says which and why,
+When all pass it says 准备好了 and fades away; when one fails it says which and why,
 and offers 重试. The window runs the steps; this widget only shows them.
 """
 
@@ -132,6 +132,8 @@ class SetupCheck(QWidget):
         self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._anim.finished.connect(self._after_fade)
         self.state = "idle"
+        # The first check on this version, or one asked for from 设置.
+        self.first = True
         host.installEventFilter(self)
         self.hide()
 
@@ -169,9 +171,10 @@ class SetupCheck(QWidget):
         )
         _pointing(self)
 
-    def start(self) -> None:
+    def start(self, first: bool = True) -> None:
         self.state = "running"
-        self.title.setText("正在做首次检查")
+        self.first = first
+        self.title.setText("正在做首次检查" if first else "正在检查")
         self.mark.hide()
         self.message.hide()
         self.buttons.hide()
@@ -215,7 +218,7 @@ class SetupCheck(QWidget):
     def fail(self, index: int, message: str) -> None:
         self.state = "failed"
         self.step(index, "fail")
-        self.title.setText("首次检查没通过")
+        self.title.setText("首次检查没通过" if self.first else "检查没通过")
         self.mark.setPixmap(line_pixmap("warning", 22, THEME["red"]))
         self.mark.show()
         self.message.setText(message)

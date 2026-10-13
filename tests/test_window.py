@@ -404,7 +404,6 @@ def test_elapsed_time_is_not_shown_in_the_record_list(qapp, tmp_path, monkeypatc
     window._on_display_mode("full")
     window._on_auto_mode("auto")
     assert window.status_chip.text() == "自动检查中"
-    assert window.status_chip.toolTip() == "切换为手动检查"
     window.store.add_scan([{"seat": 1, "name": "莓有橘子甜", "unclear": False}], 0.254)
     window._reload_history()
     assert "0.25" not in window.history_list.item(0).text()
@@ -551,7 +550,7 @@ def test_capture_mode_defaults_to_safe_mode(qapp, tmp_path, monkeypatch):
     assert window.status_chip.key_text() == ""
     assert window.hotkey_edit.text() == "Alt+1"
     assert window.hotkey_edit.isEnabled() is False
-    assert window.hotkey_edit.toolTip() == "手动检查时使用"
+    assert window.hotkey_edit.toolTip() == "", "no explanation on hover"
     assert window.hotkey.active == ""
     monkeypatch.setattr(window.hotkey, "apply", lambda spec: setattr(window.hotkey, "active", spec.display) or True)
     window.auto_off.click()
@@ -572,7 +571,7 @@ def test_capture_mode_defaults_to_safe_mode(qapp, tmp_path, monkeypatch):
     window.close()
 
 
-def test_header_cycle_switches_capture_mode(qapp, tmp_path, monkeypatch):
+def test_the_header_pill_opens_the_check_settings(qapp, tmp_path, monkeypatch):
     from blacklist_detect.ui_header import StatusChip
 
     monkeypatch.setenv("APPDATA", str(tmp_path))
@@ -582,44 +581,61 @@ def test_header_cycle_switches_capture_mode(qapp, tmp_path, monkeypatch):
     window.store.consented = ["full", "auto"]
     window._on_display_mode("full")
     window._on_auto_mode("auto")
+    window.resize(900, 560)
     window.show()
     chip = window.status_chip
+    panel = window.check_panel
     assert isinstance(chip, StatusChip)
     assert chip.cursor().shape() == Qt.PointingHandCursor
     assert chip.focusPolicy() == Qt.TabFocus
     assert chip.text() == "自动检查中" and chip.tone() == "watchOn"
-    assert chip.toolTip() == "切换为手动检查"
-    # Under the pointer the dot becomes the flip arrows.
+    assert chip.toolTip() == "", "no explanation on hover"
+    # Under the pointer the dot becomes a gear.
     assert chip.hovered() is False
     qapp.sendEvent(chip, QEnterEvent(QPointF(2, 2), QPointF(2, 2), QPointF(2, 2)))
     assert chip.hovered() is True
     qapp.sendEvent(chip, QEvent(QEvent.Type.Leave))
     assert chip.hovered() is False
+    # 显示, 方式 and 直播模式 are in the card under the pill, not in 设置.
+    settings_page = window.tabs.widget(window.settings_tab)
+    for control in (window.display_mode, window.auto_mode, window.hotkey_edit, window.stream_switch):
+        assert panel.isAncestorOf(control) and not settings_page.isAncestorOf(control)
+    assert not panel.isVisible()
+    chip.click()
+    assert panel.isVisible()
+    card = panel.card.geometry().translated(panel.pos())
+    pill = chip.geometry().translated(chip.parentWidget().mapTo(window.centralWidget(), QPoint(0, 0)))
+    assert card.top() > pill.bottom() and abs(card.right() - pill.right()) <= 1, "under the pill, its right edge"
+    assert card.left() >= 0 and card.bottom() <= window.centralWidget().height()
 
     def fake_apply(spec):
         window.hotkey.active = spec.display
         return True
 
     monkeypatch.setattr(window.hotkey, "apply", fake_apply)
-    chip.click()
+    # A choice in it takes at once, and it stays open.
+    _click(qapp, window.auto_off)
+    window.auto_off.click()
+    assert panel.isVisible()
     assert window.store.auto_capture is False
     assert chip.text() == "手动检查" and chip.key_text() == "Alt+1"
-    assert window.auto_off.isChecked() is True
-    assert window.auto_on.isChecked() is False
-    assert window.hotkey_edit.isEnabled() is True
-    assert window.hotkey.active == "Alt+1"
+    assert window.hotkey_edit.isEnabled() is True and window.hotkey.active == "Alt+1"
     assert Store(window.store.root).auto_capture is False
-    assert chip.toolTip() == "切换为自动检查"
-    assert window.tabs.currentIndex() == 0
-    # The keyboard flips it too.
+    # The pill again closes it; Enter on the pill opens it; Esc closes it.
+    _click(qapp, chip)
+    chip.click()
+    assert not panel.isVisible()
     _press(qapp, chip, Qt.Key_Return)
-    assert window.store.auto_capture is True
-    assert chip.text() == "自动检查中" and chip.key_text() == ""
-    assert window.auto_on.isChecked() is True
-    assert window.hotkey_edit.isEnabled() is False
-    assert window.hotkey.active == ""
-    assert Store(window.store.root).auto_capture is True
-    assert chip.toolTip() == "切换为手动检查"
+    assert panel.isVisible()
+    _press(qapp, panel, Qt.Key_Escape)
+    assert not panel.isVisible()
+    # A click anywhere else in the window closes it, and so does another page.
+    chip.click()
+    _click(qapp, window._tab_buttons[1])
+    assert not panel.isVisible()
+    chip.click()
+    window.tabs.setCurrentIndex(window.blacklist_tab)
+    assert not panel.isVisible()
     window._watch_timer.stop()
     window.close()
 
@@ -1042,6 +1058,7 @@ def test_hotkey_saves_on_the_key_press(qapp, tmp_path, monkeypatch):
 
 
 def test_theme_choice_persists(qapp, tmp_path, monkeypatch):
+    monkeypatch.setattr("blacklist_detect.ui.THEME_PICKER", True)
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
@@ -1096,7 +1113,7 @@ def test_reset_asks_before_clearing_everything(qapp, tmp_path, monkeypatch):
     window.store.save_settings()
     window.player_edit.setText("纪戴宁")
     window._show_list()
-    window._cycle_capture_mode()
+    window._on_auto_mode("manual")
     assert window.store.auto_capture is False
     monkeypatch.setattr("blacklist_detect.ui._confirm", lambda *_args: False)
     window._ask_reset()
@@ -1228,7 +1245,8 @@ def test_a_failed_check_is_shown_and_clears_when_checks_work(qapp, tmp_path, mon
     window._on_worker(("glance", "err", OcrUnavailable("识别功能没装好，请重新解压完整的安装包")))
     assert window.status_chip.text() == "识别还没准备好"
     assert window.status_chip.tone() == "hit"
-    assert window.status_chip.toolTip() == "识别功能没装好，请重新解压完整的安装包\n切换为手动检查"
+    # What went wrong, in full, under the pointer.
+    assert window.status_chip.toolTip() == "识别功能没装好，请重新解压完整的安装包"
     # No file path, library name or command: those go to the log, not to the user.
     assert "app.log" not in window.status_chip.toolTip()
     assert "PaddleOCR" not in window.status_chip.toolTip()
@@ -1547,7 +1565,25 @@ def test_clicking_a_tag_pill_toggles_it_and_the_dialog_can_be_freed(qapp):
         qapp.processEvents()
 
 
+def test_while_the_theme_row_is_hidden_the_default_accent_is_worn(qapp, tmp_path, monkeypatch):
+    from blacklist_detect.ui_theme import THEMES
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    store = Store()
+    store.theme = "红色"
+    store.save_settings()
+    window = MainWindow()
+    window._watch_timer.stop()
+    assert window.theme_buttons == {}
+    assert THEME["accent"] == THEMES["蓝色"]["accent"]
+    # The choice waits in the settings for when 主题色 comes back.
+    assert Store(window.store.root).theme == "红色"
+    window.close()
+
+
 def test_clicking_a_theme_swatch_chooses_it(qapp, tmp_path, monkeypatch):
+    monkeypatch.setattr("blacklist_detect.ui.THEME_PICKER", True)
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
@@ -1599,13 +1635,17 @@ def test_settings_are_grouped_into_titled_cards(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
     window._watch_timer.stop()
-    sections = window.findChildren(SettingsSection)
-    titles = [section.findChild(QLabel, "sectionTitle").text() for section in sections]
-    assert titles == ["检查", "常规", "外观", "帮助"]
-    # 角色名称 and 标签 moved to 黑名单.
     settings_page = window.tabs.widget(window.settings_tab)
+    sections = settings_page.findChildren(SettingsSection)
+    titles = [section.findChild(QLabel, "sectionTitle").text() for section in sections]
+    # 检查 opens from the header's pill, and 心动特效 is on 心动.
+    assert titles == ["常规", "外观", "帮助"]
+    assert "心动特效" not in [label.text() for label in settings_page.findChildren(QLabel)]
+    # 角色名称 and 标签 moved to 黑名单.
     shown = [label.text() for label in settings_page.findChildren(QLabel)]
     assert "角色名称" not in shown and "标签" not in shown
+    # 提示音 is gone; 主题色 is hidden until it comes back.
+    assert "提示音" not in shown and "主题色" not in shown
     assert not settings_page.isAncestorOf(window.tag_list)
     # Like with like, all of it on one screen at a usual size; the smallest window scrolls.
     window.resize(900, 760)
@@ -1615,8 +1655,8 @@ def test_settings_are_grouped_into_titled_cards(qapp, tmp_path, monkeypatch):
         qapp.processEvents()
     assert window.settings_scroll.verticalScrollBar().maximum() == 0, "设置 fits without scrolling"
     # One card per row, full width, each title in a column on its left.
-    assert [section.x() for section in sections] == [sections[0].x()] * 4
-    assert [section.width() for section in sections] == [sections[0].width()] * 4
+    assert [section.x() for section in sections] == [sections[0].x()] * len(sections)
+    assert [section.width() for section in sections] == [sections[0].width()] * len(sections)
     assert [section.y() for section in sections] == sorted(section.y() for section in sections)
     heads = [section.findChild(QLabel, "sectionTitle") for section in sections]
     assert all(head.y() == heads[0].y() and head.width() == heads[0].width() for head in heads)
@@ -1625,18 +1665,11 @@ def test_settings_are_grouped_into_titled_cards(qapp, tmp_path, monkeypatch):
     # 版本 is not shown.
     assert "版本" not in [label.text() for label in window.findChildren(QLabel)]
     window.hide()
-    assert window.sound_switch.isChecked() is True
-    # The 方式 choice follows a click on the header's status, and the other way round.
+    # The header's pill says what 方式 is set to.
     window.store.consented = ["full", "auto"]
-    window._cycle_capture_mode()
-    assert window.auto_mode.current() == "manual", "安全模式: 手动检查 only"
     window.full_on.click()
-    window._cycle_capture_mode()
-    assert window.auto_mode.current() == "auto"
-    window._cycle_capture_mode()
-    assert window.auto_mode.current() == "manual"
     window.auto_on.click()
-    assert window.status_chip.toolTip() == "切换为手动检查"
+    assert window.status_chip.text() == "自动检查中"
     assert window.store.auto_capture is True
     window.auto_off.click()
     assert window.store.auto_capture is False
@@ -1803,6 +1836,7 @@ def test_controls_take_keyboard_focus_and_have_names(qapp, tmp_path, monkeypatch
     from blacklist_detect.ui_kit import IconButton, Switch, TabButton
     from blacklist_detect.ui_widgets import ThemeSwatch
 
+    monkeypatch.setattr("blacklist_detect.ui.THEME_PICKER", True)
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
@@ -2079,7 +2113,10 @@ def _wait(qapp, ms: int) -> None:
 
 
 def _lobby(read: int) -> CheckResult:
-    names = [NameSlot(i, (0, 0, 1, 1), f"名{i}", f"名{i}", False, 0.9, i >= read) for i in range(12)]
+    """The sample lobby with its first `read` names read right."""
+    from blacklist_detect.diagnostics import SAMPLE_NAMES
+
+    names = [NameSlot(i, (0, 0, 1, 1), name, name, False, 0.9, i >= read) for i, name in enumerate(SAMPLE_NAMES)]
     return CheckResult(True, "", names=names)
 
 
@@ -2147,6 +2184,39 @@ def test_a_failed_check_says_where_and_can_be_retried(qapp, tmp_path, monkeypatc
     window._on_worker(("envcheck", "ok", _lobby(5)))
     assert setup.title.text() == "首次检查没通过"
     assert "5 个名字" in setup.message.text()
+    window.close()
+
+
+def test_settings_runs_the_same_check_on_the_sample_lobby(qapp, tmp_path, monkeypatch):
+    from blacklist_detect import __version__
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.setattr("blacklist_detect.ui.capture_top_band", lambda: object())
+    window = MainWindow()
+    window._watch_timer.stop()
+    window.store.env_checked = __version__
+    jobs: list[str] = []
+    window.worker.request = lambda fn, kind="check": jobs.append(kind) or True
+    window.show()
+    # 设置 › 检查 › 开始: the panel from the first open, though this version was checked already.
+    window.test_button.click()
+    setup = window.setup
+    assert setup.isVisible() and setup.title.text() == "正在检查"
+    _wait(qapp, 350)
+    window._on_worker(("warmup", "ok", None))
+    assert jobs == ["warmup", "envcheck"]
+    # A name read wrong counts against it: the sample's names are known.
+    wrong = _lobby(12)
+    for slot in wrong.names[:3]:
+        slot.visible = "别人"
+    window._on_worker(("envcheck", "ok", wrong))
+    assert setup.title.text() == "检查没通过" and "读对了 9 个" in setup.message.text()
+    setup.retry_button.click()
+    _wait(qapp, 350)
+    assert setup.title.text() == "正在检查"
+    window._on_worker(("envcheck", "ok", _lobby(12)))
+    assert setup.title.text() == "准备好了" and setup.notes[2].text() == "12/12"
     window.close()
 
 
@@ -2768,7 +2838,8 @@ def test_batch_import_offers_shared_phrases_as_tags_before_importing(qapp, tmp_p
 
 
 def test_settings_show_whole_swatches_and_the_effects_choice(qapp, tmp_path, monkeypatch):
-    """At the size 设置 just fits, each 主题色 swatch is drawn whole; 心动特效 sits in 外观 with what it is set to."""
+    """At the size 设置 just fits, each 主题色 swatch is drawn whole; 心动特效 is on 心动."""
+    monkeypatch.setattr("blacklist_detect.ui.THEME_PICKER", True)
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
@@ -2780,12 +2851,17 @@ def test_settings_show_whole_swatches_and_the_effects_choice(qapp, tmp_path, mon
         qapp.processEvents()
     for swatch in window.theme_buttons.values():
         assert swatch.visibleRegion().boundingRect().height() == swatch.height(), "a swatch is cut off"
-    assert window.effects_note.text() == "随机特效，不放音乐"
-    window.store.love_scene, window.store.love_music = "thread", "canon"
-    window._sync_effects_note()
-    assert window.effects_note.text() == "命运红线，卡农 · 竖琴"
-    # 心动 has it too, under 更多.
-    assert "心动特效" in [action.text() for action in window.likes_page.more_menu.actions()]
+    button = window.likes_page.effects_button
+    assert button.text() == "心动特效" and button.toolTip() == ""
+    # On the page's toolbar, also while the list is empty, and no longer under 更多.
+    window.tabs.setCurrentIndex(window.likes_tab)
+    qapp.processEvents()
+    assert window.store.likes == [] and button.isVisible()
+    assert "心动特效" not in [action.text() for action in window.likes_page.more_menu.actions()]
+    opened = []
+    window.likes_page.show_effects = lambda: opened.append(1)
+    button.click()
+    assert opened == [1]
     window.close()
 
 

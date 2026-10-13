@@ -4,8 +4,8 @@ A 心动 player has a name, a 昵称, and a 原因; no 标签. When a lobby has 
 the 昵称, or the full name when there is none. A player is on one list at a time: putting a
 黑名单 name on 心动, or the other way round, asks to move it.
 
-The page is laid out like 黑名单 without the 标签 column: search, 批量导入, 添加, and under
-更多, 复制名单 and 清空心动列表.
+The page is laid out like 黑名单 without the 标签 column: search, 心动特效, 批量导入, 添加, and
+under 更多, 复制名单 and 清空心动列表.
 """
 
 from __future__ import annotations
@@ -152,6 +152,12 @@ class LikesPage(QWidget):
         self.search.textChanged.connect(self.refresh)
         toolbar.addWidget(self.search, 1)
         toolbar.addStretch(1)
+        # 心动特效: the scene and the music for two or more 心动 players, here beside the players it
+        # is for, and shown on an empty list too. The window gives the page the way to open it.
+        self.effects_button = QPushButton("心动特效")
+        self.effects_button.setIcon(line_icon("heart", 16, THEME["rose"]))
+        self.effects_button.clicked.connect(lambda: self.show_effects())
+        toolbar.addWidget(self.effects_button)
         batch = QPushButton("批量导入")
         batch.clicked.connect(self.import_many)
         add = QPushButton("添加")
@@ -164,10 +170,6 @@ class LikesPage(QWidget):
         self.more_menu = QMenu(self)
         self.copy_action = self.more_menu.addAction("复制名单", self.copy_list)
         _mark_menu_item(self.copy_action, "copy")
-        # 心动特效 lives in 设置 › 外观; it is here too, beside the players it is for. The window
-        # gives the page the way to open it.
-        self.effects_action = self.more_menu.addAction("心动特效", lambda: self.show_effects())
-        _mark_menu_item(self.effects_action, "heart")
         self.more_menu.addSeparator()
         self.clear_action = self.more_menu.addAction("清空心动列表", self.clear)
         _mark_menu_item(self.clear_action, "delete")
@@ -416,6 +418,7 @@ class LikesPage(QWidget):
         self.more_button.refresh()
         self.empty.refresh()
         self.search_icon.setIcon(line_icon("search", 16, THEME["muted"]))
+        self.effects_button.setIcon(line_icon("heart", 16, THEME["rose"]))
         for action in (self.copy_action, self.clear_action):
             _mark_menu_item(action, str(action.property("icon_name") or ""))
         self.refresh()

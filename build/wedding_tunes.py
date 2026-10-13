@@ -5,8 +5,7 @@
 Wagner's Bridal Chorus (Lohengrin, 1850), "Here comes the bride, all dressed in white", as
 church organ, music box and 8-bit; Pachelbel's Canon (about 1690) on harp; and church bells ringing
 rounds. All public domain; the performance is this script's own, so a stream can carry it. Each is
-mono 16-bit 44.1 kHz like hit.wav, about five seconds, as loud as the chime (about -19 dBFS,
-peaks under -3 dBFS).
+mono 16-bit 44.1 kHz, about five seconds, at about -19 dBFS with peaks under -3 dBFS.
 """
 
 from __future__ import annotations
@@ -160,7 +159,7 @@ def reverb(dry: np.ndarray, size: float, wet: float, damp: float) -> np.ndarray:
 
 
 def finish(sig: np.ndarray, seconds: float, fade: float) -> np.ndarray:
-    """Cut to length, fade out, and level to the chime's loudness."""
+    """Cut to length, fade out, and level to about -19 dBFS."""
     sig = sig[: int(seconds * SR)].copy()
     n = int(fade * SR)
     sig[-n:] *= np.linspace(1, 0, n) ** 2

@@ -279,7 +279,6 @@ def test_reset_returns_a_new_application(tmp_path):
     assert again.player_name == ""
     assert again.hotkey == "Alt+1"
     assert again.safe_mode is True
-    assert again.hit_sound is True
     assert again.auto_capture is False
     assert again.theme == "蓝色"
     assert again.custom_tags == []
@@ -373,8 +372,6 @@ def test_a_settings_file_from_before_counts_as_welcomed(tmp_path):
     (tmp_path / "settings.json").write_text('{"hit_sound": false, "auto_capture": true}', encoding="utf-8")
     store = Store(tmp_path)
     assert store.first_run is False
-    # 提示音 is read again.
-    assert store.hit_sound is False
     # A file from before 安全模式 opens in 安全模式, which checks only on the hotkey.
     assert store.safe_mode is True
     assert store.auto_capture is False
@@ -386,11 +383,10 @@ def test_each_level_is_kept_once_agreed_to(tmp_path):
     store.consented = ["full", "auto"]
     store.safe_mode = False
     store.auto_capture = True
-    store.hit_sound = False
     store.stream_mode = "on"
     store.save_settings()
     again = Store(tmp_path)
-    assert (again.safe_mode, again.auto_capture, again.hit_sound) == (False, True, False)
+    assert (again.safe_mode, again.auto_capture) == (False, True)
     assert again.stream_mode == "on"
     # What v0.6.0 and v0.6.1 saved is on.
     for saved in ("key", "alpha"):

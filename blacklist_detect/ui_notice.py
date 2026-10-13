@@ -1,4 +1,4 @@
-"""安全模式's result: messages at the bottom right of the screen, and the warning sound.
+"""安全模式's result: messages at the bottom right of the screen.
 
 Nothing marks the game: no ring round the button, no card beside it. The result comes as a
 message in the corner of the screen the game is on, above the taskbar, the way a chat app's
@@ -16,7 +16,6 @@ from __future__ import annotations
 import math
 import sys
 from dataclasses import dataclass
-from pathlib import Path
 
 from PySide6.QtCore import QEasingCurve, QElapsedTimer, QObject, QPoint, QPointF, QPropertyAnimation, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QLinearGradient, QPainter, QPen, QScreen
@@ -79,26 +78,6 @@ class Message:
     note: str = ""
     people: tuple[tuple[str, tuple[str, ...]], ...] = ()
     more: int = 0
-
-
-# The app's own chime: the Windows warning sound is silent when the sound scheme has none.
-HIT_SOUND = Path(__file__).resolve().parent / "assets" / "hit.wav"
-
-
-def play_hit_sound() -> None:
-    """A short two-note chime, at the system volume, without waiting for it to end."""
-    if sys.platform == "win32":
-        try:
-            import winsound
-
-            if HIT_SOUND.is_file():
-                winsound.PlaySound(str(HIT_SOUND), winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT)
-            else:
-                winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
-            return
-        except Exception:
-            pass
-    QApplication.beep()
 
 
 def _listed(people: list[tuple[str, tuple[str, ...]]]) -> tuple[tuple[tuple[str, tuple[str, ...]], ...], int]:

@@ -89,29 +89,18 @@ def test_the_choice_is_remembered_and_opens_the_window(window):
     window.stream_switch.click()
 
 
-def test_the_guide_shows_what_changes_then_how(window):
-    from blacklist_detect.ui_dialogs import GUIDE_PICTURES, STREAM_DIFF, STREAM_SETUP, StreamGuideDialog
+def test_the_guide_is_one_page_what_viewers_see_then_how(window):
+    from blacklist_detect.ui_dialogs import GUIDE_PICTURES, STREAM_GUIDE, StreamGuideDialog
 
-    # Two pages of at most three rows, each row with its picture.
-    assert 0 < len(STREAM_DIFF) <= 3 and 0 < len(STREAM_SETUP) <= 3
-    for picture, _title, _words in STREAM_DIFF + STREAM_SETUP:
+    # One page: what viewers see, then how to add it in 直播姬, each row with its picture.
+    assert [title for _picture, title, _words in STREAM_GUIDE] == ["观众看到什么", "怎么设置"]
+    for picture, _title, _words in STREAM_GUIDE:
         assert (GUIDE_PICTURES / picture).is_file(), picture
     guide = StreamGuideDialog(window)
-    assert len(guide.pictures) == len(STREAM_DIFF) + len(STREAM_SETUP)
+    assert len(guide.pictures) == len(STREAM_GUIDE)
     assert all(label.pixmap() is not None and not label.pixmap().isNull() for label in guide.pictures)
-    assert guide.page == 0 and guide.page_label.text() == "观众看到什么（1/2）"
-    assert guide.back_button.isHidden() and guide.next_button.text() == "怎么设置"
-    guide.show()
-    QApplication.processEvents()
-    first = guide.card.sizeHint().height()
-    guide.next_button.click()
-    QApplication.processEvents()
-    assert guide.page == 1 and "怎么设置" in guide.page_label.text()
-    # Each page is as tall as its own rows: the first is not stretched to the second's height.
-    assert guide.card.sizeHint().height() > first
-    assert not guide.back_button.isHidden() and guide.next_button.text() == "知道了"
-    guide.back_button.click()
-    assert guide.page == 0
+    assert guide.page_label.isHidden()
+    assert guide.back_button.isHidden() and guide.next_button.text() == "知道了"
     guide.close()
 def test_likes_are_copied_clear_around_and_the_border_plays(window):
     _full(window)

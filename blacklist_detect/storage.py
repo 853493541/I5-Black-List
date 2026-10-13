@@ -398,12 +398,11 @@ class Store:
         # 显示: 安全模式 marks nothing on the game, the result comes as messages at the bottom right
         # of the screen; 完整模式 (False) draws the marks over it. On unless turned off, also for old settings.
         self.safe_mode = True
-        # 提示音: the system warning sound when a 黑名单 player is found.
-        self.hit_sound = True
         # 心动特效, for two or more 心动 players: the scene over the game and the wedding music. Each is a
-        # key (love_scenes.SCENES, ui_music.TUNE_LIST), "random" or "off". The music is off until chosen.
-        self.love_scene = "random"
-        self.love_music = "off"
+        # key (love_scenes.SCENES, ui_music.TUNE_LIST), "random" or "off". 经典花边 with 婚礼进行曲 · 管风琴
+        # until another is chosen.
+        self.love_scene = "classic"
+        self.love_music = "organ"
         # 直播模式: a window for a streaming app with the 心动 marks only, clear behind them. "" off, "on" on.
         self.stream_mode = ""
         # What the player agreed to after being told the risk: "full" (完整模式), "auto" (自动检查).
@@ -774,7 +773,6 @@ class Store:
                 "welcomed": self.welcomed,
                 "close_to_tray": self.close_to_tray,
                 "safe_mode": self.safe_mode,
-                "hit_sound": self.hit_sound,
                 "love_scene": self.love_scene,
                 "love_music": self.love_music,
                 "stream_mode": self.stream_mode,
@@ -816,9 +814,8 @@ class Store:
             self.welcomed = bool(settings.get("welcomed", True))
             self.close_to_tray = bool(settings.get("close_to_tray", True))
             self.safe_mode = bool(settings.get("safe_mode", True))
-            self.hit_sound = bool(settings.get("hit_sound", True))
-            self.love_scene = _choice(settings.get("love_scene"), "random")
-            self.love_music = _choice(settings.get("love_music"), "off")
+            self.love_scene = _choice(settings.get("love_scene"), "classic")
+            self.love_music = _choice(settings.get("love_music"), "organ")
             # v0.6.0 saved "key" (green) or "alpha" (clear), v0.6.1 "key": each is on, and clear now.
             self.stream_mode = "on" if settings.get("stream_mode") in ("on", "key", "alpha") else ""
             self.disclaimer_accepted = settings.get("disclaimer_accepted") is True
@@ -1029,9 +1026,8 @@ class Store:
         self.welcomed = False
         self.close_to_tray = True
         self.safe_mode = True
-        self.hit_sound = True
-        self.love_scene = "random"
-        self.love_music = "off"
+        self.love_scene = "classic"
+        self.love_music = "organ"
         self.stream_mode = ""
         self.consented = []
         self.disclaimer_accepted = False

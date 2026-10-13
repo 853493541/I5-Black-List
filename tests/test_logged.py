@@ -66,9 +66,8 @@ def test_the_players_changes_are_logged(window, caplog):
     window.auto_off.click()
     window.safe_on.click()
     window._set_stream_mode(True)
-    window._set_hit_sound(False)
     said = _said(caplog)
-    for line in ("显示: 完整模式.", "方式: 自动检查.", "方式: 手动检查.", "显示: 安全模式.", "直播模式 on.", "提示音 off."):
+    for line in ("显示: 完整模式.", "方式: 自动检查.", "方式: 手动检查.", "显示: 安全模式.", "直播模式 on."):
         assert line in said, line
 
 

@@ -595,6 +595,13 @@ def _kit_rules(family: str) -> str:
                 border-color: {t["accent"]};
                 color: {t["on_accent"]};
             }}
+            QPushButton#segment[off="true"] {{ color: {t["danger"]}; border-color: {t["danger"]}; }}
+            QPushButton#segment[off="true"]:hover {{ background: {t["danger_hover"]}; }}
+            QPushButton#segment[off="true"]:checked, QPushButton#segment[off="true"]:checked:hover {{
+                background: {t["danger"]};
+                border-color: {t["danger"]};
+                color: {t["on_accent"]};
+            }}
             QPushButton#iconButton {{
                 background: transparent;
                 border: none;
