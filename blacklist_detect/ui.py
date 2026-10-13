@@ -35,7 +35,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from blacklist_detect import __version__, autostart, updater
+from blacklist_detect import __version__, autostart, single, updater
 from blacklist_detect.capture import (
     CaptureUnavailable,
     allow_any_foreground,
@@ -230,7 +230,10 @@ def run_app(background: bool = False) -> int:
     app.setApplicationName(APP_NAME)
     app.setApplicationVersion(__version__)
     key = instance_key()
-    if notify_running_instance(key, show=not background):
+    # One copy: a copy that answers is shown and this one leaves; a copy from this folder that
+    # never answers is stuck open, holding the files an update needs, and is ended.
+    first = single.claim(key)
+    if single.settle(updater.app_root(), first, lambda: notify_running_instance(key, show=not background)):
         log.info("Already running." if background else "Already running. Brought the open window forward.")
         return 0
     app.setWindowIcon(_icon())
@@ -3788,6 +3791,13 @@ class MainWindow(QMainWindow):
 
     def _restart_for_update(self, *_args) -> None:  # noqa: ANN002
         root = updater.app_root()
+        version = self._release.version if self._release else ""
+        if root is not None and not updater.note_restart(root, version):
+            # Restarted into this version twice already and it did not go in: say so, do not loop.
+            log.warning("Update %s did not install after %d restarts; not restarting again.", version, updater.MAX_TRIES)
+            self._updating = False
+            self._say("更新没装上，关掉所有模仿者小工具后重新打开")
+            return
         if root is not None and restart_into_update(root, background=not self.isVisible()):
             log.info("Restarting into %s", self._release.version if self._release else "the update")
             self._updating = False

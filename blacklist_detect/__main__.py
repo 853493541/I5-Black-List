@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import sys
 
 
@@ -27,9 +26,12 @@ def main(argv: list[str] | None = None) -> int:
 def _end(code: int) -> None:
     """Leave now. By the time the window is gone everything is saved and closed, but PaddleOCR
     leaves threads behind that Python would wait on for ever: the app vanished from the screen
-    and the tray, while its process stayed, holding its memory and blocking the next update."""
+    and the tray, while its process stayed, holding its memory and blocking the next update.
+    And os._exit still unloads the libraries, where PySide6 crashes: the process is ended outright."""
+    from blacklist_detect.single import exit_now
+
     logging.shutdown()
-    os._exit(code)
+    exit_now(code)
 
 
 def _check_cli(args: list[str]) -> int:

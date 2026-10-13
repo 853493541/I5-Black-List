@@ -375,9 +375,22 @@ def test_the_app_ends_its_process_when_the_window_is_gone(monkeypatch):
 
     ended: list[int] = []
     monkeypatch.setattr("blacklist_detect.ui.run_app", lambda background=False: 0)
-    monkeypatch.setattr(entry.os, "_exit", ended.append)
+    monkeypatch.setattr("blacklist_detect.single.exit_now", ended.append)
     assert entry.main([]) == 0
     assert ended == [0]
+
+
+def test_an_update_that_does_not_go_in_is_restarted_twice_then_left(tmp_path):
+    assert updater.note_restart(tmp_path, "v9.0.0", now=1000) is True
+    assert updater.note_restart(tmp_path, "v9.0.0", now=1010) is True
+    # A third restart into the same version would only loop.
+    assert updater.note_restart(tmp_path, "v9.0.0", now=1020) is False
+    # Another version, or the same one much later, is tried again.
+    assert updater.note_restart(tmp_path, "v9.0.1", now=1030) is True
+    assert updater.note_restart(tmp_path, "v9.0.0", now=1030 + updater.TRIES_FORGET_S) is True
+    # The new version running clears the count.
+    updater.confirm_started(tmp_path)
+    assert not (tmp_path / updater.TRIES).exists()
 
 
 class _CutOff(_Session):

@@ -355,8 +355,40 @@ def launcher_result(root: Path | None) -> str:
     return said
 
 
+# Restarts into one version that did not take, so a failing install does not restart for ever.
+TRIES = "update.tries"
+MAX_TRIES = 2
+# Tries this long ago are forgotten: a later start tries again.
+TRIES_FORGET_S = 600
+
+
+def note_restart(root: Path | None, version: str, now: float | None = None) -> bool:
+    """Count a restart into version. False when it has been tried MAX_TRIES times lately: the
+    launcher could not lay it over the folder, and restarting again would only loop."""
+    import time
+
+    if root is None:
+        return True
+    now = time.time() if now is None else now
+    path = root / TRIES
+    try:
+        saved = json.loads(path.read_text(encoding="utf-8"))
+        count = int(saved["count"]) if saved.get("version") == version and now - float(saved.get("at", 0)) < TRIES_FORGET_S else 0
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        count = 0
+    if count >= MAX_TRIES:
+        return False
+    try:
+        path.write_text(json.dumps({"version": version, "count": count + 1, "at": now}), encoding="utf-8")
+    except OSError:
+        pass
+    return True
+
+
 def confirm_started(root: Path | None) -> bool:
     """The new version is running: the launcher need not put the old one back. True if it had to be told."""
+    if root is not None:
+        (root / TRIES).unlink(missing_ok=True)
     if root is None or not (root / PENDING).exists():
         return False
     (root / PENDING).unlink(missing_ok=True)
