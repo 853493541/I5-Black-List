@@ -164,7 +164,7 @@ def test_a_failed_check_says_so_in_the_corner(window):
     window._rescan_active = True
     window._on_checked("err", RuntimeError("boom"))
     assert window.notice.kind == "error"
-    assert window.notice.main.title.text() == "检查失败"
+    assert window.notice.main.title.text() == "无法检查"
 
 
 def test_checking_turns_into_the_result_where_it_is(window):

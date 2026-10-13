@@ -528,7 +528,7 @@ class CornerNotice(QObject):
         self.show_messages("missing", [Message("missing", "没有找到大厅", "进入「推演成功」大厅后再按快捷键")], screen)
 
     def show_error(self, detail: str, screen: QScreen | None) -> None:
-        self.show_messages("error", [Message("error", "检查失败", detail)], screen)
+        self.show_messages("error", [Message("error", "无法检查", detail)], screen)
 
     def hide(self) -> None:
         self._timer.stop()
