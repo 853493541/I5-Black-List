@@ -9,8 +9,13 @@ ring and glow), never who: the card with the names is not copied.
 In 安全模式 the marks are made but never put on the streamer's screen (WA_DontShowOnScreen);
 this window is the only place they show. The window itself sits just off the screen, to the
 right of every monitor: the streamer never sees it, and a window capture still reads it, being
-a capture of the window and not of the screen. It is the size of the game's screen and mirrors it
-point for point.
+a capture of the window and not of the screen.
+
+Its size never changes: 16:9, as wide as the game's screen. 直播姬 fixes a 窗口捕捉's scale when
+it is added, fitting the window into the canvas as it is then, so a window that changed size
+later would leave the marks too small or too big. Inside it, the game's window (once a check has
+found it; its screen before that) is drawn the way 直播姬 fits the game's own 窗口捕捉 into a
+16:9 canvas: as big as fits, centered. The two captures line up without touching either.
 
 Behind the marks it is clear, and the streaming app keeps that: 哔哩哔哩直播姬 captures the
 window with its transparency, so the soft pink glow and the sheer silk look as they do over the
@@ -22,7 +27,7 @@ from before does no harm: there is no green left for it to take.
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPoint, QRect, Qt, QTimer
+from PySide6.QtCore import QPoint, QPointF, QRect, QSize, Qt, QTimer
 from PySide6.QtGui import QPainter
 from PySide6.QtWidgets import QApplication, QWidget
 
@@ -58,7 +63,7 @@ class StreamMirror(QWidget):
         self._window = window
         self._active = False
         self._mode = ""
-        # The screen this window mirrors; it is shown somewhere else, off the screen.
+        # What this window mirrors, in screen coordinates: the game's window, or its screen.
         self._area = QRect()
         # The game's window as a streaming app's 窗口捕捉 sees it, once a check has found it.
         self._frame = QRect()
@@ -78,7 +83,7 @@ class StreamMirror(QWidget):
         self._mode = mode
         self.update()
         if mode:
-            self._place(self._screen())
+            self._place(self._source())
             self.show()
             self.lower()
             self._tick.start()
@@ -113,19 +118,23 @@ class StreamMirror(QWidget):
         return bool(self._marks()) or bool(self._borders()) or self._glow() is not None
 
     def _place(self, area: QRect) -> None:
-        """Mirror area (the game's screen), from a spot just right of every monitor."""
+        """Mirror area, from a 16:9 window as wide as its screen, just right of every monitor."""
         self._area = QRect(area)
-        right = max((screen.geometry().right() for screen in QApplication.screens()), default=area.right())
-        self.setGeometry(QRect(right + 64, area.y(), area.width(), area.height()))
+        screen = QApplication.screenAt(area.center()) or QApplication.primaryScreen()
+        width = screen.geometry().width() if screen is not None else 1920
+        top = screen.geometry().y() if screen is not None else 0
+        right = max((each.geometry().right() for each in QApplication.screens()), default=area.right())
+        self.setGeometry(QRect(QPoint(right + 64, top), QSize(width, round(width * 9 / 16))))
 
     def set_frame(self, frame: QRect) -> None:
-        """Mirror the game's window from now on: the same size as the 窗口捕捉 of the game, so the
-        two line up when both fill the canvas. A full-screen game's window is the screen."""
+        """Mirror the game's window from now on: what the game's 窗口捕捉 shows. A full-screen
+        game's window is the screen."""
         self._frame = QRect(frame)
-        if self.enabled() and self._frame.size() != self.size():
+        if self.enabled() and self._frame != self._area:
             self._place(self._frame)
 
-    def _screen(self) -> QRect:
+    def _source(self) -> QRect:
+        """What to mirror: the game's window once a check has found it, else the game's screen."""
         if not self._frame.isEmpty():
             return self._frame
         panel = self._window.panel
@@ -133,10 +142,24 @@ class StreamMirror(QWidget):
         screen = QApplication.screenAt(point) or QApplication.primaryScreen()
         return screen.geometry() if screen is not None else QRect(0, 0, 1920, 1080)
 
+    def _fit(self) -> tuple[float, QPointF]:
+        """The scale and offset that put the mirrored area in this window as 直播姬 puts a
+        window it captures in a 16:9 canvas when it is added: as big as fits, centered."""
+        area = self._area
+        if area.isEmpty():
+            return 1.0, QPointF(0, 0)
+        scale = min(self.width() / area.width(), self.height() / area.height())
+        return scale, QPointF((self.width() - area.width() * scale) / 2, (self.height() - area.height() * scale) / 2)
+
+    def to_window(self, point: QPoint) -> QPointF:
+        """Where a point on the screen is drawn in this window."""
+        scale, offset = self._fit()
+        return offset + QPointF(point - self._area.topLeft()) * scale
+
     def _step(self) -> None:
         busy = self.busy()
         if busy:
-            area = self._screen()
+            area = self._source()
             if area != self._area:
                 self._place(area)
         # Painted while something shows, and once more after, to clear it.
@@ -150,20 +173,25 @@ class StreamMirror(QWidget):
             painter.end()
             return
         painter.setRenderHint(QPainter.Antialiasing)
-        origin = self._area.topLeft()
+        painter.setRenderHint(QPainter.SmoothPixmapTransform)
+        # From here on, screen coordinates: each mark is drawn where it is on the screen.
+        scale, offset = self._fit()
+        painter.translate(offset)
+        painter.scale(scale, scale)
+        painter.translate(-QPointF(self._area.topLeft()))
         for border in self._borders():
             painter.save()
-            painter.translate(border.geometry().topLeft() - origin)
+            painter.translate(border.geometry().topLeft())
             border.paint_at(painter, border.elapsed(), border.width(), border.height())
             painter.restore()
         glow = self._glow()
         if glow is not None:
             painter.save()
             painter.setOpacity(glow.windowOpacity())
-            painter.translate(glow.geometry().topLeft() - origin)
+            painter.translate(glow.geometry().topLeft())
             paint_glow(painter, glow.width(), glow.height())
             painter.restore()
         for mark in self._marks():
             painter.setOpacity(mark.windowOpacity())
-            painter.drawPixmap(mark.geometry().topLeft() - origin, mark.grab())
+            painter.drawPixmap(mark.geometry().topLeft(), mark.grab())
         painter.end()

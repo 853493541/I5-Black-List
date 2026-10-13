@@ -440,9 +440,6 @@ class MainWindow(QMainWindow):
         self._notice_screen = None
         # 直播模式: the marks, never a 黑名单 name, in a window a streaming app can capture.
         self.stream = StreamMirror(self)
-        if all(self.store.stream_size):
-            # The game's window size from the last check; where it is comes with the next one.
-            self.stream.set_frame(QRect(0, 0, *self.store.stream_size))
         # The lobby's button, in desktop pixels: the game's window is the one under it, in the
         # order the windows were in at the screenshot.
         self._game_box = None
@@ -3194,9 +3191,15 @@ class MainWindow(QMainWindow):
         if not self.store.auto_capture and not self.panel.isVisible():
             self._watch_timer.stop()
             return
-        if time.perf_counter() < self._glance_pause_until:
+        if time.perf_counter() < self._glance_pause_until or self._border_on_screen():
             return
         self.worker.request(self._glance_job, kind="glance")
+
+    def _border_on_screen(self) -> bool:
+        """The flower border is playing where the screen copy sees it. It covers the top of the
+        game, 推演成功 too, so a glance then cannot tell whether the lobby is still there: it would
+        clear the marks and the border it is looking through. It plays once, about five seconds."""
+        return self.love.playing() and not self.love.testAttribute(Qt.WA_DontShowOnScreen)
 
     def _start(self, fn, live: bool = False) -> bool:
         self._live_check = live
@@ -3277,6 +3280,9 @@ class MainWindow(QMainWindow):
             self._clear_problem()
         elif was_error:
             self._sync_watch_idle()
+        if not value and self._border_on_screen():
+            # Copied before the border started, or through it: no answer either way.
+            return
         if not value:
             if self.panel.isVisible():
                 self._hide_panel_after_title()
@@ -3547,8 +3553,8 @@ class MainWindow(QMainWindow):
         self.love.play(self._game_area(screen), keep, badge)
 
     def _frame_stream(self) -> None:
-        """直播模式's window takes the size and place of the game's whole window, the one a
-        streaming app's 窗口捕捉 captures: an emulator with its frame, or a full-screen game."""
+        """直播模式's window mirrors the game's whole window, the one a streaming app's 窗口捕捉
+        captures: an emulator with its frame, or a full-screen game."""
         if not self.store.stream_mode or self._game_box is None:
             return
         left, top, right, bottom = self._game_box
@@ -3558,12 +3564,9 @@ class MainWindow(QMainWindow):
         if screen is None:
             return
         frame = self._window_frame(screen, innermost=False)
+        if frame != self.stream._frame:
+            log.info("直播模式 mirrors the game's window: %dx%d.", frame.width(), frame.height())
         self.stream.set_frame(frame)
-        size = (frame.width(), frame.height())
-        if size != tuple(self.store.stream_size):
-            log.info("直播模式's window now matches the game's window: %dx%d.", *size)
-            self.store.stream_size = size
-            self.store.save_settings()
 
     def _game_area(self, screen) -> QRect:  # noqa: ANN001
         return self._window_frame(screen, innermost=True)

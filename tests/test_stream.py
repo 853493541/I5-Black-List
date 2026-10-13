@@ -56,8 +56,8 @@ def _lobby(window, hit: bool) -> None:  # noqa: ANN001
 def _pixel(window, point):  # noqa: ANN001, ANN202
     image = window.stream.grab().toImage()
     ratio = image.devicePixelRatio()
-    # The window mirrors the game's screen (_area), shown off the screen.
-    local = point - window.stream._area.topLeft()
+    # The window mirrors the game's window or screen (_area), fitted in it, shown off the screen.
+    local = window.stream.to_window(point)
     return image.pixelColor(round(local.x() * ratio), round(local.y() * ratio))
 
 
@@ -172,9 +172,10 @@ def test_the_stream_window_is_off_every_screen(window):
     window.stream._step()
     shown = window.stream.geometry()
     assert all(not screen.geometry().intersects(shown) for screen in QApplication.screens())
-    # It mirrors the game's screen, size for size.
-    assert window.stream._area == (QApplication.screenAt(window.panel.cover_geometry().center()) or QApplication.primaryScreen()).geometry()
-    assert shown.size() == window.stream._area.size()
+    # It mirrors the game's screen, in a 16:9 window as wide as the screen.
+    screen = (QApplication.screenAt(window.panel.cover_geometry().center()) or QApplication.primaryScreen()).geometry()
+    assert window.stream._area == screen
+    assert (shown.width(), shown.height()) == (screen.width(), round(screen.width() * 9 / 16))
     window._hide_panel_after_title()
 
 
@@ -216,10 +217,14 @@ def test_in_stream_mode_no_page_shows_a_blacklist_name(window):
     shown.close()
 
 
-def test_the_stream_window_is_the_game_window_a_capture_sees(window, monkeypatch):
-    """A windowed emulator: 直播姬 captures its whole window and stretches it over the canvas, so
-    直播模式's window must be that window, size for size, or the marks land off the game."""
-    from PySide6.QtCore import QRect
+def test_the_game_window_is_drawn_fitted_in_a_window_that_keeps_its_size(window, monkeypatch):
+    """A windowed emulator. 直播姬 fits each 窗口捕捉 into its 16:9 canvas when it is added and
+    keeps that scale, so 直播模式's window never changes size (16:9, as wide as the screen), and
+    draws the emulator's whole window in it the way 直播姬 fits the emulator's own capture: as big
+    as fits, centered. Then the marks land on the game in the stream, with nothing re-fitted."""
+    import json
+
+    from PySide6.QtCore import QPointF, QRect
 
     from blacklist_detect import ui
     from blacklist_detect.storage import Store
@@ -235,7 +240,8 @@ def test_the_stream_window_is_the_game_window_a_capture_sees(window, monkeypatch
 
     monkeypatch.setattr(ui, "window_rect_at", lambda _x, _y, _order=(), innermost=True: native(inner if innermost else outer))
     window._set_stream_mode(True)
-    screen_box = QApplication.primaryScreen().availableGeometry()
+    size = window.stream.size()
+    assert (size.width(), size.height()) == (geo.width(), round(geo.width() * 9 / 16))
     left = int((inner.center().x()) * ratio) - 90
     top = int((inner.center().y()) * ratio)
     button = (left, top, left + 180, top + 60)
@@ -243,16 +249,50 @@ def test_the_stream_window_is_the_game_window_a_capture_sees(window, monkeypatch
     window._live_check = True
     window._on_lobby_placed(button)
     window._show_panel(CheckResult(True, "", names=names, button_box=button))
+    window.like_card.setWindowOpacity(1.0)
     window.stream._step()
-    assert window.stream._area == outer and window.stream.size() == outer.size()
+    assert window.stream._area == outer, "it mirrors the emulator's whole window"
+    assert window.stream.size() == size, "the size 直播姬 fitted when the capture was added"
     assert window.love.geometry() == inner, "the border still fits the game surface"
-    assert Store(window.store.root).stream_size == (outer.width(), outer.height())
-    # Next start: the same size before any check.
-    from blacklist_detect.ui import MainWindow
-
-    again = MainWindow()
-    again._watch_timer.stop()
-    again._set_stream_mode(True)
-    assert again.stream.size() == outer.size()
-    again.close()
+    # A point of the emulator lands where 直播姬 shows it: the emulator fitted in a 16:9 canvas.
+    scale = min(size.width() / outer.width(), size.height() / outer.height())
+    card = window.like_card.geometry().center()
+    expected = QPointF(
+        (size.width() - outer.width() * scale) / 2 + (card.x() - outer.x()) * scale,
+        (size.height() - outer.height() * scale) / 2 + (card.y() - outer.y()) * scale,
+    )
+    assert (window.stream.to_window(card) - expected).manhattanLength() < 1
+    assert _pixel(window, card).alpha() > 200, "the 心动 card is drawn there"
+    # Nothing about the size is kept from one start to the next: it is always the same.
+    assert "stream_size" not in json.loads((window.store.root / "settings.json").read_text(encoding="utf-8"))
+    assert not hasattr(Store(window.store.root), "stream_size")
     window._hide_panel_after_title()
+
+
+def test_a_glance_through_the_border_on_screen_does_not_clear_it(window, monkeypatch):
+    """The border covers the top of the game, 推演成功 too, and the screen copy sees it: a glance
+    through it cannot find the title. That is no sign the lobby went; it plays about 5 seconds."""
+    _full(window)
+    _lobby(window, hit=False)
+    assert window.love.playing() and window.like_card.isVisible()
+    asked = []
+    monkeypatch.setattr(window.worker, "request", lambda _fn, kind="": asked.append(kind) or True)
+    window._auto_tick()
+    assert asked == [], "no glance while the border covers the title"
+    window._on_glanced("ok", False)  # one copied just before it started
+    assert window.love.playing() and window.like_card.isVisible() and window.panel.isVisible()
+    # Once it has played, a glance that finds no title clears the marks, as before.
+    window.love.stop()
+    window._auto_tick()
+    assert asked == ["glance"]
+    window._on_glanced("ok", False)
+    assert not window.panel.isVisible() and not window.like_card.isVisible()
+
+
+def test_a_border_made_only_for_the_stream_does_not_hold_a_glance_back(window):
+    """安全模式 with 直播模式: the border is never on the screen, so the screen copy is clear."""
+    window._set_stream_mode(True)
+    _lobby(window, hit=False)
+    assert window.love.playing()
+    window._on_glanced("ok", False)
+    assert not window.love.playing() and not window.like_card.isVisible()
