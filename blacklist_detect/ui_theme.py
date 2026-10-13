@@ -662,6 +662,13 @@ def _kit_rules(family: str) -> str:
                 color: {t["text"]};
                 background: transparent;
             }}
+            QLabel#streamStatus {{
+                font-family: "{family}";
+                font-size: {SMALL_PT}pt;
+                color: {t["warning"]};
+                background: transparent;
+            }}
+            QLabel#streamStatus[tone="ok"] {{ color: {t["green"]}; }}
             QLabel#rowHint, QLabel#emptyHint {{
                 font-family: "{family}";
                 font-size: {SMALL_PT}pt;

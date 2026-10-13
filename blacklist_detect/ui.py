@@ -35,7 +35,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from blacklist_detect import __version__, autostart, single, updater
+from blacklist_detect import __version__, autostart, livehime, single, updater
 from blacklist_detect.capture import (
     CaptureUnavailable,
     allow_any_foreground,
@@ -128,6 +128,7 @@ from blacklist_detect.ui_overlay import (
     _pin_topmost,
     native_to_logical,
 )
+from blacklist_detect.ui_stream import TITLE as STREAM_TITLE
 from blacklist_detect.ui_stream import StreamMirror
 from blacklist_detect.ui_theme import (
     APPEARANCES,
@@ -509,6 +510,8 @@ class MainWindow(QMainWindow):
         self._sync_overlay_target()
         if self.store.stream_mode:
             self.stream.enable(self.store.stream_mode)
+            self._stream_watch.start()
+            self._check_stream_setup()
         self.centralWidget().setFocus(Qt.FocusReason.OtherFocusReason)
         _caption_color(self)
         self._show_list()
@@ -984,6 +987,18 @@ class MainWindow(QMainWindow):
         self.stream_guide = IconButton("info", "直播模式说明")
         self.stream_guide.clicked.connect(self._show_stream_guide)
         check.add_row("直播模式", self.stream_switch, self.stream_guide)
+        # Whether 直播姬 shows the window, under the switch while it is on: green when it does, in
+        # amber until it does (see livehime). Nothing for a streamer without 直播姬.
+        self.stream_status = QLabel("")
+        self.stream_status.setObjectName("streamStatus")
+        self.stream_status.setWordWrap(True)
+        self.stream_status.hide()
+        check.add_widget(self.stream_status, separated=False, indent=True)
+        self._stream_state = ""
+        self._scene_watch = livehime.SceneWatch()
+        self._stream_watch = QTimer(self)
+        self._stream_watch.setInterval(2000)
+        self._stream_watch.timeout.connect(self._check_stream_setup)
         # Put over the window under the pill once the header is built.
         self.check_panel = CheckPanel(check)
 
@@ -2730,6 +2745,43 @@ class MainWindow(QMainWindow):
         self._sync_switch(self.stream_switch, bool(self.store.stream_mode))
         self._sync_overlay_target()
         self._sync_name_hiding()
+        if self.store.stream_mode:
+            self._stream_watch.start()
+        else:
+            self._stream_watch.stop()
+        self._check_stream_setup()
+
+    def _check_stream_setup(self) -> None:
+        """直播模式: whether 直播姬's current scene shows the window, said under the switch."""
+        state = ""
+        if self.store.stream_mode and not self._closing and livehime.log_path().is_file():
+            point = self._game_point()
+            covers = (lambda capture: livehime.window_over(capture, point)) if point else None
+            on = single.running(livehime.PROCESS)
+            state = livehime.status(STREAM_TITLE, on, self._scene_watch.scene() if on else None, covers)
+        changed = state != self._stream_state
+        if changed:
+            if state:
+                log.info("直播模式 in 直播姬: %s.", state)
+            self._stream_state = state
+            self.stream_status.setText(livehime.WORDS.get(state, ""))
+            self.stream_status.setProperty("tone", "ok" if state == livehime.OK else "warn")
+            self.stream_status.style().unpolish(self.stream_status)
+            self.stream_status.style().polish(self.stream_status)
+        if self.stream_status.isHidden() == bool(state):
+            self.stream_status.setVisible(bool(state))
+            changed = True
+        if changed and self.check_panel.isVisible():
+            # Open while the line comes, goes or changes: the card takes its new height.
+            self.check_panel._place()
+
+    def _game_point(self) -> tuple[int, int] | None:
+        """The game's button from the last check, in desktop pixels: the game's window is there."""
+        if self._game_box is None:
+            return None
+        left, top, right, bottom = self._game_box
+        origin_x, origin_y = virtual_origin()
+        return (left + right) // 2 + origin_x, (top + bottom) // 2 + origin_y
 
     def _sync_auto_controls(self) -> None:
         """The 方式 choice and the header's pill both follow the saved mode. In 安全模式 it is
@@ -3479,6 +3531,9 @@ class MainWindow(QMainWindow):
         self._game_box = result.button_box
         self._game_windows = result.windows
         self._frame_stream()
+        if self.store.stream_mode:
+            # Now the game's window is known: is it over 直播画面 in 直播姬?
+            self._check_stream_setup()
         if hits:
             self.clear_mark.hide()
             # A 黑名单 player is the news; the border would bury it.

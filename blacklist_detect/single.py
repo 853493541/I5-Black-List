@@ -46,14 +46,13 @@ def claim(key: str) -> bool:
     return first
 
 
-def copies_in(root: Path) -> list[int]:
-    """Other processes running this folder's copy of the app (runtime\\模仿者小工具.exe)."""
+def _processes() -> list[tuple[int, str]]:
+    """Every process: its id and its program's file name, as Windows lists them."""
     if sys.platform != "win32":
         return []
     import ctypes
     from ctypes import wintypes
 
-    wanted = {os.path.normcase(str((root / "runtime" / name).resolve())) for name in PROCESSES}
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 
     class Entry(ctypes.Structure):
@@ -71,36 +70,58 @@ def copies_in(root: Path) -> list[int]:
         ]
 
     kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
-    kernel32.OpenProcess.restype = wintypes.HANDLE
     kernel32.Process32FirstW.argtypes = (wintypes.HANDLE, ctypes.POINTER(Entry))
     kernel32.Process32NextW.argtypes = (wintypes.HANDLE, ctypes.POINTER(Entry))
-    kernel32.QueryFullProcessImageNameW.argtypes = (wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD))
     kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
-    names = {name.lower() for name in PROCESSES}
     snapshot = kernel32.CreateToolhelp32Snapshot(0x2, 0)  # TH32CS_SNAPPROCESS
     if not snapshot or snapshot == wintypes.HANDLE(-1).value:
         return []
-    found: list[int] = []
+    found: list[tuple[int, str]] = []
     try:
         entry = Entry()
         entry.dwSize = ctypes.sizeof(Entry)
         more = kernel32.Process32FirstW(snapshot, ctypes.byref(entry))
         while more:
-            pid = entry.th32ProcessID
-            if pid != os.getpid() and entry.szExeFile.lower() in names:
-                process = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
-                if process:
-                    try:
-                        size = wintypes.DWORD(1024)
-                        buffer = ctypes.create_unicode_buffer(size.value)
-                        if kernel32.QueryFullProcessImageNameW(process, 0, buffer, ctypes.byref(size)):
-                            if os.path.normcase(buffer.value) in wanted:
-                                found.append(pid)
-                    finally:
-                        kernel32.CloseHandle(process)
+            found.append((entry.th32ProcessID, entry.szExeFile))
             more = kernel32.Process32NextW(snapshot, ctypes.byref(entry))
     finally:
         kernel32.CloseHandle(snapshot)
+    return found
+
+
+def running(program: str) -> bool:
+    """Whether a program by this file name is running, such as livehime.exe."""
+    return any(name.lower() == program.lower() for _pid, name in _processes())
+
+
+def copies_in(root: Path) -> list[int]:
+    """Other processes running this folder's copy of the app (runtime\\模仿者小工具.exe)."""
+    if sys.platform != "win32":
+        return []
+    import ctypes
+    from ctypes import wintypes
+
+    wanted = {os.path.normcase(str((root / "runtime" / name).resolve())) for name in PROCESSES}
+    names = {name.lower() for name in PROCESSES}
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.QueryFullProcessImageNameW.argtypes = (wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD))
+    kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+    found: list[int] = []
+    for pid, name in _processes():
+        if pid == os.getpid() or name.lower() not in names:
+            continue
+        process = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not process:
+            continue
+        try:
+            size = wintypes.DWORD(1024)
+            buffer = ctypes.create_unicode_buffer(size.value)
+            if kernel32.QueryFullProcessImageNameW(process, 0, buffer, ctypes.byref(size)):
+                if os.path.normcase(buffer.value) in wanted:
+                    found.append(pid)
+        finally:
+            kernel32.CloseHandle(process)
     return found
 
 
