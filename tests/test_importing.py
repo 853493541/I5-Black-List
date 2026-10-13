@@ -191,3 +191,36 @@ def test_a_phrase_that_is_already_a_tag_is_offered_as_that_tag():
     assert suggest_tags([("甲", ("炸房",), "又炸房了", -1), ("乙", ("炸房",), "炸房狗", -1)], ("炸房",)) == []
     tagged = with_tags(rows, found)
     assert [r[1] for r in tagged] == [("演员",), ("演员",), ("演员",)]
+
+
+GAME_REASONS = [
+    ("甲", (), "好人帮狼炸房，跳银行", -1),
+    ("乙", (), "跳银行骗好人，中立还乱投票", -1),
+    ("丙", (), "侦探团里乱投票，一直报假身份", -1),
+    ("丁", (), "神秘客顾问，开会挂机", -1),
+    ("戊", (), "疯人院里挂机，开会不发言", -1),
+    ("己", (), "假跳侦探，银行家被他害死", -1),
+    ("庚", (), "假跳侦探带节奏，紧急会议乱说", -1),
+]
+
+
+def test_the_games_own_words_are_never_offered_as_tags():
+    """好人, 侦探团, 银行 and the like name what happened in the game, not what the player did."""
+    from blacklist_detect.importing import GAME_WORDS, is_game_word, suggest_tags
+
+    found = {s.tag for s in suggest_tags(GAME_REASONS, ("炸房", "挂机"))}
+    for word in ("好人", "银行", "银行家", "侦探", "侦探团", "中立", "神秘客", "顾问", "开会", "发言", "身份", "会议"):
+        assert word not in found, word
+    # What the player did still comes through, also when it holds a game word.
+    assert "乱投票" in found and "假跳侦探" in found and "跳银行" in found
+    # A piece of a game word is one too: 银行 from 银行家, 侦探 from 侦探团.
+    assert is_game_word("银行") and is_game_word("探团") and not is_game_word("送人头")
+    assert all(not is_game_word(tag) for tag in ("炸房", "贴脸", "挂机", "场外", "不尊重底牌", "演员", "送人头", "骂人"))
+    assert len(GAME_WORDS) == len(set(GAME_WORDS))
+
+
+def test_a_game_word_the_player_made_a_tag_is_still_offered():
+    from blacklist_detect.importing import suggest_tags
+
+    rows = [("甲", (), "又是好人", -1), ("乙", (), "全是好人", -1)]
+    assert [s.tag for s in suggest_tags(rows, ("好人",))] == ["好人"]

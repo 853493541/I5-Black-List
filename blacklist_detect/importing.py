@@ -398,6 +398,37 @@ _FILLER = {
     "知道", "不会", "不能", "可以", "真的", "感觉", "直接", "已经", "还有", "有点", "一样", "东西",
 }
 _EDGE = set("的了是就都也还在和我你他她它们很太又被把给着呢吧啊吗呀哦哈这那个一有")
+# The game's own words: sides, roles, places, phases. A 原因 names them to say what happened
+# (好人帮狼炸房, 跳银行), so many 原因 share them, but they say nothing about the player. Such a
+# word, or a piece of one (银行 from 银行家), is never offered as a 标签; a phrase that holds one
+# and says more (乱投票, 假跳侦探) still can be. From the 模仿者游戏模式 page of the BWIKI.
+GAME_WORDS: tuple[str, ...] = (
+    # Sides.
+    "侦探团", "侦探阵营", "模仿者", "神秘客", "中立", "好人", "坏人", "狼人", "平民",
+    # 侦探团.
+    "侦探", "哨兵", "治安官", "猎人", "香料师", "锁匠", "银行家", "修士", "演说家", "拳击手", "灵媒",
+    "学徒", "密探", "掮客", "药剂师", "巡林员", "执灯人", "评论家", "邮差", "牛仔", "昆虫学者",
+    # 模仿者.
+    "神偷", "千面人", "阴谋家", "烟火师", "怪盗", "催眠师", "地下医生", "处刑人", "指挥家",
+    # 神秘客.
+    "流浪汉", "送货员", "愚人", "棋手", "清洁工", "顾问", "降灵师", "导演",
+    # Maps and places.
+    "白沙街", "疯人院", "闪金石窟", "石窟", "庄园", "寝室", "祷告堂", "娱乐室", "电力室", "沐浴间", "餐厅",
+    "花园", "盥洗室", "杂物间", "监控室", "暗道门", "电梯房", "宴会厅", "主卧", "客卧", "书房", "厨房",
+    "花房", "起居室", "门廊", "回廊", "茶话室", "楼梯", "走廊", "办公区", "入户厅", "宿舍", "食堂",
+    "通讯室", "熔炉房", "采矿区", "废墟", "会议室",
+    # Phases and mechanics.
+    "紧急会议", "开会", "发言", "投票", "弃票", "淘汰", "出局", "查验", "任务", "演绎", "破译", "发电",
+    "电台", "监控", "密信", "货箱", "藏身柜", "摆钟", "吊灯", "迷雾", "复盘", "极速时刻", "落幕时刻",
+    "身份", "技能",
+    # This mode.
+    "模仿者游戏", "模仿者狂欢", "推演成功", "案件还原", "狂欢",
+)
+
+
+def is_game_word(phrase: str) -> bool:
+    """Whether a phrase is one of the game's own words, or a piece of one."""
+    return any(phrase in word for word in GAME_WORDS)
 _RUNS = re.compile(r"[\u4e00-\u9fff]+|[A-Za-z0-9]{2,}")
 
 
@@ -447,6 +478,9 @@ def suggest_tags(
         if len(where) < SUGGEST_MIN_ROWS or len(phrase) > _MAX_TAG:
             continue
         if phrase not in known and any(tag in phrase or phrase in tag for tag in known):
+            continue
+        # The game's own words are not 标签, unless the player made one of them a 标签 already.
+        if phrase not in known and is_game_word(phrase):
             continue
         lacking = {index for index in where if phrase not in (tag.lower() for tag in rows[index][1])}
         if len(lacking) >= SUGGEST_MIN_ROWS or (phrase in known and lacking):
