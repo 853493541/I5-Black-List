@@ -240,11 +240,36 @@ def window(tmp_path, monkeypatch):  # noqa: ANN001, ANN201
     made.close()
 
 
-def test_settings_have_no_update_controls(window):
-    from PySide6.QtWidgets import QLabel, QPushButton
+def test_update_can_be_checked_from_settings(window, tmp_path, monkeypatch):
+    """设置 › 帮助 › 关于: the version and 检查更新. The answer shows beside the button; a new version
+    installs as it would at start. There is still no 有新版本 pill in the header."""
+    from PySide6.QtWidgets import QPushButton
 
-    texts = [label.text() for label in window.findChildren(QLabel)] + [button.text() for button in window.findChildren(QPushButton)]
-    assert not any(text in ("更新", "检查更新", "有新版本", "有更新") for text in texts)
+    from blacklist_detect import __version__
+
+    assert window.version_label.text() == __version__
+    assert not any(button.text() in ("有新版本", "有更新") for button in window.findChildren(QPushButton))
+    # Run from source: nothing to update.
+    monkeypatch.setattr(updater, "app_root", lambda: None)
+    window.update_button.click()
+    assert window.update_note.text() == "源码运行时不能更新"
+    root = tmp_path / "BlackListDetect"
+    root.mkdir()
+    monkeypatch.setattr(updater, "app_root", lambda: root)
+    asked: list[int] = []
+    monkeypatch.setattr(window.updates, "check", lambda: asked.append(1) or True)
+    window.update_button.click()
+    assert asked == [1] and not window.update_button.isEnabled() and window.update_button.text() == "检查中…"
+    window.updates.latest.emit()
+    assert window.update_button.isEnabled() and window.update_button.text() == "检查更新"
+    assert window.update_note.text() == "已是最新版本"
+    window.update_button.click()
+    window.updates.failed.emit("网络不可用")
+    assert window.update_note.text() == "网络不可用"
+    # The check at start answers only in the log.
+    window.update_note.setText("")
+    window.updates.latest.emit()
+    assert window.update_note.text() == ""
 
 
 def test_a_new_version_found_at_start_is_installed_first(window, tmp_path, monkeypatch):

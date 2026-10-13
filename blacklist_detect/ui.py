@@ -435,8 +435,10 @@ class MainWindow(QMainWindow):
         # New versions from GitHub: checked when the app opens and installed before it is used.
         self.updates = UpdateChecker(self)
         self.updates.found.connect(self._on_update_found)
-        self.updates.latest.connect(lambda: log.info("Update check: %s is the newest.", __version__))
-        self.updates.failed.connect(lambda message: log.warning("Update check failed: %s", message))
+        self.updates.latest.connect(self._on_update_latest)
+        self.updates.failed.connect(self._on_update_failed)
+        # 检查更新 was pressed: its answer shows beside it. The check at start answers only in the log.
+        self._update_asked = False
         self._release: updater.Release | None = None
         self._updating = False
         if updater.app_root() is not None:
@@ -1007,7 +1009,7 @@ class MainWindow(QMainWindow):
         )
         self.close_mode.changed.connect(self._on_close_mode)
         general.add_row("关闭窗口时", self.close_mode)
-        self.disclaimer_button = QPushButton("查看")
+        self.disclaimer_button = QPushButton("使用声明")
         self.disclaimer_button.setFont(ui_font())
         self.disclaimer_button.setAutoDefault(False)
         self.disclaimer_button.setCursor(Qt.PointingHandCursor)
@@ -1052,7 +1054,17 @@ class MainWindow(QMainWindow):
         self.export_button.setToolTip("把日志存到桌面，发给帮你看问题的人。不含任何玩家名字")
         self.export_button.clicked.connect(self._export_logs)
         helping.add_row("日志", self.export_button)
-        helping.add_row("使用声明", self.disclaimer_button)
+        # 关于: this version, 检查更新 and 使用声明 in one row, so 设置 still fits on one screen.
+        self.version_label = QLabel(__version__)
+        self.update_button = QPushButton("检查更新")
+        self.update_button.setFont(ui_font())
+        self.update_button.setAutoDefault(False)
+        self.update_button.setCursor(Qt.PointingHandCursor)
+        self.update_button.clicked.connect(self._check_updates_now)
+        # What 检查更新 found, in gray after the buttons.
+        self.update_note = QLabel("")
+        self.update_note.setObjectName("rowHint")
+        helping.add_row("关于", self.version_label, self.update_button, self.disclaimer_button, self.update_note)
         # Starting over sits here too: one card fewer, so 设置 fits the window without scrolling.
         data = helping
         reset = QPushButton("清空数据")
@@ -3793,10 +3805,39 @@ class MainWindow(QMainWindow):
             return
         self.updates.check()
 
+    def _check_updates_now(self) -> None:
+        """检查更新: look now. A new version installs the way it does at start; otherwise the answer
+        shows beside the button."""
+        if updater.app_root() is None:
+            self.update_note.setText("源码运行时不能更新")
+            return
+        if self._updating or not self.updates.check():
+            return
+        self._update_asked = True
+        self.update_button.setEnabled(False)
+        self.update_button.setText("检查中…")
+        self.update_note.setText("")
+
+    def _update_answered(self, note: str) -> None:
+        self.update_button.setEnabled(True)
+        self.update_button.setText("检查更新")
+        if self._update_asked:
+            self.update_note.setText(note)
+        self._update_asked = False
+
+    def _on_update_latest(self) -> None:
+        log.info("Update check: %s is the newest.", __version__)
+        self._update_answered("已是最新版本")
+
+    def _on_update_failed(self, message: str) -> None:
+        log.warning("Update check failed: %s", message)
+        self._update_answered(message)
+
     def _on_update_found(self, release: updater.Release) -> None:
         """A new version is installed before the app is used: a dialog that stays until it is done,
         then a restart. In the tray it happens out of sight and the new version starts in the tray."""
         log.info("Update available: %s", release.version)
+        self._update_answered("")
         root = updater.app_root()
         if root is None or self._updating or self._closing:
             return
