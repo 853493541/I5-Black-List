@@ -68,9 +68,8 @@ def _on_screen(widget) -> bool:  # noqa: ANN001
 
 def test_the_choice_is_remembered_and_opens_the_window(window):
     from blacklist_detect.storage import Store
-    from blacklist_detect.ui_stream import TITLE
-
     from blacklist_detect.ui_dialogs import StreamGuideDialog
+    from blacklist_detect.ui_stream import TITLE
 
     assert not window.stream.enabled()
     # One switch; the window is clear behind the marks, so no 色度键 is needed.

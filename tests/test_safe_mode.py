@@ -1,4 +1,4 @@
-"""安全模式: a check on the hotkey, nothing over the game, the result in a box at the bottom right."""
+"""安全模式: a check on the hotkey, nothing marked on the game, the result in messages at the bottom right."""
 
 import pytest
 
@@ -7,7 +7,7 @@ pytest.importorskip("PySide6")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from blacklist_detect.pipeline import CheckResult, Hit, NameSlot  # noqa: E402
-from blacklist_detect.ui_notice import result_text  # noqa: E402
+from blacklist_detect.ui_notice import Message, result_messages  # noqa: E402
 
 
 @pytest.fixture
@@ -41,6 +41,13 @@ def _lobby():  # noqa: ANN202
     return button, names
 
 
+def _arrive(notice) -> None:  # noqa: ANN001
+    """Let the second message come in now, not a moment later."""
+    if notice._next.isActive():
+        notice._next.stop()
+        notice._enter_next()
+
+
 def _marks(window) -> list[str]:  # noqa: ANN001
     marks = {
         "panel": window.panel,
@@ -55,17 +62,21 @@ def _marks(window) -> list[str]:  # noqa: ANN001
 
 
 def test_the_words_for_each_result():
-    assert result_text([("坏人", ("炸房", "挂机")), ("乙", ())], ["小红"], 1) == (
-        "hit",
-        "发现 2 名黑名单玩家",
-        ["坏人　炸房、挂机", "乙", "心动：小红", "1 人未识别"],
-    )
-    assert result_text([], [], 0) == ("clear", "未发现黑名单", [])
-    assert result_text([], ["小红", "小明"], 0) == ("liked", "未发现黑名单", ["心动：小红、小明"])
+    """黑名单 and 心动 are two messages: what was found at the bottom, 心动 on its own card above."""
+    assert result_messages([("坏人", ("炸房", "挂机")), ("乙", ())], ["小红"], 1) == [
+        Message("hit", "发现 2 名黑名单玩家", "1 人未识别", (("坏人", ("炸房", "挂机")), ("乙", ()))),
+        Message("liked", "发现 1 名心动玩家", "", (("小红", ()),)),
+    ]
+    assert result_messages([], [], 0) == [Message("clear", "未发现黑名单")]
+    assert result_messages([], ["小红", "小明"], 0) == [
+        Message("clear", "未发现黑名单"),
+        Message("liked", "发现 2 名心动玩家", "", (("小红", ()), ("小明", ()))),
+    ]
     many = [(f"玩家{n}", ()) for n in range(7)]
-    kind, title, lines = result_text(many, [], 0)
-    assert title == "发现 7 名黑名单玩家"
-    assert lines == ["玩家0", "玩家1", "玩家2", "玩家3", "还有 3 人"]
+    (first,) = result_messages(many, [], 0)
+    assert first.title == "发现 7 名黑名单玩家"
+    assert [name for name, _tags in first.people] == ["玩家0", "玩家1", "玩家2", "玩家3"]
+    assert first.more == 3
 
 
 def test_the_empty_record_page_says_to_press_the_hotkey(window):
@@ -85,23 +96,34 @@ def test_a_hit_shows_in_the_corner_and_sounds_with_nothing_over_the_game(window)
     hit = Hit(0, "坏人", "坏人", "", False, "", ("炸房",))
     window._show_panel(CheckResult(True, "", names=names, hits=[hit, hit], button_box=button))
     assert _marks(window) == []
-    assert window.notice.isVisible()
-    assert window.notice.kind == "hit"
-    assert window.notice.title.text() == "发现 1 名黑名单玩家"
-    assert window.notice.lines.text() == "坏人　炸房\n心动：小红\n1 人未识别"
+    notice = window.notice
+    assert notice.isVisible()
+    assert notice.kind == "hit"
+    # The 黑名单 players on one card, in the colors of the card beside the button ...
+    assert notice.main.kind == "hit"
+    assert notice.main.title.text() == "发现 1 名黑名单玩家"
+    assert notice.main.note.text() == "1 人未识别"
+    assert notice.main.names() == ["坏人"]
+    # ... and 心动 on a card of its own, which comes a moment later, above it.
+    _arrive(notice)
+    assert notice.likes.isVisible() and notice.likes.kind == "liked"
+    assert notice.likes.title.text() == "发现 1 名心动玩家"
+    assert notice.likes.names() == ["小红"]
     assert window.sounds == [1]
-    # At the bottom right of the screen, above the taskbar.
+    # At the bottom right of the screen, above the taskbar; 心动 just above the other.
     area = QApplication.primaryScreen().availableGeometry()
-    box = window.notice.geometry()
-    assert area.contains(box)
+    box, above = notice.main.geometry(), notice.likes.geometry()
+    assert area.contains(box) and area.contains(above)
     assert area.right() - box.right() < 40 and area.bottom() - box.bottom() < 40
-    # It is a plain solid window that takes clicks: no see-through, no click-through.
+    assert above.bottom() < box.top() and above.right() == box.right()
+    # Plain solid windows that take clicks: no see-through, no click-through.
     from PySide6.QtCore import Qt
 
-    assert not window.notice.testAttribute(Qt.WA_TranslucentBackground)
-    assert not window.notice.testAttribute(Qt.WA_TransparentForMouseEvents)
-    assert window.notice.windowFlags() & Qt.WindowDoesNotAcceptFocus
-    assert window.notice._timer.interval() == 8_000
+    for card in notice.cards():
+        assert not card.testAttribute(Qt.WA_TranslucentBackground)
+        assert not card.testAttribute(Qt.WA_TransparentForMouseEvents)
+        assert card.windowFlags() & Qt.WindowDoesNotAcceptFocus
+    assert notice._timer.interval() == 8_000
 
 
 def test_a_clear_lobby_and_no_sound(window):
@@ -110,6 +132,8 @@ def test_a_clear_lobby_and_no_sound(window):
     window._show_panel(CheckResult(True, "", names=names, button_box=button))
     assert _marks(window) == []
     assert window.notice.kind == "clear"
+    _arrive(window.notice)
+    assert not window.notice.likes.isVisible()
     assert window.sounds == []
 
 
@@ -140,7 +164,40 @@ def test_a_failed_check_says_so_in_the_corner(window):
     window._rescan_active = True
     window._on_checked("err", RuntimeError("boom"))
     assert window.notice.kind == "error"
-    assert window.notice.title.text() == "检查失败"
+    assert window.notice.main.title.text() == "检查失败"
+
+
+def test_checking_turns_into_the_result_where_it_is(window):
+    """The hotkey's 检查中 is the message the result takes over: no second card at the bottom."""
+    notice = window.notice
+    notice.show_checking(QApplication.primaryScreen())
+    assert notice.main.kind == "checking" and notice.main.left is None
+    for rise in notice._rises.values():
+        rise.setCurrentTime(rise.duration())
+    bottom = notice.main.geometry().bottom()
+    window.store.add_like("小红")
+    button, names = _lobby()
+    window._live_check = True
+    window._show_panel(CheckResult(True, "", names=names, button_box=button))
+    assert notice.main.kind == "clear" and notice.main.geometry().bottom() == bottom
+    assert notice.main.left == 1.0
+    _arrive(notice)
+    assert notice.kind == "liked" and notice.likes.names() == ["小红"]
+
+
+def test_the_pointer_over_a_message_holds_it(window):
+    notice = window.notice
+    notice.show_result([("坏人", ())], ["小红"], 0, None)
+    _arrive(notice)
+    notice.likes.hovered.emit(True)
+    assert not notice._timer.isActive()
+    held = notice._remaining()
+    notice.likes.hovered.emit(False)
+    assert notice.isVisible() and notice._timer.isActive()
+    assert notice._timer.interval() == held
+    # A click on either message puts both away.
+    notice.likes.clicked.emit()
+    assert not notice.main.isVisible() and not notice.likes.isVisible()
 
 
 def test_a_click_puts_it_away(window):
@@ -151,7 +208,7 @@ def test_a_click_puts_it_away(window):
 
     point = QPointF(5, 5)
     event = QMouseEvent(QMouseEvent.Type.MouseButtonPress, point, point, Qt.LeftButton, Qt.LeftButton, Qt.NoModifier)
-    window.notice.mousePressEvent(event)
+    window.notice.main.mousePressEvent(event)
     assert not window.notice.isVisible()
 
 
@@ -229,7 +286,8 @@ def test_both_lists_are_always_checked(window):
     window._live_check = True
     window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
     assert window.notice.kind == "hit"
-    assert "心动" in window.notice.lines.text()
+    _arrive(window.notice)
+    assert window.notice.likes.names() == ["小红"]
     assert not hasattr(window, "remind_blacklist")
 
 

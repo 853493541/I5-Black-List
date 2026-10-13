@@ -81,10 +81,10 @@ from blacklist_detect.ui_dialogs import (
     AddNameDialog,
     BatchAddDialog,
     DisclaimerDialog,
+    DisplayGuideDialog,
     GuideDialog,
     PictureResultDialog,
     StreamGuideDialog,
-    DisplayGuideDialog,
     TagSuggestDialog,
     _confirm,
 )
@@ -399,7 +399,7 @@ class MainWindow(QMainWindow):
         self._love_played = False
         # 黑名单 players in the lobby: a red glow at the screen's edges while the result is up.
         self.alert = AlertGlow()
-        # 安全模式: the result in a small box at the bottom right instead of over the game.
+        # 安全模式: the result in messages at the bottom right of the screen instead of over the game.
         self.notice = CornerNotice()
         self._notice_screen = None
         # 直播模式: the marks, never a 黑名单 name, in a window a streaming app can capture.
@@ -904,7 +904,7 @@ class MainWindow(QMainWindow):
         self.display_mode.setAccessibleName("显示")
         self.safe_on = self.display_mode.buttons["safe"]
         self.full_on = self.display_mode.buttons["full"]
-        self.safe_on.setToolTip("结果显示在屏幕右下角，游戏画面上不显示任何内容")
+        self.safe_on.setToolTip("结果以消息显示在屏幕右下角，不在游戏画面上做标记")
         self.full_on.setToolTip("结果直接显示在游戏画面上")
         self.display_mode.changed.connect(self._on_display_mode)
         # ⓘ: the two, side by side, in pictures.
@@ -3347,7 +3347,8 @@ class MainWindow(QMainWindow):
         return list(result.hits)
 
     def _show_notice(self, result: CheckResult) -> None:
-        """安全模式: who is in the lobby, in the box at the bottom right of the game's screen."""
+        """安全模式: who is in the lobby, in messages at the bottom right of the screen the game is on,
+        above the taskbar: the corner of the screen, never the corner of a windowed game."""
         people: list[tuple[str, tuple[str, ...]]] = []
         for hit in self._hits_in(result):
             person = (hit.entry_name, tuple(hit.tags))

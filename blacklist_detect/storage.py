@@ -389,8 +389,8 @@ class Store:
         self.env_checked = ""
         # × hides the window to the tray (the app keeps checking), or quits.
         self.close_to_tray = True
-        # 显示: 安全模式 draws nothing over the game, the result shows in a small box at the bottom
-        # right; 完整模式 (False) draws the marks over it. On unless turned off, also for old settings.
+        # 显示: 安全模式 marks nothing on the game, the result comes as messages at the bottom right
+        # of the screen; 完整模式 (False) draws the marks over it. On unless turned off, also for old settings.
         self.safe_mode = True
         # 提示音: the system warning sound when a 黑名单 player is found.
         self.hit_sound = True
