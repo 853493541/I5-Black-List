@@ -46,6 +46,16 @@ from blacklist_detect.capture import (
     lock_foreground,
     virtual_origin,
 )
+from blacklist_detect.diagnostics import (
+    CpuWindow,
+    SpeedResult,
+    export_logs,
+    machine_line,
+    power_note,
+    run_speed_test,
+    screens_line,
+    summary_text,
+)
 from blacklist_detect.game_area import exclusive_fullscreen, window_order, window_rect_at
 from blacklist_detect.hotkey import GlobalHotkey, parse_hotkey
 from blacklist_detect.importing import suggest_tags, with_tags
@@ -234,6 +244,10 @@ def run_app(background: bool = False) -> int:
 
         QMessageBox.critical(None, APP_NAME, "无法启动，请重新解压完整的安装包后再试")
         return 1
+    try:
+        log.info("Computer: %s; screens %s", machine_line(), screens_line())
+    except Exception:  # noqa: BLE001 - the summary must never stop the app
+        log.info("Computer: unknown")
     if mark_running():
         log.warning("The last run ended without closing: it was ended from outside (Task Manager, a tool, or a power loss).")
     window.instance_server = listen_for_instances(key, window._show_from_tray, window.quit_app)
@@ -432,6 +446,10 @@ class MainWindow(QMainWindow):
         self._manual_check = False
         # When the hotkey was pressed, to log how long its check took from the player's side.
         self._pressed_at: float | None = None
+        # When the recognition last ran: a model idle for a while reads its first lobby slower.
+        self._last_ocr_at: float | None = None
+        self._cpu: CpuWindow | None = None
+        self._speed: SpeedResult | None = None
         self._problem = ""
         self._glance_pause_until = 0.0
         self._warm_started: float | None = None
@@ -974,7 +992,6 @@ class MainWindow(QMainWindow):
         self.disclaimer_button.setAutoDefault(False)
         self.disclaimer_button.setCursor(Qt.PointingHandCursor)
         self.disclaimer_button.clicked.connect(self._show_disclaimer)
-        general.add_row("使用声明", self.disclaimer_button)
 
         # 外观: how the window looks.
         look = section("外观")
@@ -997,7 +1014,27 @@ class MainWindow(QMainWindow):
         look.add_row("主题色", swatch_host)
 
         # 数据: starting over.
-        data = section("数据")
+        # 帮助: when something is wrong, what a friend can do and send.
+        helping = section("帮助")
+        self.speed_button = QPushButton("测试")
+        self.speed_button.setFont(ui_font())
+        self.speed_button.setAutoDefault(False)
+        self.speed_button.setCursor(Qt.PointingHandCursor)
+        self.speed_button.setToolTip("用示例截图测一下这台电脑检查一次要多久")
+        self.speed_button.clicked.connect(self._start_speed_test)
+        self.speed_result = QLabel("")
+        self.speed_result.setObjectName("rowHint")
+        helping.add_row("检查速度", self.speed_button, self.speed_result)
+        self.export_button = QPushButton("导出")
+        self.export_button.setFont(ui_font())
+        self.export_button.setAutoDefault(False)
+        self.export_button.setCursor(Qt.PointingHandCursor)
+        self.export_button.setToolTip("把日志存到桌面，发给帮你看问题的人。不含任何玩家名字")
+        self.export_button.clicked.connect(self._export_logs)
+        helping.add_row("日志", self.export_button)
+        helping.add_row("使用声明", self.disclaimer_button)
+        # Starting over sits here too: one card fewer, so 设置 fits the window without scrolling.
+        data = helping
         reset = QPushButton("清空数据")
         reset.setObjectName("danger")
         reset.setFont(ui_font())
@@ -2763,6 +2800,7 @@ class MainWindow(QMainWindow):
     def check_now(self) -> None:
         log.info("Hotkey: checking.")
         self._pressed_at = time.perf_counter()
+        self._cpu = CpuWindow()
         self._release_foreground = True
         self._rescan_active = False
         lock_foreground(True)
@@ -2812,6 +2850,43 @@ class MainWindow(QMainWindow):
 
     def _show_disclaimer(self) -> None:
         DisclaimerDialog(self, asking=False).exec()
+
+    def _start_speed_test(self) -> None:
+        """检查速度: the screen copied once and the sample lobby read three times, on the worker."""
+        if not self.worker.request(lambda: run_speed_test(SAMPLE_LOBBY), kind="speedtest"):
+            self.speed_result.setText("正在识别，请稍后再试")
+            return
+        log.info("Speed test started.")
+        self._speed_started_cpu = CpuWindow()
+        self.speed_button.setEnabled(False)
+        self.speed_result.setText("正在测试，大约 10 秒…")
+
+    def _on_speed_test(self, status: str, value) -> None:  # noqa: ANN001
+        self.speed_button.setEnabled(True)
+        load = self._speed_started_cpu.stop() if getattr(self, "_speed_started_cpu", None) else ""
+        if status != "ok":
+            log.warning("Speed test could not run: %s", value)
+            self.speed_result.setText(_plain_error(value, "无法测试，请稍后再试"))
+            return
+        self._speed = value
+        log.info("Speed test: %.2f s (%s); %s%s", value.typical(), value.verdict(), value.line(), f"; {load}" if load else "")
+        self.speed_result.setText(f"检查一次约 {value.typical():.1f} 秒，{value.verdict()}")
+
+    def _export_logs(self) -> None:
+        """日志: the logs and a summary of this computer in one zip on the Desktop, shown in Explorer."""
+        try:
+            summary = summary_text(self.store, self._speed, inference_device())
+            target = export_logs(self.store.root, summary)
+        except OSError as exc:
+            log.warning("Logs could not be exported: %s", exc)
+            self._say("无法导出日志，请检查桌面是否可写")
+            return
+        log.info("Logs exported.")
+        self._say(f"已存到桌面：{target.name}")
+        if sys.platform == "win32":
+            import subprocess
+
+            subprocess.Popen(["explorer", "/select,", str(target)])
 
     def _on_stream_switch(self, on: bool) -> None:
         """The switch: the first time it is turned on, how to set it up comes with it."""
@@ -3027,6 +3102,7 @@ class MainWindow(QMainWindow):
 
     def _capture_job(self) -> CheckResult:
         started = time.perf_counter()
+        pressed, last = self._pressed_at, self._last_ocr_at
         windows = window_order()
         frames = capture_displays()
         captured = time.perf_counter() - started
@@ -3034,6 +3110,11 @@ class MainWindow(QMainWindow):
         result.timings["capture"] = captured
         result.windows = windows
         result.timings["screens"] = len(frames)
+        if pressed is not None:
+            # From the hotkey to this job starting: the app was busy, or the computer was.
+            result.timings["wait"] = started - pressed
+        if last is not None:
+            result.timings["idle"] = started - last
         return result
 
     def _timing_note(self, result: CheckResult) -> str:
@@ -3044,6 +3125,13 @@ class MainWindow(QMainWindow):
             note += f", {int(steps['screens'])} screens"
         if self._pressed_at is not None:
             note += f"; {time.perf_counter() - self._pressed_at:.2f} s since the hotkey"
+        if steps.get("wait", 0) >= 0.2:
+            note += f", started {steps['wait']:.2f} s after it"
+        if "idle" in steps and steps["idle"] >= 60:
+            note += f"; recognition idle {steps['idle'] / 60:.0f} min before"
+        extra = [part for part in ((self._cpu.stop() if self._cpu else ""), power_note()) if part]
+        if extra:
+            note += "; " + ", ".join(extra)
         return note
 
     def _glance_job(self) -> bool:
@@ -3097,6 +3185,8 @@ class MainWindow(QMainWindow):
     def _on_worker(self, payload) -> None:
         job, status, value = payload
         self.worker.running_job = False
+        if job != "glance":
+            self._last_ocr_at = time.perf_counter()
         if self._closing:
             return
         if job == "warmup":
@@ -3110,6 +3200,9 @@ class MainWindow(QMainWindow):
             return
         if job == "envcheck":
             self._on_env_sample(status, value)
+            return
+        if job == "speedtest":
+            self._on_speed_test(status, value)
             return
         self._on_checked(status, value)
 

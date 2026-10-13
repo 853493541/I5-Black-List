@@ -1601,7 +1601,7 @@ def test_settings_are_grouped_into_titled_cards(qapp, tmp_path, monkeypatch):
     window._watch_timer.stop()
     sections = window.findChildren(SettingsSection)
     titles = [section.findChild(QLabel, "sectionTitle").text() for section in sections]
-    assert titles == ["检查", "常规", "外观", "数据"]
+    assert titles == ["检查", "常规", "外观", "帮助"]
     # 角色名称 and 标签 moved to 黑名单.
     settings_page = window.tabs.widget(window.settings_tab)
     shown = [label.text() for label in settings_page.findChildren(QLabel)]
