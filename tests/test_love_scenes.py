@@ -1,4 +1,4 @@
-"""心动特效: the eight scenes, choosing one or a random one, and the picker with its preview."""
+"""心动特效: the scenes, choosing one or a random one, and the picker with its preview."""
 
 import random
 
@@ -71,7 +71,7 @@ def test_choosing_one_random_or_none():
     assert set(picks) == set(KEYS)
     assert all(a != b for a, b in zip(picks, picks[1:], strict=False))
     # 命运红线 and 雪纺 are gone: a player who had one, or a key from another version, gets 经典花边.
-    assert "thread" not in KEYS and "chiffon" not in KEYS and len(KEYS) == 8
+    assert "thread" not in KEYS and "chiffon" not in KEYS and len(KEYS) == 11
     assert choose("thread", "", rng) == "classic" and choose("chiffon", "", rng) == "classic"
     assert choose("disco", "", rng) == "classic"
 

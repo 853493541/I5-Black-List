@@ -30,6 +30,9 @@ SCENES: tuple[tuple[str, str], ...] = (
     ("cranes", "纸鹤晚霞"),
     ("butterfly", "蝶梦"),
     ("champagne", "香槟"),
+    ("cyber", "赛博"),
+    ("angel", "天使"),
+    ("equation", "数学"),
 )
 KEYS = tuple(key for key, _name in SCENES)
 # The design size the scenes were drawn at.

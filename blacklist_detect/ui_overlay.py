@@ -253,6 +253,48 @@ LOOKS: dict[str, LoveLook] = {
         deep="#c98a1c",
         deep_glow=(240, 190, 90),
     ),
+    # 赛博闪电: neon magenta and cyan on a violet night.
+    "cyber": LoveLook(
+        glow=(255, 60, 214),
+        rim="#21f6ff",
+        band=("#ff2bd6", "#21f6ff"),
+        card=("#1a0b3d", "#0d0624"),
+        edge="#21f6ff",
+        ink="#e9fdff",
+        flowers=(("#fff0fb", "#ff7fe6", "#ff2bd6"), ("#effeff", "#7ff9ff", "#14b8d6")),
+        disc=("#2a0f5c", "#12062e"),
+        heart=("#ff7fe6", "#d4149f"),
+        deep="#d4149f",
+        deep_glow=(255, 60, 210),
+    ),
+    # 天使光辉: white light and soft gold.
+    "angel": LoveLook(
+        glow=(255, 226, 150),
+        rim="#f3d58a",
+        band=("#fff3c4", "#f6d68a"),
+        card=("#fffdf6", "#fbefd2"),
+        edge="#e2c27a",
+        ink="#7a5a1a",
+        flowers=(("#ffffff", "#fff1cc", "#e9c46a"), ("#fffaf0", "#f3e6ff", "#cdb8f0")),
+        disc=("#fffdf6", "#f6e3b0"),
+        heart=("#ffe7a3", "#d9a441"),
+        deep="#c9962a",
+        deep_glow=(245, 205, 110),
+    ),
+    # 数学之心: a blueprint night, chalk-blue lines and a pink heart.
+    "equation": LoveLook(
+        glow=(127, 216, 255),
+        rim="#7fd8ff",
+        band=("#7fd8ff", "#ff7fb0"),
+        card=("#0f2440", "#081629"),
+        edge="#5fb8e6",
+        ink="#eaf6ff",
+        flowers=(("#f2fbff", "#9fe1ff", "#3fa9e0"), ("#fff0f6", "#ff9fc4", "#e0507f")),
+        disc=("#13304f", "#0a1a30"),
+        heart=("#ff9fc4", "#e0507f"),
+        deep="#e0507f",
+        deep_glow=(255, 110, 160),
+    ),
 }
 
 
