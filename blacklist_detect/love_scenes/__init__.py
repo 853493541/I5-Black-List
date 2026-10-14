@@ -60,7 +60,6 @@ SCENES: tuple[tuple[str, str], ...] = (
     ("cyber", "赛博"),
     ("neon", "霓虹都市"),
     ("angel", "天使"),
-    ("cathedral", "大教堂"),
     ("equation", "数学"),
     ("fluffy", "毛茸茸"),
 )

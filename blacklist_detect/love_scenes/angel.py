@@ -1,44 +1,52 @@
-"""天使: a gold halo round the title and two soft golden cat paws raised beside it, in golden light.
+"""天使: a gilded cathedral frame that draws itself round the lobby, and a
+round window of golden light.
 
-Warm gold light washes in at the top and down the sides. A halo of molten gold comes down to float
-just above the title 推演成功, and golden rays stream down from it, slowly sweeping and breathing,
-faint over the names. Two forelegs pop up from behind the title in a burst of light, their paws
-raised either side of the halo: chubby paws of soft golden fur shaded per pixel, lit from the halo
-and rimmed gold, palms to the front with glossy pink beans. They wave by turns, glints flaring on
-their beans, and fade to a whisper behind the title's lines and leave its words clear. Gold dust
-sifts down from them; glowing golden clouds drift in the two top corners, gold feathers drift down
-the two sides, gold motes rise from the bottom corners. At the end the halo and the paws rise into
-the light and it all fades.
+Candlelight warms the screen's edges and pools in the two bottom corners, flickering. From the top
+corners gold tracery draws itself, a hot pen of light running ahead of each line: a gilt molding (a
+rule, a row of beads and a fine rule) along the top and down both sides, with a quatrefoil boss on
+each corner and a pendant trefoil at each end, and under it over the title a frieze of little
+pointed arches whose two halves meet in a quatrefoil above its middle with a burst of light. In the
+top left a great cusped arch sweeps from the top edge down to the side, holding a round window of
+quatrefoil tracery, trefoils and filigree scrolls that curl as they grow. In the top right a round
+window draws its gold tracery from the middle out, an angel with its wings spread and a halo over
+its head, then its glass lights up from the middle: the angel in pale glowing glass on rays of
+honey and amber, wavering like candlelight; it throws slow shafts of light down toward the lobby,
+dust turning in them. The gold is
+shaded per pixel, raised and lit from the upper left; once it is all drawn, glints run along it.
+Gold-leaf feathers fall down the sides, flashing as they turn, and motes rise from the candlelight.
+At the end it all fades.
 
-The marks are gilded too, and keep moving: the ring is a band of polished gold round 准备案件还原,
-soft rays of light shimmering beyond it and a glint running round it; the badge a gold halo disc,
-its field finely engraved, a raised star in its middle and rays turning round it; the card ivory
-paper in a gilt frame with filigree scrolls in its corners and a little gilded paw print under a
-halo on its top edge, a sheen passing over the gold now and then; a tiny gold feather before each name.
+Its marks are of the same gold: the ring is a gilded frame on 准备案件还原, with quatrefoils at its
+corners, a little pointed crest and filigree, glints running round it; the badge is a gold rosette of
+twelve foils and eight petals round a honey glass boss; the card is a window of pale golden glass
+leaded in diamonds, under an ogee arch with a star on its tip, in a gold frame, with a gold
+four-point star before each name.
 """
 
 from __future__ import annotations
 
 import math
 import random
-from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QImage, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap, QRadialGradient, QTransform
+from PySide6.QtGui import QBrush, QColor, QImage, QPainter, QPainterPath, QPen, QPixmap, QPolygonF, QRadialGradient, QTransform
 
 from blacklist_detect.love_scenes.draw import (
     Wash,
+    catmull,
     clamp,
     col,
-    ease_back,
     ease_in,
     ease_in_out,
     ease_out,
     gradient,
-    mix,
-    soft_dot,
+    lengths,
+    point_at,
+    polyline,
+    quad,
     star,
     win,
 )
@@ -48,156 +56,634 @@ if TYPE_CHECKING:
     from blacklist_detect.love_scenes import Stage
 
 DURATION = 5.0
-# Soft light throughout: drawn at one pixel per point and scaled up on a sharper screen; the paws,
-# with their fine fur, and the halo are drawn on top at the screen's own sharpness.
-MAX_RATIO = 1.0
-IVORY = "#fffaf0"
-HONEY = "#ffd98a"
-GOLD = "#f2c14e"
-GOLD_PALE = "#fff0bf"
-AMBER = "#e9a23b"
 LOOK = {
-    "glow": (255, 200, 90),
-    "rim": "#f5cf6a",
-    "band": ("#ffe9a8", "#e6b04a"),
-    "card": (IVORY, "#f7e8c6"),
-    "edge": "#d4a440",
-    "ink": "#64410c",
-    "flowers": (("#fff8e0", "#f6d68a", "#d9a441"), ("#fffaf0", "#ffe9b0", "#c9962a")),
-    "disc": ("#fff7dc", "#e9bf5c"),
-    "heart": ("#ffe39a", "#c98a1f"),
-    "deep": "#c98a1f",
-    "deep_glow": (245, 190, 80),
+    "glow": (255, 208, 120),
+    "rim": "#e9bd5c",
+    "band": ("#fff1c4", "#d9a441"),
+    "card": ("#fff0c4", "#f4cf7c"),
+    "edge": "#c8952e",
+    "ink": "#3a2206",
+    "flowers": (("#fffbea", "#f5d47e", "#c8922e"), ("#fff3d0", "#ffd98a", "#b07a22")),
+    "disc": ("#fff3d0", "#e9bd5c"),
+    "heart": ("#ffe08a", "#c8922e"),
+    "deep": "#b8862b",
+    "deep_glow": (240, 190, 90),
 }
 MARKS_ANIMATED = True
-# Room above the card for its little gilded paw print, and the names' margins inside its gilt frame.
-CARD_TOP = 18
-CARD_PAD = (14, 10, 14, 9)
-# The marks' windows reach this far past the cover and the badge (the glow room the app gives them).
-ROOM = 9
-# Polished gold from its darkest hollow to the light it catches: brown, amber, gold, pale gold, white.
-RAMP = (
-    (0.0, "#2a1703"),
-    (0.25, "#6e420b"),
-    (0.5, "#b97d1c"),
-    (0.68, "#e3ab3c"),
-    (0.82, "#f6cf68"),
-    (0.93, "#ffeaa6"),
-    (1.0, "#fffbee"),
-)
-# Rays, clouds and the paws' mask are soft: worked out at this share of the size and laid on scaled up.
+# The card's pointed arch and the star on its tip stand in this room above the names.
+CARD_TOP = 30
+CARD_PAD = (15, 5, 15, 10)
+
+HONEY = "#ffd98a"
+EMBER = "#ffb24a"
+# Gold from its shade to its shine: tone 0..1 picks a color along it.
+RAMP = ((0.0, "#2e1a04"), (0.2, "#6b4410"), (0.42, "#a8721e"), (0.6, "#d6a240"), (0.76, "#f2cf76"), (0.9, "#fff0b8"), (1.0, "#fffbec"))
+# How fast the tracery spreads from where it starts, and how fast each line draws, in design points a second.
+SPREAD = 560.0
+DRAW = 620.0
+# The round window's shafts of light are soft: worked out at this share of the size and laid on scaled up.
 SOFT = 0.25
-# Feather shapes: width (share of length), the leading vane's share of it, how far the shaft bends
-# (share of length), how much of the base is down.
-KINDS = {
-    "loose": (0.34, 0.42, 0.09, 0.3),
-}
-# The toes round the top of a paw's palm, as angles from its middle (degrees, counterclockwise from the right).
-TOES = (152, 113, 67, 28)
-# Soft golden fur from the shade the light misses to where it catches it.
-FUR = (
-    (0.0, "#8a5a1c"),
-    (0.42, "#d29a46"),
-    (0.66, "#f3d391"),
-    (0.86, "#ffefcc"),
-    (1.0, "#fffaf0"),
-)
-# Pictures made once and kept: feathers, and the marks for each size and sharpness they are shown at.
-_SPRITES: dict[tuple[str, int], tuple[QImage, float]] = {}
-_MARKS: dict[tuple, tuple] = {}
+
+
+@dataclass
+class _Line:
+    """A line of the tracery: its points, how thick it is (in units), when it starts drawing and how long
+    that takes."""
+
+    points: list[QPointF]
+    width: float
+    start: float
+    span: float
+    # A row of beads this far apart (in units), each width across, instead of a solid line.
+    beads: float = 0.0
+    path: QPainterPath = field(init=False)
+    run: list[float] = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.path = polyline(self.points)
+        self.run = lengths(self.points)
 
 
 def make(stage: Stage):  # noqa: ANN201
     width, height, gap = stage.width, stage.height, stage.gap
     u = stage.unit()
-    rnd = random.Random(29)
-    halo_at = QPointF(width * 0.53, height * 0.04)
-    # Two forelegs come up from behind the title, either side of its middle, their paws raised beside
-    # the halo: where each leg starts and where its paw's middle is, the right one first.
-    axis = width * 0.525
-    paw = min(width * 0.105, height * 0.2)
-    roots = (QPointF(axis + width * 0.16, height * 0.235), QPointF(axis - width * 0.16, height * 0.235))
-    raised = (QPointF(axis + width * 0.225, height * 0.11), QPointF(axis - width * 0.225, height * 0.11))
-    band = QRectF(0, 0, width, height * 0.36)
-    cut = _crest_mask(band, width, height, u)
-    heaven = Wash(lambda q, w, h: _heaven(q, w, h, u))
-    rays = (_ray_layer(width, height, halo_at, 3, u), _ray_layer(width, height, halo_at, 8, u))
-    shade = _ray_mask(width, height, gap, u)
-    clouds = _clouds(width, height, u)
-    sprites = _SPRITES
-    # The paw, drawn once for the sharpness it is shown at.
-    paws: dict[float, tuple[QRectF, QImage]] = {}
-    halos: dict[int, QImage] = {}
+    rnd = random.Random(31)
+    lines, rose, regions = _cathedral(width, height, u)
+    ends = max(line.start + line.span for line in lines)
+    # The top rules meet over the title's middle, at the keystone.
+    meet, keystone = 0.12 + (width / 2 - 10 * u) / (DRAW * u), QPointF(width / 2, 40 * u)
+    warmth = Wash(lambda q, w, h: _warmth(q, w, h, u))
+    # The longest lines carry the glints once everything is drawn.
+    tracks = sorted(lines, key=lambda line: -line.run[-1])[:10]
+    glints = [(2.0 + 0.27 * i + rnd.uniform(0, 0.15), tracks[i % len(tracks)], rnd.uniform(0.9, 1.4), rnd.random() < 0.5) for i in range(9)]
     falling = [
         (
-            rnd.uniform(0.5, 3.2),
-            (rnd.uniform(0.03, 0.1) if i % 2 else rnd.uniform(0.962, 0.982)) * width,
-            rnd.uniform(-0.06, 0.45) * height,
-            rnd.uniform(30, 52) * u,
-            rnd.uniform(40, 56) * u,
+            rnd.uniform(0.6, 3.0),
+            (rnd.uniform(0.025, 0.1) if i % 2 else rnd.uniform(0.958, 0.985)) * width,
+            rnd.uniform(0.18, 0.55) * height,
+            rnd.uniform(34, 52) * u,
+            rnd.uniform(50, 66) * u,
             rnd.uniform(0, 6.28),
-            rnd.uniform(1.2, 2.2),
+            rnd.uniform(1.1, 1.9),
         )
-        for i in range(12)
+        for i in range(10)
     ]
-    motes = [
-        (
-            rnd.uniform(0.3, 4.0),
-            (rnd.uniform(0.0, 0.11) if i % 2 else rnd.uniform(0.93, 1.0)) * width,
-            height * rnd.uniform(0.82, 1.02),
-            rnd.uniform(45, 105) * u,
-            rnd.uniform(1.4, 3.2) * u,
-            rnd.uniform(0, 6.28),
-        )
+    rising = [
+        (rnd.uniform(0.2, 4.0), (rnd.uniform(0.0, 0.13) if i % 2 else rnd.uniform(0.9, 1.0)) * width, height * rnd.uniform(0.86, 1.02),
+         rnd.uniform(40, 90) * u, rnd.uniform(1.3, 2.8) * u, rnd.uniform(0, 6.28))
         for i in range(36)
+    ]  # fmt: skip
+    center, radius = rose
+    dust = [
+        (rnd.uniform(1.6, 3.4), rnd.uniform(0.35, 1.0), rnd.uniform(1.95, 2.9), rnd.uniform(0.35, 0.95), rnd.uniform(1.0, 2.2) * u, rnd.uniform(0, 6.28))
+        for _ in range(20)
     ]
-    dust = _dust(raised, paw, u, rnd)
-    glints = _glint_spots(rnd)
-    sparkles = _sparkle_spots(width, height, gap, u, rnd)
-    # Glints the burst throws out toward the paws, either way and a little up.
-    burst = [
-        (rnd.choice((0.0, math.pi)) + rnd.uniform(-0.45, 0.12) * (1 if i % 2 else -1), rnd.uniform(160, 460) * u, rnd.uniform(0.7, 1.2))
-        for i in range(22)
-    ]
+    spark = _spark()
+    # The pictures, made for each sharpness they are shown at, each a little before it is wanted: one
+    # a frame, so no frame waits long, and at once whatever is wanted already.
+    baked: dict[float, tuple[_Gilding, dict, list]] = {}
 
-    def crest(p: QPainter, t: float) -> None:
-        p.save()
-        p.setOpacity(p.opacity() * win(t, 0.0, 0.3))
-        _crest(p, t, halo_at, roots, raised, paw, band, cut, u, paws, halos, burst, glints)
-        p.restore()
+    def bake(scale: float) -> tuple[_Gilding, dict]:
+        if scale not in baked:
+            baked.clear()
+            gilding = _Gilding(lines, regions, scale, u)
+            jobs = [(need, f"area{k}", lambda k=k: gilding.build(k)) for k, need in enumerate(gilding.need)]
+            jobs += [
+                (0.5, "feather", lambda: _feather(max(16, math.ceil(66 * u * scale / 8) * 8))),
+                (1.05, "glass", lambda: _rose_glass(center, radius, scale, u)),
+                (1.5, "shafts", lambda: _shafts(width, height, gap, rose, u)),
+            ]
+            baked[scale] = (gilding, {}, sorted(jobs, key=lambda job: job[0]))
+        return baked[scale][:2]
 
-    def paint(p: QPainter, t: float, sharp: bool = True) -> None:
+    def prepare(scale: float, t: float) -> None:
+        _gilding, art, jobs = baked[scale]
+        ran = False
+        while jobs and (jobs[0][0] <= t + 0.05 or not ran):
+            _need, name, job = jobs.pop(0)
+            art[name] = job()
+            ran = True
+
+    def paint(p: QPainter, t: float) -> None:
+        scale = _sharpness(p)
+        gilding, art = bake(scale)
+        prepare(scale, t)
+        gilding.advance(t)
+        shafts, glass, feather = art.get("shafts"), art.get("glass"), art.get("feather")
         life = win(t, 0.0, 0.3)
-        leave = ease_in(win(t, 4.2, 5.0))
-        flash = _burst(t)
+        leave = ease_in(win(t, 4.3, 5.0))
+        flicker = _flicker(t, 0)
         p.save()
         p.setOpacity(life)
-        heaven.paint(p, width, height, gap, ease_out(win(t, 0.0, 0.9)) * (1 - leave) * (0.85 + 0.25 * flash))
-        _rays(p, t, rays, shade, halo_at, width, height, (1 - leave) * ease_out(win(t, 0.3, 1.3)), flash)
-        _cloud_paint(p, t, clouds, u, (1 - leave) * ease_out(win(t, 0.0, 1.0)), leave)
-        _falling(p, t, falling, sprites, u, 1 - leave)
-        _motes(p, t, motes, u, 1 - leave)
-        _sparkles(p, t, sparkles, u, 1 - leave)
-        _dust_paint(p, t, dust, height, u, 1 - leave)
+        warmth.paint(p, width, height, gap, ease_out(win(t, 0.0, 0.9)) * (1 - leave) * (0.86 + 0.14 * flicker))
+        _candles(p, t, width, height, u, (1 - leave) * ease_out(win(t, 0.0, 1.2)))
+        lit = ease_out(win(t, 1.15, 2.05))
+        if shafts is not None:
+            _shaft_paint(p, t, shafts, width, height, (1 - leave) * ease_out(win(t, 1.6, 2.7)))
+        _dust(p, t, dust, center, radius, spark, u, (1 - leave) * lit)
+        if glass is not None:
+            _rose(p, t, glass, center, radius, lit, 1 - ease_in(win(t, 4.1, 4.85)), u, spark)
+        _tracery(p, t, gilding, ends, 1 - leave, flicker)
+        _pens(p, t, lines, spark, u, 1 - leave)
+        _flare(p, t, keystone, meet, spark, u)
+        _glints(p, t, glints, spark, u, 1 - leave)
+        if feather is not None:
+            _feathers(p, t, falling, feather, 1 - leave)
+        _motes(p, t, rising, spark, u, 1 - leave)
         p.restore()
-        if sharp:
-            crest(p, t)
 
-    paint.sharp = crest
     return paint
 
 
-def _burst(t: float) -> float:
-    """The light that bursts as the paws come up: quick to come, slow to go."""
-    return ease_out(win(t, 0.95, 1.2)) * (1 - ease_in_out(win(t, 1.2, 2.1)))
+# The tracery: where its lines are and when each draws.
 
 
-def _density(p: QPainter) -> float:
-    """Pixels per point where p draws: the screen's ratio and any scaling (the small preview)."""
-    device = p.device()
-    ratio = device.devicePixelRatioF() if device is not None else 1.0
-    m = p.worldTransform()
-    return max(0.3, ratio * math.hypot(m.m11(), m.m12()))
+def _cathedral(width: float, height: float, u: float) -> tuple[list[_Line], tuple[QPointF, float], list[QRectF]]:
+    """The lines of the gilded frame, the round window (its middle and radius) and the areas the gold is
+    worked out over, one picture each: the top left corner (in two), the frieze, the top right corner
+    and the two sides."""
+    lines: list[_Line] = []
+    mid = width / 2
+    low = height * 0.76
+    left, right = QPointF(0, 0), QPointF(width, 0)
+
+    def at(x: float, y: float, side: int = 1) -> QPointF:
+        return QPointF(x * u if side > 0 else width - x * u, y * u)
+
+    def add(points: list[QPointF], thick: float, origin: QPointF, t0: float, closed: bool = False, after: float = 0.0, beads: float = 0.0) -> None:
+        """A line growing out from where it is nearest origin, both ways if that is in its middle."""
+        if closed:
+            points = points[:-1]
+            i = min(range(len(points)), key=lambda k: _dist(points[k], origin))
+            points = points[i:] + points[:i] + [points[i]]
+            half = len(points) // 2
+            parts = [points[: half + 1], points[half:][::-1]]
+        else:
+            i = min(range(len(points)), key=lambda k: _dist(points[k], origin))
+            parts = [part for part in (points[i::-1], points[i:]) if len(part) > 1]
+        for part in parts:
+            run = lengths(part)[-1]
+            start = t0 + after + _dist(part[0], origin) / (SPREAD * u)
+            lines.append(_Line(part, thick, start, max(0.12, run / (DRAW * u)), beads))
+
+    # The molding: a rule, a row of beads and a fine rule, along the top from each corner to the
+    # middle and down each side; a quatrefoil boss on each corner.
+    for side, origin in ((1, left), (-1, right)):
+        for inset, thick, beads in ((10, 3.6, 0.0), (16.5, 3.2, 6.6), (22, 1.2, 0.0)):
+            corner = at(inset, inset, side)
+            add([QPointF(corner.x(), low), corner, QPointF(mid, corner.y())], thick, origin, 0.12, beads=beads)
+        boss = at(16, 16, side)
+        add(_foil(boss.x(), boss.y(), 12 * u, 4, math.pi / 4), 2.4, origin, 0.12, closed=True)
+        add(_circle(boss.x(), boss.y(), 3.4 * u, 12), 2.0, origin, 0.12, closed=True, after=0.1)
+        # Each side ends in a pendant trefoil and a drop.
+        x = 16 * u if side > 0 else width - 16 * u
+        foil = _foil(x, low + 14 * u, 10 * u, 3, math.pi / 2)
+        add(foil, 1.8, QPointF(x, low), 0.12 + (low - 10 * u) / (SPREAD * u), closed=True)
+        add([QPointF(x, low + 24 * u), QPointF(x, low + 38 * u)], 2.4, QPointF(x, low), 0.12 + (low + 10 * u) / (SPREAD * u))
+    center, radius = QPointF(width - 150 * u, 132 * u), 92 * u
+    # The arch's ends, on the fine rules.
+    a, c, b = at(470, 22), at(120, 120), at(22, 430)
+    base = 58 * u
+    frieze_end = (a.x(), center.x() - math.sqrt(max(0.0, (radius + 6 * u) ** 2 - (center.y() - base) ** 2)))
+    _frieze(add, width, u, base, frieze_end, left, right)
+    _spandrel(add, a, c, b, u, left)
+    _rose_lines(add, center, radius, u)
+    regions = [
+        QRectF(0, 0, 530 * u, 210 * u),
+        QRectF(0, 210 * u, 240 * u, 260 * u),
+        QRectF(530 * u, 0, max(1.0, width - 830 * u), 66 * u),
+        QRectF(width - 300 * u, 0, 300 * u, 270 * u),
+        QRectF(0, 470 * u, 50 * u, max(1.0, low + 50 * u - 470 * u)),
+        QRectF(width - 50 * u, 270 * u, 50 * u, max(1.0, low + 50 * u - 270 * u)),
+    ]
+    return lines, (center, radius), regions
+
+
+def _frieze(add, width: float, u: float, base: float, ends: tuple[float, float], left: QPointF, right: QPointF) -> None:  # noqa: ANN001
+    """Under the top molding, a row of little pointed arches standing on a rule at base, from the
+    corners to a quatrefoil over the middle of the title."""
+    mid = width / 2
+    spring, apex, span = base - 8 * u, base - 30 * u, 30 * u
+    # The arches' halves are arcs about a point on the spring line, through the apex.
+    r = ((span / 2) ** 2 + (spring - apex) ** 2) / span
+    for side, origin, end in ((1, left, ends[0]), (-1, right, ends[1])):
+        add([QPointF(end, base), QPointF(mid - side * 16 * u, base)], 1.8, origin, 0.12)
+        k = 0
+        while True:
+            x0 = mid - side * (22 * u + k * span)
+            x1 = x0 - side * span
+            if (x1 < end + 4 * u) if side > 0 else (x1 > end - 4 * u):
+                break
+            lo, hi = min(x0, x1), max(x0, x1)
+            half_l = _arc(lo + r, spring, r, math.pi, math.pi + math.acos((r - span / 2) / r), 8)
+            half_r = _arc(hi - r, spring, r, -math.acos((r - span / 2) / r), 0.0, 8)
+            arch = [QPointF(lo, base), *half_l, *half_r, QPointF(hi, base)]
+            add(arch, 1.5, origin, 0.12, after=0.08)
+            add(_circle((lo + hi) / 2, base - 19 * u, 2.4 * u, 10), 1.1, origin, 0.12, closed=True, after=0.18)
+            add(_circle(lo if side > 0 else hi, base - 24 * u, 2.6 * u, 10), 1.1, origin, 0.12, closed=True, after=0.14)
+            k += 1
+    # The keystone: a quatrefoil in a ring over the middle, lit when the two halves meet.
+    when = 0.12 + (mid - 10 * u) / (SPREAD * u) - 0.25
+    y = base - 18 * u
+    add(_circle(mid, y, 15 * u, 40), 2.2, QPointF(mid, y - 15 * u), when, closed=True)
+    add(_foil(mid, y, 12 * u, 4, math.pi / 4), 1.6, QPointF(mid, y - 12 * u), when + 0.1, closed=True)
+    add(_circle(mid, y, 3 * u, 12), 1.4, QPointF(mid, y - 3 * u), when + 0.2, closed=True)
+
+
+def _spandrel(add, a: QPointF, c: QPointF, b: QPointF, u: float, origin: QPointF) -> None:  # noqa: ANN001
+    """The top left corner: a great arch from the top rule to the side rule, a molding beside it and
+    cusps under it, and the corner it leaves filled with a round window, foils in rings and scrolls."""
+    t0 = 0.12
+    arch = [quad(a, c, b, i / 60) for i in range(61)]
+    add(arch, 3.0, origin, t0)
+    add(_offset(arch, 7 * u), 1.4, origin, t0 + 0.05)
+    # Cusps hang from it into the lobby: arcs between points on it, meeting in points.
+    count = 11
+    for i in range(count):
+        s0, s1 = (i + 0.5) / (count + 1), (i + 1.5) / (count + 1)
+        p0, p1 = quad(a, c, b, s0), quad(a, c, b, s1)
+        n0, n1 = _normal(a, c, b, s0), _normal(a, c, b, s1)
+        sm = (s0 + s1) / 2
+        m, nm = quad(a, c, b, sm), _normal(a, c, b, sm)
+        tip0 = QPointF(p0.x() + n0.x() * 11 * u, p0.y() + n0.y() * 11 * u)
+        tip1 = QPointF(p1.x() + n1.x() * 11 * u, p1.y() + n1.y() * 11 * u)
+        dip = QPointF(m.x() + nm.x() * 2 * u, m.y() + nm.y() * 2 * u)
+        cusp = [quad(tip0, QPointF(2 * dip.x() - (tip0.x() + tip1.x()) / 2, 2 * dip.y() - (tip0.y() + tip1.y()) / 2), tip1, k / 12) for k in range(13)]
+        add(cusp, 1.4, origin, t0, after=0.12)
+        if i:
+            add(_circle(tip0.x() + n0.x() * 2.5 * u, tip0.y() + n0.y() * 2.5 * u, 2.2 * u, 10), 1.1, origin, t0, closed=True, after=0.2)
+    # The round window: two rings, a quatrefoil and a boss.
+    ox, oy, r = 98 * u, 98 * u, 62 * u
+    add(_circle(ox, oy, r, 72), 3.0, origin, t0, closed=True)
+    add(_circle(ox, oy, r - 6 * u, 72), 1.3, origin, t0, closed=True, after=0.06)
+    add(_foil(ox, oy, r - 11 * u, 4, 0.0), 2.2, origin, t0, closed=True, after=0.2)
+    add(_foil(ox, oy, r - 30 * u, 4, math.pi / 4), 1.2, origin, t0, closed=True, after=0.35)
+    add(_circle(ox, oy, 9 * u, 20), 2.0, origin, t0, closed=True, after=0.45)
+    for k in range(8):
+        turn = k * math.pi / 4
+        add([QPointF(ox + 9 * u * math.cos(turn), oy + 9 * u * math.sin(turn)), QPointF(ox + 19 * u * math.cos(turn), oy + 19 * u * math.sin(turn))], 1.1, origin, t0, after=0.5)
+    # Trefoils in rings by the arch's two ends, and a little quatrefoil between the window and the arch.
+    for x, y, rr, turn in ((250, 48, 22, -math.pi / 2), (48, 250, 22, math.pi), (180, 130, 13, math.pi / 4)):
+        add(_circle(x * u, y * u, rr * u, 40), 2.2, origin, t0, closed=True)
+        add(_foil(x * u, y * u, (rr - 5) * u, 3, turn), 1.4, origin, t0, closed=True, after=0.15)
+    # Filigree scrolls off the round window and the trefoils, curling as they grow.
+    scrolls = (
+        (QPointF(ox + r * math.cos(-0.15), oy + r * math.sin(-0.15)), -0.05, 58, 5.0),
+        (QPointF(ox + r * math.cos(1.72), oy + r * math.sin(1.72)), 1.62, 58, -5.0),
+        (QPointF(228 * u, 48 * u), math.pi + 0.1, 36, -4.6),
+        (QPointF(48 * u, 228 * u), -math.pi / 2 - 0.1, 36, 4.6),
+    )
+    for start, heading, length, turn in scrolls:
+        curl = _scroll(start, heading, length * u, turn)
+        add(curl, 1.5, origin, t0, after=0.15)
+        end = curl[-1]
+        add(_circle(end.x(), end.y(), 2.2 * u, 10), 1.6, origin, t0, closed=True, after=0.15 + length * u / (DRAW * u))
+
+
+def _rose_lines(add, center: QPointF, radius: float, u: float) -> None:  # noqa: ANN001
+    """The round window's tracery, drawing from its middle out: an angel with its wings spread and a
+    halo over its head, and the ring round it all."""
+    t0 = 0.5
+    for outline, thick in _angel_outlines():
+        add([QPointF(center.x() + x * radius, center.y() + y * radius) for x, y in outline], thick, center, t0, closed=True)
+    add(_circle(center.x(), center.y(), radius, 96), 3.0, center, t0, closed=True)
+
+
+def _angel_outlines() -> list[tuple[list[tuple[float, float]], float]]:
+    """The angel in the round window, in shares of its radius from its middle (y down), each a closed
+    outline with the width its gold is drawn: the two wings, the robe, the head and the halo."""
+
+    def bend(a: tuple, c: tuple, b: tuple, steps: int) -> list[tuple[float, float]]:
+        return [
+            ((1 - k) ** 2 * a[0] + 2 * (1 - k) * k * c[0] + k * k * b[0], (1 - k) ** 2 * a[1] + 2 * (1 - k) * k * c[1] + k * k * b[1])
+            for k in (i / steps for i in range(steps + 1))
+        ]
+
+    def ring(cx: float, cy: float, rx: float, ry: float) -> list[tuple[float, float]]:
+        return [(cx + rx * math.sin(i * math.pi / 16), cy - ry * math.cos(i * math.pi / 16)) for i in range(33)]
+
+    def wing(side: int) -> list[tuple[float, float]]:
+        # Up and out from the shoulder to the tip, then back down the trailing edge, a bulge for
+        # each of four long feathers, and in along the robe to the shoulder.
+        root, tip, end = (0.12, -0.1), (0.76, -0.4), (0.22, 0.22)
+        points = bend(root, (0.34, -0.54), tip, 14)
+        for i in range(4):
+            a = (tip[0] + (end[0] - tip[0]) * i / 4, tip[1] + (end[1] - tip[1]) * i / 4)
+            b = (tip[0] + (end[0] - tip[0]) * (i + 1) / 4, tip[1] + (end[1] - tip[1]) * (i + 1) / 4)
+            points += bend(a, ((a[0] + b[0]) / 2 + 0.05, (a[1] + b[1]) / 2 + 0.045), b, 6)[1:]
+        points += bend(end, (0.12, 0.06), root, 6)[1:]
+        return [(side * x, y) for x, y in points]
+
+    robe = bend((-0.055, -0.225), (-0.13, -0.21), (-0.15, -0.13), 6)
+    for a, c, b, steps in (
+        ((-0.15, -0.13), (-0.2, 0.22), (-0.3, 0.6), 10),
+        ((-0.3, 0.6), (0.0, 0.7), (0.3, 0.6), 12),
+        ((0.3, 0.6), (0.2, 0.22), (0.15, -0.13), 10),
+        ((0.15, -0.13), (0.13, -0.21), (0.055, -0.225), 6),
+        ((0.055, -0.225), (0.0, -0.21), (-0.055, -0.225), 4),
+    ):
+        robe += bend(a, c, b, steps)[1:]
+    return [(wing(1), 1.5), (wing(-1), 1.5), (robe, 1.7), (ring(0, -0.33, 0.1, 0.1), 1.6), (ring(0, -0.5, 0.15, 0.045), 2.2)]
+
+
+def _dist(a: QPointF, b: QPointF) -> float:
+    return math.hypot(a.x() - b.x(), a.y() - b.y())
+
+
+def _arc(cx: float, cy: float, r: float, a0: float, a1: float, count: int) -> list[QPointF]:
+    return [QPointF(cx + r * math.cos(a0 + (a1 - a0) * i / count), cy + r * math.sin(a0 + (a1 - a0) * i / count)) for i in range(count + 1)]
+
+
+def _circle(cx: float, cy: float, r: float, count: int) -> list[QPointF]:
+    return _arc(cx, cy, r, -math.pi / 2, 1.5 * math.pi, count)
+
+
+def _foil(cx: float, cy: float, r: float, lobes: int, turn: float) -> list[QPointF]:
+    """A foil (trefoil, quatrefoil...): lobes round arcs inside r, meeting in cusps; one lobe at turn."""
+    d = r * 0.5
+    b = r - d
+    out = []
+    for i in range(lobes * 24 + 1):
+        a = turn + 2 * math.pi * i / (lobes * 24)
+        best = 0.0
+        for k in range(lobes):
+            off = a - (turn + 2 * math.pi * k / lobes)
+            s = d * math.sin(off)
+            if abs(s) <= b:
+                best = max(best, d * math.cos(off) + math.sqrt(b * b - s * s))
+        out.append(QPointF(cx + best * math.cos(a), cy + best * math.sin(a)))
+    return out
+
+
+def _normal(a: QPointF, c: QPointF, b: QPointF, s: float) -> QPointF:
+    """The curve's normal at s, toward the side away from the corner it bows into."""
+    dx = 2 * (1 - s) * (c.x() - a.x()) + 2 * s * (b.x() - c.x())
+    dy = 2 * (1 - s) * (c.y() - a.y()) + 2 * s * (b.y() - c.y())
+    n = math.hypot(dx, dy) or 1.0
+    return QPointF(dy / n, -dx / n)
+
+
+def _offset(points: list[QPointF], d: float) -> list[QPointF]:
+    """The polyline moved d along its left normal."""
+    out = []
+    for i, point in enumerate(points):
+        a, b = points[max(0, i - 1)], points[min(len(points) - 1, i + 1)]
+        dx, dy = b.x() - a.x(), b.y() - a.y()
+        n = math.hypot(dx, dy) or 1.0
+        out.append(QPointF(point.x() - dy / n * d, point.y() + dx / n * d))
+    return out
+
+
+def _scroll(start: QPointF, heading: float, length: float, turn: float) -> list[QPointF]:
+    """A filigree scroll: it leaves start along heading and curls tighter and tighter, turning by turn
+    radians in all, most of it at the end."""
+    out = [start]
+    x, y = start.x(), start.y()
+    count = 48
+    for i in range(1, count + 1):
+        s = i / count
+        a = heading + turn * s ** 2.6
+        step = length / count * (1.0 - 0.45 * s)
+        x += step * math.cos(a)
+        y += step * math.sin(a)
+        out.append(QPointF(x, y))
+    return out
+
+
+def _between(points: list[QPointF], run: list[float], a: float, b: float) -> list[QPointF]:
+    """The polyline's points between distances a and b along it."""
+    if b <= a or b <= 0:
+        return []
+    first, _ = point_at(points, run, a)
+    out = [first]
+    for point, at in zip(points, run, strict=True):
+        if a < at < b:
+            out.append(point)
+        elif at >= b:
+            break
+    last, _ = point_at(points, run, b)
+    out.append(last)
+    return out
+
+
+# Per pixel: gold, glass and light.
+
+
+def _ramp(tone: np.ndarray) -> np.ndarray:
+    stops = [at for at, _ in RAMP]
+    colors = np.array([rgb(color) for _, color in RAMP])
+    out = np.empty((*tone.shape, 3), dtype=np.float32)
+    for k in range(3):
+        out[..., k] = np.interp(tone, stops, colors[:, k])
+    return out
+
+
+def _metal(height: np.ndarray, relief: float) -> np.ndarray:
+    """Gold over a height field, lit from the upper left: its slopes catch the light or fall into
+    shade, and it mirrors a bright sky above and a dark floor below, as polished metal does."""
+    gy, gx = np.gradient(height)
+    nx, ny = -gx * relief, -gy * relief
+    norm = np.sqrt(nx * nx + ny * ny + 1)
+    nx, ny, nz = nx / norm, ny / norm, 1 / norm
+    lx, ly, lz = -0.45, -0.62, 0.64
+    diffuse = np.clip(nx * lx + ny * ly + nz * lz, 0, 1)
+    rx, ry, rz = 2 * nz * nx, 2 * nz * ny, 2 * nz * nz - 1
+    sky = smooth(-0.55, 0.65, -(ry * 0.85 + rx * 0.4))
+    spec = np.clip(rx * lx + ry * ly + rz * lz, 0, 1) ** 26
+    tone = np.clip(0.12 + 0.4 * sky + 0.42 * diffuse + 0.3 * spec, 0, 1)
+    return _ramp(tone) + (spec * 0.3)[..., None]
+
+
+def _shift(a: np.ndarray, dy: int, dx: int) -> np.ndarray:
+    out = np.zeros_like(a)
+    h, w = a.shape
+    out[max(0, dy):h + min(0, dy), max(0, dx):w + min(0, dx)] = a[max(0, -dy):h - max(0, dy), max(0, -dx):w - max(0, dx)]
+    return out
+
+
+def _gild(cover: np.ndarray, px: float, shadow: float = 0.55) -> QImage:
+    """Lines (cover, 0..1 a pixel) as raised gold wire, with a soft shadow under them; px is pixels to
+    the unit."""
+    height = blur(cover, max(0.6, 0.8 * px))
+    color = _metal(height, 2.6 * px)
+    under = _shift(blur(cover, max(0.6, 1.1 * px)), max(1, round(1.2 * px)), round(0.5 * px)) * shadow * (1 - cover)
+    total = cover + under
+    color = (color * cover[..., None] + rgb("#1e1004") * under[..., None]) / np.maximum(total, 1e-4)[..., None]
+    return picture(color, total)
+
+
+class _Gilding:
+    """The gold tracery as it draws itself. For each area: the finished gold and its warm light, and
+    the same two pictures filled in only where the lines have been drawn so far. Each frame adds what
+    was drawn since the last, laying the finished picture on along it; going back in time starts them
+    afresh. An area's pictures are made when build is called, by its need: a little before its first
+    line starts."""
+
+    def __init__(self, lines: list[_Line], regions: list[QRectF], scale: float, u: float) -> None:
+        self.lines, self.regions, self.scale, self.u = lines, regions, scale, u
+        self.near, self.need = [], []
+        for rect in regions:
+            room = rect.adjusted(-30 * u, -30 * u, 30 * u, 30 * u)
+            near = [i for i, line in enumerate(lines) if line.path.boundingRect().adjusted(-1, -1, 1, 1).intersects(room)]
+            self.near.append(near)
+            # When the first line gets to it.
+            first = 9.0
+            for i in near:
+                line = lines[i]
+                # Along the line every so often: a rule is one long straight piece.
+                steps = [k * 10 * u for k in range(int(line.run[-1] / (10 * u)) + 1)] if len(line.points) <= 3 else line.run
+                at = next((d for d in steps if room.contains(point_at(line.points, line.run, d)[0])), line.run[-1])
+                first = min(first, line.start + line.span * at / max(line.run[-1], 1e-6))
+            self.need.append(first - 0.15)
+        self.areas: list[tuple | None] = [None] * len(regions)
+        self.drawn = [0.0] * len(lines)
+        self.t = -1.0
+
+    def build(self, k: int) -> None:
+        rect, near = self.regions[k], self.near[k]
+        gold, bloom = _gilt(rect, [self.lines[i] for i in near], self.scale, self.u)
+        self.areas[k] = (rect, near, gold, bloom, _blank(gold), _blank(bloom))
+        # What was drawn before it was made.
+        self._lay(self.areas[k], [0.0] * len(self.lines), self.drawn)
+
+    def advance(self, t: float) -> None:
+        if t < self.t:
+            for area in self.areas:
+                if area is not None:
+                    area[4].fill(Qt.transparent)
+                    area[5].fill(Qt.transparent)
+            self.drawn = [0.0] * len(self.lines)
+        self.t = t
+        reach = [clamp((t - line.start) / line.span) * line.run[-1] for line in self.lines]
+        for area in self.areas:
+            if area is not None:
+                self._lay(area, self.drawn, reach)
+        self.drawn = [max(a, b) for a, b in zip(self.drawn, reach, strict=True)]
+
+    def _lay(self, area: tuple, since: list[float], reach: list[float]) -> None:
+        """Copy the finished pictures into the area's along each line from since to reach."""
+        rect, near, gold, bloom, gold_so_far, bloom_so_far = area
+        u = self.u
+        path = QPainterPath()
+        for i in near:
+            if reach[i] > since[i]:
+                line = self.lines[i]
+                path.addPath(polyline(_between(line.points, line.run, max(0.0, since[i] - 2 * u), reach[i])))
+        if path.isEmpty():
+            return
+        for image, so_far, at, wide in ((gold, gold_so_far, self.scale, 7), (bloom, bloom_so_far, self.scale * 0.5, 40)):
+            brush = QBrush(image)
+            brush.setTransform(QTransform(1 / at, 0, 0, 1 / at, rect.left(), rect.top()))
+            q = QPainter(so_far)
+            q.setRenderHint(QPainter.Antialiasing)
+            # The finished picture copied in, so going over a part twice changes nothing.
+            q.setCompositionMode(QPainter.CompositionMode_Source)
+            q.scale(at, at)
+            q.translate(-rect.left(), -rect.top())
+            q.strokePath(path, QPen(brush, wide * u, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            q.end()
+
+
+def _blank(image: QImage) -> QImage:
+    out = QImage(image.size(), QImage.Format_ARGB32_Premultiplied)
+    out.fill(Qt.transparent)
+    return out
+
+
+def _gilt(rect: QRectF, lines: list[_Line], scale: float, u: float) -> tuple[QImage, QImage]:
+    """The gold lines over rect, at scale pixels to the point: the gold, and its warm light at half the
+    size."""
+
+    def draw(q: QPainter, at: float) -> None:
+        q.scale(at, at)
+        q.translate(-rect.left(), -rect.top())
+        for line in lines:
+            if line.beads:
+                q.setPen(Qt.NoPen)
+                q.setBrush(QColor("#ffffff"))
+                for k in range(int(line.run[-1] / (line.beads * u)) + 1):
+                    point, _ = point_at(line.points, line.run, k * line.beads * u)
+                    q.drawEllipse(point, line.width * u / 2, line.width * u / 2)
+                continue
+            q.setBrush(Qt.NoBrush)
+            q.setPen(QPen(QColor("#ffffff"), line.width * u, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            q.drawPath(line.path)
+
+    w, h = max(1, math.ceil(rect.width() * scale)), max(1, math.ceil(rect.height() * scale))
+    gold = _gild(mask(w, h, lambda q: draw(q, scale)), u * scale)
+    half = scale * 0.5
+    small = mask(max(1, math.ceil(rect.width() * half)), max(1, math.ceil(rect.height() * half)), lambda q: draw(q, half))
+    px = u * half
+    light = (blur(small, 2.5 * px) * 0.9 + blur(small, 8 * px) * 0.55 + blur(small, 20 * px) * 0.3)[..., None] * rgb(HONEY)
+    return gold, glow(light * 0.85)
+
+
+def _rose_glass(center: QPointF, radius: float, scale: float, u: float) -> tuple[QRectF, QImage, QRectF, QImage]:
+    """The round window's glass, per pixel: an angel in pale gold glass, its wings streaked in feathers,
+    on rays of honey and amber, mottled and streaked as old glass is, dark lead where panes meet, brightest in the middle where the light comes through and glowing over the lead;
+    and the light it throws round itself."""
+    rect = QRectF(center.x() - radius, center.y() - radius, 2 * radius, 2 * radius)
+    n = max(8, math.ceil(2 * radius * scale))
+    ys, xs = np.mgrid[0:n, 0:n].astype(np.float32) + 0.5
+    x, y = (xs / n * 2 - 1), (ys / n * 2 - 1)
+    rho = np.hypot(x, y)
+    rnd = np.random.default_rng(7)
+
+    def shape(points: list[tuple[float, float]]) -> np.ndarray:
+        def draw(q: QPainter) -> None:
+            q.translate(n / 2, n / 2)
+            q.scale(n / 2, n / 2)
+            q.setPen(Qt.NoPen)
+            q.setBrush(Qt.white)
+            q.drawPolygon(QPolygonF([QPointF(px, py) for px, py in points]))
+
+        return mask(n, n, draw)
+
+    outlines = _angel_outlines()
+    figure = np.maximum(shape(outlines[2][0]), shape(outlines[3][0]))
+    wings = np.maximum(shape(outlines[0][0]), shape(outlines[1][0])) * (1 - figure)
+    honey, amber, pale = (rgb(c) for c in ("#ffcf55", "#ec8f22", "#ffe7a0"))
+    # Behind the angel, rays of honey and amber glass from its heart, deeper toward the rim, and the
+    # light it gives round it.
+    fx, fy = x, y + 0.15
+    rays = smooth(0.2, 0.8, 0.5 + 0.5 * np.cos(np.arctan2(fy, fx) * 12))
+    tint = (amber + (honey - amber) * rays[..., None]) * (1.2 - 0.55 * smooth(0.45, 0.95, rho))[..., None]
+    tint = tint + (pale - tint) * (np.exp(-(fx * fx + fy * fy) / 0.12) * 0.6)[..., None]
+    # The wings pale gold, streaked in feathers fanning from the shoulders; the robe and head paler,
+    # the robe falling in soft folds; the halo glowing.
+    fan = 0.5 + 0.5 * np.cos(np.arctan2(y + 0.1, np.abs(x) - 0.12) * 18)
+    plume = rgb("#ffcf5e") + (rgb("#fff4d6") - rgb("#ffcf5e")) * (fan * (1 - 0.35 * smooth(0.3, 0.8, np.abs(x))))[..., None]
+    tint = tint * (1 - wings[..., None]) + plume * wings[..., None]
+    folds = 0.9 + 0.1 * np.cos(x * 40) * smooth(-0.1, 0.4, y)
+    robe = rgb("#fffbef") + (rgb("#ffe2a0") - rgb("#fffbef")) * (smooth(-0.3, 0.7, y) * 0.8 + 0.3 * smooth(0.06, 0.3, np.abs(x)))[..., None]
+    tint = tint * (1 - figure[..., None]) + (robe * folds[..., None]) * figure[..., None]
+    around = np.hypot(x / 0.15, (y + 0.5) / 0.045)
+    tint = tint + rgb("#fff1b0") * (np.exp(-((around - 1) ** 2) / 0.3) * 0.5)[..., None]
+    # Mottled and streaked as old glass is.
+    mottle = noise(n, n, n * 0.06, 3, 11)
+    streak = noise(n, n, n * 0.02, 2, 12)
+    bright = (0.82 + 0.28 * mottle + 0.08 * streak) * (1.15 - 0.3 * rho) * rnd.uniform(0.97, 1.03)
+    # Dark lead where one pane meets the next, under the gold.
+    pane = np.where(figure > 0.5, 2, np.where(wings > 0.5, 1, 0))
+    seam = np.zeros((n, n), dtype=np.float32)
+    seam[1:, :] += pane[1:, :] != pane[:-1, :]
+    seam[:, 1:] += pane[:, 1:] != pane[:, :-1]
+    lead = np.clip(blur(np.clip(seam, 0, 1), max(0.6, n / 260)) * 2.2, 0, 1)
+    color = tint * bright[..., None] * (1 - 0.7 * lead[..., None])
+    # Lit from behind, the brightest glass glows over the lead round it.
+    hot = np.clip(color - 0.55, 0, None)
+    color = color + np.dstack([blur(hot[..., k], max(1.0, n / 90)) for k in range(3)]) * 0.9
+    edge = 1 - smooth(0.985, 1.0, rho)
+    alpha = edge * (0.9 + 0.08 * mottle)
+    glass = picture(color, alpha)
+    # Its light, spilled round it: worked out at a quarter of the size, three radii across.
+    m = max(8, math.ceil(6 * radius * scale * 0.25))
+    ys, xs = np.mgrid[0:m, 0:m].astype(np.float32) + 0.5
+    d = np.hypot(xs / m * 2 - 1, ys / m * 2 - 1) * 3
+    spill = np.exp(-((np.maximum(d - 0.85, 0)) / 0.4) ** 2) * 0.6 + np.exp(-((np.maximum(d - 0.9, 0)) / 0.8) ** 2) * 0.25
+    spill = spill * smooth(0.5, 1.0, d) * 0.75
+    halo = glow(rgb(HONEY)[None, None, :] * spill[..., None])
+    return rect, glass, QRectF(center.x() - 3 * radius, center.y() - 3 * radius, 6 * radius, 6 * radius), halo
 
 
 def _wave(x: np.ndarray, cell: float, rnd: np.random.Generator) -> np.ndarray:
@@ -217,198 +703,42 @@ def _box(xs: np.ndarray, ys: np.ndarray, rect: QRectF, feather: float) -> np.nda
     return 1 - smooth(-feather * 0.5, feather, out)
 
 
-def _ramp(b: np.ndarray, tones: tuple = RAMP) -> np.ndarray:
-    """Brightness 0..1 as polished gold shows it (RAMP, or other tones), straight color (h, w, 3)."""
-    at = [k for k, _color in tones]
-    shades = [rgb(color) for _k, color in tones]
-    b = np.clip(b, 0, 1)
-    return np.stack([np.interp(b, at, [shade[c] for shade in shades]) for c in range(3)], axis=-1).astype(np.float32)
-
-
-def _shine(height: np.ndarray, light: tuple[float, float, float] = (-0.4, -0.75, 0.55), gloss: float = 20.0) -> np.ndarray:
-    """How bright polished metal looks where it has this height (in pixels), lit from light (x right,
-    y down, z out of the screen): a warm sky reflected everywhere, more where it faces the light, and
-    a sharp highlight where it mirrors it. About 0.6 where flat."""
-    gy, gx = np.gradient(height)
-    norm = np.sqrt(gx * gx + gy * gy + 1)
-    size = math.sqrt(sum(c * c for c in light))
-    lx, ly, lz = (c / size for c in light)
-    half = math.sqrt(lx * lx + ly * ly + (lz + 1) ** 2)
-    hx, hy, hz = lx / half, ly / half, (lz + 1) / half
-    lit = np.clip((-gx * lx - gy * ly + lz) / norm, 0, 1)
-    spec = np.clip((-gx * hx - gy * hy + hz) / norm, 0, 1) ** gloss
-    return 0.3 + 0.45 * lit + 0.6 * spec
-
-
-def _title(width: float, height: float, u: float) -> tuple[QRectF, QRectF]:
-    """The title's words with a little room round them, and the band of it and the lines under it."""
-    words = QRectF(width * 0.43, height * 0.085, width * 0.2, height * 0.115).adjusted(-14 * u, -10 * u, 14 * u, 8 * u)
-    lines = QRectF(width * 0.38, height * 0.07, width * 0.3, height * 0.24)
-    return words, lines
-
-
-def _heaven(p: QPainter, width: float, height: float, u: float) -> None:
-    """Warm gold light at the top and down the sides, strongest above the title where the halo is;
-    a faint glow in the bottom corners. Drawn once."""
-    top = height * 0.3
-    p.fillRect(QRectF(0, 0, width, top), gradient(QPointF(0, 0), QPointF(0, top), ((0, "#ffe6a6", 0.26), (0.35, "#ffcf6e", 0.08), (1, "#ffcf6e", 0))))
-    side = 170 * u
-    for start, end, rect in (
-        (QPointF(0, 0), QPointF(side, 0), QRectF(0, 0, side, height)),
-        (QPointF(width, 0), QPointF(width - side, 0), QRectF(width - side, 0, side, height)),
-    ):
-        p.fillRect(rect, gradient(start, end, ((0, "#ffe0a0", 0.24), (0.45, "#ffc95e", 0.08), (1, "#ffc95e", 0))))
-    for cx, cy, r, alpha in ((0.53, -0.08, 540, 0.34), (0.04, -0.05, 440, 0.26), (0.96, -0.05, 440, 0.26), (0.0, 1.0, 340, 0.18), (1.0, 1.0, 340, 0.18)):
-        light = QRadialGradient(QPointF(width * cx, height * cy), r * u)
-        light.setColorAt(0, col("#ffe9b8", alpha))
-        light.setColorAt(0.45, col("#ffc95e", alpha * 0.42))
-        light.setColorAt(1, col("#ffc95e", 0))
-        p.fillRect(QRectF(0, 0, width, height), light)
-
-
-def _ray_layer(width: float, height: float, source: QPointF, seed: int, u: float) -> tuple[QRectF, QImage]:
-    """Golden rays streaming down and out from the halo, worked out per pixel at SOFT size: streaks
-    by angle, each its own length, coming on just beyond the halo and fading as they go. Brightest
-    out to the sides, under the paws; softer straight down. A margin round the stage lets them turn."""
-    margin = width * 0.12
-    box = QRectF(-margin, -margin, width + 2 * margin, height + margin)
-    w, h = max(1, round(box.width() * SOFT)), max(1, round(box.height() * SOFT))
-    ys, xs = np.mgrid[0:h, 0:w].astype(np.float32) + 0.5
-    x, y = box.left() + xs / SOFT, box.top() + ys / SOFT
-    dx, dy = x - source.x(), y - source.y()
-    angle = np.arctan2(dx, dy)
-    rnd = np.random.default_rng(seed)
-    beams = 0.62 * _wave(angle, 0.045, rnd) + 0.38 * _wave(angle, 0.016, rnd)
-    streak = smooth(0.42, 0.86, beams)
-    r = np.hypot(dx, dy)
-    reach = height * (0.45 + 0.6 * _wave(angle, 0.08, rnd))
-    fall = smooth(30 * u, 140 * u, r) * (1 - smooth(0.0, reach, r)) ** 1.2
-    spread = np.abs(angle)
-    side = (0.35 + 0.65 * smooth(0.25, 0.9, spread)) * (1 - smooth(1.45, 1.75, spread))
-    strength = side * fall * (0.1 + 0.9 * streak)
-    tint = rgb("#ffb43c") + (rgb("#ffeab0") - rgb("#ffb43c")) * (streak * 0.7)[..., None]
-    return box, glow(tint * (strength * 1.15)[..., None])
-
-
-def _ray_mask(width: float, height: float, gap: QRectF, u: float) -> QImage:
-    """Where the rays may show, at SOFT size: faint over the names and the title, none over the gap."""
+def _shafts(width: float, height: float, gap: QRectF, rose: tuple[QPointF, float], u: float) -> tuple[QImage, list[QImage]]:
+    """Shafts of light from the round window slanting down toward the lobby, at SOFT size: two sets of
+    streaks by angle, to breathe in turn, and where they may show: faint over the names, none over
+    the title's words or the button."""
+    center, radius = rose
     w, h = max(1, round(width * SOFT)), max(1, round(height * SOFT))
     ys, xs = np.mgrid[0:h, 0:w].astype(np.float32) + 0.5
     x, y = xs / SOFT, ys / SOFT
+    dx, dy = x - center.x(), y - center.y()
+    angle = np.arctan2(dy, dx)
+    r = np.hypot(dx, dy)
+    # Down and to the left, most of it.
+    fan = smooth(1.45, 1.75, angle) * (1 - smooth(2.55, 2.95, angle))
+    fall = smooth(radius * 0.8, radius * 1.4, r) * (1 - smooth(0, height * 0.95, r)) ** 1.3
+    layers = []
+    for seed in (3, 9):
+        rnd = np.random.default_rng(seed)
+        beams = 0.6 * _wave(angle, 0.05, rnd) + 0.4 * _wave(angle, 0.017, rnd)
+        streak = smooth(0.45, 0.85, beams)
+        strength = fan * fall * (0.08 + 0.92 * streak)
+        tint = rgb("#ffd486") + (rgb("#fff3d6") - rgb("#ffd486")) * (streak * 0.5)[..., None]
+        layers.append(glow(tint * (strength * 0.85)[..., None]))
     names = QRectF(width * 0.13, height * 0.29, width * 0.81, height * 0.55)
-    words, lines = _title(width, height, u)
-    keep = (1 - 0.76 * _box(x, y, names, 60 * u)) * (1 - 0.45 * _box(x, y, lines, 40 * u)) * (1 - 0.6 * _box(x, y, words, 30 * u))
+    words = QRectF(width * 0.42, height * 0.07, width * 0.23, height * 0.14)
+    lines = QRectF(width * 0.38, height * 0.07, width * 0.3, height * 0.24)
+    keep = (1 - 0.8 * _box(x, y, names, 50 * u)) * (1 - 0.5 * _box(x, y, lines, 30 * u)) * (1 - _box(x, y, words, 24 * u))
     keep = keep * (1 - _box(x, y, gap.adjusted(-20 * u, -20 * u, 20 * u, 20 * u), 50 * u))
-    return picture(np.ones((h, w, 3), dtype=np.float32), keep)
+    return picture(np.ones((h, w, 3), dtype=np.float32), keep), layers
 
 
-def _rays(p: QPainter, t: float, layers: tuple, shade: QImage, source: QPointF, width: float, height: float, a: float, flash: float) -> None:
-    """The ray layers turning slowly about the halo, each breathing, cut to where they may show on a
-    small picture and laid on scaled up."""
-    if a <= 0.01:
-        return
-    small = QImage(shade.width(), shade.height(), QImage.Format_ARGB32_Premultiplied)
-    small.fill(Qt.transparent)
-    q = QPainter(small)
-    q.setRenderHint(QPainter.SmoothPixmapTransform)
-    q.setCompositionMode(QPainter.CompositionMode_Plus)
-    q.scale(SOFT, SOFT)
-    for index, (box, image) in enumerate(layers):
-        turn = (2.2 if index == 0 else -2.6) * math.sin(t * (0.45 + 0.17 * index) + index * 1.7)
-        breathe = 0.62 + 0.38 * math.sin(t * (1.05 - 0.3 * index) + index * 2.3)
-        q.save()
-        q.translate(source)
-        q.rotate(turn)
-        q.translate(-source)
-        q.setOpacity(clamp(a * (breathe * 0.8 + 0.9 * flash)))
-        q.drawImage(box, image)
-        q.restore()
-    q.resetTransform()
-    q.setCompositionMode(QPainter.CompositionMode_DestinationIn)
-    q.setOpacity(1.0)
-    q.drawImage(0, 0, shade)
-    q.end()
-    p.save()
-    p.setRenderHint(QPainter.SmoothPixmapTransform)
-    p.drawImage(QRectF(0, 0, width, height), small)
-    p.restore()
-
-
-def _cloud(w: int, h: int, right: bool, seed: int, dim: float) -> QImage:
-    """A bank of golden cloud heaped in a top corner, per pixel: round billows along it, their edges
-    frayed with noise, glowing pale gold where the light from above falls, rimmed bright gold where
-    it catches their tops, a warm amber shade beneath, thinning away toward the middle of the screen."""
-    rnd = np.random.default_rng(seed)
-    ys, xs = np.mgrid[0:h, 0:w].astype(np.float32) + 0.5
-    if right:
-        xs = w - xs
-    puffs = [(rnd.uniform(-0.05, 0.2) * w, rnd.uniform(-0.25, 0.05) * h, rnd.uniform(0.5, 0.62) * h) for _ in range(3)]
-    # Uneven: billows of all sizes, some heaped higher, some hanging lower, never a row of equals.
-    for k in sorted(rnd.uniform(0, 1, 12)):
-        x = (k * 0.92 + rnd.normal(0, 0.03)) * w
-        y = (0.55 * (1 - k) ** 1.3 + 0.06 + rnd.normal(0, 0.06)) * h
-        puffs.append((x, y, (0.24 * (1 - k) + 0.08) * h * rnd.uniform(0.7, 1.4)))
-    field = np.full((h, w), -float(h), dtype=np.float32)
-    for cx, cy, r in puffs:
-        d = np.sqrt((xs - cx) ** 2 + (ys - cy) ** 2) / r
-        field = np.maximum(field, r * np.where(d < 1, np.sqrt(np.clip(1 - d * d, 0, 1)), 1 - d))
-    fray = noise(w, h, h * 0.26, 5, seed + 50)
-    field = field + (fray - 0.5) * h * 0.26
-    cover = smooth(-h * 0.03, h * 0.16, field)
-    gy, gx = np.gradient(blur(np.maximum(field, 0), max(1.0, h * 0.015)))
-    norm = np.sqrt(gx * gx + gy * gy + 1)
-    nx, ny, nz = -gx / norm, -gy / norm, 1 / norm
-    lx, ly, lz = 0.3 if right else -0.3, -0.82, 0.5
-    lit = np.clip((nx * lx + ny * ly + nz * lz) / math.sqrt(lx * lx + ly * ly + lz * lz), 0, 1)
-    lit = np.clip(lit * (0.8 + 0.4 * noise(w, h, h * 0.06, 3, seed + 90)), 0, 1)
-    # Lit through with gold: the shaded side a warm amber, never grey.
-    color = rgb("#e9b660") + (rgb("#fff3d2") - rgb("#e9b660")) * (lit ** 0.7)[..., None]
-    rim = blur((1 - smooth(-h * 0.02, h * 0.12, field)) * smooth(-h * 0.06, h * 0.02, field) * np.clip(-ny * 1.6 + 0.1, 0, 1), max(1.0, h * 0.012))
-    color = color + (rgb("#ffc53d") * 1.15 - color) * np.clip(rim * 2.4, 0, 0.95)[..., None]
-    inward = 1 - smooth(0.62, 1.0, xs / w)
-    alpha = np.clip(cover * (0.6 + 0.33 * lit) + rim * 0.45, 0, 1)
-    light = color * alpha[..., None] + rgb(HONEY) * (blur(cover, h * 0.06) * (1 - alpha) * 0.4)[..., None]
-    return glow(light * (inward * dim)[..., None])
-
-
-def _clouds(width: float, height: float, u: float) -> list[tuple[QRectF, QImage, float]]:
-    """The two corners' clouds, a dimmer bank behind and a brighter one before it, at half size:
-    (where, picture, how far it drifts over the scene)."""
-    out = []
-    # They drift outward, and reach past the edge so their cut end never shows.
-    margin = 12 * u
-    for right, w, h, seed, dim, drift in (
-        (False, 0.34, 0.26, 11, 0.7, -10),
-        (False, 0.24, 0.2, 12, 0.95, -20),
-        (True, 0.32, 0.25, 13, 0.7, 9),
-        (True, 0.22, 0.19, 14, 0.95, 16),
-    ):
-        rect = QRectF(width * (1 - w) if right else -margin, 0, width * w + margin, height * h)
-        out.append((rect, _cloud(max(8, round(rect.width() * 0.5)), max(8, round(rect.height() * 0.5)), right, seed, dim), drift * u))
-    return out
-
-
-def _cloud_paint(p: QPainter, t: float, clouds: list[tuple], u: float, a: float, leave: float) -> None:
-    """The clouds drifting slowly outward, the nearer ones faster, and rising away at the end."""
-    if a <= 0.01:
-        return
-    p.save()
-    p.setRenderHint(QPainter.SmoothPixmapTransform)
-    for index, (rect, image, drift) in enumerate(clouds):
-        dx = drift * (t / DURATION + 0.15 * math.sin(t * 0.7 + index))
-        dy = -30 * u * leave * (1 + index % 2)
-        p.setOpacity(a)
-        p.drawImage(rect.translated(dx, dy), image)
-    p.restore()
-
-
-def _feather(px: int, kind: str) -> tuple[QImage, float]:
-    """A feather of gold leaf px pixels long, quill on the left pointing right, per pixel: a vane on
-    each side of the shaft (the leading one narrower), each a gentle dome grooved by fine barbs that
-    sweep toward the tip, the odd split where the barbs part, the shaft a raised ridge; shaded as
-    polished gold lit from above, each flake of leaf catching the light a little differently, deeper
-    at the base and paler toward the tip. Also where the quill is, as a share of its height."""
-    broad, lead, bend, down = KINDS[kind]
+def _feather(px: int) -> tuple[QImage, float]:
+    """A gold-leaf feather px pixels long, quill on the left pointing right, per pixel: two vanes of
+    fine barbs sweeping toward the tip, the odd split where they part, beaten gold that shines in a
+    band along each vane and darkens toward its frayed edge, a bright shaft. Also where the quill is,
+    as a share of its height."""
+    broad, lead, bend = 0.3, 0.42, 0.06
     high = int(px * (broad + bend) * 1.15) + 4
     ys, xs = np.mgrid[0:high, 0:px].astype(np.float32) + 0.5
     s = xs / px
@@ -417,716 +747,594 @@ def _feather(px: int, kind: str) -> tuple[QImage, float]:
     profile = smooth(0.0, 0.3, s) ** 0.55 * np.sqrt(np.clip(1 - np.clip((s - 0.36) / 0.64, 0, 1) ** 2.4, 0, 1))
     half = 0.5 * broad * px * profile * np.where(dv < 0, 2 * lead, 2 * (1 - lead))
     r = np.abs(dv) / np.maximum(half, 1e-3)
-    rnd = np.random.default_rng(px * 7 + len(kind))
-    # Barbs leave the shaft slanting toward the tip.
+    rnd = np.random.default_rng(px)
     along = xs - np.abs(dv) * 1.15
-    spacing = max(2.0, px / 60)
+    spacing = max(2.0, px / 55)
     barbs = 0.5 + 0.5 * np.cos(along / spacing * 2 * math.pi)
     parts = _wave(along + np.where(dv < 0, 0, px * 3), px / 9, rnd)
     split = smooth(0.8, 0.9, parts) * smooth(0.3, 0.6, r) * smooth(0.15, 0.3, s)
     jag = 0.06 * barbs + 0.08 * _wave(along * 1.7, px / 30, rnd)
     inside = 1 - smooth(0.84 - jag, 1.0 - jag, r)
-    downy = smooth(0.02, down, s)
-    alpha = inside * (1 - 0.6 * split) * (0.86 + 0.12 * (1 - r * r)) * (0.55 + 0.45 * downy)
+    alpha = inside * (1 - 0.9 * split) * (0.82 + 0.18 * (1 - r * r)) * (0.5 + 0.5 * smooth(0.02, 0.25, s))
+    # Beaten gold: a band of shine along each vane, the upper one brighter, darker to the edge.
+    sheen = np.exp(-(((r - 0.38) / 0.2) ** 2)) * np.where(dv < 0, 1.0, 0.65)
+    tone = 0.38 + 0.38 * sheen + 0.1 * barbs - 0.22 * smooth(0.6, 1.0, r) + 0.08 * _wave(along, px / 14, rnd)
+    color = _ramp(np.clip(tone, 0, 1))
     shaft_w = px * 0.016 * (1 - 0.75 * s) + 0.35
     shaft = (1 - smooth(shaft_w * 0.45, shaft_w, np.abs(dv))) * (1 - smooth(0.9, 0.99, s))
-    # A shallow tent: each vane slopes gently away from the shaft, the upper toward the light.
-    tent = (1 - np.clip(r, 0, 1)) * half * 0.2
-    height = tent * inside + barbs * spacing * 0.13 + shaft * shaft_w * 1.2
-    flakes = noise(px, high, px / 6, 2, px + 3) - 0.5
-    # Polished, it mirrors a bright streak of sky along the upper vane and a fainter one along the
-    # lower; each barb's crest catches a fine line of light.
-    across = np.where(dv < 0, -1.0, 1.0) * np.clip(r, 0, 1)
-    streak = 0.2 * np.exp(-(((across + 0.45) / 0.22) ** 2)) + 0.08 * np.exp(-(((across - 0.5) / 0.2) ** 2))
-    bright = _shine(blur(height, 0.5), (-0.3, -0.8, 0.55), 28) + streak + (barbs ** 3 - 0.3) * 0.15 + flakes * 0.16 + 0.24 * (s - 0.62)
-    color = _ramp(bright + shaft * 0.1)
-    # A soft dark shadow just below its edge, so a feather shows where it lies over the next.
-    shadow = np.roll(blur(inside * smooth(0.0, 0.2, s), px * 0.014), max(1, round(px * 0.008)), axis=0) * 0.38 * (1 - inside)
+    color = color + (rgb("#fff4cc") - color) * (shaft * 0.8)[..., None]
     alpha = np.maximum(alpha, shaft * 0.95)
-    under = shadow * (1 - alpha)
-    total = alpha + under
-    color = (color * alpha[..., None] + rgb("#2e1904") * under[..., None]) / np.maximum(total, 1e-4)[..., None]
-    return picture(color, total), root / high
+    return picture(color, alpha), root / high
 
 
-def _sprite(sprites: dict, kind: str, length: float, density: float) -> tuple[QImage, float]:
-    """The feather of a kind, length long at its longest, for the screen's sharpness: drawn once."""
-    px = max(16, math.ceil(length * density / 8) * 8)
-    key = (kind, px)
-    if key not in sprites:
-        sprites[key] = _feather(px, kind)
-    return sprites[key]
+def _spark() -> QImage:
+    """A mote of light: a white-hot core in a honey glow."""
+    n = 64
+    ys, xs = np.mgrid[0:n, 0:n].astype(np.float32) + 0.5
+    d = np.hypot(xs - n / 2, ys - n / 2) / (n / 2)
+    light = rgb(HONEY) * (np.exp(-((d / 0.42) ** 2)) * 0.8)[..., None] + rgb("#fffaf0") * (np.exp(-((d / 0.12) ** 2)) * 1.3)[..., None]
+    return glow(light * (1 - smooth(0.85, 1.0, d))[..., None])
 
 
-def _lay(p: QPainter, sprite: tuple[QImage, float], x: float, y: float, angle: float, length: float, across: float = 1.0) -> None:
-    """A feather laid with its quill at (x, y), pointing angle degrees clockwise from the right,
-    length long; across squeezes its width (below 0, flips it), as when it turns about its shaft."""
-    image, root = sprite
-    scale = length / image.width()
+# Drawing each frame.
+
+
+def _sharpness(p: QPainter) -> float:
+    """Pixels per point where p draws: its screen's and its own scaling."""
+    device = p.device()
+    ratio = device.devicePixelRatioF() if device is not None else 1.0
+    return round(ratio * math.hypot(p.transform().m11(), p.transform().m12()), 2)
+
+
+def _flicker(t: float, seed: int) -> float:
+    """A candle's light: 0..1, wavering, now and then guttering."""
+    k = seed * 1.7
+    return clamp(0.62 + 0.16 * math.sin(t * 7.1 + k) + 0.1 * math.sin(t * 12.7 + 2 * k) + 0.07 * math.sin(t * 23.3 + k) + 0.05 * math.sin(t * 3.1 + 3 * k))
+
+
+def _lay(p: QPainter, image: QImage, x: float, y: float, r: float, alpha: float) -> None:
+    if alpha <= 0.01 or r <= 0.2:
+        return
+    p.setOpacity(clamp(alpha))
+    p.drawImage(QRectF(x - r, y - r, 2 * r, 2 * r), image)
+
+
+def _warmth(p: QPainter, width: float, height: float, u: float) -> None:
+    """Warm light at the top and down the sides, as in a candlelit nave; drawn once."""
+    top = height * 0.32
+    p.fillRect(QRectF(0, 0, width, top), gradient(QPointF(0, 0), QPointF(0, top), ((0, "#ffdf9e", 0.22), (0.4, "#ffcf7a", 0.07), (1, "#ffcf7a", 0))))
+    side = 190 * u
+    for start, end, rect in (
+        (QPointF(0, 0), QPointF(side, 0), QRectF(0, 0, side, height)),
+        (QPointF(width, 0), QPointF(width - side, 0), QRectF(width - side, 0, side, height)),
+    ):
+        p.fillRect(rect, gradient(start, end, ((0, "#ffd88f", 0.2), (0.5, "#ffc870", 0.06), (1, "#ffc870", 0))))
+    for cx, cy, r, alpha in ((0.12, 0.1, 480, 0.24), (0.91, 0.15, 420, 0.22)):
+        light = QRadialGradient(QPointF(width * cx, height * cy), r * u)
+        light.setColorAt(0, col("#ffe2a6", alpha))
+        light.setColorAt(0.5, col("#ffcf7a", alpha * 0.35))
+        light.setColorAt(1, col("#ffcf7a", 0))
+        p.fillRect(QRectF(0, 0, width, height), light)
+
+
+def _candles(p: QPainter, t: float, width: float, height: float, u: float, a: float) -> None:
+    """Candlelight pooled in the two bottom corners, each flickering on its own."""
+    if a <= 0.01:
+        return
     p.save()
-    p.translate(x, y)
-    p.rotate(angle)
-    p.scale(scale, scale * across)
-    p.drawImage(QPointF(0, -root * image.height()), image)
+    p.setPen(Qt.NoPen)
+    for seed, x in ((1, 0.0), (2, width)):
+        k = _flicker(t, seed)
+        r = (400 + 30 * k) * u
+        pool = QRadialGradient(QPointF(x, height), r)
+        pool.setColorAt(0, col("#ffc76a", 0.42 * a * (0.7 + 0.3 * k)))
+        pool.setColorAt(0.35, col(EMBER, 0.16 * a * (0.6 + 0.4 * k)))
+        pool.setColorAt(1, col(EMBER, 0))
+        p.setBrush(pool)
+        p.drawEllipse(QPointF(x, height), r, r)
     p.restore()
 
 
-def _crest_mask(band: QRectF, width: float, height: float, u: float) -> QImage:
-    """Where the paws may show over band, at SOFT size: a whisper behind the title's lines and none
-    over its words."""
-    w, h = max(1, round(band.width() * SOFT)), max(1, round(band.height() * SOFT))
-    ys, xs = np.mgrid[0:h, 0:w].astype(np.float32) + 0.5
-    x, y = band.left() + xs / SOFT, band.top() + ys / SOFT
-    words, lines = _title(width, height, u)
-    keep = (1 - 0.8 * _box(x, y, lines, 50 * u)) * (1 - _box(x, y, words, 24 * u))
-    return picture(np.ones((h, w, 3), dtype=np.float32), keep)
-
-
-def _halo_picture(px: int) -> QImage:
-    """A halo of molten gold px pixels across, seen a little from below, per pixel: a round band
-    shaded across like a tube, a white-hot line where it catches the light, its near side brighter, a
-    fine second ring inside it, all blooming out in amber light round it."""
-    rx, ry = px / 2, px / 2 * 0.27
-    w, h = int(px * 1.5) + 4, int(px * 0.85) + 4
-    ys, xs = np.mgrid[0:h, 0:w].astype(np.float32) + 0.5
-    x, y = (xs - w / 2) / rx, (ys - h / 2) / ry
-    # Distance from the ellipse, roughly in pixels: the step from 1 over how fast it grows there.
-    e = np.sqrt(x * x + y * y)
-    gx, gy = x / rx, y / ry
-    reach = np.maximum(e, 1e-3) / np.maximum(np.hypot(gx, gy), 1e-6)
-    signed = (e - 1) * reach / np.maximum(e, 1e-3)
-    d = np.abs(signed)
-    tube = px * 0.034
-    band = 1 - smooth(tube * 0.75, tube * 1.05, d)
-    across = np.clip(signed / tube, -1, 1)
-    near = 0.72 + 0.28 * smooth(-0.6, 0.6, y / np.maximum(e, 1e-3))
-    # Round across, lit from above: the highlight a little toward its outer edge on the far side.
-    bright = 0.35 + 0.4 * np.sqrt(np.clip(1 - across * across, 0, 1)) + 0.55 * np.exp(-(((across + 0.25) / 0.3) ** 2))
-    metal = _ramp(bright * near)
-    inner = 1 - smooth(px * 0.004, px * 0.009, np.abs(signed + tube * 2.6))
-    light = metal * (band * 0.95)[..., None] + rgb(GOLD_PALE) * (inner * 0.75 * near)[..., None]
-    light = light + rgb(AMBER) * (blur(band, px * 0.025) * 0.7 + blur(band, px * 0.075) * 0.5 + blur(band, px * 0.16) * 0.3)[..., None]
-    return glow(light)
-
-
-def _smin(a: np.ndarray, b: np.ndarray, k: float) -> np.ndarray:
-    """The nearer of two distances, blended over k where they meet, so the shapes flow into each other."""
-    h = np.clip(0.5 + 0.5 * (b - a) / k, 0, 1)
-    return b + (a - b) * h - k * h * (1 - h)
-
-
-def _leg(root: QPointF, raised: QPointF) -> tuple[float, float]:
-    """How long the foreleg from root to its raised paw's middle is, and how far it leans out from
-    upright, in degrees (the right one's way)."""
-    dx, dy = abs(raised.x() - root.x()), root.y() - raised.y()
-    return math.hypot(dx, dy), math.degrees(math.atan2(dx, dy))
-
-
-def _toes(spread: float = 1.0) -> list[tuple[float, float]]:
-    """Where each toe's middle is from the palm's, in shares of a paw's width."""
-    return [(0.31 * spread * math.cos(math.radians(a)), -0.29 * spread * math.sin(math.radians(a))) for a in TOES]
-
-
-def _paw_picture(w: float, length: float, lean: float, density: float) -> tuple[QRectF, QImage]:
-    """The right paw raised, w points wide, palm to the front, on a foreleg length points long leaning
-    lean degrees out, per pixel: soft golden fur combed in fine streaks, its edge frayed into tufts,
-    lit from the halo (up and to its left on the screen) and rimmed gold, with glossy pink beans.
-    Where it lies round its palm's middle (the leg running down from it), and the picture."""
-    box = QRectF(-0.62 * w, -0.62 * w, 1.24 * w, length + 0.95 * w)
-    pw, ph, xs, ys = _grid(box.width(), box.height(), density)
-    x, y = (xs + box.left()) / w, (ys + box.top()) / w
-    reach = length / w
-    px = w * density
-
-    def ellipse(cx: float, cy: float, rx: float, ry: float) -> tuple[np.ndarray, np.ndarray]:
-        n = np.hypot((x - cx) / rx, (y - cy) / ry)
-        return (n - 1) * min(rx, ry), np.sqrt(np.clip(1 - n * n, 0, 1)) * min(rx, ry)
-
-    def lit(dome: np.ndarray, light: tuple[float, float, float]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        gy, gx = np.gradient(dome)
-        norm = np.sqrt(gx * gx + gy * gy + 1)
-        lx, ly, lz = light
-        hx, hy, hz = lx, ly, lz + 1
-        half = math.sqrt(hx * hx + hy * hy + hz * hz)
-        facing = np.clip((-gx * lx - gy * ly + lz) / norm, 0, 1)
-        mirror = np.clip((-gx * hx - gy * hy + hz) / (half * norm), 0, 1)
-        return facing, mirror, norm
-
-    # The light from the halo, turned into the picture's way (it is laid turned lean degrees).
-    turn = math.radians(lean)
-    sx, sy = -0.92, -0.38
-    light = (sx * math.cos(turn) + sy * math.sin(turn), -sx * math.sin(turn) + sy * math.cos(turn), 0.75)
-    size = math.sqrt(sum(c * c for c in light))
-    light = tuple(c / size for c in light)
-    # The palm, a toe on each of its top, and the leg, thick and thinning a little toward its root.
-    thick = 0.29 - 0.03 * np.clip(y / reach, 0, 1)
-    along = np.hypot(x, y - np.clip(y, 0.1, reach + 0.5))
-    leg = (along - thick, np.sqrt(np.clip(1 - (along / thick) ** 2, 0, 1)) * thick)
-    parts = [ellipse(0, 0, 0.34, 0.3), *(ellipse(tx, ty, 0.125, 0.135) for tx, ty in _toes()), leg]
-    d = parts[0][0]
-    for other, _dome in parts[1:]:
-        d = _smin(d, other, 0.035)
-    tufts = noise(pw, ph, max(1.0, 0.018 * px), 2, 13) - 0.5
-    streaks = noise(pw, ph, max(1.0, 0.005 * px), 2, 7) - 0.5
-    alpha = np.clip(-(d + 0.03 * tufts) * px * 0.8 + 0.5, 0, 1) * (1 - smooth(reach - 0.55, reach + 0.25, y))
-    # Each part a soft dome: the toes rise from the palm with a crease between them.
-    dome = blur(np.maximum.reduce([h for _d, h in parts]) * px, 0.8 * density)
-    facing, _mirror, _norm = lit(dome, light)
-    color = _ramp(np.clip(0.36 + 0.64 * facing + 0.08 * streaks, 0, 1), FUR)
-    rim = 1 - smooth(0.0, 0.07, -d)
-    color = color + (rgb("#ffcf66") - color) * (rim * 0.55)[..., None]
-    # The beans: a three-lobed pad under the row of toes and one on each toe, glossy and raised.
-    beans = _smin(ellipse(0, 0.07, 0.17, 0.12)[0], np.minimum(ellipse(-0.085, 0.14, 0.08, 0.075)[0], ellipse(0.085, 0.14, 0.08, 0.075)[0]), 0.04)
-    for tx, ty in _toes(0.97):
-        beans = np.minimum(beans, ellipse(tx, ty + 0.012, 0.06, 0.072)[0])
-    bean = np.clip(-beans * px + 0.5, 0, 1)
-    bump = blur(np.sqrt(np.clip(-beans / 0.05, 0, 1)) * 0.05 * px, 0.5 * density)
-    bean_facing, bean_mirror, _norm = lit(bump, light)
-    pink = rgb("#d65c7e") + (rgb("#ffb8cb") - rgb("#d65c7e")) * bean_facing[..., None]
-    pink = pink + (1 - pink) * (bean_mirror**28 * 0.9)[..., None]
-    nested = (1 - smooth(0.0, 0.04, beans)) * (1 - bean)
-    color = color * (1 - 0.2 * nested)[..., None]
-    color = color * (1 - bean[..., None]) + pink * bean[..., None]
-    return box, picture(color, alpha)
-
-
-def _paws(p: QPainter, t: float, roots: tuple, raised: tuple, paw: float, band: QRectF, cut: QImage, lift: float, shown: tuple, density: float, k: float, glints: list, u: float) -> None:
-    """Both paws on a picture of the band they live in, at the screen's sharpness, cut away over the
-    title, and laid on: each pops up along its leg from behind the title (k, overshooting a little),
-    then the two wave by turns, a warm light behind them and glints flaring on their beans."""
-    layer = QImage(max(1, math.ceil(band.width() * density)), max(1, math.ceil(band.height() * density)), QImage.Format_ARGB32_Premultiplied)
-    layer.fill(Qt.transparent)
-    q = QPainter(layer)
-    q.setRenderHint(QPainter.Antialiasing)
-    q.setRenderHint(QPainter.SmoothPixmapTransform)
-    q.scale(density, density)
-    q.translate(-band.left(), -band.top() + lift)
-    q.setOpacity(clamp(win(t, 0.6, 0.85)))
-    box, image = shown
-    length, lean = _leg(roots[0], raised[0])
-    for side, (root, top) in enumerate(zip(roots, raised, strict=True)):
-        soft_dot(q, top.x(), top.y(), paw * 0.8, "#ffc95e", 0.22 * clamp(k))
-        wave = 5.0 * math.sin(2 * math.pi * (t - 1.4) / 1.5 + side * math.pi) * ease_in_out(win(t, 1.3, 1.9))
-        q.save()
-        q.translate(root)
-        q.scale(1 if side == 0 else -1, 1)
-        q.rotate(lean + wave)
-        q.translate(0, -length * (0.15 + 0.85 * k))
-        q.drawImage(box, image)
-        for spot, x, y, when, life in glints:
-            shine = math.sin(math.pi * win(t, when, when + life))
-            if spot == side and shine > 0:
-                soft_dot(q, x * paw, y * paw, 10 * u, HONEY, 0.45 * shine)
-                star(q, x * paw, y * paw, (5 + 8 * shine) * u, "#fffaf0", shine, 0.08)
-        q.restore()
-    q.resetTransform()
-    q.setOpacity(1.0)
+def _shaft_paint(p: QPainter, t: float, shafts: tuple[QImage, list[QImage]], width: float, height: float, a: float) -> None:
+    """The round window's shafts, each set breathing in turn, cut to where they may show on a small
+    picture and laid on scaled up."""
+    if a <= 0.01:
+        return
+    keep, layers = shafts
+    small = QImage(keep.width(), keep.height(), QImage.Format_ARGB32_Premultiplied)
+    small.fill(Qt.transparent)
+    q = QPainter(small)
+    q.setCompositionMode(QPainter.CompositionMode_Plus)
+    for index, layer in enumerate(layers):
+        q.setOpacity(clamp(a * (0.55 + 0.45 * math.sin(t * (0.9 + 0.35 * index) + index * 2.4))))
+        q.drawImage(0, 0, layer)
     q.setCompositionMode(QPainter.CompositionMode_DestinationIn)
-    q.drawImage(QRectF(0, 0, layer.width(), layer.height()), cut)
+    q.setOpacity(1.0)
+    q.drawImage(0, 0, keep)
     q.end()
-    p.drawImage(band, layer)
-
-
-def _crest(p: QPainter, t: float, halo_at: QPointF, roots: tuple, raised: tuple, paw: float, band: QRectF, cut: QImage, u: float, paws: dict, halos: dict, burst: list, glints: list) -> None:
-    """The crest round the title: the halo comes down above it, two paws pop up from behind it with
-    a burst of light and wave, glints coming and going on their beans; at the end they rise into the
-    light and fade."""
-    leave = ease_in_out(win(t, 4.15, 4.95))
-    rise = ease_in(win(t, 3.95, 4.95))
-    flash = _burst(t)
-    density = _density(p)
-    # The pictures, made on the first frame while nothing shows yet.
-    rx = 112 * u
-    px = max(16, math.ceil(rx * 2 * density / 8) * 8)
-    if px not in halos:
-        halos[px] = _halo_picture(px)
-    if density not in paws:
-        paws.clear()
-        length, lean = _leg(roots[0], raised[0])
-        paws[density] = _paw_picture(paw, length, lean, density)
-    a = 1 - leave
-    if a <= 0.01:
-        return
-    lift = -50 * u * rise
-    p.save()
-    p.setOpacity(p.opacity() * a)
-    p.setRenderHint(QPainter.SmoothPixmapTransform)
-    k = ease_back(win(t, 0.6, 1.4), 1.8)
-    if k > 0:
-        _paws(p, t, roots, raised, paw, band, cut, lift, paws[density], density, k, glints, u)
-    _halo(p, t, QPointF(halo_at.x(), halo_at.y() + lift), rx, halos[px], px, flash, u)
-    p.restore()
-    hc = QPointF(halo_at.x(), halo_at.y() + lift)
-    # Glints thrown out by the burst toward the paws, slowing as they go.
-    for angle, far, life in burst:
-        age = t - 1.0
-        if 0 < age < life:
-            k_ = ease_out(age / life)
-            x = hc.x() + math.cos(angle) * far * k_
-            y = hc.y() + 20 * u + math.sin(angle) * far * k_ * 0.5
-            fade = 1 - age / life
-            soft_dot(p, x, y, 11 * u, AMBER, 0.6 * fade)
-            star(p, x, y, 8 * u * (0.6 + 0.4 * fade), "#fff6dc", fade)
-    # Going, the halo leaves glints of its light rising from its ring.
-    if rise > 0:
-        for i in range(12):
-            turn = i / 12 * 2 * math.pi + 0.3
-            k_ = clamp(rise * 1.4 - 0.035 * i)
-            if 0 < k_ < 1:
-                x = hc.x() + rx * math.cos(turn)
-                y = hc.y() + rx * 0.27 * math.sin(turn) - 70 * u * k_ * (0.7 + 0.05 * i)
-                soft_dot(p, x, y, 12 * u, GOLD, 0.6 * (1 - k_))
-                star(p, x, y, 8 * u * math.sin(math.pi * k_), "#fffaf0", 1 - k_ * 0.6)
-
-
-def _glint_spots(rnd: random.Random) -> list[tuple]:
-    """Where the paws catch the light now and then: on a bean of either paw, as (side, x, y from the
-    palm's middle in shares of a paw's width, when, how long)."""
-    spots = [(0.0, 0.07), *_toes(0.97)]
-    out = []
-    for i in range(12):
-        x, y = rnd.choice(spots)
-        out.append((i % 2, x + rnd.uniform(-0.03, 0.03), y + rnd.uniform(-0.04, 0.02), rnd.uniform(1.6, 3.9), rnd.uniform(0.5, 0.9)))
-    return out
-
-
-def _halo(p: QPainter, t: float, hc: QPointF, rx: float, image: QImage, px: int, flash: float, u: float) -> None:
-    """The halo comes down to float above the title, tilted a little, a glint running round it; the
-    burst blooms out of it."""
-    down = ease_out(win(t, 0.3, 1.0))
-    if down <= 0:
-        return
-    hc = QPointF(hc.x(), hc.y() - 40 * u * (1 - down) + 2.5 * u * math.sin(t * 1.9 + 0.8))
-    # Its radiance, wide and low.
-    p.save()
-    p.translate(hc)
-    p.scale(1, 0.3)
-    soft_dot(p, 0, 0, rx * 2.0, "#ffc24f", 0.42 * down)
-    p.restore()
-    if flash > 0.02:
-        # A soft bloom, wide and low, kept above the words.
-        p.save()
-        p.translate(hc)
-        p.scale(1, 0.42)
-        soft_dot(p, 0, 0, rx * 2.6, "#fff6dc", 0.55 * flash)
-        soft_dot(p, 0, 0, rx * 4.2, "#ffc24f", 0.4 * flash)
-        p.restore()
-    scale = rx * 2 / px
-    w, h = image.width() * scale, image.height() * scale
-    p.save()
-    p.translate(hc)
-    p.rotate(-6)
-    p.save()
-    p.setOpacity(p.opacity() * down * (0.92 + 0.08 * math.sin(t * 3.1)))
-    p.drawImage(QRectF(-w / 2, -h / 2, w, h), image)
-    p.restore()
-    for offset, size in ((0.0, 1.0), (math.pi * 0.9, 0.6)):
-        turn = t * 2.2 + offset
-        gx, gy = rx * math.cos(turn), rx * 0.27 * math.sin(turn)
-        near = 0.5 + 0.5 * math.sin(turn)
-        shine = down * (0.4 + 0.6 * near) * size
-        soft_dot(p, gx, gy, 18 * u * size, "#ffe9b0", 0.7 * shine)
-        star(p, gx, gy, (9 + 9 * near) * u * size, "#fffdf6", shine, 0.08)
-    p.restore()
-
-
-def _falling(p: QPainter, t: float, falling: list[tuple], sprites: dict, u: float, a: float) -> None:
-    """Gold feathers drifting down the sides, swaying, and turning about their shafts as they go,
-    flashing as they face the light."""
-    # Made on the first frame, while none falls yet.
-    sprite = _sprite(sprites, "loose", 56 * u, _density(p))
-    if a <= 0.01:
-        return
     p.save()
     p.setRenderHint(QPainter.SmoothPixmapTransform)
+    p.drawImage(QRectF(0, 0, width, height), small)
+    p.restore()
+
+
+def _dust(p: QPainter, t: float, dust: list[tuple], center: QPointF, radius: float, spark: QImage, u: float, a: float) -> None:
+    """Dust turning slowly in the shafts below the round window, catching the light as it turns."""
+    if a <= 0.01:
+        return
     base = p.opacity()
+    p.save()
+    for along, across, turn, depth, r, phase in dust:
+        # Placed along the shafts by angle and distance, drifting down and round.
+        angle = turn + 0.04 * math.sin(t * 0.5 + phase)
+        far = radius * 1.3 + (depth * 380 * u + 18 * u * t) % (380 * u)
+        x = center.x() + far * math.cos(angle) + 8 * u * math.sin(t * 0.8 + phase)
+        y = center.y() + far * math.sin(angle) * across + 10 * u * t * 0.3
+        shine = 0.5 + 0.5 * math.sin(t * along * 2.1 + phase)
+        _lay(p, spark, x, y, r * (3 + 2 * shine), base * a * (0.25 + 0.55 * shine))
+    p.restore()
+
+
+def _rose(p: QPainter, t: float, art: tuple, center: QPointF, radius: float, lit: float, a: float, u: float, spark: QImage) -> None:
+    """The round window's glass lights from the middle out, flaring as it fills, and its light spills
+    round it; the glass is laid on under its tracery."""
+    rect, glass, halo_rect, halo = art
+    if lit <= 0 or a <= 0.01:
+        return
+    base = p.opacity()
+    flare = ease_out(win(t, 1.8, 2.05)) * (1 - ease_in_out(win(t, 2.05, 2.9)))
+    p.save()
+    p.setRenderHint(QPainter.SmoothPixmapTransform)
+    p.setOpacity(base * a * lit * (0.8 + 0.12 * _flicker(t, 4) + 0.5 * flare))
+    p.drawImage(halo_rect, halo)
+    p.setOpacity(base * a)
+    if lit >= 1:
+        p.drawImage(rect, glass)
+        # The light behind the glass wavers like candlelight.
+        p.setCompositionMode(QPainter.CompositionMode_Plus)
+        p.setOpacity(base * a * 0.22 * _flicker(t, 5))
+        p.drawImage(rect, glass)
+    else:
+        brush = QBrush(glass)
+        brush.setTransform(QTransform(rect.width() / glass.width(), 0, 0, rect.height() / glass.height(), rect.left(), rect.top()))
+        p.setPen(Qt.NoPen)
+        p.setBrush(brush)
+        reach = radius * lit
+        p.drawEllipse(center, reach, reach)
+    if flare > 0.01:
+        p.setCompositionMode(QPainter.CompositionMode_Plus)
+        _lay(p, spark, center.x(), center.y(), radius * 1.1, base * a * flare * 0.7)
+    p.restore()
+
+
+def _flare(p: QPainter, t: float, at: QPointF, when: float, spark: QImage, u: float) -> None:
+    """A burst of light at the keystone as the two halves of the frieze meet there."""
+    k = ease_out(win(t, when - 0.05, when + 0.1)) * (1 - ease_in_out(win(t, when + 0.1, when + 0.9)))
+    if k <= 0.01:
+        return
+    base = p.opacity()
+    p.save()
+    p.setCompositionMode(QPainter.CompositionMode_Plus)
+    _lay(p, spark, at.x(), at.y(), 70 * u, base * k * 0.8)
+    p.setCompositionMode(QPainter.CompositionMode_SourceOver)
+    p.setOpacity(base)
+    star(p, at.x(), at.y(), 30 * u * k, "#fffbea", k, 0.07)
+    star(p, at.x(), at.y(), 14 * u * k, "#fffbea", k * 0.8, 0.2)
+    p.restore()
+
+
+def _tracery(p: QPainter, t: float, gilding: _Gilding, ends: float, a: float, flicker: float) -> None:
+    """The gold as far as it has been drawn, its light under it; all of it once it is done."""
+    if a <= 0.01:
+        return
+    base = p.opacity()
+    p.save()
+    p.setRenderHint(QPainter.SmoothPixmapTransform)
+    done = t >= ends
+    for area in gilding.areas:
+        if area is None:
+            continue
+        rect, _near, gold, bloom, gold_so_far, bloom_so_far = area
+        p.setOpacity(base * a * (0.8 + 0.2 * flicker))
+        p.drawImage(rect, bloom if done else bloom_so_far)
+        p.setOpacity(base * a)
+        p.drawImage(rect, gold if done else gold_so_far)
+    p.restore()
+
+
+def _pens(p: QPainter, t: float, lines: list[_Line], spark: QImage, u: float, a: float) -> None:
+    """The hot pen of light at the head of each line still drawing, a comet of light behind it."""
+    base = p.opacity()
+    heads = []
+    for line in lines:
+        drawn = (t - line.start) / line.span
+        if 0 < drawn < 1:
+            heads.append((line, drawn * line.run[-1]))
+    if not heads or a <= 0.01:
+        return
+    p.save()
+    p.setCompositionMode(QPainter.CompositionMode_Plus)
+    for line, at in heads:
+        big = 0.6 + 0.2 * line.width
+        for back, size, alpha in ((44, 9, 0.18), (26, 11, 0.3), (12, 13, 0.45), (0, 15, 0.85)):
+            if at - back * u > 0 or not back:
+                point, _ = point_at(line.points, line.run, at - back * u)
+                _lay(p, spark, point.x(), point.y(), size * big * u, base * a * alpha)
+    p.setCompositionMode(QPainter.CompositionMode_SourceOver)
+    p.setOpacity(base)
+    for line, at in heads:
+        if line.width >= 2.2:
+            point, _ = point_at(line.points, line.run, at)
+            star(p, point.x(), point.y(), 9 * u, "#ffffff", 0.9 * a, 0.1)
+    p.restore()
+
+
+def _glints(p: QPainter, t: float, glints: list[tuple], spark: QImage, u: float, a: float) -> None:
+    """Once it is all drawn, light catches the gold and runs along its longest lines."""
+    base = p.opacity()
+    p.save()
+    for when, line, span, back in glints:
+        k = win(t, when, when + span)
+        if not 0 < k < 1:
+            continue
+        at = ease_in_out(k) * line.run[-1]
+        head, _ = point_at(line.points, line.run, line.run[-1] - at if back else at)
+        shine = math.sin(math.pi * k) * a
+        p.setCompositionMode(QPainter.CompositionMode_Plus)
+        _lay(p, spark, head.x(), head.y(), 16 * u, base * shine * 0.8)
+        p.setCompositionMode(QPainter.CompositionMode_SourceOver)
+        p.setOpacity(base)
+        star(p, head.x(), head.y(), (6 + 7 * shine) * u, "#fffbea", shine, 0.09)
+    p.restore()
+
+
+def _feathers(p: QPainter, t: float, falling: list[tuple], sprite: tuple[QImage, float], a: float) -> None:
+    """Gold-leaf feathers drifting down the sides, rocking as they fall and turning about their
+    shafts, flashing when they turn their face to the light."""
+    if a <= 0.01:
+        return
+    image, root = sprite
+    base = p.opacity()
+    p.save()
+    p.setRenderHint(QPainter.SmoothPixmapTransform)
     for index, (born, x, y, fall, length, phase, rate) in enumerate(falling):
         age = t - born
         if age <= 0:
             continue
-        fade = min(1.0, age / 0.5) * a
-        # Lying nearly flat, it rocks from side to side as it falls, dipping at each end of a swing.
-        swing = math.sin(age * 1.7 + phase)
-        cx = x + 18 * u * swing
-        cy = y + fall * age - 6 * u * abs(swing)
+        fade = min(1.0, age / 0.6) * a
+        swing = math.sin(age * 1.6 + phase)
+        cx = x + 16 * (length / 40) * swing
+        cy = y + fall * age - 5 * (length / 40) * abs(swing)
         heading = 180 if index % 4 < 2 else 0
-        angle = heading + 28 * math.cos(age * 1.7 + phase) * (1 if heading else -1) + 12
+        angle = heading + 26 * math.cos(age * 1.6 + phase) * (1 if heading else -1) + 12
         turn = math.cos(age * rate + phase)
-        across = math.copysign(0.35 + 0.65 * abs(turn), turn)
-        p.setOpacity(base * fade * (0.8 + 0.2 * abs(turn)))
+        across = math.copysign(0.3 + 0.7 * abs(turn), turn)
         back = math.radians(angle)
-        _lay(p, sprite, cx - math.cos(back) * length / 2, cy - math.sin(back) * length / 2, angle, length, across)
-        if abs(turn) > 0.92:
-            # Flat to the light, its gold flashes.
-            flare = (abs(turn) - 0.92) / 0.08
-            p.setOpacity(base * fade)
-            soft_dot(p, cx, cy, 16 * u, HONEY, 0.45 * flare)
-            star(p, cx, cy, 9 * u * flare, "#fffaf0", flare, 0.1)
+        scale = length / image.width()
+        p.save()
+        p.translate(cx - math.cos(back) * length / 2, cy - math.sin(back) * length / 2)
+        p.rotate(angle)
+        p.scale(scale, scale * across)
+        p.setOpacity(base * fade * (0.7 + 0.3 * abs(turn)))
+        p.drawImage(QPointF(0, -root * image.height()), image)
+        flash = clamp((abs(turn) - 0.86) / 0.14)
+        if flash > 0.01:
+            p.setCompositionMode(QPainter.CompositionMode_Plus)
+            p.setOpacity(base * fade * flash * 0.55)
+            p.drawImage(QPointF(0, -root * image.height()), image)
+        p.restore()
     p.restore()
 
 
-def _motes(p: QPainter, t: float, motes: list[tuple], u: float, a: float) -> None:
-    """Gold motes rising from the bottom corners, swaying and twinkling, gone before the names."""
-    for born, x, y, rise, r, phase in motes:
-        age = t - born
-        if age <= 0 or age > 2.6:
-            continue
-        fade = min(1.0, age / 0.4) * min(1.0, (2.6 - age) / 0.9) * a
-        px, py = x + 10 * u * math.sin(age * 1.8 + phase), y - rise * age
-        twinkle = 0.6 + 0.4 * math.sin(age * 6 + phase)
-        soft_dot(p, px, py, r * 4, AMBER, 0.42 * fade)
-        soft_dot(p, px, py, r * 1.3, "#fff4d0", 0.95 * fade * twinkle)
-
-
-def _dust(raised: tuple, paw: float, u: float, rnd: random.Random) -> list[tuple]:
-    """Gold dust shed by the raised paws: specks born round either paw, as (when, x, y, drift, fall,
-    size, phase, how long)."""
-    out = []
-    for i in range(64):
-        top = raised[i % 2]
-        out.append(
-            (
-                rnd.uniform(1.2, 4.1),
-                top.x() + rnd.uniform(-0.55, 0.55) * paw,
-                top.y() + rnd.uniform(-0.3, 0.5) * paw,
-                (1, -1)[i % 2] * rnd.uniform(4, 18) * u,
-                rnd.uniform(16, 40) * u,
-                rnd.uniform(1.1, 2.6) * u,
-                rnd.uniform(0, 6.28),
-                rnd.uniform(1.4, 2.4),
-            )
-        )
-    return out
-
-
-def _dust_paint(p: QPainter, t: float, dust: list[tuple], height: float, u: float, a: float) -> None:
-    """The dust sifting down and outward, each speck glinting as it turns, gone before the names."""
+def _motes(p: QPainter, t: float, motes: list[tuple], spark: QImage, u: float, a: float) -> None:
+    """Gold motes rising from the candlelight in the bottom corners, swaying and twinkling."""
     if a <= 0.01:
         return
-    floor = height * 0.3
-    for born, x, y, drift, fall, r, phase, life in dust:
+    base = p.opacity()
+    p.save()
+    for born, x, y, rise, r, phase in motes:
         age = t - born
-        if age <= 0 or age > life:
+        if age <= 0 or age > 2.8:
             continue
-        px = x + drift * age + 5 * u * math.sin(age * 2.3 + phase)
-        py = y + fall * age
-        fade = min(1.0, age / 0.3) * min(1.0, (life - age) / 0.6) * clamp((floor - py) / (40 * u)) * a
-        if fade <= 0.01:
-            continue
-        flick = abs(math.sin(age * 4.2 + phase)) ** 3
-        soft_dot(p, px, py, r * 4.5, GOLD, 0.42 * fade)
-        soft_dot(p, px, py, r * (1.0 + 0.6 * flick), "#fff6dc", fade * (0.5 + 0.5 * flick))
-        if flick > 0.6:
-            star(p, px, py, r * 4 * flick, "#fffaf0", fade * flick, 0.1)
+        fade = min(1.0, age / 0.4) * min(1.0, (2.8 - age) / 1.0) * a
+        twinkle = 0.55 + 0.45 * math.sin(age * 6.5 + phase)
+        _lay(p, spark, x + 10 * u * math.sin(age * 1.7 + phase), y - rise * age, r * 3.2, base * fade * twinkle)
+    p.restore()
 
 
-def _sparkle_spots(width: float, height: float, gap: QRectF, u: float, rnd: random.Random) -> list[tuple]:
-    """Where sparkles come and go: the top band either side of the title, and down the sides."""
-    names = QRectF(width * 0.12, height * 0.27, width * 0.83, height * 0.6)
-    title = QRectF(width * 0.36, height * 0.0, width * 0.34, height * 0.34)
-    out = []
-    while len(out) < 22:
-        x, y = rnd.uniform(0.01, 0.99) * width, rnd.uniform(0.02, 0.9) * height
-        point = QPointF(x, y)
-        if names.contains(point) or title.contains(point) or gap.adjusted(-40 * u, -40 * u, 40 * u, 0).contains(point):
-            continue
-        out.append((x, y, rnd.uniform(0.4, 3.8), rnd.uniform(0.7, 1.3), rnd.uniform(5, 11) * u))
-    return out
+# The marks: a gilded frame on the button, a gold rosette, a lancet window of golden glass.
+
+_MADE: dict[tuple, object] = {}
 
 
-def _sparkles(p: QPainter, t: float, spots: list[tuple], u: float, a: float) -> None:
-    for x, y, when, span, r in spots:
-        k = win(t, when, when + span)
-        if not 0 < k < 1:
-            continue
-        shine = math.sin(math.pi * k) * a
-        soft_dot(p, x, y, r * 2.2, HONEY, 0.4 * shine)
-        star(p, x, y, r * (0.6 + 0.6 * shine), "#fffaf0", shine, 0.1)
-        if r > 9 * u:
-            star(p, x, y, r * 0.5 * shine, mix(GOLD, "#ffffff", 0.4), shine, 0.25)
+def _made(key: tuple, build):  # noqa: ANN001, ANN202
+    """A mark's pictures, made once for its size and sharpness."""
+    if key not in _MADE:
+        if len(_MADE) > 24:
+            _MADE.clear()
+        _MADE[key] = build()
+    return _MADE[key]
 
 
-# The marks.
+def _ring_lines(cover: QRectF) -> tuple[QPainterPath, QPainterPath]:
+    """The frame on the button: a gilded molding just inside its edge and a fine line within it, a
+    quatrefoil at each corner, a pointed crest over its middle and a pendant under it, and filigree
+    scrolls either side of the crest. Also the molding alone, for the glints to run round."""
+    radius = cover.height() * 0.14
+    molding = QPainterPath()
+    molding.addRoundedRect(cover.adjusted(1.8, 1.8, -1.8, -1.8), radius, radius)
+    frame = QPainterPath(molding)
+    inner = QPainterPath()
+    inner.addRoundedRect(cover.adjusted(5.5, 5.5, -5.5, -5.5), max(1.0, radius - 4), max(1.0, radius - 4))
+    frame.addPath(inner)
+    unit = cover.height() / 80
+    for x, y in ((cover.left(), cover.top()), (cover.right(), cover.top()), (cover.left(), cover.bottom()), (cover.right(), cover.bottom())):
+        cx = x + (4.5 if x == cover.left() else -4.5) * unit
+        cy = y + (4.5 if y == cover.top() else -4.5) * unit
+        frame.addPath(polyline(_foil(cx, cy, 7.5 * unit, 4, math.pi / 4)))
+        frame.addPath(polyline(_circle(cx, cy, 1.6 * unit, 8)))
+    cx = cover.center().x()
+    top, bottom = cover.top() + 1.8, cover.bottom() - 1.8
+    for y, sign in ((top, -1), (bottom, 1)):
+        rise = 7.5 * unit
+        crest = [QPointF(cx - 17 * unit, y), QPointF(cx - 7 * unit, y + sign * rise * 0.55), QPointF(cx, y + sign * rise)]
+        crest += [QPointF(cx + 7 * unit, y + sign * rise * 0.55), QPointF(cx + 17 * unit, y)]
+        frame.addPath(polyline(catmull(crest, 8)))
+        frame.addPath(polyline(_circle(cx, y + sign * rise * 0.25, 1.7 * unit, 8)))
+    for side in (-1, 1):
+        for k, length in ((0, 30), (1, 20)):
+            start = QPointF(cx + side * (21 + 13 * k) * unit, top + 0.5)
+            heading = 0.0 if side > 0 else math.pi
+            curl = _scroll(start, heading + side * 0.25, length * unit, side * (4.8 + 0.4 * k))
+            frame.addPath(polyline(curl))
+            start = QPointF(cx + side * (21 + 13 * k) * unit, bottom - 0.5)
+            curl = _scroll(start, heading - side * 0.25, length * unit, -side * (4.8 + 0.4 * k))
+            frame.addPath(polyline(curl))
+    return frame, molding
 
 
-def _kept(key: tuple, build: Callable[[], tuple]) -> tuple:
-    """The pictures for a mark at one size and sharpness, made once; a few sizes are kept."""
-    if key not in _MARKS:
-        if len(_MARKS) > 24:
-            _MARKS.clear()
-        _MARKS[key] = build()
-    return _MARKS[key]
+def _ring_art(window: QRectF, cover: QRectF, scale: float) -> tuple[QImage, QImage, list[QPointF], list[float]]:
+    """The frame on the button in gold, its warm glow, and the molding's points for the glints."""
+    frame, molding = _ring_lines(cover)
+    unit = cover.height() / 80
+    w, h = max(1, math.ceil(window.width() * scale)), max(1, math.ceil(window.height() * scale))
 
+    def draw(q: QPainter, thick: float, lines: QPainterPath) -> None:
+        q.scale(scale, scale)
+        q.translate(-window.left(), -window.top())
+        q.setPen(QPen(QColor("#ffffff"), thick, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        q.drawPath(lines)
 
-def _grid(w: float, h: float, density: float) -> tuple[int, int, np.ndarray, np.ndarray]:
-    """A picture's size in pixels for w by h points, and each pixel's middle in points."""
-    pw, ph = max(1, math.ceil(w * density)), max(1, math.ceil(h * density))
-    ys, xs = np.mgrid[0:ph, 0:pw].astype(np.float32) + 0.5
-    return pw, ph, xs / density, ys / density
-
-
-def _rounded(xs: np.ndarray, ys: np.ndarray, rect: QRectF, radius: float) -> np.ndarray:
-    """How far each point is outside a rounded rectangle, in points (inside, below 0)."""
-    cx, cy = rect.center().x(), rect.center().y()
-    qx = np.abs(xs - cx) - (rect.width() / 2 - radius)
-    qy = np.abs(ys - cy) - (rect.height() / 2 - radius)
-    return np.hypot(np.maximum(qx, 0), np.maximum(qy, 0)) + np.minimum(np.maximum(qx, qy), 0) - radius
-
-
-def _rays_around(angle: np.ndarray, counts: tuple[int, ...], seed: int) -> np.ndarray:
-    """Rays all round, 0..1 by angle: a few waves of whole counts each, so they meet where they start."""
-    rnd = np.random.default_rng(seed)
-    out = np.full(angle.shape, 0.5, dtype=np.float32)
-    for n, weight in zip(counts, (0.28, 0.14, 0.08), strict=False):
-        out += weight * np.cos(n * angle + rnd.uniform(0, 6.28))
-    return smooth(0.42, 0.88, out)
-
-
-def _ring_pictures(w: float, h: float, density: float) -> tuple[QImage, QImage, QImage, QImage]:
-    """The ring for a cover w by h, at density, per pixel, the window being the cover and ROOM round
-    it: the band of polished gold along the cover's edge with a fine line of pale gold inside it; its
-    amber glow; and two sets of soft rays beyond it, to shimmer from one to the other."""
-    width, height = w + 2 * ROOM, h + 2 * ROOM
-    _pw, _ph, xs, ys = _grid(width, height, density)
-    cover = QRectF(ROOM, ROOM, w, h)
-    radius = max(4.0, h * 0.14)
-    edge = _rounded(xs, ys, cover, radius)
-    middle, half = -2.6, 2.4
-    k = np.abs(edge - middle) / half
-    band = np.clip((half - np.abs(edge - middle)) * density + 0.5, 0, 1)
-    height_px = np.sqrt(np.clip(1 - k * k, 0, 1)) * half * 0.9 * density
-    bright = _shine(height_px, (-0.35, -0.8, 0.5))
-    line = np.clip((0.45 - np.abs(edge + 6.6)) * density + 0.5, 0, 1)
-    color = _ramp(bright)
-    color = color * (1 - line[..., None] * (1 - band[..., None])) + rgb(GOLD_PALE) * (line * (1 - band))[..., None]
-    metal = picture(color, np.maximum(band, line * 0.85))
-    lit = glow(rgb(AMBER) * (blur(band, 2.6 * density) * 0.75 * (edge > -1))[..., None])
-    outside = (1 - smooth(0.0, ROOM, edge)) ** 1.4 * smooth(-0.5, 1.5, edge)
-    angle = np.arctan2((ys - height / 2) / (h / 2), (xs - width / 2) / (w / 2))
-    rays = []
-    for seed in (2, 7):
-        streak = _rays_around(angle, (27, 43, 71), seed)
-        tint = rgb("#ffc24f") + (rgb("#fff0c4") - rgb("#ffc24f")) * streak[..., None] * 0.6
-        rays.append(glow(tint * (outside * (0.08 + 0.92 * streak) * 1.5)[..., None]))
-    return metal, lit, rays[0], rays[1]
+    cover_px = mask(w, h, lambda q: draw(q, 1.5 * unit, frame))
+    cover_px = np.maximum(cover_px, mask(w, h, lambda q: draw(q, 3.2 * unit, molding)))
+    gold = _gild(cover_px, unit * scale, 0.5)
+    px = unit * scale
+    light = blur(cover_px, 2.0 * px) * 0.7 + blur(cover_px, 5 * px) * 0.6
+    halo = glow(rgb(HONEY)[None, None, :] * light[..., None])
+    points = [QPointF(point) for point in molding.toSubpathPolygons()[0]]
+    return gold, halo, points, lengths(points)
 
 
 def ring(p: QPainter, cover: QRectF, t: float) -> None:
-    """A band of polished gold round the button, soft golden rays shimmering beyond it, two glints
-    running round it."""
-    density = _density(p)
-    metal, lit, rays_a, rays_b = _kept(("ring", round(cover.width(), 1), round(cover.height(), 1), round(density, 2)), lambda: _ring_pictures(cover.width(), cover.height(), density))
-    window = cover.adjusted(-ROOM, -ROOM, ROOM, ROOM)
+    """A gilded frame on the button, breathing warm light, two glints running round it."""
+    scale = _sharpness(p)
+    window = cover.adjusted(-9, -9, 9, 9)
+    key = ("ring", round(cover.width(), 1), round(cover.height(), 1), scale)
+    gold, halo, points, run = _made(key, lambda: _ring_art(window, cover, scale))
+    spark = _made(("spark",), _spark)
     p.setRenderHint(QPainter.SmoothPixmapTransform)
-    shimmer = 0.5 + 0.5 * math.sin(t * 1.4)
-    breathe = 0.72 + 0.28 * math.sin(t * 2.2)
-    p.setOpacity(breathe * (1 - shimmer))
-    p.drawImage(window, rays_a)
-    p.setOpacity(breathe * shimmer)
-    p.drawImage(window, rays_b)
-    p.setOpacity(0.8 + 0.2 * math.sin(t * 2.2))
-    p.drawImage(window, lit)
+    p.setOpacity(0.75 + 0.25 * math.sin(t * 2.0))
+    p.drawImage(window, halo)
     p.setOpacity(1.0)
-    p.drawImage(window, metal)
-    path = QPainterPath()
-    radius = max(4.0, cover.height() * 0.14)
-    path.addRoundedRect(cover.adjusted(2.6, 2.6, -2.6, -2.6), radius - 2.6, radius - 2.6)
-    for offset, size in ((0.0, 1.0), (0.5, 0.7)):
-        at = path.pointAtPercent((t / 3.6 + offset) % 1.0)
-        soft_dot(p, at.x(), at.y(), 8 * size, "#ffe9b0", 0.75)
-        star(p, at.x(), at.y(), 7 * size, "#fffdf6", 0.95, 0.1)
+    p.drawImage(window, gold)
+    unit = cover.height() / 80
+    for offset in (0.0, 0.5):
+        k = (t * 0.16 + offset) % 1.0
+        head, _ = point_at(points, run, k * run[-1])
+        shine = 0.6 + 0.4 * math.sin(t * 3.0 + offset * 9)
+        p.setCompositionMode(QPainter.CompositionMode_Plus)
+        _lay(p, spark, head.x(), head.y(), 11 * unit, 0.75 * shine)
+        p.setCompositionMode(QPainter.CompositionMode_SourceOver)
+        p.setOpacity(1.0)
+        star(p, head.x(), head.y(), (5 + 3 * shine) * unit, "#fffbea", shine, 0.1)
 
 
-def _star_radius(angle: np.ndarray, outer: float, inner: float) -> np.ndarray:
-    """A four-point star's edge by angle, its sides straight: outer at its points (right, down, left,
-    up), inner in the notches between."""
-    a = np.abs((angle + math.pi / 4) % (math.pi / 2) - math.pi / 4)
-    # The side from the point (outer, 0) to the notch, inner out at 45 degrees, where the ray at a meets it.
-    notch = inner / math.sqrt(2)
-    nx, ny = notch, outer - notch
-    return nx * outer / (nx * np.cos(a) + ny * np.sin(a))
-
-
-def _badge_pictures(side: float, density: float) -> tuple[QImage, QImage, QImage]:
-    """The badge for a box side wide, at density, per pixel, the window being the box and ROOM round
-    it: a disc of polished gold with a raised bezel and a groove inside it, its sunken field spun
-    like a coin's so the light lies across it in a bow, and a star raised in its middle, four long
-    points and four short, in paler gold; its glow; and the rays round it."""
-    width = side + 2 * ROOM
-    _pw, _ph, xs, ys = _grid(width, width, density)
-    dx, dy = xs - width / 2, ys - width / 2
-    r = np.hypot(dx, dy)
-    angle = np.arctan2(dy, dx)
-    big = side * 0.44
-    disc = np.clip((big - r) * density + 0.5, 0, 1)
-    bezel = np.sqrt(np.clip(1 - ((r - big * 0.9) / (big * 0.12)) ** 2, 0, 1)) * big * 0.09
-    reach_long = _star_radius(angle, big * 0.74, big * 0.2)
-    reach_short = _star_radius(angle + math.pi / 4, big * 0.46, big * 0.14)
-    # Each point a ridge with a facet either side, highest at the middle.
-    raised = np.maximum(np.clip(1 - r / reach_long, 0, 1) * big * 0.3, np.clip(1 - r / reach_short, 0, 1) * big * 0.2)
-    star_in = np.clip((np.maximum(reach_long - r, reach_short - r)) * density + 0.5, 0, 1)
-    height_px = blur(np.maximum(bezel, raised) * density, 0.35 * density)
-    bright = _shine(height_px, (-0.45, -0.75, 0.5), 16)
-    # The field, spun: the light lies across it in a bow, brightest along the line toward the light.
-    spun = 0.16 * np.cos(2 * (angle + 2.1))
-    field = (r < big * 0.8) * (1 - star_in)
-    groove = 1 - smooth(0.0, big * 0.035, np.abs(r - big * 0.79))
-    bright = bright + field * (spun - 0.16) + 0.24 * star_in - 0.3 * groove
-    metal = picture(_ramp(bright), disc)
-    outside = (1 - smooth(big, width / 2, r)) * smooth(big * 0.9, big * 1.05, r)
-    lit = glow(rgb(AMBER) * ((1 - smooth(big * 0.8, width / 2, r)) * 0.7 * smooth(big * 0.6, big, r))[..., None])
-    streak = _rays_around(angle, (16, 28, 44), 5)
-    rays = glow((rgb("#ffcf63") + (rgb("#fff3cc") - rgb("#ffcf63")) * streak[..., None] * 0.6) * (outside * (0.1 + 0.9 * streak))[..., None])
-    return metal, lit, rays
+def _rosette(side: int) -> tuple[QImage, QImage]:
+    """A gold rosette side pixels across, per pixel: a rim of twelve foils, eight carved petals with a
+    vein each, and a cabochon of honey glass in the middle; and its warm halo, twice as wide."""
+    ys, xs = np.mgrid[0:side, 0:side].astype(np.float32) + 0.5
+    x, y = (xs / side * 2 - 1), (ys / side * 2 - 1)
+    rho = np.hypot(x, y)
+    theta = np.arctan2(y, x)
+    px = side / 2
+    rim_r = 0.9 + 0.1 * np.abs(np.cos(6 * theta)) ** 0.5
+    cover = 1 - smooth(rim_r - 1.2 / px, rim_r, rho)
+    # Heights: the plate, a raised ring of foils at its edge, the petals, the boss.
+    plate = 0.25 * cover
+    ring_h = 0.35 * np.exp(-(((rho - (rim_r - 0.08)) / 0.06) ** 2)) * cover
+    phi = (theta + math.pi / 8) % (math.pi / 4) - math.pi / 8
+    reach = np.clip((rho - 0.26) / 0.48, 0, 1)
+    breadth = np.sin(math.pi * reach ** 0.8) * (math.pi / 8) * 0.95
+    petal = np.clip(1 - (np.abs(phi) / np.maximum(breadth, 1e-3)) ** 2, 0, 1) * (rho > 0.26) * (rho < 0.74)
+    vein = np.exp(-((phi * rho / 0.018) ** 2)) * petal
+    petals = 0.32 * np.sqrt(petal) + 0.06 * vein
+    boss = rho < 0.27
+    height = blur(plate + ring_h + petals, max(0.6, side / 90))
+    color = _metal(height, side * 0.35)
+    # The boss: honey glass, domed, lit from the upper left with a bright window in it.
+    dome = np.sqrt(np.clip(1 - (rho / 0.27) ** 2, 0, 1))
+    glass = rgb("#f0a63a") * (0.55 + 0.45 * dome)[..., None] + rgb("#fff1c2") * (np.exp(-(((x + 0.09) ** 2 + (y + 0.1) ** 2) / 0.006)) * 1.2)[..., None]
+    glass = glass + rgb("#ffd56e") * (np.exp(-(((x - 0.06) ** 2 + (y - 0.08) ** 2) / 0.02)) * 0.5)[..., None]
+    bezel = np.exp(-(((rho - 0.27) / 0.025) ** 2))
+    color = np.where(boss[..., None], glass, color)
+    color = color * (1 - 0.55 * bezel)[..., None] + _ramp(np.full(rho.shape, 0.8)) * (bezel * 0.55)[..., None]
+    gold = picture(color, cover)
+    big = side * 2
+    ys, xs = np.mgrid[0:big, 0:big].astype(np.float32) + 0.5
+    d = np.hypot(xs / big * 2 - 1, ys / big * 2 - 1) * 2
+    halo = glow(rgb(HONEY)[None, None, :] * (np.exp(-((np.maximum(d - 0.7, 0) / 0.3) ** 2)) * 0.75 * smooth(0.4, 0.9, d))[..., None])
+    return gold, halo
 
 
 def badge(p: QPainter, box: QRectF, t: float) -> None:
-    """A gold halo disc with a raised star, rays of light turning slowly round it, a glint coming
-    to the star's top point now and then."""
-    density = _density(p)
-    metal, lit, rays = _kept(("badge", round(box.width(), 1), round(density, 2)), lambda: _badge_pictures(box.width(), density))
-    window = box.adjusted(-ROOM, -ROOM, ROOM, ROOM)
-    centre = box.center()
+    """A gold rosette in a warm halo, a glint walking round its foils and its glass boss glowing."""
+    scale = _sharpness(p)
+    side = max(16, math.ceil(box.width() * scale))
+    gold, halo = _made(("rosette", side), lambda: _rosette(side))
+    spark = _made(("spark",), _spark)
+    c = box.center()
+    r = box.width() / 2
     p.setRenderHint(QPainter.SmoothPixmapTransform)
-    p.save()
-    p.translate(centre)
-    p.rotate(t * 9)
-    p.setOpacity(0.75 + 0.25 * math.sin(t * 2.0))
-    p.drawImage(window.translated(-centre.x(), -centre.y()), rays)
-    p.restore()
-    p.drawImage(window, lit)
-    p.drawImage(window, metal)
-    k = (t % 2.8) / 0.9
-    if k < 1:
-        shine = math.sin(math.pi * k)
-        x, y = centre.x(), centre.y() - box.width() * 0.44 * 0.62
-        soft_dot(p, x, y, box.width() * 0.2, "#fff0c4", 0.6 * shine)
-        star(p, x, y, box.width() * (0.08 + 0.14 * shine), "#fffdf6", shine, 0.08)
+    p.setOpacity(0.7 + 0.3 * math.sin(t * 2.0 + 1.0))
+    p.drawImage(QRectF(c.x() - 2 * r, c.y() - 2 * r, 4 * r, 4 * r), halo)
+    p.setOpacity(1.0)
+    p.drawImage(box, gold)
+    p.setCompositionMode(QPainter.CompositionMode_Plus)
+    _lay(p, spark, c.x(), c.y(), r * 0.45, 0.25 + 0.2 * math.sin(t * 2.6))
+    turn = t * 1.1 - 2.2
+    gx, gy = c.x() + r * 0.86 * math.cos(turn), c.y() + r * 0.86 * math.sin(turn)
+    shine = 0.55 + 0.45 * math.sin(t * 2.3)
+    _lay(p, spark, gx, gy, r * 0.42, 0.7 * shine)
+    p.setCompositionMode(QPainter.CompositionMode_SourceOver)
+    p.setOpacity(1.0)
+    star(p, gx, gy, r * (0.22 + 0.12 * shine), "#fffbea", shine, 0.1)
 
 
-def _filigree(q: QPainter, frame: QRectF, size: float) -> None:
-    """Scrolls in each corner of frame: from the corner one runs along the top or bottom edge and one
-    down or up the side, each coiling, with a small bead where they meet."""
-    q.save()
-    for sx, sy in ((1, 1), (-1, 1), (1, -1), (-1, -1)):
-        q.save()
-        q.translate(frame.center())
-        q.scale(sx, sy)
-        corner = QPointF(-frame.width() / 2, -frame.height() / 2)
-        q.translate(corner)
-        q.setPen(QPen(Qt.white, size * 0.11, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+def _lancet(rect: QRectF) -> QPainterPath:
+    """The card's outline: straight sides and a flat foot under an ogee arch, its shoulders swelling
+    out and its two sides sweeping up to a sharp point."""
+    left, right = rect.left() + 1.5, rect.right() - 1.5
+    mid = (left + right) / 2
+    apex = rect.top() + 9.0
+    spring = rect.top() + CARD_TOP + 2
+    half, rise = (right - left) / 2, spring - apex
+    path = QPainterPath(QPointF(left, rect.bottom() - 1.5))
+    path.lineTo(left, spring)
+    path.cubicTo(QPointF(left, spring - rise * 0.55), QPointF(mid - half * 0.1, apex + rise * 0.62), QPointF(mid, apex))
+    path.cubicTo(QPointF(mid + half * 0.1, apex + rise * 0.62), QPointF(right, spring - rise * 0.55), QPointF(right, spring))
+    path.lineTo(right, rect.bottom() - 1.5)
+    path.closeSubpath()
+    return path
+
+
+def _card_art(rect: QRectF, scale: float) -> tuple[QImage, QImage]:
+    """The card per pixel: golden glass, mottled and lit from behind, brightest at the top, in a gold
+    frame with a fine line inside it; a quatrefoil in the arch's head, a star on its tip and a sill at
+    its foot. And the gold alone, for the glint that crosses it."""
+    w, h = max(1, math.ceil(rect.width() * scale)), max(1, math.ceil(rect.height() * scale))
+    outline = _lancet(rect)
+    inner = QPainterPath(outline)
+    trim = QPainterPath()
+    shrink = QTransform()
+    c = outline.boundingRect().center()
+    inset = 4.0
+    bound = outline.boundingRect()
+    shrink.translate(c.x(), c.y() + 1.0)
+    shrink.scale((bound.width() - 2 * inset) / bound.width(), (bound.height() - 2 * inset) / bound.height())
+    shrink.translate(-c.x(), -c.y())
+    inner = shrink.map(outline)
+    head = rect.top() + CARD_TOP - 5.5
+    mid = rect.center().x()
+    trim.addPath(polyline(_circle(mid, head, 6.6, 32)))
+    trim.addPath(polyline(_foil(mid, head, 5.4, 4, math.pi / 4)))
+    sill = rect.bottom() - 4.5
+    trim.moveTo(rect.left() + 4, sill)
+    trim.lineTo(rect.right() - 4, sill)
+
+    def draw(q: QPainter, paint) -> None:  # noqa: ANN001
+        q.scale(scale, scale)
+        q.translate(-rect.left(), -rect.top())
+        paint(q)
+
+    def strokes(q: QPainter) -> None:
         q.setBrush(Qt.NoBrush)
-        for swap in (False, True):
-            q.save()
-            if swap:
-                # Mirrored about the corner's diagonal, so the side's scroll coils the same way.
-                q.setTransform(QTransform(0, 1, 1, 0, 0, 0), True)
-            path = QPainterPath(QPointF(size * 0.25, size * 0.25))
-            path.cubicTo(size * 0.6, size * 0.05, size * 1.0, size * 0.05, size * 1.35, size * 0.32)
-            path.cubicTo(size * 1.6, size * 0.55, size * 1.45, size * 0.85, size * 1.2, size * 0.72)
-            path.cubicTo(size * 1.05, size * 0.62, size * 1.15, size * 0.45, size * 1.28, size * 0.52)
+        for path, thick in ((outline, 2.6), (inner, 1.0), (trim, 1.1)):
+            q.setPen(QPen(QColor("#ffffff"), thick, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
             q.drawPath(path)
-            q.restore()
+
+    def fill(q: QPainter) -> None:
         q.setPen(Qt.NoPen)
-        q.setBrush(Qt.white)
-        q.drawEllipse(QPointF(size * 0.22, size * 0.22), size * 0.17, size * 0.17)
-        q.restore()
-    q.restore()
+        q.setBrush(QColor("#ffffff"))
+        q.drawPath(outline)
+
+    lines = mask(w, h, lambda q: draw(q, strokes))
+    # The star on the arch's tip, raised gold.
+    tip = _star_height(w, h, (mid - rect.left()) * scale, 6.5 * scale, 6.5 * scale)
+    lines = np.maximum(lines, np.clip(tip * 4, 0, 1))
+    pane = mask(w, h, lambda q: draw(q, fill))
+    ys, xs = (np.mgrid[0:h, 0:w].astype(np.float32) + 0.5) / scale
+    mottle = noise(w, h, max(4.0, 18 * scale), 3, 21)
+    down = ys / rect.height()
+    tint = rgb("#fff4d2") + (rgb(LOOK["card"][1]) - rgb("#fff4d2")) * smooth(0.0, 1.0, down)[..., None]
+    # Quarries: the glass under the arch leaded in tall diamonds, faintly.
+    cell = 12.0
+    a, b = (xs + ys * 0.62) / cell, (xs - ys * 0.62) / cell
+    lattice = np.maximum(np.exp(-((np.abs(a - np.round(a)) * cell / 0.5) ** 2)), np.exp(-((np.abs(b - np.round(b)) * cell / 0.5) ** 2)))
+    lattice = lattice * smooth(CARD_TOP + 1, CARD_TOP + 4, ys)
+    glass = tint * (0.93 + 0.12 * mottle - 0.16 * lattice)[..., None]
+    height = blur(lines, max(0.6, 0.7 * scale)) + tip * 0.6
+    gold = _metal(height, 2.4 * scale)
+    under = _shift(blur(lines, max(0.6, scale)), max(1, round(scale)), 0) * 0.35 * (1 - lines)
+    color = glass * (1 - lines)[..., None] + gold * lines[..., None]
+    color = color * (1 - under)[..., None] + rgb("#6b4410") * under[..., None]
+    alpha = np.clip(np.maximum(pane * 0.97, lines), 0, 1)
+    return picture(color, alpha), picture(_metal(height, 2.4 * scale), lines)
 
 
-def _little_paw(q: QPainter, x: float, y: float, size: float) -> None:
-    """A little paw print at (x, y), a tiny halo over it: its pad and four toes, each edged so it
-    shows from the next."""
-    q.setPen(QPen(Qt.black, size * 0.06))
-    q.setBrush(Qt.white)
-    q.drawEllipse(QPointF(x, y + size * 0.12), size * 0.3, size * 0.24)
-    for tx, ty in _toes(1.2):
-        q.drawEllipse(QPointF(x + size * tx, y + size * (0.12 + ty)), size * 0.12, size * 0.14)
-    q.setPen(QPen(Qt.white, size * 0.08))
-    q.setBrush(Qt.NoBrush)
-    q.drawEllipse(QPointF(x, y - size * 0.5), size * 0.3, size * 0.1)
-
-
-def _card_pictures(w: float, h: float, density: float) -> tuple[QImage, QImage]:
-    """The card for a window w by h, at density, per pixel: ivory paper with fine fibres, warmer
-    toward its edges, in a gilt frame (a band, a hairline inside it, filigree scrolls in the corners)
-    with the little paw print on its top edge, the gold polished and casting a faint shadow on the paper.
-    The ornaments are smaller on a smaller card (fewer names, or names made small on a small game),
-    so they keep clear of the names. Also the gold alone, for the sheen to run over."""
-    pw, ph, xs, ys = _grid(w, h, density)
-    body = QRectF(0.5, CARD_TOP + 0.5, w - 1, h - CARD_TOP - 1)
-    k = clamp(body.height() / 66, 0.6, 1.0)
-    edge = _rounded(xs, ys, body, 7.0)
-    paper = np.clip(-edge * density + 0.5, 0, 1)
-    down = np.clip((ys - body.top()) / max(1.0, body.height()), 0, 1)
-    color = rgb(LOOK["card"][0]) + (rgb(LOOK["card"][1]) - rgb(LOOK["card"][0])) * down[..., None]
-    fibres = noise(pw, ph, 3 * density, 3, 31) - 0.5
-    color = color * (1 + 0.035 * fibres)[..., None]
-    warm = 1 - smooth(0.0, 12.0, -edge)
-    color = color + (rgb("#ecd29a") - color) * (warm * 0.3)[..., None]
-
-    def draw(q: QPainter) -> None:
-        q.scale(density, density)
-        q.setBrush(Qt.NoBrush)
-        q.setPen(QPen(Qt.white, 2.0))
-        q.drawRoundedRect(body.adjusted(1.8, 1.8, -1.8, -1.8), 5.4, 5.4)
-        q.setPen(QPen(Qt.white, 0.7))
-        frame = body.adjusted(4.9, 4.9, -4.9, -4.9)
-        q.drawRoundedRect(frame, 3, 3)
-        _filigree(q, frame.adjusted(-1, -1, 1, 1), 8.0 * k * k)
-        _little_paw(q, w / 2, CARD_TOP - 3.0 * k, 16.0 * k)
-
-    gold = mask(pw, ph, draw)
-    raised = blur(gold, 0.7 * density) * 1.4 * density
-    metal = _ramp(_shine(raised, (-0.4, -0.8, 0.5), 14))
-    shadow = np.roll(blur(gold, 1.1 * density), max(1, round(density)), axis=0) * 0.45 * paper
-    color = color * (1 - shadow[..., None]) + rgb("#5a3a0c") * shadow[..., None]
-    color = color * (1 - gold[..., None]) + metal * gold[..., None]
-    alpha = np.maximum(paper, gold)
-    return picture(color, alpha), picture(np.ones((ph, pw, 3), dtype=np.float32), gold)
+def _star_height(w: int, h: int, cx: float, cy: float, r: float) -> np.ndarray:
+    """A four-point star r pixels long, as a height (0 outside, 1 at its middle): cut, with ridges
+    along its arms."""
+    ys, xs = np.mgrid[0:h, 0:w].astype(np.float32) + 0.5
+    x, y = np.abs(xs - cx) / r, np.abs(ys - cy) / r
+    s = np.sqrt(x) + np.sqrt(y)
+    return np.clip(1 - s, 0, 1)
 
 
 def card(p: QPainter, rect: QRectF, t: float) -> None:
-    """Ivory in a gilt frame with filigree corners and a little gilded paw print on top; now and then a
-    sheen passes over the gold."""
-    density = _density(p)
-    paper, gold = _kept(("card", round(rect.width(), 1), round(rect.height(), 1), round(density, 2)), lambda: _card_pictures(rect.width(), rect.height(), density))
-    p.drawImage(rect, paper)
-    k = (t % 4.5) / 1.4
-    if k >= 1:
-        return
-    sheen = QImage(gold.size(), QImage.Format_ARGB32_Premultiplied)
-    sheen.fill(Qt.transparent)
-    q = QPainter(sheen)
-    q.scale(density, density)
-    x = -30 + (rect.width() + 60) * ease_in_out(k)
-    band = QLinearGradient(QPointF(x - 18, 0), QPointF(x + 18, 24))
-    strength = math.sin(math.pi * k) * 0.85
-    band.setColorAt(0, col("#fff8e2", 0))
-    band.setColorAt(0.5, col("#fff8e2", strength))
-    band.setColorAt(1, col("#fff8e2", 0))
-    q.fillRect(QRectF(0, 0, rect.width(), rect.height()), band)
-    q.setCompositionMode(QPainter.CompositionMode_DestinationIn)
-    q.resetTransform()
-    q.drawImage(0, 0, gold)
-    q.end()
-    p.drawImage(rect, sheen)
+    """The lancet window: its glass with the light behind it drifting slowly, and now and then a glint
+    crossing its gold."""
+    scale = _sharpness(p)
+    key = ("card", round(rect.width(), 1), round(rect.height(), 1), scale)
+    art, gold = _made(key, lambda: _card_art(rect, scale))
+    p.setRenderHint(QPainter.SmoothPixmapTransform)
+    p.drawImage(rect, art)
+    # The light behind the glass, drifting across it.
+    drift = rect.left() + rect.width() * (0.5 + 0.4 * math.sin(t * 0.5))
+    light = QRadialGradient(QPointF(drift, rect.top() + rect.height() * 0.35), rect.width() * 0.6)
+    light.setColorAt(0, col("#fffbe8", 0.32))
+    light.setColorAt(1, col("#fffbe8", 0))
+    p.save()
+    p.setClipPath(_lancet(rect))
+    p.setPen(Qt.NoPen)
+    p.setBrush(light)
+    p.drawRect(rect)
+    p.restore()
+    # A glint crossing the gold every few seconds.
+    k = (t % 3.6) / 1.2
+    if k < 1:
+        band = QImage(gold.size(), QImage.Format_ARGB32_Premultiplied)
+        band.fill(Qt.transparent)
+        q = QPainter(band)
+        q.drawImage(0, 0, gold)
+        q.setCompositionMode(QPainter.CompositionMode_DestinationIn)
+        x = (-0.3 + 1.6 * ease_in_out(k)) * band.width()
+        q.fillRect(band.rect(), gradient(QPointF(x - band.width() * 0.25, 0), QPointF(x + band.width() * 0.25, band.height()), ((0, "#ffffff", 0), (0.5, "#ffffff", 1), (1, "#ffffff", 0))))
+        q.end()
+        p.setCompositionMode(QPainter.CompositionMode_Plus)
+        p.setOpacity(0.7)
+        p.drawImage(rect, band)
 
 
 def lead(size: float, index: int) -> QPixmap:
-    """A tiny gold feather, leaning up and to the right, every other one a little more."""
+    """A gold four-point star, cut and raised, with a fine dark edge so it stands out on the glass."""
     ratio = 3.0
-    image = QPixmap(max(1, round(size * ratio)), max(1, round(size * ratio)))
+    n = max(8, round(size * ratio))
+    height = _star_height(n, n, n / 2, n / 2, n * 0.42)
+    cover = np.clip(height * 9, 0, 1)
+    color = _metal(height * 1.0, n * 0.9)
+    edge = np.clip(blur(cover, max(0.6, n / 40)) * 1.6, 0, 1) * (1 - cover)
+    total = cover + edge * 0.7
+    color = (color * cover[..., None] + rgb("#4a2c06") * (edge * 0.7)[..., None]) / np.maximum(total, 1e-4)[..., None]
+    image = QPixmap.fromImage(picture(color, total))
     image.setDevicePixelRatio(ratio)
-    image.fill(Qt.transparent)
-    length = size * 1.12
-    sprite = _sprite(_SPRITES, "loose", length, ratio)
-    p = QPainter(image)
-    p.setRenderHint(QPainter.Antialiasing)
-    p.setRenderHint(QPainter.SmoothPixmapTransform)
-    angle = -52 if index % 2 == 0 else -60
-    back = math.radians(angle)
-    p.translate(size / 2, size / 2)
-    _lay(p, sprite, -math.cos(back) * length / 2, -math.sin(back) * length / 2, angle, length)
-    p.end()
     return image
