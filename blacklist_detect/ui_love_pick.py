@@ -2,7 +2,7 @@
 wedding music. 心动人数 is three choices that go together: 1人, 2人, 2人以上 (2人 and 2人以上
 until changed). The scene and the music can each be one of them, 随机 or 无; every choice is saved as it
 is made. The default comes first (经典花边, 婚礼进行曲 · 管风琴), then the others, then 随机, and 无
-last, in red.
+last, in red. Each row's name is beside its choices, not over them: the dialog fits a 1366×768 screen.
 
 A preview plays the chosen scene over the fake-name sample lobby, with the app's own marks on it.
 """
@@ -12,15 +12,16 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QElapsedTimer, QPoint, QPointF, QRectF, QSize, Qt, QTimer
-from PySide6.QtGui import QPainter, QPixmap
-from PySide6.QtWidgets import QButtonGroup, QPushButton, QSizePolicy, QWidget
+from PySide6.QtGui import QFontMetrics, QIcon, QPainter, QPixmap
+from PySide6.QtWidgets import QButtonGroup, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QWidget
 
 from blacklist_detect import love_scenes
 from blacklist_detect.love_scenes import DESIGN, sample_stage
-from blacklist_detect.ui_dialogs import _field, _primary
+from blacklist_detect.ui_dialogs import _primary
+from blacklist_detect.ui_icons import icon as line_icon
 from blacklist_detect.ui_kit import Modal
 from blacklist_detect.ui_music import TUNE_LIST, WeddingMusic
-from blacklist_detect.ui_theme import DIALOG_PAD, _pointing
+from blacklist_detect.ui_theme import CONTROL_H, DIALOG_PAD, THEME, _pointing, chinese_font
 from blacklist_detect.ui_widgets import _FlowHost
 
 SAMPLE_LOBBY = Path(__file__).resolve().parent / "assets" / "sample-lobby.jpg"
@@ -66,7 +67,8 @@ def _sample_marks() -> list[tuple[QPixmap, QPoint]]:
 class ScenePreview(QWidget):
     """The sample lobby with a scene playing over it, over and over. 随机 goes through them all."""
 
-    WIDTH = 600
+    # With the rows under it, the dialog fits a 1366×768 screen with its taskbar.
+    WIDTH = 576
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -135,6 +137,8 @@ class LoveEffectsDialog(Modal):
         self.store = store
         self.music = music
         layout = self.frame("心动特效")
+        layout.setSpacing(12)
+        self._name_width = QFontMetrics(chinese_font()).horizontalAdvance("心动人数") + 4
         self.preview = ScenePreview()
         layout.addWidget(self.preview, 0, Qt.AlignHCenter)
         self.count_boxes = self._counts(layout)
@@ -170,11 +174,23 @@ class LoveEffectsDialog(Modal):
             group.addButton(button)
             host.addWidget(button)
             buttons[key] = button
-        _field(layout, label, host)
+        self._beside(layout, label, host)
         return buttons
 
+    def _beside(self, layout, label: str, host: QWidget) -> None:  # noqa: ANN001
+        """The row's name on the left, level with the first line of its choices."""
+        row = QHBoxLayout()
+        row.setSpacing(12)
+        name = QLabel(label)
+        name.setObjectName("field")
+        name.setFixedSize(self._name_width, CONTROL_H)
+        row.addWidget(name, 0, Qt.AlignTop)
+        row.addWidget(host, 1)
+        layout.addLayout(row)
+
     def _counts(self, layout) -> dict[int, QPushButton]:  # noqa: ANN001
-        """Like the rows under it, but any of them can be on together."""
+        """Like the rows under it, but any of them can be on together: a ticked one shows a ✓, and the
+        row says 可多选."""
         host = _FlowHost(gap=8)
         buttons: dict[int, QPushButton] = {}
         for count, name in COUNT_NAMES:
@@ -184,11 +200,21 @@ class LoveEffectsDialog(Modal):
             button.setCheckable(True)
             button.setAutoDefault(False)
             button.setChecked(count in self.store.love_counts)
+            button.toggled.connect(lambda _on, button=button: self._tick(button))
             button.clicked.connect(lambda _checked=False, count=count: self._pick_count(count))
+            self._tick(button)
             host.addWidget(button)
             buttons[count] = button
-        _field(layout, "心动人数", host)
+        hint = QLabel("可多选")
+        hint.setObjectName("sub")
+        hint.setFixedHeight(CONTROL_H)
+        host.addWidget(hint)
+        self._beside(layout, "心动人数", host)
         return buttons
+
+    @staticmethod
+    def _tick(button: QPushButton) -> None:
+        button.setIcon(line_icon("check", 14, THEME["on_accent"]) if button.isChecked() else QIcon())
 
     def _pick_count(self, count: int) -> None:
         ticked = tuple(each for each, box in self.count_boxes.items() if box.isChecked())

@@ -307,13 +307,15 @@ class TagPill(_KeyboardRing, QWidget):
     that refers back to its dialog makes a reference cycle, and PySide6 6.12
     crashed when the garbage collector broke it.
 
-    Tags are red pills: a tag is why someone is on the blacklist.
+    Tags are red pills: a tag is why someone is on the blacklist. A clickable pill is drawn the
+    same size but takes clicks over TARGET pixels of height, the size of every other control's target.
     """
 
     clicked = Signal(str)
 
     _pad = round(8 * 1.1)
     _extra = round(6 * 1.1)
+    TARGET = 28
 
     def __init__(
         self,
@@ -363,10 +365,21 @@ class TagPill(_KeyboardRing, QWidget):
             return max(2, round(self._point_size * 0.4))
         return self._extra
 
+    def _pill_height(self) -> int:
+        return QFontMetrics(self._face()).height() + self._extra_now()
+
     def sizeHint(self) -> QSize:
         metrics = QFontMetrics(self._face())
         width = metrics.horizontalAdvance(self._text) + self._pad_now() * 2
-        return QSize(width, metrics.height() + self._extra_now())
+        height = self._pill_height()
+        return QSize(width, max(height, self.TARGET) if self._clickable else height)
+
+    def _body(self) -> QRect:
+        """The pill itself: the widget's height, or the middle of a taller click target."""
+        height = min(self.height(), self._pill_height())
+        body = QRect(0, (self.height() - height) // 2, self.width(), height)
+        body.adjust(0, 1, -1, -1)
+        return body
 
     def minimumSizeHint(self) -> QSize:
         return self.sizeHint()
@@ -403,7 +416,8 @@ class TagPill(_KeyboardRing, QWidget):
         else:
             self._paint_still(painter)
         if self.show_ring():
-            _paint_ring(painter, QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), (self.height() - 1) / 2)
+            ring = QRectF(self._body()).adjusted(0.5, -0.5, 0.5, 0.5)
+            _paint_ring(painter, ring, (ring.height() - 1) / 2)
 
     def keyPressEvent(self, event) -> None:  # noqa: ANN001
         if self._clickable and activates(event):
@@ -423,8 +437,7 @@ class TagPill(_KeyboardRing, QWidget):
 
     def _paint_still(self, painter: QPainter) -> None:
         painter.setFont(self._face())
-        body = QRect(self.rect())
-        body.adjust(0, 1, -1, -1)
+        body = self._body()
         pad = self._pad_now()
         if not self._active:
             hot = self._clickable and self._hover
@@ -453,8 +466,7 @@ class TagPill(_KeyboardRing, QWidget):
         progress = self._anim.currentTime() / max(1, self._anim.duration())
         pulse = sin(progress * pi)
         scale = 1 + (0.08 if self._active else -0.06) * pulse
-        body = QRect(self.rect())
-        body.adjust(0, 1, -1, -1)
+        body = self._body()
         center = body.center()
         painter.save()
         painter.translate(center.x(), center.y())

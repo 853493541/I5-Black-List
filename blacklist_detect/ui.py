@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import queue
 import sys
+import threading
 import time
 from datetime import datetime
 
@@ -28,6 +29,7 @@ from PySide6.QtWidgets import (
     QMenu,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -60,7 +62,7 @@ from blacklist_detect.diagnostics import (
 from blacklist_detect.game_area import exclusive_fullscreen, game_rect, window_order, window_rect_at
 from blacklist_detect.hotkey import GlobalHotkey, parse_hotkey
 from blacklist_detect.importing import suggest_tags, with_tags
-from blacklist_detect.logs import log, mark_closed, mark_running, on_uncaught, setup_logging
+from blacklist_detect.logs import log, mark_closed, mark_running, masked, on_uncaught, setup_logging
 from blacklist_detect.match import (
     NameLabel,
     fold,
@@ -112,6 +114,7 @@ from blacklist_detect.ui_kit import (
     Switch,
     TabButton,
     Toast,
+    same_width,
 )
 from blacklist_detect.ui_likes import LikesPage
 from blacklist_detect.ui_love import LoveBorder
@@ -137,6 +140,7 @@ from blacklist_detect.ui_theme import (
     GAP,
     PAD,
     ROW_H,
+    SECTION_PT,
     SMALL_PT,
     THEME,
     THEMES,
@@ -211,6 +215,10 @@ CONSENT = {
 # Updates are looked for once each time the app opens, just after the window is up. A new version
 # found then is installed before the app is used.
 UPDATE_FIRST_MS = 1_000
+# 保存调试截图 keeps this many whole-screen pictures, the newest; each can be several MB.
+DEBUG_KEEP = 30
+# While the app is open it looks again every hour; what it finds then waits for the player (有更新).
+UPDATE_EVERY_MS = 60 * 60 * 1000
 
 # 主题色, the accent picker in 设置 › 外观, is hidden for now. True brings the row back. While it is
 # hidden every window wears the default accent; a choice saved before waits in the settings.
@@ -228,7 +236,7 @@ def _claim_windows_app() -> None:
 
 def run_app(background: bool = False) -> int:
     setup_logging()
-    log.info("Start %s, Python %s, %s", __version__, sys.version.split()[0], sys.platform)
+    log.info("==== Start %s (Python %s, %s) ====", __version__, sys.version.split()[0], sys.platform)
     _claim_windows_app()
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
@@ -253,6 +261,7 @@ def run_app(background: bool = False) -> int:
         return 1
     try:
         log.info("Computer: %s; screens %s", machine_line(), screens_line())
+        log.info("Settings: %s", window.settings_line())
         if paths.inherited_threads is not None:
             log.info("Started with OMP_NUM_THREADS=%s from the program that started it; dropped.", paths.inherited_threads)
     except Exception:  # noqa: BLE001 - the summary must never stop the app
@@ -361,6 +370,7 @@ class CheckWorker(QThread):
         return True
 
     def run(self) -> None:
+        threading.current_thread().name = "check"
         while True:
             item = self._queue.get()
             if item is None:
@@ -458,14 +468,27 @@ class MainWindow(QMainWindow):
         self._update_asked = False
         self._release: updater.Release | None = None
         self._updating = False
+        # The hourly look: a new version found then is offered (有更新), never installed by itself,
+        # so a game or a stream is not cut off. _offered is the version 有更新 installs.
+        self._update_later = False
+        self._offered: updater.Release | None = None
+        # 发现新版本 opens by itself once per version; _announce_soon until the window is in view.
+        self._announced = ""
+        self._announce_soon = False
+        self._update_timer = QTimer(self)
+        self._update_timer.setInterval(UPDATE_EVERY_MS)
+        self._update_timer.timeout.connect(self._check_updates_later)
         if updater.app_root() is not None:
             QTimer.singleShot(UPDATE_FIRST_MS, self._check_updates)
             QTimer.singleShot(3000, self._confirm_update)
+            self._update_timer.start()
         self._panel_hide_timer = QTimer(self)
         self._panel_hide_timer.setSingleShot(True)
         self._panel_hide_timer.timeout.connect(self._hide_panel_after_title)
         self._live_check = False
         self._rescan_active = False
+        # Checks since the app started, so each one's lines in the log share a number.
+        self._check_number = 0
         self._history_hover = (-1, -1)
         self._closed_days: set[str] = set()
         self._day_hover = -1
@@ -574,6 +597,16 @@ class MainWindow(QMainWindow):
         right_row = QHBoxLayout(right)
         right_row.setContentsMargins(0, 0, 0, 4)
         right_row.setSpacing(0)
+        # 有更新: a new version found while the app was open. A click opens 发现新版本 under it.
+        self.update_pill = QPushButton("有更新")
+        self.update_pill.setObjectName("updatePill")
+        self.update_pill.setCursor(Qt.PointingHandCursor)
+        self.update_pill.setAutoDefault(False)
+        self.update_pill.setAccessibleName("有更新")
+        self.update_pill.clicked.connect(lambda: self.update_panel.toggle())
+        self.update_pill.hide()
+        right_row.addWidget(self.update_pill, 0, Qt.AlignVCenter)
+        right_row.addSpacing(10)
         # What checking is doing. A click opens the 检查 settings under it.
         self.status_chip = StatusChip()
         self.status_chip.clicked.connect(lambda: self.check_panel.toggle())
@@ -605,6 +638,8 @@ class MainWindow(QMainWindow):
         outer.addWidget(header)
         self.check_panel.attach(root, self.status_chip)
         self.tabs.currentChanged.connect(lambda _index: self.check_panel.close_panel())
+        self.update_panel = CheckPanel(self._update_card())
+        self.update_panel.attach(root, self.update_pill)
         outer.addWidget(self.tabs)
         self.toast = Toast(root)
 
@@ -971,8 +1006,10 @@ class MainWindow(QMainWindow):
         self.hotkey_edit = QLineEdit()
         self.hotkey_edit.setReadOnly(True)
         self.hotkey_edit.setPlaceholderText("无")
-        # Room for the longest key there is, Ctrl+Shift+Alt+F12 aside: Ctrl+Alt+F12.
-        self.hotkey_edit.setFixedWidth(max(slot, metrics.horizontalAdvance("Ctrl+Alt+F12") + 32))
+        # Room for Ctrl+Alt+F12, and wider for a longer key, such as Ctrl+Shift+Alt+F12: never cut.
+        self._hotkey_room = (slot, metrics)
+        self.hotkey_edit.textChanged.connect(self._fit_hotkey_box)
+        self._fit_hotkey_box()
         self.hotkey_edit.setCursor(Qt.PointingHandCursor)
         self.hotkey_edit.installEventFilter(self)
         self.hotkey_edit.setAccessibleName("快捷键")
@@ -990,7 +1027,14 @@ class MainWindow(QMainWindow):
         # ⓘ: what viewers see, and how to set it up in 直播姬, with screenshots.
         self.stream_guide = IconButton("info", "直播模式说明")
         self.stream_guide.clicked.connect(self._show_stream_guide)
-        check.add_row("直播模式", self.stream_switch, self.stream_guide)
+        # The switch sits in a cell as wide as 显示's choices, so this ⓘ is under 显示's.
+        switch_cell = QWidget()
+        cell_row = QHBoxLayout(switch_cell)
+        cell_row.setContentsMargins(0, 0, 0, 0)
+        cell_row.addWidget(self.stream_switch, 0, Qt.AlignVCenter)
+        cell_row.addStretch(1)
+        same_width(switch_cell, self.display_mode)
+        check.add_row("直播模式", switch_cell, self.stream_guide)
         # Whether 直播姬 shows the window, under the switch while it is on: green when it does, in
         # amber until it does (see livehime). Nothing for a streamer without 直播姬.
         self.stream_status = QLabel("")
@@ -1505,6 +1549,8 @@ class MainWindow(QMainWindow):
         super().showEvent(event)
         _caption_color(self)
         self._remember_geometry_soon()
+        # A version found while the window was in the tray is told about now.
+        self._announce_update()
 
     def _list_cell(self, text: str, store_index: int | None = None, font=None, ink=None) -> QTableWidgetItem:  # noqa: ANN001
         item = QTableWidgetItem(text)
@@ -2521,15 +2567,17 @@ class MainWindow(QMainWindow):
         name_label.setStyleSheet(
             f'color: {name_color}; background: transparent; font-family: "{chinese_family()}"; font-size: {BODY_PT}pt;'
         )
-        line.addWidget(name_label, 1)
+        with_listed = bool(listed) and tail is None
+        # Beside 黑名单：…, the name read keeps its full width and the list's name gives way.
+        line.addWidget(name_label, 0 if with_listed else 1)
         if tail and not hide:
             name_item.setToolTip(f"读到「{title}」，是黑名单里的「{listed}」")
         if like is not None:
             name_item.setToolTip(f"读到「{title}」，是心动里的「{like.name}」")
         if not unclear and not name_item.toolTip():
             name_item.setToolTip(label)
-        if listed and tail is None:
-            listed_label = QLabel(f"黑名单：{listed}")
+        if with_listed:
+            listed_label = _ListedLabel(f"黑名单：{listed}")
             listed_label.setObjectName("rowListed")
             listed_label.setFont(chinese_font(SMALL_PT))
             listed_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
@@ -2537,7 +2585,7 @@ class MainWindow(QMainWindow):
                 f'color: {THEME["red"]}; background: transparent; font-family: "{chinese_family()}";'
             )
             name_item.setToolTip(f"读到「{title}」，是黑名单里的「{listed}」")
-            line.addWidget(listed_label, 0, Qt.AlignVCenter)
+            line.addWidget(listed_label, 1, Qt.AlignVCenter)
         if action:
             action_label = QLabel(action)
             action_label.setObjectName("rowAction")
@@ -2799,11 +2847,18 @@ class MainWindow(QMainWindow):
         self.hotkey.clear()
         self.hotkey_edit.clear()
         self.hotkey_edit.setPlaceholderText("请按下快捷键")
+        self._fit_hotkey_box()
 
     def _end_hotkey(self) -> None:
         self.hotkey_edit.setPlaceholderText("无")
+        self._fit_hotkey_box()
         self._show_hotkey()
         self._sync_hotkey_mode()
+
+    def _fit_hotkey_box(self, _text: str = "") -> None:
+        slot, metrics = self._hotkey_room
+        shown = max(("Ctrl+Alt+F12", self.hotkey_edit.text(), self.hotkey_edit.placeholderText()), key=metrics.horizontalAdvance)
+        self.hotkey_edit.setFixedWidth(max(slot, metrics.horizontalAdvance(shown) + 32))
 
     def _sync_hotkey_mode(self) -> None:
         """Auto check and the hotkey do not run together."""
@@ -3349,6 +3404,7 @@ class MainWindow(QMainWindow):
         now = time.perf_counter()
         if not self.watch.wants_check(bool(value), now):
             return
+        log.info("Auto check: 推演成功 is on screen; checking.")
         self.watch.arm(now)
         self._rescan_active = False
         if not self._start(self._capture_job, live=True):
@@ -3369,6 +3425,9 @@ class MainWindow(QMainWindow):
         rescan = self._rescan_active
         self._rescan_active = False
         manual = self._manual_check
+        if not rescan:
+            self._check_number += 1
+        how = "second look" if rescan else "hotkey" if manual else "auto"
         elapsed = None
         if self._check_started is not None:
             elapsed = time.perf_counter() - self._check_started
@@ -3392,7 +3451,7 @@ class MainWindow(QMainWindow):
             if not rescan and self._live_check and self._rescan_now():
                 return
             self._manual_check = False
-            log.info("No lobby on screen (%s): %s", self._timing_note(result), result.message)
+            log.info("Check %d (%s): no lobby on screen (%s): %s", self._check_number, how, self._timing_note(result), result.message)
             self._pressed_at = None
             if self.store.auto_capture:
                 self.watch.retry_after(time.perf_counter())
@@ -3404,14 +3463,7 @@ class MainWindow(QMainWindow):
             return
         self._manual_check = False
         self._clear_problem()
-        log.info(
-            "Checked the lobby: %d on the list, %d unclear, %.2f s (%s)%s",
-            len(result.hits),
-            sum(1 for slot in result.names if slot.unclear),
-            elapsed or 0.0,
-            self._timing_note(result),
-            ", second look" if rescan else "",
-        )
+        self._log_check(how, result, elapsed)
         self._pressed_at = None
         self._note_watch(bool(result.header_found))
         if result.header_found and result.names:
@@ -3522,6 +3574,7 @@ class MainWindow(QMainWindow):
             self.music.lobby([like.name for like in likes], self.store.love_music)
         if self.store.safe_mode:
             self._show_notice(result)
+            log.info("Check %d shown: the corner message (安全模式).", self._check_number)
         elif exclusive_fullscreen():
             # 完整模式 over a game in exclusive full screen: Windows shows nothing over it but a
             # plain window, so the corner message comes too, as in 安全模式.
@@ -3549,6 +3602,10 @@ class MainWindow(QMainWindow):
             if self.hit_card.isVisible():
                 self._show_like_card(likes)
                 self._show_alert()
+            log.info(
+                "Check %d shown: the red ring, the 黑名单 card (%d)%s and the red glow.",
+                self._check_number, len(hits), f", the 心动 card ({len(likes)})" if likes else "",
+            )  # fmt: skip
             return
         self.hit_card.hide()
         self.like_card.hide()
@@ -3561,8 +3618,57 @@ class MainWindow(QMainWindow):
         self._open_panel("liked" if likes else "clear", text, result.button_box)
         self._show_clear_mark(heart=bool(likes))
         self._show_like_card(likes)
+        log.info(
+            "Check %d shown: %s.", self._check_number,
+            f"the rose ring, the heart and the 心动 card ({len(likes)})" if likes else "the ring (未发现黑名单)",
+        )  # fmt: skip
         if self.store.love_for(len(likes)) and not self._love_played:
             self._play_love()
+
+    def _log_check(self, how: str, result: CheckResult, elapsed: float | None) -> None:
+        """One check in the log: the outcome, every seat (names masked, with how sure the reading
+        was), and where the lobby was on the screen copy."""
+        hits = {hit.index: hit for hit in result.hits}
+        seats: list[str] = []
+        likes = unclear = 0
+        for slot in result.names:
+            if slot.unclear:
+                unclear += 1
+                seats.append(f"{slot.index + 1} ? {slot.confidence:.2f}")
+                continue
+            seat = f"{slot.index + 1} {masked(slot.visible)}{'…' if slot.truncated else ''} {slot.confidence:.2f}"
+            hit = hits.get(slot.index)
+            if hit is not None:
+                seat += " 黑名单" + ("" if fold(hit.entry_name) == fold(slot.visible) else " (cut off)")
+            elif match_label(NameLabel(raw=slot.raw, visible=slot.visible, truncated=slot.truncated), list(self.store.likes)):
+                seat += " 心动"
+                likes += 1
+            seats.append(seat)
+        n = self._check_number
+        log.info(
+            "Check %d (%s): lobby found, %d on the list, %d 心动, %d unclear, %.2f s (%s)",
+            n, how, len(hits), likes, unclear, elapsed or 0.0, self._timing_note(result),
+        )  # fmt: skip
+        log.info("Check %d seats: %s", n, " | ".join(seats))
+        height, width = result.preview_rgb.shape[:2] if result.preview_rgb is not None else (0, 0)
+        game = tuple(round(value) for value in result.game_box) if result.game_box else None
+        log.info("Check %d lobby: button %s, game screen %s, in a %dx%d screen copy", n, result.button_box, game, width, height)
+
+    def settings_line(self) -> str:
+        """The settings that change how checks behave and look, for the log at each start."""
+        store = self.store
+        counts = "/".join({1: "1人", 2: "2人", 3: "2人以上"}.get(count, str(count)) for count in store.love_counts)
+        return "; ".join(
+            [
+                "显示 " + ("安全模式" if store.safe_mode else "完整模式"),
+                "方式 " + ("自动检查" if store.auto_capture else f"手动检查 ({store.hotkey or '无快捷键'})"),
+                "直播模式 " + ("开" if store.stream_mode else "关"),
+                f"心动特效 {store.love_scene} + {store.love_music} for {counts or '无'}",
+                f"外观 {store.appearance}",
+                "关闭窗口时 " + ("最小化到托盘" if store.close_to_tray else "退出程序"),
+                f"黑名单 {len(store.entries)}, 心动 {len(store.likes)}, 记录 {len(store.scans)}",
+            ]
+        )
 
     def _hits_in(self, result: CheckResult) -> list[Hit]:
         """黑名单 players in the lobby."""
@@ -3608,6 +3714,7 @@ class MainWindow(QMainWindow):
         if screen is None:
             return
         self._love_played = True
+        log.info("Check %d shown: 心动特效 (%s, music %s).", self._check_number, self.store.love_scene, self.store.love_music)
         badge = self.clear_mark.geometry().center() if self.clear_mark.isVisible() else None
         self.love.choice = self.store.love_scene
         self.love.play(self._game_area(screen), keep, badge)
@@ -3829,6 +3936,11 @@ class MainWindow(QMainWindow):
 
         image = Image.fromarray(result.preview_rgb)
         image.save(path)
+        for old in sorted(directory.glob("*.png"))[:-DEBUG_KEEP]:
+            try:
+                old.unlink()
+            except OSError:
+                pass
 
     def _set_tray(self, text: str) -> None:
         if self.tray is not None:
@@ -3839,16 +3951,28 @@ class MainWindow(QMainWindow):
     def _check_updates(self) -> None:
         if updater.app_root() is None or self._closing:
             return
-        self.updates.check()
+        if self.updates.check():
+            self._update_later = False
+
+    def _check_updates_later(self) -> None:
+        """The hourly look while the app is open: a new version is offered as 有更新, not installed."""
+        if updater.app_root() is None or self._closing or self._updating:
+            return
+        if self.updates.check():
+            self._update_later = True
 
     def _check_updates_now(self) -> None:
         """检查更新: look now. A new version installs the way it does at start; otherwise the answer
-        shows beside the button."""
+        shows beside the button. Once 有更新 is up, the button installs that version."""
         if updater.app_root() is None:
             self.update_note.setText("源码运行时不能更新")
             return
+        if self._offered is not None and not self._updating:
+            self._install_offered()
+            return
         if self._updating or not self.updates.check():
             return
+        self._update_later = False
         self._update_asked = True
         self.update_button.setEnabled(False)
         self.update_button.setText("检查中…")
@@ -3856,10 +3980,87 @@ class MainWindow(QMainWindow):
 
     def _update_answered(self, note: str) -> None:
         self.update_button.setEnabled(True)
-        self.update_button.setText("检查更新")
+        self._show_update_button()
         if self._update_asked:
             self.update_note.setText(note)
         self._update_asked = False
+        self._update_later = False
+
+    def _offer_update(self, release: updater.Release) -> None:
+        """有更新 in the header, and on 设置's button, until it is installed or the app restarts. The
+        first time a version is found, 发现新版本 opens under 有更新 to say what is new."""
+        self._offered = release
+        self.update_pill.setToolTip(f"新版本 {release.version}，点一下看看")
+        self.update_pill.show()
+        self._show_update_button()
+        self.update_note.setText("")
+        self.update_title.setText(f"发现新版本 {release.version}")
+        self.update_notes.setText("\n".join(f"· {line}" for line in release.notes[:3]))
+        self.update_notes.setVisible(bool(release.notes))
+        if release.version != self._announced:
+            self._announced = release.version
+            self._announce_soon = True
+            # Once the header has made room for 有更新, so the card lines up under it.
+            QTimer.singleShot(60, self._announce_update)
+
+    def _announce_update(self) -> None:
+        if not self._announce_soon or self._offered is None or not self.isVisible() or self.isMinimized():
+            return
+        self._announce_soon = False
+        log.info("Update %s announced: 发现新版本.", self._offered.version)
+        self.update_panel.open_panel(focus=False)
+
+    def _update_card(self) -> QFrame:
+        """发现新版本: the version, what is new in it (at most three lines), 稍后 and 立即更新."""
+        card = QFrame()
+        card.setObjectName("section")
+        card.setAttribute(Qt.WA_StyledBackground, True)
+        card.setFixedWidth(300)
+        column = QVBoxLayout(card)
+        column.setContentsMargins(20, 16, 20, 16)
+        column.setSpacing(6)
+        self.update_title = QLabel("")
+        self.update_title.setObjectName("sectionTitle")
+        self.update_title.setFont(chinese_font(SECTION_PT))
+        column.addWidget(self.update_title)
+        current = QLabel(f"当前版本 {__version__}")
+        current.setObjectName("rowHint")
+        column.addWidget(current)
+        self.update_notes = QLabel("")
+        self.update_notes.setWordWrap(True)
+        column.addSpacing(4)
+        column.addWidget(self.update_notes)
+        column.addSpacing(8)
+        buttons = QHBoxLayout()
+        buttons.setSpacing(8)
+        buttons.addStretch(1)
+        later = QPushButton("稍后")
+        later.setAutoDefault(False)
+        later.setCursor(Qt.PointingHandCursor)
+        later.clicked.connect(lambda: self.update_panel.close_panel())
+        self.update_now = QPushButton("立即更新")
+        self.update_now.setObjectName("primary")
+        self.update_now.setAutoDefault(False)
+        self.update_now.setCursor(Qt.PointingHandCursor)
+        self.update_now.clicked.connect(self._install_offered)
+        self.update_later = later
+        buttons.addWidget(later)
+        buttons.addWidget(self.update_now)
+        column.addLayout(buttons)
+        return card
+
+    def _show_update_button(self) -> None:
+        """检查更新, or 有更新 in the accent color while a version waits."""
+        offered = self._offered is not None
+        self.update_button.setText("有更新" if offered else "检查更新")
+        self.update_button.setObjectName("primary" if offered else "")
+        self.update_button.style().unpolish(self.update_button)
+        self.update_button.style().polish(self.update_button)
+
+    def _install_offered(self) -> None:
+        self.update_panel.close_panel()
+        if self._offered is not None:
+            self._on_update_found(self._offered)
 
     def _on_update_latest(self) -> None:
         log.info("Update check: %s is the newest.", __version__)
@@ -3873,12 +4074,19 @@ class MainWindow(QMainWindow):
         """A new version is installed before the app is used: a dialog that stays until it is done,
         then a restart. In the tray it happens out of sight and the new version starts in the tray."""
         log.info("Update available: %s", release.version)
+        later = self._update_later
         self._update_answered("")
         root = updater.app_root()
         if root is None or self._updating or self._closing:
             return
+        if later:
+            log.info("Update %s found while the app is open: offered as 有更新.", release.version)
+            self._offer_update(release)
+            return
         self._release = release
         self._updating = True
+        self.update_panel.close_panel()
+        self.update_pill.hide()
         if not release.needs_full() and not self.isVisible():
             download = Download(self)
             download.done.connect(self._restart_for_update)
@@ -3893,15 +4101,19 @@ class MainWindow(QMainWindow):
         dialog.start()
 
     def _update_skipped(self, _result: int) -> None:
-        # 跳过: this version goes on; the next start tries again.
+        # 跳过: this version goes on, with 有更新 to try again; the next start tries too.
         if self._updating:
             log.info("Update to %s not installed: the window was closed (跳过 or 前往下载).", self._release.version if self._release else "?")
+            if self._release is not None:
+                self._offer_update(self._release)
         self._updating = False
 
     def _quiet_update_failed(self, message: str) -> None:
-        # The next start tries again.
+        # 有更新 tries again; so does the next start.
         log.info("Update in the tray failed: %s", message)
         self._updating = False
+        if self._release is not None:
+            self._offer_update(self._release)
 
     def _restart_for_update(self, *_args) -> None:  # noqa: ANN002
         root = updater.app_root()
@@ -3936,6 +4148,8 @@ class MainWindow(QMainWindow):
 
     def _show_from_tray(self) -> None:
         """Back from the tray, or from a second launch: shown, not minimized, and in front."""
+        if not self.isVisible():
+            log.info("Window: back from the tray.")
         if self.isMinimized():
             self.showNormal()
         else:
@@ -3958,6 +4172,7 @@ class MainWindow(QMainWindow):
             # Keep checking from the tray. Without a tray icon there would be no way back, so X quits.
             event.ignore()
             self.hide()
+            log.info("Window: closed to the tray.")
             return
         self._remember_size()
         self.hide()
@@ -4012,6 +4227,31 @@ class _ElidedLabel(QLabel):
         painter.setFont(self.font())
         text = self.fontMetrics().elidedText(self.text(), Qt.TextElideMode.ElideRight, self.width())
         painter.drawText(self.rect(), int(Qt.AlignLeft | Qt.AlignVCenter), text)
+
+
+class _ListedLabel(QLabel):
+    """黑名单：<the listed name>, after a name read that differs from it, on the seat's right. It takes
+    the room the name read leaves: cut short first, and left out when not even 黑名单：… fits (the
+    seat's tooltip still says it)."""
+
+    def __init__(self, text: str) -> None:
+        super().__init__(text)
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(0, super().minimumSizeHint().height())
+
+    def paintEvent(self, _event) -> None:  # noqa: ANN001
+        from PySide6.QtGui import QPainter
+
+        metrics = self.fontMetrics()
+        if self.width() < metrics.horizontalAdvance("黑名单：…"):
+            return
+        painter = QPainter(self)
+        painter.setPen(self.palette().color(self.foregroundRole()))
+        painter.setFont(self.font())
+        text = metrics.elidedText(self.text(), Qt.TextElideMode.ElideRight, self.width())
+        painter.drawText(self.rect(), int(Qt.AlignRight | Qt.AlignVCenter), text)
 
 
 def QSystemTrayIcon_available() -> bool:

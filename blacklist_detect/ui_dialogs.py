@@ -43,9 +43,9 @@ from blacklist_detect.ui_theme import (
 )
 from blacklist_detect.ui_widgets import (
     TagPill,
-    masked_name,
     _FlowHost,
     _zh_date,
+    masked_name,
     paint_tag_row,
 )
 

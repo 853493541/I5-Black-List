@@ -8,8 +8,8 @@ size or a color:
     Spacing   a 4 px grid: GAP 12, PAD 24; controls CONTROL_H 32 tall; rows ROW_H 40
     Corners   RADIUS 6 for controls, CARD_RADIUS 8 for cards and lists
     Color     THEME, built from roles (accent, surface, border, text, muted, danger …)
-              for 浅色 or 深色, with the user's accent color. Red means danger or a
-              blacklist hit and nothing else; tags are neutral chips.
+              for 浅色 or 深色, with the user's accent color. Red means danger, a
+              blacklist hit, or a tag (why someone is on the blacklist), and nothing else.
 """
 
 from __future__ import annotations
@@ -679,6 +679,35 @@ def _kit_rules(family: str) -> str:
             """
 
 
+def _scroll_rules() -> str:
+    """Thin scroll bars with no arrows, for the window and for dialogs alike."""
+    t = THEME
+    return f"""
+            QScrollBar:vertical, QScrollBar:horizontal {{
+                background: transparent;
+                border: none;
+                margin: 0;
+            }}
+            QScrollBar:vertical {{ width: 10px; }}
+            QScrollBar:horizontal {{ height: 10px; }}
+            QScrollBar::handle:vertical, QScrollBar::handle:horizontal {{
+                background: {t["border"]};
+                border-radius: 5px;
+                min-height: 24px;
+                min-width: 24px;
+            }}
+            QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover {{
+                background: {t["accent_line"]};
+            }}
+            QScrollBar::add-line, QScrollBar::sub-line,
+            QScrollBar::add-page, QScrollBar::sub-page {{
+                background: transparent;
+                height: 0;
+                width: 0;
+            }}
+            """
+
+
 def _window_style(family: str) -> str:
     t = THEME
     return f"""
@@ -709,6 +738,23 @@ def _window_style(family: str) -> str:
                 background: {t["border"]};
                 border: none;
             }}
+            QPushButton#updatePill {{
+                background: {t["accent"]};
+                border: 1px solid {t["accent"]};
+                border-radius: 14px;
+                color: {t["on_accent"]};
+                font-family: "{family}";
+                font-size: {SMALL_PT}pt;
+                font-weight: 600;
+                min-height: 28px;
+                max-height: 28px;
+                padding: 0 14px;
+            }}
+            QPushButton#updatePill:hover {{
+                background: {t["accent_hover"]};
+                border-color: {t["accent_hover"]};
+            }}
+            QPushButton#updatePill:pressed {{ background: {t["accent_press"]}; }}
             QLabel#sub {{
                 font-family: "{family}";
                 font-size: {SMALL_PT}pt;
@@ -853,28 +899,7 @@ def _window_style(family: str) -> str:
                 font-size: {SMALL_PT}pt;
                 font-weight: 400;
             }}
-            QScrollBar:vertical, QScrollBar:horizontal {{
-                background: transparent;
-                border: none;
-                margin: 0;
-            }}
-            QScrollBar:vertical {{ width: 10px; }}
-            QScrollBar:horizontal {{ height: 10px; }}
-            QScrollBar::handle:vertical, QScrollBar::handle:horizontal {{
-                background: {t["border"]};
-                border-radius: 5px;
-                min-height: 24px;
-                min-width: 24px;
-            }}
-            QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover {{
-                background: {t["accent_line"]};
-            }}
-            QScrollBar::add-line, QScrollBar::sub-line,
-            QScrollBar::add-page, QScrollBar::sub-page {{
-                background: transparent;
-                height: 0;
-                width: 0;
-            }}
+            """ + _scroll_rules() + f"""
             QWidget#tableHead {{
                 background: {t["surface_alt"]};
                 border: none;
@@ -949,6 +974,7 @@ def _dialog_style(family: str) -> str:
                 color: {t["text"]};
             }}
             QDialog#modal {{ background: transparent; }}
+            QScrollArea#dialogScroll, QWidget#dialogContent {{ background: transparent; border: none; }}
             QFrame#dialogCard {{
                 background: {t["surface"]};
                 border: 1px solid {t["border"]};
@@ -1015,7 +1041,7 @@ def _dialog_style(family: str) -> str:
                 border: 1px solid {t["border"]};
                 padding: 4px 8px;
             }}
-            """ + _input_rules(family) + _button_rules(family) + _kit_rules(family)
+            """ + _scroll_rules() + _input_rules(family) + _button_rules(family) + _kit_rules(family)
 
 
 def _colorref(value: str):

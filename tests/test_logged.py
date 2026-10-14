@@ -77,3 +77,117 @@ def test_a_hotkey_that_does_not_register_is_logged(window, monkeypatch, caplog):
     monkeypatch.setattr(window.hotkey, "active", "")
     window._sync_hotkey_mode()
     assert "did not register" in _said(caplog)
+
+
+def test_each_check_is_logged_seat_by_seat_with_masked_names(window, caplog):
+    import numpy as np
+
+    from blacklist_detect.pipeline import CheckResult, Hit, NameSlot
+
+    caplog.set_level(logging.INFO, logger="blacklist_detect")
+    window.store.add_like("心动小鹿")
+
+    def seat(index: int, name: str, confidence: float, unclear: bool = False) -> NameSlot:
+        return NameSlot(index, (0, 0, 1, 1), name, name, False, confidence, unclear)
+
+    result = CheckResult(
+        header_found=True,
+        message="",
+        names=[seat(0, "示例坏人", 0.99), seat(1, "心动小鹿", 1.0), seat(2, "", 0.31, unclear=True), seat(3, "路过的猫", 0.97)],
+        hits=[Hit(index=0, read_text="示例坏人", entry_name="示例坏人", note="", truncated=False, line="")],
+        preview_rgb=np.zeros((1080, 1920, 3), dtype=np.uint8),
+        button_box=(800, 900, 1056, 974),
+        game_box=(0.0, 0.0, 1920.0, 1080.0),
+    )
+    window._check_number = 7
+    window._log_check("hotkey", result, 0.42)
+    said = _said(caplog)
+    assert "Check 7 (hotkey): lobby found, 1 on the list, 1 心动, 1 unclear, 0.42 s" in said
+    assert "Check 7 seats: 1 示*** 0.99 黑名单 | 2 心*** 1.00 心动 | 3 ? 0.31 | 4 路*** 0.97" in said
+    assert "Check 7 lobby: button (800, 900, 1056, 974), game screen (0, 0, 1920, 1080), in a 1920x1080 screen copy" in said
+    for name in ("示例坏人", "心动小鹿", "路过的猫"):
+        assert name not in said
+
+
+def test_list_changes_are_logged_as_counts(window, caplog):
+    caplog.set_level(logging.INFO, logger="blacklist_detect")
+    store = window.store
+    store.add("示例坏人")
+    store.import_rows([("路过的捣蛋鬼", (), "", -1), ("夜猫子", (), "", -1)])
+    before = store.snapshot_entries()
+    store.remove_at(0)
+    store.restore_entries(before)
+    store.clear_entries()
+    store.add_like("心动小鹿")
+    store.clear_likes()
+    said = _said(caplog)
+    for line in (
+        "黑名单: 1 added, 1 in all.",
+        "黑名单: 2 imported, 0 merged, 3 in all.",
+        "黑名单: 1 deleted, 2 left.",
+        "黑名单: put back as it was (撤销), 3 in all.",
+        "黑名单: cleared.",
+        "心动: 1 added, 1 in all.",
+        "心动: cleared.",
+    ):
+        assert line in said, line
+    for name in ("示例坏人", "路过的捣蛋鬼", "夜猫子", "心动小鹿"):
+        assert name not in said
+
+
+def test_the_settings_are_logged_at_start(window):
+    line = window.settings_line()
+    for part in ("显示 ", "方式 手动检查 (", "直播模式 关", "心动特效 classic + organ for 2人/2人以上", "黑名单 0, 心动 0, 记录 0"):
+        assert part in line, part
+
+
+def test_a_log_line_has_its_time_level_and_thread_and_a_report_stays_under_it():
+    import io
+    import re
+    import threading
+
+    from blacklist_detect.logs import _Format
+
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(_Format())
+    logger = logging.getLogger("blacklist_detect.format_test")
+    logger.addHandler(handler)
+    logger.propagate = False
+    logger.setLevel(logging.INFO)
+    logger.info("环境测试：正常\n  手动检查 0.2 s")
+    worker = threading.Thread(target=lambda: logger.warning("from the check"), name="check")
+    worker.start()
+    worker.join()
+    first, second, third = stream.getvalue().splitlines()
+    assert re.fullmatch(r"\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d{3} INFO    ui     环境测试：正常", first)
+    assert second == "      手动检查 0.2 s"
+    assert re.fullmatch(r"\S+ \S+ WARNING check  from the check", third)
+
+
+def test_crash_log_keeps_only_its_end(tmp_path):
+    from blacklist_detect.logs import _trim, masked
+
+    crash = tmp_path / "crash.log"
+    crash.write_bytes(b"".join(f"line {number}\n".encode() for number in range(1000)))
+    _trim(crash, limit=2000, keep=100)
+    text = crash.read_text(encoding="utf-8")
+    assert text.startswith("(older lines removed)\nline ") and text.endswith("line 999\n") and len(text) < 140
+    _trim(crash, limit=2000, keep=100)
+    assert crash.read_text(encoding="utf-8") == text
+    assert masked("示例坏人") == "示***" and masked("A") == "A" and masked("") == ""
+
+
+def test_debug_pictures_keep_the_newest_only(window):
+    import numpy as np
+
+    from blacklist_detect.pipeline import CheckResult
+    from blacklist_detect.ui import DEBUG_KEEP
+
+    folder = window.store.root / "debug"
+    folder.mkdir(parents=True)
+    for number in range(DEBUG_KEEP + 5):
+        (folder / f"20200101-0000{number:02d}.png").write_bytes(b"")
+    window._save_debug(CheckResult(header_found=True, message="", preview_rgb=np.zeros((4, 4, 3), dtype=np.uint8)))
+    kept = sorted(path.name for path in folder.glob("*.png"))
+    assert len(kept) == DEBUG_KEEP and not kept[-1].startswith("2020")

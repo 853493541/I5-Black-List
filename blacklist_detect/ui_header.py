@@ -198,7 +198,9 @@ class CheckPanel(QFrame):
         else:
             self.open_panel()
 
-    def open_panel(self) -> None:
+    def open_panel(self, focus: bool = True) -> None:
+        """Show it under its pill. focus=False for a card that opens by itself: it must not take
+        the keys from a box the player is typing in."""
         if self.anchor is None or self.parentWidget() is None:
             return
         self._place()
@@ -207,7 +209,8 @@ class CheckPanel(QFrame):
         app = QApplication.instance()
         if app is not None:
             app.installEventFilter(self)
-        self.card.setFocus(Qt.PopupFocusReason)
+        if focus:
+            self.card.setFocus(Qt.PopupFocusReason)
 
     def close_panel(self) -> None:
         app = QApplication.instance()

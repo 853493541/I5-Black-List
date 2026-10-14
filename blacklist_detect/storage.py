@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -10,6 +11,9 @@ from pathlib import Path
 from blacklist_detect.match import MIN_PREFIX_CHARS, clean_stored_name, fold
 from blacklist_detect.model import Entry
 from blacklist_detect.paths import app_dir
+
+# What changed in each list, as counts: never a name.
+_log = logging.getLogger("blacklist_detect.storage")
 
 _MAX_NAME = 64
 _MAX_NOTE = 200
@@ -679,6 +683,7 @@ class Store:
         )
         self.likes.append(like)
         self.save_likes()
+        _log.info("心动: 1 added, %d in all.", len(self.likes))
         return like
 
     def update_like(self, index: int, name: str, nickname: str = "", reason: str = "") -> bool:
@@ -696,12 +701,14 @@ class Store:
             nickname=_clean_nickname(nickname),
         )
         self.save_likes()
+        _log.info("心动: 1 edited.")
         return True
 
     def remove_like(self, index: int) -> None:
         if 0 <= index < len(self.likes):
             del self.likes[index]
             self.save_likes()
+            _log.info("心动: 1 deleted, %d left.", len(self.likes))
 
     def snapshot_likes(self) -> list[Entry]:
         return [Entry(like.name, like.reason, (), like.added_at, like.nickname) for like in self.likes]
@@ -710,10 +717,12 @@ class Store:
         """Put 心动 back as it was before an add, delete, or clear. Used by 撤销."""
         self.likes = [Entry(like.name, like.reason, (), like.added_at, like.nickname) for like in likes]
         self.save_likes()
+        _log.info("心动: put back as it was (撤销), %d in all.", len(self.likes))
 
     def clear_likes(self) -> None:
         self.likes = []
         self.save_likes()
+        _log.info("心动: cleared.")
 
     def import_likes(self, rows: list[tuple[str, tuple[str, ...], str, int]]) -> tuple[int, int]:
         """Like import_rows, for 心动: each (name, _, 原因, -1) is added; (…, index) folds into it."""
@@ -745,6 +754,7 @@ class Store:
             added += 1
         if added or merged:
             self.save_likes()
+        _log.info("心动: %d imported, %d merged, %d in all.", added, merged, len(self.likes))
         return added, merged
 
     def save_entries(self) -> None:
@@ -888,10 +898,12 @@ class Store:
         if 0 <= index < len(self.scans):
             del self.scans[index]
             self.save_scans()
+            _log.info("记录: 1 deleted, %d left.", len(self.scans))
 
     def clear_scans(self) -> None:
         self.scans = []
         self.save_scans()
+        _log.info("记录: cleared.")
 
     def contains_name(self, name: str) -> bool:
         target = fold(clean_stored_name(name))
@@ -934,6 +946,7 @@ class Store:
         )
         self.entries.append(entry)
         self.save_entries()
+        _log.info("黑名单: 1 added, %d in all.", len(self.entries))
         return entry
 
     def import_rows(self, rows: list[tuple[str, tuple[str, ...], str, int]]) -> tuple[int, int]:
@@ -972,6 +985,7 @@ class Store:
             added += 1
         if added or merged:
             self.save_entries()
+        _log.info("黑名单: %d imported, %d merged, %d in all.", added, merged, len(self.entries))
         return added, merged
 
     def update_at(self, index: int, name: str, tags: tuple[str, ...] | list[str], reason: str = "") -> bool:
@@ -994,12 +1008,14 @@ class Store:
             added_at=current.added_at,
         )
         self.save_entries()
+        _log.info("黑名单: 1 edited.")
         return True
 
     def remove_at(self, index: int) -> None:
         if 0 <= index < len(self.entries):
             del self.entries[index]
             self.save_entries()
+            _log.info("黑名单: 1 deleted, %d left.", len(self.entries))
 
     def restore_entries(self, entries: list[Entry]) -> None:
         """Put back the list as it was before an add, delete, or clear. Used by 撤销."""
@@ -1008,6 +1024,7 @@ class Store:
             for entry in entries
         ]
         self.save_entries()
+        _log.info("黑名单: put back as it was (撤销), %d in all.", len(self.entries))
 
     def snapshot_entries(self) -> list[Entry]:
         return [Entry(entry.name, entry.reason, tuple(entry.tags), entry.added_at) for entry in self.entries]
@@ -1015,9 +1032,11 @@ class Store:
     def clear_entries(self) -> None:
         self.entries = []
         self.save_entries()
+        _log.info("黑名单: cleared.")
 
     def reset(self) -> None:
         """Drop every saved name, record, and setting. The next open is a new app."""
+        _log.info("清空数据: every list, record and setting dropped.")
         self.entries = []
         self.likes = []
         self.scans = []

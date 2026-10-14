@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
@@ -452,6 +453,65 @@ class Toast(QWidget):
         return False
 
 
+class _SameWidth(QObject):
+    """Keeps one widget exactly as wide as another, as that one is laid out and resized."""
+
+    def __init__(self, follower: QWidget, leader: QWidget) -> None:
+        super().__init__(follower)
+        self._follower = follower
+        leader.installEventFilter(self)
+
+    def eventFilter(self, watched, event) -> bool:  # noqa: ANN001, N802
+        if event.type() == QEvent.Type.Resize:
+            self._follower.setFixedWidth(watched.width())
+        return False
+
+
+def same_width(follower: QWidget, leader: QWidget) -> None:
+    """Line up what follows two controls in rows of their own: follower is always as wide as leader."""
+    follower.setFixedWidth(leader.sizeHint().width())
+    _SameWidth(follower, leader)
+
+
+class _CardScroll(QScrollArea):
+    """A dialog's content, scrolling between its title and its buttons when the screen is shorter
+    than the card. As wide as the content: the scroll bar takes the content's right margin."""
+
+    def __init__(self, content: QWidget) -> None:
+        super().__init__()
+        self.setObjectName("dialogScroll")
+        self.setFrameShape(QFrame.NoFrame)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setWidgetResizable(True)
+        self.viewport().setAutoFillBackground(False)
+        self.setWidget(content)
+
+    def hasHeightForWidth(self) -> bool:  # noqa: N802
+        return True
+
+    def heightForWidth(self, width: int) -> int:  # noqa: N802
+        return min(_height_for(self.widget(), width - _SCROLL_BAR), self.maximumHeight())
+
+    def sizeHint(self) -> QSize:  # noqa: N802
+        width = self.widget().sizeHint().width() + _SCROLL_BAR
+        return QSize(width, self.heightForWidth(width))
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802
+        width = self.widget().minimumSizeHint().width() + _SCROLL_BAR
+        return QSize(width, min(120, self.maximumHeight()))
+
+
+def _height_for(widget: QWidget, width: int) -> int:
+    """How tall a widget is at this width: wrapped text and rows of choices grow as it narrows."""
+    height = widget.heightForWidth(width) if widget.hasHeightForWidth() else -1
+    return height if height > 0 else widget.sizeHint().height()
+
+
+# The scroll bar's width (ui_theme's QScrollBar rule), and room kept between a card and the screen's edges.
+_SCROLL_BAR = 10
+_SCREEN_GAP = 4
+
+
 class Modal(QDialog):
     """A dialog drawn as a card over its dimmed window, the way Windows 11 apps show one.
 
@@ -460,6 +520,9 @@ class Modal(QDialog):
     so a click anywhere outside the card closes it, as on the web. When closing would throw
     away something typed or picked (has_changes), that click only gives the card a short
     shake instead; × and Esc always close.
+
+    The card always fits the screen: on a short one (a 1366×768 laptop, 1080p at 150%) the
+    content between the title and the buttons scrolls, so the buttons are never off the screen.
     """
 
     # Room around the card for its shadow, which falls a little downward.
@@ -474,6 +537,11 @@ class Modal(QDialog):
         self.card: QFrame | None = None
         # The window this one covers and dims while open, or None when it stands alone.
         self.host: QWidget | None = None
+        # The card's title and content, what frame() returns the layout of, and the scroll the
+        # content goes into on a short screen.
+        self._top: QWidget | None = None
+        self._content: QWidget | None = None
+        self.scroll: _CardScroll | None = None
         self._shake: QVariantAnimation | None = None
         self._shake_from = QPoint()
 
@@ -498,6 +566,7 @@ class Modal(QDialog):
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(0)
         top = QWidget()
+        self._top = top
         column.addWidget(top)
         inner = QVBoxLayout(top)
         # The × sits near the corner; the content below keeps the full padding.
@@ -518,10 +587,12 @@ class Modal(QDialog):
         self.close_button.clicked.connect(self.reject)
         head.addWidget(self.close_button, 0, Qt.AlignTop)
         inner.addLayout(head)
-        body = QVBoxLayout()
+        self._content = QWidget()
+        self._content.setObjectName("dialogContent")
+        body = QVBoxLayout(self._content)
         body.setContentsMargins(0, 0, DIALOG_PAD - corner, 0)
         body.setSpacing(16)
-        inner.addLayout(body)
+        inner.addWidget(self._content)
         return body
 
     def footer(self, *right: QPushButton, left: QPushButton | None = None) -> QHBoxLayout:
@@ -555,6 +626,10 @@ class Modal(QDialog):
         """Lie over the parent window's contents, so all of it is dimmed and takes the outside click."""
         parent = self.parentWidget()
         host = parent.window() if parent is not None else None
+        screen = (host or self).screen()
+        room = screen.availableGeometry() if screen is not None else None
+        if room is not None:
+            self.fit_height(room.height())
         if host is None or not host.isVisible() or host.isMinimized() or isinstance(host, Modal):
             self.host = None
             return
@@ -564,7 +639,44 @@ class Modal(QDialog):
         need = self.minimumSizeHint().expandedTo(self.sizeHint())
         grow_x = max(0, need.width() - area.width())
         grow_y = max(0, need.height() - area.height())
-        self.setGeometry(area.adjusted(-grow_x // 2, -grow_y // 2, grow_x - grow_x // 2, grow_y - grow_y // 2))
+        rect = area.adjusted(-grow_x // 2, -grow_y // 2, grow_x - grow_x // 2, grow_y - grow_y // 2)
+        if room is not None and (grow_x or grow_y):
+            # Grown past the window, it stays on the screen: the card's top and buttons in view.
+            rect.moveTop(max(room.top(), min(rect.top(), room.bottom() + 1 - rect.height())))
+            rect.moveLeft(max(room.left(), min(rect.left(), room.right() + 1 - rect.width())))
+        self.setGeometry(rect)
+
+    def fit_height(self, screen_height: int) -> None:
+        """Keep the card, with its shadow, within this height: the content between the title and the
+        buttons scrolls when it would not fit, and only then."""
+        if self.card is None or self._content is None:
+            return
+        margins = self.layout().contentsMargins()
+        limit = screen_height - margins.top() - margins.bottom() - 2 * _SCREEN_GAP
+        # Measured at the width the card will have: wrapped lines make it taller as it narrows.
+        width = max(self.card.minimumWidth(), min(self.card.maximumWidth(), self.card.sizeHint().width()))
+        sides = self._top.layout().contentsMargins()
+        inner = width - sides.left() - sides.right()
+        shown = self.scroll if self.scroll is not None else self._content
+        room = limit - (_height_for(self.card, width) - _height_for(shown, inner))
+        if self.scroll is None:
+            if _height_for(self._content, inner) <= room:
+                return
+            holder = self._top.layout()
+            index = holder.indexOf(self._content)
+            holder.removeWidget(self._content)
+            # The scroll bar sits in the content's right margin, so nothing in it gets narrower.
+            body = self._content.layout()
+            left, top, right, bottom = body.getContentsMargins()
+            body.setContentsMargins(left, top, max(0, right - _SCROLL_BAR), bottom)
+            self.scroll = _CardScroll(self._content)
+            holder.insertWidget(index, self.scroll)
+        self.scroll.setMaximumHeight(max(120, room))
+        # The card's size is asked for straight after: the layouts measure again now, not later.
+        for widget in (self.scroll, self._top, self.card):
+            widget.updateGeometry()
+        for layout in (self._top.layout(), self.card.layout(), self.layout()):
+            layout.invalidate()
 
     def paintEvent(self, _event) -> None:  # noqa: ANN001
         if self.card is None:

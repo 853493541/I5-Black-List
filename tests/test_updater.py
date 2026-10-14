@@ -242,13 +242,11 @@ def window(tmp_path, monkeypatch):  # noqa: ANN001, ANN201
 
 def test_update_can_be_checked_from_settings(window, tmp_path, monkeypatch):
     """设置 › 帮助 › 关于: the version and 检查更新. The answer shows beside the button; a new version
-    installs as it would at start. There is still no 有新版本 pill in the header."""
-    from PySide6.QtWidgets import QPushButton
-
+    installs as it would at start. 有更新 is in the header only once a version waits."""
     from blacklist_detect import __version__
 
     assert window.version_label.text() == __version__
-    assert not any(button.text() in ("有新版本", "有更新") for button in window.findChildren(QPushButton))
+    assert window.update_pill.isHidden() and window.update_pill.text() == "有更新"
     # Run from source: nothing to update.
     monkeypatch.setattr(updater, "app_root", lambda: None)
     window.update_button.click()
@@ -308,6 +306,88 @@ def test_a_new_version_found_at_start_is_installed_first(window, tmp_path, monke
     assert dialog.status.text() == "更新完成，正在重启…"
     QApplication.processEvents()
     assert restarted == [True]
+
+
+def _settle(ms: int = 150) -> None:
+    import time
+
+    from PySide6.QtWidgets import QApplication
+
+    end = time.time() + ms / 1000
+    while time.time() < end:
+        QApplication.processEvents()
+        time.sleep(0.01)
+
+
+@pytest.mark.parametrize("in_tray", [False, True])
+def test_a_version_found_while_open_waits_as_you_geng_xin(window, tmp_path, monkeypatch, in_tray):
+    """Every hour while the app is open: a new version is offered, never installed by itself (a
+    game or a stream would be cut off). 有更新 at the top right, and 发现新版本 under it once,
+    saying what is new; in the tray, the card waits for the window."""
+    from blacklist_detect.ui import UPDATE_EVERY_MS
+    from blacklist_detect.ui_update import UpdateDialog
+
+    root = tmp_path / "BlackListDetect"
+    root.mkdir()
+    monkeypatch.setattr(updater, "app_root", lambda: root)
+    assert window._update_timer.interval() == UPDATE_EVERY_MS == 60 * 60 * 1000
+    window.hide() if in_tray else window.show()
+    started: list[str] = []
+    monkeypatch.setattr("blacklist_detect.ui_update.Download.start", lambda self, rel, where, folder: started.append(rel.version))
+    monkeypatch.setattr(window.updates, "check", lambda: True)
+    window._update_timer.timeout.emit()
+    window.updates.found.emit(updater.read_manifest(_manifest(base="v0.1.0")))
+    _settle()
+    assert started == [] and window.findChild(UpdateDialog) is None and not window._updating
+    assert not window.update_pill.isHidden() and window.update_button.text() == "有更新"
+    assert window.update_pill.toolTip() == "新版本 v9.0.0，点一下看看" and window.update_button.objectName() == "primary"
+    assert window.update_title.text() == "发现新版本 v9.0.0" and window.update_notes.text() == "· 心动列表\n· 更新更快"
+    if in_tray:
+        assert not window.update_panel.isVisible()
+        window._show_from_tray()
+        _settle()
+    # 发现新版本 opens by itself, under 有更新, without taking the keys.
+    assert window.update_panel.isVisible() and not window.update_panel.isAncestorOf(_focused())
+    # 稍后: it goes; the same version found again does not bring it back; 有更新 does.
+    window.update_later.click()
+    assert not window.update_panel.isVisible()
+    window._update_timer.timeout.emit()
+    window.updates.found.emit(updater.read_manifest(_manifest(base="v0.1.0")))
+    _settle()
+    assert not window.update_panel.isVisible()
+    window.update_pill.click()
+    assert window.update_panel.isVisible() and started == []
+    # 立即更新 installs it the usual way; 有更新 and the card go while it does.
+    window.update_now.click()
+    dialog = window.findChild(UpdateDialog)
+    assert started == ["v9.0.0"] and dialog.isVisible() and window.update_pill.isHidden() and not window.update_panel.isVisible()
+    # 跳过 after a failed download: 有更新 is back, and 设置's button installs it too.
+    dialog._on_failed("下载失败，看看网络再试")
+    dialog.skip.click()
+    assert not window.update_pill.isHidden() and window.update_button.text() == "有更新" and not window._updating
+    window.update_button.click()
+    assert started == ["v9.0.0", "v9.0.0"]
+
+
+def _focused():  # noqa: ANN201
+    from PySide6.QtWidgets import QApplication
+
+    return QApplication.focusWidget()
+
+
+def test_the_check_at_start_still_installs_at_once(window, tmp_path, monkeypatch):
+    from blacklist_detect.ui_update import UpdateDialog
+
+    root = tmp_path / "BlackListDetect"
+    root.mkdir()
+    monkeypatch.setattr(updater, "app_root", lambda: root)
+    window.show()
+    started: list[str] = []
+    monkeypatch.setattr("blacklist_detect.ui_update.Download.start", lambda self, rel, where, folder: started.append(rel.version))
+    monkeypatch.setattr(window.updates, "check", lambda: True)
+    window._check_updates()
+    window.updates.found.emit(updater.read_manifest(_manifest(base="v0.1.0")))
+    assert started == ["v9.0.0"] and window.findChild(UpdateDialog).isVisible() and window.update_pill.isHidden()
 
 
 def test_a_failed_download_offers_retry_or_skip(window, tmp_path, monkeypatch):
