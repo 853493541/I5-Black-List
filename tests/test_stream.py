@@ -304,12 +304,10 @@ def test_a_border_made_only_for_the_stream_does_not_hold_a_glance_back(window):
     assert not window.love.playing() and not window.like_card.isVisible()
 
 
-def test_a_red_test_frame_runs_round_the_game_while_no_mark_shows(window, monkeypatch):
+def test_a_red_test_frame_runs_round_the_game_while_no_mark_shows(window):
     """The 测试框: with nothing to show, the window is framed in red round the game, so a streamer
     who sees the frame in the stream knows the marks will be there too, and line up."""
     from PySide6.QtCore import QRect
-
-    from blacklist_detect import ui_stream
 
     window._set_stream_mode(True)
     stream = window.stream
@@ -357,9 +355,28 @@ def test_a_red_test_frame_runs_round_the_game_while_no_mark_shows(window, monkey
     stream.grab()
     assert framed
     del stream._paint_test_frame
-    # TEST_FRAME takes it away.
-    monkeypatch.setattr(ui_stream, "TEST_FRAME", False)
+    # The 测试框 box takes it away.
+    stream.set_test_frame(False)
     assert all(edge.alpha() == 0 for edge in edges())
+
+
+def test_the_test_frame_box_shows_with_stream_mode_and_is_kept(window):
+    """测试框, beside 测试效果: ticked by default; unticked, 直播画面 has no red frame, from then on."""
+    from blacklist_detect.storage import Store
+
+    box = window.stream_frame_box
+    assert box.text() == "测试框" and box.isChecked() and window.stream.test_frame
+    assert box.isHidden(), "only with 直播模式 on"
+    window._set_stream_mode(True)
+    assert not box.isHidden()
+    box.setChecked(False)
+    assert not window.stream.test_frame and Store(window.store.root).stream_test_frame is False
+    assert "直播模式 开 (测试框 关)" in window.settings_line()
+    box.setChecked(True)
+    assert window.stream.test_frame and Store(window.store.root).stream_test_frame is True
+    assert "测试框" not in window.settings_line()
+    window._set_stream_mode("")
+    assert box.isHidden()
 
 
 def test_where_windows_will_not_capture_the_window_it_moves_until_it_does(window, caplog):

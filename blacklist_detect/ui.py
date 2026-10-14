@@ -17,6 +17,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
+    QCheckBox,
     QDialog,
     QFileDialog,
     QFrame,
@@ -460,6 +461,7 @@ class MainWindow(QMainWindow):
         self._notice_screen = None
         # 直播模式: the marks, never a 黑名单 name, in a window a streaming app can capture.
         self.stream = StreamMirror(self)
+        self.stream.set_test_frame(self.store.stream_test_frame)
         # The lobby's button, in desktop pixels: the game's window is the one under it, in the
         # order the windows were in at the screenshot.
         self._game_box = None
@@ -1048,7 +1050,14 @@ class MainWindow(QMainWindow):
         self.stream_test.setToolTip("不用排队：在示例截图上放一遍心动特效，看看直播间能不能看到")
         self.stream_test.clicked.connect(self.start_stream_test)
         self.stream_test.setVisible(bool(self.store.stream_mode))
-        check.add_row("直播模式", self.stream_choice, self.stream_guide, self.stream_test)
+        # 测试框: the red frame round the game in 直播画面 while nothing plays; viewers see it too.
+        self.stream_frame_box = QCheckBox("测试框")
+        self.stream_frame_box.setChecked(self.store.stream_test_frame)
+        self.stream_frame_box.setCursor(Qt.PointingHandCursor)
+        self.stream_frame_box.setToolTip("直播画面里没有特效时，游戏外围显示一圈红色测试框（观众也看得到）")
+        self.stream_frame_box.toggled.connect(self._on_test_frame)
+        self.stream_frame_box.setVisible(bool(self.store.stream_mode))
+        check.add_row("直播模式", self.stream_choice, self.stream_guide, self.stream_test, self.stream_frame_box)
         # Whether 直播姬 shows the window, under 直播模式 while it is on: green when it does, in
         # red until it does (see livehime). Nothing for a streamer without 直播姬.
         self.stream_status = QLabel("")
@@ -1326,6 +1335,7 @@ class MainWindow(QMainWindow):
         self.love.choice = self.store.love_scene
         self.display_mode.set_current("safe")
         self.stream_choice.set_current("off")
+        self.stream_frame_box.setChecked(self.store.stream_test_frame)
         self.notice.hide()
         if not self._watch_timer.isActive():
             self.watch = LobbyWatch()
@@ -2822,6 +2832,7 @@ class MainWindow(QMainWindow):
         self.stream.enable(self.store.stream_mode)
         self.stream_choice.set_current("on" if self.store.stream_mode else "off")
         self.stream_test.setVisible(bool(self.store.stream_mode))
+        self.stream_frame_box.setVisible(bool(self.store.stream_mode))
         self._sync_overlay_target()
         self._sync_name_hiding()
         if self.store.stream_mode:
@@ -3036,6 +3047,14 @@ class MainWindow(QMainWindow):
             self.store.stream_guided = True
             self.store.save_settings()
             self._show_stream_guide()
+
+    def _on_test_frame(self, on: bool) -> None:
+        """测试框 ticked or not: 直播画面's red frame round the game, kept for the next start."""
+        if on != self.store.stream_test_frame:
+            log.info("测试框 %s.", "on" if on else "off")
+        self.store.stream_test_frame = on
+        self.store.save_settings()
+        self.stream.set_test_frame(on)
 
     def _show_stream_guide(self) -> None:
         StreamGuideDialog(self).exec()
@@ -3703,7 +3722,7 @@ class MainWindow(QMainWindow):
             [
                 "显示 " + ("安全模式" if store.safe_mode else "完整模式"),
                 "方式 " + ("自动检查" if store.auto_capture else f"手动检查 ({store.hotkey or '无快捷键'})"),
-                "直播模式 " + ("开" if store.stream_mode else "关"),
+                "直播模式 " + ("开" if store.stream_mode else "关") + ("" if store.stream_test_frame else " (测试框 关)"),
                 f"心动特效 {store.love_scene} + {store.love_music} for {counts or '无'}",
                 f"外观 {store.appearance}",
                 "关闭窗口时 " + ("最小化到托盘" if store.close_to_tray else "退出程序"),

@@ -27,7 +27,8 @@ from before does no harm: there is no green left for it to take.
 While no mark shows, a red frame (the 测试框) runs round the game, where the marks are drawn: a
 streamer who sees it in the stream knows the marks will be there too, and that they line up. A
 capture that reads nothing of this window (in 直播姬: the 预览 side not yet 同步至直播, BitBlt,
-窗口区域模式) shows no frame. Viewers see it as well: it is for testing.
+窗口区域模式) shows no frame. Viewers see it as well: it is for testing, and 直播模式's 测试框 box
+takes it away (set_test_frame).
 
 A friend's Windows 10 would not capture it off the screen: 直播姬's capture was in the scene and
 live, and blank, while Windows 11 takes it. So once it is open, Windows is asked as 直播姬 asks it
@@ -52,8 +53,6 @@ log = logging.getLogger(__name__)
 
 TITLE = f"{APP_NAME}·直播画面"
 FRAME_MS = 45
-# The 测试框 while no mark shows. False takes it away.
-TEST_FRAME = True
 TEST_TAG = f"{APP_NAME}·测试框"
 _TEST_RED = QColor(225, 38, 52)
 # Where the window sits, each tried in turn until Windows would capture it there: off every screen,
@@ -95,6 +94,8 @@ class StreamMirror(QWidget):
         self._frame = QRect()
         # 测试效果: a picture under the marks, where it is on the screen, so viewers see it too.
         self._backdrop: tuple[QPixmap, QRect] | None = None
+        # The 测试框 while no mark shows (store.stream_test_frame).
+        self.test_frame = True
         # Where it sits (SPOTS), and Windows' last answer there (wgc): None until it has answered.
         self.spot = SPOTS[0]
         self.answer: int | None = None
@@ -198,6 +199,11 @@ class StreamMirror(QWidget):
         """Whether a mark is showing now."""
         return self._backdrop is not None or bool(self._marks()) or bool(self._borders()) or self._glow() is not None
 
+    def set_test_frame(self, on: bool) -> None:
+        """Show the 测试框 while no mark shows, or not."""
+        self.test_frame = bool(on)
+        self.update()
+
     def set_backdrop(self, picture: QPixmap | None, where: QRect | None = None) -> None:
         """Draw picture under the marks, at where on the screen (测试效果's sample lobby); None
         takes it away."""
@@ -288,7 +294,7 @@ class StreamMirror(QWidget):
     def paintEvent(self, _event) -> None:  # noqa: ANN001
         painter = QPainter(self)
         if not self._active:
-            if TEST_FRAME:
+            if self.test_frame:
                 self._paint_test_frame(painter)
             painter.end()
             return
