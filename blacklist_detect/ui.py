@@ -89,6 +89,8 @@ from blacklist_detect.pipeline import (
 )
 from blacklist_detect.storage import Store, clean_tag, describe_entry, tag_text
 from blacklist_detect.ui_alert import AlertGlow
+from blacklist_detect.ui_demo import BUTTON as DEMO_BUTTON
+from blacklist_detect.ui_demo import DemoLobby, sample_screen
 from blacklist_detect.ui_dialogs import (
     SAMPLE_LOBBY,
     AddNameDialog,
@@ -217,11 +219,11 @@ CONSENT = {
 UPDATE_FIRST_MS = 1_000
 # 保存调试截图 keeps this many whole-screen pictures, the newest; each can be several MB.
 DEBUG_KEEP = 30
-# 测试效果: how long the 黑名单 part shows, then the 心动 part (its border plays about five seconds).
-DEMO_HIT_MS = 5_000
-DEMO_LOVE_MS = 7_000
-# 准备案件还原 on a whole 16:9 game screen, in fractions of it: where 测试效果 puts the ring.
-DEMO_BUTTON = (0.430, 0.776, 0.572, 0.846)
+# 测试效果: how long the sample lobby shows (the border plays about five seconds), how long it
+# shows alone before its marks, and how much of the screen it takes when there is no game to cover.
+DEMO_MS = 7_000
+DEMO_SETTLE_MS = 80
+DEMO_SHARE = 0.6
 # While the app is open it looks again every hour; what it finds then waits for the player (有更新).
 UPDATE_EVERY_MS = 60 * 60 * 1000
 
@@ -500,6 +502,7 @@ class MainWindow(QMainWindow):
         self._demo_place_box: tuple | None = None
         self._demo_saved: tuple | None = None
         self._demo_round = 0
+        self.demo_lobby = DemoLobby()
         self._history_hover = (-1, -1)
         self._closed_days: set[str] = set()
         self._day_hover = -1
@@ -1050,7 +1053,7 @@ class MainWindow(QMainWindow):
         self.stream_test = QPushButton("测试效果")
         self.stream_test.setAutoDefault(False)
         self.stream_test.setCursor(Qt.PointingHandCursor)
-        self.stream_test.setToolTip("不用排队：直接放一遍黑名单和心动特效，看看直播间能不能看到")
+        self.stream_test.setToolTip("不用排队：在示例截图上放一遍心动特效，看看直播间能不能看到")
         self.stream_test.clicked.connect(self.start_stream_test)
         self.stream_test.setVisible(bool(self.store.stream_mode))
         check.add_row("直播模式", switch_cell, self.stream_guide, self.stream_test)
@@ -3702,82 +3705,101 @@ class MainWindow(QMainWindow):
         return self._demo_likes is not None or self.store.love_for(count)
 
     def start_stream_test(self) -> bool:
-        """测试效果: what a lobby with a 黑名单 player and two 心动 players shows, on the screen and in
-        直播画面, as 显示 and 直播模式 are set, with no lobby and no check. First the 黑名单 (the red
-        ring and glow, the 黑名单 card, the 心动 card), then 心动 alone (its ring, the heart, the card,
-        the border and the music). Made-up names, nothing saved to 记录."""
+        """测试效果: the sample lobby (made-up names) shown as the game for a moment, framed by what
+        two 心动 players in it bring, on the screen and in 直播画面 as 显示 and 直播模式 are set: the
+        rose ring and the heart on 准备案件还原, the 心动 card, the border and the music. Viewers
+        see the picture too, so it works with no game open. Nothing is saved to 记录."""
         if self._demo_likes is not None or self.worker.running_job or not self.store.disclaimer_accepted:
             return False
         self.check_panel.close_panel()
-        area, box, game, where = self._demo_place()
+        picture, where = self._demo_place()
         self._demo_saved = (self._game_box, self._game_screen, self._game_windows, QRect(self.stream._frame), self._live_check)
-        self._demo_area = area
-        self._demo_place_box = (box, game)
+        self._demo_area = picture
+        self._demo_place_box = self._demo_boxes(picture)
+        # The two 心动 players sitting in the sample lobby.
         self._demo_likes = [Entry("心动小鹿"), Entry("心动星星")]
         self._demo_round += 1
         turn = self._demo_round
         # The look for 推演成功 would find no lobby and take the marks down: it waits.
-        self._glance_pause_until = time.perf_counter() + (DEMO_HIT_MS + DEMO_LOVE_MS) / 1000 + 1
+        self._glance_pause_until = time.perf_counter() + DEMO_MS / 1000 + 1
         log.info(
-            "测试效果: over %s; 显示 %s, 直播模式 %s.",
+            "测试效果: the sample lobby over %s; 显示 %s, 直播模式 %s.",
             where, "安全模式" if self.store.safe_mode else "完整模式", "on" if self.store.stream_mode else "off",
         )  # fmt: skip
-        self._demo_show(turn, hit=True)
-        QTimer.singleShot(DEMO_HIT_MS, lambda: self._demo_show(turn, hit=False))
-        QTimer.singleShot(DEMO_HIT_MS + DEMO_LOVE_MS, lambda: self._end_stream_test(turn))
+        self.demo_lobby.show_at(picture)
+        if self.store.stream_mode:
+            self.stream.set_frame(picture)
+            self.stream.set_backdrop(sample_screen(), picture)
+        # Once the picture is up, so the marks lie over it.
+        QTimer.singleShot(DEMO_SETTLE_MS, lambda: self._demo_show(turn))
+        QTimer.singleShot(DEMO_MS, lambda: self._end_stream_test(turn))
         return True
 
-    def _demo_place(self) -> tuple[QRect | None, tuple, tuple | None, str]:
-        """Where 测试效果 shows: where the last lobby was (its game window, as a check finds it);
-        else over the window 直播姬's scene shows the game with; else over this window's screen.
-        Returns the area (None: found as for a real lobby), the button and the game screen in
-        screen-copy pixels, and what it is, for the log."""
-        if self._game_box is not None:
-            return None, self._game_box, self._game_screen, "the last lobby's game"
-        origin_x, origin_y = virtual_origin()
-        native = None
-        where = "this window's screen"
+    def _demo_place(self) -> tuple[QRect, str]:
+        """Where 测试效果 puts the sample lobby, 16:9 and as big as fits: over the window 直播姬's
+        scene shows the game with; else over the last lobby's game; else in the middle of this
+        window's screen. Returns it, and what it is over, for the log."""
+        target: QRect | None = None
+        where = "the middle of this window's screen"
         if self.store.stream_mode:
             capture = livehime.game_capture(self._scene_watch.scene(), STREAM_TITLE)
             native = livehime.client_rect(capture) if capture is not None else None
             if native is not None:
+                left, top, right, bottom = native
+                x, y, ratio = native_to_logical(left, top)
+                target = QRect(round(x), round(y), round((right - left) / ratio), round((bottom - top) / ratio))
                 where = f"直播姬's capture ({capture.exe or capture.title})"
-        if native is None:
-            screen = self.screen() or QApplication.primaryScreen()
-            geometry = screen.geometry()
-            ratio = screen.devicePixelRatio() or 1.0
-            native = (geometry.x(), geometry.y(), geometry.x() + round(geometry.width() * ratio), geometry.y() + round(geometry.height() * ratio))
-        left, top, right, bottom = native
-        x, y, ratio = native_to_logical(left, top)
-        area = QRect(round(x), round(y), round((right - left) / ratio), round((bottom - top) / ratio))
-        # The lobby's own 16:9 screen, as big as fits in the area and centered, as a game draws it.
-        width, height = right - left, bottom - top
-        scale = min(width / 16, height / 9)
-        game_left, game_top = left + (width - 16 * scale) / 2 - origin_x, top + (height - 9 * scale) / 2 - origin_y
-        game = (game_left, game_top, game_left + 16 * scale, game_top + 9 * scale)
+        if target is None and self._game_box is not None:
+            origin_x, origin_y = virtual_origin()
+            left, top, right, bottom = self._game_box
+            x, y, _ratio = native_to_logical((left + right) / 2 + origin_x, (top + bottom) / 2 + origin_y)
+            screen = QApplication.screenAt(QPoint(int(x), int(y))) or QApplication.primaryScreen()
+            target = self._window_frame(screen, innermost=True)
+            where = "the last lobby's game"
+        if target is None:
+            screen = (self.screen() or QApplication.primaryScreen()).geometry()
+            width = round(screen.width() * DEMO_SHARE)
+            target = QRect(0, 0, width, round(width * 9 / 16))
+            target.moveCenter(screen.center())
+        scale = min(target.width() / 16, target.height() / 9)
+        picture = QRect(0, 0, round(16 * scale), round(9 * scale))
+        picture.moveCenter(target.center())
+        return picture, where
+
+    @staticmethod
+    def _demo_boxes(picture: QRect) -> tuple[tuple[int, ...], tuple[float, ...]]:
+        """The sample's 准备案件还原 and its whole screen, as a check gives them: desktop pixels
+        from the virtual screen's corner."""
+        screen = QApplication.screenAt(picture.center()) or QApplication.primaryScreen()
+        area = screen.geometry()
+        ratio = screen.devicePixelRatio() or 1.0
+        origin_x, origin_y = virtual_origin()
+        left = area.x() + (picture.x() - area.x()) * ratio - origin_x
+        top = area.y() + (picture.y() - area.y()) * ratio - origin_y
+        width, height = picture.width() * ratio, picture.height() * ratio
+        game = (left, top, left + width, top + height)
         button = tuple(
             round(start + fraction * size)
-            for fraction, start, size in zip(DEMO_BUTTON, (game[0], game[1]) * 2, (16 * scale, 9 * scale) * 2, strict=True)
+            for fraction, start, size in zip(DEMO_BUTTON, (left, top) * 2, (width, height) * 2, strict=True)
         )
-        return area, button, game, where
+        return button, game
 
-    def _demo_show(self, turn: int, hit: bool) -> None:
+    def _demo_show(self, turn: int) -> None:
         if turn != self._demo_round or self._demo_likes is None or self._closing:
             return
         box, game = self._demo_place_box
-        hits = [Hit(index=8, read_text="示例坏人", entry_name="示例坏人", note="", truncated=False, line="", tags=("炸房",))] if hit else []
-        if not hit:
-            # The 黑名单 part goes; 心动 alone comes, with its border and music.
-            self._hide_panel_after_title()
         self._live_check = True
-        self._show_panel(CheckResult(header_found=True, message="", hits=hits, button_box=box, game_box=game))
+        self._show_panel(CheckResult(header_found=True, message="", button_box=box, game_box=game))
 
     def _end_stream_test(self, turn: int | None = None) -> None:
-        """Take 测试效果's marks down and put back what it set aside. turn: only that run's end."""
+        """Take 测试效果's picture and marks down and put back what it set aside. turn: only that
+        run's end."""
         if self._demo_likes is None or (turn is not None and turn != self._demo_round):
             return
         self._demo_round += 1
         self._hide_panel_after_title()
+        self.demo_lobby.hide()
+        self.stream.set_backdrop(None)
         if self.notice.kind:
             self.notice.hide()
         self._demo_likes = None

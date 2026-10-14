@@ -27,8 +27,8 @@ from before does no harm: there is no green left for it to take.
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPoint, QPointF, QRect, QSize, Qt, QTimer
-from PySide6.QtGui import QPainter
+from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, QSize, Qt, QTimer
+from PySide6.QtGui import QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QWidget
 
 from blacklist_detect.names import APP_NAME
@@ -67,6 +67,8 @@ class StreamMirror(QWidget):
         self._area = QRect()
         # The game's window as a streaming app's 窗口捕捉 sees it, once a check has found it.
         self._frame = QRect()
+        # 测试效果: a picture under the marks, where it is on the screen, so viewers see it too.
+        self._backdrop: tuple[QPixmap, QRect] | None = None
         self._tick = QTimer(self)
         self._tick.setInterval(FRAME_MS)
         self._tick.timeout.connect(self._step)
@@ -115,7 +117,13 @@ class StreamMirror(QWidget):
 
     def busy(self) -> bool:
         """Whether a mark is showing now."""
-        return bool(self._marks()) or bool(self._borders()) or self._glow() is not None
+        return self._backdrop is not None or bool(self._marks()) or bool(self._borders()) or self._glow() is not None
+
+    def set_backdrop(self, picture: QPixmap | None, where: QRect | None = None) -> None:
+        """Draw picture under the marks, at where on the screen (测试效果's sample lobby); None
+        takes it away."""
+        self._backdrop = (picture, QRect(where)) if picture is not None and where is not None else None
+        self._step()
 
     def _place(self, area: QRect) -> None:
         """Mirror area, from a 16:9 window as wide as its screen, just right of every monitor."""
@@ -179,6 +187,9 @@ class StreamMirror(QWidget):
         painter.translate(offset)
         painter.scale(scale, scale)
         painter.translate(-QPointF(self._area.topLeft()))
+        if self._backdrop is not None:
+            picture, where = self._backdrop
+            painter.drawPixmap(QRectF(where), picture, QRectF(picture.rect()))
         for border in self._borders():
             painter.save()
             painter.translate(border.geometry().topLeft())
