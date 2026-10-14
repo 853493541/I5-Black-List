@@ -1,5 +1,7 @@
 """直播模式: the marks, never a 黑名单 name, copied into one window a streaming app can capture."""
 
+import sys
+
 import pytest
 
 pytest.importorskip("PySide6")
@@ -8,6 +10,10 @@ from PySide6.QtCore import QPoint, Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from blacklist_detect.pipeline import CheckResult, Hit, NameSlot  # noqa: E402
+from blacklist_detect.ui_stream import StreamMirror  # noqa: E402
+
+# The real question to Windows, kept before the shared setup stubs it out for every test.
+_ASK_WINDOWS = StreamMirror.ask_windows
 
 
 @pytest.fixture
@@ -354,3 +360,70 @@ def test_a_red_test_frame_runs_round_the_game_while_no_mark_shows(window, monkey
     # TEST_FRAME takes it away.
     monkeypatch.setattr(ui_stream, "TEST_FRAME", False)
     assert all(edge.alpha() == 0 for edge in edges())
+
+
+def test_where_windows_will_not_capture_the_window_it_moves_until_it_does(window, caplog):
+    """A friend's Windows 10 refused to capture it off the screen (E_INVALIDARG), and 直播姬 showed
+    nothing. Refused, it touches the rightmost screen by a pixel; refused there, it goes onto the
+    game's screen behind every window. Each answer is logged; a new start begins off the screen."""
+    import logging
+
+    from blacklist_detect import wgc
+
+    caplog.set_level(logging.INFO, logger="blacklist_detect")
+    window._set_stream_mode(True)
+    stream = window.stream
+    assert stream.spot == "off" and stream.answer is None
+    screens = [screen.geometry() for screen in QApplication.screens()]
+    rightmost = max(screens, key=lambda geo: geo.right())
+    assert not any(geo.intersects(stream.geometry()) for geo in screens)
+    stream._answered(wgc.REFUSED)
+    assert stream.spot == "edge" and stream.answer == wgc.REFUSED
+    shown = stream.geometry()
+    assert shown.left() == rightmost.right() and shown.intersected(rightmost).width() == 1, "one pixel on the screen"
+    stream._answered(wgc.ACCEPTED)
+    assert stream.spot == "edge" and stream.answer == wgc.ACCEPTED, "taken there: it stays"
+    said = "\n".join(record.getMessage() for record in caplog.records)
+    assert "直播画面 off the screen: refused (0x80070057)." in said and "直播画面 at the screen's right edge: captured." in said
+    # Refused everywhere: on the screen, behind every window, and said in the log.
+    window._set_stream_mode("")
+    window._set_stream_mode(True)
+    assert stream.spot == "off" and stream.answer is None
+    stream._answered(wgc.REFUSED)
+    stream._answered(wgc.REFUSED)
+    screen = QApplication.screenAt(stream._area.center()) or QApplication.primaryScreen()
+    assert stream.spot == "on" and stream.geometry().topLeft() == screen.geometry().topLeft()
+    stream._answered(wgc.REFUSED)
+    assert stream.spot == "on"
+    assert "would not capture it anywhere" in "\n".join(record.getMessage() for record in caplog.records)
+    # Still the marks where they were: the window keeps its size, so 直播姬's fit holds.
+    assert (stream.width(), stream.height()) == (screen.geometry().width(), round(screen.geometry().width() * 9 / 16))
+    # No answer to ask (before Windows 10 1903): it stays where it is.
+    window._set_stream_mode("")
+    window._set_stream_mode(True)
+    stream._answered(None)
+    assert stream.spot == "off"
+
+
+def test_windows_is_asked_from_a_process_of_its_own_and_takes_it_here(window, monkeypatch, caplog):
+    """The real question, as 直播姬 asks it. Windows 11 captures the window off the screen."""
+    import logging
+    import time
+
+    if sys.platform != "win32" or sys.getwindowsversion().build < 22000:
+        pytest.skip("Windows 11 captures it off the screen; Windows 10 may not")
+    if QApplication.platformName() != "windows":
+        pytest.skip("Qt runs offscreen in this run (other tests set it): no real windows to ask about")
+    caplog.set_level(logging.INFO, logger="blacklist_detect")
+    monkeypatch.setattr(StreamMirror, "ask_windows", _ASK_WINDOWS)
+    window._set_stream_mode(True)
+    stream = window.stream
+    deadline = time.monotonic() + 30
+    while stream.answer is None and time.monotonic() < deadline:
+        QApplication.processEvents()
+        time.sleep(0.02)
+    assert stream.answer == 0 and stream.spot == "off"
+    assert "直播画面 off the screen: captured." in "\n".join(record.getMessage() for record in caplog.records)
+    # Closed while asking: the answer is dropped.
+    window._set_stream_mode("")
+    assert stream._asking is None

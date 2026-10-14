@@ -53,6 +53,19 @@ def _no_game_window(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_capture_question(monkeypatch):
+    """直播模式's window does not ask Windows whether it would capture it: that starts a process.
+    A test that means to ask calls the real StreamMirror.ask_windows itself."""
+    try:
+        from blacklist_detect.ui_stream import StreamMirror
+    except ImportError:
+        yield
+        return
+    monkeypatch.setattr(StreamMirror, "ask_windows", lambda _mirror: None)
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _keep_windows():
     yield
     try:

@@ -28,16 +28,27 @@ While no mark shows, a red frame (the 测试框) runs round the game, where the 
 streamer who sees it in the stream knows the marks will be there too, and that they line up. A
 capture that reads nothing of this window (in 直播姬: the 预览 side not yet 同步至直播, BitBlt,
 窗口区域模式) shows no frame. Viewers see it as well: it is for testing.
+
+A friend's Windows 10 would not capture it off the screen: 直播姬's capture was in the scene and
+live, and blank, while Windows 11 takes it. So once it is open, Windows is asked as 直播姬 asks it
+(wgc). Where it refuses, the window moves to touch the rightmost screen by one pixel, then onto the
+game's screen behind every window, until Windows takes it. Each answer goes to the log.
 """
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, QSize, Qt, QTimer
+import logging
+import sys
+
+from PySide6.QtCore import QPoint, QPointF, QProcess, QProcessEnvironment, QRect, QRectF, QSize, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QFontMetricsF, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QApplication, QWidget
 
+from blacklist_detect import paths, wgc
 from blacklist_detect.names import APP_NAME
 from blacklist_detect.ui_alert import paint_glow
+
+log = logging.getLogger(__name__)
 
 TITLE = f"{APP_NAME}·直播画面"
 FRAME_MS = 45
@@ -45,6 +56,12 @@ FRAME_MS = 45
 TEST_FRAME = True
 TEST_TAG = f"{APP_NAME}·测试框"
 _TEST_RED = QColor(225, 38, 52)
+# Where the window sits, each tried in turn until Windows would capture it there: off every screen,
+# touching the rightmost screen by one pixel, or on the game's screen behind every window.
+SPOTS = ("off", "edge", "on")
+_WHERE = {"off": "off the screen", "edge": "at the screen's right edge", "on": "on the screen, behind every window"}
+# After the window shows or moves, before Windows is asked.
+ASK_MS = 300
 
 
 class StreamMirror(QWidget):
@@ -78,6 +95,10 @@ class StreamMirror(QWidget):
         self._frame = QRect()
         # 测试效果: a picture under the marks, where it is on the screen, so viewers see it too.
         self._backdrop: tuple[QPixmap, QRect] | None = None
+        # Where it sits (SPOTS), and Windows' last answer there (wgc): None until it has answered.
+        self.spot = SPOTS[0]
+        self.answer: int | None = None
+        self._asking: QProcess | None = None
         self._tick = QTimer(self)
         self._tick.setInterval(FRAME_MS)
         self._tick.timeout.connect(self._step)
@@ -94,14 +115,63 @@ class StreamMirror(QWidget):
         self._mode = mode
         self.update()
         if mode:
+            self.spot = SPOTS[0]
+            self.answer = None
             self._place(self._source())
             self.show()
             self.lower()
             self._tick.start()
+            QTimer.singleShot(ASK_MS, self.ask_windows)
         else:
+            self._stop_asking()
             self._tick.stop()
             self._active = False
             self.hide()
+
+    def ask_windows(self) -> None:
+        """Ask Windows, from a process of its own as 直播姬 is, whether it would capture this window
+        where it is. _answered takes the answer."""
+        if not self.enabled() or sys.platform != "win32" or self._asking is not None:
+            return
+        program, arguments, folder = wgc.command(int(self.winId()))
+        asking = QProcess(self)
+        asking.setWorkingDirectory(folder)
+        environment = QProcessEnvironment()
+        for key, value in paths.child_env().items():
+            environment.insert(key, value)
+        asking.setProcessEnvironment(environment)
+        asking.finished.connect(lambda _code, _status: self._answered(wgc.read(bytes(asking.readAllStandardOutput()).decode(errors="replace"))))
+        asking.errorOccurred.connect(lambda error: self._could_not_ask(asking, error))
+        self._asking = asking
+        asking.start(program, arguments)
+
+    def _could_not_ask(self, asking: QProcess, error) -> None:  # noqa: ANN001
+        if error == QProcess.FailedToStart and self._asking is asking:
+            log.warning("直播画面: could not ask Windows whether it captures it (%s).", asking.errorString())
+            self._asking = None
+
+    def _stop_asking(self) -> None:
+        asking, self._asking = self._asking, None
+        if asking is not None:
+            asking.finished.disconnect()
+            asking.kill()
+
+    def _answered(self, result: int | None) -> None:
+        """Windows' answer where the window is: it stays there, or tries the next of SPOTS."""
+        self._asking = None
+        if not self.enabled():
+            return
+        self.answer = result
+        log.info("直播画面 %s: %s.", _WHERE[self.spot], wgc.words(result))
+        if result is None or result == wgc.ACCEPTED:
+            return
+        later = SPOTS.index(self.spot) + 1
+        if later == len(SPOTS):
+            log.warning("直播画面: Windows would not capture it anywhere; a streaming app shows nothing of it.")
+            return
+        self.spot = SPOTS[later]
+        self._place(self._area if not self._area.isEmpty() else self._source())
+        QTimer.singleShot(ASK_MS, self.ask_windows)
 
     def _marks(self) -> list[QWidget]:
         """The marks showing now: the 心动 card, and the ring with a 心动 or 黑名单 player there
@@ -135,13 +205,18 @@ class StreamMirror(QWidget):
         self._step()
 
     def _place(self, area: QRect) -> None:
-        """Mirror area, from a 16:9 window as wide as its screen, just right of every monitor."""
+        """Mirror area, from a 16:9 window as wide as its screen, where self.spot says: just right of
+        every monitor, overlapping the rightmost one by a pixel, or over area's screen."""
         self._area = QRect(area)
         screen = QApplication.screenAt(area.center()) or QApplication.primaryScreen()
-        width = screen.geometry().width() if screen is not None else 1920
-        top = screen.geometry().y() if screen is not None else 0
-        right = max((each.geometry().right() for each in QApplication.screens()), default=area.right())
-        self.setGeometry(QRect(QPoint(right + 64, top), QSize(width, round(width * 9 / 16))))
+        home = screen.geometry() if screen is not None else QRect(0, 0, 1920, 1080)
+        rightmost = max((each.geometry() for each in QApplication.screens()), key=lambda each: each.right(), default=home)
+        corner = {
+            "off": QPoint(rightmost.right() + 64, home.y()),
+            "edge": QPoint(rightmost.right(), rightmost.y()),
+            "on": home.topLeft(),
+        }[self.spot]
+        self.setGeometry(QRect(corner, QSize(home.width(), round(home.width() * 9 / 16))))
         # The 测试框 goes round the new area.
         self.update()
 
