@@ -13,7 +13,10 @@ from PySide6.QtGui import QColor, QImage, QPainter, QPixmap  # noqa: E402
 from PySide6.QtWidgets import QApplication, QLabel  # noqa: E402
 
 from blacklist_detect import love_scenes  # noqa: E402
-from blacklist_detect.love_scenes import KEYS, TRIALS, Stage, choose, sample_stage  # noqa: E402
+from blacklist_detect.love_scenes import KEYS, Stage, choose, sample_stage  # noqa: E402
+
+# The scenes that draw the 心动 marks as themes of their own.
+THEMES = ("cyber", "neon", "angel", "heaven", "cathedral", "equation", "fluffy")
 
 
 @pytest.fixture(scope="module")
@@ -41,7 +44,7 @@ def _drawn(image: QImage) -> bool:
     return any(image.pixelColor(x, y).alpha() for x in range(0, image.width(), 7) for y in range(0, image.height(), 7))
 
 
-@pytest.mark.parametrize("key", KEYS + TRIALS)
+@pytest.mark.parametrize("key", KEYS)
 def test_every_scene_plays_through_and_keeps_the_button_bare(qapp, key):
     stage = sample_stage()
     shots = _frames(stage, key)
@@ -54,7 +57,7 @@ def test_every_scene_plays_through_and_keeps_the_button_bare(qapp, key):
         assert all(shot.pixelColor(x, y).alpha() < 40 for x in range(button.left(), button.right(), 6) for y in (button.top(), button.bottom()))
 
 
-@pytest.mark.parametrize("key", KEYS + TRIALS)
+@pytest.mark.parametrize("key", KEYS)
 def test_every_scene_fits_another_window_shape(qapp, key):
     """A windowed emulator is narrower and taller than the lobby the scenes were drawn on."""
     stage = Stage(900, 640, QRectF(300, 540, 330, 100), badge=QPointF(600, 580))
@@ -74,7 +77,7 @@ def test_choosing_one_random_or_none():
     assert all(a != b for a, b in zip(picks, picks[1:], strict=False))
     # 命运红线, 雪纺, 缎带, 花雨, 纸鹤晚霞 and 蝶梦 are gone: a player who had one, or a key from another
     # version, gets 经典花边. 香槟 is gone too, and 天使 took its place.
-    assert KEYS == ("classic", "ice", "stars", "cyber", "angel", "equation")
+    assert KEYS == ("classic", "ice", "stars", "cyber", "neon", "angel", "heaven", "cathedral", "equation", "fluffy")
     for gone in ("thread", "chiffon", "ribbon", "petals", "cranes", "butterfly", "disco"):
         assert choose(gone, "", rng) == "classic"
     assert choose("champagne", "", rng) == "angel"
@@ -187,10 +190,10 @@ def test_the_border_settles_its_scene_before_it_plays(qapp):
 def test_every_scene_dresses_the_marks_its_own_way(qapp):
     from blacklist_detect.ui_overlay import CLASSIC_LOOK, LOOKS, LikeCard, love_look
 
-    assert set(LOOKS) == set(KEYS)
-    assert len({look.card for look in LOOKS.values()}) == len(LOOKS), "no two cards alike"
+    assert set(LOOKS) <= set(KEYS)
+    assert len({love_look(key).card for key in KEYS}) == len(KEYS), "no two cards alike"
     assert love_look("random") is love_look("off") is love_look("chiffon") is love_look("butterfly") is CLASSIC_LOOK
-    assert love_look("champagne") is LOOKS["angel"], "天使 took 香槟's place"
+    assert love_look("champagne") is love_look("angel"), "天使 took 香槟's place"
     card = LikeCard()
     card.set_look(love_look("stars"))
     card.set_people([("心动小鹿", ())], 90)
@@ -212,14 +215,12 @@ def test_the_preview_shows_each_scenes_marks(qapp):
     preview.stop()
 
 
-def test_trials_are_not_in_the_settings_but_load_all_the_same(qapp):
+def test_a_theme_brings_its_own_look(qapp):
     from blacklist_detect.ui_overlay import LOOKS, LoveLook, love_look
 
-    assert len(TRIALS) == 12 and len(set(TRIALS)) == 12
-    assert set(TRIALS).isdisjoint(KEYS), "设置 does not grow"
-    for key in TRIALS:
+    assert set(THEMES) == set(KEYS) - set(LOOKS)
+    for key in THEMES:
         module = love_scenes.load(key)
-        assert key not in LOOKS
         # The look comes from the scene's own LOOK, and says the scene draws the marks.
         look = love_look(key)
         assert look == replace(LoveLook(**module.LOOK), marks=key) and love_look(key) is look
@@ -228,8 +229,8 @@ def test_trials_are_not_in_the_settings_but_load_all_the_same(qapp):
     assert love_look("off").marks == love_look("draw").marks == ""
 
 
-@pytest.mark.parametrize("key", TRIALS)
-def test_every_trial_draws_its_marks(qapp, key):
+@pytest.mark.parametrize("key", THEMES)
+def test_every_theme_draws_its_marks(qapp, key):
     from blacklist_detect.ui_love_pick import SampleMarks
 
     marks = SampleMarks(key)
@@ -241,11 +242,11 @@ def test_every_trial_draws_its_marks(qapp, key):
 
 @pytest.fixture
 def theme(monkeypatch):  # noqa: ANN201
-    """A scene that draws all the marks itself, each hook noting what it was given: cyber1's file,
+    """A scene that draws all the marks itself, each hook noting what it was given: 赛博's file,
     whatever is in it now, with these put in. Gives its look and the notes."""
     from blacklist_detect.ui_overlay import CLASSIC_LOOK
 
-    module = love_scenes.load("cyber1")
+    module = love_scenes.load("cyber")
     calls: dict[str, list] = {"ring": [], "badge": [], "card": [], "lead": []}
 
     def ring(painter, cover, t):  # noqa: ANN001, ANN202
@@ -271,7 +272,7 @@ def theme(monkeypatch):  # noqa: ANN201
     settings = {"CARD_TOP": 20, "CARD_PAD": (30, 10, 30, 10), "CARD_FONT": "Consolas", "MARKS_ANIMATED": True}
     for name, value in {**hooks, **settings}.items():
         monkeypatch.setattr(module, name, value, raising=False)
-    return replace(CLASSIC_LOOK, marks="cyber1"), calls
+    return replace(CLASSIC_LOOK, marks="cyber"), calls
 
 
 def test_a_scene_draws_the_ring_and_badge_itself(qapp, theme):
@@ -376,7 +377,7 @@ def test_the_preview_moves_marks_that_move(qapp, theme):
     still = SampleMarks("stars")
     assert not still.moving and still.at(0.0) is still.at(1.0)
     still.close()
-    moving = SampleMarks("cyber1")
+    moving = SampleMarks("cyber")
     moving.at(0.5)
     moving.at(1.0)
     assert moving.moving and [t for _rect, t in calls["card"]] == [0.5, 1.0]

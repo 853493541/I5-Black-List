@@ -41,7 +41,6 @@ in LOOK's colors). None of them may import ui_overlay; draw and light are theirs
                           since it showed, on and on (loop it yourself). Otherwise t is 0.
 
 Painters come antialiased, in the mark's window's points, saved and restored around each call.
-TRIALS are scenes to choose from that 设置 does not list; load() and the tools take them all the same.
 """
 
 from __future__ import annotations
@@ -59,18 +58,14 @@ SCENES: tuple[tuple[str, str], ...] = (
     ("ice", "冰蓝极光"),
     ("stars", "星河许愿"),
     ("cyber", "赛博"),
+    ("neon", "霓虹都市"),
     ("angel", "天使"),
+    ("heaven", "天国之门"),
+    ("cathedral", "大教堂"),
     ("equation", "数学"),
+    ("fluffy", "毛茸茸"),
 )
 KEYS = tuple(key for key, _name in SCENES)
-# Themes being tried out, three for each of 赛博, 天使, 数学 and a friend's own (fluffy), to choose
-# from. Not in 设置; tools/love_frames.py renders them.
-TRIALS: tuple[str, ...] = (
-    *("cyber1", "cyber2", "cyber3"),
-    *("angel1", "angel2", "angel3"),
-    *("equation1", "equation2", "equation3"),
-    *("fluffy1", "fluffy2", "fluffy3"),
-)
 # A scene that is gone, and the one a player who chose it gets now: 天使 took 香槟's place.
 REPLACED = {"champagne": "angel"}
 # The design size the scenes were drawn at.
