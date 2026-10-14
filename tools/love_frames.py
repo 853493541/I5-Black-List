@@ -2,6 +2,9 @@
 
 Run from the root of a checkout:
     PYTHONPATH=. python tools/love_frames.py <key> <out_dir> [t1 t2 ...]
+    PYTHONPATH=. python tools/love_frames.py <key> <out_dir> anim
+The second writes <out_dir>/<key>.webp instead: the whole scene playing at 20 fps, 960 px wide, in full
+color (an animated WebP: a GIF's 256 colors band the glows and it is four times the size).
 Writes <out_dir>/<key>_t<t>.png (1635x848 lobby with the scene and the button gap outlined faintly),
 and prints the median and worst frame time at 1920x1080 over the whole scene (30 fps).
 The scene is loaded from blacklist_detect/love_scenes/<key>.py; it need not be in SCENES yet.
@@ -31,6 +34,10 @@ def main() -> None:
     from blacklist_detect.love_scenes import DESIGN, sample_stage
 
     module = importlib.import_module(f"blacklist_detect.love_scenes.{key}")
+    if sys.argv[3:] == ["anim"]:
+        _anim(key, module, out)
+        sys.stdout.flush()
+        os._exit(0)
     times = [float(x) for x in sys.argv[3:]] or [0.3, 0.8, 1.5, 2.5, 3.5, module.DURATION - 0.4]
     lobby = QImage(str(Path("blacklist_detect/assets/sample-lobby.jpg")))
     stage = sample_stage()
@@ -70,6 +77,34 @@ def main() -> None:
     )
     sys.stdout.flush()
     os._exit(0)
+
+
+def _anim(key: str, module, out: Path) -> None:  # noqa: ANN001
+    """The scene over the sample lobby, start to finish, as an animation a person can watch."""
+    from PIL import Image
+
+    from blacklist_detect.love_scenes import DESIGN, sample_stage
+
+    fps, wide = 20, 960
+    lobby = QImage(str(Path("blacklist_detect/assets/sample-lobby.jpg")))
+    lobby = lobby.scaled(round(DESIGN[0]), round(DESIGN[1]), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+    lobby = lobby.convertToFormat(QImage.Format_ARGB32_Premultiplied)
+    paint = module.make(sample_stage())
+    frames = []
+    count = int((module.DURATION + 0.4) * fps)
+    for i in range(count):
+        image = QImage(lobby)
+        painter = QPainter(image)
+        painter.setRenderHint(QPainter.Antialiasing)
+        paint(painter, min(module.DURATION, i / fps))
+        painter.end()
+        small = image.scaledToWidth(wide, Qt.SmoothTransformation).convertToFormat(QImage.Format_RGB888)
+        data = bytes(small.constBits())[: small.bytesPerLine() * small.height()]
+        frame = Image.frombytes("RGB", (small.width(), small.height()), data, "raw", "RGB", small.bytesPerLine())
+        frames.append(frame)
+    target = out / f"{key}.webp"
+    frames[0].save(target, save_all=True, append_images=frames[1:], duration=round(1000 / fps), loop=0, quality=85, method=4)
+    print(f"{key}: {len(frames)} frames, {target.stat().st_size / 1e6:.1f} MB -> {target}")
 
 
 if __name__ == "__main__":
