@@ -30,6 +30,9 @@ def window(tmp_path, monkeypatch):  # noqa: ANN001, ANN201
     played: list[str] = []
     monkeypatch.setattr(made.music, "preview", lambda choice: played.append(choice) or choice)
     made.played = played
+    # What earlier tests' windows left waiting is handled now, not inside 测试效果's 400 ms: late in a
+    # full run it took about as long, and the sample lobby was over before the marks went up.
+    QApplication.processEvents()
     yield made
     made._end_stream_test()
     made.notice.hide()

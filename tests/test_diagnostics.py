@@ -62,6 +62,9 @@ def test_export_puts_one_file_where_it_says(window, tmp_path, monkeypatch):
     opened = []
     import subprocess
 
+    # Popen is a stand-in here: Paddle, looking for the GPU, would run `where` through it, and run first
+    # the app's quiet Popen would be built on it.
+    monkeypatch.setattr(ui, "inference_device", lambda: "cpu")
     monkeypatch.setattr(subprocess, "Popen", lambda args, **_: opened.append(args))
     said = []
     monkeypatch.setattr(window, "_say", lambda text, undo=None: said.append(text))
