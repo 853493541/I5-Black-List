@@ -34,6 +34,12 @@ A friend's Windows 10 would not capture it off the screen: 直播姬's capture w
 live, and blank, while Windows 11 takes it. So once it is open, Windows is asked as 直播姬 asks it
 (wgc). Where it refuses, the window moves to touch the rightmost screen by one pixel, then onto the
 game's screen behind every window, until Windows takes it. Each answer goes to the log.
+
+On that Windows 10 it was refused at all three. Refused everywhere, it finds out why, once
+(wgc_diagnose): Windows' build, the window's styles, who runs as administrator, and Windows' answer
+for the game's window, for plain windows and for windows like this one each without one property.
+All of it goes to the log, with what it points at. When the window would be taken without a property
+it can do without here (click-through, no-focus, stay at the bottom), it is made again without it.
 """
 
 from __future__ import annotations
@@ -45,7 +51,7 @@ from PySide6.QtCore import QPoint, QPointF, QProcess, QProcessEnvironment, QRect
 from PySide6.QtGui import QColor, QFont, QFontMetricsF, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QApplication, QWidget
 
-from blacklist_detect import paths, wgc
+from blacklist_detect import livehime, paths, wgc, wgc_diagnose
 from blacklist_detect.names import APP_NAME
 from blacklist_detect.ui_alert import paint_glow
 
@@ -61,6 +67,15 @@ SPOTS = ("off", "edge", "on")
 _WHERE = {"off": "off the screen", "edge": "at the screen's right edge", "on": "on the screen, behind every window"}
 # After the window shows or moves, before Windows is asked.
 ASK_MS = 300
+# The most the diagnosis may take before it is given up.
+DIAGNOSE_MS = 60_000
+# What the window's flags are made of, and the Qt flag behind each property it can do without.
+_FLAGS = Qt.FramelessWindowHint | Qt.Window
+_DROPPABLE = {
+    "click-through": Qt.WindowTransparentForInput,
+    "no-focus": Qt.WindowDoesNotAcceptFocus,
+    "on-bottom": Qt.WindowStaysOnBottomHint,
+}
 
 
 class StreamMirror(QWidget):
@@ -72,14 +87,9 @@ class StreamMirror(QWidget):
 
     def __init__(self, window) -> None:  # noqa: ANN001
         # A normal window, not a tool window: streaming apps leave tool windows out of their list.
-        super().__init__(
-            None,
-            Qt.FramelessWindowHint
-            | Qt.Window
-            | Qt.WindowStaysOnBottomHint
-            | Qt.WindowDoesNotAcceptFocus
-            | Qt.WindowTransparentForInput,
-        )
+        # Properties the diagnosis found Windows refuses, left out (wgc_diagnose.HARMLESS).
+        self.without: set[str] = set()
+        super().__init__(None, self._flags())
         self.setWindowTitle(TITLE)
         self.setAttribute(Qt.WA_ShowWithoutActivating, True)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
@@ -100,6 +110,9 @@ class StreamMirror(QWidget):
         self.spot = SPOTS[0]
         self.answer: int | None = None
         self._asking: QProcess | None = None
+        # The diagnosis, once each time 直播模式 opens: running, and whether it has run.
+        self._diagnosing: QProcess | None = None
+        self._diagnosed = False
         self._tick = QTimer(self)
         self._tick.setInterval(FRAME_MS)
         self._tick.timeout.connect(self._step)
@@ -118,6 +131,7 @@ class StreamMirror(QWidget):
         if mode:
             self.spot = SPOTS[0]
             self.answer = None
+            self._diagnosed = False
             self._place(self._source())
             self.show()
             self.lower()
@@ -125,6 +139,7 @@ class StreamMirror(QWidget):
             QTimer.singleShot(ASK_MS, self.ask_windows)
         else:
             self._stop_asking()
+            self._stop_diagnosing()
             self._tick.stop()
             self._active = False
             self.hide()
@@ -169,10 +184,96 @@ class StreamMirror(QWidget):
         later = SPOTS.index(self.spot) + 1
         if later == len(SPOTS):
             log.warning("直播画面: Windows would not capture it anywhere; a streaming app shows nothing of it.")
+            if not self._diagnosed:
+                self._diagnosed = True
+                self.diagnose()
             return
         self.spot = SPOTS[later]
         self._place(self._area if not self._area.isEmpty() else self._source())
         QTimer.singleShot(ASK_MS, self.ask_windows)
+
+    def _flags(self) -> Qt.WindowFlags:
+        flags = _FLAGS
+        for name, flag in _DROPPABLE.items():
+            if name not in self.without:
+                flags |= flag
+        return flags
+
+    def diagnose(self) -> None:
+        """Find out why Windows refuses this window, in a process of its own (wgc_diagnose);
+        diagnosed logs what it found."""
+        if not self.enabled() or sys.platform != "win32" or self._diagnosing is not None:
+            return
+        control = 0
+        watch = getattr(self._window, "_scene_watch", None)
+        game = livehime.game_capture(watch.scene(), TITLE) if watch is not None else None
+        if game is not None:
+            control = livehime.window_of(game)
+        program, arguments, folder = wgc_diagnose.command(int(self.winId()), control)
+        running = QProcess(self)
+        running.setWorkingDirectory(folder)
+        environment = QProcessEnvironment()
+        for key, value in paths.child_env().items():
+            environment.insert(key, value)
+        running.setProcessEnvironment(environment)
+        running.finished.connect(lambda _code, _status: self._diagnosed_by(running))
+        running.errorOccurred.connect(lambda error: self._could_not_diagnose(running, error))
+        self._diagnosing = running
+        log.info("直播画面: finding out why Windows refuses it (control: %s).", "the game window 直播姬 captures" if control else "none found")
+        running.start(program, arguments)
+        QTimer.singleShot(DIAGNOSE_MS, lambda: self._diagnosis_too_long(running))
+
+    def _diagnosed_by(self, running: QProcess) -> None:
+        if self._diagnosing is not running:
+            return
+        self._diagnosing = None
+        output = bytes(running.readAllStandardOutput()).decode("utf-8", errors="replace")
+        trouble = bytes(running.readAllStandardError()).decode("utf-8", errors="replace").strip()
+        if "Traceback" in trouble:
+            log.warning("直播画面 diagnosis failed:\n%s", trouble[-3000:])
+        self.diagnosed(output)
+
+    def diagnosed(self, output: str) -> None:
+        """Log the diagnosis, and make the window again without a property Windows refuses, when it
+        can do without it."""
+        lines = [line.strip() for line in output.splitlines() if line.strip()]
+        found = next((line.removeprefix("verdict: ") for line in lines if line.startswith("verdict: ")), "")
+        fix = next((line.removeprefix("fix: ") for line in lines if line.startswith("fix: ")), "")
+        report = [line for line in lines if not line.startswith(("verdict: ", "fix: "))]
+        frame = "on" if self.test_frame else "off"
+        left_out = ", ".join(sorted(self.without)) or "nothing"
+        report.append(f"fact: from the app: 测试框 {frame}; a mark showing {self.busy()}; left out {left_out}")
+        log.info("直播画面 diagnosis:\n%s", "\n".join(report))
+        log.warning("直播画面 diagnosis: %s", found or "no answer (the report above is all there is).")
+        if fix in _DROPPABLE and fix not in self.without and self.enabled():
+            self.without.add(fix)
+            log.info("直播画面: made again without %s, which Windows took in the test; asking again from off the screen.", fix)
+            if fix == "click-through":
+                # Qt makes a window click-through for this as well.
+                self.setAttribute(Qt.WA_TransparentForMouseEvents, False)
+            self.setWindowFlags(self._flags())
+            self.spot = SPOTS[0]
+            self.answer = None
+            self._place(self._area if not self._area.isEmpty() else self._source())
+            self.show()
+            self.lower()
+            QTimer.singleShot(ASK_MS, self.ask_windows)
+
+    def _could_not_diagnose(self, running: QProcess, error) -> None:  # noqa: ANN001
+        if error == QProcess.FailedToStart and self._diagnosing is running:
+            log.warning("直播画面: could not find out why Windows refuses it (%s).", running.errorString())
+            self._diagnosing = None
+
+    def _diagnosis_too_long(self, running: QProcess) -> None:
+        if self._diagnosing is running:
+            log.warning("直播画面: finding out why Windows refuses it took over %d s; given up.", DIAGNOSE_MS // 1000)
+            self._stop_diagnosing()
+
+    def _stop_diagnosing(self) -> None:
+        running, self._diagnosing = self._diagnosing, None
+        if running is not None:
+            running.finished.disconnect()
+            running.kill()
 
     def _marks(self) -> list[QWidget]:
         """The marks showing now: the 心动 card, and the ring with a 心动 or 黑名单 player there

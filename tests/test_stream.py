@@ -12,8 +12,9 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 from blacklist_detect.pipeline import CheckResult, Hit, NameSlot  # noqa: E402
 from blacklist_detect.ui_stream import StreamMirror  # noqa: E402
 
-# The real question to Windows, kept before the shared setup stubs it out for every test.
+# The real question to Windows, and why not, kept before the shared setup stubs them out for every test.
 _ASK_WINDOWS = StreamMirror.ask_windows
+_DIAGNOSE = StreamMirror.diagnose
 
 
 @pytest.fixture
@@ -444,3 +445,80 @@ def test_windows_is_asked_from_a_process_of_its_own_and_takes_it_here(window, mo
     # Closed while asking: the answer is dropped.
     window._set_stream_mode("")
     assert stream._asking is None
+
+
+def test_refused_everywhere_it_finds_out_why_once_and_leaves_out_what_it_can(window, monkeypatch, caplog):
+    """A friend's Windows 10 refused it at all three spots. Then it finds out why (wgc_diagnose), once
+    each time 直播模式 opens; the report goes to the log, and a property it can do without, which
+    Windows took a window without, is left out and Windows asked again."""
+    import logging
+
+    from blacklist_detect import wgc
+
+    caplog.set_level(logging.INFO, logger="blacklist_detect")
+    asked: list[bool] = []
+    monkeypatch.setattr(StreamMirror, "diagnose", lambda mirror: asked.append(True))
+    window._set_stream_mode(True)
+    stream = window.stream
+    for _spot in range(3):
+        stream._answered(wgc.REFUSED)
+    assert asked == [True] and stream.spot == "on"
+    report = "\n".join([
+        "fact: Windows 10 Home China 22H2, build 19045.6466; desktop composition True; remote session False",
+        "fact: 直播画面: class Qt6120QWindowIcon; style 0x96000000 (POPUP|VISIBLE); extended 0x08080020 (TRANSPARENT|LAYERED|NOACTIVATE)",
+        "test: 直播画面 itself: refused (0x80070057)",
+        "test: Qt, without click-through: captured",
+        "verdict: Without click-through Windows takes it: click-through is what Windows refuses here.",
+        "fix: click-through",
+    ])  # fmt: skip
+    hwnd = int(stream.winId())
+    stream.diagnosed(report)
+    said = "\n".join(record.getMessage() for record in caplog.records)
+    assert "build 19045.6466" in said and "test: Qt, without click-through: captured" in said
+    assert "fact: from the app: 测试框 on" in said
+    assert "直播画面 diagnosis: Without click-through Windows takes it" in said
+    # Made again without it, from off the screen, and Windows is asked again.
+    assert stream.without == {"click-through"} and not stream.windowFlags() & Qt.WindowTransparentForInput
+    assert stream.windowFlags() & Qt.WindowStaysOnBottomHint and stream.windowFlags() & Qt.WindowDoesNotAcceptFocus
+    assert stream.isVisible() and stream.spot == "off" and stream.answer is None
+    if QApplication.platformName() == "windows":
+        # The same window, its styles changed: 直播姬's capture of it still holds.
+        import ctypes
+
+        extended = ctypes.windll.user32.GetWindowLongW(int(stream.winId()), -20) & 0xFFFFFFFF
+        assert int(stream.winId()) == hwnd and not extended & 0x20 and extended & 0x08000000
+    # Refused everywhere again: said, not found out a second time.
+    for _spot in range(3):
+        stream._answered(wgc.REFUSED)
+    assert asked == [True]
+    # Something it cannot leave out by itself (the see-through background): only said.
+    stream.diagnosed("verdict: Without see-through Windows takes it: see-through is what Windows refuses here.")
+    assert stream.without == {"click-through"}
+    # 直播模式 opened again: found out again if refused everywhere.
+    window._set_stream_mode("")
+    window._set_stream_mode(True)
+    for _spot in range(3):
+        stream._answered(wgc.REFUSED)
+    assert asked == [True, True]
+
+
+def test_the_diagnosis_runs_for_real_and_its_report_reaches_the_log(window, monkeypatch, caplog):
+    """The report as the friend's 导出日志 will have it, from the process the app starts."""
+    import logging
+    import time
+
+    if sys.platform != "win32" or QApplication.platformName() != "windows":
+        pytest.skip("needs real windows on Windows")
+    caplog.set_level(logging.INFO, logger="blacklist_detect")
+    monkeypatch.setattr(StreamMirror, "diagnose", _DIAGNOSE)
+    window._set_stream_mode(True)
+    stream = window.stream
+    stream.diagnose()
+    deadline = time.monotonic() + 60
+    while stream._diagnosing is not None and time.monotonic() < deadline:
+        QApplication.processEvents()
+        time.sleep(0.02)
+    said = "\n".join(record.getMessage() for record in caplog.records)
+    assert "直播画面 diagnosis:\nfact: " in said and "test: 直播画面 itself: " in said and "test: Qt, plain window: " in said
+    assert "fact: from the app: 测试框 on" in said and "直播画面 diagnosis: Windows" in said
+    window._set_stream_mode("")

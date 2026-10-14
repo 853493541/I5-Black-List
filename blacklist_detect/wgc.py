@@ -8,7 +8,8 @@ the game's window beside it. The capture was in the scene and live, and stayed b
 The same call says beforehand whether a window will be captured. It is asked from a process of its
 own, as 直播姬 asks it:
 
-    python -m blacklist_detect.wgc <hwnd>     prints the HRESULT, 0x00000000 when Windows would capture it
+    python -m blacklist_detect.wgc <hwnd> [<hwnd> ...]    prints each HRESULT on a line, 0x00000000 when
+                                                         Windows would capture it
 """
 
 from __future__ import annotations
@@ -94,5 +95,6 @@ def words(result: int | None) -> str:
 
 
 if __name__ == "__main__":
-    result = answer(int(sys.argv[1]))
-    print("none" if result is None else f"0x{result:08X}")
+    for argument in sys.argv[1:]:
+        result = answer(int(argument))
+        print("none" if result is None else f"0x{result:08X}")

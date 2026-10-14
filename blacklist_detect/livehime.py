@@ -190,19 +190,30 @@ def game_capture(scene: list[Capture] | None, title: str) -> Capture | None:
     return None
 
 
-def client_rect(capture: Capture) -> tuple[int, int, int, int] | None:
-    """(left, top, right, bottom) in desktop pixels of the window a capture is set to, its client
-    area as 直播姬 captures it; None when it is not open, hidden or minimized."""
+def window_of(capture: Capture) -> int:
+    """The window a capture is set to, or 0 when it is not open."""
     if sys.platform != "win32" or not capture.title:
-        return None
+        return 0
     import ctypes
     from ctypes import wintypes
 
     user32 = ctypes.windll.user32
     user32.FindWindowW.restype = wintypes.HWND
     user32.FindWindowW.argtypes = (wintypes.LPCWSTR, wintypes.LPCWSTR)
-    hwnd = user32.FindWindowW(capture.window_class or None, capture.title)
-    if not hwnd or not user32.IsWindowVisible(hwnd) or user32.IsIconic(hwnd):
+    return int(user32.FindWindowW(capture.window_class or None, capture.title) or 0)
+
+
+def client_rect(capture: Capture) -> tuple[int, int, int, int] | None:
+    """(left, top, right, bottom) in desktop pixels of the window a capture is set to, its client
+    area as 直播姬 captures it; None when it is not open, hidden or minimized."""
+    hwnd = window_of(capture)
+    if not hwnd:
+        return None
+    import ctypes
+    from ctypes import wintypes
+
+    user32 = ctypes.windll.user32
+    if not user32.IsWindowVisible(hwnd) or user32.IsIconic(hwnd):
         return None
     client = wintypes.RECT()
     user32.GetClientRect(hwnd, ctypes.byref(client))

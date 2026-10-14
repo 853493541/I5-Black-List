@@ -5,8 +5,9 @@ import re
 from pathlib import Path
 
 PACKAGE = Path(__file__).resolve().parent.parent / "blacklist_detect"
-# The command line in __main__.py is for developers, not for users of the window.
-SKIP = {"__main__.py"}
+# The command line in __main__.py is for developers, not for users of the window; so is the report
+# wgc_diagnose.py writes, which only goes to the log.
+SKIP = {"__main__.py", "wgc_diagnose.py"}
 CJK = re.compile(r"[\u4e00-\u9fff]")
 BANNED = re.compile(r"PaddleOCR|paddle|python|README|BLACKLIST_DETECT|\.json|\.log\b|backups|logs|详情：|Traceback", re.I)
 
