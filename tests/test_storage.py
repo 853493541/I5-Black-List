@@ -472,3 +472,20 @@ def test_a_saved_hotkey_of_three_keys_keeps_two(tmp_path):
     assert Store(root).hotkey == "Ctrl+F11"
     (root / "settings.json").write_text(json.dumps({"hotkey": "Alt+1"}), encoding="utf-8")
     assert Store(root).hotkey == "Alt+1"
+
+
+def test_reminding_about_each_list_is_kept_and_one_stays_on(tmp_path):
+    import json
+
+    store = Store(tmp_path)
+    assert (store.check_blacklist, store.check_likes) == (True, True)
+    store.check_blacklist = False
+    store.save_settings()
+    assert (Store(tmp_path).check_blacklist, Store(tmp_path).check_likes) == (False, True)
+    # Both off would tell about nothing: both come back on.
+    settings = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
+    settings["check_likes"] = False
+    (tmp_path / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
+    assert (Store(tmp_path).check_blacklist, Store(tmp_path).check_likes) == (True, True)
+    store.reset()
+    assert (store.check_blacklist, store.check_likes) == (True, True)

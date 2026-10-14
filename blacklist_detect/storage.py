@@ -429,6 +429,9 @@ class Store:
         self.stream_mode = ""
         # 直播模式's 测试框: the red frame round the game in that window while no mark shows.
         self.stream_test_frame = True
+        # 提醒: which lists a check tells about, 黑名单 and 心动; one stays on.
+        self.check_blacklist = True
+        self.check_likes = True
         # What the player agreed to after being told the risk: "full" (完整模式). "auto" (自动检查) was
         # asked about before v0.8.1 and is kept, but no longer needed.
         self.consented: list[str] = []
@@ -812,6 +815,8 @@ class Store:
                 "love_counts": list(self.love_counts),
                 "stream_mode": self.stream_mode,
                 "stream_test_frame": self.stream_test_frame,
+                "check_blacklist": self.check_blacklist,
+                "check_likes": self.check_likes,
                 "consented": list(self.consented),
                 "disclaimer_accepted": self.disclaimer_accepted,
                 "stream_guided": self.stream_guided,
@@ -860,6 +865,10 @@ class Store:
             # v0.6.0 saved "key" (green) or "alpha" (clear), v0.6.1 "key": each is on, and clear now.
             self.stream_mode = "on" if settings.get("stream_mode") in ("on", "key", "alpha") else ""
             self.stream_test_frame = settings.get("stream_test_frame") is not False
+            self.check_blacklist = settings.get("check_blacklist") is not False
+            self.check_likes = settings.get("check_likes") is not False
+            if not (self.check_blacklist or self.check_likes):
+                self.check_blacklist = self.check_likes = True
             self.disclaimer_accepted = settings.get("disclaimer_accepted") is True
             self.stream_guided = settings.get("stream_guided") is True
             agreed = settings.get("consented") or []
@@ -1080,6 +1089,8 @@ class Store:
         self.love_counts = DEFAULT_LOVE_COUNTS
         self.stream_mode = ""
         self.stream_test_frame = True
+        self.check_blacklist = True
+        self.check_likes = True
         self.consented = []
         self.disclaimer_accepted = False
         self.stream_guided = False

@@ -86,14 +86,17 @@ def _listed(people: list[tuple[str, tuple[str, ...]]]) -> tuple[tuple[tuple[str,
     return tuple(shown), len(people) - len(shown)
 
 
-def result_messages(hits: list[tuple[str, tuple[str, ...]]], likes: list[str], unclear: int) -> list[Message]:
-    """The messages for one checked lobby, the bottom one first: what was found, then 心动."""
+def result_messages(
+    hits: list[tuple[str, tuple[str, ...]]], likes: list[str], unclear: int, blacklist: bool = True
+) -> list[Message]:
+    """The messages for one checked lobby, the bottom one first: what was found, then 心动. With 提醒's
+    黑名单 off (blacklist), a lobby with nobody to tell about is 检查完成, not 未发现黑名单."""
     missed = f"{unclear} 人未识别" if unclear else ""
     if hits:
         shown, more = _listed(hits)
         first = Message("hit", f"发现 {len(hits)} 名黑名单玩家", missed, shown, more)
     else:
-        first = Message("clear", "未发现黑名单", missed)
+        first = Message("clear", "未发现黑名单" if blacklist else "检查完成", missed)
     if not likes:
         return [first]
     shown, more = _listed([(name, ()) for name in likes])
@@ -504,8 +507,9 @@ class CornerNotice(QObject):
         likes: list[str],
         unclear: int,
         screen: QScreen | None,
+        blacklist: bool = True,
     ) -> None:
-        messages = result_messages(hits, likes, unclear)
+        messages = result_messages(hits, likes, unclear, blacklist)
         kind = "hit" if hits else ("liked" if likes else "clear")
         self.show_messages(kind, messages, screen)
 

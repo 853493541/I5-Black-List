@@ -314,3 +314,60 @@ def test_the_border_fits_a_game_in_a_window(window, monkeypatch):
     assert window.love.playing()
     assert window.love.geometry() == game
     window._hide_panel_after_title()
+
+
+def test_reminding_can_leave_out_either_list_and_keeps_one(window):
+    """提醒 in the 检查 panel: 黑名单 and 心动, each ticked (✓) until untouched. Unticked, a list's players
+    are not told about in a check: no ring, card, glow, effect or corner message. One stays on."""
+    window.store.add("坏人", tags=("炸房",))
+    window.store.add_like("小明")
+    names = [
+        NameSlot(0, (0, 0, 1, 1), "小明", "小明", False, 0.9, False),
+        NameSlot(1, (0, 0, 1, 1), "坏人", "坏人", False, 0.9, False),
+    ]
+    hit = Hit(1, "坏人", "坏人", "", False, "", ("炸房",))
+    screen = QApplication.primaryScreen().availableGeometry()
+    left = screen.left() + screen.width() // 2 - 90
+    button = (left, screen.top() + 300, left + 180, screen.top() + 360)
+    boxes = window.remind_boxes
+    assert [box.text() for box in boxes.values()] == ["黑名单", "心动"]
+    assert all(box.isChecked() and not box.icon().isNull() for box in boxes.values())
+    assert "提醒 黑名单+心动" in window.settings_line()
+    # 黑名单 off: the listed player is not told about, and a lobby with nobody to tell about is 检查完成.
+    boxes["blacklist"].click()
+    assert window.store.check_blacklist is False and Store(window.store.root).check_blacklist is False
+    assert boxes["blacklist"].icon().isNull() and "提醒 只有心动" in window.settings_line()
+    window._live_check = True
+    window._on_lobby_placed(button)
+    window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
+    assert window.panel.mode == "liked" and not window.hit_card.isVisible() and window.like_card.isVisible()
+    window._show_panel(CheckResult(True, "", names=names[1:], hits=[hit], button_box=button))
+    assert window.panel.mode == "clear" and window.panel.toolTip() == "检查完成" and not window.hit_card.isVisible()
+    window._hide_panel_after_title()
+    # The last one ticked stays: unticking 心动 now does nothing.
+    boxes["likes"].click()
+    assert boxes["likes"].isChecked() and window.store.check_likes is True
+    # 心动 off, 黑名单 back on: 心动 players are not told about, nor greeted.
+    boxes["blacklist"].click()
+    boxes["likes"].click()
+    assert (window.store.check_blacklist, window.store.check_likes) == (True, False)
+    assert "提醒 只有黑名单" in window.settings_line()
+    window._on_lobby_placed(button)
+    window._show_panel(CheckResult(True, "", names=names[:1], button_box=button))
+    assert window.panel.mode == "clear" and window.panel.toolTip() == "未发现黑名单"
+    assert not window.like_card.isVisible() and not window.love.playing()
+    window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
+    assert window.panel.mode == "hit" and window.hit_card.isVisible() and not window.like_card.isVisible()
+    window._hide_panel_after_title()
+    # 测试效果 still shows its two 心动 players: it is a test of what viewers would see.
+    window._demo_likes = [Entry("心动小鹿")]
+    assert [like.name for like in window._likes_in(CheckResult(True, "", names=names))] == ["心动小鹿"]
+    window._demo_likes = None
+
+
+def test_the_corner_message_says_checked_when_the_blacklist_is_left_out():
+    from blacklist_detect.ui_notice import result_messages
+
+    assert result_messages([], [], 0)[0].title == "未发现黑名单"
+    assert result_messages([], [], 0, blacklist=False)[0].title == "检查完成"
+    assert result_messages([], ["小明"], 1, blacklist=False)[0].title == "检查完成"
