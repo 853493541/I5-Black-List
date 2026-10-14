@@ -217,6 +217,11 @@ CONSENT = {
 UPDATE_FIRST_MS = 1_000
 # 保存调试截图 keeps this many whole-screen pictures, the newest; each can be several MB.
 DEBUG_KEEP = 30
+# 测试效果: how long the 黑名单 part shows, then the 心动 part (its border plays about five seconds).
+DEMO_HIT_MS = 5_000
+DEMO_LOVE_MS = 7_000
+# 准备案件还原 on a whole 16:9 game screen, in fractions of it: where 测试效果 puts the ring.
+DEMO_BUTTON = (0.430, 0.776, 0.572, 0.846)
 # While the app is open it looks again every hour; what it finds then waits for the player (有更新).
 UPDATE_EVERY_MS = 60 * 60 * 1000
 
@@ -489,6 +494,12 @@ class MainWindow(QMainWindow):
         self._rescan_active = False
         # Checks since the app started, so each one's lines in the log share a number.
         self._check_number = 0
+        # 测试效果 while it runs: its 心动 players, where it shows, and what it put aside.
+        self._demo_likes: list[Entry] | None = None
+        self._demo_area: QRect | None = None
+        self._demo_place_box: tuple | None = None
+        self._demo_saved: tuple | None = None
+        self._demo_round = 0
         self._history_hover = (-1, -1)
         self._closed_days: set[str] = set()
         self._day_hover = -1
@@ -1034,7 +1045,15 @@ class MainWindow(QMainWindow):
         cell_row.addWidget(self.stream_switch, 0, Qt.AlignVCenter)
         cell_row.addStretch(1)
         same_width(switch_cell, self.display_mode)
-        check.add_row("直播模式", switch_cell, self.stream_guide)
+        # 测试效果: the marks of a lobby with a 黑名单 and two 心动 players, now, with no lobby: what
+        # viewers will see, without waiting for someone listed to turn up.
+        self.stream_test = QPushButton("测试效果")
+        self.stream_test.setAutoDefault(False)
+        self.stream_test.setCursor(Qt.PointingHandCursor)
+        self.stream_test.setToolTip("不用排队：直接放一遍黑名单和心动特效，看看直播间能不能看到")
+        self.stream_test.clicked.connect(self.start_stream_test)
+        self.stream_test.setVisible(bool(self.store.stream_mode))
+        check.add_row("直播模式", switch_cell, self.stream_guide, self.stream_test)
         # Whether 直播姬 shows the window, under the switch while it is on: green when it does, in
         # amber until it does (see livehime). Nothing for a streamer without 直播姬.
         self.stream_status = QLabel("")
@@ -2795,6 +2814,7 @@ class MainWindow(QMainWindow):
         self.store.save_settings()
         self.stream.enable(self.store.stream_mode)
         self._sync_switch(self.stream_switch, bool(self.store.stream_mode))
+        self.stream_test.setVisible(bool(self.store.stream_mode))
         self._sync_overlay_target()
         self._sync_name_hiding()
         if self.store.stream_mode:
@@ -3313,6 +3333,9 @@ class MainWindow(QMainWindow):
         return self.love.playing() and not self.love.testAttribute(Qt.WA_DontShowOnScreen)
 
     def _start(self, fn, live: bool = False) -> bool:
+        if live:
+            # A real lobby comes first: 测试效果 gives way.
+            self._end_stream_test()
         self._live_check = live
         quiet = self._rescan_active
         if live and self.panel.isVisible() and not quiet:
@@ -3569,9 +3592,13 @@ class MainWindow(QMainWindow):
             return
         hits = self._hits_in(result)
         likes = self._likes_in(result)
-        if not hits and self.store.love_for(len(likes)):
+        if not hits and self._love_for(len(likes)):
             # Never with a 黑名单 player: the warning is the news then, not the music.
-            self.music.lobby([like.name for like in likes], self.store.love_music)
+            if self._demo_likes is not None:
+                # 测试效果 plays it every time it is pressed.
+                self.music.preview(self.store.love_music)
+            else:
+                self.music.lobby([like.name for like in likes], self.store.love_music)
         if self.store.safe_mode:
             self._show_notice(result)
             log.info("Check %d shown: the corner message (安全模式).", self._check_number)
@@ -3622,7 +3649,7 @@ class MainWindow(QMainWindow):
             "Check %d shown: %s.", self._check_number,
             f"the rose ring, the heart and the 心动 card ({len(likes)})" if likes else "the ring (未发现黑名单)",
         )  # fmt: skip
-        if self.store.love_for(len(likes)) and not self._love_played:
+        if self._love_for(len(likes)) and not self._love_played:
             self._play_love()
 
     def _log_check(self, how: str, result: CheckResult, elapsed: float | None) -> None:
@@ -3669,6 +3696,99 @@ class MainWindow(QMainWindow):
                 f"黑名单 {len(store.entries)}, 心动 {len(store.likes)}, 记录 {len(store.scans)}",
             ]
         )
+
+    def _love_for(self, count: int) -> bool:
+        """Whether 心动特效 plays for this many 心动 players: as 心动人数 says, and always in 测试效果."""
+        return self._demo_likes is not None or self.store.love_for(count)
+
+    def start_stream_test(self) -> bool:
+        """测试效果: what a lobby with a 黑名单 player and two 心动 players shows, on the screen and in
+        直播画面, as 显示 and 直播模式 are set, with no lobby and no check. First the 黑名单 (the red
+        ring and glow, the 黑名单 card, the 心动 card), then 心动 alone (its ring, the heart, the card,
+        the border and the music). Made-up names, nothing saved to 记录."""
+        if self._demo_likes is not None or self.worker.running_job or not self.store.disclaimer_accepted:
+            return False
+        self.check_panel.close_panel()
+        area, box, game, where = self._demo_place()
+        self._demo_saved = (self._game_box, self._game_screen, self._game_windows, QRect(self.stream._frame), self._live_check)
+        self._demo_area = area
+        self._demo_place_box = (box, game)
+        self._demo_likes = [Entry("心动小鹿"), Entry("心动星星")]
+        self._demo_round += 1
+        turn = self._demo_round
+        # The look for 推演成功 would find no lobby and take the marks down: it waits.
+        self._glance_pause_until = time.perf_counter() + (DEMO_HIT_MS + DEMO_LOVE_MS) / 1000 + 1
+        log.info(
+            "测试效果: over %s; 显示 %s, 直播模式 %s.",
+            where, "安全模式" if self.store.safe_mode else "完整模式", "on" if self.store.stream_mode else "off",
+        )  # fmt: skip
+        self._demo_show(turn, hit=True)
+        QTimer.singleShot(DEMO_HIT_MS, lambda: self._demo_show(turn, hit=False))
+        QTimer.singleShot(DEMO_HIT_MS + DEMO_LOVE_MS, lambda: self._end_stream_test(turn))
+        return True
+
+    def _demo_place(self) -> tuple[QRect | None, tuple, tuple | None, str]:
+        """Where 测试效果 shows: where the last lobby was (its game window, as a check finds it);
+        else over the window 直播姬's scene shows the game with; else over this window's screen.
+        Returns the area (None: found as for a real lobby), the button and the game screen in
+        screen-copy pixels, and what it is, for the log."""
+        if self._game_box is not None:
+            return None, self._game_box, self._game_screen, "the last lobby's game"
+        origin_x, origin_y = virtual_origin()
+        native = None
+        where = "this window's screen"
+        if self.store.stream_mode:
+            capture = livehime.game_capture(self._scene_watch.scene(), STREAM_TITLE)
+            native = livehime.client_rect(capture) if capture is not None else None
+            if native is not None:
+                where = f"直播姬's capture ({capture.exe or capture.title})"
+        if native is None:
+            screen = self.screen() or QApplication.primaryScreen()
+            geometry = screen.geometry()
+            ratio = screen.devicePixelRatio() or 1.0
+            native = (geometry.x(), geometry.y(), geometry.x() + round(geometry.width() * ratio), geometry.y() + round(geometry.height() * ratio))
+        left, top, right, bottom = native
+        x, y, ratio = native_to_logical(left, top)
+        area = QRect(round(x), round(y), round((right - left) / ratio), round((bottom - top) / ratio))
+        # The lobby's own 16:9 screen, as big as fits in the area and centered, as a game draws it.
+        width, height = right - left, bottom - top
+        scale = min(width / 16, height / 9)
+        game_left, game_top = left + (width - 16 * scale) / 2 - origin_x, top + (height - 9 * scale) / 2 - origin_y
+        game = (game_left, game_top, game_left + 16 * scale, game_top + 9 * scale)
+        button = tuple(
+            round(start + fraction * size)
+            for fraction, start, size in zip(DEMO_BUTTON, (game[0], game[1]) * 2, (16 * scale, 9 * scale) * 2, strict=True)
+        )
+        return area, button, game, where
+
+    def _demo_show(self, turn: int, hit: bool) -> None:
+        if turn != self._demo_round or self._demo_likes is None or self._closing:
+            return
+        box, game = self._demo_place_box
+        hits = [Hit(index=8, read_text="示例坏人", entry_name="示例坏人", note="", truncated=False, line="", tags=("炸房",))] if hit else []
+        if not hit:
+            # The 黑名单 part goes; 心动 alone comes, with its border and music.
+            self._hide_panel_after_title()
+        self._live_check = True
+        self._show_panel(CheckResult(header_found=True, message="", hits=hits, button_box=box, game_box=game))
+
+    def _end_stream_test(self, turn: int | None = None) -> None:
+        """Take 测试效果's marks down and put back what it set aside. turn: only that run's end."""
+        if self._demo_likes is None or (turn is not None and turn != self._demo_round):
+            return
+        self._demo_round += 1
+        self._hide_panel_after_title()
+        if self.notice.kind:
+            self.notice.hide()
+        self._demo_likes = None
+        self._demo_area = None
+        self._demo_place_box = None
+        if self._demo_saved is not None:
+            self._game_box, self._game_screen, self._game_windows, frame, self._live_check = self._demo_saved
+            self.stream.set_frame(frame)
+            self._demo_saved = None
+        self._glance_pause_until = 0.0
+        log.info("测试效果: done.")
 
     def _hits_in(self, result: CheckResult) -> list[Hit]:
         """黑名单 players in the lobby."""
@@ -3744,6 +3864,9 @@ class MainWindow(QMainWindow):
         (a picture of it in 照片) gives way to where the lobby puts the game (game_area.game_rect).
         innermost=False is the whole top-level window, what a 窗口捕捉 captures, as it is."""
         area = screen.geometry()
+        if self._demo_area is not None:
+            # 测试效果 with no lobby seen: over the window 直播姬 shows the game with, or a screen.
+            return QRect(self._demo_area)
         if self._game_box is None:
             return area
         origin_x, origin_y = virtual_origin()
@@ -3806,6 +3929,8 @@ class MainWindow(QMainWindow):
 
     def _likes_in(self, result: CheckResult) -> list[Entry]:
         """心动 players in the lobby, in seat order, each once."""
+        if self._demo_likes is not None:
+            return list(self._demo_likes)
         found: list[Entry] = []
         for slot in result.names:
             label = NameLabel(raw=slot.raw, visible=slot.visible, truncated=slot.truncated, unclear=slot.unclear)

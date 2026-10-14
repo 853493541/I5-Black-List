@@ -175,3 +175,39 @@ def window_over(capture: Capture, point: tuple[int, int]) -> bool:
     rect = wintypes.RECT()
     user32.GetWindowRect(hwnd, ctypes.byref(rect))
     return rect.left <= point[0] < rect.right and rect.top <= point[1] < rect.bottom
+
+
+def game_capture(scene: list[Capture] | None, title: str) -> Capture | None:
+    """The capture the stream shows the game with: the top visible window capture under the one of
+    直播画面 (titled title), or the top visible one when the scene has no 直播画面."""
+    if not scene:
+        return None
+    ours = [index for index, capture in enumerate(scene) if capture.title == title]
+    under = scene[: min(ours)] if ours else scene
+    for capture in reversed(under):
+        if capture.visible and capture.title and capture.title != title:
+            return capture
+    return None
+
+
+def client_rect(capture: Capture) -> tuple[int, int, int, int] | None:
+    """(left, top, right, bottom) in desktop pixels of the window a capture is set to, its client
+    area as 直播姬 captures it; None when it is not open, hidden or minimized."""
+    if sys.platform != "win32" or not capture.title:
+        return None
+    import ctypes
+    from ctypes import wintypes
+
+    user32 = ctypes.windll.user32
+    user32.FindWindowW.restype = wintypes.HWND
+    user32.FindWindowW.argtypes = (wintypes.LPCWSTR, wintypes.LPCWSTR)
+    hwnd = user32.FindWindowW(capture.window_class or None, capture.title)
+    if not hwnd or not user32.IsWindowVisible(hwnd) or user32.IsIconic(hwnd):
+        return None
+    client = wintypes.RECT()
+    user32.GetClientRect(hwnd, ctypes.byref(client))
+    corner = wintypes.POINT(0, 0)
+    user32.ClientToScreen(hwnd, ctypes.byref(corner))
+    if client.right <= 0 or client.bottom <= 0:
+        return None
+    return corner.x, corner.y, corner.x + client.right, corner.y + client.bottom
