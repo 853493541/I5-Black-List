@@ -524,10 +524,11 @@ def test_the_diagnosis_runs_for_real_and_its_report_reaches_the_log(window, monk
     window._set_stream_mode("")
 
 
-def test_on_windows_10_it_takes_focus_and_has_no_taskbar_button(window, monkeypatch):
+def test_on_windows_10_it_takes_focus_and_keeps_its_taskbar_button(window, monkeypatch):
     """A friend's Windows 10 (build 19045) would not capture a window that never takes focus, and
-    took 直播画面 at once without it (v0.9.4's diagnosis). There it is made so from the start, and the
-    taskbar button it gets is taken off; the diagnosis makes its copies the same way."""
+    took 直播画面 at once without it (v0.9.4's diagnosis). There it is made so from the start, and it
+    keeps the taskbar button it gets: v0.9.5 took it off, and Windows 10 refused the window again,
+    while it took a copy that kept it. The diagnosis makes its copies the same way."""
     from blacklist_detect import ui_stream, wgc, wgc_diagnose
 
     monkeypatch.setattr(ui_stream, "WINDOWS_10", True)
@@ -537,7 +538,7 @@ def test_on_windows_10_it_takes_focus_and_has_no_taskbar_button(window, monkeypa
     assert stream.without == {"no-focus"} and not stream.windowFlags() & Qt.WindowDoesNotAcceptFocus
     assert stream.windowFlags() & Qt.WindowTransparentForInput and stream.windowFlags() & Qt.WindowStaysOnBottomHint
     stream.enable("on")
-    assert hidden == [int(stream.winId())]
+    assert hidden == [], "its taskbar button stays"
     # Never wholly off the screen there: the desktop would stop redrawing it for 直播姬. It starts one
     # pixel onto the rightmost screen.
     screens = [screen.geometry() for screen in QApplication.screens()]
@@ -559,5 +560,5 @@ def test_on_windows_10_it_takes_focus_and_has_no_taskbar_button(window, monkeypa
     eleven = StreamMirror(window)
     assert eleven.without == set() and eleven.windowFlags() & Qt.WindowDoesNotAcceptFocus
     eleven.enable("on")
-    assert hidden == [int(stream.winId())]
+    assert hidden == []
     eleven.enable("")

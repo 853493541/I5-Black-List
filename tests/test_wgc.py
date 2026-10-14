@@ -122,6 +122,7 @@ def test_the_diagnosis_runs_in_a_process_of_its_own_and_reports_everything():
     assert "fact: 直播画面: layered per pixel (UpdateLayeredWindow)" in report and "直播姬: " in report
     assert "fact: 直播画面: process " in report and "administrator" in report
     assert "fact: the windows below are made by " in report and "test: control: the taskbar (Explorer's): " in report
+    assert "Qt, like 直播画面, its taskbar button taken off" in report and "owned by a hidden window" in report
     for name in ("直播画面 itself", *(name for name, *_rest in WIN32), *(name for name, _without in QT), "plain window made by pythonw.exe"):
         assert f"test: {name}: " in report, name
     if sys.getwindowsversion().build >= 22000:

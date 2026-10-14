@@ -362,7 +362,12 @@ QT = (
     ("Qt, without on-bottom", ("on-bottom",)),
     ("Qt, not layered (no see-through, no click-through)", ("see-through", "click-through")),
     ("Qt, plain window", ("see-through", "click-through", "no-focus", "on-bottom")),
+    # No taskbar button, two ways: taken off (as v0.9.5 did to 直播画面), or owned by a hidden window.
+    ("Qt, like 直播画面, its taskbar button taken off", ("taskbar",)),
+    ("Qt, like 直播画面, owned by a hidden window (no taskbar button)", ("owner",)),
 )
+# What a copy can be made without, as against how it is set apart (taskbar, owner).
+PROPERTIES = {"drawn", "see-through", "click-through", "no-focus", "on-bottom"}
 
 
 def make_qt(made: list, left_out: tuple[str, ...] = ()) -> list[Test]:  # noqa: ANN001
@@ -398,11 +403,21 @@ def make_qt(made: list, left_out: tuple[str, ...] = ()) -> list[Test]:  # noqa: 
 
     x, y, w, h = _spot()
     tests = []
+    owner = QWidget()
+    owner.winId()
+    made.append(owner)
     for name, without in QT:
         probe = Probe((*left_out, *without))
         probe.setWindowTitle(f"模仿者小工具·测试 {name}")
         probe.setGeometry(QRect(x, y, w, h))
+        if "owner" in without:
+            # Owned by a window that is never shown: no taskbar button, and not a child. Qt sets the
+            # owner from the transient parent when it shows the window (and resets any set before).
+            probe.winId()
+            probe.windowHandle().setTransientParent(owner.windowHandle())
         probe.show()
+        if "taskbar" in without:
+            wgc.hide_taskbar_button(int(probe.winId()))
         probe.lower()
         made.append(probe)
         tests.append(Test(name, int(probe.winId())))
@@ -478,7 +493,7 @@ def verdict(tests: list[Test]) -> tuple[str, str]:
     plain = f" Windows also refuses these plain windows: {', '.join(refused)}." if refused else ""
     if taken.get("Qt, like 直播画面"):
         return "A fresh window like 直播画面 is taken: something about the running 直播画面 differs (its state or what it shows)." + plain, ""
-    flips = [without for name, without in QT[2:] if taken.get(name)]
+    flips = [without for name, without in QT[2:] if taken.get(name) and set(without) <= PROPERTIES]
     if not flips:
         return "No single difference from 直播画面 made Windows take it." + plain, ""
     smallest = min(flips, key=len)
@@ -518,6 +533,8 @@ def report(hwnd: int, control: int, left_out: tuple[str, ...] = ()) -> list[str]
         shown = wgc.words(test.there) if test.hwnd else "could not be made"
         if test.hwnd > 0 and test.here != test.there:
             shown += f" (asked from where it was made: {wgc.words(test.here)})"
+        if test.hwnd > 0 and test.name.endswith("(no taskbar button)"):
+            shown += f"; owned {bool(_user32().GetWindow(test.hwnd, 4))}"
         lines.append(f"test: {test.name}: {shown}")
     found, fix = verdict(tests)
     lines.append(f"verdict: {found}")

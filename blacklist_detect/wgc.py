@@ -72,9 +72,9 @@ def answer(hwnd: int) -> int | None:
 
 
 def hide_taskbar_button(hwnd: int) -> bool:
-    """Take a window's button off the taskbar (ITaskbarList.DeleteTab); its styles stay as they are,
-    so a capture of it is not touched. False where the taskbar could not be asked. A window that
-    never takes focus has no button to begin with."""
+    """Take a window's button off the taskbar (ITaskbarList.DeleteTab); its styles stay as they are.
+    False where the taskbar could not be asked. Windows 11 still captures it then; Windows 10 does not
+    (直播画面 in v0.9.5), so only the diagnosis does this, to a copy."""
     if sys.platform != "win32":
         return False
     from ctypes import wintypes

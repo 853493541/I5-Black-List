@@ -43,8 +43,11 @@ it can do without here (click-through, no-focus, stay at the bottom), it is made
 
 That found it (v0.9.4): Windows 10 (22H2, build 19045) will not capture a window that never takes
 focus (WS_EX_NOACTIVATE), and took 直播画面 at once without it. So on Windows 10 it is made without it
-from the start. Such a window gets a taskbar button, which is taken off again (wgc.hide_taskbar_button):
-it is no place to click. Windows 11 takes it either way and keeps it as it was.
+from the start. Windows 11 takes it either way and keeps it as it was.
+
+What Windows 10 wants is a window on the taskbar: it refused the window that never takes focus (no
+button), the taskbar itself, and, in v0.9.5, 直播画面 with its button taken off (ITaskbarList), while it
+took a copy that kept its button. So there 直播画面 has a taskbar button, the price of being captured.
 
 Taken is not enough on Windows 10: there the desktop stops redrawing what a capture gets from a
 window that is wholly off the screen, so 直播姬 holds one still picture of it, empty, and the marks
@@ -153,7 +156,6 @@ class StreamMirror(QWidget):
             self._diagnosed = False
             self._place(self._source())
             self.show()
-            self._off_the_taskbar()
             self.lower()
             self._tick.start()
             QTimer.singleShot(ASK_MS, self.ask_windows)
@@ -212,11 +214,6 @@ class StreamMirror(QWidget):
         self.spot = spots[later]
         self._place(self._area if not self._area.isEmpty() else self._source())
         QTimer.singleShot(ASK_MS, self.ask_windows)
-
-    def _off_the_taskbar(self) -> None:
-        """Made without no-focus, the window gets a taskbar button: taken off, as it is no place to click."""
-        if "no-focus" in self.without and not wgc.hide_taskbar_button(int(self.winId())):
-            log.info("直播画面: its taskbar button could not be taken off.")
 
     def _flags(self) -> Qt.WindowFlags:
         flags = _FLAGS
@@ -282,7 +279,6 @@ class StreamMirror(QWidget):
             self.answer = None
             self._place(self._area if not self._area.isEmpty() else self._source())
             self.show()
-            self._off_the_taskbar()
             self.lower()
             QTimer.singleShot(ASK_MS, self.ask_windows)
 
