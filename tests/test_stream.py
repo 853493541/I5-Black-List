@@ -538,6 +538,15 @@ def test_on_windows_10_it_takes_focus_and_has_no_taskbar_button(window, monkeypa
     assert stream.windowFlags() & Qt.WindowTransparentForInput and stream.windowFlags() & Qt.WindowStaysOnBottomHint
     stream.enable("on")
     assert hidden == [int(stream.winId())]
+    # Never wholly off the screen there: the desktop would stop redrawing it for 直播姬. It starts one
+    # pixel onto the rightmost screen.
+    screens = [screen.geometry() for screen in QApplication.screens()]
+    rightmost = max(screens, key=lambda geo: geo.right())
+    assert stream.spot == "edge" and stream.geometry().intersected(rightmost).width() == 1
+    from blacklist_detect import wgc as asked
+
+    stream._answered(asked.REFUSED)
+    assert stream.spot == "on"
     if QApplication.platformName() == "windows":
         import ctypes
 

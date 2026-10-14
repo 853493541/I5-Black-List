@@ -45,6 +45,11 @@ That found it (v0.9.4): Windows 10 (22H2, build 19045) will not capture a window
 focus (WS_EX_NOACTIVATE), and took 直播画面 at once without it. So on Windows 10 it is made without it
 from the start. Such a window gets a taskbar button, which is taken off again (wgc.hide_taskbar_button):
 it is no place to click. Windows 11 takes it either way and keeps it as it was.
+
+Taken is not enough on Windows 10: there the desktop stops redrawing what a capture gets from a
+window that is wholly off the screen, so 直播姬 holds one still picture of it, empty, and the marks
+never show. It must touch a screen by at least a pixel. So on Windows 10 it never sits off the
+screen: it starts at the rightmost screen's edge, a clear column one pixel wide behind every window.
 """
 
 from __future__ import annotations
@@ -72,8 +77,14 @@ SPOTS = ("off", "edge", "on")
 _WHERE = {"off": "off the screen", "edge": "at the screen's right edge", "on": "on the screen, behind every window"}
 # After the window shows or moves, before Windows is asked.
 ASK_MS = 300
-# Windows 10 refuses to capture a window that never takes focus; 11 does not.
+# Windows 10 refuses to capture a window that never takes focus, and keeps a capture of one up to date
+# only while it touches a screen; 11 does both either way.
 WINDOWS_10 = sys.platform == "win32" and sys.getwindowsversion().build < 22000
+
+
+def _spots() -> tuple[str, ...]:
+    """The SPOTS to try, in turn: on Windows 10 never off the screen."""
+    return SPOTS[1:] if WINDOWS_10 else SPOTS
 # The most the diagnosis may take before it is given up.
 DIAGNOSE_MS = 60_000
 # What the window's flags are made of, and the Qt flag behind each property it can do without.
@@ -115,7 +126,7 @@ class StreamMirror(QWidget):
         # The 测试框 while no mark shows (store.stream_test_frame).
         self.test_frame = True
         # Where it sits (SPOTS), and Windows' last answer there (wgc): None until it has answered.
-        self.spot = SPOTS[0]
+        self.spot = _spots()[0]
         self.answer: int | None = None
         self._asking: QProcess | None = None
         # The diagnosis, once each time 直播模式 opens: running, and whether it has run.
@@ -137,7 +148,7 @@ class StreamMirror(QWidget):
         self._mode = mode
         self.update()
         if mode:
-            self.spot = SPOTS[0]
+            self.spot = _spots()[0]
             self.answer = None
             self._diagnosed = False
             self._place(self._source())
@@ -190,14 +201,15 @@ class StreamMirror(QWidget):
         log.info("直播画面 %s: %s.", _WHERE[self.spot], wgc.words(result))
         if result is None or result == wgc.ACCEPTED:
             return
-        later = SPOTS.index(self.spot) + 1
-        if later == len(SPOTS):
+        spots = _spots()
+        later = spots.index(self.spot) + 1 if self.spot in spots else 0
+        if later == len(spots):
             log.warning("直播画面: Windows would not capture it anywhere; a streaming app shows nothing of it.")
             if not self._diagnosed:
                 self._diagnosed = True
                 self.diagnose()
             return
-        self.spot = SPOTS[later]
+        self.spot = spots[later]
         self._place(self._area if not self._area.isEmpty() else self._source())
         QTimer.singleShot(ASK_MS, self.ask_windows)
 
@@ -261,12 +273,12 @@ class StreamMirror(QWidget):
         log.warning("直播画面 diagnosis: %s", found or "no answer (the report above is all there is).")
         if fix in _DROPPABLE and fix not in self.without and self.enabled():
             self.without.add(fix)
-            log.info("直播画面: made again without %s, which Windows took in the test; asking again from off the screen.", fix)
+            log.info("直播画面: made again without %s, which Windows took in the test; asking again from where it starts.", fix)
             if fix == "click-through":
                 # Qt makes a window click-through for this as well.
                 self.setAttribute(Qt.WA_TransparentForMouseEvents, False)
             self.setWindowFlags(self._flags())
-            self.spot = SPOTS[0]
+            self.spot = _spots()[0]
             self.answer = None
             self._place(self._area if not self._area.isEmpty() else self._source())
             self.show()
