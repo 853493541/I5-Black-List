@@ -63,6 +63,11 @@ def _no_capture_question(monkeypatch):
         return
     monkeypatch.setattr(StreamMirror, "ask_windows", lambda _mirror: None)
     monkeypatch.setattr(StreamMirror, "diagnose", lambda _mirror: None)
+    # Nor does it read this PC's 直播姬 scene file: a test that means to gives one of its own.
+    from blacklist_detect import livehime_layout
+
+    real = livehime_layout.collection_path
+    monkeypatch.setattr(livehime_layout, "collection_path", lambda root=None: None if root is None else real(root))
     yield
 
 

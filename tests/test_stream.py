@@ -6,7 +6,8 @@ import pytest
 
 pytest.importorskip("PySide6")
 
-from PySide6.QtCore import QPoint, Qt  # noqa: E402
+from PySide6.QtCore import QPoint, QRect, Qt  # noqa: E402
+from PySide6.QtGui import QPixmap  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from blacklist_detect.pipeline import CheckResult, Hit, NameSlot  # noqa: E402
@@ -231,7 +232,7 @@ def test_the_game_window_is_drawn_fitted_in_a_window_that_keeps_its_size(window,
     as fits, centered. Then the marks land on the game in the stream, with nothing re-fitted."""
     import json
 
-    from PySide6.QtCore import QPointF, QRect
+    from PySide6.QtCore import QPointF
 
     from blacklist_detect import ui
     from blacklist_detect.storage import Store
@@ -308,7 +309,6 @@ def test_a_border_made_only_for_the_stream_does_not_hold_a_glance_back(window):
 def test_a_red_test_frame_runs_round_the_game_while_no_mark_shows(window):
     """The 测试框: with nothing to show, the window is framed in red round the game, so a streamer
     who sees the frame in the stream knows the marks will be there too, and line up."""
-    from PySide6.QtCore import QRect
 
     window._set_stream_mode(True)
     stream = window.stream
@@ -571,8 +571,6 @@ def test_the_log_says_how_zhibojis_canvas_lines_the_game_and_the_marks_up(window
     import json
     import logging
 
-    from PySide6.QtCore import QRect
-
     from blacklist_detect import livehime, livehime_layout
 
     caplog.set_level(logging.INFO, logger="blacklist_detect")
@@ -620,9 +618,73 @@ def test_the_log_says_how_zhibojis_canvas_lines_the_game_and_the_marks_up(window
     scene_file({"pos": {"x": 0, "y": 0}, "scale": {"x": full * 0.8, "y": full * 0.8}})
     line = next(line for line in stream.layout_lines() if line.startswith("直播姬「Scene 1」"))
     assert "size ×0.800" in line and "off by (-" in line, line
+    # Following 直播姬, 直播画面 draws the game where its box puts it on the game: on it again.
+    stream.follow()
+    assert stream._follows is not None and stream._follow_note.startswith("follows 直播姬「Scene 1」")
+    line = next(line for line in stream.layout_lines() if line.startswith("直播姬「Scene 1」"))
+    assert "off by (+0, +0), size ×1.000" in line, line
+    # 测试效果 shows its sample lobby as big as fits, whatever 直播姬 does with the game.
+    stream.set_backdrop(QPixmap(16, 9), QRect(game))
+    assert stream._fit()[0] == min(stream.width() / stream._area.width(), stream.height() / stream._area.height())
+    stream.set_backdrop(None)
+    # A capture stretched out of shape is not followed: the fit stays as 直播姬 gives a new one.
+    scene_file({"pos": {"x": 0, "y": 0}, "scale": {"x": full, "y": full * 0.7}})
+    stream.follow()
+    assert stream._follows is None and "stretches a capture" in stream._follow_note
+    # No scene file: the same.
+    monkeypatch.setattr(livehime_layout, "collection_path", lambda root=None: None)
+    stream.follow()
+    assert stream._follows is None and stream._follow_note.endswith("(no 直播姬 scene file)")
+    said = [record.getMessage() for record in caplog.records]
+    assert any(text.startswith("直播画面: follows 直播姬「Scene 1」") for text in said)
+    assert any("fitted and centered" in text for text in said)
+    caplog.clear()
+    scene_file({"pos": {"x": 0, "y": 0}, "scale": {"x": full, "y": full}})
     # Written to the log once, and again only when it changes.
     stream.note_layout("check 1")
     stream.note_layout("check 2")
     said = [record.getMessage() for record in caplog.records if "直播画面 layout" in record.getMessage()]
     assert len(said) == 1 and said[0].startswith("直播画面 layout (check 1):\nscreen ")
+    assert "off by (+0, +0), size ×1.000" in said[0]
+    window._set_stream_mode("")
+
+
+def test_a_game_capture_moved_up_and_made_bigger_by_hand_is_followed(window, monkeypatch, tmp_path):
+    """A friend's 直播姬, from her scene file: a 1280x720 canvas, 直播画面 stretched over all of it, and
+    MuMu's capture dragged to the left edge, 42 up (its toolbar off the canvas) and 4% bigger than the fit
+    直播姬 gave it. Fitted and centered, the marks missed the game; following 直播姬 they are on it."""
+    import json
+
+    from blacklist_detect import livehime_layout
+
+    window._set_stream_mode(True)
+    stream = window.stream
+    screen = QApplication.primaryScreen().geometry()
+    game = QRect(screen.x(), screen.y(), round(screen.width() * 0.8), round(screen.width() * 0.8 * 914 / 1538))
+    stream.set_frame(game)
+    monkeypatch.setattr(livehime_layout, "window_rect", lambda hwnd: None)
+    ratio = QApplication.primaryScreen().devicePixelRatio()
+    gw, gh = round(game.width() * ratio), round(game.height() * ratio)
+    monkeypatch.setattr(livehime_layout, "captured_rect", lambda placed: (screen.x(), screen.y(), screen.x() + gw, screen.y() + gh))
+    fit = min(1280 / gw, 720 / gh)
+    collection = {"current_scene": "Scene 1", "sources": [
+        {"id": "window_capture", "name": "游戏画面", "uuid": "g", "settings": {"window": "MuMu安卓设备:Qt5156QWindowIcon:MuMuNxDevice.exe"}},
+        {"id": "window_capture", "name": "窗口捕捉", "uuid": "m", "settings": {"window": "模仿者小工具·直播画面:Qt6120QWindowIcon:模仿者小工具.exe"}},
+        {"id": "scene", "name": "Scene 1", "settings": {"items": [
+            {"name": "游戏画面", "source_uuid": "g", "pos": {"x": 0, "y": -42}, "scale": {"x": fit * 1.04, "y": fit * 1.0402},
+             "align": 5, "bounds_type": 0, "bounds": {"x": 1211, "y": 720}},
+            {"name": "窗口捕捉", "source_uuid": "m", "pos": {"x": 0, "y": 0}, "scale": {"x": 1, "y": 1},
+             "align": 5, "bounds_type": 1, "bounds": {"x": 1280, "y": 720}},
+        ]}},
+    ]}  # fmt: skip
+    path = tmp_path / "1" / "Scene Collection" / "collection.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(collection, ensure_ascii=False), encoding="utf-8")
+    monkeypatch.setattr(livehime_layout, "collection_path", lambda root=None: path)
+    line = next(line for line in stream.layout_lines() if line.startswith("直播姬「Scene 1」"))
+    assert "off by (+0, +0)" not in line and "size ×0.96" in line, line
+    stream.follow()
+    assert stream._follows is not None, stream._follow_note
+    line = next(line for line in stream.layout_lines() if line.startswith("直播姬「Scene 1」"))
+    assert "off by (+0, +0), size ×1.000" in line, line
     window._set_stream_mode("")

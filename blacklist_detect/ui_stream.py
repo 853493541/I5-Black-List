@@ -53,6 +53,13 @@ Taken is not enough on Windows 10: there the desktop stops redrawing what a capt
 window that is wholly off the screen, so 直播姬 holds one still picture of it, empty, and the marks
 never show. It must touch a screen by at least a pixel. So on Windows 10 it never sits off the
 screen: it starts at the rightmost screen's edge, a clear column one pixel wide behind every window.
+
+Where the game is drawn in it follows 直播姬 (follow): in the scene 直播姬 shows, its scene file says
+where it put the game's capture and this window's on its canvas, so the game is drawn here where,
+through this window's capture, it lands on the game's. A friend's viewers saw the marks off the game
+(smaller, up to the left) while the fit 直播姬 gives a new capture was assumed. Where that cannot be
+known (no scene file, the game's window not open, a turned or stretched capture, 测试效果), the
+assumed fit stays: as big as fits, centered.
 """
 
 from __future__ import annotations
@@ -60,7 +67,7 @@ from __future__ import annotations
 import logging
 import sys
 
-from PySide6.QtCore import QPoint, QPointF, QProcess, QProcessEnvironment, QRect, QRectF, QSize, Qt, QTimer
+from PySide6.QtCore import QPoint, QPointF, QProcess, QProcessEnvironment, QRect, QRectF, QSize, QSizeF, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QFontMetricsF, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QApplication, QWidget
 
@@ -80,6 +87,8 @@ SPOTS = ("off", "edge", "on")
 _WHERE = {"off": "off the screen", "edge": "at the screen's right edge", "on": "on the screen, behind every window"}
 # After the window shows or moves, before Windows is asked.
 ASK_MS = 300
+# How often 直播姬's scene file is read again for where it puts the game and this window.
+FOLLOW_MS = 3_000
 # Windows 10 refuses to capture a window that never takes focus, and keeps a capture of one up to date
 # only while it touches a screen; 11 does both either way.
 WINDOWS_10 = sys.platform == "win32" and sys.getwindowsversion().build < 22000
@@ -139,6 +148,13 @@ class StreamMirror(QWidget):
         # what 直播姬's log says of its canvas, read on as it grows.
         self._layout_said: list[str] = []
         self._studio = livehime_layout.StudioWatch()
+        # Where 直播姬 has the game, as this window draws it (follow): (scale, where the game's
+        # capture starts here, where it starts on the screen), or None for the assumed fit; and why.
+        self._follows: tuple[float, QPointF, QPoint] | None = None
+        self._follow_note = ""
+        self._follow_timer = QTimer(self)
+        self._follow_timer.setInterval(FOLLOW_MS)
+        self._follow_timer.timeout.connect(self.follow)
         self._tick = QTimer(self)
         self._tick.setInterval(FRAME_MS)
         self._tick.timeout.connect(self._step)
@@ -162,11 +178,14 @@ class StreamMirror(QWidget):
             self.show()
             self.lower()
             self._tick.start()
+            self._follow_timer.start()
             QTimer.singleShot(ASK_MS, self.ask_windows)
+            QTimer.singleShot(ASK_MS, self.follow)
         else:
             self._stop_asking()
             self._stop_diagnosing()
             self._tick.stop()
+            self._follow_timer.stop()
             self._active = False
             self.hide()
 
@@ -372,11 +391,15 @@ class StreamMirror(QWidget):
         return screen.geometry() if screen is not None else QRect(0, 0, 1920, 1080)
 
     def _fit(self) -> tuple[float, QPointF]:
-        """The scale and offset that put the mirrored area in this window as 直播姬 puts a
-        window it captures in a 16:9 canvas when it is added: as big as fits, centered."""
+        """The scale and offset that put the mirrored area in this window: where 直播姬 has the game
+        (follow), or else as 直播姬 puts a window it captures in a 16:9 canvas when it is added: as
+        big as fits, centered."""
         area = self._area
         if area.isEmpty():
             return 1.0, QPointF(0, 0)
+        if self._follows is not None and self._backdrop is None:
+            scale, start, corner = self._follows
+            return scale, start + QPointF(area.topLeft() - corner) * scale
         scale = min(self.width() / area.width(), self.height() / area.height())
         return scale, QPointF((self.width() - area.width() * scale) / 2, (self.height() - area.height() * scale) / 2)
 
@@ -385,12 +408,74 @@ class StreamMirror(QWidget):
         scale, offset = self._fit()
         return offset + QPointF(point - self._area.topLeft()) * scale
 
+    def follow(self) -> None:
+        """Read again where 直播姬 has the game and this window; say in the log when that changes."""
+        if not self.enabled():
+            return
+        try:
+            follows, note = self._where_livehime_has_it()
+        except Exception as error:  # noqa: BLE001 - never in the way of 直播模式
+            follows, note = None, f"直播姬's scene could not be read ({error!r})"
+        if note != self._follow_note:
+            self._follow_note = note
+            log.info("直播画面: %s.", note)
+        if follows != self._follows:
+            self._follows = follows
+            self.update()
+
+    def _where_livehime_has_it(self) -> tuple[tuple[float, QPointF, QPoint] | None, str]:
+        """(scale, start, corner) for _fit, and what it is in words; None and why where it cannot be known."""
+        from blacklist_detect.ui_overlay import native_to_logical
+
+        fitted = "draws the game fitted and centered, as 直播姬 places a new capture"
+        path = livehime_layout.collection_path()
+        if path is None:
+            return None, f"{fitted} (no 直播姬 scene file)"
+        current, placed = livehime_layout.placements(path)
+        items = [item for item in placed if item.scene == current]
+        ours = next((item for item in reversed(items) if item.title == TITLE and item.visible), None)
+        if ours is None:
+            return None, f"{fitted} (直播姬「{current}」 shows no 直播画面)"
+        under = items[: items.index(ours)]
+        game = next((item for item in reversed(under) if item.visible and item.title and item.title != TITLE), None)
+        if game is None:
+            return None, f"{fitted} (no game capture under it in 直播姬「{current}」)"
+        if ours.rotation or game.rotation or ours.whole_screen:
+            return None, f"{fitted} (直播姬「{current}」 turns a capture, or takes 直播画面 by 窗口区域模式)"
+        frame = livehime_layout.captured_rect(game)
+        if frame is None:
+            return None, f"{fitted} (the game's 「{game.title}」 is not open)"
+        mine = self._my_rect()
+        fw, fh = frame[2] - frame[0], frame[3] - frame[1]
+        mw, mh = mine[2] - mine[0], mine[3] - mine[1]
+        gx, gy, gw, gh = game.on_canvas(fw, fh)
+        mx, my, cw, ch = ours.on_canvas(mw, mh)
+        here = mw / max(1, self.width())
+        left, top, ratio = native_to_logical(frame[0], frame[1])
+        # A screen point P lands on the canvas at gx + (P - corner) * ratio * gw / fw through the game's
+        # capture, and at mx + (where it is drawn here) * here * cw / mw through this window's.
+        sx = ratio * (gw / fw) * (mw / cw) / here
+        sy = ratio * (gh / fh) * (mh / ch) / here
+        if not (0.2 < sx < 5 and abs(sx - sy) <= 0.03 * sx):
+            return None, f"{fitted} (直播姬「{current}」 stretches a capture: ×{sx:.3f} across, ×{sy:.3f} down)"
+        start = QPointF((gx - mx) * (mw / cw) / here, (gy - my) * (mh / ch) / here)
+        drawn = QRectF(start, QSizeF(fw / ratio * sx, fh / ratio * sx))
+        seen = drawn.intersected(QRectF(self.rect()))
+        if seen.width() * seen.height() < 0.5 * drawn.width() * drawn.height():
+            return None, f"{fitted} (in 直播姬「{current}」 the game is mostly outside 直播画面's capture)"
+        follows = (round(sx, 4), QPointF(round(start.x(), 1), round(start.y(), 1)), QPoint(round(left), round(top)))
+        return follows, (
+            f"follows 直播姬「{current}」: the game's 「{game.title}」 drawn at ({start.x() * here:.0f}, {start.y() * here:.0f}) "
+            f"{drawn.width() * here:.0f}x{drawn.height() * here:.0f} px, where 直播姬 shows it"
+        )
+
     def note_layout(self, why: str) -> None:
         """Write to the log where everything is and how 直播姬 lines the game and this window up,
         when that changed since it was last written. Never in the way of the app: a failure is a
         line in the log."""
         if not self.enabled():
             return
+        self.follow()
         try:
             lines = self.layout_lines()
         except Exception as error:  # noqa: BLE001 - a report must never take 直播模式 down
@@ -398,6 +483,18 @@ class StreamMirror(QWidget):
         if lines != self._layout_said:
             self._layout_said = lines
             log.info("直播画面 layout (%s):\n%s", why, "\n".join(lines))
+
+    def _my_rect(self) -> tuple[int, int, int, int]:
+        """This window in desktop pixels, as Windows has it, or else worked out from Qt's units."""
+        mine = livehime_layout.window_rect(int(self.winId()))
+        if mine is not None:
+            return mine
+        screen = QApplication.screenAt(self._area.center()) or QApplication.primaryScreen()
+        ratio = (screen.devicePixelRatio() if screen is not None else 1.0) or 1.0
+        home = screen.geometry() if screen is not None else QRect(0, 0, 1920, 1080)
+        rect = self.geometry()
+        x, y = round(home.x() + (rect.x() - home.x()) * ratio), round(home.y() + (rect.y() - home.y()) * ratio)
+        return x, y, x + round(rect.width() * ratio), y + round(rect.height() * ratio)
 
     def layout_lines(self) -> list[str]:
         """Our side in desktop pixels (the screen, this window, the game's window and where it is drawn
@@ -417,10 +514,7 @@ class StreamMirror(QWidget):
                 round(rect.height() * ratio),
             )
 
-        mine = livehime_layout.window_rect(int(self.winId()))
-        if mine is None:
-            x, y, w, h = pixels(self.geometry())
-            mine = (x, y, x + w, y + h)
+        mine = self._my_rect()
         mw, mh = mine[2] - mine[0], mine[3] - mine[1]
         # This window's pixels per Qt unit, as Windows made it.
         here = mw / max(1, self.width())
