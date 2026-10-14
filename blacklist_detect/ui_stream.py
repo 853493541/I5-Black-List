@@ -3,7 +3,7 @@
 A streamer who captures only the game's window (窗口捕获) gets the game without the marks:
 those are windows of their own, drawn over it. With 直播模式 on, this window copies them, where
 they are, a little over twenty times a second: the ring round the button and its heart badge, the
-心动 card, the flower border, and the red glow. Viewers see that a 黑名单 player is there (the red
+嘉宾 card, the flower border, and the red glow. Viewers see that a 黑名单 player is there (the red
 ring and glow), never who: the card with the names is not copied.
 
 In 安全模式 the marks are made but never put on the streamer's screen (WA_DontShowOnScreen);
@@ -323,7 +323,7 @@ class StreamMirror(QWidget):
             running.kill()
 
     def _marks(self) -> list[QWidget]:
-        """The marks showing now: the 心动 card, and the ring with a 心动 or 黑名单 player there
+        """The marks showing now: the 嘉宾 card, and the ring with a 嘉宾 or 黑名单 player there
         (red has no names on it). Never the 黑名单 card; nothing for a lobby with no one listed."""
         window = self._window
         marks = [window.like_card]
@@ -529,7 +529,7 @@ class StreamMirror(QWidget):
         picture = self._picture(screen)
         if picture is not None:
             px, py, pw, ph = pixels(picture)
-            lines.append(f"the game's picture, where the 心动 border plays: ({px}, {py}) {pw}x{ph} px")
+            lines.append(f"the game's picture, where the 嘉宾 border plays: ({px}, {py}) {pw}x{ph} px")
         path = livehime_layout.collection_path()
         if path is None:
             lines.append("直播姬's scene file: not found")
@@ -594,7 +594,7 @@ class StreamMirror(QWidget):
             start, end = self.to_window(picture.topLeft()), self.to_window(picture.bottomRight() + QPoint(1, 1))
             bx, by = x + start.x() * here * kx, y + start.y() * here * ky
             bw, bh = (end.x() - start.x()) * here * kx, (end.y() - start.y()) * here * ky
-            border = f"; the 心动 border plays over ({bx:.0f}, {by:.0f}) {bw:.0f}x{bh:.0f} of the canvas"
+            border = f"; the 嘉宾 border plays over ({bx:.0f}, {by:.0f}) {bw:.0f}x{bh:.0f} of the canvas"
         return (
             head + mine + f"; game 「{game.title}」 ({took} {frame[2] - frame[0]}x{frame[3] - frame[1]} px at ({frame[0]}, {frame[1]})) "
             f"lands at ({gx:.0f}, {gy:.0f}) {gw:.0f}x{gh:.0f}; 直播画面 draws it at ({ox:.0f}, {oy:.0f}) {ow:.0f}x{oh:.0f}: "
@@ -602,7 +602,7 @@ class StreamMirror(QWidget):
         )
 
     def _picture(self, screen) -> QRect | None:  # noqa: ANN001
-        """The game's picture on the screen, where the 心动 border plays (the main window works it out)."""
+        """The game's picture on the screen, where the 嘉宾 border plays (the main window works it out)."""
         find = getattr(self._window, "_game_area", None)
         return find(screen) if find is not None and screen is not None else None
 

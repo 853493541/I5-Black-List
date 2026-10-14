@@ -9,7 +9,7 @@ from dataclasses import dataclass
 class Entry:
     """One listed player: when it was added, the name, tags, and a written reason.
 
-    A 心动 entry has no tags; its nickname, when set, is what a lobby shows for it.
+    A 嘉宾 entry has no tags; its nickname, when set, is what a lobby shows for it.
     """
 
     name: str

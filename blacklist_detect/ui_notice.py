@@ -2,9 +2,9 @@
 
 Nothing marks the game: no ring round the button, no card beside it. The result comes as a
 message in the corner of the screen the game is on, above the taskbar, the way a chat app's
-messages come: what the check found, and, on a card of its own above it, the 心动 players. They
+messages come: what the check found, and, on a card of its own above it, the 嘉宾 players. They
 wear the colors of the cards beside the button in 完整模式: crimson edged in gold for 黑名单,
-pale pink edged in rose-gold with flowers for 心动.
+pale pink edged in rose-gold with flowers for 嘉宾.
 
 Each message is a plain opaque window (not layered, never faded) that never takes the focus. It
 slides up a little as it comes and goes after a few seconds, or on a click. A thin line along its
@@ -57,7 +57,7 @@ class _Look:
     mark_ink: str
 
 
-# The messages sit over the game, so they keep these colors in 浅色 and 深色. 黑名单 and 心动 are
+# The messages sit over the game, so they keep these colors in 浅色 and 深色. 黑名单 and 嘉宾 are
 # the cards beside the button; the rest share their gold edge.
 _LOOKS = {
     "hit": _Look("#7a1620", "#4e0c13", "#c9a254", "#fff3e0", "#f1cfae", "#e4c47e", ("#d9434f", "#a8262f"), "warning", "#fff3e0"),
@@ -89,7 +89,7 @@ def _listed(people: list[tuple[str, tuple[str, ...]]]) -> tuple[tuple[tuple[str,
 def result_messages(
     hits: list[tuple[str, tuple[str, ...]]], likes: list[str], unclear: int, blacklist: bool = True
 ) -> list[Message]:
-    """The messages for one checked lobby, the bottom one first: what was found, then 心动. With 提醒's
+    """The messages for one checked lobby, the bottom one first: what was found, then 嘉宾. With 提醒's
     黑名单 off (blacklist), a lobby with nobody to tell about is 检查完成, not 未发现黑名单."""
     missed = f"{unclear} 人未识别" if unclear else ""
     if hits:
@@ -100,7 +100,7 @@ def result_messages(
     if not likes:
         return [first]
     shown, more = _listed([(name, ()) for name in likes])
-    return [first, Message("liked", f"发现 {len(likes)} 名心动玩家", "", shown, more)]
+    return [first, Message("liked", f"发现 {len(likes)} 名嘉宾", "", shown, more)]
 
 
 def _round_corners(widget: QWidget, edge: str) -> None:
@@ -236,7 +236,7 @@ class _Card(QWidget):
         self.note.setText(message.note)
         self.note.setStyleSheet(f'color: {look.soft}; background: transparent; font-family: "{self._family}";')
         self.note.setVisible(bool(message.note))
-        # 心动 keeps room at the top right for its knot of flowers.
+        # 嘉宾 keeps room at the top right for its knot of flowers.
         self._head.setContentsMargins(0, 0, 30 if message.kind == "liked" else 0, 0)
         while self._rows.count():
             item = self._rows.takeAt(0)
@@ -307,7 +307,7 @@ class _Card(QWidget):
     def fit(self, width: int) -> None:
         self.setFixedWidth(width)
         # A card used before keeps the sizes its rows had then, until they are worked out again:
-        # without this, two 心动 names after one were cut to the height of one.
+        # without this, two 嘉宾 names after one were cut to the height of one.
         self.list.layout().invalidate()
         self.list.updateGeometry()
         layout = self.layout()
@@ -366,7 +366,7 @@ class _Card(QWidget):
 
 
 class CornerNotice(QObject):
-    """The messages at the bottom right: the result, and above it, on its own card, 心动."""
+    """The messages at the bottom right: the result, and above it, on its own card, 嘉宾."""
 
     def __init__(self) -> None:
         super().__init__()

@@ -63,9 +63,9 @@ def _dialogs(window, monkeypatch) -> dict[str, Modal]:
         "批量导入": window._add_many_by_dialog,
         "编辑": lambda: window._edit_entry(1),
         "清空黑名单": window._clear_list,
-        "添加心动": window.likes_page.add_one,
-        "编辑心动": lambda: window.likes_page.edit(0),
-        "心动特效": window._show_love_effects,
+        "添加嘉宾": window.likes_page.add_one,
+        "编辑嘉宾": lambda: window.likes_page.edit(0),
+        "嘉宾特效": window._show_love_effects,
         "显示说明": window._show_display_guide,
         "直播模式说明": window._show_stream_guide,
         "使用声明": window._show_disclaimer,
@@ -86,7 +86,7 @@ def test_every_dialog_fits_a_short_screen_with_its_buttons(window, monkeypatch):
 
 
 def test_love_effects_fits_a_laptop_without_scrolling(window, monkeypatch):
-    effects = _dialogs(window, monkeypatch)["心动特效"]
+    effects = _dialogs(window, monkeypatch)["嘉宾特效"]
     if QApplication.platformName() == "windows":
         # Measured with Windows' own fonts; the offscreen platform some tests use draws a fallback
         # face a few percent taller.
@@ -100,7 +100,7 @@ def test_love_effects_fits_a_laptop_without_scrolling(window, monkeypatch):
 
 
 def test_love_counts_say_they_can_be_ticked_together(window, monkeypatch):
-    effects = _dialogs(window, monkeypatch)["心动特效"]
+    effects = _dialogs(window, monkeypatch)["嘉宾特效"]
     ticked = {count: not box.icon().isNull() for count, box in effects.count_boxes.items()}
     assert ticked == {count: box.isChecked() for count, box in effects.count_boxes.items()}
     effects.count_boxes[1].click()

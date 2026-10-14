@@ -37,7 +37,7 @@ def _manifest(version: str = "v9.0.0", payload: bytes = b"zip", base: str = "v0.
     data = {
         "version": version,
         "base": base,
-        "notes": ["心动列表", "更新更快"],
+        "notes": ["嘉宾列表", "更新更快"],
         "update": {
             "url": url or f"{updater.DOWNLOADS}{version}/BlackListDetect-{version}-update.zip",
             "sha256": hashlib.sha256(payload).hexdigest(),
@@ -106,7 +106,7 @@ def test_a_zip_from_anywhere_else_is_refused():
     with pytest.raises(UpdateError):
         updater.read_manifest(b"{not json")
     release = updater.read_manifest(_manifest())
-    assert release.version == "v9.0.0" and release.notes == ("心动列表", "更新更快") and release.base == "v0.1.0"
+    assert release.version == "v9.0.0" and release.notes == ("嘉宾列表", "更新更快") and release.base == "v0.1.0"
 
 
 def test_a_newer_signed_release_is_found(monkeypatch):
@@ -288,7 +288,7 @@ def test_a_new_version_found_at_start_is_installed_first(window, tmp_path, monke
     window._on_update_found(updater.read_manifest(_manifest(base="v0.1.0")))
     dialog = window.findChild(UpdateDialog)
     assert started == ["v9.0.0"] and dialog is not None and dialog.isVisible()
-    assert dialog.windowTitle() == "正在更新到 v9.0.0" and "心动列表" in dialog.notes.text()
+    assert dialog.windowTitle() == "正在更新到 v9.0.0" and "嘉宾列表" in dialog.notes.text()
     # Nothing closes it: no ×, and Esc or a click outside do nothing.
     assert dialog.close_button.isHidden() and dialog.band.isHidden()
     dialog.reject()
@@ -344,7 +344,7 @@ def test_a_version_found_while_open_waits_as_you_geng_xin(window, tmp_path, monk
     assert started == [] and window.findChild(UpdateDialog) is None and not window._updating
     assert not window.update_pill.isHidden() and window.update_button.text() == "有更新"
     assert window.update_pill.toolTip() == "新版本 v9.0.0，点一下看看" and window.update_button.objectName() == "primary"
-    assert window.update_title.text() == "发现新版本 v9.0.0" and window.update_notes.text() == "· 心动列表\n· 更新更快"
+    assert window.update_title.text() == "发现新版本 v9.0.0" and window.update_notes.text() == "· 嘉宾列表\n· 更新更快"
     if in_tray:
         assert not window.update_panel.isVisible()
         window._show_from_tray()

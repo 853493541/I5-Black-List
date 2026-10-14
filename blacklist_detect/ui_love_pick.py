@@ -1,5 +1,5 @@
-"""心动 › 心动特效: for how many 心动 players in a lobby, which scene plays over the game, and which
-wedding music. 心动人数 is three choices that go together: 1人, 2人, 2人以上 (2人 and 2人以上
+"""嘉宾 › 嘉宾特效: for how many 嘉宾 players in a lobby, which scene plays over the game, and which
+wedding music. 嘉宾人数 is three choices that go together: 1人, 2人, 2人以上 (2人 and 2人以上
 until changed). The scene and the music can each be one of them, 随机 or 无; every choice is saved as it
 is made. The default comes first (经典花边, 婚礼进行曲 · 管风琴), then the others, then 随机, and 无
 last, in red. Each row's name is beside its choices, not over them: the dialog fits a 1366×768 screen.
@@ -29,13 +29,13 @@ SAMPLE_LOBBY = Path(__file__).resolve().parent / "assets" / "sample-lobby.jpg"
 
 # A moment of the bare lobby between one play of the scene and the next.
 PAUSE_S = 0.7
-# 心动人数: the choices, by the count each stands for (storage.LOVE_COUNTS).
+# 嘉宾人数: the choices, by the count each stands for (storage.LOVE_COUNTS).
 COUNT_NAMES = ((1, "1人"), (2, "2人"), (3, "2人以上"))
 
 
 class SampleMarks:
-    """The app's 心动 marks by the sample lobby's button, as the game would show them with this scene:
-    the ring, the badge and the card with the two 心动 players, in the scene's look, on a lobby scale
+    """The app's 嘉宾 marks by the sample lobby's button, as the game would show them with this scene:
+    the ring, the badge and the card with the two 嘉宾 players, in the scene's look, on a lobby scale
     times DESIGN. Marks the scene draws moving (moving) are grabbed again for each moment, the others
     once; close lets their windows go."""
 
@@ -85,7 +85,7 @@ class SampleMarks:
 
 
 def _sample_marks(scene: str = "classic") -> list[tuple[QPixmap, QPoint]]:
-    """The app's 心动 marks by the sample lobby's button with this scene, as they first show."""
+    """The app's 嘉宾 marks by the sample lobby's button with this scene, as they first show."""
     marks = SampleMarks(scene)
     shots = marks.at(0.0)
     marks.close()
@@ -103,7 +103,7 @@ class ScenePreview(QWidget):
         height = round(self.WIDTH * DESIGN[1] / DESIGN[0])
         self.setFixedSize(QSize(self.WIDTH, height))
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        self.setAccessibleName("心动特效预览")
+        self.setAccessibleName("嘉宾特效预览")
         self._lobby = QPixmap(str(SAMPLE_LOBBY))
         # The marks in each scene's look, made as each first plays.
         self._looks: dict[str, SampleMarks] = {}
@@ -174,15 +174,15 @@ class ScenePreview(QWidget):
 
 
 class LoveEffectsDialog(Modal):
-    """心动特效: the scene and the music, each a row of choices, with the preview above them."""
+    """嘉宾特效: the scene and the music, each a row of choices, with the preview above them."""
 
     def __init__(self, store, music: WeddingMusic, parent: QWidget | None = None) -> None:  # noqa: ANN001
         super().__init__(parent)
         self.store = store
         self.music = music
-        layout = self.frame("心动特效")
+        layout = self.frame("嘉宾特效")
         layout.setSpacing(12)
-        self._name_width = QFontMetrics(chinese_font()).horizontalAdvance("心动人数") + 4
+        self._name_width = QFontMetrics(chinese_font()).horizontalAdvance("嘉宾人数") + 4
         self.preview = ScenePreview()
         layout.addWidget(self.preview, 0, Qt.AlignHCenter)
         self.count_boxes = self._counts(layout)
@@ -253,7 +253,7 @@ class LoveEffectsDialog(Modal):
         hint.setObjectName("sub")
         hint.setFixedHeight(CONTROL_H)
         host.addWidget(hint)
-        self._beside(layout, "心动人数", host)
+        self._beside(layout, "嘉宾人数", host)
         return buttons
 
     @staticmethod

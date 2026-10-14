@@ -507,7 +507,7 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     assert window.history_table.cellWidget(0, 1).findChild(QLabel, "seatWarn") is None
     hit_menu = [a.text() for a in window._seat_menu(0, 0).actions() if a.text()]
     assert hit_menu == ["编辑", "复制名字"]
-    assert [a.text() for a in window._seat_menu(0, 1).actions() if a.text()] == ["加入黑名单", "加入心动列表", "复制名字"]
+    assert [a.text() for a in window._seat_menu(0, 1).actions() if a.text()] == ["加入黑名单", "加入嘉宾列表", "复制名字"]
     assert window._seat_menu(1, 0) is None
     opened: list[int] = []
     monkeypatch.setattr(window, "_edit_entry", lambda index: opened.append(index))
@@ -683,7 +683,7 @@ def test_tabs_show_counts_as_badges(qapp, tmp_path, monkeypatch):
     window = MainWindow()
     window._watch_timer.stop()
     tabs = window._tab_buttons
-    assert [tab.name() for tab in tabs] == ["记录", "黑名单", "心动", "设置"]
+    assert [tab.name() for tab in tabs] == ["记录", "黑名单", "嘉宾", "设置"]
     assert [tab.count() for tab in tabs] == [0, 0, 0, 0]
     narrow = tabs[window.blacklist_tab].sizeHint().width()
     window.store.add("甲")
@@ -1653,9 +1653,9 @@ def test_settings_are_grouped_into_titled_cards(qapp, tmp_path, monkeypatch):
     settings_page = window.tabs.widget(window.settings_tab)
     sections = settings_page.findChildren(SettingsSection)
     titles = [section.findChild(QLabel, "sectionTitle").text() for section in sections]
-    # 检查 opens from the header's pill, and 心动特效 is on 心动.
+    # 检查 opens from the header's pill, and 嘉宾特效 is on 嘉宾.
     assert titles == ["常规", "外观", "帮助"]
-    assert "心动特效" not in [label.text() for label in settings_page.findChildren(QLabel)]
+    assert "嘉宾特效" not in [label.text() for label in settings_page.findChildren(QLabel)]
     # 角色名称 and 标签 moved to 黑名单.
     shown = [label.text() for label in settings_page.findChildren(QLabel)]
     assert "角色名称" not in shown and "标签" not in shown
@@ -2887,7 +2887,7 @@ def test_batch_import_offers_shared_phrases_as_tags_before_importing(qapp, tmp_p
 
 
 def test_settings_show_whole_swatches_and_the_effects_choice(qapp, tmp_path, monkeypatch):
-    """At the size 设置 just fits, each 主题色 swatch is drawn whole; 心动特效 is on 心动."""
+    """At the size 设置 just fits, each 主题色 swatch is drawn whole; 嘉宾特效 is on 嘉宾."""
     monkeypatch.setattr("blacklist_detect.ui.THEME_PICKER", True)
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
@@ -2901,12 +2901,12 @@ def test_settings_show_whole_swatches_and_the_effects_choice(qapp, tmp_path, mon
     for swatch in window.theme_buttons.values():
         assert swatch.visibleRegion().boundingRect().height() == swatch.height(), "a swatch is cut off"
     button = window.likes_page.effects_button
-    assert button.text() == "心动特效" and button.toolTip() == ""
+    assert button.text() == "嘉宾特效" and button.toolTip() == ""
     # On the page's toolbar, also while the list is empty, and no longer under 更多.
     window.tabs.setCurrentIndex(window.likes_tab)
     qapp.processEvents()
     assert window.store.likes == [] and button.isVisible()
-    assert "心动特效" not in [action.text() for action in window.likes_page.more_menu.actions()]
+    assert "嘉宾特效" not in [action.text() for action in window.likes_page.more_menu.actions()]
     opened = []
     window.likes_page.show_effects = lambda: opened.append(1)
     button.click()
@@ -2928,7 +2928,7 @@ def test_a_record_says_what_it_found_and_a_picture_marks_me(qapp, tmp_path, monk
     window.store.add_scan([{"seat": i + 1, "name": n, "unclear": not n} for i, n in enumerate(names)], 1.0)
     window._reload_history()
     # The header says what the lobby had; the time is in the list on the left.
-    assert window.record_summary.text() == "1 名黑名单 · 1 名心动 · 1 人未识别"
+    assert window.record_summary.text() == "1 名黑名单 · 1 名嘉宾 · 1 人未识别"
     slots = [NameSlot(i, (0, 0, 1, 1), n, n, False, 0.9, not n) for i, n in enumerate(names)]
     dialog = PictureResultDialog("截图检查", result=CheckResult(True, "", names=slots, hits=[]), me="我自己", parent=window)
     assert [label.text() for label in dialog.findChildren(QLabel, "seatMe")] == ["我"]
@@ -2976,7 +2976,7 @@ def test_the_game_is_where_the_lobby_puts_it_when_its_window_is_a_picture_viewer
 
 
 def test_the_cards_are_in_scale_with_the_lobby(qapp):
-    """The 心动 and 黑名单 cards are their own size beside a full-screen game's button, and smaller
+    """The 嘉宾 and 黑名单 cards are their own size beside a full-screen game's button, and smaller
     beside a smaller one (a game in a window, a video of it), down to a size still easy to read."""
     from blacklist_detect.ui_overlay import CARD_MIN_PT, FULL_COVER, HitCard, LikeCard
 

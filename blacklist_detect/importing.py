@@ -53,7 +53,7 @@ NEW = "new"
 MERGE = "merge"
 SAME = "same"
 ODD = "odd"
-# On the other list (黑名单 when importing into 心动, and the other way round).
+# On the other list (黑名单 when importing into 嘉宾, and the other way round).
 ELSEWHERE = "elsewhere"
 
 _OPEN = "（"

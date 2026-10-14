@@ -32,7 +32,7 @@ def test_the_export_is_one_text_file_with_no_names(tmp_path):
     assert list((tmp_path / "out").iterdir()) == [target]
     text = target.read_text(encoding="utf-8")
     assert text.index("电脑和设置") < text.index("older") < text.index("newer")
-    assert "黑名单 1 people, 心动 1 people" in text
+    assert "黑名单 1 people, 嘉宾 1 people" in text
     for name in ("坏人甲", "心动小鹿", "我的名字"):
         assert name not in text
     assert home not in text and "~\\x.json" in text

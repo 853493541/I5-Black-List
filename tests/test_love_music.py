@@ -1,5 +1,5 @@
-"""心动音乐: wedding music for the 心动人数 chosen (two or more until changed), the tune chosen in
-心动特效 or a random one, once per lobby."""
+"""嘉宾音乐: wedding music for the 嘉宾人数 chosen (two or more until changed), the tune chosen in
+嘉宾特效 or a random one, once per lobby."""
 
 import random
 import wave
@@ -34,7 +34,7 @@ def test_the_tunes_are_short():
 
 
 def test_hearts_get_music_once_per_lobby():
-    """The window asks only for a lobby with as many 心动 players as 心动人数 plays for."""
+    """The window asks only for a lobby with as many 嘉宾 players as 嘉宾人数 plays for."""
     music, played, clock = _music()
     assert music.lobby([], "random") == ""
     assert played == []
@@ -154,7 +154,7 @@ def test_clearing_the_data_puts_the_effects_back_to_their_defaults(window, monke
 
 
 def _likes(count: int):  # noqa: ANN202
-    """A lobby with this many 心动 players (小红, 小明, 阿强 in turn) and nobody on the 黑名单."""
+    """A lobby with this many 嘉宾 players (小红, 小明, 阿强 in turn) and nobody on the 黑名单."""
     from PySide6.QtWidgets import QApplication
 
     from blacklist_detect.pipeline import CheckResult, NameSlot
@@ -172,12 +172,12 @@ def _likes(count: int):  # noqa: ANN202
     [
         ((2, 3), (2, 3)),  # the default: two or more
         ((1,), (1,)),
-        ((1, 2, 3), (1, 2, 3)),  # every 心动 player
+        ((1, 2, 3), (1, 2, 3)),  # every 嘉宾 player
         ((3,), (3,)),  # 2人以上 only: three or more
     ],
 )
 def test_the_effect_plays_for_the_numbers_ticked(window, counts, played_for):
-    """心动人数: the border and the music both play for a lobby with as many 心动 players as ticked."""
+    """嘉宾人数: the border and the music both play for a lobby with as many 嘉宾 players as ticked."""
     from blacklist_detect.storage import DEFAULT_LOVE_COUNTS
 
     assert window.store.love_counts == DEFAULT_LOVE_COUNTS == (2, 3)
@@ -194,6 +194,6 @@ def test_the_effect_plays_for_the_numbers_ticked(window, counts, played_for):
         plays = likes in played_for
         assert window.love.playing() is plays, likes
         assert (window.tunes == [TUNES["organ"]]) is plays, likes
-        # The marks show whatever the count: the 心动 card names them.
+        # The marks show whatever the count: the 嘉宾 card names them.
         assert window.panel.mode == "liked" and window.like_card.isVisible()
         window._hide_panel_after_title()

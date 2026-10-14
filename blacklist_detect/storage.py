@@ -363,13 +363,13 @@ def _set_aside(path: Path) -> Path:
 
 
 
-# 心动特效 plays for a lobby with this many 心动 players: 1人, 2人, and 3 for 2人以上 (more than two).
+# 嘉宾特效 plays for a lobby with this many 嘉宾 players: 1人, 2人, and 3 for 2人以上 (more than two).
 LOVE_COUNTS = (1, 2, 3)
 DEFAULT_LOVE_COUNTS = (2, 3)
 
 
 def _love_counts(value: object) -> tuple[int, ...]:
-    """The 心动人数 ticked, as saved. None ticked, or nothing it knows, is the default."""
+    """The 嘉宾人数 ticked, as saved. None ticked, or nothing it knows, is the default."""
     if isinstance(value, list):
         counts = tuple(count for count in LOVE_COUNTS if any(type(v) is int and v == count for v in value))
         if counts:
@@ -378,7 +378,7 @@ def _love_counts(value: object) -> tuple[int, ...]:
 
 
 def _choice(value: object, default: str) -> str:
-    """A 心动特效 choice as saved: a key, "random" or "off". Anything else is the default; the
+    """A 嘉宾特效 choice as saved: a key, "random" or "off". Anything else is the default; the
     scene and the music each fall back on their own when a key they do not know comes in."""
     return value if isinstance(value, str) and value.strip() else default
 
@@ -390,7 +390,7 @@ class Store:
         self.settings_path = self.root / "settings.json"
         self.history_path = self.root / "history.json"
         self.entries: list[Entry] = []
-        # 心动: players worth meeting again. No tags; a nickname to show instead of the name.
+        # 嘉宾: players worth meeting again. No tags; a nickname to show instead of the name.
         self.likes: list[Entry] = []
         self.scans: list[dict] = []
         self.hotkey = DEFAULT_HOTKEY
@@ -419,17 +419,17 @@ class Store:
         # 显示: 安全模式 marks nothing on the game, the result comes as messages at the bottom right
         # of the screen; 完整模式 (False) draws the marks over it. On unless turned off, also for old settings.
         self.safe_mode = True
-        # 心动特效: the scene over the game and the wedding music. Each is a key (love_scenes.SCENES,
+        # 嘉宾特效: the scene over the game and the wedding music. Each is a key (love_scenes.SCENES,
         # ui_music.TUNE_LIST), "random" or "off". 经典花边 with 婚礼进行曲 · 管风琴 until another is chosen.
         self.love_scene = "classic"
         self.love_music = "organ"
-        # For how many 心动 players in a lobby they play (LOVE_COUNTS): two or more until changed.
+        # For how many 嘉宾 players in a lobby they play (LOVE_COUNTS): two or more until changed.
         self.love_counts = DEFAULT_LOVE_COUNTS
-        # 直播模式: a window for a streaming app with the 心动 marks only, clear behind them. "" off, "on" on.
+        # 直播模式: a window for a streaming app with the 嘉宾 marks only, clear behind them. "" off, "on" on.
         self.stream_mode = ""
         # 直播模式's 测试框: the red frame round the game in that window while no mark shows.
         self.stream_test_frame = True
-        # 提醒: which lists a check tells about, 黑名单 and 心动; one stays on.
+        # 提醒: which lists a check tells about, 黑名单 and 嘉宾; one stays on.
         self.check_blacklist = True
         self.check_likes = True
         # What the player agreed to after being told the risk: "full" (完整模式). "auto" (自动检查) was
@@ -655,7 +655,7 @@ class Store:
             self.likes = []
             backup = _set_aside(self.likes_path)
             _log_set_aside(exc, backup)
-            self.load_warning = "心动文件坏了，已备份，先用空列表"
+            self.load_warning = "嘉宾文件坏了，已备份，先用空列表"
 
     def save_likes(self) -> None:
         _daily_backup(self.likes_path)
@@ -670,7 +670,7 @@ class Store:
         )
 
     def like_index(self, name: str) -> int:
-        """Where this name is on 心动, or -1."""
+        """Where this name is on 嘉宾, or -1."""
         key = fold(clean_stored_name(name))
         return next((index for index, like in enumerate(self.likes) if key and fold(like.name) == key), -1)
 
@@ -680,7 +680,7 @@ class Store:
         return next((index for index, entry in enumerate(self.entries) if key and fold(entry.name) == key), -1)
 
     def add_like(self, name: str, nickname: str = "", reason: str = "") -> Entry | None:
-        """Add one name to 心动. None when it has no letters or digits, or is there already."""
+        """Add one name to 嘉宾. None when it has no letters or digits, or is there already."""
         cleaned = clean_stored_name(name)[:_MAX_NAME]
         if not cleaned or self.like_index(cleaned) >= 0:
             return None
@@ -692,7 +692,7 @@ class Store:
         )
         self.likes.append(like)
         self.save_likes()
-        _log.info("心动: 1 added, %d in all.", len(self.likes))
+        _log.info("嘉宾: 1 added, %d in all.", len(self.likes))
         return like
 
     def update_like(self, index: int, name: str, nickname: str = "", reason: str = "") -> bool:
@@ -710,31 +710,31 @@ class Store:
             nickname=_clean_nickname(nickname),
         )
         self.save_likes()
-        _log.info("心动: 1 edited.")
+        _log.info("嘉宾: 1 edited.")
         return True
 
     def remove_like(self, index: int) -> None:
         if 0 <= index < len(self.likes):
             del self.likes[index]
             self.save_likes()
-            _log.info("心动: 1 deleted, %d left.", len(self.likes))
+            _log.info("嘉宾: 1 deleted, %d left.", len(self.likes))
 
     def snapshot_likes(self) -> list[Entry]:
         return [Entry(like.name, like.reason, (), like.added_at, like.nickname) for like in self.likes]
 
     def restore_likes(self, likes: list[Entry]) -> None:
-        """Put 心动 back as it was before an add, delete, or clear. Used by 撤销."""
+        """Put 嘉宾 back as it was before an add, delete, or clear. Used by 撤销."""
         self.likes = [Entry(like.name, like.reason, (), like.added_at, like.nickname) for like in likes]
         self.save_likes()
-        _log.info("心动: put back as it was (撤销), %d in all.", len(self.likes))
+        _log.info("嘉宾: put back as it was (撤销), %d in all.", len(self.likes))
 
     def clear_likes(self) -> None:
         self.likes = []
         self.save_likes()
-        _log.info("心动: cleared.")
+        _log.info("嘉宾: cleared.")
 
     def import_likes(self, rows: list[tuple[str, tuple[str, ...], str, int]]) -> tuple[int, int]:
-        """Like import_rows, for 心动: each (name, _, 原因, -1) is added; (…, index) folds into it."""
+        """Like import_rows, for 嘉宾: each (name, _, 原因, -1) is added; (…, index) folds into it."""
         stamp = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
         taken = {fold(like.name) for like in self.likes}
         added = merged = 0
@@ -763,7 +763,7 @@ class Store:
             added += 1
         if added or merged:
             self.save_likes()
-        _log.info("心动: %d imported, %d merged, %d in all.", added, merged, len(self.likes))
+        _log.info("嘉宾: %d imported, %d merged, %d in all.", added, merged, len(self.likes))
         return added, merged
 
     def save_entries(self) -> None:
@@ -784,7 +784,7 @@ class Store:
         )
 
     def love_for(self, likes: int) -> bool:
-        """Whether 心动特效 plays for a lobby with this many 心动 players."""
+        """Whether 嘉宾特效 plays for a lobby with this many 嘉宾 players."""
         return likes > 0 and min(likes, LOVE_COUNTS[-1]) in self.love_counts
 
     def save_settings(self) -> None:

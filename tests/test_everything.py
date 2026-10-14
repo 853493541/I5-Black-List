@@ -1,10 +1,10 @@
 """Every feature, once, end to end: a player's first session in the real window.
 
 It opens fresh, agrees to 使用声明 and runs the first 检查; fills 黑名单 by hand and by 批量导入,
-and 心动; checks the bundled sample lobby (made-up names) with the real recognition on the real
+and 嘉宾; checks the bundled sample lobby (made-up names) with the real recognition on the real
 worker thread, the way the hotkey does; sees the result in 安全模式, in 完整模式 and in 直播模式;
-gets the 心动 scene and music when the lobby has two 心动 players and no 黑名单; reads 记录; uses
-the 检查 panel, 心动特效, 设置 › 检查 and 导出日志; and ends with 清空数据.
+gets the 嘉宾 scene and music when the lobby has two 嘉宾 players and no 黑名单; reads 记录; uses
+the 检查 panel, 嘉宾特效, 设置 › 检查 and 导出日志; and ends with 清空数据.
 
 Each step's own details are tested elsewhere. This one shows they work together. It needs the
 local PaddleOCR model, like test_reference_screenshot.py; CI skips it.
@@ -108,7 +108,7 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     assert said[-1] == "已添加 2 人"
     assert "炸房" in window.store.tag_catalog()
 
-    # --- 4. 心动: two players; a 黑名单 name is refused. ----------------------------------------
+    # --- 4. 嘉宾: two players; a 黑名单 name is refused. ----------------------------------------
     for name, nickname in (("心动小鹿", "小鹿"), ("心动星星", "")):
         window.store.add_like(name, nickname)
     window.likes_page.refresh()
@@ -151,10 +151,10 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     window.check_now()
     _wait(qapp, lambda: window.hit_card.isVisible())
     assert window.panel.mode == "both" and window.alert.isVisible() and window.like_card.isVisible()
-    assert not window.love.playing(), "never the 心动 scene with a 黑名单 player there"
+    assert not window.love.playing(), "never the 嘉宾 scene with a 黑名单 player there"
     window._hide_panel_after_title()
 
-    # --- 8. 直播模式: viewers get the 心动 marks, never the 黑名单 card, and no 黑名单 name shows. ---
+    # --- 8. 直播模式: viewers get the 嘉宾 marks, never the 黑名单 card, and no 黑名单 name shows. ---
     window._set_stream_mode(True)
     window.check_now()
     _wait(qapp, lambda: window.hit_card.isVisible())
@@ -171,7 +171,7 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     window._hide_panel_after_title()
     window._set_stream_mode(False)
 
-    # --- 9. Two 心动 players and no 黑名单: the 心动 scene and the music. -------------------------
+    # --- 9. Two 嘉宾 players and no 黑名单: the 嘉宾 scene and the music. -------------------------
     played: list = []
     window.music = WeddingMusic(play=played.append, rng=random.Random(2))
     window.store.love_scene, window.store.love_music = "classic", "organ"
@@ -184,7 +184,7 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     window.love.stop()
     window._hide_panel_after_title()
 
-    # --- 10. 心动特效: every scene previews; the choice is kept. ---------------------------------
+    # --- 10. 嘉宾特效: every scene previews; the choice is kept. ---------------------------------
     effects = LoveEffectsDialog(window.store, window.music, window)
     for key in love_scenes.KEYS:
         effects.scene_buttons[key].click()

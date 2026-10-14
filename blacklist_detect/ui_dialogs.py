@@ -307,12 +307,12 @@ class BatchAddDialog(Modal):
         super().__init__(parent)
         from blacklist_detect.storage import TAGS
 
-        # Into 心动 there are no 标签: the whole note is the 原因.
+        # Into 嘉宾 there are no 标签: the whole note is the 原因.
         self.likes = likes
         self.catalog = () if likes else (catalog or TAGS)
         self.entries = list(entries)
         self.elsewhere = list(elsewhere)
-        here, there = ("心动列表", "黑名单") if likes else ("黑名单", "心动列表")
+        here, there = ("嘉宾列表", "黑名单") if likes else ("黑名单", "嘉宾列表")
         self._status = {MERGE: "合并", SAME: f"已在{here}", ODD: "可能不是名字", ELSEWHERE: f"已在{there}"}
         self.rows: list[ImportRow] = []
         self.chosen: list[tuple[str, tuple[str, ...], str, int]] = []
@@ -578,7 +578,7 @@ def _is_me(slot, me: str) -> bool:
 
 
 def _liked(slot, likes):  # noqa: ANN001, ANN202
-    """The 心动 entry this seat is, or None. The same rule as the lobby check."""
+    """The 嘉宾 entry this seat is, or None. The same rule as the lobby check."""
     from blacklist_detect.match import NameLabel, match_label
 
     if slot.unclear or not likes:
@@ -588,7 +588,7 @@ def _liked(slot, likes):  # noqa: ANN001, ANN202
 
 
 class PictureResultDialog(Modal):
-    """What one picture check read: the twelve seats, blacklist matches in red, 心动 in rose."""
+    """What one picture check read: the twelve seats, blacklist matches in red, 嘉宾 in rose."""
 
     def __init__(  # noqa: ANN001
         self, title: str, result: CheckResult | None = None, error: str = "", parent=None, likes=(), hide_hits: bool = False, me: str = ""
@@ -653,9 +653,9 @@ class PictureResultDialog(Modal):
                     line.addWidget(warn)
                 elif (liked := _liked(slot, likes)) is not None:
                     shown = split_ellipsis(slot.visible)[0] or slot.visible
-                    # 心动 shows the 昵称, or the full name as the list has it.
+                    # 嘉宾 shows the 昵称, or the full name as the list has it.
                     cell.setText(liked.shown())
-                    cell.setToolTip(f"读到「{shown}」，是心动里的「{liked.name}」")
+                    cell.setToolTip(f"读到「{shown}」，是嘉宾「{liked.name}」")
                     cell.setStyleSheet(base + f' color: {THEME["rose"]};')
                     wash = THEME["rose_wash"]
                     heart = QLabel()
@@ -777,13 +777,13 @@ class GuideDialog(Modal):
 # 直播模式's guide, one page of two rows: (picture in assets, title, words). What viewers see,
 # side by side with what the player sees (both 完整模式, the same moment), then how to add it in 直播姬.
 STREAM_GUIDE = (
-    ("stream-diff-1.jpg", "观众看到什么", "观众看不到黑名单，能看到心动"),
+    ("stream-diff-1.jpg", "观众看到什么", "观众看不到黑名单，能看到嘉宾"),
     ("stream-setup-2.png", "怎么设置", "在直播姬添加窗口捕捉"),
 )
 # 显示's guide: what the player sees in each mode.
 DISPLAY_DIFF = (
     ("display-diff-1.jpg", "发现黑名单", "安全模式只在右下角提示，完整模式直接标在游戏上"),
-    ("display-diff-2.jpg", "遇到心动", "完整模式还有花边"),
+    ("display-diff-2.jpg", "遇到嘉宾", "完整模式还有花边"),
 )
 GUIDE_PICTURES = Path(__file__).resolve().parent / "assets"
 # Each picture fits in this box, in logical pixels; the files are made at twice the size.

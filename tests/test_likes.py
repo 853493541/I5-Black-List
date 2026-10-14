@@ -1,4 +1,4 @@
-"""心动: players worth meeting again, the other side of 黑名单."""
+"""嘉宾: players worth meeting again, the other side of 黑名单."""
 
 import pytest
 
@@ -26,7 +26,7 @@ def test_the_list_is_saved_on_its_own(tmp_path):
     ]
     # Without a 昵称 a lobby shows the full name.
     assert again.likes[1].shown() == "无昵称的人"
-    assert again.entries == [], "心动 is not 黑名单"
+    assert again.entries == [], "嘉宾 is not 黑名单"
     assert (tmp_path / "likes.json").exists()
     assert again.update_like(0, "救人很稳的小明", "明哥", "")
     assert Store(tmp_path).likes[0].shown() == "明哥"
@@ -45,7 +45,7 @@ def test_importing_into_likes_keeps_the_note_whole_and_skips_blacklisted_names(t
     store.add_like("小明", "明哥")
     rows = {row.name: row for row in plan_import("小明（救人很稳）\n小红（开局就炸房也没事）\n坑人的（其实还行）", store.likes, (), store.entries)}
     assert rows["小明"].status == MERGE
-    # No 标签 on 心动: 炸房 in the note is just words.
+    # No 标签 on 嘉宾: 炸房 in the note is just words.
     assert rows["小红"].tags == () and rows["小红"].reason == "开局就炸房也没事"
     assert rows["坑人的"].status == ELSEWHERE and not rows["坑人的"].checked
     chosen = [(r.name, r.tags, r.reason, r.target if r.status == MERGE else -1) for r in rows.values() if r.checked]
@@ -109,7 +109,7 @@ def test_a_blacklisted_name_is_refused_not_moved(window, monkeypatch):
 
     monkeypatch.setattr(ui_likes.LikeDialog, "exec", run)
     window.likes_page.add_one()
-    # A player is on one list: a 黑名单 name stays there and is not added to 心动.
+    # A player is on one list: a 黑名单 name stays there and is not added to 嘉宾.
     assert dialogs[0].name_error.text() == "已经在黑名单里了"
     assert dialogs[0].result() != QDialog.Accepted
     assert [entry.name for entry in window.store.entries] == ["小明"] and window.store.likes == []
@@ -126,9 +126,9 @@ def test_a_record_shows_a_like_in_rose_with_its_nickname(window):
     assert wrap.findChild(QLabel, "rowName").text() == "明哥"
     item = window.history_table.item(0, 0)
     assert item.foreground().color().name() == THEME["rose"]
-    assert "是心动里的「救人很稳的小明」" in item.toolTip()
+    assert "是嘉宾「救人很稳的小明」" in item.toolTip()
     # A seat no one listed offers both lists.
-    assert [a.text() for a in window._seat_menu(0, 1).actions() if a.text()] == ["加入黑名单", "加入心动列表", "复制名字"]
+    assert [a.text() for a in window._seat_menu(0, 1).actions() if a.text()] == ["加入黑名单", "加入嘉宾列表", "复制名字"]
     assert [a.text() for a in window._seat_menu(0, 0).actions() if a.text()] == ["编辑", "复制名字"]
 
 
@@ -145,7 +145,7 @@ def test_a_live_check_rings_likes_in_rose_and_splits_the_ring_with_a_hit(window)
     button = (left, screen.top() + 300, left + 180, screen.top() + 360)
     window._live_check = True
     window._on_lobby_placed(button)
-    # No 黑名单, 心动 players: a rose ring, a heart badge on the right, their names on the left.
+    # No 黑名单, 嘉宾 players: a rose ring, a heart badge on the right, their names on the left.
     window._show_panel(CheckResult(True, "", names=names, button_box=button))
     card = window.like_card
     assert window.panel.mode == "liked" and window.panel.ring() == "#c2306b"
@@ -166,7 +166,7 @@ def test_a_live_check_rings_likes_in_rose_and_splits_the_ring_with_a_hit(window)
     window._show_panel(CheckResult(True, "", names=names[2:], button_box=button))
     assert window.panel.mode == "clear" and not window.clear_mark.heart
     assert card.isVisible() is False
-    # A blacklisted player alone: the red ring, and no 心动 card.
+    # A blacklisted player alone: the red ring, and no 嘉宾 card.
     window._show_panel(CheckResult(True, "", names=names[2:], hits=[hit], button_box=button))
     assert window.panel.mode == "hit" and hit_card.isVisible() and card.isVisible() is False
     window.panel.hide()
@@ -187,7 +187,7 @@ def test_two_likes_and_no_hit_play_the_border_once_per_lobby(window):
     button = (left, screen.top() + 300, left + 180, screen.top() + 360)
     window._live_check = True
     window._on_lobby_placed(button)
-    # One 心动 player: the marks, no border.
+    # One 嘉宾 player: the marks, no border.
     window._show_panel(CheckResult(True, "", names=names[:1], button_box=button))
     assert window.panel.mode == "liked" and not window.love.playing()
     # Two: the border, over the screen, parted around the button and its marks.
@@ -230,12 +230,12 @@ def test_the_marks_wear_the_look_of_the_scene_that_greets_them(window):
     names_ink = window.like_card.findChild(QLabel, "hitName").styleSheet()
     assert love_look(window.love.scene).ink in names_ink
     window._hide_panel_after_title()
-    # One 心动 player, so no scene plays: the chosen one's look all the same.
+    # One 嘉宾 player, so no scene plays: the chosen one's look all the same.
     window.store.love_scene = "ice"
     window._on_lobby_placed(button)
     window._show_panel(CheckResult(True, "", names=names[:1], button_box=button))
     assert not window.love.playing() and all(mark.look is love_look("ice") for mark in marks)
-    # With a 黑名单 player too, the 心动 half of the ring is the look's.
+    # With a 黑名单 player too, the 嘉宾 half of the ring is the look's.
     hit = Hit(2, "坏人", "坏人", "", False, "", ())
     window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
     assert window.panel.mode == "both" and window.panel.look is love_look("ice")
@@ -317,7 +317,7 @@ def test_the_border_fits_a_game_in_a_window(window, monkeypatch):
 
 
 def test_reminding_can_leave_out_either_list_and_keeps_one(window):
-    """提醒 in the 检查 panel: 黑名单 and 心动, each ticked (✓) until untouched. Unticked, a list's players
+    """提醒 in the 检查 panel: 黑名单 and 嘉宾, each ticked (✓) until untouched. Unticked, a list's players
     are not told about in a check: no ring, card, glow, effect or corner message. One stays on."""
     window.store.add("坏人", tags=("炸房",))
     window.store.add_like("小明")
@@ -330,13 +330,13 @@ def test_reminding_can_leave_out_either_list_and_keeps_one(window):
     left = screen.left() + screen.width() // 2 - 90
     button = (left, screen.top() + 300, left + 180, screen.top() + 360)
     boxes = window.remind_boxes
-    assert [box.text() for box in boxes.values()] == ["黑名单", "心动"]
+    assert [box.text() for box in boxes.values()] == ["黑名单", "嘉宾"]
     assert all(box.isChecked() and not box.icon().isNull() for box in boxes.values())
-    assert "提醒 黑名单+心动" in window.settings_line()
+    assert "提醒 黑名单+嘉宾" in window.settings_line()
     # 黑名单 off: the listed player is not told about, and a lobby with nobody to tell about is 检查完成.
     boxes["blacklist"].click()
     assert window.store.check_blacklist is False and Store(window.store.root).check_blacklist is False
-    assert boxes["blacklist"].icon().isNull() and "提醒 只有心动" in window.settings_line()
+    assert boxes["blacklist"].icon().isNull() and "提醒 只有嘉宾" in window.settings_line()
     window._live_check = True
     window._on_lobby_placed(button)
     window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
@@ -344,10 +344,10 @@ def test_reminding_can_leave_out_either_list_and_keeps_one(window):
     window._show_panel(CheckResult(True, "", names=names[1:], hits=[hit], button_box=button))
     assert window.panel.mode == "clear" and window.panel.toolTip() == "检查完成" and not window.hit_card.isVisible()
     window._hide_panel_after_title()
-    # The last one ticked stays: unticking 心动 now does nothing.
+    # The last one ticked stays: unticking 嘉宾 now does nothing.
     boxes["likes"].click()
     assert boxes["likes"].isChecked() and window.store.check_likes is True
-    # 心动 off, 黑名单 back on: 心动 players are not told about, nor greeted.
+    # 嘉宾 off, 黑名单 back on: 嘉宾 players are not told about, nor greeted.
     boxes["blacklist"].click()
     boxes["likes"].click()
     assert (window.store.check_blacklist, window.store.check_likes) == (True, False)
@@ -359,7 +359,7 @@ def test_reminding_can_leave_out_either_list_and_keeps_one(window):
     window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
     assert window.panel.mode == "hit" and window.hit_card.isVisible() and not window.like_card.isVisible()
     window._hide_panel_after_title()
-    # 测试效果 still shows its two 心动 players: it is a test of what viewers would see.
+    # 测试效果 still shows its two 嘉宾 players: it is a test of what viewers would see.
     window._demo_likes = [Entry("心动小鹿")]
     assert [like.name for like in window._likes_in(CheckResult(True, "", names=names))] == ["心动小鹿"]
     window._demo_likes = None

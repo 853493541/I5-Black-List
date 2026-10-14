@@ -360,7 +360,7 @@ def summary_text(store, device: str) -> str:  # noqa: ANN001
         f"Screens: {screens_line()}",
         f"Recognition on {device}",
         f"安全模式 {store.safe_mode}, 自动检查 {store.auto_capture}, 直播模式 {bool(store.stream_mode)}, hotkey {store.hotkey}",
-        f"黑名单 {len(store.entries)} people, 心动 {len(store.likes)} people, 记录 {len(store.scans)} lobbies",
+        f"黑名单 {len(store.entries)} people, 嘉宾 {len(store.likes)} people, 记录 {len(store.scans)} lobbies",
     ]
     return "\n".join(lines) + "\n"
 

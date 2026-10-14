@@ -120,7 +120,7 @@ _FLOWER_TONES = {"pink": ("#fff0f6", "#ff9cc4", "#ff6fa6"), "blue": ("#f2f9ff", 
 
 @dataclass(frozen=True)
 class LoveLook:
-    """The 心动 marks dressed for the 心动特效 scene that greets them: the ring on 准备案件还原, the
+    """The 嘉宾 marks dressed for the 嘉宾特效 scene that greets them: the ring on 准备案件还原, the
     heart badge beside it and the card of names. Colors are "#rrggbb"; glows are (r, g, b)."""
 
     glow: tuple[int, int, int]
@@ -137,7 +137,7 @@ class LoveLook:
     # The badge, middle to edge, and the heart on it, top to bottom.
     disc: tuple[str, str]
     heart: tuple[str, str]
-    # The 心动 half of a ring shared with 黑名单 players, and its glow.
+    # The 嘉宾 half of a ring shared with 黑名单 players, and its glow.
     deep: str
     deep_glow: tuple[int, int, int]
     # The scene that draws the marks itself (its ring, badge, card and lead: see love_scenes), or ""
@@ -196,7 +196,7 @@ LOOKS: dict[str, LoveLook] = {
 
 
 def love_look(scene: str) -> LoveLook:
-    """The look for a 心动特效 scene, or the one that replaced it (香槟's is 天使's); 经典花边's for
+    """The look for a 嘉宾特效 scene, or the one that replaced it (香槟's is 天使's); 经典花边's for
     anything else (随机 not yet settled, 无, a scene that is gone). A scene not in LOOKS brings its own
     (LOOK), and one that draws its marks itself says so (marks)."""
     return _scene_look(love_scenes.shown(scene))
@@ -408,7 +408,7 @@ def _sparkle(painter: QPainter, x: float, y: float, r: float, alpha: float = 1.0
 
 
 def flower_pixmap(radius: float, tone: str | tuple[str, str, str], ratio: float = 2.0, turn: float | None = None) -> QPixmap:
-    """One flower, for the start of a name on the 心动 card. tone as for _flower."""
+    """One flower, for the start of a name on the 嘉宾 card. tone as for _flower."""
     side = round(radius * 2.4)
     image = QPixmap(round(side * ratio), round(side * ratio))
     image.setDevicePixelRatio(ratio)
@@ -642,7 +642,7 @@ class HitCard(QWidget):
 
 
 class LikeCard(HitCard):
-    """心动 players in this lobby: a card in the look of the 心动特效 scene (经典花边's pale pink
+    """嘉宾 players in this lobby: a card in the look of the 嘉宾特效 scene (经典花边's pale pink
     edged in rose-gold to begin with), a flower before each name and a knot of flowers on its top
     edge. A scene that draws the card itself (love_scenes: card, lead) puts its own under and before
     the names instead, and may give them its own face.
@@ -680,7 +680,7 @@ class LikeCard(HitCard):
         self.knot.raise_()
 
     def set_look(self, look: LoveLook) -> None:
-        """Dress the card for a 心动特效 scene. Before set_people: the names take its ink then."""
+        """Dress the card for a 嘉宾特效 scene. Before set_people: the names take its ink then."""
         if look == self.look:
             return
         self.look = look
@@ -764,7 +764,7 @@ class LikeCard(HitCard):
 
 
 class _CardKnot(QWidget):
-    """The knot of flowers on the 心动 card's top edge."""
+    """The knot of flowers on the 嘉宾 card's top edge."""
 
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
@@ -781,13 +781,13 @@ class _CardKnot(QWidget):
 class ClearMark(QWidget):
     """The check beside a clear accept button: emerald with a gold rim and a soft glow, like the ring.
 
-    With 心动 players in the lobby it is the same badge with a heart, in the look of the 心动特效
+    With 嘉宾 players in the lobby it is the same badge with a heart, in the look of the 嘉宾特效
     scene (经典花边's pink to begin with), or the scene's own badge (love_scenes: badge).
     """
 
     # The window reaches this far past the badge on each side, for the glow.
     margin = _GLOW
-    # A heart instead of the check, for a lobby with 心动 players.
+    # A heart instead of the check, for a lobby with 嘉宾 players.
     heart = False
     look = CLASSIC_LOOK
 
@@ -808,7 +808,7 @@ class ClearMark(QWidget):
         self._clock = _MarkClock(self)
 
     def set_heart(self, heart: bool) -> None:
-        """A heart instead of the green check: the lobby has 心动 players and no 黑名单."""
+        """A heart instead of the green check: the lobby has 嘉宾 players and no 黑名单."""
         self.heart = bool(heart)
         self._clock.sync(self._moving())
         self.update()
@@ -909,10 +909,10 @@ class LobbyPanel(QWidget):
     While a check runs, a block of antique gold hides the button, with 检查中 in the middle and
     a glint passing over it now and then. A hit rings the button in crimson and a clear lobby in
     emerald, each edged in gold with a soft glow, like the check mark; the button shows through.
-    A clear lobby with 心动 players is ringed in rose; with 黑名单 players too, the ring is rose on the
+    A clear lobby with 嘉宾 players is ringed in rose; with 黑名单 players too, the ring is rose on the
     left, where their card is, and crimson on the right.
     The window reaches _GLOW past the cover on each side, for that glow. The rose is the look of the
-    心动特效 scene (look), 经典花边's to begin with; a scene can draw the 心动 ring itself (love_scenes: ring).
+    嘉宾特效 scene (look), 经典花边's to begin with; a scene can draw the 嘉宾 ring itself (love_scenes: ring).
     """
 
     look = CLASSIC_LOOK
@@ -952,7 +952,7 @@ class LobbyPanel(QWidget):
         return (self.rings() or ("",))[-1]
 
     def rings(self) -> tuple[str, ...]:
-        """The ring's colors, left to right: rose then crimson when 心动 and 黑名单 players are both here."""
+        """The ring's colors, left to right: rose then crimson when 嘉宾 and 黑名单 players are both here."""
         return {"hit": (RED,), "clear": (GREEN,), "liked": (ROSE,), "both": (ROSE, RED)}.get(self.mode, ())
 
     def cover(self) -> QRectF:
@@ -1012,7 +1012,7 @@ class LobbyPanel(QWidget):
             _paint_ring(painter, cover, tuple(QColor(shown.get(c, c)) for c in colors), tuple(glows[c] for c in colors))
 
     def _paint_liked(self, painter: QPainter, cover: QRectF) -> None:
-        """心动 and no 黑名单: a glow, a fine rim, a band and flowers on two corners, in the look; in
+        """嘉宾 and no 黑名单: a glow, a fine rim, a band and flowers on two corners, in the look; in
         经典花边, pink with a rose-gold rim and a pink-lavender band."""
         look = self.look
         ring = _theme(look, "ring")
@@ -1098,7 +1098,7 @@ class LobbyPanel(QWidget):
         appearing = not self.isVisible()
         self.setFixedSize(width + 2 * _GLOW, height + 2 * _GLOW)
         self.move(int(round(left)) - _GLOW, int(round(top)) - _GLOW)
-        # Clear, or clear with 心动 players: a click reaches the button.
+        # Clear, or clear with 嘉宾 players: a click reaches the button.
         self._apply_input(mode in ("clear", "liked"))
         self.set_mode(mode, text)
         self.show()

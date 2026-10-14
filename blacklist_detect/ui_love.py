@@ -1,6 +1,6 @@
-"""The scene that greets 心动 players in a lobby (as many as 心动人数 says), over the game.
+"""The scene that greets 嘉宾 players in a lobby (as many as 嘉宾人数 says), over the game.
 
-Which scene plays is the player's choice in 心动 › 心动特效: one of love_scenes.SCENES, 随机 (any
+Which scene plays is the player's choice in 嘉宾 › 嘉宾特效: one of love_scenes.SCENES, 随机 (any
 but the one just played), or 关闭. It plays once, about five seconds, then goes. The bottom of the
 scene parts around the accept button and its marks, and clicks pass through the whole window to
 the game.
@@ -36,7 +36,7 @@ class LoveBorder(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.setFocusPolicy(Qt.NoFocus)
-        # 心动特效's choice: a scene's key, "random" or "off".
+        # 嘉宾特效's choice: a scene's key, "random" or "off".
         self.choice = "random"
         self.scene = "classic"
         self._last = ""
@@ -55,7 +55,7 @@ class LoveBorder(QWidget):
     def play(self, area: QRect, keep_clear: QRect, badge: QPoint | None = None) -> bool:
         """Cover area (the game's screen) and play, leaving keep_clear (the button and its marks) bare.
 
-        badge is the 心动 heart, on the screen. Returns False when 心动特效 says 无.
+        badge is the 嘉宾 heart, on the screen. Returns False when 嘉宾特效 says 无.
         """
         scene = self.pick()
         self._picked = None
@@ -76,7 +76,7 @@ class LoveBorder(QWidget):
         return True
 
     def pick(self) -> str:
-        """The scene the next play() plays ("" for 无), settled now, 随机 too, so the 心动 marks can
+        """The scene the next play() plays ("" for 无), settled now, 随机 too, so the 嘉宾 marks can
         be dressed for it before it starts."""
         if self._picked is None or self._picked[0] != self.choice:
             self._picked = (self.choice, love_scenes.choose(self.choice, self._last, self._rng))

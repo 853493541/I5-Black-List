@@ -117,7 +117,7 @@ def test_likes_are_copied_clear_around_and_the_border_plays(window):
     assert window.panel.mode == "liked" and window.love.playing()
     assert window.stream.busy()
     inside = _pixel(window, window.like_card.geometry().center())
-    assert inside.alpha() > 200, "the 心动 card is copied where it is"
+    assert inside.alpha() > 200, "the 嘉宾 card is copied where it is"
     # Clear where nothing is drawn: no green, nothing for a 色度键 to take.
     area = window.stream._area
     assert _pixel(window, area.center()).alpha() == 0
@@ -137,7 +137,7 @@ def test_viewers_see_the_red_but_never_a_blacklist_name(window, safe):
     window._set_stream_mode(True)
     _lobby(window, hit=True)
     assert window.panel.mode == "both" and window.alert.showing() and not window.love.playing()
-    # The stream gets the red ring, the red glow and the 心动 card; never the card with the names.
+    # The stream gets the red ring, the red glow and the 嘉宾 card; never the card with the names.
     assert window.stream._marks() == [window.like_card, window.panel]
     assert window.stream._glow() is window.alert and window.stream._borders() == []
     stream = window.stream._area
@@ -270,7 +270,7 @@ def test_the_game_window_is_drawn_fitted_in_a_window_that_keeps_its_size(window,
         (size.height() - outer.height() * scale) / 2 + (card.y() - outer.y()) * scale,
     )
     assert (window.stream.to_window(card) - expected).manhattanLength() < 1
-    assert _pixel(window, card).alpha() > 200, "the 心动 card is drawn there"
+    assert _pixel(window, card).alpha() > 200, "the 嘉宾 card is drawn there"
     # Nothing about the size is kept from one start to the next: it is always the same.
     assert "stream_size" not in json.loads((window.store.root / "settings.json").read_text(encoding="utf-8"))
     assert not hasattr(Store(window.store.root), "stream_size")
@@ -610,8 +610,8 @@ def test_the_log_says_how_zhibojis_canvas_lines_the_game_and_the_marks_up(window
     lines = stream.layout_lines()
     assert lines[0].startswith("screen ") and "直播画面 " in lines[0] and lines[1].startswith("mirrors (")
     line = next(line for line in lines if line.startswith("直播姬「Scene 1」 (shown now)"))
-    assert "off by (+0, +0), size ×1.000" in line and "; the 心动 border plays over (" in line, line
-    assert any(line.startswith("the game's picture, where the 心动 border plays: (") for line in lines)
+    assert "off by (+0, +0), size ×1.000" in line and "; the 嘉宾 border plays over (" in line, line
+    assert any(line.startswith("the game's picture, where the 嘉宾 border plays: (") for line in lines)
     assert lines[-1].startswith("直播姬: canvas 1920x1080; 横竖双屏 off")
     # The box 直播姬 gave 直播画面 is 0.8 of the canvas, at the top left: the game is drawn smaller and
     # up to the left of where viewers see the game.

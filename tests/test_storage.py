@@ -440,7 +440,7 @@ def test_a_snapshot_puts_the_list_back(tmp_path):
 
 
 def test_love_counts_are_kept_and_junk_is_the_default(tmp_path):
-    """心动人数: which numbers of 心动 players play 心动特效. 3 stands for 2人以上."""
+    """嘉宾人数: which numbers of 嘉宾 players play 嘉宾特效. 3 stands for 2人以上."""
     import json
 
     from blacklist_detect.storage import DEFAULT_LOVE_COUNTS

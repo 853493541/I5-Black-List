@@ -1,4 +1,4 @@
-"""心动音乐: a few seconds of wedding music for 心动 players in one lobby (as many as 心动人数 says).
+"""嘉宾音乐: a few seconds of wedding music for 嘉宾 players in one lobby (as many as 嘉宾人数 says).
 
 Five tunes, all public domain: Wagner's Bridal Chorus (1850) as church organ, music box and 8-bit,
 Pachelbel's Canon on harp, and church bells. build/wedding_tunes.py plays them into the WAV files,
@@ -25,7 +25,7 @@ TUNE_LIST: tuple[tuple[str, str, str], ...] = (
 )
 KEYS = tuple(key for key, _name, _file in TUNE_LIST)
 TUNES = {key: ASSETS / file for key, _name, file in TUNE_LIST}
-# The same 心动 players found again this soon are the same lobby, checked again: no second tune.
+# The same 嘉宾 players found again this soon are the same lobby, checked again: no second tune.
 SAME_LOBBY_S = 60.0
 
 
@@ -61,7 +61,7 @@ class WeddingMusic:
         self._last_at = float("-inf")
 
     def pick(self, choice: str) -> str:
-        """The tune for a 心动特效 choice: its key, "random" (any but the one just played), or "off" ("")."""
+        """The tune for a 嘉宾特效 choice: its key, "random" (any but the one just played), or "off" ("")."""
         if choice in TUNES:
             return choice
         if choice != "random":
@@ -70,7 +70,7 @@ class WeddingMusic:
         return self._rng.choice(pool)
 
     def lobby(self, likes: list[str], choice: str) -> str:
-        """A lobby with these 心动 players, as many as 心动特效 plays for: play, unless it just did
+        """A lobby with these 嘉宾 players, as many as 嘉宾特效 plays for: play, unless it just did
         for them."""
         if not likes or not self.pick(choice):
             return ""

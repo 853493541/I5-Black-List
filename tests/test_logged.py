@@ -102,8 +102,8 @@ def test_each_check_is_logged_seat_by_seat_with_masked_names(window, caplog):
     window._check_number = 7
     window._log_check("hotkey", result, 0.42)
     said = _said(caplog)
-    assert "Check 7 (hotkey): lobby found, 1 on the list, 1 心动, 1 unclear, 0.42 s" in said
-    assert "Check 7 seats: 1 示*** 0.99 黑名单 | 2 心*** 1.00 心动 | 3 ? 0.31 | 4 路*** 0.97" in said
+    assert "Check 7 (hotkey): lobby found, 1 on the list, 1 嘉宾, 1 unclear, 0.42 s" in said
+    assert "Check 7 seats: 1 示*** 0.99 黑名单 | 2 心*** 1.00 嘉宾 | 3 ? 0.31 | 4 路*** 0.97" in said
     assert "Check 7 lobby: button (800, 900, 1056, 974), game screen (0, 0, 1920, 1080), in a 1920x1080 screen copy" in said
     for name in ("示例坏人", "心动小鹿", "路过的猫"):
         assert name not in said
@@ -127,8 +127,8 @@ def test_list_changes_are_logged_as_counts(window, caplog):
         "黑名单: 1 deleted, 2 left.",
         "黑名单: put back as it was (撤销), 3 in all.",
         "黑名单: cleared.",
-        "心动: 1 added, 1 in all.",
-        "心动: cleared.",
+        "嘉宾: 1 added, 1 in all.",
+        "嘉宾: cleared.",
     ):
         assert line in said, line
     for name in ("示例坏人", "路过的捣蛋鬼", "夜猫子", "心动小鹿"):
@@ -137,7 +137,7 @@ def test_list_changes_are_logged_as_counts(window, caplog):
 
 def test_the_settings_are_logged_at_start(window):
     line = window.settings_line()
-    for part in ("显示 ", "方式 手动检查 (", "直播模式 关", "心动特效 classic + organ for 2人/2人以上", "黑名单 0, 心动 0, 记录 0"):
+    for part in ("显示 ", "方式 手动检查 (", "直播模式 关", "嘉宾特效 classic + organ for 2人/2人以上", "黑名单 0, 嘉宾 0, 记录 0"):
         assert part in line, part
 
 

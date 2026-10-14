@@ -1,5 +1,5 @@
 """测试效果's stand-in for a game: the app's sample lobby (made-up names) as a whole 16:9 game
-screen, in a window of its own, which the 心动 marks then frame as they would a real lobby.
+screen, in a window of its own, which the 嘉宾 marks then frame as they would a real lobby.
 
 The sample lobby is a crop of a lobby. Around it lies the whole screen the app's own model puts
 around a lobby (layout.game_screen, measured on the crop): from (-56, -52) to (3544, 1973) in the

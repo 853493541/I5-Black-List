@@ -58,15 +58,15 @@ def _marks(window) -> list[str]:  # noqa: ANN001
 
 
 def test_the_words_for_each_result():
-    """黑名单 and 心动 are two messages: what was found at the bottom, 心动 on its own card above."""
+    """黑名单 and 嘉宾 are two messages: what was found at the bottom, 嘉宾 on its own card above."""
     assert result_messages([("坏人", ("炸房", "挂机")), ("乙", ())], ["小红"], 1) == [
         Message("hit", "发现 2 名黑名单玩家", "1 人未识别", (("坏人", ("炸房", "挂机")), ("乙", ()))),
-        Message("liked", "发现 1 名心动玩家", "", (("小红", ()),)),
+        Message("liked", "发现 1 名嘉宾", "", (("小红", ()),)),
     ]
     assert result_messages([], [], 0) == [Message("clear", "未发现黑名单")]
     assert result_messages([], ["小红", "小明"], 0) == [
         Message("clear", "未发现黑名单"),
-        Message("liked", "发现 2 名心动玩家", "", (("小红", ()), ("小明", ()))),
+        Message("liked", "发现 2 名嘉宾", "", (("小红", ()), ("小明", ()))),
     ]
     many = [(f"玩家{n}", ()) for n in range(7)]
     (first,) = result_messages(many, [], 0)
@@ -100,12 +100,12 @@ def test_a_hit_shows_in_the_corner_with_nothing_over_the_game(window):
     assert notice.main.title.text() == "发现 1 名黑名单玩家"
     assert notice.main.note.text() == "1 人未识别"
     assert notice.main.names() == ["坏人"]
-    # ... and 心动 on a card of its own, which comes a moment later, above it.
+    # ... and 嘉宾 on a card of its own, which comes a moment later, above it.
     _arrive(notice)
     assert notice.likes.isVisible() and notice.likes.kind == "liked"
-    assert notice.likes.title.text() == "发现 1 名心动玩家"
+    assert notice.likes.title.text() == "发现 1 名嘉宾"
     assert notice.likes.names() == ["小红"]
-    # At the bottom right of the screen, above the taskbar; 心动 just above the other.
+    # At the bottom right of the screen, above the taskbar; 嘉宾 just above the other.
     area = QApplication.primaryScreen().availableGeometry()
     box, above = notice.main.geometry(), notice.likes.geometry()
     assert area.contains(box) and area.contains(above)
@@ -246,7 +246,7 @@ def test_safe_mode_checks_on_the_hotkey_only(window):
 
 
 def test_both_lists_are_always_checked(window):
-    """提醒 is gone: 黑名单 and 心动 are both looked for, whatever an older version saved."""
+    """提醒 is gone: 黑名单 and 嘉宾 are both looked for, whatever an older version saved."""
     from blacklist_detect.storage import Store
 
     window.store.settings_path.parent.mkdir(parents=True, exist_ok=True)
@@ -330,7 +330,7 @@ def test_full_mode_adds_the_corner_message_over_an_exclusive_full_screen_game(wi
 
 
 def test_the_heart_card_grows_for_more_names_after_fewer(window):
-    """Two 心动 names after one were cut to the height of one: the card kept its old size."""
+    """Two 嘉宾 names after one were cut to the height of one: the card kept its old size."""
     from blacklist_detect.ui_notice import CornerNotice
 
     notice = CornerNotice()

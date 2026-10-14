@@ -1,4 +1,4 @@
-"""测试效果: the sample lobby shown as the game for a moment, framed by the 心动 effects, on the screen
+"""测试效果: the sample lobby shown as the game for a moment, framed by the 嘉宾 effects, on the screen
 and in 直播画面, so a streamer sees what viewers get without waiting for a lobby."""
 
 import time
@@ -62,7 +62,7 @@ def test_the_sample_lobby_shows_with_the_love_effects_and_everything_goes_back(w
     # Viewers get the picture too, under the marks.
     assert window.stream._backdrop is not None and window.stream._backdrop[1] == picture
     _wait(150)
-    # 心动 only: the rose ring and the heart on 准备案件还原, the card, the border, the music. No 黑名单.
+    # 嘉宾 only: the rose ring and the heart on 准备案件还原, the card, the border, the music. No 黑名单.
     assert window.panel.isVisible() and window.panel.mode == "liked" and window.clear_mark.isVisible()
     assert window.like_card.isVisible() and not window.hit_card.isVisible() and not window.alert.isVisible()
     assert window.love.playing() and window.played == [window.store.love_music]

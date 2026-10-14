@@ -9,9 +9,9 @@ A dialog the app opens with exec() or open() is shown without waiting, photograp
 the app's own code builds every one exactly as a player sees it. 截图检查's result reads the
 sample lobby for real, so the recognition models must be on this PC.
 
-    normal   five 黑名单 (one with a long name and reason), three 心动, two records
+    normal   five 黑名单 (one with a long name and reason), three 嘉宾, two records
     empty    nothing: the empty pages
-    stress   128 黑名单, 15 心动, 40 records over several days, a long player name and hotkey, 自动检查
+    stress   128 黑名单, 15 嘉宾, 40 records over several days, a long player name and hotkey, 自动检查
 """
 
 from __future__ import annotations
@@ -109,7 +109,7 @@ def shoot(args) -> None:  # noqa: ANN001
     window.resize(*args.size)
     window.show()
     settle(0.8)
-    for index, name in enumerate(("记录", "黑名单", "心动", "设置")):
+    for index, name in enumerate(("记录", "黑名单", "嘉宾", "设置")):
         window.tabs.setCurrentIndex(index)
         save(window, f"page_{name}")
     window.tabs.setCurrentIndex(0)
@@ -140,10 +140,10 @@ def shoot(args) -> None:  # noqa: ANN001
     step("dlg_清空黑名单", window._clear_list)
     window.tabs.setCurrentIndex(2)
     likes = window.likes_page
-    step("dlg_添加心动", likes.add_one)
+    step("dlg_添加嘉宾", likes.add_one)
     if window.store.likes:
-        step("dlg_编辑心动", lambda: likes.edit(0))
-    step("dlg_心动特效", window._show_love_effects)
+        step("dlg_编辑嘉宾", lambda: likes.edit(0))
+    step("dlg_嘉宾特效", window._show_love_effects)
     window.tabs.setCurrentIndex(3)
     step("dlg_显示说明", window._show_display_guide)
     step("dlg_直播模式说明", window._show_stream_guide)
@@ -193,7 +193,7 @@ def shoot(args) -> None:  # noqa: ANN001
         mark = ClearMark()
         mark.set_heart(True)
         mark.set_size(82)
-        for widget, name in ((hit, "card_黑名单"), (like, "card_心动"), (mark, "card_心动徽章")):
+        for widget, name in ((hit, "card_黑名单"), (like, "card_嘉宾"), (mark, "card_嘉宾徽章")):
             widget.move(-3000, -3000)
             widget.show()
             save(widget, name)
@@ -253,7 +253,7 @@ def _seed(root: Path, args, version: str) -> None:  # noqa: ANN001
             tags = (("炸房", "挂机", "不尊重底牌还骂人") if number % 7 == 0 else ("场外",)) if number % 3 else ()
             store.add(name, tags=tags, reason="原因写得很长很长，看看在表格里会不会把别的列挤歪" if number % 4 == 0 else "")
         for number in range(1, 13):
-            store.add_like(f"心动玩家{number:02d}", nickname=f"昵称很长的心动{number}" if number % 2 else "")
+            store.add_like(f"嘉宾玩家{number:02d}", nickname=f"昵称很长的嘉宾{number}" if number % 2 else "")
         now = datetime.now().astimezone().replace(microsecond=0)
         names = [f"测试玩家{n:03d}" for n in range(1, 13)]
         store.scans = [

@@ -1,11 +1,11 @@
-"""心动: players worth meeting again, the other side of 黑名单.
+"""嘉宾: players worth meeting again, the other side of 黑名单.
 
-A 心动 player has a name, a 昵称, and a 原因; no 标签. When a lobby has one, the app shows
+A 嘉宾 player has a name, a 昵称, and a 原因; no 标签. When a lobby has one, the app shows
 the 昵称, or the full name when there is none. A player is on one list at a time: a 黑名单
-name is refused here, and putting a 心动 name on 黑名单 asks to move it.
+name is refused here, and putting a 嘉宾 name on 黑名单 asks to move it.
 
-The page is laid out like 黑名单 without the 标签 column: search, 心动特效, 批量导入, 添加, and
-under 更多, 复制名单 and 清空心动列表.
+The page is laid out like 黑名单 without the 标签 column: search, 嘉宾特效, 批量导入, 添加, and
+under 更多, 复制名单 and 清空嘉宾列表.
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ NAME, NICKNAME, REASON, MET = range(4)
 
 
 class LikeDialog(Modal):
-    """One 心动 player: 名字, a 昵称 to show for them, and why."""
+    """One 嘉宾 player: 名字, a 昵称 to show for them, and why."""
 
     def __init__(
         self,
@@ -64,9 +64,9 @@ class LikeDialog(Modal):
         parent=None,  # noqa: ANN001
     ) -> None:
         super().__init__(parent)
-        # Folded names already on 心动. Saving one of them again would make a second row.
+        # Folded names already on 嘉宾. Saving one of them again would make a second row.
         self.taken = frozenset(taken)
-        # Folded names on 黑名单: a player is on one list, and 黑名单 is not moved to 心动.
+        # Folded names on 黑名单: a player is on one list, and 黑名单 is not moved to 嘉宾.
         self.blacklisted = frozenset(blacklisted)
         self.name = name
         self.nickname = nickname
@@ -109,7 +109,7 @@ class LikeDialog(Modal):
         elif not key:
             problem = "名字里要有文字或数字"
         elif key in self.taken:
-            problem = "已经在心动里了"
+            problem = "已经是嘉宾了"
         elif key in self.blacklisted:
             problem = "已经在黑名单里了"
         else:
@@ -129,12 +129,12 @@ class LikeDialog(Modal):
 
 
 def share_likes(likes: list[Entry]) -> str:
-    """心动 as 名字（原因）, one per line: the shape 批量导入 reads. A 昵称 is one's own; it stays."""
+    """嘉宾 as 名字（原因）, one per line: the shape 批量导入 reads. A 昵称 is one's own; it stays."""
     return "\n".join(f"{like.name}（{like.reason}）" if like.reason else like.name for like in likes)
 
 
 class LikesPage(QWidget):
-    """The 心动 page. It changes only the store; changed() tells the window to redraw the rest."""
+    """The 嘉宾 page. It changes only the store; changed() tells the window to redraw the rest."""
 
     changed = Signal()
 
@@ -157,9 +157,9 @@ class LikesPage(QWidget):
         self.search.textChanged.connect(self.refresh)
         toolbar.addWidget(self.search, 1)
         toolbar.addStretch(1)
-        # 心动特效: the scene and the music for 心动 players in a lobby, here beside the players it
+        # 嘉宾特效: the scene and the music for 嘉宾 players in a lobby, here beside the players it
         # is for, and shown on an empty list too. The window gives the page the way to open it.
-        self.effects_button = QPushButton("心动特效")
+        self.effects_button = QPushButton("嘉宾特效")
         self.effects_button.setIcon(line_icon("heart", 16, THEME["rose"]))
         self.effects_button.clicked.connect(lambda: self.show_effects())
         toolbar.addWidget(self.effects_button)
@@ -176,14 +176,14 @@ class LikesPage(QWidget):
         self.copy_action = self.more_menu.addAction("复制名单", self.copy_list)
         _mark_menu_item(self.copy_action, "copy")
         self.more_menu.addSeparator()
-        self.clear_action = self.more_menu.addAction("清空心动列表", self.clear)
+        self.clear_action = self.more_menu.addAction("清空嘉宾列表", self.clear)
         _mark_menu_item(self.clear_action, "delete")
         self.more_button.clicked.connect(self._open_more)
         toolbar.addWidget(self.more_button)
         outer.addLayout(toolbar)
         self.table = QTableWidget(0, 4)
         self.table.setObjectName("likes")
-        self.table.setAccessibleName("心动列表")
+        self.table.setAccessibleName("嘉宾列表")
         self.table.setHorizontalHeaderLabels(["名字", "昵称", "原因", "最近遇到"])
         head = self.table.horizontalHeader()
         head.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
@@ -208,7 +208,7 @@ class LikesPage(QWidget):
         self.table.customContextMenuRequested.connect(self._row_menu)
         self.table.installEventFilter(self)
         outer.addWidget(self.table, 1)
-        self.empty = EmptyState("heart", "心动列表还是空的", "把想再一起玩的人加到这里")
+        self.empty = EmptyState("heart", "嘉宾列表还是空的", "把想再一起玩的人加到这里")
         self.empty_batch_button = self.empty.add_action(QPushButton("批量导入"))
         self.empty_batch_button.clicked.connect(self.import_many)
         self.empty_add_button = self.empty.add_action(QPushButton("添加"))
@@ -264,7 +264,7 @@ class LikesPage(QWidget):
             self.empty.set_text(f"没有找到「{self.search.text().strip()}」")
         else:
             self.empty.set_icon("heart")
-            self.empty.set_text("心动列表还是空的", "把想再一起玩的人加到这里")
+            self.empty.set_text("嘉宾列表还是空的", "把想再一起玩的人加到这里")
         self.empty_batch_button.setVisible(not has_any)
         self.empty_add_button.setVisible(not has_any)
         table.setVisible(bool(rows))
@@ -303,7 +303,7 @@ class LikesPage(QWidget):
         like = self.store.add_like(dialog.name, dialog.nickname, dialog.detail)
         if like is None:
             return
-        self._done(f"「{like.shown()}」加进心动了", before)
+        self._done(f"「{like.shown()}」加进嘉宾了", before)
 
     def edit(self, index: int) -> None:
         if not 0 <= index < len(self.store.likes):
@@ -341,7 +341,7 @@ class LikesPage(QWidget):
         before = (self.store.snapshot_likes(), self.store.snapshot_entries())
         added, merged = self.store.import_likes(dialog.chosen)
         if not added and not merged:
-            self._say("都已经在心动里了")
+            self._say("都已经是嘉宾了")
             return
         parts = [f"已添加 {added} 人"] if added else []
         if merged:
@@ -357,7 +357,7 @@ class LikesPage(QWidget):
 
     def clear(self) -> None:
         count = len(self.store.likes)
-        if not count or not ConfirmDialog.ask(self.window(), "清空心动", f"将删除 {count} 条心动，确定清空吗？", "清空", danger=True):
+        if not count or not ConfirmDialog.ask(self.window(), "清空嘉宾", f"将删除 {count} 位嘉宾，确定清空吗？", "清空", danger=True):
             return
         before = (self.store.snapshot_likes(), self.store.snapshot_entries())
         self.store.clear_likes()

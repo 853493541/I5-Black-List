@@ -1,4 +1,4 @@
-"""心动特效: the scenes, choosing one or a random one, the picker with its preview, and the 心动 marks a
+"""嘉宾特效: the scenes, choosing one or a random one, the picker with its preview, and the 嘉宾 marks a
 scene dresses or draws itself."""
 
 import random
@@ -15,7 +15,7 @@ from PySide6.QtWidgets import QApplication, QLabel  # noqa: E402
 from blacklist_detect import love_scenes  # noqa: E402
 from blacklist_detect.love_scenes import KEYS, Stage, choose, sample_stage  # noqa: E402
 
-# The scenes that draw the 心动 marks as themes of their own.
+# The scenes that draw the 嘉宾 marks as themes of their own.
 THEMES = ("cyber", "neon", "angel", "equation", "fluffy")
 
 
@@ -133,7 +133,7 @@ def test_the_picker_saves_each_choice_and_previews_it(qapp, tmp_path, monkeypatc
     assert dialog.scene_buttons["off"].property("off") is True and dialog.scene_buttons["random"].property("off") is False
     assert dialog.preview.scene == "classic"
     assert dialog.play_button.text() == "预览"
-    # 心动人数: three choices that go together, 2人 and 2人以上 on to begin with.
+    # 嘉宾人数: three choices that go together, 2人 and 2人以上 on to begin with.
     assert [box.text() for box in dialog.count_boxes.values()] == ["1人", "2人", "2人以上"]
     assert [box.isChecked() for box in dialog.count_boxes.values()] == [False, True, True]
     dialog.count_boxes[1].click()
@@ -166,7 +166,7 @@ def test_the_picker_saves_each_choice_and_previews_it(qapp, tmp_path, monkeypatc
 
 
 def test_the_border_settles_its_scene_before_it_plays(qapp):
-    """The 心动 marks are dressed for the scene before it starts: pick() settles 随机, play() keeps it."""
+    """The 嘉宾 marks are dressed for the scene before it starts: pick() settles 随机, play() keeps it."""
     from blacklist_detect.ui_love import LoveBorder
 
     border = LoveBorder(random.Random(8))

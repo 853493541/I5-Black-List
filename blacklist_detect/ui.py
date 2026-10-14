@@ -401,18 +401,18 @@ class CheckWorker(QThread):
 
 def _lobby_summary(kinds: list[str]) -> str:
     """A checked lobby in a few words, from each seat's kind (hit, like, unclear or ""):
-    「2 名黑名单 · 1 名心动 · 1 人未识别」, or 「未发现黑名单」."""
+    「2 名黑名单 · 1 名嘉宾 · 1 人未识别」, or 「未发现黑名单」."""
     hits, likes, unclear = kinds.count("hit"), kinds.count("like"), kinds.count("unclear")
     parts = [f"{hits} 名黑名单"] if hits else ["未发现黑名单"]
     if likes:
-        parts.append(f"{likes} 名心动")
+        parts.append(f"{likes} 名嘉宾")
     if unclear:
         parts.append(f"{unclear} 人未识别")
     return " · ".join(parts)
 
 
 def _show_tick(button: QPushButton) -> None:
-    """A choice that goes with the others beside it shows a ✓ while it is on, as 心动人数's do."""
+    """A choice that goes with the others beside it shows a ✓ while it is on, as 嘉宾人数's do."""
     button.setIcon(line_icon("check", 14, THEME["on_accent"]) if button.isChecked() else QIcon())
 
 class MainWindow(QMainWindow):
@@ -454,15 +454,15 @@ class MainWindow(QMainWindow):
         self._closing = False
         self.panel = LobbyPanel()
         self.hit_card = HitCard()
-        # 心动 players in the lobby, under the hit card or beside the check.
+        # 嘉宾 players in the lobby, under the hit card or beside the check.
         self.like_card = LikeCard()
         self.clear_mark = ClearMark()
-        # Two or more 心动 players and no 黑名单: a border of silk and flowers, once per lobby.
+        # Two or more 嘉宾 players and no 黑名单: a border of silk and flowers, once per lobby.
         self.love = LoveBorder()
         self._love_played = False
-        # 心动音乐: the same lobby, in either 显示, also gets a few seconds of wedding music.
+        # 嘉宾音乐: the same lobby, in either 显示, also gets a few seconds of wedding music.
         self.music = WeddingMusic()
-        # Which scene and which music: 心动 › 心动特效.
+        # Which scene and which music: 嘉宾 › 嘉宾特效.
         self.love.choice = self.store.love_scene
         # 黑名单 players in the lobby: a red glow at the screen's edges while the result is up.
         self.alert = AlertGlow()
@@ -512,7 +512,7 @@ class MainWindow(QMainWindow):
         self._rescan_active = False
         # Checks since the app started, so each one's lines in the log share a number.
         self._check_number = 0
-        # 测试效果 while it runs: its 心动 players, where it shows, and what it put aside.
+        # 测试效果 while it runs: its 嘉宾 players, where it shows, and what it put aside.
         self._demo_likes: list[Entry] | None = None
         self._demo_area: QRect | None = None
         self._demo_place_box: tuple | None = None
@@ -601,7 +601,7 @@ class MainWindow(QMainWindow):
         self.likes_page = LikesPage(self.store, self._say)
         self.likes_page.show_effects = self._show_love_effects
         self.likes_page.changed.connect(self._likes_changed)
-        self.likes_tab = self.tabs.addTab(self.likes_page, "心动")
+        self.likes_tab = self.tabs.addTab(self.likes_page, "嘉宾")
         self.settings_tab = self.tabs.addTab(self._settings_page(), "设置")
         self.tabs.tabBar().hide()
         self.tabs.currentChanged.connect(self._sync_tab_buttons)
@@ -974,7 +974,7 @@ class MainWindow(QMainWindow):
         常规, 外观, then 帮助 at the foot, where starting over is out of the way.
 
         检查 (显示, 方式, 直播模式) opens from the status pill in the header, 角色名称 is in the
-        header too, 标签 beside the list on 黑名单, and 心动特效 on 心动.
+        header too, 标签 beside the list on 黑名单, and 嘉宾特效 on 嘉宾.
         """
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -1051,7 +1051,7 @@ class MainWindow(QMainWindow):
         check.add_widget(self.settings_label, separated=False, indent=True)
         # 3 提醒: which lists a check tells about. Both are ticked; either can go, and one stays.
         self.remind_boxes: dict[str, QPushButton] = {}
-        for key, name, on in (("blacklist", "黑名单", self.store.check_blacklist), ("likes", "心动", self.store.check_likes)):
+        for key, name, on in (("blacklist", "黑名单", self.store.check_blacklist), ("likes", "嘉宾", self.store.check_likes)):
             box = QPushButton(name)
             box.setObjectName("segment")
             box.setProperty("place", "only")
@@ -1064,7 +1064,7 @@ class MainWindow(QMainWindow):
             _show_tick(box)
             self.remind_boxes[key] = box
         self.remind_boxes["blacklist"].setToolTip("取消勾选：黑名单里的人进大厅时不提醒")
-        self.remind_boxes["likes"].setToolTip("取消勾选：心动的人进大厅时不提醒，也不放心动特效")
+        self.remind_boxes["likes"].setToolTip("取消勾选：嘉宾进大厅时不提醒，也不放嘉宾特效")
         check.add_row("提醒", *self.remind_boxes.values())
         # 4 直播模式: a window for the streaming app, with the marks and never a 黑名单 name.
         self.stream_choice = SegmentedControl([("on", "开启"), ("off", "关闭")], "on" if self.store.stream_mode else "off")
@@ -1073,12 +1073,12 @@ class MainWindow(QMainWindow):
         # ⓘ: what viewers see, and how to set it up in 直播姬, with screenshots.
         self.stream_guide = IconButton("info", "直播模式说明")
         self.stream_guide.clicked.connect(self._show_stream_guide)
-        # 测试效果: the marks of a lobby with a 黑名单 and two 心动 players, now, with no lobby: what
+        # 测试效果: the marks of a lobby with a 黑名单 and two 嘉宾 players, now, with no lobby: what
         # viewers will see, without waiting for someone listed to turn up.
         self.stream_test = QPushButton("测试效果")
         self.stream_test.setAutoDefault(False)
         self.stream_test.setCursor(Qt.PointingHandCursor)
-        self.stream_test.setToolTip("不用排队：在示例截图上放一遍心动特效，看看直播间能不能看到")
+        self.stream_test.setToolTip("不用排队：在示例截图上放一遍嘉宾特效，看看直播间能不能看到")
         self.stream_test.clicked.connect(self.start_stream_test)
         self.stream_test.setVisible(bool(self.store.stream_mode))
         # 测试框: the red frame round the game in 直播画面 while nothing plays; viewers see it too.
@@ -1985,7 +1985,7 @@ class MainWindow(QMainWindow):
             self._set_tab_count(self.likes_tab, len(self.store.likes))
 
     def _likes_changed(self) -> None:
-        """心动 changed, and a move may have taken a name off 黑名单: redraw both and the record."""
+        """嘉宾 changed, and a move may have taken a name off 黑名单: redraw both and the record."""
         self._refresh_tag_views()
 
     def _open_record_menu(self) -> None:
@@ -2023,12 +2023,12 @@ class MainWindow(QMainWindow):
         self._say("已撤销")
 
     def _take_from_likes(self, name: str) -> bool:
-        """A name on 心动 moves to 黑名单 only when asked. True when it is not there, or was moved."""
+        """A name on 嘉宾 moves to 黑名单 only when asked. True when it is not there, or was moved."""
         index = self.store.like_index(name)
         if index < 0:
             return True
         listed = self.store.likes[index].name
-        if not ConfirmDialog.ask(self, "移到黑名单", f"「{listed}」在心动列表中，要移到黑名单吗？", "移到黑名单"):
+        if not ConfirmDialog.ask(self, "移到黑名单", f"「{listed}」在嘉宾列表中，要移到黑名单吗？", "移到黑名单"):
             return False
         self.store.remove_like(index)
         self.likes_page.refresh()
@@ -2558,7 +2558,7 @@ class MainWindow(QMainWindow):
         tail = listed_tail(title, listed) if listed else None
         shown_name = listed if tail else title
         if like is not None:
-            # 心动 shows the 昵称, or the full name as the list has it.
+            # 嘉宾 shows the 昵称, or the full name as the list has it.
             shown_name = like.shown()
         # 直播模式: this page may be on stream, so a 黑名单 name is masked like on the 黑名单 page.
         hide = match is not None and bool(self.store.stream_mode)
@@ -2641,7 +2641,7 @@ class MainWindow(QMainWindow):
         if tail and not hide:
             name_item.setToolTip(f"读到「{title}」，是黑名单里的「{listed}」")
         if like is not None:
-            name_item.setToolTip(f"读到「{title}」，是心动里的「{like.name}」")
+            name_item.setToolTip(f"读到「{title}」，是嘉宾「{like.name}」")
         if not unclear and not name_item.toolTip():
             name_item.setToolTip(label)
         if with_listed:
@@ -2739,7 +2739,7 @@ class MainWindow(QMainWindow):
             items.append(("编辑", ("seat", row, column)))
         elif action == "添加":
             items.append(("加入黑名单", ("seat", row, column)))
-            items.append(("加入心动列表", ("like_seat", shown)))
+            items.append(("加入嘉宾列表", ("like_seat", shown)))
         items.append(("复制名字", ("copy_text", shown)))
         return self._menu(items)
 
@@ -3096,7 +3096,7 @@ class MainWindow(QMainWindow):
             return
         self.store.check_blacklist, self.store.check_likes = ticked["blacklist"], ticked["likes"]
         self.store.save_settings()
-        log.info("提醒: 黑名单 %s, 心动 %s.", "on" if ticked["blacklist"] else "off", "on" if ticked["likes"] else "off")
+        log.info("提醒: 黑名单 %s, 嘉宾 %s.", "on" if ticked["blacklist"] else "off", "on" if ticked["likes"] else "off")
 
     def _on_test_frame(self, on: bool) -> None:
         """测试框 ticked or not: 直播画面's red frame round the game, kept for the next start."""
@@ -3703,7 +3703,7 @@ class MainWindow(QMainWindow):
             self.clear_mark.hide()
             # A 黑名单 player is the news; the border would bury it.
             self.love.stop()
-            # 心动 players too: the ring is rose on their side, and their card is on the left.
+            # 嘉宾 players too: the ring is rose on their side, and their card is on the left.
             self._dress_love(playing=False)
             self._open_panel("both" if likes else "hit", "", result.button_box)
             self._show_hit_card(hits)
@@ -3712,7 +3712,7 @@ class MainWindow(QMainWindow):
                 self._show_alert()
             log.info(
                 "Check %d shown: the red ring, the 黑名单 card (%d)%s and the red glow.",
-                self._check_number, len(hits), f", the 心动 card ({len(likes)})" if likes else "",
+                self._check_number, len(hits), f", the 嘉宾 card ({len(likes)})" if likes else "",
             )  # fmt: skip
             return
         self.hit_card.hide()
@@ -3723,7 +3723,7 @@ class MainWindow(QMainWindow):
         unclear = sum(1 for slot in result.names if slot.unclear)
         if unclear:
             text += f"\n{unclear} 人未识别"
-        # 心动 players and no 黑名单: a rose ring, the heart badge, and their names on the left, all
+        # 嘉宾 players and no 黑名单: a rose ring, the heart badge, and their names on the left, all
         # in the look of the scene that is about to greet them.
         self._dress_love(playing=bool(likes) and self._love_for(len(likes)))
         self._open_panel("liked" if likes else "clear", text, result.button_box)
@@ -3731,7 +3731,7 @@ class MainWindow(QMainWindow):
         self._show_like_card(likes)
         log.info(
             "Check %d shown: %s.", self._check_number,
-            f"the rose ring, the heart and the 心动 card ({len(likes)})" if likes else "the ring (未发现黑名单)",
+            f"the rose ring, the heart and the 嘉宾 card ({len(likes)})" if likes else "the ring (未发现黑名单)",
         )  # fmt: skip
         if self._love_for(len(likes)) and not self._love_played:
             self._play_love()
@@ -3752,12 +3752,12 @@ class MainWindow(QMainWindow):
             if hit is not None:
                 seat += " 黑名单" + ("" if fold(hit.entry_name) == fold(slot.visible) else " (cut off)")
             elif match_label(NameLabel(raw=slot.raw, visible=slot.visible, truncated=slot.truncated), list(self.store.likes)):
-                seat += " 心动"
+                seat += " 嘉宾"
                 likes += 1
             seats.append(seat)
         n = self._check_number
         log.info(
-            "Check %d (%s): lobby found, %d on the list, %d 心动, %d unclear, %.2f s (%s)",
+            "Check %d (%s): lobby found, %d on the list, %d 嘉宾, %d unclear, %.2f s (%s)",
             n, how, len(hits), likes, unclear, elapsed or 0.0, self._timing_note(result),
         )  # fmt: skip
         log.info("Check %d seats: %s", n, " | ".join(seats))
@@ -3773,17 +3773,17 @@ class MainWindow(QMainWindow):
             [
                 "显示 " + ("安全模式" if store.safe_mode else "完整模式"),
                 "方式 " + ("自动检查" if store.auto_capture else f"手动检查 ({store.hotkey or '无快捷键'})"),
-                "提醒 " + ("黑名单+心动" if store.check_blacklist and store.check_likes else "只有黑名单" if store.check_blacklist else "只有心动"),
+                "提醒 " + ("黑名单+嘉宾" if store.check_blacklist and store.check_likes else "只有黑名单" if store.check_blacklist else "只有嘉宾"),
                 "直播模式 " + ("开" if store.stream_mode else "关") + ("" if store.stream_test_frame else " (测试框 关)"),
-                f"心动特效 {store.love_scene} + {store.love_music} for {counts or '无'}",
+                f"嘉宾特效 {store.love_scene} + {store.love_music} for {counts or '无'}",
                 f"外观 {store.appearance}",
                 "关闭窗口时 " + ("最小化到托盘" if store.close_to_tray else "退出程序"),
-                f"黑名单 {len(store.entries)}, 心动 {len(store.likes)}, 记录 {len(store.scans)}",
+                f"黑名单 {len(store.entries)}, 嘉宾 {len(store.likes)}, 记录 {len(store.scans)}",
             ]
         )
 
     def _dress_love(self, playing: bool) -> None:
-        """The 心动 marks (the ring, the heart badge and the card) in the look of the 心动特效 scene:
+        """The 嘉宾 marks (the ring, the heart badge and the card) in the look of the 嘉宾特效 scene:
         the one about to play, settled now if it is 随机, or the one that played for this lobby.
         With none playing, the chosen scene's look; 经典花边's under 随机 or 无."""
         if playing and self._love_played:
@@ -3799,13 +3799,13 @@ class MainWindow(QMainWindow):
         self.like_card.set_look(look)
 
     def _love_for(self, count: int) -> bool:
-        """Whether 心动特效 plays for this many 心动 players: as 心动人数 says, and always in 测试效果."""
+        """Whether 嘉宾特效 plays for this many 嘉宾 players: as 嘉宾人数 says, and always in 测试效果."""
         return self._demo_likes is not None or self.store.love_for(count)
 
     def start_stream_test(self) -> bool:
         """测试效果: the sample lobby (made-up names) shown as the game for a moment, framed by what
-        two 心动 players in it bring, on the screen and in 直播画面 as 显示 and 直播模式 are set: the
-        rose ring and the heart on 准备案件还原, the 心动 card, the border and the music. Viewers
+        two 嘉宾 players in it bring, on the screen and in 直播画面 as 显示 and 直播模式 are set: the
+        rose ring and the heart on 准备案件还原, the 嘉宾 card, the border and the music. Viewers
         see the picture too, so it works with no game open. Nothing is saved to 记录."""
         if self._demo_likes is not None or self.worker.running_job or not self.store.disclaimer_accepted:
             return False
@@ -3814,7 +3814,7 @@ class MainWindow(QMainWindow):
         self._demo_saved = (self._game_box, self._game_screen, self._game_windows, QRect(self.stream._frame), self._live_check)
         self._demo_area = picture
         self._demo_place_box = self._demo_boxes(picture)
-        # The two 心动 players sitting in the sample lobby.
+        # The two 嘉宾 players sitting in the sample lobby.
         self._demo_likes = [Entry("心动小鹿"), Entry("心动星星")]
         self._demo_round += 1
         turn = self._demo_round
@@ -3944,7 +3944,7 @@ class MainWindow(QMainWindow):
                 _pin_topmost(mark)
 
     def _play_love(self) -> None:
-        """The 心动 scene over the game, parted around the button, the badge and the 心动 card."""
+        """The 嘉宾 scene over the game, parted around the button, the badge and the 嘉宾 card."""
         cover = self.panel.cover_geometry()
         keep = cover
         for mark in (self.clear_mark, self.like_card):
@@ -3954,7 +3954,7 @@ class MainWindow(QMainWindow):
         if screen is None:
             return
         self._love_played = True
-        log.info("Check %d shown: 心动特效 (%s, music %s).", self._check_number, self.store.love_scene, self.store.love_music)
+        log.info("Check %d shown: 嘉宾特效 (%s, music %s).", self._check_number, self.store.love_scene, self.store.love_music)
         badge = self.clear_mark.geometry().center() if self.clear_mark.isVisible() else None
         self.love.choice = self.store.love_scene
         self.love.play(self._game_area(screen), keep, badge)
@@ -4051,7 +4051,7 @@ class MainWindow(QMainWindow):
         self._place_beside(self.hit_card)
 
     def _likes_in(self, result: CheckResult) -> list[Entry]:
-        """心动 players in the lobby, in seat order, each once, when 提醒 tells about them (测试效果's
+        """嘉宾 players in the lobby, in seat order, each once, when 提醒 tells about them (测试效果's
         always)."""
         if self._demo_likes is not None:
             return list(self._demo_likes)
@@ -4066,7 +4066,7 @@ class MainWindow(QMainWindow):
         return found
 
     def _show_like_card(self, likes: list[Entry]) -> None:
-        """The 心动 card on the left of the cover, centered on it, inside the screen."""
+        """The 嘉宾 card on the left of the cover, centered on it, inside the screen."""
         card = self.like_card
         if not likes:
             card.hide()
