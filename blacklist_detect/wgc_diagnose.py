@@ -14,7 +14,8 @@ then what the answers point at. The windows are made by the app's own program (�
 Every window is asked about from one more process, as 直播姬 asks from its own, and from where it
 was made too. They sit behind every window for about a second.
 
-    python -m blacklist_detect.wgc_diagnose <hwnd> [<control hwnd>]    prints the report, a line each
+    python -m blacklist_detect.wgc_diagnose <hwnd> [<control hwnd> [<left out>]]   prints the report
+        (<left out>: what 直播画面 is made without, as no-focus,click-through; the copies are too)
     python -m blacklist_detect.wgc_diagnose --plain                    one plain window, and its answer
 
 Lines start with "fact: ", "test: ", "verdict: " or "fix: " (a property that can go without harm).
@@ -364,7 +365,8 @@ QT = (
 )
 
 
-def make_qt(made: list) -> list[Test]:  # noqa: ANN001
+def make_qt(made: list, left_out: tuple[str, ...] = ()) -> list[Test]:  # noqa: ANN001
+    """Windows like 直播画面 (made without what it is made without), each without one more property."""
     from PySide6.QtCore import QRect, Qt
     from PySide6.QtGui import QColor, QPainter, QPen
     from PySide6.QtWidgets import QApplication, QWidget
@@ -397,7 +399,7 @@ def make_qt(made: list) -> list[Test]:  # noqa: ANN001
     x, y, w, h = _spot()
     tests = []
     for name, without in QT:
-        probe = Probe(without)
+        probe = Probe((*left_out, *without))
         probe.setWindowTitle(f"模仿者小工具·测试 {name}")
         probe.setGeometry(QRect(x, y, w, h))
         probe.show()
@@ -489,7 +491,7 @@ BY_PYTHONW = "plain window made by pythonw.exe"
 TASKBAR = "control: the taskbar (Explorer's)"
 
 
-def report(hwnd: int, control: int) -> list[str]:
+def report(hwnd: int, control: int, left_out: tuple[str, ...] = ()) -> list[str]:
     lines = [f"fact: {line}" for line in system_facts()]
     lines.append(f"fact: the windows below are made by {Path(sys.executable).name}, administrator: {elevated(os.getpid())}")
     lines += [f"fact: 直播画面: {line}" for line in window_facts(hwnd)]
@@ -503,7 +505,7 @@ def report(hwnd: int, control: int) -> list[str]:
     made: list = []
     tests += make_win32(made)
     try:
-        tests += make_qt(made)
+        tests += make_qt(made, left_out)
     except ImportError:
         lines.append("fact: Qt windows could not be made here")
     settle()
@@ -524,14 +526,14 @@ def report(hwnd: int, control: int) -> list[str]:
     return lines
 
 
-def command(hwnd: int, control: int) -> tuple[str, list[str], str]:
+def command(hwnd: int, control: int, left_out: list[str] | tuple[str, ...] = ()) -> tuple[str, list[str], str]:
     """Program, arguments and folder that run the report from a process of its own, with no console:
     the app's own program, as 直播画面's window is made by (pythonw.exe where that is python.exe)."""
     program = Path(sys.executable)
     if program.name.lower() == "python.exe" and program.with_name("pythonw.exe").is_file():
         program = program.with_name("pythonw.exe")
     _program, _arguments, folder = wgc.command(hwnd)
-    return str(program), ["-m", "blacklist_detect.wgc_diagnose", str(hwnd), str(control)], folder
+    return str(program), ["-m", "blacklist_detect.wgc_diagnose", str(hwnd), str(control), ",".join(left_out)], folder
 
 
 if __name__ == "__main__":
@@ -546,5 +548,6 @@ if __name__ == "__main__":
         result = wgc.answer(window.hwnd) if window.hwnd else None
         print("none" if result is None else f"0x{result:08X}")
     else:
-        for line in report(int(sys.argv[1]), int(sys.argv[2]) if len(sys.argv) > 2 else 0):
+        left = tuple(part for part in (sys.argv[3] if len(sys.argv) > 3 else "").split(",") if part)
+        for line in report(int(sys.argv[1]), int(sys.argv[2]) if len(sys.argv) > 2 else 0, left):
             print(line, flush=True)

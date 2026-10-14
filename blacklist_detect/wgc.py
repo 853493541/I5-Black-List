@@ -71,6 +71,26 @@ def answer(hwnd: int) -> int | None:
     return result
 
 
+def hide_taskbar_button(hwnd: int) -> bool:
+    """Take a window's button off the taskbar (ITaskbarList.DeleteTab); its styles stay as they are,
+    so a capture of it is not touched. False where the taskbar could not be asked. A window that
+    never takes focus has no button to begin with."""
+    if sys.platform != "win32":
+        return False
+    from ctypes import wintypes
+
+    ole32 = ctypes.windll.ole32
+    taskbar = ctypes.c_void_p()
+    clsid, iid = _guid("56FDF344-FD6D-11D0-958A-006097C9A090"), _guid("56FDF342-FD6D-11D0-958A-006097C9A090")
+    if ole32.CoCreateInstance(ctypes.byref(clsid), None, 1, ctypes.byref(iid), ctypes.byref(taskbar)) != 0 or not taskbar:
+        return False
+    table = ctypes.cast(ctypes.cast(taskbar, ctypes.POINTER(ctypes.c_void_p))[0], ctypes.POINTER(ctypes.c_void_p))
+    ready = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p)(table[3])(taskbar) == 0  # HrInit
+    gone = ready and ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p, wintypes.HWND)(table[5])(taskbar, hwnd) == 0  # DeleteTab
+    ctypes.WINFUNCTYPE(ctypes.c_ulong, ctypes.c_void_p)(table[2])(taskbar)  # Release
+    return gone
+
+
 def command(hwnd: int) -> tuple[str, list[str], str]:
     """Program, arguments and folder that ask it from a process of their own, with no console."""
     program = Path(sys.executable)

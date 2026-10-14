@@ -126,3 +126,24 @@ def test_the_diagnosis_runs_in_a_process_of_its_own_and_reports_everything():
         assert f"test: {name}: " in report, name
     if sys.getwindowsversion().build >= 22000:
         assert "verdict: Windows takes 直播画面 now." in report
+
+
+@windows
+def test_a_window_that_takes_focus_loses_its_taskbar_button_and_is_still_captured():
+    pytest.importorskip("PySide6")
+    from PySide6.QtCore import QRect, Qt
+    from PySide6.QtWidgets import QApplication, QWidget
+
+    QApplication.instance() or QApplication([])
+    if QApplication.platformName() != "windows":
+        pytest.skip("Qt runs offscreen in this run (other tests set it): no real windows to ask about")
+    window = QWidget(None, Qt.FramelessWindowHint | Qt.Window | Qt.WindowStaysOnBottomHint | Qt.WindowTransparentForInput)
+    window.setAttribute(Qt.WA_ShowWithoutActivating, True)
+    right = max(screen.geometry().right() for screen in QApplication.screens())
+    window.setGeometry(QRect(right + 64, 0, 320, 180))
+    window.show()
+    QApplication.processEvents()
+    assert wgc.hide_taskbar_button(int(window.winId())) is True
+    if sys.getwindowsversion().build >= 22000:
+        assert wgc.answer(int(window.winId())) == wgc.ACCEPTED
+    window.hide()

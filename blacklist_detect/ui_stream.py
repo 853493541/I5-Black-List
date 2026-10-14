@@ -40,6 +40,11 @@ On that Windows 10 it was refused at all three. Refused everywhere, it finds out
 for the game's window, for plain windows and for windows like this one each without one property.
 All of it goes to the log, with what it points at. When the window would be taken without a property
 it can do without here (click-through, no-focus, stay at the bottom), it is made again without it.
+
+That found it (v0.9.4): Windows 10 (22H2, build 19045) will not capture a window that never takes
+focus (WS_EX_NOACTIVATE), and took 直播画面 at once without it. So on Windows 10 it is made without it
+from the start. Such a window gets a taskbar button, which is taken off again (wgc.hide_taskbar_button):
+it is no place to click. Windows 11 takes it either way and keeps it as it was.
 """
 
 from __future__ import annotations
@@ -67,6 +72,8 @@ SPOTS = ("off", "edge", "on")
 _WHERE = {"off": "off the screen", "edge": "at the screen's right edge", "on": "on the screen, behind every window"}
 # After the window shows or moves, before Windows is asked.
 ASK_MS = 300
+# Windows 10 refuses to capture a window that never takes focus; 11 does not.
+WINDOWS_10 = sys.platform == "win32" and sys.getwindowsversion().build < 22000
 # The most the diagnosis may take before it is given up.
 DIAGNOSE_MS = 60_000
 # What the window's flags are made of, and the Qt flag behind each property it can do without.
@@ -87,8 +94,9 @@ class StreamMirror(QWidget):
 
     def __init__(self, window) -> None:  # noqa: ANN001
         # A normal window, not a tool window: streaming apps leave tool windows out of their list.
-        # Properties the diagnosis found Windows refuses, left out (wgc_diagnose.HARMLESS).
-        self.without: set[str] = set()
+        # Properties Windows refuses, left out: no-focus on Windows 10, and what the diagnosis finds
+        # (wgc_diagnose.HARMLESS).
+        self.without: set[str] = {"no-focus"} if WINDOWS_10 else set()
         super().__init__(None, self._flags())
         self.setWindowTitle(TITLE)
         self.setAttribute(Qt.WA_ShowWithoutActivating, True)
@@ -134,6 +142,7 @@ class StreamMirror(QWidget):
             self._diagnosed = False
             self._place(self._source())
             self.show()
+            self._off_the_taskbar()
             self.lower()
             self._tick.start()
             QTimer.singleShot(ASK_MS, self.ask_windows)
@@ -192,6 +201,11 @@ class StreamMirror(QWidget):
         self._place(self._area if not self._area.isEmpty() else self._source())
         QTimer.singleShot(ASK_MS, self.ask_windows)
 
+    def _off_the_taskbar(self) -> None:
+        """Made without no-focus, the window gets a taskbar button: taken off, as it is no place to click."""
+        if "no-focus" in self.without and not wgc.hide_taskbar_button(int(self.winId())):
+            log.info("直播画面: its taskbar button could not be taken off.")
+
     def _flags(self) -> Qt.WindowFlags:
         flags = _FLAGS
         for name, flag in _DROPPABLE.items():
@@ -209,7 +223,7 @@ class StreamMirror(QWidget):
         game = livehime.game_capture(watch.scene(), TITLE) if watch is not None else None
         if game is not None:
             control = livehime.window_of(game)
-        program, arguments, folder = wgc_diagnose.command(int(self.winId()), control)
+        program, arguments, folder = wgc_diagnose.command(int(self.winId()), control, sorted(self.without))
         running = QProcess(self)
         running.setWorkingDirectory(folder)
         environment = QProcessEnvironment()
@@ -256,6 +270,7 @@ class StreamMirror(QWidget):
             self.answer = None
             self._place(self._area if not self._area.isEmpty() else self._source())
             self.show()
+            self._off_the_taskbar()
             self.lower()
             QTimer.singleShot(ASK_MS, self.ask_windows)
 

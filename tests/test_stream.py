@@ -522,3 +522,33 @@ def test_the_diagnosis_runs_for_real_and_its_report_reaches_the_log(window, monk
     assert "直播画面 diagnosis:\nfact: " in said and "test: 直播画面 itself: " in said and "test: Qt, plain window: " in said
     assert "fact: from the app: 测试框 on" in said and "直播画面 diagnosis: Windows" in said
     window._set_stream_mode("")
+
+
+def test_on_windows_10_it_takes_focus_and_has_no_taskbar_button(window, monkeypatch):
+    """A friend's Windows 10 (build 19045) would not capture a window that never takes focus, and
+    took 直播画面 at once without it (v0.9.4's diagnosis). There it is made so from the start, and the
+    taskbar button it gets is taken off; the diagnosis makes its copies the same way."""
+    from blacklist_detect import ui_stream, wgc, wgc_diagnose
+
+    monkeypatch.setattr(ui_stream, "WINDOWS_10", True)
+    hidden: list[int] = []
+    monkeypatch.setattr(wgc, "hide_taskbar_button", lambda hwnd: hidden.append(hwnd) or True)
+    stream = StreamMirror(window)
+    assert stream.without == {"no-focus"} and not stream.windowFlags() & Qt.WindowDoesNotAcceptFocus
+    assert stream.windowFlags() & Qt.WindowTransparentForInput and stream.windowFlags() & Qt.WindowStaysOnBottomHint
+    stream.enable("on")
+    assert hidden == [int(stream.winId())]
+    if QApplication.platformName() == "windows":
+        import ctypes
+
+        assert not ctypes.windll.user32.GetWindowLongW(int(stream.winId()), -20) & 0x08000000, "no WS_EX_NOACTIVATE"
+    _program, arguments, _folder = wgc_diagnose.command(int(stream.winId()), 0, sorted(stream.without))
+    assert arguments[-1] == "no-focus"
+    stream.enable("")
+    # Windows 11 keeps it as it was: no focus, no button to take off.
+    monkeypatch.setattr(ui_stream, "WINDOWS_10", False)
+    eleven = StreamMirror(window)
+    assert eleven.without == set() and eleven.windowFlags() & Qt.WindowDoesNotAcceptFocus
+    eleven.enable("on")
+    assert hidden == [int(stream.winId())]
+    eleven.enable("")
