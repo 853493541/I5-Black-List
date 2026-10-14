@@ -190,11 +190,11 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
         effects.scene_buttons[key].click()
         assert effects.preview.scene == key
         effects.preview.grab()
-    effects.scene_buttons["butterfly"].click()
+    effects.scene_buttons["stars"].click()
     effects.music_buttons["off"].click()
     effects.accept()
     again = Store(window.store.root)
-    assert (again.love_scene, again.love_music) == ("butterfly", "off")
+    assert (again.love_scene, again.love_music) == ("stars", "off")
     # Every scene plays through over a real-size screen, the button left bare.
     stage = love_scenes.sample_stage()
     for key in love_scenes.KEYS:

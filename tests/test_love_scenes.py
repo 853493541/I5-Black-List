@@ -70,10 +70,12 @@ def test_choosing_one_random_or_none():
         picks.append(last)
     assert set(picks) == set(KEYS)
     assert all(a != b for a, b in zip(picks, picks[1:], strict=False))
-    # 命运红线 and 雪纺 are gone: a player who had one, or a key from another version, gets 经典花边.
-    assert "thread" not in KEYS and "chiffon" not in KEYS and len(KEYS) == 11
-    assert choose("thread", "", rng) == "classic" and choose("chiffon", "", rng) == "classic"
-    assert choose("disco", "", rng) == "classic"
+    # 命运红线, 雪纺, 缎带, 花雨, 纸鹤晚霞 and 蝶梦 are gone: a player who had one, or a key from another
+    # version, gets 经典花边. 香槟 is gone too, and 天使 took its place.
+    assert KEYS == ("classic", "ice", "stars", "cyber", "angel", "equation")
+    for gone in ("thread", "chiffon", "ribbon", "petals", "cranes", "butterfly", "disco"):
+        assert choose(gone, "", rng) == "classic"
+    assert choose("champagne", "", rng) == "angel"
 
 
 def test_the_border_plays_the_choice_and_nothing_when_off(qapp):
@@ -137,19 +139,25 @@ def test_the_picker_saves_each_choice_and_previews_it(qapp, tmp_path, monkeypatc
     # The last one stays on: 无 turns the effect off.
     dialog.count_boxes[1].click()
     assert dialog.count_boxes[1].isChecked() and store.love_counts == (1,)
-    dialog.scene_buttons["butterfly"].click()
-    assert store.love_scene == "butterfly" and dialog.preview.scene == "butterfly"
-    assert Store(store.root).love_scene == "butterfly"
+    dialog.scene_buttons["stars"].click()
+    assert store.love_scene == "stars" and dialog.preview.scene == "stars"
+    assert Store(store.root).love_scene == "stars"
     dialog.music_buttons["canon"].click()
     assert store.love_music == "canon" and played == [TUNES["canon"]]
     dialog.play_button.click()
-    assert played[-1] == TUNES["canon"] and dialog.preview.scene == "butterfly"
+    assert played[-1] == TUNES["canon"] and dialog.preview.scene == "stars"
     dialog.scene_buttons["off"].click()
     assert dialog.preview.scene == "" and store.love_scene == "off"
     # The preview draws the lobby whatever the choice.
     dialog.preview.grab()
     dialog.reject()
     assert played[-1] is None, "closing stops the music"
+    # A scene that is gone shows what plays for it: 天使 for 香槟, 经典花边 for the others.
+    for saved, shown in (("champagne", "angel"), ("ribbon", "classic")):
+        store.love_scene = saved
+        dialog = LoveEffectsDialog(store, WeddingMusic(play=played.append, rng=random.Random(1)))
+        assert dialog.scene_buttons[shown].isChecked() and dialog.preview.scene == shown
+        dialog.reject()
 
 
 def test_the_border_settles_its_scene_before_it_plays(qapp):
@@ -179,7 +187,8 @@ def test_every_scene_dresses_the_marks_its_own_way(qapp):
 
     assert set(LOOKS) == set(KEYS)
     assert len({look.card for look in LOOKS.values()}) == len(LOOKS), "no two cards alike"
-    assert love_look("random") is love_look("off") is love_look("chiffon") is CLASSIC_LOOK
+    assert love_look("random") is love_look("off") is love_look("chiffon") is love_look("butterfly") is CLASSIC_LOOK
+    assert love_look("champagne") is LOOKS["angel"], "天使 took 香槟's place"
     card = LikeCard()
     card.set_look(love_look("stars"))
     card.set_people([("心动小鹿", ())], 90)
@@ -194,7 +203,7 @@ def test_the_preview_shows_each_scenes_marks(qapp):
     preview = ScenePreview()
     preview.show_scene("ice")
     ice = preview._marks
-    preview.show_scene("champagne")
+    preview.show_scene("angel")
     assert preview._marks is not ice
     preview.show_scene("off")
     assert preview._marks is preview._marks_for("classic")

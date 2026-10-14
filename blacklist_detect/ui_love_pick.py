@@ -158,7 +158,7 @@ class LoveEffectsDialog(Modal):
         self.count_boxes = self._counts(layout)
         scenes = [*love_scenes.SCENES, ("random", "随机"), ("off", "无")]
         tunes = [*((key, name) for key, name, _file in TUNE_LIST), ("random", "随机"), ("off", "无")]
-        self.scene_buttons = self._choices(layout, "特效", scenes, store.love_scene, self._pick_scene)
+        self.scene_buttons = self._choices(layout, "特效", scenes, love_scenes.shown(store.love_scene), self._pick_scene)
         self.music_buttons = self._choices(layout, "音乐", tunes, store.love_music, self._pick_music)
         self.play_button = QPushButton("预览")
         self.play_button.setAutoDefault(False)
@@ -167,7 +167,7 @@ class LoveEffectsDialog(Modal):
         # As wide as the preview: the choices wrap under it, and it fits the smallest window.
         self.card.setFixedWidth(ScenePreview.WIDTH + 2 * DIALOG_PAD)
         _pointing(self)
-        self.preview.show_scene(self._current(self.scene_buttons, store.love_scene, "classic"))
+        self.preview.show_scene(self._current(self.scene_buttons, love_scenes.shown(store.love_scene), "classic"))
 
     def _choices(self, layout, label: str, items, current: str, pick) -> dict[str, QPushButton]:  # noqa: ANN001
         host = _FlowHost(gap=8)
@@ -255,7 +255,7 @@ class LoveEffectsDialog(Modal):
 
     def play_both(self) -> None:
         """The scene from its start and the music with it, as a lobby would get them."""
-        self.preview.show_scene(self._current(self.scene_buttons, self.store.love_scene, "classic"))
+        self.preview.show_scene(self._current(self.scene_buttons, love_scenes.shown(self.store.love_scene), "classic"))
         self.music.preview(self.store.love_music)
 
     def done(self, result: int) -> None:  # noqa: A003

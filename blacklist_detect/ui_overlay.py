@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from blacklist_detect import love_scenes
 from blacklist_detect.ui_theme import (
     BODY_PT,
     OVERLAY_PT,
@@ -155,34 +156,6 @@ CLASSIC_LOOK = LoveLook(
 )
 LOOKS: dict[str, LoveLook] = {
     "classic": CLASSIC_LOOK,
-    # 缎带: pink satin and a champagne-gold rule.
-    "ribbon": LoveLook(
-        glow=(255, 160, 195),
-        rim="#e2c08d",
-        band=("#f7a8c4", "#fbe3ea"),
-        card=("#fff6f8", "#fbe0e8"),
-        edge="#d9b77e",
-        ink="#8a2d55",
-        flowers=(("#fff0f6", "#f7a8c4", "#e0679a"), ("#fffaf0", "#f3dcae", "#d4a85e")),
-        disc=("#fff5f8", "#f6c1d2"),
-        heart=("#ff8fb8", "#d23a72"),
-        deep="#c83a72",
-        deep_glow=(240, 110, 165),
-    ),
-    # 花雨: blush and deep roses among sage eucalyptus.
-    "petals": LoveLook(
-        glow=(255, 170, 195),
-        rim="#f2d4dc",
-        band=("#e98aa8", "#cfdcc9"),
-        card=("#fff7f8", "#f9e1e7"),
-        edge="#dca5b5",
-        ink="#7d2b4a",
-        flowers=(("#fbd2de", "#e07f9f", "#a83a66"), ("#f3f6ef", "#c3d0bd", "#8fa08b")),
-        disc=("#fff6f8", "#f4c3d1"),
-        heart=("#e98aa8", "#a83a66"),
-        deep="#a83a66",
-        deep_glow=(225, 110, 150),
-    ),
     # 冰蓝极光: ice and sapphire, the heart blue.
     "ice": LoveLook(
         glow=(110, 190, 255),
@@ -210,48 +183,6 @@ LOOKS: dict[str, LoveLook] = {
         heart=("#ffe39a", "#e0a93a"),
         deep="#7a5fe0",
         deep_glow=(150, 120, 255),
-    ),
-    # 纸鹤晚霞: a sunset, peach and coral.
-    "cranes": LoveLook(
-        glow=(255, 170, 130),
-        rim="#f7d2b8",
-        band=("#ffab85", "#ff8fa8"),
-        card=("#fff6ef", "#fde0cf"),
-        edge="#eeb08c",
-        ink="#8a3b1f",
-        flowers=(("#fff1ea", "#ffb39a", "#f57a62"), ("#fff8e6", "#ffd68a", "#eea43c")),
-        disc=("#fff6ef", "#ffc9ae"),
-        heart=("#ff9a7a", "#e0503f"),
-        deep="#d9503f",
-        deep_glow=(255, 130, 100),
-    ),
-    # 蝶梦: lavender and sky.
-    "butterfly": LoveLook(
-        glow=(170, 150, 255),
-        rim="#d9cdfb",
-        band=("#b9a3ff", "#9fd6ff"),
-        card=("#f8f5ff", "#e6defc"),
-        edge="#b8a6ec",
-        ink="#4b2f8a",
-        flowers=(("#f6f2ff", "#c9b8ff", "#9a7bff"), _FLOWER_TONES["blue"]),
-        disc=("#f8f5ff", "#d6c9fb"),
-        heart=("#b49bff", "#7a55e0"),
-        deep="#7a55e0",
-        deep_glow=(160, 130, 255),
-    ),
-    # 香槟: cream and gold, the heart gold.
-    "champagne": LoveLook(
-        glow=(240, 200, 120),
-        rim="#e2c08d",
-        band=("#f0c870", "#fff1c9"),
-        card=("#fffaf0", "#f6e6c4"),
-        edge="#d9b77e",
-        ink="#6e4f12",
-        flowers=(("#fff8e0", "#f6d68a", "#d9a441"), ("#fffaf3", "#f4dcc0", "#d9a982")),
-        disc=("#fffaf0", "#f3dca8"),
-        heart=("#f6c860", "#c98a1c"),
-        deep="#c98a1c",
-        deep_glow=(240, 190, 90),
     ),
     # 赛博闪电: neon magenta and cyan on a violet night.
     "cyber": LoveLook(
@@ -299,8 +230,9 @@ LOOKS: dict[str, LoveLook] = {
 
 
 def love_look(scene: str) -> LoveLook:
-    """The look for a 心动特效 scene; 经典花边's for anything else (随机 not yet settled, 无)."""
-    return LOOKS.get(scene, CLASSIC_LOOK)
+    """The look for a 心动特效 scene, or the one that replaced it (香槟's is 天使's); 经典花边's for
+    anything else (随机 not yet settled, 无, a scene that is gone)."""
+    return LOOKS.get(love_scenes.shown(scene), CLASSIC_LOOK)
 
 
 def _rgba(color: str, alpha: int) -> str:

@@ -23,18 +23,15 @@ from PySide6.QtCore import QPointF, QRectF
 # (key, name in 设置), in the order 设置 lists them. 经典 is the border the app first had.
 SCENES: tuple[tuple[str, str], ...] = (
     ("classic", "经典花边"),
-    ("ribbon", "缎带"),
-    ("petals", "花雨"),
     ("ice", "冰蓝极光"),
     ("stars", "星河许愿"),
-    ("cranes", "纸鹤晚霞"),
-    ("butterfly", "蝶梦"),
-    ("champagne", "香槟"),
     ("cyber", "赛博"),
     ("angel", "天使"),
     ("equation", "数学"),
 )
 KEYS = tuple(key for key, _name in SCENES)
+# A scene that is gone, and the one a player who chose it gets now: 天使 took 香槟's place.
+REPLACED = {"champagne": "angel"}
 # The design size the scenes were drawn at.
 DESIGN = (1635.0, 848.0)
 
@@ -66,10 +63,17 @@ def load(key: str) -> ModuleType:
     return importlib.import_module(f"{__name__}.{key}")
 
 
+def shown(choice: str) -> str:
+    """A saved 心动特效 choice as this version has it: a scene that was replaced is its replacement."""
+    return REPLACED.get(choice, choice)
+
+
 def choose(choice: str, last: str, rng: random.Random) -> str:
     """The scene to play for a 心动特效 choice: a key, "random" (any but the last one), or "off" ("").
-    A key this version does not have (命运红线, gone in v0.8.2; 雪纺, gone in v0.9.0) plays 经典花边,
-    the default."""
+    香槟 plays 天使, which replaced it. Any other key this version does not have (命运红线, gone in
+    v0.8.2; 雪纺, gone in v0.9.0; 缎带, 花雨, 纸鹤晚霞 and 蝶梦, gone in the next version) plays
+    经典花边, the default."""
+    choice = shown(choice)
     if choice == "off":
         return ""
     if choice in KEYS:
