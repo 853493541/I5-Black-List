@@ -51,9 +51,9 @@ def test_a_hidden_window_is_refused_as_on_the_friends_windows_10_and_a_shown_one
 
 def _tests(**answers):  # noqa: ANN003, ANN202
     """A diagnosis's tests, each refused unless answers says otherwise (name → HRESULT)."""
-    from blacklist_detect.wgc_diagnose import BY_PYTHONW, QT, WIN32, Test
+    from blacklist_detect.wgc_diagnose import BY_PYTHONW, QT, TASKBAR, WIN32, Test
 
-    names = ["直播画面 itself", "control: the game window 直播姬 captures"]
+    names = ["直播画面 itself", "control: the game window 直播姬 captures", TASKBAR]
     names += [name for name, *_rest in WIN32] + [name for name, _without in QT] + [BY_PYTHONW]
     return [Test(name, 1, there=answers.get(name, wgc.REFUSED)) for name in names]
 
@@ -78,9 +78,12 @@ def test_the_diagnosis_says_what_the_answers_point_at():
     # Only the app's own program: pythonw.exe's plain window is taken.
     found, fix = verdict(_tests(**{"control: the game window 直播姬 captures": taken, "plain window made by pythonw.exe": taken}))
     assert "it is about the app's program file" in found and fix == ""
-    # Not the window either: even the game's window is refused when asked from here.
+    # Not the window either: even the game's window and the taskbar are refused when asked from here.
     found, _fix = verdict(_tests())
-    assert "refuses even the control window" in found
+    assert "refuses even the control windows" in found
+    # One control taken is enough to rule that out.
+    found, _fix = verdict(_tests(**{"control: the taskbar (Explorer's)": taken}))
+    assert "no window made by this app" in found
     # A fresh copy taken: the running window differs.
     found, _fix = verdict(_tests(**{**everything, "control: the game window 直播姬 captures": taken}))
     assert found.startswith("A fresh window like 直播画面 is taken")
@@ -118,7 +121,7 @@ def test_the_diagnosis_runs_in_a_process_of_its_own_and_reports_everything():
     assert "fact: 直播画面: class Qt" in report and "extended 0x08080020 (TRANSPARENT|LAYERED|NOACTIVATE)" in report
     assert "fact: 直播画面: layered per pixel (UpdateLayeredWindow)" in report and "直播姬: " in report
     assert "fact: 直播画面: process " in report and "administrator" in report
-    assert "fact: the windows below are made by " in report
+    assert "fact: the windows below are made by " in report and "test: control: the taskbar (Explorer's): " in report
     for name in ("直播画面 itself", *(name for name, *_rest in WIN32), *(name for name, _without in QT), "plain window made by pythonw.exe"):
         assert f"test: {name}: " in report, name
     if sys.getwindowsversion().build >= 22000:

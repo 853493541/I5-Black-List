@@ -219,7 +219,7 @@ class StreamMirror(QWidget):
         running.finished.connect(lambda _code, _status: self._diagnosed_by(running))
         running.errorOccurred.connect(lambda error: self._could_not_diagnose(running, error))
         self._diagnosing = running
-        log.info("直播画面: finding out why Windows refuses it (control: %s).", "the game window 直播姬 captures" if control else "none found")
+        log.info("直播画面: finding out why Windows refuses it (the game window 直播姬 captures: %s).", "open" if control else "not open")
         running.start(program, arguments)
         QTimer.singleShot(DIAGNOSE_MS, lambda: self._diagnosis_too_long(running))
 

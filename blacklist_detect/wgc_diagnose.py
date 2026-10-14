@@ -5,7 +5,8 @@ wherever it was (off the screen, at its edge, on it behind every window) while �
 game beside it. Where it is refused everywhere, this runs once, in a process of its own, and reports:
 
 - facts: Windows' build, the window's styles and state, its DPI mode, who runs as administrator;
-- controls: the window 直播姬 captures for the game (taken there), and plain windows made here;
+- controls: the window 直播姬 captures for the game (taken there; when it is open), and the taskbar,
+  always there and Explorer's; then plain windows made here;
 - one difference at a time: windows made here like 直播画面, each without one of its properties;
 
 then what the answers point at. The windows are made by the app's own program (模仿者小工具.exe, as
@@ -103,6 +104,8 @@ def _user32():  # noqa: ANN202
     user32.SetLayeredWindowAttributes.argtypes = (wintypes.HWND, wintypes.DWORD, ctypes.c_ubyte, wintypes.DWORD)
     user32.GetWindowDisplayAffinity.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.DWORD))
     user32.DestroyWindow.argtypes = (wintypes.HWND,)
+    user32.FindWindowW.restype = wintypes.HWND
+    user32.FindWindowW.argtypes = (wintypes.LPCWSTR, wintypes.LPCWSTR)
     user32.UpdateLayeredWindow.argtypes = (
         wintypes.HWND, wintypes.HDC, ctypes.POINTER(wintypes.POINT), ctypes.POINTER(wintypes.SIZE), wintypes.HDC,
         ctypes.POINTER(wintypes.POINT), wintypes.COLORREF, ctypes.c_void_p, wintypes.DWORD,
@@ -459,9 +462,9 @@ def verdict(tests: list[Test]) -> tuple[str, str]:
         return "Windows could not be asked (no Windows.Graphics.Capture, or the asking process failed).", ""
     if taken.get("直播画面 itself"):
         return "Windows takes 直播画面 now.", ""
-    control = next((test for test in tests if test.name.startswith("control")), None)
-    if control is not None and control.there is not None and not taken.get(control.name):
-        return "Windows refuses even the control window: the asking is blocked on this PC, not 直播画面.", ""
+    controls = [test.name for test in tests if test.name.startswith("control") and test.there is not None]
+    if controls and not any(taken[name] for name in controls):
+        return "Windows refuses even the control windows: the asking is blocked on this PC, not 直播画面.", ""
     if taken.get("plain window") is False and taken.get("titled window") is False:
         if taken.get(BY_PYTHONW):
             return ("Windows takes a plain window made by pythonw.exe and none made by 模仿者小工具.exe: it is about the "
@@ -483,6 +486,7 @@ def verdict(tests: list[Test]) -> tuple[str, str]:
 
 
 BY_PYTHONW = "plain window made by pythonw.exe"
+TASKBAR = "control: the taskbar (Explorer's)"
 
 
 def report(hwnd: int, control: int) -> list[str]:
@@ -493,6 +497,9 @@ def report(hwnd: int, control: int) -> list[str]:
     if control:
         lines += [f"fact: control (the game window 直播姬 captures): {line}" for line in window_facts(control)]
         tests.append(Test("control: the game window 直播姬 captures", control))
+    taskbar = _user32().FindWindowW("Shell_TrayWnd", None)
+    if taskbar:
+        tests.append(Test(TASKBAR, int(taskbar)))
     made: list = []
     tests += make_win32(made)
     try:
