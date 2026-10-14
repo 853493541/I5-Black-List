@@ -23,12 +23,17 @@ game. It used to be pure green for a 色度键 to take out, which took the soft 
 
 In 直播姬: add a second 窗口捕获, pick 模仿者小工具·直播画面, and put it over the game. A 色度键
 from before does no harm: there is no green left for it to take.
+
+While no mark shows, a red frame (the 测试框) runs round the game, where the marks are drawn: a
+streamer who sees it in the stream knows the marks will be there too, and that they line up. A
+capture that reads nothing of this window (in 直播姬: the 预览 side not yet 同步至直播, BitBlt,
+窗口区域模式) shows no frame. Viewers see it as well: it is for testing.
 """
 
 from __future__ import annotations
 
 from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, QSize, Qt, QTimer
-from PySide6.QtGui import QPainter, QPixmap
+from PySide6.QtGui import QColor, QFont, QFontMetricsF, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QApplication, QWidget
 
 from blacklist_detect.names import APP_NAME
@@ -36,6 +41,10 @@ from blacklist_detect.ui_alert import paint_glow
 
 TITLE = f"{APP_NAME}·直播画面"
 FRAME_MS = 45
+# The 测试框 while no mark shows. False takes it away.
+TEST_FRAME = True
+TEST_TAG = f"{APP_NAME}·测试框"
+_TEST_RED = QColor(225, 38, 52)
 
 
 class StreamMirror(QWidget):
@@ -133,6 +142,8 @@ class StreamMirror(QWidget):
         top = screen.geometry().y() if screen is not None else 0
         right = max((each.geometry().right() for each in QApplication.screens()), default=area.right())
         self.setGeometry(QRect(QPoint(right + 64, top), QSize(width, round(width * 9 / 16))))
+        # The 测试框 goes round the new area.
+        self.update()
 
     def set_frame(self, frame: QRect) -> None:
         """Mirror the game's window from now on: what the game's 窗口捕捉 shows. A full-screen
@@ -170,14 +181,40 @@ class StreamMirror(QWidget):
             area = self._source()
             if area != self._area:
                 self._place(area)
-        # Painted while something shows, and once more after, to clear it.
+        # Painted while something shows, and once more after, back to the 测试框.
         if busy or self._active:
             self._active = busy
             self.update()
 
+    def _paint_test_frame(self, painter: QPainter) -> None:
+        """The 测试框: a red line round the mirrored game, its name in a red tag at the top left."""
+        scale, offset = self._fit()
+        if self._area.isEmpty():
+            box = QRectF(self.rect())
+        else:
+            box = QRectF(offset.x(), offset.y(), self._area.width() * scale, self._area.height() * scale)
+        line = max(4.0, self.width() / 240)
+        pen = QPen(_TEST_RED, line)
+        pen.setJoinStyle(Qt.MiterJoin)
+        painter.setPen(pen)
+        painter.setBrush(Qt.NoBrush)
+        painter.drawRect(box.adjusted(line / 2, line / 2, -line / 2, -line / 2))
+        font = QFont(self.font())
+        font.setPixelSize(max(12, round(self.width() / 80)))
+        font.setBold(True)
+        metrics = QFontMetricsF(font)
+        pad = font.pixelSize() * 0.5
+        tag = QRectF(box.left(), box.top(), metrics.horizontalAdvance(TEST_TAG) + pad * 2, metrics.height() + pad)
+        painter.fillRect(tag, _TEST_RED)
+        painter.setFont(font)
+        painter.setPen(QColor("white"))
+        painter.drawText(tag, Qt.AlignCenter, TEST_TAG)
+
     def paintEvent(self, _event) -> None:  # noqa: ANN001
         painter = QPainter(self)
         if not self._active:
+            if TEST_FRAME:
+                self._paint_test_frame(painter)
             painter.end()
             return
         painter.setRenderHint(QPainter.Antialiasing)

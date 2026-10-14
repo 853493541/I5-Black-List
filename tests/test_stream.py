@@ -296,3 +296,61 @@ def test_a_border_made_only_for_the_stream_does_not_hold_a_glance_back(window):
     assert window.love.playing()
     window._on_glanced("ok", False)
     assert not window.love.playing() and not window.like_card.isVisible()
+
+
+def test_a_red_test_frame_runs_round_the_game_while_no_mark_shows(window, monkeypatch):
+    """The 测试框: with nothing to show, the window is framed in red round the game, so a streamer
+    who sees the frame in the stream knows the marks will be there too, and line up."""
+    from PySide6.QtCore import QRect
+
+    from blacklist_detect import ui_stream
+
+    window._set_stream_mode(True)
+    stream = window.stream
+    assert not stream.busy()
+
+    def at(x: float, y: float):  # noqa: ANN202
+        image = stream.grab().toImage()
+        ratio = image.devicePixelRatio()
+        return image.pixelColor(round(x * ratio), round(y * ratio))
+
+    def edges():  # noqa: ANN202
+        scale, offset = stream._fit()
+        line = max(4.0, stream.width() / 240)
+        middle = offset.y() + stream._area.height() * scale / 2
+        return at(offset.x() + line / 2, middle), at(offset.x() + stream._area.width() * scale - line / 2, middle)
+
+    for edge in edges():
+        assert edge.alpha() == 255 and edge.red() > 200 and edge.green() < 80, "a red line round the game"
+    assert _pixel(window, stream._area.center()).alpha() == 0, "clear inside"
+    # Its name in white on a red tag at the top left.
+    image = stream.grab().toImage()
+    ratio = image.devicePixelRatio()
+    _scale, offset = stream._fit()
+    corner = [image.pixelColor(x, y) for x in range(round(offset.x() * ratio), round((offset.x() + stream.width() / 4) * ratio), 2)
+              for y in range(round(offset.y() * ratio), round((offset.y() + stream.width() / 40) * ratio), 2)]
+    assert any(color.red() > 230 and color.green() > 230 and color.blue() > 230 for color in corner), "white words on the tag"
+    # It goes round the game's window once a check has found it, where the marks will be drawn: a
+    # square emulator window sits in the middle of the 16:9 window, as 直播姬 fits it.
+    screen = stream._area
+    stream.set_frame(QRect(screen.x() + 40, screen.y() + 40, screen.height() // 2, screen.height() // 2))
+    for edge in edges():
+        assert edge.red() > 200 and edge.alpha() == 255
+    assert at(2, stream.height() / 2).alpha() == 0, "not at the window's own edge any more"
+    # Never while a mark shows: viewers see the marks as they are. Back once they go.
+    framed = []
+    stream._paint_test_frame = lambda _painter: framed.append(1)
+    _lobby(window, hit=False)
+    assert stream.busy()
+    stream.grab()
+    assert framed == []
+    window._hide_panel_after_title()
+    window.love.stop()
+    stream._step()
+    stream._step()
+    stream.grab()
+    assert framed
+    del stream._paint_test_frame
+    # TEST_FRAME takes it away.
+    monkeypatch.setattr(ui_stream, "TEST_FRAME", False)
+    assert all(edge.alpha() == 0 for edge in edges())
