@@ -245,7 +245,7 @@ def test_update_can_be_checked_from_settings(window, tmp_path, monkeypatch):
     installs as it would at start. 有更新 is in the header only once a version waits."""
     from blacklist_detect import __version__
 
-    assert window.version_label.text() == f"模仿者小工具 {__version__}"
+    assert window.version_label.text() == __version__, "the version alone, not the app's name"
     # 检查更新 and 使用声明 are links at the end of the row, not boxed buttons.
     assert window.update_button.objectName() == "link" and window.disclaimer_button.objectName() == "link"
     assert window.update_pill.isHidden() and window.update_pill.text() == "有更新"

@@ -1127,9 +1127,10 @@ class MainWindow(QMainWindow):
         self.export_button.setCursor(Qt.PointingHandCursor)
         self.export_button.clicked.connect(self._export_logs)
         helping.add_row("环境测试", self.test_button, self.export_button)
-        # 关于: the app and its version, what 检查更新 found in gray beside it, and 检查更新 and 使用声明
-        # as links at the row's end. A waiting version turns 检查更新 into the 有更新 button.
-        self.version_label = QLabel(f"{APP_NAME} {__version__}")
+        # 关于: the version (the app's name is everywhere already), what 检查更新 found in gray beside
+        # it, and 检查更新 and 使用声明 as links at the row's end. A waiting version turns 检查更新 into
+        # the 有更新 button.
+        self.version_label = QLabel(__version__)
         self.update_note = QLabel("")
         self.update_note.setObjectName("rowHint")
         self.update_button = QPushButton("检查更新")
