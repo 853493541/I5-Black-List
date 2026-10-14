@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import functools
+import importlib.util
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from types import ModuleType
 
-from PySide6.QtCore import QEasingCurve, QPointF, QPropertyAnimation, QRect, QRectF, Qt, QVariantAnimation
+from PySide6.QtCore import QEasingCurve, QElapsedTimer, QPointF, QPropertyAnimation, QRect, QRectF, Qt, QTimer, QVariantAnimation
 from PySide6.QtGui import (
     QBitmap,
     QBrush,
@@ -137,6 +140,9 @@ class LoveLook:
     # The 心动 half of a ring shared with 黑名单 players, and its glow.
     deep: str
     deep_glow: tuple[int, int, int]
+    # The scene that draws the marks itself (its ring, badge, card and lead: see love_scenes), or ""
+    # when the look only colors them.
+    marks: str = ""
 
 
 # 经典花边, and wherever no scene says otherwise: pale pink and lavender edged in rose-gold, with
@@ -231,8 +237,69 @@ LOOKS: dict[str, LoveLook] = {
 
 def love_look(scene: str) -> LoveLook:
     """The look for a 心动特效 scene, or the one that replaced it (香槟's is 天使's); 经典花边's for
-    anything else (随机 not yet settled, 无, a scene that is gone)."""
-    return LOOKS.get(love_scenes.shown(scene), CLASSIC_LOOK)
+    anything else (随机 not yet settled, 无, a scene that is gone). A scene not in LOOKS brings its own
+    (LOOK), and one that draws its marks itself says so (marks)."""
+    return _scene_look(love_scenes.shown(scene))
+
+
+# What a scene module can draw of the marks itself.
+_HOOKS = ("ring", "badge", "card", "lead")
+
+
+@functools.cache
+def _scene_look(key: str) -> LoveLook:
+    module = _scene(key)
+    look = LOOKS.get(key)
+    if look is None:
+        look = LoveLook(**module.LOOK) if hasattr(module, "LOOK") else CLASSIC_LOOK
+    if any(hasattr(module, hook) for hook in _HOOKS):
+        look = replace(look, marks=key)
+    return look
+
+
+def _scene(key: str) -> ModuleType | None:
+    """The scene module for a key, in SCENES or not; None for a key with none (随机, 无, one that is gone)."""
+    if not key.isidentifier() or importlib.util.find_spec(f"{love_scenes.__name__}.{key}") is None:
+        return None
+    module = love_scenes.load(key)
+    return module if hasattr(module, "make") else None
+
+
+def _theme(look: LoveLook, name: str, default=None):  # noqa: ANN001, ANN202
+    """What the scene that draws these marks itself has for name (one of _HOOKS, or CARD_TOP and the
+    like), or default: the mark is drawn as the look colors it."""
+    return getattr(love_scenes.load(look.marks), name, default) if look.marks else default
+
+
+class _MarkClock:
+    """The moment a mark a scene draws moving (MARKS_ANIMATED) is at: the seconds since it showed,
+    with a repaint about 30 times a second while it shows and moves; else 0, or the moment held for a
+    still picture of it."""
+
+    def __init__(self, widget: QWidget) -> None:
+        self.widget = widget
+        self.held: float | None = None
+        self._since = QElapsedTimer()
+        self._tick = QTimer(widget)
+        self._tick.setInterval(33)
+        self._tick.timeout.connect(widget.update)
+
+    def t(self) -> float:
+        if self.held is not None:
+            return self.held
+        return self._since.elapsed() / 1000 if self._tick.isActive() else 0.0
+
+    def sync(self, moving: bool) -> None:
+        """Run while the mark shows and moves, from 0 each time it starts."""
+        if moving and self.held is None and self.widget.isVisible():
+            if not self._tick.isActive():
+                self._since.start()
+                self._tick.start()
+        else:
+            self._tick.stop()
+
+    def running(self) -> bool:
+        return self._tick.isActive()
 
 
 def _rgba(color: str, alpha: int) -> str:
@@ -488,13 +555,19 @@ class HitCard(QWidget):
         self.rows.setAlignment(Qt.AlignLeft | Qt.AlignTop)
         _clear_layout(self.rows)
         family = chinese_family()
+        face = self._face()
         point = round(max(CARD_MIN_PT, OVERLAY_PT * min(1.0, height / FULL_COVER)), 1)
         self.scale = point / OVERLAY_PT
-        pad_x, pad_y = round(12 * self.scale), round(8 * self.scale)
-        self.body.layout().setContentsMargins(pad_x, pad_y, pad_x, pad_y)
+        left, top, right, bottom = (round(each * self.scale) for each in self._pad())
+        self.body.layout().setContentsMargins(left, top, right, bottom)
         self.rows.setSpacing(max(2, round(4 * self.scale)))
         name_font = chinese_font(point)
+        if face is not None:
+            # The Chinese face after it, for what the card's own face has no glyph for.
+            name_font.setFamilies([face, family])
         name_font.setWeight(QFont.Weight.DemiBold)
+        # A face of the card's own is the label's font; the style sheet would put the Chinese one over it.
+        font_family = f'font-family: "{family}"; ' if face is None else ""
         name_width = 0
         if people:
             metrics = QFontMetrics(name_font)
@@ -512,7 +585,7 @@ class HitCard(QWidget):
             label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             label.setFixedWidth(name_width)
             label.setStyleSheet(
-                f'color: {self._NAME_INK}; background: transparent; font-family: "{family}"; font-size: {point}pt; font-weight: 600;'
+                f"color: {self._NAME_INK}; background: transparent; {font_family}font-size: {point}pt; font-weight: 600;"
             )
             lead = self._lead()
             if lead is not None:
@@ -560,6 +633,14 @@ class HitCard(QWidget):
         """What comes before each name. A hit needs nothing: the card is beside a red ring."""
         return None
 
+    def _pad(self) -> tuple[int, int, int, int]:
+        """The body's margins round the names at full size: left, top, right, bottom."""
+        return (12, 8, 12, 8)
+
+    def _face(self) -> str | None:
+        """The names' font family, or None for the app's Chinese face."""
+        return None
+
     def _apply_style(self) -> None:
         self.setStyleSheet(
             f"""
@@ -603,13 +684,14 @@ class HitCard(QWidget):
 class LikeCard(HitCard):
     """心动 players in this lobby: a card in the look of the 心动特效 scene (经典花边's pale pink
     edged in rose-gold to begin with), a flower before each name and a knot of flowers on its top
-    edge.
+    edge. A scene that draws the card itself (love_scenes: card, lead) puts its own under and before
+    the names instead, and may give them its own face.
 
     set_people gets each player as (what to show, ()): the 昵称, or the full name.
     """
 
     look = CLASSIC_LOOK
-    # Room above the card for the knot on its edge.
+    # Room above the card for the knot on its edge, or for the scene's own ornament (CARD_TOP).
     top = 12
 
     @property
@@ -626,6 +708,7 @@ class LikeCard(HitCard):
         self.layout().setContentsMargins(0, self.top, 0, 0)
         self._leads = 0
         self.knot = _CardKnot(self)
+        self._clock = _MarkClock(self)
         self._apply_style()
 
     def set_people(self, people: list[tuple[str, tuple[str, ...]]], height: int) -> None:
@@ -641,14 +724,38 @@ class LikeCard(HitCard):
         if look == self.look:
             return
         self.look = look
+        self.top = _theme(look, "CARD_TOP", LikeCard.top)
+        self.layout().setContentsMargins(0, self.top, 0, 0)
+        self.knot.setVisible(_theme(look, "card") is None)
         self.fade.set_bottom(look.card[1])
         self._apply_style()
         self.knot.update()
+        self._clock.sync(self._moving())
+
+    def set_time(self, t: float | None) -> None:
+        """Hold a card the scene draws moving at t seconds, for a still picture; None runs it again."""
+        self._clock.held = t
+        self._clock.sync(self._moving())
+        self.update()
+
+    def _moving(self) -> bool:
+        return bool(_theme(self.look, "MARKS_ANIMATED", False))
 
     def _lead(self) -> QWidget | None:
-        # The look's two flowers in turn, "pink" and "blue" in 经典花边.
-        which = self._leads % 2
+        index = self._leads
         self._leads += 1
+        lead = _theme(self.look, "lead")
+        if lead is not None:
+            picture = lead(18 * getattr(self, "scale", 1.0), index)
+            if picture is None:
+                return None
+            mark = QLabel()
+            mark.setObjectName("likeLead")
+            mark.setPixmap(picture)
+            mark.setStyleSheet("background: transparent;")
+            return mark
+        # The look's two flowers in turn, "pink" and "blue" in 经典花边.
+        which = index % 2
         bloom = QLabel()
         bloom.setObjectName("likeFlower")
         bloom.setProperty("tone", ("pink", "blue")[which])
@@ -668,6 +775,32 @@ class LikeCard(HitCard):
             .replace("rgba(228, 196, 126, 50)", _rgba(edge, 60))
             .replace("rgba(228, 196, 126, 210)", _rgba(edge, 220))
         )
+        if _theme(self.look, "card") is not None:
+            # The scene draws the card (paintEvent), and the body is clear over it.
+            self.setStyleSheet(self.styleSheet() + "QWidget#likeCard { background: transparent; border: none; }")
+
+    def _pad(self) -> tuple[int, int, int, int]:
+        return _theme(self.look, "CARD_PAD", super()._pad())
+
+    def _face(self) -> str | None:
+        return _theme(self.look, "CARD_FONT")
+
+    def paintEvent(self, _event) -> None:  # noqa: ANN001
+        card = _theme(self.look, "card")
+        if card is None:
+            return
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        card(painter, QRectF(self.rect()), self._clock.t())
+        painter.end()
+
+    def showEvent(self, event) -> None:  # noqa: ANN001
+        super().showEvent(event)
+        self._clock.sync(self._moving())
+
+    def hideEvent(self, event) -> None:  # noqa: ANN001
+        super().hideEvent(event)
+        self._clock.sync(False)
 
 
 class _CardKnot(QWidget):
@@ -689,7 +822,7 @@ class ClearMark(QWidget):
     """The check beside a clear accept button: emerald with a gold rim and a soft glow, like the ring.
 
     With 心动 players in the lobby it is the same badge with a heart, in the look of the 心动特效
-    scene (经典花边's pink to begin with).
+    scene (经典花边's pink to begin with), or the scene's own badge (love_scenes: badge).
     """
 
     # The window reaches this far past the badge on each side, for the glow.
@@ -712,15 +845,27 @@ class ClearMark(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.setFocusPolicy(Qt.NoFocus)
+        self._clock = _MarkClock(self)
 
     def set_heart(self, heart: bool) -> None:
         """A heart instead of the green check: the lobby has 心动 players and no 黑名单."""
         self.heart = bool(heart)
+        self._clock.sync(self._moving())
         self.update()
 
     def set_look(self, look: LoveLook) -> None:
         self.look = look
+        self._clock.sync(self._moving())
         self.update()
+
+    def set_time(self, t: float | None) -> None:
+        """Hold a badge the scene draws moving at t seconds, for a still picture; None runs it again."""
+        self._clock.held = t
+        self._clock.sync(self._moving())
+        self.update()
+
+    def _moving(self) -> bool:
+        return self.heart and bool(_theme(self.look, "MARKS_ANIMATED", False))
 
     def set_size(self, height: int) -> None:
         side = max(16, round(int(height) * 0.7))
@@ -758,6 +903,12 @@ class ClearMark(QWidget):
         """A disc in a fine rim, a heart on it, a glint at its shoulder: in 经典花边, a pale pink
         disc in rose-gold and a deep pink heart."""
         look = self.look
+        badge = _theme(look, "badge")
+        if badge is not None:
+            painter.save()
+            badge(painter, box, self._clock.t())
+            painter.restore()
+            return
         side = box.width()
         center = box.center()
         _glow(painter, (box, side / 2), QColor(*look.glow, 120), round_shape=True)
@@ -785,6 +936,11 @@ class ClearMark(QWidget):
         super().showEvent(event)
         _pin_topmost(self)
         _fade_in(self)
+        self._clock.sync(self._moving())
+
+    def hideEvent(self, event) -> None:  # noqa: ANN001
+        super().hideEvent(event)
+        self._clock.sync(False)
 
 
 class LobbyPanel(QWidget):
@@ -796,7 +952,7 @@ class LobbyPanel(QWidget):
     A clear lobby with 心动 players is ringed in rose; with 黑名单 players too, the ring is rose on the
     left, where their card is, and crimson on the right.
     The window reaches _GLOW past the cover on each side, for that glow. The rose is the look of the
-    心动特效 scene (look), 经典花边's to begin with.
+    心动特效 scene (look), 经典花边's to begin with; a scene can draw the 心动 ring itself (love_scenes: ring).
     """
 
     look = CLASSIC_LOOK
@@ -822,6 +978,7 @@ class LobbyPanel(QWidget):
         self._shine.setDuration(1600)
         self._shine.setLoopCount(-1)
         self._shine.valueChanged.connect(self._glint)
+        self._clock = _MarkClock(self)
         self.setFont(chinese_font(BODY_PT))
 
     def text(self) -> str:
@@ -857,11 +1014,22 @@ class LobbyPanel(QWidget):
             self._shine.stop()
             self._phase = 0.0
         self._mask_pill()
+        self._clock.sync(self._moving())
         self.update()
 
     def set_look(self, look: LoveLook) -> None:
         self.look = look
+        self._clock.sync(self._moving())
         self.update()
+
+    def set_time(self, t: float | None) -> None:
+        """Hold a ring the scene draws moving at t seconds, for a still picture; None runs it again."""
+        self._clock.held = t
+        self._clock.sync(self._moving())
+        self.update()
+
+    def _moving(self) -> bool:
+        return self.mode == "liked" and bool(_theme(self.look, "MARKS_ANIMATED", False))
 
     def _glint(self, value) -> None:  # noqa: ANN001
         self._phase = float(value)
@@ -887,6 +1055,12 @@ class LobbyPanel(QWidget):
         """心动 and no 黑名单: a glow, a fine rim, a band and flowers on two corners, in the look; in
         经典花边, pink with a rose-gold rim and a pink-lavender band."""
         look = self.look
+        ring = _theme(look, "ring")
+        if ring is not None:
+            painter.save()
+            ring(painter, cover, self._clock.t())
+            painter.restore()
+            return
         radius = _cover_radius(round(cover.height()))
         _glow(painter, (cover, radius), QColor(*look.glow, 120))
         painter.setBrush(Qt.NoBrush)
@@ -953,6 +1127,7 @@ class LobbyPanel(QWidget):
     def hideEvent(self, event) -> None:  # noqa: ANN001
         super().hideEvent(event)
         self._shine.stop()
+        self._clock.sync(False)
 
     def show_over(self, left: float, top: float, width: float, height: float, mode: str, text: str) -> None:
         """Cover the box at left, top (the button and its outset), with room around it for the glow."""
@@ -1018,3 +1193,4 @@ class LobbyPanel(QWidget):
         super().showEvent(event)
         self._mask_pill()
         _pin_topmost(self)
+        self._clock.sync(self._moving())

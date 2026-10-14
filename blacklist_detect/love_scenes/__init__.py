@@ -9,6 +9,39 @@ that part alone, and takes paint(painter, t, sharp=False) to draw the rest; the 
 on top at the screen's own sharpness.
 
 Scenes are drawn for a lobby about 1635 by 848 points and scale with the stage.
+
+The 心动 marks (the ring on 准备案件还原, the badge beside it and the card of names) wear the look of
+the scene that greets them. A scene colors them with LOOK, and can go further and draw them itself,
+as a theme of its own, with any of these (each optional; without one, that mark is drawn as before,
+in LOOK's colors). None of them may import ui_overlay; draw and light are theirs to use.
+
+    LOOK: dict            ui_overlay.LoveLook's fields but marks: glow, rim, band, card, edge, ink,
+                          flowers, disc, heart, deep, deep_glow. Still used for the ring shared with
+                          黑名单 players, the card's names, scroll bar and fade, and any mark the
+                          scene does not draw. A scene in ui_overlay.LOOKS takes that look instead.
+    ring(painter, cover: QRectF, t: float)
+                          The ring on the button, in its window: cover is the button and its outset,
+                          with ui_overlay._GLOW (9) points round it for a glow, the window's edge.
+                          Keep the button's words readable: nothing opaque over its middle.
+    badge(painter, box: QRectF, t: float)
+                          The badge beside the button: box is its square, _GLOW points inside the
+                          window's edges. Any symbol, not only a heart.
+    card(painter, rect: QRectF, t: float)
+                          The card's whole background and ornaments, behind the names: rect is the
+                          card's window, CARD_TOP points of room on top of the card's body. The names
+                          are drawn over it, in LOOK's ink.
+    CARD_TOP: int         Room above the card's body for an ornament (12, the flower knot's).
+    CARD_PAD: tuple       The body's margins round the names (left, top, right, bottom), in points at
+                          full size (12, 8, 12, 8); they shrink with the names on a smaller game.
+    CARD_FONT: str        The names' font family (the app's Chinese face).
+    lead(size: float, index: int) -> QPixmap | None
+                          What goes before the index-th name (from 0), about size points high; None
+                          for nothing. Make it at devicePixelRatio 2 or more, so it stays sharp.
+    MARKS_ANIMATED: bool  The marks move: about 30 times a second while one shows, t is the seconds
+                          since it showed, on and on (loop it yourself). Otherwise t is 0.
+
+Painters come antialiased, in the mark's window's points, saved and restored around each call.
+TRIALS are scenes to choose from that 设置 does not list; load() and the tools take them all the same.
 """
 
 from __future__ import annotations
@@ -30,6 +63,14 @@ SCENES: tuple[tuple[str, str], ...] = (
     ("equation", "数学"),
 )
 KEYS = tuple(key for key, _name in SCENES)
+# Themes being tried out, three for each of 赛博, 天使, 数学 and a friend's own (fluffy), to choose
+# from. Not in 设置; tools/love_frames.py renders them.
+TRIALS: tuple[str, ...] = (
+    *("cyber1", "cyber2", "cyber3"),
+    *("angel1", "angel2", "angel3"),
+    *("equation1", "equation2", "equation3"),
+    *("fluffy1", "fluffy2", "fluffy3"),
+)
 # A scene that is gone, and the one a player who chose it gets now: 天使 took 香槟's place.
 REPLACED = {"champagne": "angel"}
 # The design size the scenes were drawn at.

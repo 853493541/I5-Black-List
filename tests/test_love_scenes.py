@@ -1,17 +1,19 @@
-"""心动特效: the scenes, choosing one or a random one, and the picker with its preview."""
+"""心动特效: the scenes, choosing one or a random one, the picker with its preview, and the 心动 marks a
+scene dresses or draws itself."""
 
 import random
+from dataclasses import replace
 
 import pytest
 
 pytest.importorskip("PySide6")
 
 from PySide6.QtCore import QPointF, QRect, QRectF, Qt  # noqa: E402
-from PySide6.QtGui import QImage, QPainter  # noqa: E402
+from PySide6.QtGui import QColor, QImage, QPainter, QPixmap  # noqa: E402
 from PySide6.QtWidgets import QApplication, QLabel  # noqa: E402
 
 from blacklist_detect import love_scenes  # noqa: E402
-from blacklist_detect.love_scenes import KEYS, Stage, choose, sample_stage  # noqa: E402
+from blacklist_detect.love_scenes import KEYS, TRIALS, Stage, choose, sample_stage  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -39,7 +41,7 @@ def _drawn(image: QImage) -> bool:
     return any(image.pixelColor(x, y).alpha() for x in range(0, image.width(), 7) for y in range(0, image.height(), 7))
 
 
-@pytest.mark.parametrize("key", KEYS)
+@pytest.mark.parametrize("key", KEYS + TRIALS)
 def test_every_scene_plays_through_and_keeps_the_button_bare(qapp, key):
     stage = sample_stage()
     shots = _frames(stage, key)
@@ -52,7 +54,7 @@ def test_every_scene_plays_through_and_keeps_the_button_bare(qapp, key):
         assert all(shot.pixelColor(x, y).alpha() < 40 for x in range(button.left(), button.right(), 6) for y in (button.top(), button.bottom()))
 
 
-@pytest.mark.parametrize("key", KEYS)
+@pytest.mark.parametrize("key", KEYS + TRIALS)
 def test_every_scene_fits_another_window_shape(qapp, key):
     """A windowed emulator is narrower and taller than the lobby the scenes were drawn on."""
     stage = Stage(900, 640, QRectF(300, 540, 330, 100), badge=QPointF(600, 580))
@@ -208,3 +210,175 @@ def test_the_preview_shows_each_scenes_marks(qapp):
     preview.show_scene("off")
     assert preview._marks is preview._marks_for("classic")
     preview.stop()
+
+
+def test_trials_are_not_in_the_settings_but_load_all_the_same(qapp):
+    from blacklist_detect.ui_overlay import LOOKS, LoveLook, love_look
+
+    assert len(TRIALS) == 12 and len(set(TRIALS)) == 12
+    assert set(TRIALS).isdisjoint(KEYS), "设置 does not grow"
+    for key in TRIALS:
+        module = love_scenes.load(key)
+        assert key not in LOOKS
+        # The look comes from the scene's own LOOK, and says the scene draws the marks.
+        look = love_look(key)
+        assert look == replace(LoveLook(**module.LOOK), marks=key) and love_look(key) is look
+    # The old scenes only color the marks; 无 and a module that is no scene get 经典花边's.
+    assert all(love_look(key).marks == "" for key in ("classic", "ice", "stars"))
+    assert love_look("off").marks == love_look("draw").marks == ""
+
+
+@pytest.mark.parametrize("key", TRIALS)
+def test_every_trial_draws_its_marks(qapp, key):
+    from blacklist_detect.ui_love_pick import SampleMarks
+
+    marks = SampleMarks(key)
+    for t in (0.0, 0.7, 2.5):
+        shots = marks.at(t)
+        assert len(shots) == 3 and all(_drawn(pixmap.toImage()) for pixmap, _at in shots)
+    marks.close()
+
+
+@pytest.fixture
+def theme(monkeypatch):  # noqa: ANN201
+    """A scene that draws all the marks itself, each hook noting what it was given: cyber1's file,
+    whatever is in it now, with these put in. Gives its look and the notes."""
+    from blacklist_detect.ui_overlay import CLASSIC_LOOK
+
+    module = love_scenes.load("cyber1")
+    calls: dict[str, list] = {"ring": [], "badge": [], "card": [], "lead": []}
+
+    def ring(painter, cover, t):  # noqa: ANN001, ANN202
+        calls["ring"].append((QRectF(cover), t))
+        painter.fillRect(QRectF(cover.left() - 4, cover.top() - 4, 8, 8), QColor("#00ff00"))
+
+    def badge(_painter, box, t):  # noqa: ANN001, ANN202
+        calls["badge"].append((QRectF(box), t))
+
+    def card(painter, rect, t):  # noqa: ANN001, ANN202
+        calls["card"].append((QRectF(rect), t))
+        painter.fillRect(rect, QColor("#0000ff"))
+
+    def lead(size, index):  # noqa: ANN001, ANN202
+        calls["lead"].append((size, index))
+        if index:
+            return None
+        picture = QPixmap(round(size), round(size))
+        picture.fill(QColor("#ff0000"))
+        return picture
+
+    hooks = {"ring": ring, "badge": badge, "card": card, "lead": lead}
+    settings = {"CARD_TOP": 20, "CARD_PAD": (30, 10, 30, 10), "CARD_FONT": "Consolas", "MARKS_ANIMATED": True}
+    for name, value in {**hooks, **settings}.items():
+        monkeypatch.setattr(module, name, value, raising=False)
+    return replace(CLASSIC_LOOK, marks="cyber1"), calls
+
+
+def test_a_scene_draws_the_ring_and_badge_itself(qapp, theme):
+    from blacklist_detect.ui_overlay import _GLOW, ClearMark, LobbyPanel
+
+    look, calls = theme
+    panel = LobbyPanel()
+    panel.setFixedSize(280, 98)
+    panel.set_look(look)
+    panel.set_mode("liked", "")
+    panel.set_time(1.5)
+    shot = panel.grab().toImage()
+    assert calls["ring"] == [(QRectF(_GLOW, _GLOW, 280 - 2 * _GLOW, 98 - 2 * _GLOW), 1.5)]
+    ratio = shot.devicePixelRatio()
+    assert shot.pixelColor(round(_GLOW * ratio), round(_GLOW * ratio)) == QColor("#00ff00")
+    # Shared with 黑名单 players, the ring is in the look's colors, as before.
+    panel.set_mode("both", "")
+    panel.grab()
+    assert len(calls["ring"]) == 1
+    # The badge need not be a heart: drawing nothing, it is nothing.
+    mark = ClearMark()
+    mark.set_size(80)
+    mark.set_heart(True)
+    mark.set_look(look)
+    assert not _drawn(mark.grab().toImage())
+    assert calls["badge"] == [(mark.badge(), 0.0)], "not showing, t is 0"
+    # The green check is the app's own.
+    mark.set_heart(False)
+    assert _drawn(mark.grab().toImage()) and len(calls["badge"]) == 1
+    for widget in (panel, mark):
+        widget.deleteLater()
+
+
+def test_a_scene_draws_the_card_and_the_names_stay_labels(qapp, theme):
+    from blacklist_detect.ui_overlay import LikeCard, love_look
+
+    look, calls = theme
+    card = LikeCard()
+    card.set_look(look)
+    card.set_people([("心动小鹿", ()), ("心动星星", ())], 82)
+    shot = card.grab().toImage()
+    assert calls["card"] == [(QRectF(card.rect()), 0.0)]
+    assert calls["lead"] == [(18.0, 0), (18.0, 1)], "asked for a lead before each name, at full size"
+    # The names are labels in the look's ink, in the scene's face; only the first has a lead.
+    names = card.findChildren(QLabel, "hitName")
+    assert [name.text() for name in names] == ["心动小鹿", "心动星星"]
+    assert all(look.ink in name.styleSheet() and "font-family" not in name.styleSheet() for name in names)
+    assert names[0].font().families()[0] == "Consolas"
+    assert len(card.findChildren(QLabel, "likeLead")) == 1 and not card.findChildren(QLabel, "likeFlower")
+    # Room on top for the scene's ornament, its margins round the names, no knot and a clear body.
+    assert card.layout().contentsMargins().top() == 20 and card.height() == card.body.height() + 20
+    assert card.body.layout().contentsMargins().left() == 30
+    assert card.knot.isHidden() and "QWidget#likeCard { background: transparent; border: none; }" in card.styleSheet()
+    ratio = shot.devicePixelRatio()
+    assert shot.pixelColor(round(4 * ratio), round(4 * ratio)) == QColor("#0000ff")
+    # Back to a look that only colors it: as it always was.
+    card.set_look(love_look("stars"))
+    card.set_people([("心动小鹿", ())], 82)
+    assert not card.knot.isHidden() and card.layout().contentsMargins().top() == LikeCard.top
+    assert card.findChildren(QLabel, "likeFlower") and "{ background: transparent; border: none; }" not in card.styleSheet()
+    assert 'font-family: "' in card.findChild(QLabel, "hitName").styleSheet()
+    card.deleteLater()
+
+
+def test_moving_marks_run_while_they_show(qapp, theme):
+    from blacklist_detect.ui_overlay import ClearMark, LikeCard, LobbyPanel, love_look
+
+    look, calls = theme
+    panel, mark, card = LobbyPanel(), ClearMark(), LikeCard()
+    mark.set_heart(True)
+    panel.set_mode("liked", "")
+    for widget in (panel, mark, card):
+        widget.setAttribute(Qt.WA_DontShowOnScreen, True)
+        widget.set_look(look)
+        assert not widget._clock.running(), "not while hidden"
+        widget.show()
+        assert widget._clock.running()
+        widget.hide()
+        assert not widget._clock.running()
+    # Held for a picture, it is that moment.
+    card.set_time(2.25)
+    card.grab()
+    assert calls["card"][-1][1] == 2.25
+    # A ring shared with 黑名单 players, or a look that does not move, does not tick.
+    panel.set_mode("both", "")
+    panel.show()
+    assert not panel._clock.running()
+    panel.hide()
+    card.set_time(None)
+    card.set_look(love_look("stars"))
+    card.show()
+    assert not card._clock.running()
+    card.hide()
+    for widget in (panel, mark, card):
+        widget.deleteLater()
+
+
+def test_the_preview_moves_marks_that_move(qapp, theme):
+    from blacklist_detect.ui_love_pick import SampleMarks
+
+    _look, calls = theme
+    still = SampleMarks("stars")
+    assert not still.moving and still.at(0.0) is still.at(1.0)
+    still.close()
+    moving = SampleMarks("cyber1")
+    moving.at(0.5)
+    moving.at(1.0)
+    assert moving.moving and [t for _rect, t in calls["card"]] == [0.5, 1.0]
+    moving.close()
+    assert moving.at(2.0), "closed, the last grab stays"

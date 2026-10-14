@@ -33,40 +33,63 @@ PAUSE_S = 0.7
 COUNT_NAMES = ((1, "1人"), (2, "2人"), (3, "2人以上"))
 
 
-def _sample_marks(scene: str = "classic") -> list[tuple[QPixmap, QPoint]]:
+class SampleMarks:
     """The app's 心动 marks by the sample lobby's button, as the game would show them with this scene:
-    the ring, the heart and the card with the two 心动 players, in the scene's look."""
-    from blacklist_detect.ui_overlay import _COVER_OUTSET, _GLOW, ClearMark, LikeCard, LobbyPanel, love_look
+    the ring, the badge and the card with the two 心动 players, in the scene's look, on a lobby scale
+    times DESIGN. Marks the scene draws moving (moving) are grabbed again for each moment, the others
+    once; close lets their windows go."""
 
-    look = love_look(scene)
+    def __init__(self, scene: str = "classic", scale: float = 1.0) -> None:
+        from blacklist_detect.ui_overlay import _COVER_OUTSET, _GLOW, ClearMark, LikeCard, LobbyPanel, _theme, love_look
 
-    button = QRectF(749, 759, 256, 74).toRect()
-    cover = button.adjusted(-_COVER_OUTSET, -_COVER_OUTSET, _COVER_OUTSET, _COVER_OUTSET)
-    panel = LobbyPanel()
-    panel.setFixedSize(cover.width() + 2 * _GLOW, cover.height() + 2 * _GLOW)
-    panel.set_look(look)
-    panel.set_mode("liked", "未发现黑名单")
-    panel._shine.stop()
-    panel._glint(0.3)
-    marks = [(panel.grab(), cover.topLeft() - QPoint(_GLOW, _GLOW))]
-    heart = ClearMark()
-    heart.set_size(button.height() + _COVER_OUTSET * 2)
-    heart.set_heart(True)
-    heart.set_look(look)
-    mark = heart.grab()
-    mark_h = round(mark.height() / mark.devicePixelRatio())
-    marks.append((mark, QPoint(cover.right() + 17 - heart.margin, cover.center().y() - mark_h // 2 + 1)))
-    card = LikeCard()
-    card.set_look(look)
-    card.set_people([("心动小鹿", ()), ("心动星星", ())], cover.height())
-    card.layout().activate()
-    shot = card.grab()
-    card_w = round(shot.width() / shot.devicePixelRatio())
-    card_h = round(shot.height() / shot.devicePixelRatio())
-    marks.append((shot, QPoint(cover.x() - 16 - card_w, cover.center().y() - card_h // 2 + 1)))
-    for widget in (panel, heart, card):
-        widget.deleteLater()
-    return marks
+        look = love_look(scene)
+        self.moving = bool(_theme(look, "MARKS_ANIMATED", False))
+        button = QRectF(749 * scale, 759 * scale, 256 * scale, 74 * scale).toRect()
+        cover = self.cover = button.adjusted(-_COVER_OUTSET, -_COVER_OUTSET, _COVER_OUTSET, _COVER_OUTSET)
+        panel = LobbyPanel()
+        panel.setFixedSize(cover.width() + 2 * _GLOW, cover.height() + 2 * _GLOW)
+        panel.set_look(look)
+        panel.set_mode("liked", "未发现黑名单")
+        panel._shine.stop()
+        panel._glint(0.3)
+        heart = ClearMark()
+        heart.set_size(button.height() + _COVER_OUTSET * 2)
+        heart.set_heart(True)
+        heart.set_look(look)
+        card = LikeCard()
+        card.set_look(look)
+        card.set_people([("心动小鹿", ()), ("心动星星", ())], cover.height())
+        card.layout().activate()
+        self.widgets = (panel, heart, card)
+        # Where each window's top left is on the lobby: the badge right of the cover, the card left of it.
+        self.places = (
+            cover.topLeft() - QPoint(_GLOW, _GLOW),
+            QPoint(cover.right() + 17 - heart.margin, cover.center().y() - heart.height() // 2 + 1),
+            QPoint(cover.x() - 16 - card.width(), cover.center().y() - card.height() // 2 + 1),
+        )
+        self._shots: list[tuple[QPixmap, QPoint]] = []
+
+    def at(self, t: float) -> list[tuple[QPixmap, QPoint]]:
+        """The marks t seconds after they showed, each with its place."""
+        if self.widgets and (self.moving or not self._shots):
+            for widget in self.widgets:
+                widget.set_time(t if self.moving else 0.0)
+            self._shots = [(widget.grab(), place) for widget, place in zip(self.widgets, self.places, strict=True)]
+        return self._shots
+
+    def close(self) -> None:
+        """Let the windows go; the marks stay as last grabbed."""
+        for widget in self.widgets:
+            widget.deleteLater()
+        self.widgets = ()
+
+
+def _sample_marks(scene: str = "classic") -> list[tuple[QPixmap, QPoint]]:
+    """The app's 心动 marks by the sample lobby's button with this scene, as they first show."""
+    marks = SampleMarks(scene)
+    shots = marks.at(0.0)
+    marks.close()
+    return shots
 
 
 class ScenePreview(QWidget):
@@ -83,7 +106,7 @@ class ScenePreview(QWidget):
         self.setAccessibleName("心动特效预览")
         self._lobby = QPixmap(str(SAMPLE_LOBBY))
         # The marks in each scene's look, made as each first plays.
-        self._looks: dict[str, list[tuple[QPixmap, QPoint]]] = {}
+        self._looks: dict[str, SampleMarks] = {}
         self._marks = self._marks_for("classic")
         self._stage = sample_stage()
         self.choice = "random"
@@ -104,10 +127,16 @@ class ScenePreview(QWidget):
 
     def stop(self) -> None:
         self._tick.stop()
+        for marks in self._looks.values():
+            marks.close()
 
-    def _marks_for(self, scene: str) -> list[tuple[QPixmap, QPoint]]:
+    def _marks_for(self, scene: str) -> SampleMarks:
         if scene not in self._looks:
-            self._looks[scene] = _sample_marks(scene)
+            marks = SampleMarks(scene)
+            marks.at(0.0)
+            if not marks.moving:
+                marks.close()
+            self._looks[scene] = marks
         return self._looks[scene]
 
     def _next(self) -> None:
@@ -138,7 +167,8 @@ class ScenePreview(QWidget):
                 t = 0.0
             if t <= duration:
                 self._paint(painter, t)
-        for pixmap, at in self._marks:
+        # Marks the scene draws moving move with it, from its start.
+        for pixmap, at in self._marks.at(t):
             painter.drawPixmap(QPointF(at), pixmap)
         painter.end()
 
