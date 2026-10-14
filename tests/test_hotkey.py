@@ -18,3 +18,11 @@ def test_hotkey_canonical_form():
     assert f8 is not None
     assert f8.display == "F8"
     assert f8.vk == 0x77
+
+
+def test_two_keys_at_most():
+    from blacklist_detect.hotkey import two_keys
+
+    assert two_keys("Ctrl+Alt+F11") == "Ctrl+F11"
+    assert two_keys("Alt+Shift+K") == "Alt+K"
+    assert two_keys("Alt+1") == "Alt+1" and two_keys("F8") == "F8" and two_keys("") == ""

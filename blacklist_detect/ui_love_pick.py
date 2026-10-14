@@ -33,15 +33,18 @@ PAUSE_S = 0.7
 COUNT_NAMES = ((1, "1人"), (2, "2人"), (3, "2人以上"))
 
 
-def _sample_marks() -> list[tuple[QPixmap, QPoint]]:
-    """The app's 心动 marks by the sample lobby's button, as the game would show them: the rose ring,
-    the heart and the card with the two 心动 players."""
-    from blacklist_detect.ui_overlay import _COVER_OUTSET, _GLOW, ClearMark, LikeCard, LobbyPanel
+def _sample_marks(scene: str = "classic") -> list[tuple[QPixmap, QPoint]]:
+    """The app's 心动 marks by the sample lobby's button, as the game would show them with this scene:
+    the ring, the heart and the card with the two 心动 players, in the scene's look."""
+    from blacklist_detect.ui_overlay import _COVER_OUTSET, _GLOW, ClearMark, LikeCard, LobbyPanel, love_look
+
+    look = love_look(scene)
 
     button = QRectF(749, 759, 256, 74).toRect()
     cover = button.adjusted(-_COVER_OUTSET, -_COVER_OUTSET, _COVER_OUTSET, _COVER_OUTSET)
     panel = LobbyPanel()
     panel.setFixedSize(cover.width() + 2 * _GLOW, cover.height() + 2 * _GLOW)
+    panel.set_look(look)
     panel.set_mode("liked", "未发现黑名单")
     panel._shine.stop()
     panel._glint(0.3)
@@ -49,10 +52,12 @@ def _sample_marks() -> list[tuple[QPixmap, QPoint]]:
     heart = ClearMark()
     heart.set_size(button.height() + _COVER_OUTSET * 2)
     heart.set_heart(True)
+    heart.set_look(look)
     mark = heart.grab()
     mark_h = round(mark.height() / mark.devicePixelRatio())
     marks.append((mark, QPoint(cover.right() + 17 - heart.margin, cover.center().y() - mark_h // 2 + 1)))
     card = LikeCard()
+    card.set_look(look)
     card.set_people([("心动小鹿", ()), ("心动星星", ())], cover.height())
     card.layout().activate()
     shot = card.grab()
@@ -77,7 +82,9 @@ class ScenePreview(QWidget):
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.setAccessibleName("心动特效预览")
         self._lobby = QPixmap(str(SAMPLE_LOBBY))
-        self._marks = _sample_marks()
+        # The marks in each scene's look, made as each first plays.
+        self._looks: dict[str, list[tuple[QPixmap, QPoint]]] = {}
+        self._marks = self._marks_for("classic")
         self._stage = sample_stage()
         self.choice = "random"
         self.scene = ""
@@ -98,6 +105,11 @@ class ScenePreview(QWidget):
     def stop(self) -> None:
         self._tick.stop()
 
+    def _marks_for(self, scene: str) -> list[tuple[QPixmap, QPoint]]:
+        if scene not in self._looks:
+            self._looks[scene] = _sample_marks(scene)
+        return self._looks[scene]
+
     def _next(self) -> None:
         if self.choice == "off":
             self.scene = ""
@@ -107,6 +119,8 @@ class ScenePreview(QWidget):
         else:
             self.scene = self.choice
         self._paint = love_scenes.load(self.scene).make(self._stage) if self.scene else None
+        # With 无 the marks are as they are with no scene: 经典花边's.
+        self._marks = self._marks_for(self.scene or "classic")
         self._clock.start()
 
     def paintEvent(self, _event) -> None:  # noqa: ANN001

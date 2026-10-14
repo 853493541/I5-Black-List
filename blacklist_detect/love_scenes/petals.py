@@ -17,7 +17,7 @@ from PIL import Image, ImageFilter
 from PySide6.QtCore import QBuffer, QPointF, QRectF, Qt
 from PySide6.QtGui import QImage, QPainter, QPainterPath, QPen, QPixmap, QRadialGradient
 
-from blacklist_detect.love_scenes.draw import Wash, clamp, col, ease_back, ease_in, ease_out, gradient, win
+from blacklist_detect.love_scenes.draw import Wash, clamp, col, ease_in, ease_out, gradient, win
 from blacklist_detect.love_scenes.rose import rose
 
 if TYPE_CHECKING:
@@ -33,6 +33,8 @@ TONES = {
     "rose": ("#a83a66", "#e07f9f", "#fbd2de"),
 }
 SAGE = ("#7f907d", "#a9b8a5", "#d5ddd0")
+# By now every rose, bud and leaf in both corners is open, and the bouquets hold still.
+OPEN = 2.4
 
 
 def make(stage: Stage):  # noqa: ANN201
@@ -60,13 +62,13 @@ def make(stage: Stage):  # noqa: ANN201
         _bokeh_paint(p, t, bokeh, u)
         _petal_paint(p, t, petals, sprites, names, ("far",), u, width, height)
         p.restore()
-        # The bouquets: drawn live while they open, then from a picture of them.
+        # The bouquets: drawn live while they open, then, once every rose is open, from a picture
+        # of them as they are then: nothing jumps.
         p.save()
         p.setOpacity(win(t, 0.0, 0.2) * (1 - ease_in(win(t, 4.0, 5.0))))
-        settle = 1 - 0.04 * leave
-        if t < 2.0:
+        if t < OPEN:
             for origin, dx, dy, delay in corners:
-                _bouquet(p, max(0.0, t - delay), origin, dx, dy, u, settle)
+                _bouquet(p, max(0.0, t - delay), origin, dx, dy, u)
         else:
             if "still" not in cache:
                 picture = QPixmap(int(width), int(height))
@@ -74,7 +76,7 @@ def make(stage: Stage):  # noqa: ANN201
                 inner = QPainter(picture)
                 inner.setRenderHint(QPainter.Antialiasing)
                 for origin, dx, dy, _delay in corners:
-                    _bouquet(inner, 3.0, origin, dx, dy, u, 1.0)
+                    _bouquet(inner, OPEN, origin, dx, dy, u)
                 inner.end()
                 cache["still"] = picture
             p.drawPixmap(0, 0, cache["still"])
@@ -260,11 +262,12 @@ def _spin(rnd: random.Random, layer: str, u: float) -> dict:
     return dict(
         size=size,
         turn=rnd.uniform(0, 360),
-        spin=rnd.uniform(-120, 120),
-        flip=rnd.uniform(1.4, 3.2),
+        # A slow turn and a lazy tumble: petals drift down, they do not flutter.
+        spin=rnd.uniform(-45, 45),
+        flip=rnd.uniform(0.7, 1.5),
         phase=rnd.uniform(0, 6.28),
-        sway=rnd.uniform(14, 34) * u,
-        sway_rate=rnd.uniform(1.2, 2.4),
+        sway=rnd.uniform(10, 22) * u,
+        sway_rate=rnd.uniform(0.7, 1.3),
     )
 
 
@@ -314,22 +317,22 @@ BUDS = ((302, 62, 13, "rose", 0.9), (18, 262, 12, "blush", 0.95), (232, 104, 11,
 SPRIGS = ((12, 380, 9, 0.1), (34, 300, 7, 0.18), (62, 280, 7, 0.14), (82, 300, 8, 0.24))
 
 
-def _bouquet(p: QPainter, t: float, origin: QPointF, dx: int, dy: int, u: float, settle: float) -> None:
+def _bouquet(p: QPainter, t: float, origin: QPointF, dx: int, dy: int, u: float) -> None:
+    """Each rose opens where it stands, turned its own way, and then is still."""
     p.save()
     p.translate(origin)
-    p.scale(settle, settle)
     # Local axes: x along the bottom/top edge into the screen, y up/down into the screen.
     p.scale(dx, dy)
     for angle, length, leaves, start in SPRIGS:
         _sprig(p, t - start, angle, length * u, leaves, u)
     for along, out, r, variety, start in BUDS:
-        k = ease_back(win(t, start, start + 0.5))
+        k = ease_out(win(t, start, start + 0.5))
         if k > 0:
             rose(p, along * u, out * u, r * u * k, 0.15, variety, 20 + along)
     for along, out, r, variety, start in ROSES:
         k = win(t, start, start + 1.1)
         if k > 0:
-            rose(p, along * u, out * u, r * u, k, variety, along * 1.7 + 12 * t)
+            rose(p, along * u, out * u, r * u, k, variety, along * 1.7)
     p.restore()
 
 
@@ -352,7 +355,7 @@ def _sprig(p: QPainter, t: float, angle: float, length: float, leaves: int, u: f
         s = (i + 1) / (leaves + 1)
         if s > grow:
             break
-        open_ = ease_back(clamp((grow - s) / 0.25))
+        open_ = ease_out(clamp((grow - s) / 0.25))
         m = 1 - s
         x = 2 * m * s * ctrl.x() + s * s * end.x()
         y = 2 * m * s * ctrl.y() + s * s * end.y()

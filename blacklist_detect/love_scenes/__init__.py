@@ -3,7 +3,10 @@
 Each scene is a module with DURATION (seconds) and make(stage) -> paint(painter, t), where paint
 draws the scene t seconds in, on stage.width by stage.height, and keeps stage.gap (the button and
 its marks at the bottom) clear. Heavy scenes set MAX_RATIO, the most pixels per point they are
-drawn at; a sharper screen gets them scaled up, which their soft light hides.
+drawn at; a sharper screen gets them scaled up, which their soft light hides. A heavy scene with a
+small part that must stay crisp (a jewel) gives paint a `sharp` attribute, paint(painter, t) for
+that part alone, and takes paint(painter, t, sharp=False) to draw the rest; the part is then drawn
+on top at the screen's own sharpness.
 
 Scenes are drawn for a lobby about 1635 by 848 points and scale with the stage.
 """
@@ -21,7 +24,6 @@ from PySide6.QtCore import QPointF, QRectF
 SCENES: tuple[tuple[str, str], ...] = (
     ("classic", "经典花边"),
     ("ribbon", "缎带"),
-    ("chiffon", "雪纺"),
     ("petals", "花雨"),
     ("ice", "冰蓝极光"),
     ("stars", "星河许愿"),
@@ -63,7 +65,8 @@ def load(key: str) -> ModuleType:
 
 def choose(choice: str, last: str, rng: random.Random) -> str:
     """The scene to play for a 心动特效 choice: a key, "random" (any but the last one), or "off" ("").
-    A key this version does not have (命运红线, gone in v0.8.2) plays 经典花边, the default."""
+    A key this version does not have (命运红线, gone in v0.8.2; 雪纺, gone in v0.9.0) plays 经典花边,
+    the default."""
     if choice == "off":
         return ""
     if choice in KEYS:

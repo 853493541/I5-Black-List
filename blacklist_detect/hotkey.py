@@ -94,6 +94,15 @@ def parse_hotkey(text: str) -> HotkeySpec | None:
     return HotkeySpec(display=display, modifiers=ordered, vk=_vk_code(key))
 
 
+def two_keys(text: str) -> str:
+    """A hotkey of two keys at most: a modifier and a key, or a key alone. A longer one keeps its
+    key and its first modifier (Ctrl+Alt+F11 → Ctrl+F11); anything else is returned as it is."""
+    spec = parse_hotkey(text)
+    if spec is None or len(spec.modifiers) <= 1:
+        return text
+    return f"{spec.modifiers[0]}+{spec.display.rsplit('+', 1)[-1]}"
+
+
 class GlobalHotkey:
     """RegisterHotKey on Windows. The key is not synthesized into the lobby.
 

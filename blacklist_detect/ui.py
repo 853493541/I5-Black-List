@@ -116,7 +116,6 @@ from blacklist_detect.ui_kit import (
     Switch,
     TabButton,
     Toast,
-    same_width,
 )
 from blacklist_detect.ui_likes import LikesPage
 from blacklist_detect.ui_love import LoveBorder
@@ -131,6 +130,7 @@ from blacklist_detect.ui_overlay import (
     LobbyPanel,
     _cover_radius,
     _pin_topmost,
+    love_look,
     native_to_logical,
 )
 from blacklist_detect.ui_stream import TITLE as STREAM_TITLE
@@ -975,9 +975,8 @@ class MainWindow(QMainWindow):
         column = QVBoxLayout(body)
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(GAP)
-        # A readable width: on a wide window the rows do not stretch across the screen.
+        # The cards as wide as the page, on a wide window too.
         holder = QWidget()
-        holder.setMaximumWidth(760)
         cards = QVBoxLayout(holder)
         cards.setContentsMargins(0, 0, 0, 0)
         cards.setSpacing(18)
@@ -1009,9 +1008,9 @@ class MainWindow(QMainWindow):
         self.display_guide.clicked.connect(self._show_display_guide)
         check.add_row("显示", self.display_mode, self.display_guide)
         # 2 方式: 手动检查 waits for the hotkey; 自动检查 watches for the lobby, in 完整模式 only.
-        # The default comes first, as in every choice here.
+        # 手动检查 comes second, right beside its hotkey.
         self.auto_mode = SegmentedControl(
-            [("manual", "手动检查"), ("auto", "自动检查")], "auto" if self.store.auto_capture else "manual"
+            [("auto", "自动检查"), ("manual", "手动检查")], "auto" if self.store.auto_capture else "manual"
         )
         self.auto_on = self.auto_mode.buttons["auto"]
         self.auto_off = self.auto_mode.buttons["manual"]
@@ -1020,7 +1019,7 @@ class MainWindow(QMainWindow):
         self.hotkey_edit = QLineEdit()
         self.hotkey_edit.setReadOnly(True)
         self.hotkey_edit.setPlaceholderText("无")
-        # Room for Ctrl+Alt+F12, and wider for a longer key, such as Ctrl+Shift+Alt+F12: never cut.
+        # Room for the longest two keys, Shift+F12, and wider for anything longer: never cut.
         self._hotkey_room = (slot, metrics)
         self.hotkey_edit.textChanged.connect(self._fit_hotkey_box)
         self._fit_hotkey_box()
@@ -1035,19 +1034,12 @@ class MainWindow(QMainWindow):
         self.settings_label.hide()
         check.add_widget(self.settings_label, separated=False, indent=True)
         # 3 直播模式: a window for the streaming app, with the marks and never a 黑名单 name.
-        self.stream_switch = Switch(bool(self.store.stream_mode))
-        self.stream_switch.setAccessibleName("直播模式")
-        self.stream_switch.toggled.connect(self._on_stream_switch)
+        self.stream_choice = SegmentedControl([("on", "开启"), ("off", "关闭")], "on" if self.store.stream_mode else "off")
+        self.stream_choice.setAccessibleName("直播模式")
+        self.stream_choice.changed.connect(lambda key: self._on_stream_switch(key == "on"))
         # ⓘ: what viewers see, and how to set it up in 直播姬, with screenshots.
         self.stream_guide = IconButton("info", "直播模式说明")
         self.stream_guide.clicked.connect(self._show_stream_guide)
-        # The switch sits in a cell as wide as 显示's choices, so this ⓘ is under 显示's.
-        switch_cell = QWidget()
-        cell_row = QHBoxLayout(switch_cell)
-        cell_row.setContentsMargins(0, 0, 0, 0)
-        cell_row.addWidget(self.stream_switch, 0, Qt.AlignVCenter)
-        cell_row.addStretch(1)
-        same_width(switch_cell, self.display_mode)
         # 测试效果: the marks of a lobby with a 黑名单 and two 心动 players, now, with no lobby: what
         # viewers will see, without waiting for someone listed to turn up.
         self.stream_test = QPushButton("测试效果")
@@ -1056,9 +1048,9 @@ class MainWindow(QMainWindow):
         self.stream_test.setToolTip("不用排队：在示例截图上放一遍心动特效，看看直播间能不能看到")
         self.stream_test.clicked.connect(self.start_stream_test)
         self.stream_test.setVisible(bool(self.store.stream_mode))
-        check.add_row("直播模式", switch_cell, self.stream_guide, self.stream_test)
-        # Whether 直播姬 shows the window, under the switch while it is on: green when it does, in
-        # amber until it does (see livehime). Nothing for a streamer without 直播姬.
+        check.add_row("直播模式", self.stream_choice, self.stream_guide, self.stream_test)
+        # Whether 直播姬 shows the window, under 直播模式 while it is on: green when it does, in
+        # red until it does (see livehime). Nothing for a streamer without 直播姬.
         self.stream_status = QLabel("")
         self.stream_status.setObjectName("streamStatus")
         self.stream_status.setWordWrap(True)
@@ -1081,7 +1073,7 @@ class MainWindow(QMainWindow):
         general.add_row("开机启动", self.autostart_switch)
         # Asked the way Chinese desktop apps ask it: what × does, with both answers in view.
         self.close_mode = SegmentedControl(
-            [("tray", "最小化到托盘"), ("quit", "退出程序")], "tray" if self.store.close_to_tray else "quit"
+            [("tray", "最小化"), ("quit", "退出")], "tray" if self.store.close_to_tray else "quit"
         )
         self.close_mode.changed.connect(self._on_close_mode)
         general.add_row("关闭窗口时", self.close_mode)
@@ -1126,17 +1118,22 @@ class MainWindow(QMainWindow):
         self.export_button.setCursor(Qt.PointingHandCursor)
         self.export_button.clicked.connect(self._export_logs)
         helping.add_row("环境测试", self.test_button, self.export_button)
-        # 关于: this version, 检查更新 and 使用声明 in one row, so 设置 still fits on one screen.
-        self.version_label = QLabel(__version__)
+        # 关于: the app and its version, what 检查更新 found in gray beside it, and 检查更新 and 使用声明
+        # as links at the row's end. A waiting version turns 检查更新 into the 有更新 button.
+        self.version_label = QLabel(f"{APP_NAME} {__version__}")
+        self.update_note = QLabel("")
+        self.update_note.setObjectName("rowHint")
         self.update_button = QPushButton("检查更新")
-        self.update_button.setFont(ui_font())
+        self.update_button.setObjectName("link")
         self.update_button.setAutoDefault(False)
         self.update_button.setCursor(Qt.PointingHandCursor)
         self.update_button.clicked.connect(self._check_updates_now)
-        # What 检查更新 found, in gray after the buttons.
-        self.update_note = QLabel("")
-        self.update_note.setObjectName("rowHint")
-        helping.add_row("关于", self.version_label, self.update_button, self.disclaimer_button, self.update_note)
+        self.disclaimer_button.setObjectName("link")
+        apart = QWidget()
+        apart.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        helping.add_row(
+            "关于", self.version_label, self.update_note, apart, self.update_button, self.disclaimer_button, stretch=False
+        )
         # Starting over sits here too: one card fewer, so 设置 fits the window without scrolling.
         data = helping
         reset = QPushButton("清空数据")
@@ -1328,7 +1325,7 @@ class MainWindow(QMainWindow):
         self.close_mode.set_current("tray" if self.store.close_to_tray else "quit")
         self.love.choice = self.store.love_scene
         self.display_mode.set_current("safe")
-        self._sync_switch(self.stream_switch, False)
+        self.stream_choice.set_current("off")
         self.notice.hide()
         if not self._watch_timer.isActive():
             self.watch = LobbyWatch()
@@ -2763,6 +2760,8 @@ class MainWindow(QMainWindow):
         if key == "auto" and self.store.safe_mode:
             self._sync_auto_controls()
             return
+        # The player's own choice: 安全模式 then 完整模式 brings back this, not what was before.
+        self.store.auto_resume = False
         self._toggle_auto(key == "auto")
 
     def _on_display_mode(self, key: str) -> None:
@@ -2777,8 +2776,13 @@ class MainWindow(QMainWindow):
         self.store.safe_mode = bool(on)
         self.store.save_settings()
         if self.store.safe_mode and self.store.auto_capture:
-            # 安全模式 checks on the hotkey only.
+            # 安全模式 checks on the hotkey only. 自动检查 comes back with 完整模式.
+            self.store.auto_resume = True
             self._toggle_auto(False)
+        elif not self.store.safe_mode and self.store.auto_resume:
+            log.info("方式: 自动检查 again, as it was before 安全模式.")
+            self.store.auto_resume = False
+            self._toggle_auto(True)
         self._sync_auto_controls()
         self.display_mode.set_current("safe" if self.store.safe_mode else "full")
         if self.store.safe_mode:
@@ -2816,7 +2820,7 @@ class MainWindow(QMainWindow):
         self.store.stream_mode = "on" if on else ""
         self.store.save_settings()
         self.stream.enable(self.store.stream_mode)
-        self._sync_switch(self.stream_switch, bool(self.store.stream_mode))
+        self.stream_choice.set_current("on" if self.store.stream_mode else "off")
         self.stream_test.setVisible(bool(self.store.stream_mode))
         self._sync_overlay_target()
         self._sync_name_hiding()
@@ -2880,7 +2884,7 @@ class MainWindow(QMainWindow):
 
     def _fit_hotkey_box(self, _text: str = "") -> None:
         slot, metrics = self._hotkey_room
-        shown = max(("Ctrl+Alt+F12", self.hotkey_edit.text(), self.hotkey_edit.placeholderText()), key=metrics.horizontalAdvance)
+        shown = max(("Shift+F12", self.hotkey_edit.text(), self.hotkey_edit.placeholderText()), key=metrics.horizontalAdvance)
         self.hotkey_edit.setFixedWidth(max(slot, metrics.horizontalAdvance(shown) + 32))
 
     def _sync_hotkey_mode(self) -> None:
@@ -2917,6 +2921,10 @@ class MainWindow(QMainWindow):
             modifiers.append("Shift")
         if flags & Qt.MetaModifier:
             modifiers.append("Win")
+        if len(modifiers) > 1:
+            # Two keys at most: short to press mid-game, and short to read.
+            self._set_settings_note("最多两个键，比如 Alt+1")
+            return
         spec = parse_hotkey("+".join([*modifiers, key]))
         if spec is None:
             self._set_settings_note("这个键用不了，换一个")
@@ -3022,7 +3030,7 @@ class MainWindow(QMainWindow):
             subprocess.Popen(["explorer", "/select,", str(target)], env=paths.child_env())
 
     def _on_stream_switch(self, on: bool) -> None:
-        """The switch: the first time it is turned on, how to set it up comes with it."""
+        """开启｜关闭: the first time it is turned on, how to set it up comes with it."""
         self._set_stream_mode(on)
         if on and not self.store.stream_guided:
             self.store.stream_guided = True
@@ -3627,6 +3635,7 @@ class MainWindow(QMainWindow):
             # A 黑名单 player is the news; the border would bury it.
             self.love.stop()
             # 心动 players too: the ring is rose on their side, and their card is on the left.
+            self._dress_love(playing=False)
             self._open_panel("both" if likes else "hit", "", result.button_box)
             self._show_hit_card(hits)
             if self.hit_card.isVisible():
@@ -3644,7 +3653,9 @@ class MainWindow(QMainWindow):
         unclear = sum(1 for slot in result.names if slot.unclear)
         if unclear:
             text += f"\n{unclear} 人未识别"
-        # 心动 players and no 黑名单: a rose ring, the heart badge, and their names on the left.
+        # 心动 players and no 黑名单: a rose ring, the heart badge, and their names on the left, all
+        # in the look of the scene that is about to greet them.
+        self._dress_love(playing=bool(likes) and self._love_for(len(likes)))
         self._open_panel("liked" if likes else "clear", text, result.button_box)
         self._show_clear_mark(heart=bool(likes))
         self._show_like_card(likes)
@@ -3699,6 +3710,22 @@ class MainWindow(QMainWindow):
                 f"黑名单 {len(store.entries)}, 心动 {len(store.likes)}, 记录 {len(store.scans)}",
             ]
         )
+
+    def _dress_love(self, playing: bool) -> None:
+        """The 心动 marks (the ring, the heart badge and the card) in the look of the 心动特效 scene:
+        the one about to play, settled now if it is 随机, or the one that played for this lobby.
+        With none playing, the chosen scene's look; 经典花边's under 随机 or 无."""
+        if playing and self._love_played:
+            scene = self.love.scene
+        elif playing:
+            self.love.choice = self.store.love_scene
+            scene = self.love.pick()
+        else:
+            scene = self.store.love_scene
+        look = love_look(scene)
+        self.panel.set_look(look)
+        self.clear_mark.set_look(look)
+        self.like_card.set_look(look)
 
     def _love_for(self, count: int) -> bool:
         """Whether 心动特效 plays for this many 心动 players: as 心动人数 says, and always in 测试效果."""
@@ -4200,7 +4227,7 @@ class MainWindow(QMainWindow):
         """检查更新, or 有更新 in the accent color while a version waits."""
         offered = self._offered is not None
         self.update_button.setText("有更新" if offered else "检查更新")
-        self.update_button.setObjectName("primary" if offered else "")
+        self.update_button.setObjectName("primary" if offered else "link")
         self.update_button.style().unpolish(self.update_button)
         self.update_button.style().polish(self.update_button)
 

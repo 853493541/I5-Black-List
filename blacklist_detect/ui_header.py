@@ -78,7 +78,8 @@ class StatusChip(_KeyboardRing, QAbstractButton):
         return QFontMetrics(self._font()).elidedText(self.text(), Qt.ElideRight, self._TEXT_MAX)
 
     def _key_width(self) -> int:
-        return QFontMetrics(self._key_font()).horizontalAdvance(self._key) + 12 if self._key else 0
+        """「· Alt+1」 after the words, in gray: the hotkey, without a box of its own."""
+        return QFontMetrics(self._key_font()).horizontalAdvance(f"·  {self._key}") if self._key else 0
 
     def sizeHint(self) -> QSize:
         width = self._PAD_L + self._MARK + self._GAP + QFontMetrics(self._font()).horizontalAdvance(self._shown_text())
@@ -127,23 +128,20 @@ class StatusChip(_KeyboardRing, QAbstractButton):
         painter.drawRoundedRect(body, body.height() / 2, body.height() / 2)
         middle = self.height() / 2
         x = self._PAD_L
-        if self._hover or self.show_ring():
-            # Under the pointer the dot becomes a gear: a click opens the 检查 settings.
-            painter.drawPixmap(QPoint(x, round(middle - self._MARK / 2)), line_pixmap("settings", self._MARK, ink))
+        # The dot says the state; under the pointer only the pill's wash deepens.
+        center = QRectF(x + self._MARK / 2 - 4, middle - 4, 8, 8)
+        if dot is None:
+            painter.setPen(QPen(QColor(THEME["muted"]), 1.4))
+            painter.setBrush(Qt.NoBrush)
+            painter.drawEllipse(center.adjusted(0.7, 0.7, -0.7, -0.7))
         else:
-            center = QRectF(x + self._MARK / 2 - 4, middle - 4, 8, 8)
-            if dot is None:
-                painter.setPen(QPen(QColor(THEME["muted"]), 1.4))
-                painter.setBrush(Qt.NoBrush)
-                painter.drawEllipse(center.adjusted(0.7, 0.7, -0.7, -0.7))
-            else:
-                halo = QColor(dot)
-                halo.setAlphaF(0.22)
-                painter.setPen(Qt.NoPen)
-                painter.setBrush(halo)
-                painter.drawEllipse(center.adjusted(-2, -2, 2, 2))
-                painter.setBrush(QColor(dot))
-                painter.drawEllipse(center)
+            halo = QColor(dot)
+            halo.setAlphaF(0.22)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(halo)
+            painter.drawEllipse(center.adjusted(-2, -2, 2, 2))
+            painter.setBrush(QColor(dot))
+            painter.drawEllipse(center)
         x += self._MARK + self._GAP
         painter.setFont(self._font())
         painter.setPen(QColor(ink))
@@ -151,14 +149,10 @@ class StatusChip(_KeyboardRing, QAbstractButton):
         text_width = QFontMetrics(self._font()).horizontalAdvance(text)
         painter.drawText(QRectF(x, 0, text_width + 2, self.height()), Qt.AlignLeft | Qt.AlignVCenter, text)
         if self._key:
-            # The hotkey as a key cap, the way shortcuts are shown in menus and docs.
-            key = QRectF(x + text_width + self._KEY_GAP, middle - 10, self._key_width(), 20)
-            painter.setPen(QPen(QColor(THEME["border"]), 1))
-            painter.setBrush(QColor(THEME["surface"]))
-            painter.drawRoundedRect(key.adjusted(0.5, 0.5, -0.5, -0.5), 4, 4)
+            key = QRectF(x + text_width + self._KEY_GAP, 0, self._key_width() + 2, self.height())
             painter.setFont(self._key_font())
             painter.setPen(QColor(THEME["muted"]))
-            painter.drawText(key, Qt.AlignCenter, self._key)
+            painter.drawText(key, Qt.AlignLeft | Qt.AlignVCenter, f"·  {self._key}")
         if self.show_ring():
             _ring(painter, body)
 

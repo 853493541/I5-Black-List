@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from dataclasses import dataclass
 
 from PySide6.QtCore import QEasingCurve, QPointF, QPropertyAnimation, QRect, QRectF, Qt, QVariantAnimation
 from PySide6.QtGui import (
@@ -104,22 +105,165 @@ GREEN = "#2f9e5e"
 ROSE = "#c2306b"
 _RED_GLOW = QColor(220, 60, 70, 140)
 _GREEN_GLOW = QColor(52, 200, 110, 130)
-_ROSE_GLOW = QColor(235, 95, 155, 140)
 # The card beside a red ring: crimson, edged in gold, like the ring.
 _CARD = ("#7a1620", "#4e0c13")
 _CARD_LINE = "rgba(228, 196, 126, 220)"
 _INK = "#fff3e0"
 _TAG_WASH = "#2a0a0e"
 _TAG_INK = "#ffcf9e"
-# 心动 is softer than the rest: pale pink and lavender edged in rose-gold, with knots of small
-# pink and blue flowers, like the silk and flowers of the border that greets them.
-_ROSE_GOLD = QColor("#f3c1d0")
-_LIKE_GLOW = QColor(255, 150, 200, 120)
-_LIKE_BAND = ("#ff9cc4", "#d7c6ff")
-_LIKE_CARD = ("#fff4f9", "#fadcec")
-_LIKE_EDGE = "#e8a7bd"
-_LIKE_INK = "#8a2d55"
 _FLOWER_TONES = {"pink": ("#fff0f6", "#ff9cc4", "#ff6fa6"), "blue": ("#f2f9ff", "#a8d6ff", "#6fb4ff")}
+
+
+@dataclass(frozen=True)
+class LoveLook:
+    """The 心动 marks dressed for the 心动特效 scene that greets them: the ring on 准备案件还原, the
+    heart badge beside it and the card of names. Colors are "#rrggbb"; glows are (r, g, b)."""
+
+    glow: tuple[int, int, int]
+    # The fine outer rim of the ring and of the badge.
+    rim: str
+    # The ring's band: at its two ends, and in its middle.
+    band: tuple[str, str]
+    # The card, top to bottom; its edge (and scroll bar); the names on it.
+    card: tuple[str, str]
+    edge: str
+    ink: str
+    # The two flowers of the knots and before the names, each (tip, middle, heart).
+    flowers: tuple[tuple[str, str, str], tuple[str, str, str]]
+    # The badge, middle to edge, and the heart on it, top to bottom.
+    disc: tuple[str, str]
+    heart: tuple[str, str]
+    # The 心动 half of a ring shared with 黑名单 players, and its glow.
+    deep: str
+    deep_glow: tuple[int, int, int]
+
+
+# 经典花边, and wherever no scene says otherwise: pale pink and lavender edged in rose-gold, with
+# knots of small pink and blue flowers, like the silk and flowers of its border.
+CLASSIC_LOOK = LoveLook(
+    glow=(255, 150, 200),
+    rim="#f3c1d0",
+    band=("#ff9cc4", "#d7c6ff"),
+    card=("#fff4f9", "#fadcec"),
+    edge="#e8a7bd",
+    ink="#8a2d55",
+    flowers=(_FLOWER_TONES["pink"], _FLOWER_TONES["blue"]),
+    disc=("#fff3f8", "#f7b3cb"),
+    heart=("#ff7fb0", "#d92f6b"),
+    deep="#c2306b",
+    deep_glow=(235, 95, 155),
+)
+LOOKS: dict[str, LoveLook] = {
+    "classic": CLASSIC_LOOK,
+    # 缎带: pink satin and a champagne-gold rule.
+    "ribbon": LoveLook(
+        glow=(255, 160, 195),
+        rim="#e2c08d",
+        band=("#f7a8c4", "#fbe3ea"),
+        card=("#fff6f8", "#fbe0e8"),
+        edge="#d9b77e",
+        ink="#8a2d55",
+        flowers=(("#fff0f6", "#f7a8c4", "#e0679a"), ("#fffaf0", "#f3dcae", "#d4a85e")),
+        disc=("#fff5f8", "#f6c1d2"),
+        heart=("#ff8fb8", "#d23a72"),
+        deep="#c83a72",
+        deep_glow=(240, 110, 165),
+    ),
+    # 花雨: blush and deep roses among sage eucalyptus.
+    "petals": LoveLook(
+        glow=(255, 170, 195),
+        rim="#f2d4dc",
+        band=("#e98aa8", "#cfdcc9"),
+        card=("#fff7f8", "#f9e1e7"),
+        edge="#dca5b5",
+        ink="#7d2b4a",
+        flowers=(("#fbd2de", "#e07f9f", "#a83a66"), ("#f3f6ef", "#c3d0bd", "#8fa08b")),
+        disc=("#fff6f8", "#f4c3d1"),
+        heart=("#e98aa8", "#a83a66"),
+        deep="#a83a66",
+        deep_glow=(225, 110, 150),
+    ),
+    # 冰蓝极光: ice and sapphire, the heart blue.
+    "ice": LoveLook(
+        glow=(110, 190, 255),
+        rim="#cfe8ff",
+        band=("#7fd0ff", "#b9b0ff"),
+        card=("#f4fbff", "#dcefff"),
+        edge="#9cc9ec",
+        ink="#1f4f7a",
+        flowers=(("#f2f9ff", "#a8d6ff", "#5aa8f0"), ("#f6f2ff", "#c9b8ff", "#8f74f0")),
+        disc=("#f4fbff", "#b9defb"),
+        heart=("#8fd0ff", "#2f6fd9"),
+        deep="#2f6fd9",
+        deep_glow=(90, 160, 255),
+    ),
+    # 星河许愿: the night sky, starlight lilac and gold, the heart gold.
+    "stars": LoveLook(
+        glow=(185, 163, 255),
+        rim="#f6d68a",
+        band=("#b9a3ff", "#f6d68a"),
+        card=("#2e2758", "#1b1838"),
+        edge="#c9a95a",
+        ink="#f8e7b4",
+        flowers=(("#fff8e0", "#f6d68a", "#e0a93a"), ("#f3eeff", "#b9a3ff", "#8a6fe0")),
+        disc=("#3a3274", "#1d1a40"),
+        heart=("#ffe39a", "#e0a93a"),
+        deep="#7a5fe0",
+        deep_glow=(150, 120, 255),
+    ),
+    # 纸鹤晚霞: a sunset, peach and coral.
+    "cranes": LoveLook(
+        glow=(255, 170, 130),
+        rim="#f7d2b8",
+        band=("#ffab85", "#ff8fa8"),
+        card=("#fff6ef", "#fde0cf"),
+        edge="#eeb08c",
+        ink="#8a3b1f",
+        flowers=(("#fff1ea", "#ffb39a", "#f57a62"), ("#fff8e6", "#ffd68a", "#eea43c")),
+        disc=("#fff6ef", "#ffc9ae"),
+        heart=("#ff9a7a", "#e0503f"),
+        deep="#d9503f",
+        deep_glow=(255, 130, 100),
+    ),
+    # 蝶梦: lavender and sky.
+    "butterfly": LoveLook(
+        glow=(170, 150, 255),
+        rim="#d9cdfb",
+        band=("#b9a3ff", "#9fd6ff"),
+        card=("#f8f5ff", "#e6defc"),
+        edge="#b8a6ec",
+        ink="#4b2f8a",
+        flowers=(("#f6f2ff", "#c9b8ff", "#9a7bff"), _FLOWER_TONES["blue"]),
+        disc=("#f8f5ff", "#d6c9fb"),
+        heart=("#b49bff", "#7a55e0"),
+        deep="#7a55e0",
+        deep_glow=(160, 130, 255),
+    ),
+    # 香槟: cream and gold, the heart gold.
+    "champagne": LoveLook(
+        glow=(240, 200, 120),
+        rim="#e2c08d",
+        band=("#f0c870", "#fff1c9"),
+        card=("#fffaf0", "#f6e6c4"),
+        edge="#d9b77e",
+        ink="#6e4f12",
+        flowers=(("#fff8e0", "#f6d68a", "#d9a441"), ("#fffaf3", "#f4dcc0", "#d9a982")),
+        disc=("#fffaf0", "#f3dca8"),
+        heart=("#f6c860", "#c98a1c"),
+        deep="#c98a1c",
+        deep_glow=(240, 190, 90),
+    ),
+}
+
+
+def love_look(scene: str) -> LoveLook:
+    """The look for a 心动特效 scene; 经典花边's for anything else (随机 not yet settled, 无)."""
+    return LOOKS.get(scene, CLASSIC_LOOK)
+
+
+def _rgba(color: str, alpha: int) -> str:
+    shade = QColor(color)
+    return f"rgba({shade.red()}, {shade.green()}, {shade.blue()}, {alpha})"
 
 
 def _fade_in(widget: QWidget, ms: int = 120) -> None:
@@ -202,11 +346,14 @@ def _alpha(color: str | QColor, alpha: float) -> QColor:
     return shade
 
 
-def _flower(painter: QPainter, x: float, y: float, r: float, tone: str = "pink", turn: float = 0.0, halo: float = 2.2) -> None:
-    """Five soft petals, deep at the heart and pale at the tips, in a faint glow of their own."""
+def _flower(
+    painter: QPainter, x: float, y: float, r: float, tone: str | tuple[str, str, str] = "pink", turn: float = 0.0, halo: float = 2.2
+) -> None:
+    """Five soft petals, deep at the heart and pale at the tips, in a faint glow of their own.
+    tone: "pink", "blue", or (tip, middle, heart)."""
     if r < 0.5:
         return
-    light, mid, deep = _FLOWER_TONES[tone]
+    light, mid, deep = _FLOWER_TONES[tone] if isinstance(tone, str) else tone
     painter.save()
     painter.translate(x, y)
     painter.rotate(turn)
@@ -234,10 +381,11 @@ def _flower(painter: QPainter, x: float, y: float, r: float, tone: str = "pink",
     painter.restore()
 
 
-def _knot(painter: QPainter, x: float, y: float, size: float, halo: float = 2.2) -> None:
-    """A knot of flowers: two pink, two blue, overlapping."""
-    for dx, dy, scale, tone, turn in ((-0.55, 0.15, 0.62, "pink", 12), (0.5, 0.05, 0.55, "blue", 40), (0.0, -0.35, 0.75, "pink", 64), (0.1, 0.55, 0.38, "blue", 25)):
-        _flower(painter, x + dx * size, y + dy * size, scale * size, tone, turn, halo)
+def _knot(painter: QPainter, x: float, y: float, size: float, halo: float = 2.2, look: LoveLook = CLASSIC_LOOK) -> None:
+    """A knot of flowers, overlapping: two of the look's first flower and two of its second (pink
+    and blue in 经典花边)."""
+    for dx, dy, scale, which, turn in ((-0.55, 0.15, 0.62, 0, 12), (0.5, 0.05, 0.55, 1, 40), (0.0, -0.35, 0.75, 0, 64), (0.1, 0.55, 0.38, 1, 25)):
+        _flower(painter, x + dx * size, y + dy * size, scale * size, look.flowers[which], turn, halo)
 
 
 def _sparkle(painter: QPainter, x: float, y: float, r: float, alpha: float = 1.0) -> None:
@@ -258,15 +406,17 @@ def _sparkle(painter: QPainter, x: float, y: float, r: float, alpha: float = 1.0
     painter.drawPath(star)
 
 
-def flower_pixmap(radius: float, tone: str, ratio: float = 2.0) -> QPixmap:
-    """One flower, for the start of a name on the 心动 card."""
+def flower_pixmap(radius: float, tone: str | tuple[str, str, str], ratio: float = 2.0, turn: float | None = None) -> QPixmap:
+    """One flower, for the start of a name on the 心动 card. tone as for _flower."""
     side = round(radius * 2.4)
     image = QPixmap(round(side * ratio), round(side * ratio))
     image.setDevicePixelRatio(ratio)
     image.fill(Qt.transparent)
     painter = QPainter(image)
     painter.setRenderHint(QPainter.Antialiasing)
-    _flower(painter, side / 2, side / 2 + radius * 0.05, radius, tone, 18 if tone == "pink" else 40, halo=1.15)
+    if turn is None:
+        turn = 18 if tone == "pink" else 40
+    _flower(painter, side / 2, side / 2 + radius * 0.05, radius, tone, turn, halo=1.15)
     painter.end()
     return image
 
@@ -292,6 +442,10 @@ class _Fade(QWidget):
         super().__init__(parent)
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self._bottom = bottom
+
+    def set_bottom(self, bottom: str) -> None:
+        self._bottom = bottom
+        self.update()
 
     def paintEvent(self, _event) -> None:  # noqa: ANN001
         painter = QPainter(self)
@@ -473,16 +627,24 @@ class HitCard(QWidget):
 
 
 class LikeCard(HitCard):
-    """心动 players in this lobby: a pale pink card edged in rose-gold, a flower before each name
-    and a knot of flowers on its top edge.
+    """心动 players in this lobby: a card in the look of the 心动特效 scene (经典花边's pale pink
+    edged in rose-gold to begin with), a flower before each name and a knot of flowers on its top
+    edge.
 
     set_people gets each player as (what to show, ()): the 昵称, or the full name.
     """
 
-    _COLORS = _LIKE_CARD
-    _NAME_INK = _LIKE_INK
+    look = CLASSIC_LOOK
     # Room above the card for the knot on its edge.
     top = 12
+
+    @property
+    def _COLORS(self) -> tuple[str, str]:  # noqa: N802
+        return self.look.card
+
+    @property
+    def _NAME_INK(self) -> str:  # noqa: N802
+        return self.look.ink
 
     def __init__(self) -> None:
         super().__init__()
@@ -500,25 +662,37 @@ class LikeCard(HitCard):
         self.knot.move((self.width() - self.knot.width()) // 2, 0)
         self.knot.raise_()
 
+    def set_look(self, look: LoveLook) -> None:
+        """Dress the card for a 心动特效 scene. Before set_people: the names take its ink then."""
+        if look == self.look:
+            return
+        self.look = look
+        self.fade.set_bottom(look.card[1])
+        self._apply_style()
+        self.knot.update()
+
     def _lead(self) -> QWidget | None:
-        tone = "pink" if self._leads % 2 == 0 else "blue"
+        # The look's two flowers in turn, "pink" and "blue" in 经典花边.
+        which = self._leads % 2
         self._leads += 1
         bloom = QLabel()
         bloom.setObjectName("likeFlower")
-        bloom.setProperty("tone", tone)
-        bloom.setPixmap(flower_pixmap(7.5 * getattr(self, "scale", 1.0), tone, max(2.0, self.devicePixelRatioF())))
+        bloom.setProperty("tone", ("pink", "blue")[which])
+        ratio = max(2.0, self.devicePixelRatioF())
+        bloom.setPixmap(flower_pixmap(7.5 * getattr(self, "scale", 1.0), self.look.flowers[which], ratio, (18, 40)[which]))
         bloom.setStyleSheet("background: transparent;")
         return bloom
 
     def _apply_style(self) -> None:
         super()._apply_style()
+        edge = self.look.edge
         self.setStyleSheet(
             self.styleSheet()
             .replace("QWidget#hitCard", "QWidget#likeCard")
-            .replace(f"border: 1px solid {_CARD_LINE};", f"border: 1px solid {_LIKE_EDGE};")
+            .replace(f"border: 1px solid {_CARD_LINE};", f"border: 1px solid {edge};")
             .replace("border-radius: 8px;", "border-radius: 10px;", 1)
-            .replace("rgba(228, 196, 126, 50)", "rgba(232, 167, 189, 60)")
-            .replace("rgba(228, 196, 126, 210)", "rgba(232, 167, 189, 220)")
+            .replace("rgba(228, 196, 126, 50)", _rgba(edge, 60))
+            .replace("rgba(228, 196, 126, 210)", _rgba(edge, 220))
         )
 
 
@@ -533,20 +707,22 @@ class _CardKnot(QWidget):
     def paintEvent(self, _event) -> None:  # noqa: ANN001
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        _knot(painter, self.width() / 2, 12, 10, halo=1.3)
+        _knot(painter, self.width() / 2, 12, 10, halo=1.3, look=self.parent().look)
         painter.end()
 
 
 class ClearMark(QWidget):
     """The check beside a clear accept button: emerald with a gold rim and a soft glow, like the ring.
 
-    With 心动 players in the lobby it is the same badge in pink, with a heart.
+    With 心动 players in the lobby it is the same badge with a heart, in the look of the 心动特效
+    scene (经典花边's pink to begin with).
     """
 
     # The window reaches this far past the badge on each side, for the glow.
     margin = _GLOW
     # A heart instead of the check, for a lobby with 心动 players.
     heart = False
+    look = CLASSIC_LOOK
 
     def __init__(self) -> None:
         super().__init__(
@@ -564,8 +740,12 @@ class ClearMark(QWidget):
         self.setFocusPolicy(Qt.NoFocus)
 
     def set_heart(self, heart: bool) -> None:
-        """A pink heart instead of the green check: the lobby has 心动 players and no 黑名单."""
+        """A heart instead of the green check: the lobby has 心动 players and no 黑名单."""
         self.heart = bool(heart)
+        self.update()
+
+    def set_look(self, look: LoveLook) -> None:
+        self.look = look
         self.update()
 
     def set_size(self, height: int) -> None:
@@ -601,14 +781,16 @@ class ClearMark(QWidget):
         painter.end()
 
     def _paint_heart(self, painter: QPainter, box: QRectF) -> None:
-        """A pale pink disc in a rose-gold rim, a deep pink heart, a glint at its shoulder."""
+        """A disc in a fine rim, a heart on it, a glint at its shoulder: in 经典花边, a pale pink
+        disc in rose-gold and a deep pink heart."""
+        look = self.look
         side = box.width()
         center = box.center()
-        _glow(painter, (box, side / 2), _LIKE_GLOW, round_shape=True)
+        _glow(painter, (box, side / 2), QColor(*look.glow, 120), round_shape=True)
         fill = QRadialGradient(center, side / 2)
-        fill.setColorAt(0, QColor("#fff3f8"))
-        fill.setColorAt(1, QColor("#f7b3cb"))
-        painter.setPen(QPen(_ROSE_GOLD, max(1.5, side * 0.04)))
+        fill.setColorAt(0, QColor(look.disc[0]))
+        fill.setColorAt(1, QColor(look.disc[1]))
+        painter.setPen(QPen(QColor(look.rim), max(1.5, side * 0.04)))
         painter.setBrush(fill)
         painter.drawEllipse(box.adjusted(1, 1, -1, -1))
         painter.setPen(QPen(_alpha("#ffffff", 0.7), 1))
@@ -616,8 +798,8 @@ class ClearMark(QWidget):
         inner = max(3.0, side * 0.08)
         painter.drawEllipse(box.adjusted(inner, inner, -inner, -inner))
         heart = QLinearGradient(QPointF(center.x(), center.y() - side * 0.25), QPointF(center.x(), center.y() + side * 0.25))
-        heart.setColorAt(0, QColor("#ff7fb0"))
-        heart.setColorAt(1, QColor("#d92f6b"))
+        heart.setColorAt(0, QColor(look.heart[0]))
+        heart.setColorAt(1, QColor(look.heart[1]))
         painter.setPen(Qt.NoPen)
         painter.setBrush(heart)
         painter.drawPath(_heart_path(center.x(), center.y() + side * 0.03, side * 0.48))
@@ -639,8 +821,11 @@ class LobbyPanel(QWidget):
     emerald, each edged in gold with a soft glow, like the check mark; the button shows through.
     A clear lobby with 心动 players is ringed in rose; with 黑名单 players too, the ring is rose on the
     left, where their card is, and crimson on the right.
-    The window reaches _GLOW past the cover on each side, for that glow.
+    The window reaches _GLOW past the cover on each side, for that glow. The rose is the look of the
+    心动特效 scene (look), 经典花边's to begin with.
     """
+
+    look = CLASSIC_LOOK
 
     def __init__(self) -> None:
         super().__init__(
@@ -700,6 +885,10 @@ class LobbyPanel(QWidget):
         self._mask_pill()
         self.update()
 
+    def set_look(self, look: LoveLook) -> None:
+        self.look = look
+        self.update()
+
     def _glint(self, value) -> None:  # noqa: ANN001
         self._phase = float(value)
         self.update()
@@ -716,25 +905,29 @@ class LobbyPanel(QWidget):
             return
         colors = self.rings()
         if colors:
-            glows = {RED: _RED_GLOW, ROSE: _ROSE_GLOW, GREEN: _GREEN_GLOW}
-            _paint_ring(painter, cover, tuple(QColor(c) for c in colors), tuple(glows[c] for c in colors))
+            glows = {RED: _RED_GLOW, ROSE: QColor(*self.look.deep_glow, 140), GREEN: _GREEN_GLOW}
+            shown = {ROSE: self.look.deep}
+            _paint_ring(painter, cover, tuple(QColor(shown.get(c, c)) for c in colors), tuple(glows[c] for c in colors))
 
     def _paint_liked(self, painter: QPainter, cover: QRectF) -> None:
-        """心动 and no 黑名单: a pink glow, a rose-gold rim, a pink-lavender band, flowers on two corners."""
+        """心动 and no 黑名单: a glow, a fine rim, a band and flowers on two corners, in the look; in
+        经典花边, pink with a rose-gold rim and a pink-lavender band."""
+        look = self.look
         radius = _cover_radius(round(cover.height()))
-        _glow(painter, (cover, radius), _LIKE_GLOW)
+        _glow(painter, (cover, radius), QColor(*look.glow, 120))
         painter.setBrush(Qt.NoBrush)
+        ends, middle = QColor(look.band[0]), QColor(look.band[1])
         for inset, pen in (
-            (1.1, QPen(_ROSE_GOLD, 2.2)),
-            (4.7, QPen(_across(cover, (QColor(_LIKE_BAND[0]), QColor(_LIKE_BAND[1]), QColor(_LIKE_BAND[0]))), 5)),
+            (1.1, QPen(QColor(look.rim), 2.2)),
+            (4.7, QPen(_across(cover, (ends, middle, ends)), 5)),
             (7.7, QPen(_alpha("#ffffff", 0.6), 1)),
         ):
             painter.setPen(pen)
             painter.drawRoundedRect(cover.adjusted(inset, inset, -inset, -inset), max(1.0, radius - inset), max(1.0, radius - inset))
         # Inside the corners, so the flowers stay within the window.
         size = max(8.0, min(13.0, cover.height() * 0.17))
-        _knot(painter, cover.left() + size * 0.7, cover.top() + size * 0.7, size, halo=1.2)
-        _knot(painter, cover.right() - size * 0.7, cover.bottom() - size * 0.7, size, halo=1.2)
+        _knot(painter, cover.left() + size * 0.7, cover.top() + size * 0.7, size, halo=1.2, look=look)
+        _knot(painter, cover.right() - size * 0.7, cover.bottom() - size * 0.7, size, halo=1.2, look=look)
 
     def _paint_brass(self, painter: QPainter, cover: QRectF) -> None:
         """Opaque antique gold: the button must not show through while it is being checked."""

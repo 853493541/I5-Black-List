@@ -72,21 +72,21 @@ def test_the_choice_is_remembered_and_opens_the_window(window):
     from blacklist_detect.ui_stream import TITLE
 
     assert not window.stream.enabled()
-    # One switch; the window is clear behind the marks, so no 色度键 is needed.
-    window.stream_switch.click()
+    # 开启; the window is clear behind the marks, so no 色度键 is needed.
+    window.stream_choice.buttons["on"].click()
     assert window.stream.enabled() and window.stream.isVisible() and window.stream.mode() == "on"
     assert window.stream.windowTitle() == TITLE == "模仿者小工具·直播画面"
     assert Store(window.store.root).stream_mode == "on"
     # The first time, the guide opens with it; after that, from the ⓘ beside the switch.
     assert len(StreamGuideDialog.shown) == 1 and Store(window.store.root).stream_guided is True
-    window.stream_switch.click()
+    window.stream_choice.buttons["off"].click()
     assert not window.stream.enabled() and not window.stream.isVisible()
     assert Store(window.store.root).stream_mode == ""
-    window.stream_switch.click()
+    window.stream_choice.buttons["on"].click()
     assert len(StreamGuideDialog.shown) == 1
     window.stream_guide.click()
     assert len(StreamGuideDialog.shown) == 2
-    window.stream_switch.click()
+    window.stream_choice.buttons["off"].click()
 
 
 def test_the_guide_is_one_page_what_viewers_see_then_how(window):

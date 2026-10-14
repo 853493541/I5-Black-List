@@ -224,8 +224,8 @@ def test_full_mode_brings_the_marks_back(window):
 
 def test_safe_mode_checks_on_the_hotkey_only(window):
     window.store.consented = ["full", "auto"]
-    # 手动检查 comes first, and in 安全模式 自动检查 cannot be picked.
-    assert list(window.auto_mode.buttons) == ["manual", "auto"]
+    # 手动检查 sits beside its hotkey, and in 安全模式 自动检查 cannot be picked.
+    assert list(window.auto_mode.buttons) == ["auto", "manual"]
     assert window.auto_off.isChecked() and not window.auto_on.isEnabled()
     window.auto_on.click()
     assert window.store.auto_capture is False and not window._watch_timer.isActive()

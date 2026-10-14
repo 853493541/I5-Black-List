@@ -402,16 +402,17 @@ def _signature(p: QPainter, t: float, width: float, height: float, inset: float,
         return
     track = 6 + 14 * (1 - ease_out(win(t, 1.7, 2.7)))
     right = width - inset - 18 * u
-    base = height - inset - 26 * u
+    # The letters end well above the frame's two bottom rules (inset and inset + 6 from the bottom).
+    base = height - inset - 44 * u
     rise = 8 * u * (1 - ease_out(win(t, 1.7, 2.5)))
     p.save()
     p.setOpacity(p.opacity() * a)
     han = QFont("Noto Serif SC")
-    han.setPixelSize(round(40 * u))
+    han.setPixelSize(round(34 * u))
     han.setWeight(QFont.Weight.DemiBold)
     han.setLetterSpacing(QFont.AbsoluteSpacing, track * u)
     latin = QFont("Bodoni MT")
-    latin.setPixelSize(round(15 * u))
+    latin.setPixelSize(round(13 * u))
     latin.setLetterSpacing(QFont.AbsoluteSpacing, (4.2 + track * 0.4) * u)
     small = QFont(latin)
     rect_han = QRectF(right - 300 * u, base - 58 * u + rise, 300 * u, 52 * u)

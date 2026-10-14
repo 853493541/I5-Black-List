@@ -272,12 +272,12 @@ def _seed(root: Path, args, version: str) -> None:  # noqa: ANN001
     settings = json.loads(path.read_text(encoding="utf-8"))
     settings.update({
         "welcomed": True, "disclaimer_accepted": True, "env_checked": version, "consented": ["full"],
-        "hotkey": "Ctrl+Alt+F11", "close_to_tray": False, "auto_capture": False, "safe_mode": False,
+        "hotkey": "Alt+F11", "close_to_tray": False, "auto_capture": False, "safe_mode": False,
         "stream_mode": "on" if args.stream else "", "stream_guided": True, "player_name": "测试主播",
         "appearance": "dark" if args.dark else "light", "window_size": list(args.size),
     })  # fmt: skip
     if args.data == "stress":
-        settings.update({"player_name": "这是一个非常非常长的游戏名字", "hotkey": "Ctrl+Shift+Alt+F12", "auto_capture": True})
+        settings.update({"player_name": "这是一个非常非常长的游戏名字", "hotkey": "Shift+F12", "auto_capture": True})
     path.write_text(json.dumps(settings, ensure_ascii=False), encoding="utf-8")
 
 

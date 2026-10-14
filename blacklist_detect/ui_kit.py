@@ -453,26 +453,6 @@ class Toast(QWidget):
         return False
 
 
-class _SameWidth(QObject):
-    """Keeps one widget exactly as wide as another, as that one is laid out and resized."""
-
-    def __init__(self, follower: QWidget, leader: QWidget) -> None:
-        super().__init__(follower)
-        self._follower = follower
-        leader.installEventFilter(self)
-
-    def eventFilter(self, watched, event) -> bool:  # noqa: ANN001, N802
-        if event.type() == QEvent.Type.Resize:
-            self._follower.setFixedWidth(watched.width())
-        return False
-
-
-def same_width(follower: QWidget, leader: QWidget) -> None:
-    """Line up what follows two controls in rows of their own: follower is always as wide as leader."""
-    follower.setFixedWidth(leader.sizeHint().width())
-    _SameWidth(follower, leader)
-
-
 class _CardScroll(QScrollArea):
     """A dialog's content, scrolling between its title and its buttons when the screen is shorter
     than the card. As wide as the content: the scroll bar takes the content's right margin."""

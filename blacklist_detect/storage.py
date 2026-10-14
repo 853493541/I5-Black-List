@@ -8,6 +8,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
+from blacklist_detect.hotkey import two_keys
 from blacklist_detect.match import MIN_PREFIX_CHARS, clean_stored_name, fold
 from blacklist_detect.model import Entry
 from blacklist_detect.paths import app_dir
@@ -395,6 +396,8 @@ class Store:
         self.hotkey = DEFAULT_HOTKEY
         # 方式: 自动检查 watches for the lobby; 手动检查 (the default) checks on the hotkey.
         self.auto_capture = False
+        # 自动检查 was on when 安全模式 turned it off: 完整模式 turns it back on.
+        self.auto_resume = False
         self.save_debug_frames = False
         self.panel_pos: tuple[int, int] | None = None
         self.window_size: tuple[int, int] | None = None
@@ -553,6 +556,7 @@ class Store:
             self.safe_mode = True
         # 安全模式 checks on the hotkey only. 自动检查 is not asked about since v0.8.1.
         if self.safe_mode:
+            self.auto_resume = self.auto_resume or self.auto_capture
             self.auto_capture = False
         if self.blacklist_path.exists():
             try:
@@ -784,6 +788,7 @@ class Store:
             {
                 "hotkey": self.hotkey,
                 "auto_capture": self.auto_capture,
+                "auto_resume": self.auto_resume,
                 "save_debug_frames": self.save_debug_frames,
                 "panel_pos": None if self.panel_pos is None else [self.panel_pos[0], self.panel_pos[1]],
                 "window_size": None if self.window_size is None else [self.window_size[0], self.window_size[1]],
@@ -815,8 +820,13 @@ class Store:
             return
         try:
             settings = json.loads(self.settings_path.read_text(encoding="utf-8"))
-            self.hotkey = str(settings.get("hotkey", "") or "") or DEFAULT_HOTKEY
+            saved = str(settings.get("hotkey", "") or "") or DEFAULT_HOTKEY
+            # Two keys at most since v0.9.0: Ctrl+Alt+F11 is kept as Ctrl+F11.
+            self.hotkey = two_keys(saved)
+            if self.hotkey != saved:
+                _log.info("Hotkey %s cut to %s: two keys at most.", saved, self.hotkey)
             self.auto_capture = bool(settings.get("auto_capture", False))
+            self.auto_resume = bool(settings.get("auto_resume", False))
             self.save_debug_frames = bool(settings.get("save_debug_frames", False))
             self.panel_pos = _panel_pos(settings.get("panel_pos"))
             self.window_size = _window_size(settings.get("window_size"))
@@ -1043,6 +1053,7 @@ class Store:
         self.hotkey = DEFAULT_HOTKEY
         # 安全模式 and 手动检查 again, until agreed to otherwise.
         self.auto_capture = False
+        self.auto_resume = False
         self.save_debug_frames = False
         self.panel_pos = None
         self.window_size = None

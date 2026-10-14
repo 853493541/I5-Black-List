@@ -191,3 +191,24 @@ def test_debug_pictures_keep_the_newest_only(window):
     window._save_debug(CheckResult(header_found=True, message="", preview_rgb=np.zeros((4, 4, 3), dtype=np.uint8)))
     kept = sorted(path.name for path in folder.glob("*.png"))
     assert len(kept) == DEBUG_KEEP and not kept[-1].startswith("2020")
+
+
+def test_auto_check_comes_back_after_safe_mode(window):
+    from blacklist_detect.storage import Store
+
+    window.store.consented = ["full"]
+    window.display_mode.buttons["full"].click()
+    window.auto_mode.buttons["auto"].click()
+    assert window.store.auto_capture
+    # 安全模式 checks on the hotkey only…
+    window.display_mode.buttons["safe"].click()
+    assert not window.store.auto_capture and window.auto_mode.current() == "manual"
+    # …and remembers, through a restart too.
+    assert Store(window.store.root).auto_resume is True
+    window.display_mode.buttons["full"].click()
+    assert window.store.auto_capture and window.auto_mode.current() == "auto"
+    # 手动检查 picked by hand stays, through 安全模式 and back.
+    window.auto_mode.buttons["manual"].click()
+    window.display_mode.buttons["safe"].click()
+    window.display_mode.buttons["full"].click()
+    assert not window.store.auto_capture and window.auto_mode.current() == "manual"

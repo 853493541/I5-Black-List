@@ -1,4 +1,4 @@
-"""心动特效: the nine scenes, choosing one or a random one, and the picker with its preview."""
+"""心动特效: the eight scenes, choosing one or a random one, and the picker with its preview."""
 
 import random
 
@@ -8,7 +8,7 @@ pytest.importorskip("PySide6")
 
 from PySide6.QtCore import QPointF, QRect, QRectF, Qt  # noqa: E402
 from PySide6.QtGui import QImage, QPainter  # noqa: E402
-from PySide6.QtWidgets import QApplication  # noqa: E402
+from PySide6.QtWidgets import QApplication, QLabel  # noqa: E402
 
 from blacklist_detect import love_scenes  # noqa: E402
 from blacklist_detect.love_scenes import KEYS, Stage, choose, sample_stage  # noqa: E402
@@ -70,9 +70,9 @@ def test_choosing_one_random_or_none():
         picks.append(last)
     assert set(picks) == set(KEYS)
     assert all(a != b for a, b in zip(picks, picks[1:], strict=False))
-    # 命运红线 is gone: a player who had it, or a key from another version, gets 经典花边.
-    assert "thread" not in KEYS and len(KEYS) == 9
-    assert choose("thread", "", rng) == "classic"
+    # 命运红线 and 雪纺 are gone: a player who had one, or a key from another version, gets 经典花边.
+    assert "thread" not in KEYS and "chiffon" not in KEYS and len(KEYS) == 8
+    assert choose("thread", "", rng) == "classic" and choose("chiffon", "", rng) == "classic"
     assert choose("disco", "", rng) == "classic"
 
 
@@ -150,3 +150,52 @@ def test_the_picker_saves_each_choice_and_previews_it(qapp, tmp_path, monkeypatc
     dialog.preview.grab()
     dialog.reject()
     assert played[-1] is None, "closing stops the music"
+
+
+def test_the_border_settles_its_scene_before_it_plays(qapp):
+    """The 心动 marks are dressed for the scene before it starts: pick() settles 随机, play() keeps it."""
+    from blacklist_detect.ui_love import LoveBorder
+
+    border = LoveBorder(random.Random(8))
+    area = QApplication.primaryScreen().geometry()
+    keep = QRect(area.center().x() - 150, area.bottom() - 120, 300, 80)
+    border.choice = "random"
+    for _ in range(6):
+        picked = border.pick()
+        assert border.pick() == picked, "asked again, the same scene"
+        assert border.play(area, keep) is True and border.scene == picked
+        border.stop()
+    # A choice changed after the pick is what plays.
+    border.choice = "ice"
+    border.pick()
+    border.choice = "stars"
+    assert border.pick() == "stars"
+    border.choice = "off"
+    assert border.pick() == "" and border.play(area, keep) is False
+
+
+def test_every_scene_dresses_the_marks_its_own_way(qapp):
+    from blacklist_detect.ui_overlay import CLASSIC_LOOK, LOOKS, LikeCard, love_look
+
+    assert set(LOOKS) == set(KEYS)
+    assert len({look.card for look in LOOKS.values()}) == len(LOOKS), "no two cards alike"
+    assert love_look("random") is love_look("off") is love_look("chiffon") is CLASSIC_LOOK
+    card = LikeCard()
+    card.set_look(love_look("stars"))
+    card.set_people([("心动小鹿", ())], 90)
+    assert "#f8e7b4" in card.findChild(QLabel, "hitName").styleSheet()
+    assert "#2e2758" in card.styleSheet() and card.fade._bottom == "#1b1838"
+    card.deleteLater()
+
+
+def test_the_preview_shows_each_scenes_marks(qapp):
+    from blacklist_detect.ui_love_pick import ScenePreview
+
+    preview = ScenePreview()
+    preview.show_scene("ice")
+    ice = preview._marks
+    preview.show_scene("champagne")
+    assert preview._marks is not ice
+    preview.show_scene("off")
+    assert preview._marks is preview._marks_for("classic")
+    preview.stop()

@@ -2,9 +2,10 @@
 
 The edges deepen to sapphire. Aurora curtains ripple across the top, their colors flowing from
 cobalt through ice cyan, aqua, periwinkle and violet, arching up over the title instead of
-across it. A faceted crystal heart assembles from flying shards in the top left and a prism of
-light sweeps across its facets. Frost grows from the two bottom corners in fine lit lines, and
-prismatic diamond dust drifts down the sides. At the end the heart breaks into shards and the
+across it. In the top left glints gather into a heart of clear ice-blue glass (a height field
+shaded like glass: clear face on, the sky in its bevel, soft lights on its lobes) with aurora light
+drifting inside it and an edge of icy starlight, and a prism of light sweeps across it. Frost grows from the two bottom corners in fine lit lines, and
+prismatic diamond dust drifts down the sides. At the end the heart melts into light and the
 aurora rises away.
 """
 
@@ -14,16 +15,19 @@ import math
 import random
 from typing import TYPE_CHECKING
 
+import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QImage, QLinearGradient, QPainter, QPainterPath, QPen, QPolygonF, QRadialGradient
+from PySide6.QtGui import QColor, QImage, QLinearGradient, QPainter, QPainterPath, QPen, QPolygonF, QRadialGradient
 
 from blacklist_detect.love_scenes.draw import (
     Wash,
     clamp,
     col,
     ease_in,
+    ease_in_out,
     ease_out,
     gradient,
+    heart_path,
     heart_points,
     mix,
     soft_dot,
@@ -42,6 +46,8 @@ MAX_RATIO = 1.0
 AURORA = ("#1f4fe0", "#2f7bff", "#46c6ff", "#7ff2e6", "#4fa6ff", "#6f86ff", "#9a7bff", "#c08bff", "#6f86ff", "#2f62f0")
 SAPPHIRE = "#0b2a8a"
 ICE = "#d6f1ff"
+# The aurora inside the heart: its cyans and violets.
+WITHIN = ("#46c6ff", "#7ff2e6", "#9a7bff", "#4fa6ff", "#c08bff", "#46c6ff")
 
 
 def make(stage: Stage):  # noqa: ANN201
@@ -49,7 +55,7 @@ def make(stage: Stage):  # noqa: ANN201
     u = stage.unit()
     rnd = random.Random(14)
     heart_at = QPointF(width * 0.118, height * 0.175)
-    facets = _facets(heart_at, 150 * u, rnd)
+    sparks = _sparks(heart_at, 150 * u, random.Random(15))
     frost = _frost(width, height, u, rnd)
     # The grown frost, drawn once and laid on from then on: {(device size, transform): image}.
     frost_drawn: dict[tuple, QImage] = {}
@@ -67,8 +73,16 @@ def make(stage: Stage):  # noqa: ANN201
     ]
 
     night = Wash(lambda q, w, h: _ice_wash(q, 9.0, w, h, u, 0.0))
+    # The glass heart, drawn once for each size in pixels it is shown at.
+    glass: dict[int, QImage] = {}
 
-    def paint(p: QPainter, t: float) -> None:
+    def heart(p: QPainter, t: float) -> None:
+        p.save()
+        p.setOpacity(p.opacity() * win(t, 0.0, 0.35))
+        _heart(p, t, heart_at, sparks, u, glass)
+        p.restore()
+
+    def paint(p: QPainter, t: float, sharp: bool = True) -> None:
         life = win(t, 0.0, 0.35)
         leave = ease_in(win(t, 4.1, 5.0))
         p.save()
@@ -77,9 +91,12 @@ def make(stage: Stage):  # noqa: ANN201
         _soft_aurora(p, t, width, height, u, leave)
         _frost_paint(p, t, frost, u, leave, frost_drawn)
         _dust(p, t, dust, u, 1 - leave)
-        _heart(p, t, heart_at, facets, u)
         p.restore()
+        if sharp:
+            heart(p, t)
 
+    # Glass needs its edges and its highlights crisp, whatever the aurora is drawn at.
+    paint.sharp = heart
     return paint
 
 
@@ -209,90 +226,238 @@ def _aurora(p: QPainter, t: float, width: float, height: float, u: float, leave:
         p.setPen(Qt.NoPen)
 
 
-def _facets(centre: QPointF, size: float, rnd: random.Random) -> list[dict]:
-    """A low-poly heart: an outer ring, an inner ring and a centre, cut into triangles."""
-    outer = heart_points(centre.x(), centre.y(), size, 18)
-    inner = heart_points(centre.x(), centre.y() + size * 0.03, size * 0.52, 18, 0.5 / 18)
-    middle = QPointF(centre.x() - size * 0.04, centre.y() - size * 0.02)
-    tris = []
-    n = len(outer)
-    for i in range(n):
-        j = (i + 1) % n
-        tris.append((outer[i], outer[j], inner[i]))
-        tris.append((outer[j], inner[j], inner[i]))
-        tris.append((inner[i], inner[j], middle))
-    out = []
-    for k, (a, b, c) in enumerate(tris):
-        cx, cy = (a.x() + b.x() + c.x()) / 3, (a.y() + b.y() + c.y()) / 3
-        angle = rnd.uniform(0, 2 * math.pi)
-        far = rnd.uniform(140, 300) * size / 128
-        out.append(
-            dict(
-                pts=(a, b, c),
-                centre=QPointF(cx, cy),
-                shade=clamp(0.5 + 0.5 * math.cos(math.atan2(cy - centre.y(), cx - centre.x()) + 2.3) + rnd.uniform(-0.25, 0.25)),
-                start=0.7 + 0.55 * rnd.random() * (0.4 + 0.6 * (k % 3 != 2)),
-                fly=QPointF(math.cos(angle) * far, math.sin(angle) * far),
-                spin=rnd.uniform(-160, 160),
-                leave_angle=angle,
-            )
-        )
+def _blur(a: np.ndarray, sigma: float) -> np.ndarray:
+    """About a Gaussian blur: three box blurs along each axis, from running sums."""
+    r = max(1, round(sigma * 0.9))
+    out = a.astype(np.float32)
+    for axis in (0, 1):
+        for _ in range(3):
+            pad = [(0, 0), (0, 0)]
+            pad[axis] = (r + 1, r)
+            sums = np.cumsum(np.pad(out, pad, mode="edge"), axis=axis)
+            high = np.take(sums, np.arange(2 * r + 1, sums.shape[axis]), axis=axis)
+            low = np.take(sums, np.arange(0, sums.shape[axis] - 2 * r - 1), axis=axis)
+            out = (high - low) / (2 * r + 1)
     return out
 
 
-def _heart(p: QPainter, t: float, centre: QPointF, facets: list[dict], u: float) -> None:
-    """The crystal heart: shards fly in and lock together, a prism of light sweeps it, it beats once."""
-    breaking = ease_in(win(t, 4.05, 4.75))
-    beat = 1 + 0.06 * max(0.0, math.sin(math.pi * win(t, 2.25, 2.45))) + 0.04 * max(0.0, math.sin(math.pi * win(t, 2.5, 2.68)))
+def _rgb(color: str) -> np.ndarray:
+    c = QColor(color)
+    return np.array([c.redF(), c.greenF(), c.blueF()], dtype=np.float32)
+
+
+def _smooth(e0: float, e1: float, x: np.ndarray) -> np.ndarray:
+    k = np.clip((x - e0) / (e1 - e0), 0, 1)
+    return k * k * (3 - 2 * k)
+
+
+def _glass(px: int) -> QImage:
+    """A heart of clear ice-blue glass px pixels wide, centred in a square picture.
+
+    Its surface rises in a rounded bevel from the outline. Face on it is mostly clear, a pale blue
+    deepening to sapphire low on the right, with a cold light gathered low inside; at the bevel it
+    reflects the sky (bright above, deep navy below) more and more as it turns away, as glass does;
+    two lights show in it with soft edges, a window up on the left (once on each lobe, never at the
+    cleft) and a cyan light low on the right; a faint rainbow runs round the bevel."""
+    side = int(px * 1.04) + 4
+    cx, cy = side / 2, side / 2 - px * 0.145
+    outline = QImage(side, side, QImage.Format_Grayscale8)
+    outline.fill(0)
+    q = QPainter(outline)
+    q.setRenderHint(QPainter.Antialiasing)
+    q.setPen(Qt.NoPen)
+    q.setBrush(QColor(255, 255, 255))
+    q.drawPath(heart_path(cx, cy, px))
+    q.end()
+    stride = outline.bytesPerLine()
+    mask = np.frombuffer(outline.constBits(), dtype=np.uint8, count=stride * side).reshape(side, stride)[:, :side] / 255.0
+    inside = (mask > 0.5).astype(np.float32)
+    # How far in from the outline: the nearest of its segments, measured on every other pixel (the
+    # bevel is smoothed after, which hides it) and spread back out.
+    ring = heart_points(cx, cy, px, 72)
+    ax = np.array([point.x() for point in ring], dtype=np.float32)
+    ay = np.array([point.y() for point in ring], dtype=np.float32)
+    half_y, half_x = np.mgrid[0:side:2, 0:side:2].astype(np.float32) + 0.5
+    dist = np.full(half_x.shape, np.inf, dtype=np.float32)
+    for x0, y0, x1, y1 in zip(ax, ay, np.roll(ax, -1), np.roll(ay, -1), strict=True):
+        dx, dy = x1 - x0, y1 - y0
+        k = np.clip(((half_x - x0) * dx + (half_y - y0) * dy) / (dx * dx + dy * dy + 1e-6), 0, 1)
+        dist = np.minimum(dist, np.hypot(half_x - x0 - k * dx, half_y - y0 - k * dy))
+    dist = np.kron(dist, np.ones((2, 2), dtype=np.float32))[:side, :side]
+    yy, xx = np.mgrid[0:side, 0:side].astype(np.float32)
+    bevel = px * 0.2
+    k = np.clip(dist / bevel, 0, 1)
+    height = _blur(np.sqrt(1 - (1 - k) ** 2) * inside, px * 0.02) * inside
+    gy, gx = np.gradient(height * bevel)
+    norm = np.sqrt(gx * gx + gy * gy + 1)
+    nx, ny, nz = -gx / norm, -gy / norm, 1 / norm
+    # What the bevel reflects, looking straight at it.
+    rx, ry, rz = 2 * nz * nx, 2 * nz * ny, 2 * nz * nz - 1
+    up = np.clip(-ry, -1, 1)[..., None]
+    horizon, sky, ground = _rgb("#4f8fe0"), _rgb("#e8fbff"), _rgb("#06123f")
+    env = np.where(up > 0, horizon + (sky - horizon) * _smooth(0.0, 0.7, up), horizon + (ground - horizon) * _smooth(0.0, 0.6, -up))
+    fresnel = (0.06 + 0.94 * (1 - nz) ** 2.2)[..., None]
+    x = (xx - cx) / px
+    y = (yy - cy) / px - 0.14
+    lights = np.zeros((side, side, 3), dtype=np.float32)
+    away_from_cleft = _smooth(0.1, 0.22, np.hypot(x, y + 0.12))
+    for (lx, ly, lz), color, strength, mask_by in (
+        ((-0.55, -0.62, 0.56), "#ffffff", 0.85, away_from_cleft),
+        ((0.62, 0.35, 0.7), "#9ff4ff", 0.5, 1.0),
+    ):
+        length = (lx * lx + ly * ly + lz * lz) ** 0.5
+        facing = (rx * lx + ry * ly + rz * lz) / length
+        lights += _rgb(color) * (_smooth(0.9, 0.96, facing) * strength * mask_by)[..., None]
+    light, deep = _rgb("#8fd8ff"), _rgb("#1747d8")
+    tint = light + (deep - light) * np.clip(0.45 + x * 0.5 + y * 0.9, 0, 1)[..., None]
+    gathered = np.exp(-(((x - 0.12) / 0.2) ** 2 + ((y - 0.16) / 0.13) ** 2))
+    core = np.exp(-((x / 0.3) ** 2 + ((y - 0.02) / 0.26) ** 2)) * 0.25
+    clear = np.clip(0.45 + 0.25 * gathered + 0.3 * core, 0, 1)[..., None]
+    through = tint + _rgb("#d9fbff") * (0.6 * gathered)[..., None] + _rgb("#7fe6ff") * core[..., None]
+    turn = np.arctan2(ny, nx)
+    rainbow = np.stack([0.5 + 0.5 * np.cos(turn * 2 + shift) for shift in (0, 2.1, 4.2)], axis=-1)
+    slope = 1 - nz
+    fringe = (_smooth(0.15, 0.45, slope) * (1 - _smooth(0.5, 0.8, slope)) * 0.06)[..., None]
+    color = through * clear * (1 - fresnel) + env * fresnel + rainbow * fringe + lights
+    alpha = clear * (1 - fresnel) + fresnel * np.clip(env.max(axis=-1, keepdims=True) * 0.6 + 0.5, 0, 1)
+    alpha = np.clip(np.maximum(alpha, lights.max(axis=-1, keepdims=True)) * mask[..., None], 0, 1)
+    color = np.minimum(np.clip(color * mask[..., None], 0, 1), alpha)
+    pixels = np.ascontiguousarray((np.dstack([color, alpha]) * 255 + 0.5).astype(np.uint8))
+    return QImage(pixels.data, side, side, side * 4, QImage.Format_RGBA8888_Premultiplied).copy()
+
+
+def _density(p: QPainter) -> float:
+    """Pixels per point where p draws: the screen's ratio and any scaling (the small preview)."""
+    device = p.device()
+    ratio = device.devicePixelRatioF() if device is not None else 1.0
+    m = p.worldTransform()
+    return max(0.3, ratio * math.hypot(m.m11(), m.m12()))
+
+
+def _sparks(centre: QPointF, size: float, rnd: random.Random) -> list[tuple]:
+    """Glints that gather on the heart's edge as it forms: (from, to, starts)."""
+    out = []
+    for i, point in enumerate(heart_points(centre.x(), centre.y(), size, 12, 0.5 / 12)):
+        angle = math.atan2(point.y() - centre.y(), point.x() - centre.x()) + rnd.uniform(-0.4, 0.4)
+        far = size * rnd.uniform(0.9, 1.5)
+        start = QPointF(point.x() + math.cos(angle) * far, point.y() + math.sin(angle) * far)
+        out.append((start, point, 0.55 + 0.04 * i + rnd.uniform(0, 0.12)))
+    return out
+
+
+def _heart(p: QPainter, t: float, centre: QPointF, sparks: list[tuple], u: float, glass: dict[int, QImage]) -> None:
+    """The glass heart: glints gather and it forms; a prism of light sweeps it, it beats once, and at
+    the end it melts into light."""
+    form = ease_out(win(t, 0.8, 1.55))
+    melt = ease_in(win(t, 4.05, 4.75))
     float_y = 3 * u * math.sin(t * 1.7)
-    assembled = win(t, 1.4, 1.7)
-    glow = QRadialGradient(QPointF(centre.x(), centre.y() + 6 * u + float_y), 150 * u * beat)
-    glow.setColorAt(0, col("#7fd0ff", 0.42 * assembled * (1 - breaking)))
-    glow.setColorAt(0.45, col("#2f7bff", 0.18 * assembled * (1 - breaking)))
+    # The glass, drawn for the largest it gets (beating, melting) and only ever shown smaller; made
+    # on the first frame, while there is nothing yet to see, so it never holds up the heart.
+    px = max(16, math.ceil(150 * u * 1.14 * _density(p) / 8) * 8)
+    if px not in glass:
+        glass[px] = _glass(px)
+    for start, end, when in sparks:
+        k = ease_in_out(win(t, when, when + 0.6))
+        if 0 < k < 1:
+            x = start.x() + (end.x() - start.x()) * k
+            y = start.y() + (end.y() - start.y()) * k + float_y * k
+            star(p, x, y, 9 * u * (0.5 + 0.5 * math.sin(math.pi * k)), "#ffffff", 0.9)
+    if form <= 0 or melt >= 1:
+        return
+    beat = 1 + 0.06 * max(0.0, math.sin(math.pi * win(t, 2.25, 2.45))) + 0.04 * max(0.0, math.sin(math.pi * win(t, 2.5, 2.68)))
+    a = form * (1 - melt)
+    c = QPointF(centre.x(), centre.y() + float_y)
+    size = 150 * u * (0.82 + 0.18 * form) * beat * (1 + 0.12 * melt)
+    glow = QRadialGradient(QPointF(c.x(), c.y() + 6 * u), 150 * u * beat)
+    glow.setColorAt(0, col("#7fd0ff", 0.42 * a))
+    glow.setColorAt(0.45, col("#2f7bff", 0.18 * a))
     glow.setColorAt(1, col("#2f7bff", 0))
     p.setPen(Qt.NoPen)
     p.setBrush(glow)
-    p.drawEllipse(QPointF(centre.x(), centre.y() + 6 * u + float_y), 150 * u * beat, 150 * u * beat)
-    sweep = win(t, 1.75, 2.55)
-    sweep2 = win(t, 3.1, 3.7)
-    for f in facets:
-        k = ease_out(win(t, f["start"], f["start"] + 0.55))
-        if k <= 0:
-            continue
-        a, b, c = f["pts"]
-        fc = f["centre"]
-        # Fly in from afar, turning; at the end fly out again.
-        dx = f["fly"].x() * (1 - k) + math.cos(f["leave_angle"]) * 220 * u * breaking
-        dy = f["fly"].y() * (1 - k) + math.sin(f["leave_angle"]) * 220 * u * breaking + float_y
-        turn = math.radians(f["spin"] * ((1 - k) + breaking))
-        scale = beat * (0.6 + 0.4 * k) * (1 - 0.5 * breaking)
-        poly = QPolygonF()
-        for v in (a, b, c):
-            vx, vy = (v.x() - fc.x()) * scale, (v.y() - fc.y()) * scale
-            rx = vx * math.cos(turn) - vy * math.sin(turn)
-            ry = vx * math.sin(turn) + vy * math.cos(turn)
-            hx = (fc.x() - centre.x()) * beat + centre.x()
-            hy = (fc.y() - centre.y()) * beat + centre.y()
-            poly.append(QPointF(hx + rx + dx, hy + ry + dy))
-        # Deep sapphire to ice, by which way the facet faces; the prism adds a band of spectrum and white.
-        base = mix("#0f3aa8", "#bfe9ff", f["shade"])
-        proj = (fc.x() - centre.x() + fc.y() - centre.y()) / (180 * u) + 0.5
-        band = math.exp(-(((proj - (-0.3 + 1.6 * sweep)) / 0.13) ** 2)) * (0 < sweep < 1)
-        band += 0.6 * math.exp(-(((proj - (-0.3 + 1.6 * sweep2)) / 0.13) ** 2)) * (0 < sweep2 < 1)
-        hue = spectrum(("#7ff2e6", "#9a7bff", "#ff9ad5", "#46c6ff"), proj * 1.5 + t * 0.2)
-        fill = mix(mix(base, hue, 0.55 * band), "#ffffff", 0.45 * band)
-        alpha = (0.35 + 0.6 * k) * (1 - breaking)
-        fill.setAlphaF(clamp(alpha * 0.92))
-        p.setBrush(fill)
-        p.setPen(QPen(col("#eaf8ff", 0.5 * alpha), 0.9 * u))
-        p.drawPolygon(poly)
+    p.drawEllipse(QPointF(c.x(), c.y() + 6 * u), 150 * u * beat, 150 * u * beat)
+    picture = glass[px]
+    scale = size / px
+    side = picture.width()
+    p.save()
+    p.setOpacity(p.opacity() * a)
+    p.setRenderHint(QPainter.SmoothPixmapTransform)
+    p.drawImage(QRectF(c.x() - side / 2 * scale, c.y() - (side / 2 - px * 0.145) * scale, side * scale, side * scale), picture)
+    shape = heart_path(c.x(), c.y(), size)
+    p.setClipPath(shape)
+    p.setCompositionMode(QPainter.CompositionMode_Plus)
+    _aurora_within(p, t, c, size)
+    p.restore()
+    p.save()
+    p.setClipPath(shape)
     p.setPen(Qt.NoPen)
+    # The prism: a band of spectrum and white crossing from the top left.
+    for sweep, strength in ((win(t, 1.75, 2.55), 0.8), (win(t, 3.1, 3.7), 0.45)):
+        if not 0 < sweep < 1:
+            continue
+        p.save()
+        p.translate(c.x() - size * 0.75 + size * 1.5 * sweep, c.y() - size * 0.6 + size * 1.2 * sweep)
+        p.rotate(-45)
+        band = QLinearGradient(QPointF(-size * 0.16, 0), QPointF(size * 0.16, 0))
+        band.setColorAt(0, col("#7ff2e6", 0))
+        band.setColorAt(0.3, col("#7ff2e6", 0.45 * strength * a))
+        band.setColorAt(0.5, col("#ffffff", 0.8 * strength * a))
+        band.setColorAt(0.7, col("#ff9ad5", 0.4 * strength * a))
+        band.setColorAt(1, col("#9a7bff", 0))
+        p.setBrush(band)
+        p.drawRect(QRectF(-size * 0.16, -size, size * 0.32, 2 * size))
+        p.restore()
+    p.restore()
+    # The edge: icy starlight, a haze round a fine bright line.
+    p.setBrush(Qt.NoBrush)
+    for width, color, alpha in ((10, "#7fd0ff", 0.10), (4, "#bff3ff", 0.30), (1.3, "#ffffff", 0.85)):
+        p.setPen(QPen(col(color, alpha * a), width * u, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        p.drawPath(shape)
+    p.setPen(Qt.NoPen)
+    sweep = win(t, 1.75, 2.55)
     if 0 < sweep < 1:
-        tip = QPointF(centre.x() - 40 * u + 90 * u * sweep, centre.y() - 34 * u + 60 * u * sweep + float_y)
-        star(p, tip.x(), tip.y(), 22 * u * math.sin(math.pi * sweep), "#ffffff", 0.95)
-    if breaking <= 0 and t > 2.3:
+        star(p, c.x() - size * 0.3 + size * 0.6 * sweep, c.y() - size * 0.2 + size * 0.4 * sweep, 22 * u * math.sin(math.pi * sweep), "#ffffff", 0.95 * a)
+    if melt <= 0 and t > 2.3:
         twinkle = max(0.0, math.sin(math.pi * win(t, 3.4, 3.8)))
-        star(p, centre.x() + 34 * u, centre.y() - 30 * u + float_y, 16 * u * twinkle, "#ffffff", twinkle)
+        star(p, c.x() + size * 0.23, c.y() - size * 0.2, 16 * u * twinkle, "#ffffff", twinkle)
+    # Melting: the light it held goes up as glints.
+    if melt > 0:
+        for i, point in enumerate(heart_points(c.x(), c.y(), size, 8, 0.5 / 8)):
+            rise = 60 * u * melt * (0.6 + 0.08 * i)
+            star(p, point.x(), point.y() - rise, 8 * u * math.sin(math.pi * melt), "#ffffff", 0.9 * (1 - melt))
+
+
+def _aurora_within(p: QPainter, t: float, c: QPointF, size: float) -> None:
+    """Aurora light drifting inside the heart: two wide bands, cyan through violet, drawn a quarter
+    size and laid on scaled up, so they are soft light and not stripes."""
+    shrink = 4.0
+    box = QRectF(c.x() - size * 0.55, c.y() - size * 0.45, size * 1.1, size * 0.95)
+    small = QImage(max(1, round(box.width() / shrink)), max(1, round(box.height() / shrink)), QImage.Format_ARGB32_Premultiplied)
+    small.fill(Qt.transparent)
+    inner = QPainter(small)
+    inner.setRenderHint(QPainter.Antialiasing)
+    inner.scale(1 / shrink, 1 / shrink)
+    inner.translate(-box.left(), -box.top())
+    inner.setCompositionMode(QPainter.CompositionMode_Plus)
+    for i, (off, amp, speed, phase, bright) in enumerate(((-0.04, 0.08, 0.9, 0.0, 1.0), (0.22, 0.06, -0.7, 2.4, 0.75))):
+        path = QPainterPath()
+        for s in range(25):
+            k = s / 24
+            y = c.y() + size * (off + amp * math.sin(k * 4.2 + t * speed + phase) + 0.025 * math.sin(k * 9 + t * 1.3 + phase))
+            point = QPointF(box.left() + box.width() * k, y)
+            if s == 0:
+                path.moveTo(point)
+            else:
+                path.lineTo(point)
+        across = QLinearGradient(QPointF(box.left(), 0), QPointF(box.right(), 0))
+        for s in range(7):
+            across.setColorAt(s / 6, spectrum(WITHIN, s / 6 * 0.8 + t * 0.12 + i * 0.3))
+        for width, alpha in ((0.34, 0.12), (0.2, 0.16), (0.09, 0.22)):
+            inner.setOpacity(alpha * bright)
+            inner.setPen(QPen(across, size * width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            inner.drawPath(path)
+    inner.end()
+    p.setRenderHint(QPainter.SmoothPixmapTransform)
+    p.drawImage(box, small)
 
 
 def _frost(width: float, height: float, u: float, rnd: random.Random) -> list[tuple]:

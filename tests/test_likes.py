@@ -211,6 +211,43 @@ def test_two_likes_and_no_hit_play_the_border_once_per_lobby(window):
     window._hide_panel_after_title()
 
 
+def test_the_marks_wear_the_look_of_the_scene_that_greets_them(window):
+    from blacklist_detect.ui_overlay import CLASSIC_LOOK, LOOKS
+
+    window.store.add_like("小明")
+    window.store.add_like("小红")
+    names = [NameSlot(i, (0, 0, 1, 1), name, name, False, 0.9, False) for i, name in enumerate(("小明", "小红", "坏人"))]
+    screen = QApplication.primaryScreen().availableGeometry()
+    left = screen.left() + screen.width() // 2 - 90
+    button = (left, screen.top() + 300, left + 180, screen.top() + 360)
+    window._live_check = True
+    marks = (window.panel, window.clear_mark, window.like_card)
+    # 随机: the scene is settled before the marks show, and they wear its look.
+    window.store.love_scene = "random"
+    window._on_lobby_placed(button)
+    window._show_panel(CheckResult(True, "", names=names[:2], button_box=button))
+    assert window.love.playing() and all(mark.look is LOOKS[window.love.scene] for mark in marks)
+    names_ink = window.like_card.findChild(QLabel, "hitName").styleSheet()
+    assert LOOKS[window.love.scene].ink in names_ink
+    window._hide_panel_after_title()
+    # One 心动 player, so no scene plays: the chosen one's look all the same.
+    window.store.love_scene = "ice"
+    window._on_lobby_placed(button)
+    window._show_panel(CheckResult(True, "", names=names[:1], button_box=button))
+    assert not window.love.playing() and all(mark.look is LOOKS["ice"] for mark in marks)
+    # With a 黑名单 player too, the 心动 half of the ring is the look's.
+    hit = Hit(2, "坏人", "坏人", "", False, "", ())
+    window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
+    assert window.panel.mode == "both" and window.panel.look is LOOKS["ice"]
+    window._hide_panel_after_title()
+    # 无: 经典花边's look.
+    window.store.love_scene = "off"
+    window._on_lobby_placed(button)
+    window._show_panel(CheckResult(True, "", names=names[:2], button_box=button))
+    assert not window.love.playing() and all(mark.look is CLASSIC_LOOK for mark in marks)
+    window._hide_panel_after_title()
+
+
 def test_the_border_ends_by_itself(window, monkeypatch):
     window.love.play(QApplication.primaryScreen().geometry(), QRect(500, 700, 300, 80))
     assert window.love.isVisible() and window.love.playing()

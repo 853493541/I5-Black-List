@@ -201,6 +201,16 @@ def heart_points(cx: float, cy: float, size: float, count: int, start: float = 0
     return out
 
 
+def heart_path(cx: float, cy: float, size: float) -> QPainterPath:
+    """The heart of heart_points as one smooth outline: the plain heart everyone knows."""
+    points = heart_points(cx, cy, size, 120)
+    path = QPainterPath(points[0])
+    for point in points[1:]:
+        path.lineTo(point)
+    path.closeSubpath()
+    return path
+
+
 def soft_dot(painter: QPainter, x: float, y: float, r: float, color: str | QColor, alpha: float) -> None:
     """A round glow: bright core, soft edge."""
     if alpha <= 0.01 or r <= 0.2:

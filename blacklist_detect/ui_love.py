@@ -40,6 +40,8 @@ class LoveBorder(QWidget):
         self.choice = "random"
         self.scene = "classic"
         self._last = ""
+        # (choice, scene): the scene pick() settled for the next play, and the choice it was for.
+        self._picked: tuple[str, str] | None = None
         self._rng = rng or random.Random()
         self._gap = QRectF()
         self._badge: QPointF | None = None
@@ -55,7 +57,8 @@ class LoveBorder(QWidget):
 
         badge is the 心动 heart, on the screen. Returns False when 心动特效 says 无.
         """
-        scene = love_scenes.choose(self.choice, self._last, self._rng)
+        scene = self.pick()
+        self._picked = None
         if not scene:
             return False
         self.scene = self._last = scene
@@ -71,6 +74,13 @@ class LoveBorder(QWidget):
         _pin_topmost(self)
         self.update()
         return True
+
+    def pick(self) -> str:
+        """The scene the next play() plays ("" for 无), settled now, 随机 too, so the 心动 marks can
+        be dressed for it before it starts."""
+        if self._picked is None or self._picked[0] != self.choice:
+            self._picked = (self.choice, love_scenes.choose(self.choice, self._last, self._rng))
+        return self._picked[1]
 
     def playing(self) -> bool:
         return self._tick.isActive()
@@ -105,16 +115,23 @@ class LoveBorder(QWidget):
         if limit is None or ratio <= limit + 0.01:
             paint(painter, t)
             return
-        # A heavy scene on a sharp screen: drawn at fewer pixels, then laid on.
+        # A heavy scene on a sharp screen: drawn at fewer pixels, then laid on; a part that must
+        # stay crisp is drawn on top at the screen's own.
+        crisp = getattr(paint, "sharp", None)
         buffer = self._buffer(width, height, limit)
         inner = QPainter(buffer)
         inner.setRenderHint(QPainter.Antialiasing)
-        paint(inner, t)
+        if crisp is None:
+            paint(inner, t)
+        else:
+            paint(inner, t, sharp=False)
         inner.end()
         painter.save()
         painter.setRenderHint(QPainter.SmoothPixmapTransform)
         painter.drawImage(QRectF(0, 0, width, height), buffer)
         painter.restore()
+        if crisp is not None:
+            crisp(painter, t)
 
     def _made_for(self, stage: Stage):  # noqa: ANN202
         gap = stage.gap

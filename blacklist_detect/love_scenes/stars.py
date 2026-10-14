@@ -2,10 +2,9 @@
 
 The top of the screen turns to violet dusk with a magenta glow low in the corners, and a faint
 Milky Way arches over the title; stars come out around the edges, bright ones and a haze of
-faint ones; in the top left, stars light one by one and silver lines join them into a heart
-constellation that then glows from inside; a gold crescent moon rises in the top right; shooting
-stars streak past either side of the title; gold star dust drifts down. At the end the lines draw
-back and the sky fades.
+faint ones; in the top left, two wishing stars draw a heart from its tip up both sides and meet
+at its top in a flash, and it fills with a soft gold glow; a gold crescent moon rises in the top right; shooting stars streak past
+either side of the title; gold star dust drifts down. At the end the heart dims and the sky fades.
 """
 
 from __future__ import annotations
@@ -21,11 +20,11 @@ from blacklist_detect.love_scenes.draw import (
     Wash,
     clamp,
     col,
-    ease_back,
     ease_in,
     ease_in_out,
     ease_out,
     gradient,
+    heart_path,
     heart_points,
     mix,
     partial,
@@ -60,7 +59,7 @@ def make(stage: Stage):  # noqa: ANN201
         # Most stars small and faint, a few bright: depth, not a sprinkle of equal dots.
         r = rnd.uniform(0.7, 2.1) if rnd.random() < 0.45 else rnd.uniform(0.35, 0.8)
         sky.append((x, y, r * u, rnd.uniform(0.2, 1.4), rnd.uniform(1.5, 4.0), rnd.choice((SILVER, SILVER, LILAC, GOLD))))
-    heart = heart_points(width * 0.118, height * 0.2, 200 * u, 12)
+    heart_at = QPointF(width * 0.118, height * 0.2)
     meteors = (
         (1.3, QPointF(width * 0.34, -height * 0.02), QPointF(width * 0.16, height * 0.24)),
         (2.3, QPointF(width * 0.97, height * 0.0), QPointF(width * 0.74, height * 0.27)),
@@ -82,7 +81,7 @@ def make(stage: Stage):  # noqa: ANN201
         galaxy.paint(p, width, height, gap, ease_out(win(t, 0.3, 1.4)) * (1 - leave))
         _sky(p, t, sky, u, leave)
         _moon(p, t, QPointF(width - 150 * u, 100 * u), u, leave)
-        _constellation(p, t, heart, u, leave)
+        _star_heart(p, t, heart_at, 190 * u, u, leave)
         for when, a, b in meteors:
             _meteor(p, t - when, a, b, u)
         _dust(p, t, dust, u, 1 - leave)
@@ -161,45 +160,58 @@ def _sky(p: QPainter, t: float, sky: list[tuple], u: float, leave: float) -> Non
             p.drawEllipse(QPointF(x, y), r * 0.6, r * 0.6)
 
 
-def _constellation(p: QPainter, t: float, points: list[QPointF], u: float, leave: float) -> None:
-    """Stars light one by one, then silver lines join them into a heart that glows from inside."""
-    n = len(points)
-    back = ease_in_out(win(t, 4.05, 4.7))
-    draw = ease_in_out(win(t, 1.1, 2.15)) * (1 - back)
-    loop = [*points, points[0]]
-    if draw > 0:
-        line = partial(loop, draw)
-        path = polyline(line)
-        p.setBrush(Qt.NoBrush)
-        p.setPen(QPen(col(LILAC, 0.22), 6 * u, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-        p.drawPath(path)
-        p.setPen(QPen(col(SILVER, 0.85), 1.2 * u, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-        p.drawPath(path)
+def _star_heart(p: QPainter, t: float, centre: QPointF, size: float, u: float, leave: float) -> None:
+    """Two wishing stars draw a heart, from its tip up both sides, and meet at its top in a flash;
+    their trails stay as its glowing edge, it fills with soft gold light and beats once."""
+    fade = 1 - ease_in_out(win(t, 4.05, 4.7))
+    if fade <= 0:
+        return
+    beat = 1 + 0.05 * max(0.0, math.sin(math.pi * win(t, 2.2, 2.5)))
+    size *= beat
+    ring = heart_points(centre.x(), centre.y(), size, 120)
+    # heart_points runs clockwise from the top cleft: the right side down to the tip at 60, then the
+    # left side back up. Each trail runs from the tip to the cleft.
+    sides = (ring[60::-1], [*ring[60:], ring[0]])
+    draw = ease_in_out(win(t, 0.5, 1.5))
+    filled = ease_out(win(t, 1.45, 2.1)) * fade
+    if filled > 0:
+        shape = heart_path(centre.x(), centre.y(), size)
+        inside = QRadialGradient(QPointF(centre.x(), centre.y() + size * 0.12), size * 0.62)
+        inside.setColorAt(0, col(GOLD, 0.42 * filled))
+        inside.setColorAt(0.55, col(LILAC, 0.24 * filled))
+        inside.setColorAt(1, col(LILAC, 0.08 * filled))
         p.setPen(Qt.NoPen)
-        if draw < 1 and line:
-            head = line[-1]
-            soft_dot(p, head.x(), head.y(), 16 * u, "#ffffff", 0.8)
-            star(p, head.x(), head.y(), 11 * u, "#ffffff", 1.0)
-    closed = win(t, 2.15, 2.5) * (1 - back)
-    if closed > 0:
-        shape = QPainterPath()
-        shape.addPolygon(QPolygonF(points))
-        shape.closeSubpath()
-        centre = QPointF(sum(q.x() for q in points) / n, sum(q.y() for q in points) / n)
-        pulse = 0.7 + 0.3 * math.sin(math.pi * win(t, 2.15, 2.9))
-        inside = QRadialGradient(centre, 110 * u)
-        inside.setColorAt(0, col(GOLD, 0.30 * closed * pulse))
-        inside.setColorAt(0.6, col(LILAC, 0.16 * closed * pulse))
-        inside.setColorAt(1, col(LILAC, 0.0))
         p.setBrush(inside)
         p.drawPath(shape)
-    for i, q in enumerate(points):
-        lit = ease_back(win(t, 0.5 + i * 0.05, 0.75 + i * 0.05)) * (1 - ease_in(win(t, 4.2, 4.8)))
-        if lit <= 0:
+    p.setBrush(Qt.NoBrush)
+    for side in sides:
+        trail = partial(side, draw)
+        if len(trail) < 2:
             continue
-        twinkle = 0.75 + 0.25 * math.sin(t * 3 + i)
-        soft_dot(p, q.x(), q.y(), 13 * u * lit, LILAC, 0.6 * lit)
-        star(p, q.x(), q.y(), (7 + (5 if i % 3 == 0 else 0)) * u * lit * twinkle, "#ffffff", lit)
+        path = polyline(trail)
+        # Starlight, not a line: a wide faint haze round a fine bright core.
+        for width, color, alpha in ((16, LILAC, 0.06), (8, LILAC, 0.14), (3.4, SILVER, 0.38), (1.3, "#ffffff", 0.95)):
+            p.setPen(QPen(col(color, alpha * fade), width * u, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            p.drawPath(path)
+        p.setPen(Qt.NoPen)
+        if 0 < draw < 1:
+            head = trail[-1]
+            soft_dot(p, head.x(), head.y(), 20 * u, "#ffffff", 0.75)
+            star(p, head.x(), head.y(), 13 * u, "#ffffff", 1.0)
+        p.setBrush(Qt.NoBrush)
+    p.setPen(Qt.NoPen)
+    # Where they meet, a flash of gold.
+    meet = math.sin(math.pi * win(t, 1.45, 2.05))
+    if meet > 0:
+        top = ring[0]
+        soft_dot(p, top.x(), top.y(), 34 * u * meet, GOLD, 0.7 * meet)
+        star(p, top.x(), top.y(), 26 * u * meet, "#ffffff", meet)
+    # Now and then, a glint on a lobe.
+    for index, when in ((104, 2.7), (22, 3.25)):
+        glint = math.sin(math.pi * win(t, when, when + 0.5)) * fade
+        if glint > 0:
+            point = ring[index]
+            star(p, point.x(), point.y(), 14 * u * glint, "#ffffff", glint)
 
 
 def _moon(p: QPainter, t: float, centre: QPointF, u: float, leave: float) -> None:

@@ -95,14 +95,14 @@ def test_blacklist_roundtrip(tmp_path):
     added = store.add("  罪玥吉尔曼  ", reason="常挂机")
     assert added is not None
     store.add("无害虎皮…")
-    store.hotkey = "Ctrl+Shift+F8"
+    store.hotkey = "Ctrl+F8"
     store.save_settings()
 
     again = Store(tmp_path)
     assert [entry.name for entry in again.entries] == ["罪玥吉尔曼", "无害虎皮"]
     assert again.entries[0].reason == "常挂机"
     assert again.entries[0].tags == ()
-    assert again.hotkey == "Ctrl+Shift+F8"
+    assert again.hotkey == "Ctrl+F8"
     # 安全模式 and 手动检查 by default.
     assert again.safe_mode is True
     assert again.auto_capture is False
@@ -461,3 +461,14 @@ def test_love_counts_are_kept_and_junk_is_the_default(tmp_path):
     settings["love_counts"] = [3, 1, 3]
     (tmp_path / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
     assert Store(tmp_path).love_counts == (1, 3)
+
+
+def test_a_saved_hotkey_of_three_keys_keeps_two(tmp_path):
+    import json
+
+    root = tmp_path / "BlackListDetect"
+    root.mkdir()
+    (root / "settings.json").write_text(json.dumps({"hotkey": "Ctrl+Alt+F11"}), encoding="utf-8")
+    assert Store(root).hotkey == "Ctrl+F11"
+    (root / "settings.json").write_text(json.dumps({"hotkey": "Alt+1"}), encoding="utf-8")
+    assert Store(root).hotkey == "Alt+1"

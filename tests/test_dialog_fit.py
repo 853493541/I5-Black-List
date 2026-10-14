@@ -114,14 +114,20 @@ def test_a_long_hotkey_is_shown_whole(window):
     assert window.hotkey_edit.width() >= metrics.horizontalAdvance("Ctrl+Shift+Alt+F12") + 16
 
 
-def test_the_check_panel_info_marks_line_up(window):
-    # The 直播模式 switch sits in a cell as wide as 显示's choices, so both ⓘ are at one x.
+def test_the_check_panel_rows_are_alike_and_each_info_mark_is_beside_its_choice(window):
+    # 显示 and 直播模式 are each two joined choices, their ⓘ right after them; 方式 has 手动检查
+    # beside its hotkey.
     window.show()
     window.check_panel.toggle()
     for _ in range(5):
         QApplication.processEvents()
     panel = window.check_panel
-    assert window.stream_guide.mapTo(panel, QPoint(0, 0)).x() == window.display_guide.mapTo(panel, QPoint(0, 0)).x()
+    assert list(window.auto_mode.buttons) == ["auto", "manual"] and list(window.stream_choice.buttons) == ["on", "off"]
+    for choice, info in ((window.display_mode, window.display_guide), (window.stream_choice, window.stream_guide)):
+        end = choice.mapTo(panel, QPoint(choice.width(), 0)).x()
+        assert 0 <= info.mapTo(panel, QPoint(0, 0)).x() - end <= 16
+    manual = window.auto_mode.buttons["manual"]
+    assert window.hotkey_edit.mapTo(panel, QPoint(0, 0)).x() - manual.mapTo(panel, QPoint(manual.width(), 0)).x() <= 16
     window.check_panel.close_panel()
 
 

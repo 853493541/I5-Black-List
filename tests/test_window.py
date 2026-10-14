@@ -600,7 +600,7 @@ def test_the_header_pill_opens_the_check_settings(qapp, tmp_path, monkeypatch):
     assert chip.hovered() is False
     # 显示, 方式 and 直播模式 are in the card under the pill, not in 设置.
     settings_page = window.tabs.widget(window.settings_tab)
-    for control in (window.display_mode, window.auto_mode, window.hotkey_edit, window.stream_switch):
+    for control in (window.display_mode, window.auto_mode, window.hotkey_edit, window.stream_choice):
         assert panel.isAncestorOf(control) and not settings_page.isAncestorOf(control)
     assert not panel.isVisible()
     chip.click()
@@ -1057,6 +1057,14 @@ def test_hotkey_saves_on_the_key_press(qapp, tmp_path, monkeypatch):
     assert window.store.hotkey == "Alt+1"
     assert window.hotkey_edit.text() == "Alt+1"
     assert Store(window.store.root).hotkey == "Alt+1"
+    # Three keys are refused, with why; two are taken.
+    qapp.sendEvent(window.hotkey_edit, QFocusEvent(QEvent.Type.FocusIn))
+    three = Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier
+    qapp.sendEvent(window.hotkey_edit, QKeyEvent(QEvent.Type.KeyPress, Qt.Key_K, three))
+    assert window.store.hotkey == "Alt+1" and window.settings_label.text() == "最多两个键，比如 Alt+1"
+    qapp.sendEvent(window.hotkey_edit, QKeyEvent(QEvent.Type.KeyPress, Qt.Key_K, Qt.KeyboardModifier.ControlModifier))
+    assert window.store.hotkey == "Ctrl+K"
+    window.store.hotkey = "Alt+1"
     qapp.sendEvent(window.hotkey_edit, QFocusEvent(QEvent.Type.FocusIn))
     qapp.sendEvent(window.hotkey_edit, QFocusEvent(QEvent.Type.FocusOut))
     assert window.hotkey_edit.text() == "Alt+1"
@@ -1140,7 +1148,7 @@ def test_reset_asks_before_clearing_everything(qapp, tmp_path, monkeypatch):
     assert window.hotkey_edit.isEnabled() is True
     assert window.safe_on.isChecked() is True
     assert window.auto_off.isChecked() is True
-    assert window.stream_switch.isChecked() is False and window.store.stream_guided is False
+    assert window.stream_choice.current() == "off" and window.store.stream_guided is False
     # Every control that shows a setting goes back with it.
     assert window.status_chip.text() == "手动检查"
     again = Store(window.store.root)
@@ -2417,15 +2425,15 @@ def test_closing_quits_or_goes_to_the_tray_as_set(qapp, tmp_path, monkeypatch):
     stay = TitleBarClose()
     window.closeEvent(stay)
     assert stay.ignored is True and window._closing is False
-    # 关闭窗口时: 最小化到托盘 or 退出程序, both in view.
-    assert [button.text() for button in window.close_mode.buttons.values()] == ["最小化到托盘", "退出程序"]
+    # 关闭窗口时: 最小化 or 退出, both in view.
+    assert [button.text() for button in window.close_mode.buttons.values()] == ["最小化", "退出"]
     window.close_mode.buttons["quit"].click()
     assert window.store.close_to_tray is False
     assert Store(window.store.root).close_to_tray is False
     monkeypatch.setattr("blacklist_detect.ui.QMainWindow.closeEvent", lambda self, event: None)
     leave = TitleBarClose()
     window.closeEvent(leave)
-    assert leave.ignored is False and window._closing is True, "× quits when 关闭窗口时 is 退出程序"
+    assert leave.ignored is False and window._closing is True, "× quits when 关闭窗口时 is 退出"
     window.tray = real_tray
 
 
