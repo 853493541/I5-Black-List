@@ -984,7 +984,8 @@ def test_a_cut_name_shows_once_with_the_rest_from_the_list(qapp, tmp_path, monke
     window.store.add_scan(
         [
             {"seat": 1, "name": "无害虎皮", "unclear": False},
-            {"seat": 2, "name": "破轮蜡像金婚88", "unclear": False},
+            {"seat": 2, "name": "破轮蜡像金婚8", "unclear": False},
+            {"seat": 3, "name": "破轮蜡像金婚88", "unclear": False},
         ]
     )
     window._reload_history()
@@ -995,10 +996,14 @@ def test_a_cut_name_shows_once_with_the_rest_from_the_list(qapp, tmp_path, monke
     assert seat.findChild(QLabel, "rowName").text() == "无害虎皮吉尔曼"
     assert window.history_table.item(0, 0).toolTip() == "读到「无害虎皮」，是黑名单里的「无害虎皮吉尔曼」"
     assert seat.findChild(QLabel, "rowAction") is None
-    # A name that differs in more than the cut may be someone else: the list's spelling stays beside it.
+    # A cut name that differs in more than the cut may be someone else: the list's spelling stays beside it.
     other = window.history_table.cellWidget(0, 1)
-    assert other.findChild(QLabel, "rowName").text() == "破轮蜡像金婚88"
+    assert other.findChild(QLabel, "rowName").text() == "破轮蜡像金婚8"
     assert other.findChild(QLabel, "rowListed").text() == "黑名单：破轮蜡像金婚99"
+    # A whole name as long as the listed one and not the same is another player: not on the list.
+    third = window.history_table.cellWidget(1, 0)
+    assert third.findChild(QLabel, "rowListed") is None
+    assert window.history_table.item(1, 0).data(Qt.UserRole + 2) == ""
     window.close()
 
 

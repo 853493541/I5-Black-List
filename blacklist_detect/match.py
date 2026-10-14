@@ -116,30 +116,35 @@ class NameMatch:
 
 
 def match_label(label: NameLabel, entries: list[Entry]) -> list[NameMatch]:
-    """Match the first four characters. A cut-off name is the usual case.
+    """Match the first four characters when one of the two names is cut off. A cut-off name is the
+    usual case: the lobby shows "…", or the name read is shorter than the one listed, or longer
+    (the list kept a cut-off name).
 
-    A name shorter than four characters matches only when the whole name is the same.
-    The middle of a name never matches. Stray marks are already gone from fold().
+    The same name, when listed, is the only match: 测试玩家002 is not also 测试玩家001. Two names
+    of the same length that differ are different players, never a match. A name shorter than four
+    characters matches only when the whole name is the same. The middle of a name never matches.
+    Stray marks are already gone from fold().
     """
     if label.unclear or not label.visible or is_lobby_chrome(label.raw) or is_lobby_chrome(label.visible):
         return []
     folded_visible = fold(label.visible)
     if not folded_visible:
         return []
+    exact: list[NameMatch] = []
     hits: list[NameMatch] = []
     head = folded_visible[:MIN_PREFIX_CHARS]
     for entry in entries:
         folded_entry = fold(entry.name)
         if not folded_entry or is_lobby_chrome(entry.name):
             continue
-        same = folded_visible == folded_entry
-        if same:
-            hits.append(NameMatch(entry, label.visible, label.truncated, "exact"))
+        if folded_visible == folded_entry:
+            exact.append(NameMatch(entry, label.visible, label.truncated, "exact"))
             continue
-        if len(folded_visible) >= MIN_PREFIX_CHARS and len(folded_entry) >= MIN_PREFIX_CHARS:
+        cut = label.truncated or len(folded_visible) != len(folded_entry)
+        if cut and len(folded_visible) >= MIN_PREFIX_CHARS and len(folded_entry) >= MIN_PREFIX_CHARS:
             if folded_entry.startswith(head):
                 hits.append(NameMatch(entry, label.visible, True, "prefix"))
-    return hits
+    return exact or hits
 
 
 def last_seen(entries: list[Entry], scans: list[dict]) -> tuple[dict[int, str], dict[int, int]]:

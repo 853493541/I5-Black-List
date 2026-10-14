@@ -106,6 +106,30 @@ def test_ready_line_is_not_a_name():
     assert match_label(_label("罪玥吉尔曼"), entries)[0].entry.name == "罪玥吉尔曼"
 
 
+def test_the_same_name_is_the_only_match():
+    entries = [Entry(f"测试玩家{number:03d}") for number in range(1, 6)]
+    hits = match_label(_label("测试玩家002"), entries)
+    assert [(hit.entry.name, hit.kind) for hit in hits] == [("测试玩家002", "exact")]
+
+
+def test_a_different_name_of_the_same_length_is_another_player():
+    entries = [Entry("测试玩家001"), Entry("罪玥吉尔曼")]
+    assert match_label(_label("测试玩家009"), entries) == []
+    assert match_label(_label("罪玥吉尔晏"), entries) == []
+
+
+def test_a_cut_off_name_still_matches_every_listed_start():
+    entries = [Entry("测试玩家001"), Entry("测试玩家002")]
+    # The lobby cut it: "…", or fewer characters than the list has.
+    assert len(match_label(_label("测试玩家0…"), entries)) == 2
+    assert len(match_label(_label("测试玩家"), entries)) == 2
+
+
+def test_a_listed_cut_off_name_matches_the_whole_name():
+    hits = match_label(_label("无害虎皮猫"), [Entry("无害虎皮")])
+    assert [(hit.entry.name, hit.kind) for hit in hits] == [("无害虎皮", "prefix")]
+
+
 def test_unclear_read_does_not_match():
     label = NameLabel(raw="罪玥吉尔曼", visible="罪玥吉尔曼", truncated=False, unclear=True)
     assert match_label(label, [Entry("罪玥吉尔曼")]) == []
