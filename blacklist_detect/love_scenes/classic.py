@@ -1,4 +1,4 @@
-"""经典花边: the app's first 心动 border.
+"""经典花边: the app's first 嘉宾 border.
 
 Sheer silk swags drop in across the top from knots of flowers; a thin rose-gold frame with curls
 draws itself out from the middle of each edge; roses bloom in the two bottom corners; glints

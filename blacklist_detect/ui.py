@@ -39,7 +39,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from blacklist_detect import __version__, autostart, livehime, paths, single, updater
+from blacklist_detect import __version__, autostart, livehime, love_scenes, paths, single, updater
 from blacklist_detect.capture import (
     CaptureUnavailable,
     allow_any_foreground,
@@ -62,6 +62,7 @@ from blacklist_detect.diagnostics import (
     summary_text,
 )
 from blacklist_detect.game_area import exclusive_fullscreen, game_rect, window_order, window_rect_at
+from blacklist_detect.guests import lobby_choice
 from blacklist_detect.hotkey import GlobalHotkey, parse_hotkey
 from blacklist_detect.importing import suggest_tags, with_tags
 from blacklist_detect.logs import log, mark_closed, mark_running, masked, on_uncaught, setup_logging
@@ -415,6 +416,12 @@ def _show_tick(button: QPushButton) -> None:
     """A choice that goes with the others beside it shows a ✓ while it is on, as 嘉宾人数's do."""
     button.setIcon(line_icon("check", 14, THEME["on_accent"]) if button.isChecked() else QIcon())
 
+
+def _known_scene(key: str) -> bool:
+    """Whether this version plays a 嘉宾's or a combination's theme (a scene it dropped is skipped)."""
+    return love_scenes.shown(key) in love_scenes.KEYS
+
+
 class MainWindow(QMainWindow):
     uncaught = Signal(str)
 
@@ -460,6 +467,9 @@ class MainWindow(QMainWindow):
         # Two or more 嘉宾 players and no 黑名单: a border of silk and flowers, once per lobby.
         self.love = LoveBorder()
         self._love_played = False
+        # This lobby's 嘉宾特效 choice, worked out from the 嘉宾 in it when its result shows.
+        self._lobby_choice = ""
+
         # 嘉宾音乐: the same lobby, in either 显示, also gets a few seconds of wedding music.
         self.music = WeddingMusic()
         # Which scene and which music: 嘉宾 › 嘉宾特效.
@@ -3672,6 +3682,8 @@ class MainWindow(QMainWindow):
             return
         hits = self._hits_in(result)
         likes = self._likes_in(result)
+        # The scene for these 嘉宾: a combination of theirs, the top one's own theme, or 嘉宾特效's.
+        self._lobby_choice = self._choice_for(likes)
         if not hits and self._love_for(len(likes)):
             # Never with a 黑名单 player: the warning is the news then, not the music.
             if self._demo_likes is not None:
@@ -3782,17 +3794,25 @@ class MainWindow(QMainWindow):
             ]
         )
 
+    def _choice_for(self, likes: list[Entry]) -> str:
+        """The 嘉宾特效 choice for a lobby with these 嘉宾 (guests.lobby_choice). 测试效果's sample
+        嘉宾 are on no list: 嘉宾特效's own choice."""
+        if self._demo_likes is not None:
+            return self.store.love_scene
+        return lobby_choice(self.store.likes, self.store.combos, likes, self.store.love_scene, known=_known_scene)
+
     def _dress_love(self, playing: bool) -> None:
-        """The 嘉宾 marks (the ring, the heart badge and the card) in the look of the 嘉宾特效 scene:
-        the one about to play, settled now if it is 随机, or the one that played for this lobby.
-        With none playing, the chosen scene's look; 经典花边's under 随机 or 无."""
+        """The 嘉宾 marks (the ring, the badge and the card) in the look of this lobby's scene: the one
+        about to play, settled now if it is 随机, or the one that played for this lobby. With none
+        playing, the look of the lobby's choice; 经典花边's under 随机 or 无."""
+        choice = self._lobby_choice or self.store.love_scene
         if playing and self._love_played:
             scene = self.love.scene
         elif playing:
-            self.love.choice = self.store.love_scene
+            self.love.choice = choice
             scene = self.love.pick()
         else:
-            scene = self.store.love_scene
+            scene = choice
         look = love_look(scene)
         self.panel.set_look(look)
         self.clear_mark.set_look(look)
@@ -3954,9 +3974,13 @@ class MainWindow(QMainWindow):
         if screen is None:
             return
         self._love_played = True
-        log.info("Check %d shown: 嘉宾特效 (%s, music %s).", self._check_number, self.store.love_scene, self.store.love_music)
+        choice = self._lobby_choice or self.store.love_scene
+        log.info(
+            "Check %d shown: 嘉宾特效 (%s%s, music %s).", self._check_number, choice,
+            "" if choice == self.store.love_scene else f" for these 嘉宾, not {self.store.love_scene}", self.store.love_music,
+        )  # fmt: skip
         badge = self.clear_mark.geometry().center() if self.clear_mark.isVisible() else None
-        self.love.choice = self.store.love_scene
+        self.love.choice = choice
         self.love.play(self._game_area(screen), keep, badge)
 
     def _frame_stream(self) -> None:

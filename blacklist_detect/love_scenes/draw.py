@@ -1,4 +1,4 @@
-"""What the 心动 scenes draw with: easing, colors, pearls, glints, stars, hearts and paths."""
+"""What the 嘉宾 scenes draw with: easing, colors, pearls, glints, stars, hearts and paths."""
 
 from __future__ import annotations
 

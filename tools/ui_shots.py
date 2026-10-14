@@ -69,6 +69,7 @@ def shoot(args) -> None:  # noqa: ANN001
     from PySide6.QtWidgets import QDialog
 
     from blacklist_detect import __version__, ui
+    from blacklist_detect.ui_guests import CombosDialog
     from blacklist_detect.ui_kit import Modal
 
     _seed(data / "BlackListDetect", args, __version__)
@@ -144,6 +145,9 @@ def shoot(args) -> None:  # noqa: ANN001
     if window.store.likes:
         step("dlg_编辑嘉宾", lambda: likes.edit(0))
     step("dlg_嘉宾特效", window._show_love_effects)
+    step("dlg_组合特效", likes.show_combos)
+    if window.store.combos:
+        step("dlg_编辑组合", lambda: CombosDialog(window.store, parent=window).edit(0))
     window.tabs.setCurrentIndex(3)
     step("dlg_显示说明", window._show_display_guide)
     step("dlg_直播模式说明", window._show_stream_guide)
@@ -230,6 +234,7 @@ def _screen_percent() -> int:
 
 
 def _seed(root: Path, args, version: str) -> None:  # noqa: ANN001
+    from blacklist_detect.model import Combo
     from blacklist_detect.storage import Store
 
     store = Store(root)
@@ -242,9 +247,10 @@ def _seed(root: Path, args, version: str) -> None:  # noqa: ANN001
             ("小透明", ("挂机",), "全程挂机不动，一句话也不说，这是一段很长的原因，看看表格会不会把它截断"),
         ):
             store.add(name, tags=tags, reason=reason)
-        store.add_like("心动小鹿", nickname="小鹿", reason="声音好听")
+        store.add_like("心动小鹿", nickname="小鹿", reason="声音好听", theme="fluffy")
         store.add_like("心动星星")
-        store.add_like("一起开黑的朋友", reason="每次都带我赢")
+        store.add_like("一起开黑的朋友", reason="每次都带我赢", theme="cyber")
+        store.set_combos([Combo(("心动小鹿", "心动星星"), "angel")])
         store.add_scan([{"seat": i + 1, "name": n, "unclear": n == "摸鱼大师"} for i, n in enumerate(SEATS)], elapsed=0.31)
     if args.data == "stress":
         store.add_custom_tag("不尊重底牌还骂人")

@@ -502,7 +502,7 @@ def _radar(box: QRectF, u: float, fonts: dict[str, QFont]) -> tuple:
     rate = TAU / 1.8
 
     def still(q: QPainter, lit: bool) -> None:
-        _chrome(q, box, u, fonts, "心动 · TARGET SCAN", "SYS.07", mirror=False)
+        _chrome(q, box, u, fonts, "嘉宾 · TARGET SCAN", "SYS.07", mirror=False)
         q.setPen(Qt.NoPen)
         q.setBrush(col(CYAN, 0.06))
         q.drawEllipse(c, rr, rr)
@@ -1759,7 +1759,7 @@ def _card_pictures(w: float, h: float, scale: float) -> tuple[QImage, QRectF, li
     font.setFamilies([CARD_FONT, "Microsoft YaHei"])
     font.setPixelSize(10)
     font.setLetterSpacing(QFont.AbsoluteSpacing, 0.6)
-    label = "心动 // LINK"
+    label = "嘉宾 // LINK"
     q.setFont(font)
     q.setPen(col(CYAN, 0.9))
     q.drawText(QPointF(12, CARD_TOP - 5), label)

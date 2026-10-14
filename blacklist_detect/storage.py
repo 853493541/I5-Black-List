@@ -5,12 +5,13 @@ from __future__ import annotations
 import json
 import logging
 import re
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
 from blacklist_detect.hotkey import two_keys
 from blacklist_detect.match import MIN_PREFIX_CHARS, clean_stored_name, fold
-from blacklist_detect.model import Entry
+from blacklist_detect.model import Combo, Entry
 from blacklist_detect.paths import app_dir
 
 # What changed in each list, as counts: never a name.
@@ -377,6 +378,12 @@ def _love_counts(value: object) -> tuple[int, ...]:
     return DEFAULT_LOVE_COUNTS
 
 
+def _theme(value: object) -> str:
+    """A 嘉宾's or a combination's theme as saved: a scene's key, or "" to follow 嘉宾特效. Whether this
+    version still has the scene is the player's business (guests.lobby_choice skips one it has not)."""
+    return value.strip()[:40] if isinstance(value, str) else ""
+
+
 def _choice(value: object, default: str) -> str:
     """A 嘉宾特效 choice as saved: a key, "random" or "off". Anything else is the default; the
     scene and the music each fall back on their own when a key they do not know comes in."""
@@ -390,8 +397,11 @@ class Store:
         self.settings_path = self.root / "settings.json"
         self.history_path = self.root / "history.json"
         self.entries: list[Entry] = []
-        # 嘉宾: players worth meeting again. No tags; a nickname to show instead of the name.
+        # 嘉宾: players worth meeting again. No tags; a nickname to show instead of the name, and a
+        # 嘉宾特效 theme of their own. The last is the top of the list, which decides between them.
         self.likes: list[Entry] = []
+        # 嘉宾 who, all in one lobby, get a scene of their own (guests.lobby_choice).
+        self.combos: list[Combo] = []
         self.scans: list[dict] = []
         self.hotkey = DEFAULT_HOTKEY
         # 方式: 自动检查 watches for the lobby; 手动检查 (the default) checks on the hotkey.
@@ -635,6 +645,7 @@ class Store:
 
     def _load_likes(self) -> None:
         self.likes = []
+        self.combos = []
         if not self.likes_path.exists():
             return
         try:
@@ -649,10 +660,17 @@ class Store:
                         reason=str(item.get("reason", "")).strip()[:_MAX_NOTE],
                         added_at=str(item.get("added_at", "")),
                         nickname=_clean_nickname(str(item.get("nickname", ""))),
+                        theme=_theme(item.get("theme")),
                     )
                 )
+            for item in data.get("combos", []):
+                names = tuple(dict.fromkeys(clean_stored_name(str(name))[:_MAX_NAME] for name in item.get("names", []) if str(name).strip()))
+                theme = _theme(item.get("theme"))
+                if len({fold(name) for name in names}) >= 2 and theme:
+                    self.combos.append(Combo(names, theme))
         except (OSError, ValueError, AttributeError, TypeError) as exc:
             self.likes = []
+            self.combos = []
             backup = _set_aside(self.likes_path)
             _log_set_aside(exc, backup)
             self.load_warning = "嘉宾文件坏了，已备份，先用空列表"
@@ -663,9 +681,10 @@ class Store:
             self.likes_path,
             {
                 "likes": [
-                    {"name": like.name, "nickname": like.nickname, "reason": like.reason, "added_at": like.added_at}
+                    {"name": like.name, "nickname": like.nickname, "reason": like.reason, "added_at": like.added_at, "theme": like.theme}
                     for like in self.likes
-                ]
+                ],
+                "combos": [{"names": list(combo.names), "theme": combo.theme} for combo in self.combos],
             },
         )
 
@@ -679,7 +698,7 @@ class Store:
         key = fold(clean_stored_name(name))
         return next((index for index, entry in enumerate(self.entries) if key and fold(entry.name) == key), -1)
 
-    def add_like(self, name: str, nickname: str = "", reason: str = "") -> Entry | None:
+    def add_like(self, name: str, nickname: str = "", reason: str = "", theme: str = "") -> Entry | None:
         """Add one name to 嘉宾. None when it has no letters or digits, or is there already."""
         cleaned = clean_stored_name(name)[:_MAX_NAME]
         if not cleaned or self.like_index(cleaned) >= 0:
@@ -689,13 +708,14 @@ class Store:
             reason=(reason or "").strip()[:_MAX_NOTE],
             added_at=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
             nickname=_clean_nickname(nickname),
+            theme=_theme(theme),
         )
         self.likes.append(like)
         self.save_likes()
         _log.info("嘉宾: 1 added, %d in all.", len(self.likes))
         return like
 
-    def update_like(self, index: int, name: str, nickname: str = "", reason: str = "") -> bool:
+    def update_like(self, index: int, name: str, nickname: str = "", reason: str = "", theme: str = "") -> bool:
         if not 0 <= index < len(self.likes):
             return False
         cleaned = clean_stored_name(name)[:_MAX_NAME]
@@ -708,7 +728,14 @@ class Store:
             reason=(reason or "").strip()[:_MAX_NOTE],
             added_at=current.added_at,
             nickname=_clean_nickname(nickname),
+            theme=_theme(theme),
         )
+        # A new name for a 嘉宾 in a combination: the combination follows it.
+        if fold(current.name) != fold(cleaned):
+            self.combos = [
+                Combo(tuple(cleaned if fold(member) == fold(current.name) else member for member in combo.names), combo.theme)
+                for combo in self.combos
+            ]
         self.save_likes()
         _log.info("嘉宾: 1 edited.")
         return True
@@ -719,12 +746,27 @@ class Store:
             self.save_likes()
             _log.info("嘉宾: 1 deleted, %d left.", len(self.likes))
 
+    def move_like(self, index: int, to: int) -> bool:
+        """Move a 嘉宾 to another place on the list (indexes as saved: the last is the top)."""
+        if not 0 <= index < len(self.likes) or not 0 <= to < len(self.likes) or index == to:
+            return False
+        self.likes.insert(to, self.likes.pop(index))
+        self.save_likes()
+        _log.info("嘉宾: 1 moved.")
+        return True
+
+    def set_combos(self, combos: list[Combo]) -> None:
+        """Save the combinations as they are now."""
+        self.combos = list(combos)
+        self.save_likes()
+        _log.info("嘉宾 combinations: %d.", len(self.combos))
+
     def snapshot_likes(self) -> list[Entry]:
-        return [Entry(like.name, like.reason, (), like.added_at, like.nickname) for like in self.likes]
+        return [replace(like, tags=()) for like in self.likes]
 
     def restore_likes(self, likes: list[Entry]) -> None:
         """Put 嘉宾 back as it was before an add, delete, or clear. Used by 撤销."""
-        self.likes = [Entry(like.name, like.reason, (), like.added_at, like.nickname) for like in likes]
+        self.likes = [replace(like, tags=()) for like in likes]
         self.save_likes()
         _log.info("嘉宾: put back as it was (撤销), %d in all.", len(self.likes))
 
@@ -747,12 +789,7 @@ class Store:
                 like = self.likes[target]
                 old = fold(like.name)
                 fuller = len(key) > len(old) and key.startswith(old) and key not in taken
-                self.likes[target] = Entry(
-                    name=cleaned if fuller else like.name,
-                    reason=merge_reason(like.reason, reason),
-                    added_at=like.added_at,
-                    nickname=like.nickname,
-                )
+                self.likes[target] = replace(like, name=cleaned if fuller else like.name, reason=merge_reason(like.reason, reason))
                 taken.add(key)
                 merged += 1
                 continue
@@ -1062,6 +1099,7 @@ class Store:
         _log.info("清空数据: every list, record and setting dropped.")
         self.entries = []
         self.likes = []
+        self.combos = []
         self.scans = []
         self.hotkey = DEFAULT_HOTKEY
         # 安全模式 and 手动检查 again, until agreed to otherwise.

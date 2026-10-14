@@ -86,9 +86,9 @@ def test_the_page_lists_names_with_their_nicknames(window):
     page.refresh()
     window._show_list()
     assert window._tab_buttons[window.likes_tab].count() == 2
-    rows = [[page.table.item(r, c).text() for c in range(4)] for r in range(page.table.rowCount())]
-    # Newest first; 昵称 beside the name; a dash for 最近遇到 until they are met.
-    assert rows == [["小红", "", "", "—"], ["救人很稳的小明", "明哥", "上把救了我", "—"]]
+    rows = [[page.table.item(r, c).text() for c in range(5)] for r in range(page.table.rowCount())]
+    # Newest first; 昵称 beside the name; 默认 for no 特效 of their own; a dash for 最近遇到 until they are met.
+    assert rows == [["小红", "", "默认", "", "—"], ["救人很稳的小明", "明哥", "默认", "上把救了我", "—"]]
     page.search.setText("明哥")
     assert page.table.rowCount() == 1
     page.search.setText("没有这个")
@@ -371,3 +371,73 @@ def test_the_corner_message_says_checked_when_the_blacklist_is_left_out():
     assert result_messages([], [], 0)[0].title == "未发现黑名单"
     assert result_messages([], [], 0, blacklist=False)[0].title == "检查完成"
     assert result_messages([], ["小明"], 1, blacklist=False)[0].title == "检查完成"
+
+
+def test_a_guest_picks_a_theme_and_the_page_shows_and_orders_them(window):
+    from blacklist_detect.ui_likes import LikeDialog
+
+    dialog = LikeDialog(parent=window)
+    buttons = dialog.theme_row.buttons
+    # 默认 first, as every choice lists its default first, and checked.
+    assert next(iter(buttons)) == "" and buttons[""].text() == "默认" and buttons[""].isChecked()
+    dialog.name_edit.setText("小明")
+    buttons["cyber"].click()
+    dialog._accept()
+    assert dialog.theme == "cyber"
+    page = window.likes_page
+    window.store.add_like(dialog.name, theme=dialog.theme)
+    window.store.add_like("小红")
+    window.store.add_like("阿星", theme="angel")
+    page.refresh()
+    shown = lambda: [(page.table.item(r, 0).text(), page.table.item(r, 2).text()) for r in range(page.table.rowCount())]  # noqa: E731
+    assert shown() == [("阿星", "天使"), ("小红", "默认"), ("小明", "赛博")]
+    assert page.table.dragEnabled()
+    # A row dragged to the top decides first.
+    page.table.moved.emit(2, 0)
+    assert shown()[0] == ("小明", "赛博") and window.store.likes[-1].name == "小明"
+    # 置顶 from the row menu does the same.
+    page.to_top(window.store.like_index("小红"))
+    assert shown()[0][0] == "小红"
+    # While searching, rows don't drag.
+    page.search.setText("小")
+    assert not page.table.dragEnabled()
+
+
+def test_a_combination_needs_two_guests_and_greets_them_with_its_theme(window):
+    from blacklist_detect.model import Combo
+    from blacklist_detect.ui_guests import ComboDialog, CombosDialog
+    from blacklist_detect.ui_overlay import love_look
+
+    store = window.store
+    store.add_like("小明", theme="cyber")
+    store.add_like("小红")
+    combos = CombosDialog(store, parent=window)
+    assert combos.add_button.isEnabled() and not combos.empty.isHidden()
+    editor = ComboDialog(store.likes, parent=window)
+    editor.people_buttons["小明"].click()
+    editor._accept()
+    assert editor.combo is None and editor.people_error.text() == "至少选两位嘉宾"
+    editor.people_buttons["小红"].click()
+    editor.theme.buttons["equation"].click()
+    editor._accept()
+    assert editor.combo == Combo(("小明", "小红"), "equation")
+    store.set_combos([editor.combo])
+    combos.refresh()
+    assert combos.empty.isHidden()
+    # Both in the lobby: the combination's 数学 dresses the marks, not 小明's own 赛博.
+    names = [
+        NameSlot(0, (0, 0, 1, 1), "小明", "小明", False, 0.9, False),
+        NameSlot(1, (0, 0, 1, 1), "小红", "小红", False, 0.9, False),
+    ]
+    screen = QApplication.primaryScreen().availableGeometry()
+    left = screen.left() + screen.width() // 2 - 90
+    button = (left, screen.top() + 300, left + 180, screen.top() + 360)
+    window._live_check = True
+    window._on_lobby_placed(button)
+    window.store.love_counts = ()
+    window._show_panel(CheckResult(True, "", names=names, button_box=button))
+    assert window._lobby_choice == "equation" and window.like_card.look == love_look("equation")
+    # 小明 alone: his own 赛博.
+    window._show_panel(CheckResult(True, "", names=names[:1], button_box=button))
+    assert window._lobby_choice == "cyber" and window.panel.look == love_look("cyber")
+    window._hide_panel_after_title()

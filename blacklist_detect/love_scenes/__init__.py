@@ -1,4 +1,4 @@
-"""The 心动 scenes: what plays over the game for 心动 players in one lobby (as many as 心动人数 says).
+"""The 嘉宾 scenes: what plays over the game for 嘉宾 players in one lobby (as many as 嘉宾人数 says).
 
 Each scene is a module with DURATION (seconds) and make(stage) -> paint(painter, t), where paint
 draws the scene t seconds in, on stage.width by stage.height, and keeps stage.gap (the button and
@@ -10,7 +10,7 @@ on top at the screen's own sharpness.
 
 Scenes are drawn for a lobby about 1635 by 848 points and scale with the stage.
 
-The 心动 marks (the ring on 准备案件还原, the badge beside it and the card of names) wear the look of
+The 嘉宾 marks (the ring on 准备案件还原, the badge beside it and the card of names) wear the look of
 the scene that greets them. A scene colors them with LOOK, and can go further and draw them itself,
 as a theme of its own, with any of these (each optional; without one, that mark is drawn as before,
 in LOOK's colors). None of them may import ui_overlay; draw and light are theirs to use.
@@ -75,7 +75,7 @@ class Stage:
     """Where a scene plays, in the border window's own points.
 
     gap: the bottom area around the button and its marks, which stays bare.
-    badge: the 心动 heart beside the button.
+    badge: the 嘉宾 heart beside the button.
     """
 
     width: float
@@ -98,12 +98,12 @@ def load(key: str) -> ModuleType:
 
 
 def shown(choice: str) -> str:
-    """A saved 心动特效 choice as this version has it: a scene that was replaced is its replacement."""
+    """A saved 嘉宾特效 choice as this version has it: a scene that was replaced is its replacement."""
     return REPLACED.get(choice, choice)
 
 
 def choose(choice: str, last: str, rng: random.Random) -> str:
-    """The scene to play for a 心动特效 choice: a key, "random" (any but the last one), or "off" ("").
+    """The scene to play for a 嘉宾特效 choice: a key, "random" (any but the last one), or "off" ("").
     香槟 plays 天使, which replaced it. Any other key this version does not have (命运红线, gone in
     v0.8.2; 雪纺, gone in v0.9.0; 缎带, 花雨, 纸鹤晚霞 and 蝶梦, gone in the next version) plays
     经典花边, the default."""

@@ -14,7 +14,7 @@ chalk dust and everything fades.
 Its marks are drafting work: the ring is the button drawn to scale, a ruler along its top with a pink
 cursor sliding on it and dimension lines with arrowheads round its sides and bottom; the badge an
 enamel dial with ∞ on it, a point of light running round the lemniscate; the card a sheet of
-blueprint paper with a fine grid, its axes ticked, headed { 心动 } in set notation, a plotted point
+blueprint paper with a fine grid, its axes ticked, headed { 嘉宾 } in set notation, a plotted point
 before each name.
 """
 
@@ -89,7 +89,7 @@ LOOK = {
     "deep_glow": (255, 110, 160),
 }
 MARKS_ANIMATED = True
-# Room above the card's paper for its { 心动 } heading, which sits on the paper's top edge.
+# Room above the card's paper for its { 嘉宾 } heading, which sits on the paper's top edge.
 CARD_TOP = 11
 CARD_PAD = (12, 11, 14, 9)
 CARD_FONT = "KaiTi"
@@ -1111,7 +1111,7 @@ def _lemniscate(centre: QPointF, reach: float, count: int) -> list[QPointF]:
 
 def card(p: QPainter, rect: QRectF, t: float) -> None:
     """Blueprint paper: navy, mottled, a fine chalk grid, its left and bottom edges ticked as axes,
-    a chalk border, and { 心动 } on the top edge, the border broken round it, its 心动 breathing."""
+    a chalk border, and { 嘉宾 } on the top edge, the border broken round it, its 嘉宾 breathing."""
     ratio = _ratio(p)
     body = rect.adjusted(0, CARD_TOP, 0, 0)
     head = _heading(min(14.0, max(10.0, body.height() * 0.22)))
@@ -1177,7 +1177,7 @@ def card(p: QPainter, rect: QRectF, t: float) -> None:
 
     still = _made(("card", rect.width(), rect.height(), ratio), build)
     p.drawImage(rect.topLeft(), still)
-    # The heading on the top edge, its 心动 breathing.
+    # The heading on the top edge, its 嘉宾 breathing.
     p.save()
     p.translate(rect.left() + rect.width() / 2 - head.box.width() / 2 - head.box.left(), rect.top() + CARD_TOP - head.box.center().y())
     p.setRenderHint(QPainter.SmoothPixmapTransform)
@@ -1195,7 +1195,7 @@ def card(p: QPainter, rect: QRectF, t: float) -> None:
 
 @dataclass
 class _Heading:
-    """The card's { 心动 }: its braces (ink) and 心动 (accent) at the origin, and 心动's pink glow."""
+    """The card's { 嘉宾 }: its braces (ink) and 嘉宾 (accent) at the origin, and 嘉宾's pink glow."""
 
     ink: QPainterPath
     accent: QPainterPath
@@ -1205,14 +1205,14 @@ class _Heading:
 
 
 def _heading(px: float) -> _Heading:
-    """{ 心动 }, px high, as paths at the origin, with its pink glow worked out once."""
+    """{ 嘉宾 }, px high, as paths at the origin, with its pink glow worked out once."""
     key = ("heading", round(px * 4))
     if key in _MADE:
         return _MADE[key]
     ink, accent = QPainterPath(), QPainterPath()
     math_font, han = _font(px * 1.25), _font(px * 1.08, han=True)
     x = 0.0
-    for text, font, out in (("{ ", math_font, ink), ("心动", han, accent), (" }", math_font, ink)):
+    for text, font, out in (("{ ", math_font, ink), ("嘉宾", han, accent), (" }", math_font, ink)):
         out.addText(QPointF(x, 0), font, text)
         x += QFontMetricsF(font).horizontalAdvance(text)
     box = ink.boundingRect().united(accent.boundingRect())

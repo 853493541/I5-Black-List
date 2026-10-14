@@ -1,13 +1,13 @@
 # 模仿者小工具 (blacklist_detect)
 
 Windows desktop app. On a hotkey it copies the screen, reads the twelve names in the 模仿者狂欢 lobby with
-PaddleOCR, and marks 黑名单 and 心动 players on the game. Friends get it as GitHub releases with in-app
+PaddleOCR, and marks 黑名单 and 嘉宾 players on the game. Friends get it as GitHub releases with in-app
 updates. README.md covers running it and the OCR model.
 
 ## Layout
 
 - `blacklist_detect/`: the app. `ui.py` (MainWindow, about 4,500 lines) is where most changes land; the
-  `ui_*.py` modules split the rest by area; `love_scenes/` has one module per 心动 scene; pictures and
+  `ui_*.py` modules split the rest by area; `love_scenes/` has one module per 嘉宾 scene; pictures and
   sounds are in `blacklist_detect/assets/`.
 - `tests/`: pytest. `tests/fixtures/reference-lobby.png` is a real lobby.
 - `tools/ui_shots.py`: screenshots of every page, dialog and on-game card, per Windows scale.
@@ -45,16 +45,16 @@ rerun alone before it counts as a failure.
   committing it.
 - Every choice in 设置 lists its default first. 设置 fits 900x760 without scrolling, so it gets no new rows.
   Every dialog fits 672 px of usable height (1080p at 150%) with its buttons in view;
-  `tests/test_dialog_fit.py` guards this. 心动特效 is the tallest, so a row added there is paid for elsewhere.
+  `tests/test_dialog_fit.py` guards this. 嘉宾特效 is the tallest, so a row added there is paid for elsewhere.
 - `reference-lobby.png` and `assets/sample-lobby.jpg` are crops of a lobby, not whole screens. Check
   anything about where the game, border or cards sit on a whole 16:9 frame.
 - Child processes get `paths.child_env()`. Paddle sets `OMP_NUM_THREADS=1`, which made OCR in a child
   3-14x slower.
-- A new 心动 scene is a `love_scenes` module plus entries in `SCENES` and `ui_overlay.LOOKS`. Render it at
+- A new 嘉宾 scene is a `love_scenes` module plus entries in `SCENES` and `ui_overlay.LOOKS`. Render it at
   full size over the sample lobby and look at it (small tiles hide flaws); its median frame stays under
   20 ms at 1920x1080. 经典花边 (classic) stays exactly as it is. Shade per pixel: flat vector gradients
   read as cheap clip-art to the user.
-- Chosen on purpose, not defects: red tags everywhere, 无 in red in 心动特效, 检查失败 (not 无法检查).
+- Chosen on purpose, not defects: red tags everywhere, 无 in red in 嘉宾特效, 检查失败 (not 无法检查).
 - The user's own list, settings and running copy of the app are never touched. Tests and tools run in a
   data folder of their own (`APPDATA` pointed elsewhere, as `ui_shots.py` does).
 - Update notes: at most 3 lines of about 15 字, saying what changed for the player. No how-to, no reasons.
