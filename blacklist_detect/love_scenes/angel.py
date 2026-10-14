@@ -1,12 +1,13 @@
-"""天使 Angel: holy light from above, and a winged heart under a golden halo.
+"""天使 Angel: holy light from above, and a crest of wings and a golden halo round the title.
 
-Warm white-gold light washes in at the top and down the sides, and soft god rays stream down from
-above the top left, slowly sweeping and breathing. Luminous clouds drift in the two top corners, lit
-gold along their upper rims. In the top left a pearl heart glows, white at its middle and gold at
-its rim, under a halo of gold light with a glint running round it; two feathered wings unfold from
-behind it in a burst of holy light, then breathe. White feathers drift down the two sides, turning
-as they fall, gold motes rise from the bottom corners and sparkles come and go. At the end the
-heart and its halo rise into the light and it all fades.
+Warm white-gold light washes in at the top and down the sides. A halo of gold light comes down to
+float just above the title 推演成功, and soft god rays stream down from it, slowly sweeping and
+breathing, faint over the names. Two great feathered wings unfold from behind the title in a burst
+of holy light, spread to either side of the top of the screen and breathe; they fade to a whisper
+behind the title's lines and leave its words clear. Glowing clouds drift in the two top corners, lit
+gold along their upper rims. White feathers drift down the two sides, turning as they fall, gold
+motes rise from the bottom corners and sparkles come and go. At the end the halo and the wings rise
+into the light and it all fades.
 """
 
 from __future__ import annotations
@@ -28,8 +29,6 @@ from blacklist_detect.love_scenes.draw import (
     ease_in_out,
     ease_out,
     gradient,
-    heart_path,
-    heart_points,
     mix,
     soft_dot,
     star,
@@ -41,15 +40,14 @@ if TYPE_CHECKING:
     from blacklist_detect.love_scenes import Stage
 
 DURATION = 5.0
-# Soft light throughout: drawn at one pixel per point and scaled up on a sharper screen; the winged
-# heart, with its fine feathers, is drawn on top at the screen's own sharpness.
+# Soft light throughout: drawn at one pixel per point and scaled up on a sharper screen; the wings,
+# with their fine feathers, and the halo are drawn on top at the screen's own sharpness.
 MAX_RATIO = 1.0
 PEARL = "#fffdf6"
-CREAM = "#fbefd2"
 HONEY = "#ffe7a3"
 GOLD = "#f3d58a"
 GOLD_DEEP = "#d9a441"
-# Rays and clouds are soft: worked out at this share of the stage's size and laid on scaled up.
+# Rays, clouds and the wings' mask are soft: worked out at this share of the size and laid on scaled up.
 SOFT = 0.25
 # Feather shapes: width (share of length), the leading vane's share of it, how far the shaft bends
 # (share of length), how much of the base is down.
@@ -59,28 +57,29 @@ KINDS = {
     "covert": (0.46, 0.48, 0.02, 0.16),
     "loose": (0.34, 0.42, 0.09, 0.3),
 }
-# A wing's length, as a share of the heart's size, and the longest each kind of feather is in it, as
-# a share of the wing: its picture is made at that length.
-WING = 1.45
-LONGEST = {"primary": 0.6, "secondary": 0.52, "covert": 0.26}
+# The longest each kind of feather is in a wing, as a share of the wing: its picture is made at that length.
+LONGEST = {"primary": 0.44, "secondary": 0.35, "covert": 0.2}
 
 
 def make(stage: Stage):  # noqa: ANN201
     width, height, gap = stage.width, stage.height, stage.gap
     u = stage.unit()
     rnd = random.Random(23)
-    size = 112 * u
-    # heart_points' heart reaches 0.28 of its size above its centre and 0.57 below: lift it so the
-    # middle of what shows sits at the hero's place.
-    heart_at = QPointF(width * 0.118, height * 0.19 - size * 0.12)
+    halo_at = QPointF(width * 0.53, height * 0.04)
+    # The wings meet behind the title's middle and reach out to about 0.15 and 0.9 of the width.
+    axis = width * 0.525
+    span = min(width * 0.33, height * 0.64)
+    roots = (QPointF(axis + width * 0.035, height * 0.2), QPointF(axis - width * 0.035, height * 0.2))
+    band = QRectF(0, 0, width, height * 0.36)
+    cut = _wing_mask(band, width, height, u)
     heaven = Wash(lambda q, w, h: _heaven(q, w, h, u))
-    source = QPointF(width * 0.17, -height * 0.5)
-    rays = (_ray_layer(width, height, source, 3), _ray_layer(width, height, source, 8))
+    rays = (_ray_layer(width, height, halo_at, 3, u), _ray_layer(width, height, halo_at, 8, u))
     shade = _ray_mask(width, height, gap, u)
     clouds = _clouds(width, height, u)
-    wing = _wing_plan()
+    plan = _wing_plan()
     sprites: dict[tuple[str, int], tuple[QImage, float]] = {}
-    hearts: dict[int, tuple[QImage, QImage]] = {}
+    # The open wing, drawn once for the sharpness it is shown at.
+    opened: dict[float, tuple[QRectF, QImage]] = {}
     halos: dict[int, QImage] = {}
     falling = [
         (
@@ -106,12 +105,16 @@ def make(stage: Stage):  # noqa: ANN201
         for i in range(44)
     ]
     sparkles = _sparkle_spots(width, height, gap, u, rnd)
-    burst = [(rnd.uniform(-math.pi * 1.1, math.pi * 0.08), rnd.uniform(140, 300) * u, rnd.uniform(0.7, 1.2)) for _ in range(18)]
+    # Glints the burst throws out along the wings, either way and a little up.
+    burst = [
+        (rnd.choice((0.0, math.pi)) + rnd.uniform(-0.45, 0.12) * (1 if i % 2 else -1), rnd.uniform(160, 460) * u, rnd.uniform(0.7, 1.2))
+        for i in range(22)
+    ]
 
-    def hero(p: QPainter, t: float) -> None:
+    def crest(p: QPainter, t: float) -> None:
         p.save()
         p.setOpacity(p.opacity() * win(t, 0.0, 0.3))
-        _hero(p, t, heart_at, size, u, wing, sprites, hearts, halos, burst)
+        _crest(p, t, halo_at, roots, span, band, cut, u, plan, sprites, opened, halos, burst)
         p.restore()
 
     def paint(p: QPainter, t: float, sharp: bool = True) -> None:
@@ -121,16 +124,16 @@ def make(stage: Stage):  # noqa: ANN201
         p.save()
         p.setOpacity(life)
         heaven.paint(p, width, height, gap, ease_out(win(t, 0.0, 0.9)) * (1 - leave) * (0.85 + 0.25 * flash))
-        _rays(p, t, rays, shade, source, width, height, (1 - leave) * ease_out(win(t, 0.1, 1.2)), flash)
+        _rays(p, t, rays, shade, halo_at, width, height, (1 - leave) * ease_out(win(t, 0.3, 1.3)), flash)
         _cloud_paint(p, t, clouds, u, (1 - leave) * ease_out(win(t, 0.0, 1.0)), leave)
         _falling(p, t, falling, sprites, u, 1 - leave)
         _motes(p, t, motes, u, 1 - leave)
         _sparkles(p, t, sparkles, u, 1 - leave)
         p.restore()
         if sharp:
-            hero(p, t)
+            crest(p, t)
 
-    paint.sharp = hero
+    paint.sharp = crest
     return paint
 
 
@@ -164,18 +167,25 @@ def _box(xs: np.ndarray, ys: np.ndarray, rect: QRectF, feather: float) -> np.nda
     return 1 - smooth(-feather * 0.5, feather, out)
 
 
+def _title(width: float, height: float, u: float) -> tuple[QRectF, QRectF]:
+    """The title's words with a little room round them, and the band of it and the lines under it."""
+    words = QRectF(width * 0.43, height * 0.085, width * 0.2, height * 0.115).adjusted(-14 * u, -10 * u, 14 * u, 8 * u)
+    lines = QRectF(width * 0.38, height * 0.07, width * 0.3, height * 0.24)
+    return words, lines
+
+
 def _heaven(p: QPainter, width: float, height: float, u: float) -> None:
-    """Warm white-gold light at the top and down the sides, strongest in the top left where the rays
-    come from; a faint glow in the bottom corners. Drawn once."""
+    """Warm white-gold light at the top and down the sides, strongest above the title where the halo
+    is; a faint glow in the bottom corners. Drawn once."""
     top = height * 0.3
-    p.fillRect(QRectF(0, 0, width, top), gradient(QPointF(0, 0), QPointF(0, top), ((0, "#fff0c8", 0.3), (0.35, "#ffe2a0", 0.1), (1, "#ffe2a0", 0))))
+    p.fillRect(QRectF(0, 0, width, top), gradient(QPointF(0, 0), QPointF(0, top), ((0, "#fff0c8", 0.24), (0.35, "#ffe2a0", 0.07), (1, "#ffe2a0", 0))))
     side = 170 * u
     for start, end, rect in (
         (QPointF(0, 0), QPointF(side, 0), QRectF(0, 0, side, height)),
         (QPointF(width, 0), QPointF(width - side, 0), QRectF(width - side, 0, side, height)),
     ):
         p.fillRect(rect, gradient(start, end, ((0, "#ffedc2", 0.24), (0.45, "#ffe2a0", 0.08), (1, "#ffe2a0", 0))))
-    for cx, cy, r, alpha in ((0.1, -0.05, 600, 0.36), (0.92, -0.05, 440, 0.22), (0.0, 1.0, 340, 0.18), (1.0, 1.0, 340, 0.18)):
+    for cx, cy, r, alpha in ((0.53, -0.08, 520, 0.3), (0.04, -0.05, 440, 0.26), (0.96, -0.05, 440, 0.26), (0.0, 1.0, 340, 0.18), (1.0, 1.0, 340, 0.18)):
         light = QRadialGradient(QPointF(width * cx, height * cy), r * u)
         light.setColorAt(0, col("#fff2d2", alpha))
         light.setColorAt(0.45, col("#ffe2a0", alpha * 0.4))
@@ -183,25 +193,28 @@ def _heaven(p: QPainter, width: float, height: float, u: float) -> None:
         p.fillRect(QRectF(0, 0, width, height), light)
 
 
-def _ray_layer(width: float, height: float, source: QPointF, seed: int) -> tuple[QRectF, QImage]:
-    """God rays from a point above the top left, worked out per pixel at SOFT size: streaks by angle,
-    each its own length, brightest at the top. A margin round the stage lets them turn a little."""
+def _ray_layer(width: float, height: float, source: QPointF, seed: int, u: float) -> tuple[QRectF, QImage]:
+    """God rays streaming down and out from the halo, worked out per pixel at SOFT size: streaks by
+    angle, each its own length, coming on just beyond the halo and fading as they go. Brightest out
+    to the sides, under the wings; softer straight down. A margin round the stage lets them turn."""
     margin = width * 0.12
     box = QRectF(-margin, -margin, width + 2 * margin, height + margin)
     w, h = max(1, round(box.width() * SOFT)), max(1, round(box.height() * SOFT))
     ys, xs = np.mgrid[0:h, 0:w].astype(np.float32) + 0.5
     x, y = box.left() + xs / SOFT, box.top() + ys / SOFT
-    angle = np.arctan2(x - source.x(), y - source.y())
+    dx, dy = x - source.x(), y - source.y()
+    angle = np.arctan2(dx, dy)
     rnd = np.random.default_rng(seed)
-    beams = 0.62 * _wave(angle, 0.05, rnd) + 0.38 * _wave(angle, 0.017, rnd)
+    beams = 0.62 * _wave(angle, 0.045, rnd) + 0.38 * _wave(angle, 0.016, rnd)
     streak = smooth(0.42, 0.86, beams)
-    reach = height * (0.35 + 0.55 * _wave(angle, 0.08, rnd))
-    fall = (1 - smooth(-height * 0.1, reach, y)) ** 1.3
-    # Most light falls on the left, toward the heart; less across to the right.
-    side = smooth(-0.75, -0.25, angle) * (1 - 0.55 * smooth(0.1, 1.0, angle))
+    r = np.hypot(dx, dy)
+    reach = height * (0.45 + 0.6 * _wave(angle, 0.08, rnd))
+    fall = smooth(30 * u, 140 * u, r) * (1 - smooth(0.0, reach, r)) ** 1.2
+    spread = np.abs(angle)
+    side = (0.35 + 0.65 * smooth(0.25, 0.9, spread)) * (1 - smooth(1.45, 1.75, spread))
     strength = side * fall * (0.1 + 0.9 * streak)
     tint = rgb("#ffda90") + (rgb("#fff6e2") - rgb("#ffda90")) * (streak * 0.6)[..., None]
-    return box, glow(tint * (strength * 0.62)[..., None])
+    return box, glow(tint * (strength * 0.9)[..., None])
 
 
 def _ray_mask(width: float, height: float, gap: QRectF, u: float) -> QImage:
@@ -210,14 +223,15 @@ def _ray_mask(width: float, height: float, gap: QRectF, u: float) -> QImage:
     ys, xs = np.mgrid[0:h, 0:w].astype(np.float32) + 0.5
     x, y = xs / SOFT, ys / SOFT
     names = QRectF(width * 0.13, height * 0.29, width * 0.81, height * 0.55)
-    title = QRectF(width * 0.38, height * 0.07, width * 0.3, height * 0.18)
-    keep = (1 - 0.74 * _box(x, y, names, 60 * u)) * (1 - 0.5 * _box(x, y, title, 50 * u)) * (1 - _box(x, y, gap.adjusted(-20 * u, -20 * u, 20 * u, 20 * u), 50 * u))
+    words, lines = _title(width, height, u)
+    keep = (1 - 0.74 * _box(x, y, names, 60 * u)) * (1 - 0.45 * _box(x, y, lines, 40 * u)) * (1 - 0.6 * _box(x, y, words, 30 * u))
+    keep = keep * (1 - _box(x, y, gap.adjusted(-20 * u, -20 * u, 20 * u, 20 * u), 50 * u))
     return picture(np.ones((h, w, 3), dtype=np.float32), keep)
 
 
 def _rays(p: QPainter, t: float, layers: tuple, shade: QImage, source: QPointF, width: float, height: float, a: float, flash: float) -> None:
-    """The ray layers turning slowly about their source, each breathing, cut to where they may show
-    on a small picture and laid on scaled up."""
+    """The ray layers turning slowly about the halo, each breathing, cut to where they may show on a
+    small picture and laid on scaled up."""
     if a <= 0.01:
         return
     small = QImage(shade.width(), shade.height(), QImage.Format_ARGB32_Premultiplied)
@@ -227,7 +241,7 @@ def _rays(p: QPainter, t: float, layers: tuple, shade: QImage, source: QPointF, 
     q.setCompositionMode(QPainter.CompositionMode_Plus)
     q.scale(SOFT, SOFT)
     for index, (box, image) in enumerate(layers):
-        turn = (1.6 if index == 0 else -1.9) * math.sin(t * (0.45 + 0.17 * index) + index * 1.7)
+        turn = (2.2 if index == 0 else -2.6) * math.sin(t * (0.45 + 0.17 * index) + index * 1.7)
         breathe = 0.62 + 0.38 * math.sin(t * (1.05 - 0.3 * index) + index * 2.3)
         q.save()
         q.translate(source)
@@ -249,8 +263,8 @@ def _rays(p: QPainter, t: float, layers: tuple, shade: QImage, source: QPointF, 
 
 def _cloud(w: int, h: int, right: bool, seed: int, dim: float) -> QImage:
     """A bank of cloud heaped in a top corner, per pixel: round billows along it, their edges frayed
-    with noise, lit warm white from above, rimmed gold where the light catches their tops, a soft
-    warm grey beneath, thinning away toward the middle of the screen."""
+    with noise, glowing warm white where the light from above falls, rimmed gold where it catches
+    their tops, a soft honey shade beneath, thinning away toward the middle of the screen."""
     rnd = np.random.default_rng(seed)
     ys, xs = np.mgrid[0:h, 0:w].astype(np.float32) + 0.5
     if right:
@@ -258,17 +272,17 @@ def _cloud(w: int, h: int, right: bool, seed: int, dim: float) -> QImage:
     # A few large billows fill the corner; smaller ones heap along the bank's lower edge, low at the
     # screen's edge and rising toward the top further in.
     puffs = [(rnd.uniform(-0.05, 0.2) * w, rnd.uniform(-0.25, 0.05) * h, rnd.uniform(0.5, 0.62) * h) for _ in range(3)]
-    for i in range(15):
-        k = i / 14
-        x = (k * 0.92 + rnd.normal(0, 0.015)) * w
-        y = (0.6 * (1 - k) ** 1.3 + 0.06 + rnd.normal(0, 0.03)) * h
-        puffs.append((x, y, (0.22 * (1 - k) + 0.07) * h * rnd.uniform(0.8, 1.25)))
+    # Uneven: billows of all sizes, some heaped higher, some hanging lower, never a row of equals.
+    for k in sorted(rnd.uniform(0, 1, 12)):
+        x = (k * 0.92 + rnd.normal(0, 0.03)) * w
+        y = (0.55 * (1 - k) ** 1.3 + 0.06 + rnd.normal(0, 0.06)) * h
+        puffs.append((x, y, (0.24 * (1 - k) + 0.08) * h * rnd.uniform(0.7, 1.4)))
     field = np.full((h, w), -float(h), dtype=np.float32)
     for cx, cy, r in puffs:
         d = np.sqrt((xs - cx) ** 2 + (ys - cy) ** 2) / r
         field = np.maximum(field, r * np.where(d < 1, np.sqrt(np.clip(1 - d * d, 0, 1)), 1 - d))
-    fray = noise(w, h, h * 0.18, 4, seed + 50)
-    field = field + (fray - 0.5) * h * 0.2
+    fray = noise(w, h, h * 0.26, 5, seed + 50)
+    field = field + (fray - 0.5) * h * 0.26
     # Thin at the edge, wisps fading into the air; denser further in.
     cover = smooth(-h * 0.03, h * 0.16, field)
     gy, gx = np.gradient(blur(np.maximum(field, 0), max(1.0, h * 0.015)))
@@ -277,14 +291,15 @@ def _cloud(w: int, h: int, right: bool, seed: int, dim: float) -> QImage:
     lx, ly, lz = 0.3 if right else -0.3, -0.82, 0.5
     lit = np.clip((nx * lx + ny * ly + nz * lz) / math.sqrt(lx * lx + ly * ly + lz * lz), 0, 1)
     lit = np.clip(lit * (0.8 + 0.4 * noise(w, h, h * 0.06, 3, seed + 90)), 0, 1)
-    color = rgb("#dcc6a8") + (rgb(PEARL) - rgb("#dcc6a8")) * (lit ** 0.6)[..., None]
-    # Gold where the light from above catches the billows' tops, soft as light through their edges.
+    # Lit through with warm light: the shaded side a soft honey, never grey.
+    color = rgb("#f6dcae") + (rgb("#fffaf0") - rgb("#f6dcae")) * (lit ** 0.6)[..., None]
     rim = blur((1 - smooth(-h * 0.02, h * 0.12, field)) * smooth(-h * 0.06, h * 0.02, field) * np.clip(-ny * 1.6 + 0.1, 0, 1), max(1.0, h * 0.012))
-    color = color + (rgb(HONEY) - color) * (lit * 0.18)[..., None]
     color = color + (rgb(GOLD) * 1.12 - color) * np.clip(rim * 2.2, 0, 0.95)[..., None]
     inward = 1 - smooth(0.62, 1.0, xs / w)
-    alpha = np.clip(cover * (0.45 + 0.4 * lit) + rim * 0.5, 0, 1) * inward * dim
-    return picture(color, alpha)
+    # Dense enough that the dark lobby does not grey it, and glowing warm into the air round it.
+    alpha = np.clip(cover * (0.62 + 0.33 * lit) + rim * 0.4, 0, 1)
+    light = color * alpha[..., None] + rgb(HONEY) * (blur(cover, h * 0.06) * (1 - alpha) * 0.35)[..., None]
+    return glow(light * (inward * dim)[..., None])
 
 
 def _clouds(width: float, height: float, u: float) -> list[tuple[QRectF, QImage, float]]:
@@ -294,10 +309,10 @@ def _clouds(width: float, height: float, u: float) -> list[tuple[QRectF, QImage,
     # They drift outward, and reach past the edge so their cut end never shows.
     margin = 12 * u
     for right, w, h, seed, dim, drift in (
-        (False, 0.42, 0.3, 11, 0.7, -10),
-        (False, 0.3, 0.24, 12, 1.0, -20),
-        (True, 0.36, 0.27, 13, 0.7, 9),
-        (True, 0.25, 0.2, 14, 1.0, 16),
+        (False, 0.36, 0.28, 11, 0.75, -10),
+        (False, 0.26, 0.22, 12, 1.0, -20),
+        (True, 0.34, 0.27, 13, 0.75, 9),
+        (True, 0.24, 0.2, 14, 1.0, 16),
     ):
         rect = QRectF(width * (1 - w) if right else -margin, 0, width * w + margin, height * h)
         out.append((rect, _cloud(max(8, round(rect.width() * 0.5)), max(8, round(rect.height() * 0.5)), right, seed, dim), drift * u))
@@ -385,142 +400,75 @@ def _lay(p: QPainter, sprite: tuple[QImage, float], x: float, y: float, angle: f
 
 def _wing_plan() -> list[tuple[float, float, float, str]]:
     """The right wing's feathers, drawn in this order: (where along the arm 0..1, angle open, length
-    as a share of the wing, kind). Flight feathers hang from the arm, the secondaries down and out
-    from near the heart, the primaries fanning out and up from the wrist; rows of coverts, shorter
-    and shorter, lie over their bases."""
+    as a share of the wing, kind). The arm reaches out and a little up; flight feathers hang from it,
+    the secondaries down and out near the root, the primaries fanning out from the wrist and lifting
+    at the tip; rows of coverts, shorter and shorter, lie over their bases."""
 
     def angle(a: float) -> float:
-        return 80 - 112 * a
+        return 64 - 70 * a
 
     def flight(a: float) -> float:
-        return 0.32 + 0.3 * a ** 1.1 - 0.07 * clamp((a - 0.9) / 0.1)
+        return 0.16 + 0.3 * a ** 1.1 - 0.03 * clamp((a - 0.9) / 0.1)
 
     # No two feathers quite alike: each a little turned and a little longer or shorter.
     rnd = random.Random(5)
     plan = []
-    for i in range(21):
-        a = 1 - i / 20
-        plan.append((a, angle(a) + rnd.uniform(-2.5, 2.5), flight(a) * rnd.uniform(0.95, 1.04), "primary" if a > 0.6 else "secondary"))
-    for count, start, end, share, lift, kind in ((15, 0.0, 0.96, 0.56, 5, "secondary"), (13, 0.0, 0.9, 0.34, 8, "covert"), (10, 0.0, 0.8, 0.18, 12, "covert")):
+    for i in range(31):
+        a = 1 - i / 30
+        plan.append((a, angle(a) + rnd.uniform(-2.0, 2.0), flight(a) * rnd.uniform(0.95, 1.04), "primary" if a > 0.62 else "secondary"))
+    for count, start, end, share, lift, kind in ((22, 0.0, 0.97, 0.55, 4, "secondary"), (18, 0.0, 0.92, 0.34, 7, "covert"), (14, 0.0, 0.85, 0.18, 10, "covert")):
         for i in range(count):
-            a = clamp(end - i / (count - 1) * (end - start) + rnd.uniform(-0.012, 0.012))
-            plan.append((a, angle(a) + lift + rnd.uniform(-4, 4), (flight(a) * share + 0.04) * rnd.uniform(0.92, 1.06), kind))
+            a = clamp(end - i / (count - 1) * (end - start) + rnd.uniform(-0.008, 0.008))
+            plan.append((a, angle(a) + lift + rnd.uniform(-3.5, 3.5), (flight(a) * share + 0.04) * rnd.uniform(0.92, 1.06), kind))
     return plan
 
 
-def _arm(k: float, beat: float) -> tuple[QPointF, QPointF, QPointF]:
-    """The right wing's arm as a curve from its root, in wing lengths: tucked down behind the heart
-    when k is 0, raised and spread when 1, turned by beat degrees."""
-    fold = ((0.0, 0.0), (0.05, 0.15), (0.12, 0.3))
-    spread = ((0.0, 0.0), (0.06, -0.42), (0.45, -0.44))
-    turn = math.radians(beat)
-    out = []
-    for (fx, fy), (sx, sy) in zip(fold, spread, strict=True):
-        x, y = fx + (sx - fx) * k, fy + (sy - fy) * k
-        out.append(QPointF(x * math.cos(turn) - y * math.sin(turn), x * math.sin(turn) + y * math.cos(turn)))
-    return out[0], out[1], out[2]
-
-
-def _wing(p: QPainter, t: float, root: QPointF, span: float, plan: list[tuple], sprites: dict, density: float, k: float) -> None:
-    """The right wing at root, span long, open by k: each feather on the arm, its angle and length
-    going from tucked to spread, then the whole wing breathing, its tips a moment behind."""
-    breath = t - 1.6
-    beat = -5 * math.sin(2 * math.pi * breath / 1.9) * win(t, 1.4, 2.0)
-    a0, c, a1 = _arm(k, beat)
+def _wing(p: QPainter, span: float, plan: list[tuple], sprites: dict, density: float, k: float) -> None:
+    """The right wing with its root at the origin, span long, open by k: each feather on the arm,
+    the arm and the feathers' angles and lengths going from tucked in behind the title to spread."""
+    fold = ((0.0, 0.0), (0.03, 0.04), (0.08, 0.06))
+    spread = ((0.0, 0.0), (0.26, -0.17), (0.62, -0.17))
+    (x0, y0), (cx, cy), (x1, y1) = ((fx + (sx - fx) * k, fy + (sy - fy) * k) for (fx, fy), (sx, sy) in zip(fold, spread, strict=True))
     for at, angle, length, kind in plan:
         m = 1 - at
-        x = m * m * a0.x() + 2 * m * at * c.x() + at * at * a1.x()
-        y = m * m * a0.y() + 2 * m * at * c.y() + at * at * a1.y()
-        lag = 3 * at * math.sin(2 * math.pi * breath / 1.9 - 0.9) * win(t, 1.4, 2.0)
-        turn = 100 + (angle - 100) * k + beat + lag
+        x = m * m * x0 + 2 * m * at * cx + at * at * x1
+        y = m * m * y0 + 2 * m * at * cy + at * at * y1
         size = span * length * (0.45 + 0.55 * k)
-        _lay(p, _sprite(sprites, kind, span * LONGEST[kind], density), root.x() + x * span, root.y() + y * span, turn, size)
+        _lay(p, _sprite(sprites, kind, span * LONGEST[kind], density), x * span, y * span, 100 + (angle - 100) * k, size)
 
 
-def _pearl_heart(px: int) -> tuple[QImage, QImage, float]:
-    """A heart of pearl px pixels wide, per pixel, and the glow round it, in one square picture each.
-
-    Its surface rises in a rounded bevel from the outline. Face on it is pearl, warm white light
-    gathered in its middle and a faint sheen of rose and lilac as it turns; toward the edge it goes
-    to honey and at the rim to polished gold, which reflects the light above and the dark below; a
-    soft window of light sits on each lobe. The glow's picture is larger; both have the heart's centre
-    (as heart_path takes it) at the middle across and px * 0.145 above the middle down."""
-    side = int(px * 1.04) + 4
-    cx, cy = side / 2, side / 2 - px * 0.145
-    ring = heart_points(cx, cy, px, 72)
-    mask_ = _fill(side, heart_path(cx, cy, px))
-    inside = (mask_ > 0.5).astype(np.float32)
-    # How far in from the outline, measured on every other pixel and spread back out.
-    ax = np.array([point.x() for point in ring], dtype=np.float32)
-    ay = np.array([point.y() for point in ring], dtype=np.float32)
-    half_y, half_x = np.mgrid[0:side:2, 0:side:2].astype(np.float32) + 0.5
-    dist = np.full(half_x.shape, np.inf, dtype=np.float32)
-    for x0, y0, x1, y1 in zip(ax, ay, np.roll(ax, -1), np.roll(ay, -1), strict=True):
-        dx, dy = x1 - x0, y1 - y0
-        k = np.clip(((half_x - x0) * dx + (half_y - y0) * dy) / (dx * dx + dy * dy + 1e-6), 0, 1)
-        dist = np.minimum(dist, np.hypot(half_x - x0 - k * dx, half_y - y0 - k * dy))
-    dist = np.kron(dist, np.ones((2, 2), dtype=np.float32))[:side, :side]
-    yy, xx = np.mgrid[0:side, 0:side].astype(np.float32)
-    bevel = px * 0.24
-    k = np.clip(dist / bevel, 0, 1)
-    height = blur(np.sqrt(1 - (1 - k) ** 2) * inside, px * 0.02) * inside
-    gy, gx = np.gradient(height * bevel)
-    norm = np.sqrt(gx * gx + gy * gy + 1)
-    nx, ny, nz = -gx / norm, -gy / norm, 1 / norm
-    lx, ly, lz = -0.45, -0.68, 0.58
-    length = math.sqrt(lx * lx + ly * ly + lz * lz)
-    lx, ly, lz = lx / length, ly / length, lz / length
-    diffuse = np.clip(nx * lx + ny * ly + nz * lz, 0, 1)
-    rx, ry, rz = 2 * nz * nx, 2 * nz * ny, 2 * nz * nz - 1
-    x = (xx - cx) / px
-    y = (yy - cy) / px - 0.14
-    inner = np.exp(-((x / 0.3) ** 2 + ((y - 0.02) / 0.26) ** 2))
-    body = rgb(CREAM) + (rgb(PEARL) - rgb(CREAM)) * inner[..., None]
-    slope = 1 - nz
-    body = body + (rgb(HONEY) - body) * (smooth(0.05, 0.5, slope) * 0.75)[..., None]
-    turn = np.arctan2(ny, nx)
-    sheen = np.stack([0.5 + 0.5 * np.cos(turn * 2 + shift) for shift in (0.6, 2.4, 4.4)], axis=-1)
-    body = body * (0.8 + 0.28 * diffuse)[..., None] + (sheen - 0.5) * (0.07 * smooth(0.05, 0.35, slope))[..., None]
-    up = np.clip(-ry, -1, 1)[..., None]
-    sky, gold, deep = rgb("#fff6dc"), rgb(GOLD_DEEP), rgb("#8a5a14")
-    env = np.where(up > 0, gold + (sky - gold) * smooth(0.0, 0.7, up), gold + (deep - gold) * smooth(0.0, 0.7, -up))
-    metal = smooth(0.42, 0.8, slope)[..., None]
-    color = body * (1 - metal) + env * metal
-    facing = (rx * lx + ry * ly + rz * lz) / (lx * lx + ly * ly + lz * lz) ** 0.5
-    away_from_cleft = smooth(0.1, 0.22, np.hypot(x, y + 0.12))
-    color = color + (smooth(0.86, 0.97, facing) * 0.5 * away_from_cleft)[..., None] + (inner ** 3 * 0.12)[..., None]
-    wide = int(px * 1.9) + 4
-    around = _fill(wide, heart_path(wide / 2, wide / 2 - px * 0.145, px))
-    light = rgb(HONEY) * (blur(around, px * 0.06) * 0.7 + blur(around, px * 0.18) * 0.55)[..., None]
-    return picture(color, mask_), glow(light)
-
-
-def _heart_rect(image: QImage, px: int, c: QPointF, shown: float) -> QRectF:
-    """Where a heart picture made px wide goes to show a heart shown wide with its centre at c."""
-    f = shown / px
-    side = image.width() * f
-    return QRectF(c.x() - side / 2, c.y() - (image.width() / 2 - px * 0.145) * f, side, side)
-
-
-def _fill(side: int, path) -> np.ndarray:  # noqa: ANN001
-    """A path filled white on black, side pixels square, as 0..1."""
-    image = QImage(side, side, QImage.Format_Grayscale8)
-    image.fill(0)
+def _open_wing(span: float, plan: list[tuple], sprites: dict, density: float) -> tuple[QRectF, QImage]:
+    """The right wing spread, drawn once at the screen's sharpness: where it lies round its root, and
+    the picture. Once open it only breathes, which turns it whole."""
+    box = QRectF(-0.08 * span, -0.42 * span, 1.18 * span, 0.76 * span)
+    image = QImage(max(1, math.ceil(box.width() * density)), max(1, math.ceil(box.height() * density)), QImage.Format_ARGB32_Premultiplied)
+    image.fill(Qt.transparent)
     q = QPainter(image)
     q.setRenderHint(QPainter.Antialiasing)
-    q.setPen(Qt.NoPen)
-    q.setBrush(Qt.white)
-    q.drawPath(path)
+    q.setRenderHint(QPainter.SmoothPixmapTransform)
+    q.scale(density, density)
+    q.translate(-box.left(), -box.top())
+    _wing(q, span, plan, sprites, density, 1.0)
     q.end()
-    stride = image.bytesPerLine()
-    return np.frombuffer(image.constBits(), dtype=np.uint8, count=stride * side).reshape(side, stride)[:, :side].astype(np.float32) / 255.0
+    return box, image
+
+
+def _wing_mask(band: QRectF, width: float, height: float, u: float) -> QImage:
+    """Where the wings may show over band, at SOFT size: a whisper behind the title's lines and none
+    over its words."""
+    w, h = max(1, round(band.width() * SOFT)), max(1, round(band.height() * SOFT))
+    ys, xs = np.mgrid[0:h, 0:w].astype(np.float32) + 0.5
+    x, y = band.left() + xs / SOFT, band.top() + ys / SOFT
+    words, lines = _title(width, height, u)
+    keep = (1 - 0.78 * _box(x, y, lines, 50 * u)) * (1 - _box(x, y, words, 24 * u))
+    return picture(np.ones((h, w, 3), dtype=np.float32), keep)
 
 
 def _halo_picture(px: int) -> QImage:
     """A halo of gold light px pixels across, seen a little from below, per pixel: a ring with a
     white-hot line along it, its near side brighter, blooming out into the air round it."""
     rx, ry = px / 2, px / 2 * 0.27
-    w, h = int(px * 1.7) + 4, int(px * 1.15) + 4
+    w, h = int(px * 1.5) + 4, int(px * 0.85) + 4
     ys, xs = np.mgrid[0:h, 0:w].astype(np.float32) + 0.5
     x, y = (xs - w / 2) / rx, (ys - h / 2) / ry
     # Distance from the ellipse, roughly in pixels: the step from 1 over how fast it grows there.
@@ -528,117 +476,139 @@ def _halo_picture(px: int) -> QImage:
     gx, gy = x / rx, y / ry
     reach = np.maximum(e, 1e-3) / np.maximum(np.hypot(gx, gy), 1e-6)
     d = np.abs(e - 1) * reach / np.maximum(e, 1e-3)
-    tube = px * 0.035
+    tube = px * 0.028
     band = 1 - smooth(tube * 0.5, tube * 1.1, d)
     core = 1 - smooth(tube * 0.1, tube * 0.5, d)
-    near = 0.72 + 0.28 * smooth(-0.6, 0.6, y / np.maximum(e, 1e-3))
-    light = (rgb(GOLD_DEEP) * 0.9 * band[..., None] + rgb("#fff8e6") * (core * 1.1)[..., None]) * near[..., None]
-    light = light + rgb(GOLD) * (blur(band, px * 0.03) * 0.8 + blur(band, px * 0.09) * 0.5)[..., None]
+    near = 0.7 + 0.3 * smooth(-0.6, 0.6, y / np.maximum(e, 1e-3))
+    light = (rgb(GOLD_DEEP) * 0.9 * band[..., None] + rgb("#fff8e6") * (core * 1.15)[..., None]) * near[..., None]
+    light = light + rgb(GOLD) * (blur(band, px * 0.025) * 0.85 + blur(band, px * 0.07) * 0.5)[..., None]
     return glow(light)
 
 
-def _hero(p: QPainter, t: float, centre: QPointF, size: float, u: float, plan: list, sprites: dict, hearts: dict, halos: dict, burst: list) -> None:
-    """The winged heart under its halo: the heart glows in, the halo comes down over it, the wings
-    unfold with a burst of light and breathe; at the end it rises into the light and fades."""
+def _crest(p: QPainter, t: float, halo_at: QPointF, roots: tuple, span: float, band: QRectF, cut: QImage, u: float, plan: list, sprites: dict, opened: dict, halos: dict, burst: list) -> None:
+    """The crest round the title: the halo comes down above it, the wings unfold from behind it with
+    a burst of light and breathe; at the end they rise into the light and fade."""
     leave = ease_in_out(win(t, 4.15, 4.95))
     rise = ease_in(win(t, 3.95, 4.95))
-    form = ease_out(win(t, 0.15, 0.8))
     flash = _burst(t)
     density = _density(p)
-    # The heart, drawn for the largest it gets and only ever shown smaller; made on the first frame,
-    # while nothing shows yet.
-    px = max(16, math.ceil(size * 1.06 * density / 8) * 8)
-    if px not in hearts:
-        hearts[px] = _pearl_heart(px)
-    hx = max(16, math.ceil(size * 0.92 * density / 8) * 8)
-    if hx not in halos:
-        halos[hx] = _halo_picture(hx)
-    span = size * WING
+    # The pictures, made on the first frame while nothing shows yet.
+    rx = 106 * u
+    px = max(16, math.ceil(rx * 2 * density / 8) * 8)
+    if px not in halos:
+        halos[px] = _halo_picture(px)
     for kind, longest in LONGEST.items():
         _sprite(sprites, kind, span * longest, density)
-    a = form * (1 - leave)
+    a = 1 - leave
     if a <= 0.01:
         return
-    lift = 3 * u * math.sin(t * 1.6) - 70 * u * rise
-    c = QPointF(centre.x(), centre.y() + lift)
-    beat = 1 + 0.045 * max(0.0, math.sin(math.pi * win(t, 2.3, 2.5))) + 0.03 * max(0.0, math.sin(math.pi * win(t, 2.56, 2.74)))
-    scale = (0.86 + 0.14 * form) * beat
+    lift = -50 * u * rise
     p.save()
     p.setOpacity(p.opacity() * a)
     p.setRenderHint(QPainter.SmoothPixmapTransform)
-    # Light behind it all, on the wings too once they are open, and the burst as they open.
-    soft_dot(p, c.x(), c.y() + size * 0.1, size * 1.5, "#fff1c8", 0.35 + 0.4 * flash)
-    spread = ease_out(win(t, 0.8, 1.6))
-    for mirror in (1, -1):
-        soft_dot(p, c.x() + mirror * size * 0.75, c.y() - size * 0.3, size * 0.9, "#ffe2a0", 0.35 * spread)
-    soft_dot(p, c.x(), c.y() + size * 0.1, size * (1.6 + 1.4 * flash), "#ffffff", 0.5 * flash)
-    body, aura = hearts[px]
-    shown = size * 1.06 * scale
-    p.drawImage(_heart_rect(aura, px, c, shown), aura)
     k = ease_back(win(t, 0.6, 1.6), 1.2)
     if k > 0:
-        opened = clamp(win(t, 0.6, 0.85))
-        for mirror in (1, -1):
-            p.save()
-            p.setOpacity(p.opacity() * opened)
-            p.translate(c.x(), 0)
-            p.scale(mirror, 1)
-            p.translate(-c.x(), 0)
-            _wing(p, t, QPointF(c.x() + size * 0.2, c.y() - size * 0.02), span, plan, sprites, density, k)
-            p.restore()
-    p.drawImage(_heart_rect(body, px, c, shown), body)
-    _halo(p, t, c, size, halos[hx], hx, flash, u)
-    # Glints thrown out by the burst, slowing as they go.
+        _wings(p, t, roots, span, band, cut, lift, plan, sprites, opened, density, k)
+    _halo(p, t, QPointF(halo_at.x(), halo_at.y() + lift), rx, halos[px], px, flash, u)
+    p.restore()
+    hc = QPointF(halo_at.x(), halo_at.y() + lift)
+    # Glints thrown out by the burst along the wings, slowing as they go.
     for angle, far, life in burst:
         age = t - 1.0
         if 0 < age < life:
             k_ = ease_out(age / life)
-            x = c.x() + math.cos(angle) * far * k_
-            y = c.y() + math.sin(angle) * far * k_ * 0.8
+            x = hc.x() + math.cos(angle) * far * k_
+            y = hc.y() + 20 * u + math.sin(angle) * far * k_ * 0.5
             fade = 1 - age / life
-            soft_dot(p, x, y, 9 * u, GOLD, 0.6 * fade)
-            star(p, x, y, 7 * u * (0.6 + 0.4 * fade), "#ffffff", fade)
-    if flash > 0.02:
-        # A flare across the heart, as bright light shows through a lens.
-        mid = QPointF(c.x(), c.y() + size * 0.1)
-        reach = size * (1.0 + 1.2 * flash)
-        p.setBrush(gradient(QPointF(mid.x() - reach, 0), QPointF(mid.x() + reach, 0), ((0, HONEY, 0), (0.5, "#ffffff", 0.55 * flash), (1, HONEY, 0))))
-        p.drawEllipse(mid, reach, size * 0.07)
-        soft_dot(p, mid.x(), mid.y(), size * 0.8, "#ffffff", 0.75 * flash)
-        star(p, mid.x(), mid.y(), size * 0.42 * flash, "#ffffff", 0.9 * flash, 0.16)
-    p.restore()
-    # Going, it leaves glints of its light rising from its edge.
+            soft_dot(p, x, y, 10 * u, GOLD, 0.6 * fade)
+            star(p, x, y, 8 * u * (0.6 + 0.4 * fade), "#ffffff", fade)
+    # Going, the halo leaves glints of its light rising from its ring.
     if rise > 0:
-        for i, point in enumerate(heart_points(c.x(), c.y(), size * 1.06 * scale, 10, 0.05)):
-            k = clamp(rise * 1.4 - 0.04 * i)
-            if 0 < k < 1:
-                y = point.y() - 90 * u * k * (0.7 + 0.06 * i)
-                soft_dot(p, point.x(), y, 12 * u, GOLD, 0.6 * (1 - k))
-                star(p, point.x(), y, 8 * u * math.sin(math.pi * k), "#ffffff", 1 - k * 0.6)
+        for i in range(12):
+            turn = i / 12 * 2 * math.pi + 0.3
+            k_ = clamp(rise * 1.4 - 0.035 * i)
+            if 0 < k_ < 1:
+                x = hc.x() + rx * math.cos(turn)
+                y = hc.y() + rx * 0.27 * math.sin(turn) - 70 * u * k_ * (0.7 + 0.05 * i)
+                soft_dot(p, x, y, 12 * u, GOLD, 0.6 * (1 - k_))
+                star(p, x, y, 8 * u * math.sin(math.pi * k_), "#ffffff", 1 - k_ * 0.6)
 
 
-def _halo(p: QPainter, t: float, c: QPointF, size: float, image: QImage, px: int, flash: float, u: float) -> None:
-    """The halo comes down over the heart and floats there, a glint running round it."""
-    down = ease_out(win(t, 0.35, 1.1))
+def _wings(p: QPainter, t: float, roots: tuple, span: float, band: QRectF, cut: QImage, lift: float, plan: list, sprites: dict, opened: dict, density: float, k: float) -> None:
+    """Both wings drawn on a picture of the band they live in, at the screen's sharpness, cut away
+    over the title, and laid on: a warm light behind them once they are open. Unfolding, each
+    feather moves; open, each wing is laid whole, breathing as it turns a little about its root."""
+    layer = QImage(max(1, math.ceil(band.width() * density)), max(1, math.ceil(band.height() * density)), QImage.Format_ARGB32_Premultiplied)
+    layer.fill(Qt.transparent)
+    q = QPainter(layer)
+    q.setRenderHint(QPainter.Antialiasing)
+    q.setRenderHint(QPainter.SmoothPixmapTransform)
+    q.scale(density, density)
+    q.translate(-band.left(), -band.top() + lift)
+    spread = ease_out(win(t, 0.8, 1.6))
+    for mirror, root in zip((1, -1), roots, strict=True):
+        soft_dot(q, root.x() + mirror * span * 0.5, root.y() - span * 0.15, span * 0.5, "#ffe2a0", 0.22 * spread)
+    q.setOpacity(clamp(win(t, 0.55, 0.85)))
+    beat = -3.2 * math.sin(2 * math.pi * (t - 1.6) / 2.1) * win(t, 1.6, 2.2)
+    if t >= 1.6 and density not in opened:
+        opened.clear()
+        opened[density] = _open_wing(span, plan, sprites, density)
+    for mirror, root in zip((1, -1), roots, strict=True):
+        q.save()
+        q.translate(root)
+        q.scale(mirror, 1)
+        q.rotate(beat)
+        if t >= 1.6:
+            box, image = opened[density]
+            q.drawImage(box, image)
+        else:
+            _wing(q, span, plan, sprites, density, k)
+        q.restore()
+    q.resetTransform()
+    q.setOpacity(1.0)
+    q.setCompositionMode(QPainter.CompositionMode_DestinationIn)
+    q.drawImage(QRectF(0, 0, layer.width(), layer.height()), cut)
+    q.end()
+    p.drawImage(band, layer)
+
+
+def _halo(p: QPainter, t: float, hc: QPointF, rx: float, image: QImage, px: int, flash: float, u: float) -> None:
+    """The halo comes down to float above the title, tilted a little, a glint running round it; the
+    burst blooms out of it."""
+    down = ease_out(win(t, 0.3, 1.0))
     if down <= 0:
         return
-    rx = size * 0.46
-    hc = QPointF(c.x(), c.y() - size * 0.5 - 34 * u * (1 - down) + 2.5 * u * math.sin(t * 1.9 + 0.8))
+    hc = QPointF(hc.x(), hc.y() - 40 * u * (1 - down) + 2.5 * u * math.sin(t * 1.9 + 0.8))
+    # Its radiance, wide and low.
+    p.save()
+    p.translate(hc)
+    p.scale(1, 0.3)
+    soft_dot(p, 0, 0, rx * 1.9, HONEY, 0.4 * down)
+    p.restore()
+    if flash > 0.02:
+        # A soft bloom, wide and low, kept above the words.
+        p.save()
+        p.translate(hc)
+        p.scale(1, 0.42)
+        soft_dot(p, 0, 0, rx * 2.6, "#ffffff", 0.55 * flash)
+        soft_dot(p, 0, 0, rx * 4.2, HONEY, 0.35 * flash)
+        p.restore()
     scale = rx * 2 / px
     w, h = image.width() * scale, image.height() * scale
     p.save()
+    p.translate(hc)
+    p.rotate(-6)
+    p.save()
     p.setOpacity(p.opacity() * down * (0.92 + 0.08 * math.sin(t * 3.1)))
-    p.drawImage(QRectF(hc.x() - w / 2, hc.y() - h / 2, w, h), image)
+    p.drawImage(QRectF(-w / 2, -h / 2, w, h), image)
     p.restore()
-    if flash > 0.02:
-        soft_dot(p, hc.x(), hc.y(), rx * 1.6, HONEY, 0.4 * flash)
-    ry = rx * 0.27
-    turn = t * 2.4
-    gx, gy = hc.x() + rx * math.cos(turn), hc.y() + ry * math.sin(turn)
+    turn = t * 2.2
+    gx, gy = rx * math.cos(turn), rx * 0.27 * math.sin(turn)
     near = 0.5 + 0.5 * math.sin(turn)
-    glint_a = down * (0.45 + 0.55 * near)
-    soft_dot(p, gx, gy, 14 * u, "#fff6dc", 0.7 * glint_a)
-    star(p, gx, gy, (8 + 7 * near) * u, "#ffffff", glint_a, 0.08)
+    shine = down * (0.45 + 0.55 * near)
+    soft_dot(p, gx, gy, 16 * u, "#fff6dc", 0.7 * shine)
+    star(p, gx, gy, (9 + 8 * near) * u, "#ffffff", shine, 0.08)
+    p.restore()
 
 
 def _falling(p: QPainter, t: float, falling: list[tuple], sprites: dict, u: float, a: float) -> None:
@@ -686,7 +656,7 @@ def _motes(p: QPainter, t: float, motes: list[tuple], u: float, a: float) -> Non
 def _sparkle_spots(width: float, height: float, gap: QRectF, u: float, rnd: random.Random) -> list[tuple]:
     """Where sparkles come and go: the top band either side of the title, and down the sides."""
     names = QRectF(width * 0.12, height * 0.27, width * 0.83, height * 0.6)
-    title = QRectF(width * 0.36, height * 0.04, width * 0.34, height * 0.24)
+    title = QRectF(width * 0.36, height * 0.0, width * 0.34, height * 0.34)
     out = []
     while len(out) < 26:
         x, y = rnd.uniform(0.01, 0.99) * width, rnd.uniform(0.02, 0.9) * height
