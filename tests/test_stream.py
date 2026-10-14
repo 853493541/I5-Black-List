@@ -562,3 +562,67 @@ def test_on_windows_10_it_takes_focus_and_keeps_its_taskbar_button(window, monke
     eleven.enable("on")
     assert hidden == []
     eleven.enable("")
+
+
+def test_the_log_says_how_zhibojis_canvas_lines_the_game_and_the_marks_up(window, monkeypatch, tmp_path, caplog):
+    """Where 直播姬 puts the game's capture and 直播画面's, from its scene file, against where 直播画面
+    draws the game: placed as 直播姬 places a new capture they line up exactly; 直播画面 shrunk into a
+    smaller box at the top left (what viewers of a friend's stream saw) shows as such."""
+    import json
+    import logging
+
+    from PySide6.QtCore import QRect
+
+    from blacklist_detect import livehime, livehime_layout
+
+    caplog.set_level(logging.INFO, logger="blacklist_detect")
+    window._set_stream_mode(True)
+    stream = window.stream
+    screen = QApplication.primaryScreen().geometry()
+    game = QRect(screen.x() + 20, screen.y() + 10, round(screen.width() * 0.6), round(screen.width() * 0.6 * 915 / 1540))
+    stream.set_frame(game)
+    monkeypatch.setattr(livehime_layout, "window_rect", lambda hwnd: None)
+    # The game's window in desktop pixels, as Windows gives it: Qt's units times the screen's scaling.
+    ratio = QApplication.primaryScreen().devicePixelRatio()
+    gx, gy = round(screen.x() + (game.x() - screen.x()) * ratio), round(screen.y() + (game.y() - screen.y()) * ratio)
+    gw, gh = round(game.width() * ratio), round(game.height() * ratio)
+    monkeypatch.setattr(livehime_layout, "captured_rect", lambda placed: (gx, gy, gx + gw, gy + gh))
+    log = tmp_path / "bililive_debug.log"
+    log.write_text("[1:1014/001100.000:INFO:x] ## [Scene Collection]: is_double_screen-0 main_width-1920 main_height-1080\n", encoding="utf-8")
+    monkeypatch.setattr(livehime, "log_path", lambda: log)
+    fit = min(1920 / gw, 1080 / gh)
+
+    def scene_file(ours: dict) -> None:
+        collection = {"current_scene": "Scene 1", "sources": [
+            {"id": "window_capture", "name": "游戏", "uuid": "g", "settings": {"window": "MuMu:Qt5156QWindowIcon:MuMuNxDevice.exe"}},
+            {"id": "window_capture", "name": "直播画面", "uuid": "m", "settings": {"window": "模仿者小工具·直播画面:Qt6120QWindowIcon:模仿者小工具.exe"}},
+            {"id": "scene", "name": "Scene 1", "settings": {"items": [
+                {"name": "游戏", "source_uuid": "g", "pos": {"x": (1920 - gw * fit) / 2, "y": (1080 - gh * fit) / 2},
+                 "scale": {"x": fit, "y": fit}, "align": 5, "bounds_type": 0},
+                {"name": "直播画面", "source_uuid": "m", "align": 5, "bounds_type": 0, **ours},
+            ]}},
+        ]}  # fmt: skip
+        path = tmp_path / "335583400" / "Scene Collection" / "collection.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(collection, ensure_ascii=False), encoding="utf-8")
+        monkeypatch.setattr(livehime_layout, "collection_path", lambda root=None: path)
+
+    full = 1920 / round(stream.width() * ratio)
+    scene_file({"pos": {"x": 0, "y": 0}, "scale": {"x": full, "y": full}})
+    lines = stream.layout_lines()
+    assert lines[0].startswith("screen ") and "直播画面 " in lines[0] and lines[1].startswith("mirrors (")
+    line = next(line for line in lines if line.startswith("直播姬「Scene 1」 (shown now)"))
+    assert "off by (+0, +0), size ×1.000" in line and "; the 心动 border plays over (" in line, line
+    assert any(line.startswith("the game's picture, where the 心动 border plays: (") for line in lines)
+    assert lines[-1].startswith("直播姬: canvas 1920x1080; 横竖双屏 off")
+    # The box 直播姬 gave 直播画面 is 0.8 of the canvas, at the top left: the game is drawn smaller and
+    # up to the left of where viewers see the game.
+    scene_file({"pos": {"x": 0, "y": 0}, "scale": {"x": full * 0.8, "y": full * 0.8}})
+    line = next(line for line in stream.layout_lines() if line.startswith("直播姬「Scene 1」"))
+    assert "size ×0.800" in line and "off by (-" in line, line
+    # Written to the log once, and again only when it changes.
+    stream.note_layout("check 1")
+    stream.note_layout("check 2")
+    said = [record.getMessage() for record in caplog.records if "直播画面 layout" in record.getMessage()]
+    assert len(said) == 1 and said[0].startswith("直播画面 layout (check 1):\nscreen ")
+    window._set_stream_mode("")

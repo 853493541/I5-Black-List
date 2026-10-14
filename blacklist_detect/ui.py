@@ -226,6 +226,8 @@ DEBUG_KEEP = 30
 DEMO_MS = 7_000
 DEMO_SETTLE_MS = 80
 DEMO_SHARE = 0.6
+# 直播模式: how long after a check the layout of 直播画面 and 直播姬 is written to the log.
+LAYOUT_MS = 1_000
 # While the app is open it looks again every half hour, and as soon as the window is brought up
 # when its last look was ten minutes ago or more; what it finds then waits for the player (有更新).
 UPDATE_EVERY_MS = 30 * 60 * 1000
@@ -3972,6 +3974,9 @@ class MainWindow(QMainWindow):
         if frame != self.stream._frame:
             log.info("直播模式 mirrors the game's window: %dx%d.", frame.width(), frame.height())
         self.stream.set_frame(frame)
+        # Written once the marks are up, so it never holds them back.
+        why = f"check {self._check_number}" if self._demo_likes is None else "测试效果"
+        QTimer.singleShot(LAYOUT_MS, lambda: self.stream.note_layout(why))
 
     def _game_area(self, screen) -> QRect:  # noqa: ANN001
         return self._window_frame(screen, innermost=True)

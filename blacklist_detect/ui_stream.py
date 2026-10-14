@@ -64,7 +64,7 @@ from PySide6.QtCore import QPoint, QPointF, QProcess, QProcessEnvironment, QRect
 from PySide6.QtGui import QColor, QFont, QFontMetricsF, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QApplication, QWidget
 
-from blacklist_detect import livehime, paths, wgc, wgc_diagnose
+from blacklist_detect import livehime, livehime_layout, paths, wgc, wgc_diagnose
 from blacklist_detect.names import APP_NAME
 from blacklist_detect.ui_alert import paint_glow
 
@@ -135,6 +135,10 @@ class StreamMirror(QWidget):
         # The diagnosis, once each time 直播模式 opens: running, and whether it has run.
         self._diagnosing: QProcess | None = None
         self._diagnosed = False
+        # The layout last written to the log (note_layout), so the same one is not written again, and
+        # what 直播姬's log says of its canvas, read on as it grows.
+        self._layout_said: list[str] = []
+        self._studio = livehime_layout.StudioWatch()
         self._tick = QTimer(self)
         self._tick.setInterval(FRAME_MS)
         self._tick.timeout.connect(self._step)
@@ -202,6 +206,7 @@ class StreamMirror(QWidget):
         self.answer = result
         log.info("直播画面 %s: %s.", _WHERE[self.spot], wgc.words(result))
         if result is None or result == wgc.ACCEPTED:
+            self.note_layout("直播模式 on")
             return
         spots = _spots()
         later = spots.index(self.spot) + 1 if self.spot in spots else 0
@@ -379,6 +384,133 @@ class StreamMirror(QWidget):
         """Where a point on the screen is drawn in this window."""
         scale, offset = self._fit()
         return offset + QPointF(point - self._area.topLeft()) * scale
+
+    def note_layout(self, why: str) -> None:
+        """Write to the log where everything is and how 直播姬 lines the game and this window up,
+        when that changed since it was last written. Never in the way of the app: a failure is a
+        line in the log."""
+        if not self.enabled():
+            return
+        try:
+            lines = self.layout_lines()
+        except Exception as error:  # noqa: BLE001 - a report must never take 直播模式 down
+            lines = [f"could not be worked out: {error!r}"]
+        if lines != self._layout_said:
+            self._layout_said = lines
+            log.info("直播画面 layout (%s):\n%s", why, "\n".join(lines))
+
+    def layout_lines(self) -> list[str]:
+        """Our side in desktop pixels (the screen, this window, the game's window and where it is drawn
+        here), then for each 直播姬 scene with this window: where the game's capture lands on its
+        canvas, where this window draws that same picture, and the difference; then 直播姬's canvas
+        and two-canvas mode."""
+        screen = QApplication.screenAt(self._area.center()) or QApplication.primaryScreen()
+        ratio = (screen.devicePixelRatio() if screen is not None else 1.0) or 1.0
+        home = screen.geometry() if screen is not None else QRect(0, 0, 1920, 1080)
+
+        def pixels(rect: QRect) -> tuple[int, int, int, int]:
+            """A rect in Qt's units on this screen as (x, y, w, h) in desktop pixels."""
+            return (
+                round(home.x() + (rect.x() - home.x()) * ratio),
+                round(home.y() + (rect.y() - home.y()) * ratio),
+                round(rect.width() * ratio),
+                round(rect.height() * ratio),
+            )
+
+        mine = livehime_layout.window_rect(int(self.winId()))
+        if mine is None:
+            x, y, w, h = pixels(self.geometry())
+            mine = (x, y, x + w, y + h)
+        mw, mh = mine[2] - mine[0], mine[3] - mine[1]
+        # This window's pixels per Qt unit, as Windows made it.
+        here = mw / max(1, self.width())
+        scale, offset = self._fit()
+        ax, ay, aw, ah = pixels(self._area)
+        lines = [
+            f"screen {round(home.width() * ratio)}x{round(home.height() * ratio)} px at ({home.x()}, {home.y()}), {ratio * 100:.0f}%; "
+            f"直播画面 {mw}x{mh} px at ({mine[0]}, {mine[1]}), {_WHERE.get(self.spot, self.spot)}",
+            f"mirrors ({ax}, {ay}) {aw}x{ah} px (the game's window as its 窗口捕获 takes it), drawn in 直播画面 at "
+            f"({offset.x() * here:.0f}, {offset.y() * here:.0f}) {self._area.width() * scale * here:.0f}x{self._area.height() * scale * here:.0f} px",
+        ]
+        picture = self._picture(screen)
+        if picture is not None:
+            px, py, pw, ph = pixels(picture)
+            lines.append(f"the game's picture, where the 心动 border plays: ({px}, {py}) {pw}x{ph} px")
+        path = livehime_layout.collection_path()
+        if path is None:
+            lines.append("直播姬's scene file: not found")
+        else:
+            current, placed = livehime_layout.placements(path)
+            for scene in dict.fromkeys(item.scene for item in placed if item.title == TITLE):
+                lines.append(self._scene_line(scene, current, [item for item in placed if item.scene == scene], mw, mh, here))
+        studio = self._studio.studio()
+        canvas = f"{studio.canvas[0]}x{studio.canvas[1]}" if studio.canvas else "?"
+
+        def said(value: bool | None) -> str:
+            return "?" if value is None else "on" if value else "off"
+
+        lines.append(
+            f"直播姬: canvas {canvas}; 横竖双屏 {said(studio.double_screen)}; two canvases (预览 and 直播 apart) {said(studio.two_canvas)}; "
+            f"last 同步至直播 {studio.synced or 'not seen'}; last source added or removed {studio.edited or 'not seen'}"
+            + ("; CHANGED SINCE THE LAST 同步至直播: viewers do not see it yet" if studio.unsynced() else "")
+        )
+        return lines
+
+    def _scene_line(self, scene: str, current: str, items: list, mw: int, mh: int, here: float) -> str:  # noqa: ANN001
+        """One 直播姬 scene: this window's capture and the game's under it, and how they line up."""
+        from blacklist_detect.ui_overlay import native_to_logical
+
+        ours = next((item for item in reversed(items) if item.title == TITLE and item.visible), None) or next(
+            item for item in reversed(items) if item.title == TITLE
+        )
+        head = f"直播姬「{scene}」{' (shown now)' if scene == current else ''}: "
+        x, y, w, h = ours.on_canvas(mw, mh)
+        flags = "".join(
+            note
+            for on, note in (
+                (not ours.visible, ", hidden"),
+                (ours.whole_screen, ", 窗口区域模式"),
+                (not ours.client_area, ", whole window"),
+                (bool(ours.rotation), f", turned {ours.rotation:g}°"),
+                (any(ours.crop), f", cropped {ours.crop}"),
+            )
+            if on
+        )
+        mine = f"直播画面 at ({x:.0f}, {y:.0f}) {w:.0f}x{h:.0f}{flags}"
+        under = items[: items.index(ours)]
+        game = next((item for item in reversed(under) if item.visible and item.title and item.title != TITLE), None)
+        if game is None:
+            return head + mine + "; no game capture under it"
+        frame = livehime_layout.captured_rect(game)
+        if frame is None:
+            return head + mine + f"; the game's 「{game.title}」 is not open"
+        gx, gy, gw, gh = game.on_canvas(frame[2] - frame[0], frame[3] - frame[1])
+        # Where this window draws that same picture: its corners, through the mirror, onto the canvas.
+        left, top, _ratio = native_to_logical(frame[0], frame[1])
+        right, bottom, _ratio = native_to_logical(frame[2], frame[3])
+        corner = self.to_window(QPoint(round(left), round(top)))
+        far = self.to_window(QPoint(round(right), round(bottom)))
+        kx, ky = w / mw, h / mh
+        ox, oy = x + corner.x() * here * kx, y + corner.y() * here * ky
+        ow, oh = (far.x() - corner.x()) * here * kx, (far.y() - corner.y()) * here * ky
+        took = "client area" if game.client_area else "whole window"
+        border = ""
+        picture = self._picture(QApplication.screenAt(self._area.center()) or QApplication.primaryScreen())
+        if picture is not None:
+            start, end = self.to_window(picture.topLeft()), self.to_window(picture.bottomRight() + QPoint(1, 1))
+            bx, by = x + start.x() * here * kx, y + start.y() * here * ky
+            bw, bh = (end.x() - start.x()) * here * kx, (end.y() - start.y()) * here * ky
+            border = f"; the 心动 border plays over ({bx:.0f}, {by:.0f}) {bw:.0f}x{bh:.0f} of the canvas"
+        return (
+            head + mine + f"; game 「{game.title}」 ({took} {frame[2] - frame[0]}x{frame[3] - frame[1]} px at ({frame[0]}, {frame[1]})) "
+            f"lands at ({gx:.0f}, {gy:.0f}) {gw:.0f}x{gh:.0f}; 直播画面 draws it at ({ox:.0f}, {oy:.0f}) {ow:.0f}x{oh:.0f}: "
+            f"off by ({round(ox - gx):+d}, {round(oy - gy):+d}), size ×{ow / max(1.0, gw):.3f}" + border
+        )
+
+    def _picture(self, screen) -> QRect | None:  # noqa: ANN001
+        """The game's picture on the screen, where the 心动 border plays (the main window works it out)."""
+        find = getattr(self._window, "_game_area", None)
+        return find(screen) if find is not None and screen is not None else None
 
     def _step(self) -> None:
         busy = self.busy()
