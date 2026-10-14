@@ -1,15 +1,15 @@
 """数学 Equation: a blueprint night where the heart is worked out, not drawn.
 
 The edges darken to blueprint navy with faint graph paper in them, fading toward the middle. In
-the top left a chain of rotating circles, the heart curve's own Fourier series (x = 16 sin³t,
-y = 13 cos t − 5 cos 2t − 2 cos 3t − cos 4t has only eight terms), traces the heart in a glowing
-pink line while z(t) = Σ cₖ e^{ikt} writes itself above it. The circles fade, the heart fills with
-light from the middle out, and inside it the level lines of (x²+y²−1)³ − x²y³ glow and flow
-outward, past its edge in chalk blue; it beats once and a level line ripples away. Equations write
-themselves in chalk down the left side and in the corners, a cardioid r = 1 − sin θ plots itself
-in gold on a polar grid in the top right, and a golden spiral grows through its Fibonacci squares
-in the bottom right. Math symbols drift up the sides. At the end the equations crumble into chalk
-dust and everything fades.
+the top right (every other scene's heart is in the top left) a chain of rotating circles, the
+heart curve's own Fourier series (x = 16 sin³t, y = 13 cos t − 5 cos 2t − 2 cos 3t − cos 4t has
+only eight terms), traces the heart in a glowing pink line while z(t) = Σ cₖ e^{ikt} writes itself
+above it. The circles fade, the heart fills with light from the middle out, and inside it the
+level lines of (x²+y²−1)³ − x²y³ glow and flow outward, past its edge in chalk blue; it beats once
+and a level line ripples away. Equations write themselves in chalk down the left side and in the
+corners, a cardioid r = 1 − sin θ plots itself in gold on a polar grid in the top left, and a
+golden spiral grows through its Fibonacci squares in the bottom right. Math symbols drift up the
+sides. At the end the equations crumble into chalk dust and everything fades.
 """
 
 from __future__ import annotations
@@ -62,31 +62,36 @@ def make(stage: Stage):  # noqa: ANN201
     width, height, gap = stage.width, stage.height, stage.gap
     u = stage.unit()
     rnd = random.Random(23)
-    heart_at = QPointF(width * 0.118, height * 0.19)
-    size = 180 * u
+    # The heart in the top right, unlike the other scenes; the polar plot takes the top left.
+    heart_at = QPointF(width * 0.88, height * 0.172)
+    size = 172 * u
     terms = _terms()
     paper = Wash(lambda q, w, h: _paper(q, w, h, u))
     formulas = [
-        # z(t) = Σ cₖ e^{ikt}, the sum the circles add up, over the heart.
-        _formula([("t", _it("z") + "(" + _it("t") + ") = "), ("big", "∑"), ("under", _it("k")), ("t", " " + _it("c")), ("sub", _it("k")), ("t", " " + _it("e")), ("sup", _it("ikt"))], 28 * u, QPointF(24 * u, 56 * u), 0.35, 1.2, CHALK, rnd),
-        # The heart's own equation beside it, as it fills.
-        _formula([("t", "(" + _it("x") + "² + " + _it("y") + "² − 1)³ = " + _it("x") + "²" + _it("y") + "³")], 29 * u, QPointF(width * 0.198, height * 0.205), 2.5, 3.3, PINK, rnd),
+        # z(t) = Σ cₖ e^{ikt}, the sum the circles add up, over the heart in the corner.
+        _formula([("t", _it("z") + "(" + _it("t") + ") = "), ("big", "∑"), ("under", _it("k")), ("t", " " + _it("c")), ("sub", _it("k")), ("t", " " + _it("e")), ("sup", _it("ikt"))], 28 * u, QPointF(width - 24 * u, 50 * u), 0.35, 1.2, CHALK, rnd, ends=True),
+        # The heart's own equation to its left as it fills, low by its narrowing point, short of the title.
+        _formula([("t", "(" + _it("x") + "² + " + _it("y") + "² − 1)³ = " + _it("x") + "²" + _it("y") + "³")], 26 * u, QPointF(heart_at.x() - 62 * u, height * 0.255), 2.5, 3.3, PINK, rnd, ends=True),
         _formula([("t", _it("e")), ("sup", _it("iπ")), ("t", " + 1 = 0")], 30 * u, QPointF(24 * u, height * 0.44), 0.9, 1.55, CHALK, rnd),
         _formula([("t", "∫"), ("sup", "∞"), ("sub", "−∞"), ("t", " " + _it("e")), ("sup", "−" + _it("x") + "²"), ("t", " d" + _it("x") + " = "), ("root", _it("π"))], 26 * u, QPointF(22 * u, height * 0.62), 1.75, 2.5, CHALK, rnd),
-        _formula([("t", _it("r") + " = 1 − sin " + _it("θ"))], 27 * u, QPointF(width * 0.7, height * 0.085), 1.0, 1.6, GOLD, rnd),
+        _formula([("t", _it("r") + " = 1 − sin " + _it("θ"))], 27 * u, QPointF(width * 0.19, height * 0.085), 1.0, 1.6, GOLD, rnd),
         _formula([("t", _it("φ") + " = "), ("frac", "1 + √5", "2")], 28 * u, QPointF(width * 0.718, height * 0.91), 2.05, 2.7, GOLD, rnd),
         _formula([("t", "lim"), ("under", _it("t") + "→∞"), ("t", " "), ("han", "心动", True), ("t", "(" + _it("t") + ") = "), ("t", "∞", True)], 31 * u, QPointF(30 * u, height * 0.915), 2.85, 3.6, PINK, rnd),
     ]
     # Each crumbles to chalk dust in turn at the end, the last written last.
     for index, formula in enumerate(formulas):
         formula.leaves = 4.12 + 0.07 * index
-    polar = (QPointF(width * 0.858, height * 0.12), 46 * u)
+    polar = (QPointF(width * 0.1, height * 0.12), 46 * u)
     golden = QRectF(width - 14 * u - 136 * u * PHI, height - 10 * u - 136 * u, 136 * u * PHI, 136 * u)
     spiral = _spiral(golden)
     glyphs = _glyphs(u)
-    # Where the drifting symbols keep out of the way: the equations, the polar plot, the spiral.
+    # Where the drifting symbols keep out of the way: the equations, the heart, the polar plot, the spiral.
     boxes = [formula.box.adjusted(-14 * u, -14 * u, 14 * u, 14 * u) for formula in formulas]
-    boxes += [QRectF(polar[0].x() - 104 * u, 0, 208 * u, polar[0].y() + 104 * u), golden.adjusted(-10 * u, -10 * u, 0, 0)]
+    boxes += [
+        QRectF(heart_at.x() - 125 * u, 0, 250 * u, heart_at.y() + 115 * u),
+        QRectF(polar[0].x() - 104 * u, 0, 208 * u, polar[0].y() + 104 * u),
+        golden.adjusted(-10 * u, -10 * u, 0, 0),
+    ]
     drift = []
     for i in range(22):
         left = i % 3 == 0
@@ -220,11 +225,11 @@ def _written(p: QPainter, draw, box: QRectF, front: float, feather: float, lift:
         p.restore()
 
 
-def _formula(items: list[tuple], px: float, at: QPointF, start: float, end: float, tint: str, rnd: random.Random) -> _Formula:
-    """An equation set in Cambria Math, px high, its baseline starting at at. Each item is (kind,
-    text, accent?): t text, big a large operator, under a small line centered beneath the one
-    before, sup and sub, root a square root with its bar, frac a fraction (kind, top, bottom), han
-    Chinese in a brush hand."""
+def _formula(items: list[tuple], px: float, at: QPointF, start: float, end: float, tint: str, rnd: random.Random, ends: bool = False) -> _Formula:
+    """An equation set in Cambria Math, px high, its baseline starting at at (ending there, if
+    ends). Each item is (kind, text, accent?): t text, big a large operator, under a small line
+    centered beneath the one before, sup and sub, root a square root with its bar, frac a fraction
+    (kind, top, bottom), han Chinese in a brush hand."""
     ink, accent = QPainterPath(), QPainterPath()
     big, small = _font(px), _font(px * 0.62)
     x = 0.0
@@ -275,6 +280,8 @@ def _formula(items: list[tuple], px: float, at: QPointF, start: float, end: floa
             out.addText(QPointF(x + (span - bottom) / 2, axis + px * 0.16 + metrics.ascent() * 0.78), frac, item[2])
             x += span
         script = None
+    if ends:
+        at = QPointF(at.x() - x, at.y())
     ink.translate(at)
     accent.translate(at)
     box = ink.boundingRect().united(accent.boundingRect())
@@ -337,7 +344,7 @@ def _paper(p: QPainter, width: float, height: float, u: float) -> None:
     q.end()
     p.drawImage(QRectF(0, 0, width, height), grid)
     # A little chalk-blue light behind the heart and the polar plot.
-    for x, y, r in ((0.118, 0.2, 300), (0.86, 0.14, 240)):
+    for x, y, r in ((0.88, 0.2, 300), (0.1, 0.14, 240)):
         soft_dot(p, width * x, height * y, r * u, "#2d6fa8", 0.32)
 
 
@@ -586,7 +593,23 @@ def _field(size: float, density: float) -> dict:
         q.drawPath(heart_path(0, 0, size))
 
     within = mask(w, h, draw)
+    # F dips again in each upper lobe, so its level lines there would close into small rings of
+    # their own, which read as eyes. Below the saddle between a lobe and the middle, the lobe is
+    # left as one smooth glow instead: its lines fade out and its light holds level.
     depth = np.clip(-v, 0, 1)
+    lobe = np.where((hx > 3) & (hy > 2) & (v < 0), v, np.inf)
+    basin = np.zeros_like(v)
+    if np.isfinite(lobe.min()):
+        row, column = np.unravel_index(np.argmin(lobe), v.shape)
+        lobe_x, lobe_y = hx[row, column], hy[row, column]
+        along = np.linspace(0, 1, 200)
+        columns = np.clip(((along * lobe_x - left) * per).astype(int), 0, w - 1)
+        rows = np.clip(((top - mid - along * (lobe_y - mid)) * per).astype(int), 0, h - 1)
+        saddle = v[rows, columns].max()
+        side = smooth(-1.5, 1.5, np.hypot(hx, hy - mid) - np.hypot(np.abs(hx) - lobe_x, hy - lobe_y))
+        # The lines just above the saddle go too, or their arcs round the lobes read as brows.
+        basin = side * smooth(-0.14, 0.06, saddle - v)
+        depth = depth - side * np.clip(depth + saddle, 0, None)
     light = (
         rgb(ROSE)[None, None] * (0.42 * (1 - depth) ** 1.5)[..., None]
         + rgb(PINK)[None, None] * (0.62 * depth)[..., None]
@@ -599,6 +622,7 @@ def _field(size: float, density: float) -> dict:
         "slope": slope,
         "within": within,
         "depth": depth,
+        "basin": basin,
         "density": density,
         "body": glow(light.astype(np.float32)),
         "box": box,
@@ -613,7 +637,7 @@ def _lines(field: dict, phase: float) -> QImage:
     q = v * levels - phase
     off = np.abs(q - np.round(q)) / (levels * slope)
     line = np.exp(-((off / (0.75 * density)) ** 2))
-    inner = line * within * (0.45 + 0.55 * depth)
+    inner = line * within * (1 - field["basin"]) * (0.45 + 0.55 * depth)
     outer = line * (1 - within) * np.exp(-np.clip(v, 0, None) * 3.2) * smooth(0.0, 0.05, v)
     light = rgb("#ffe0ec")[None, None] * inner[..., None] + rgb(CHALK)[None, None] * (outer * 0.7)[..., None]
     spread = 2.2 * density
