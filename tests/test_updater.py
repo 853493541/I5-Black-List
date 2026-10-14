@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+from PySide6.QtCore import QEvent
 
 from blacklist_detect import updater
 from blacklist_detect.names import LAUNCHERS
@@ -323,7 +324,7 @@ def _settle(ms: int = 150) -> None:
 
 @pytest.mark.parametrize("in_tray", [False, True])
 def test_a_version_found_while_open_waits_as_you_geng_xin(window, tmp_path, monkeypatch, in_tray):
-    """Every hour while the app is open: a new version is offered, never installed by itself (a
+    """Every half hour while the app is open: a new version is offered, never installed by itself (a
     game or a stream would be cut off). 有更新 at the top right, and 发现新版本 under it once,
     saying what is new; in the tray, the card waits for the window."""
     from blacklist_detect.ui import UPDATE_EVERY_MS
@@ -332,7 +333,7 @@ def test_a_version_found_while_open_waits_as_you_geng_xin(window, tmp_path, monk
     root = tmp_path / "BlackListDetect"
     root.mkdir()
     monkeypatch.setattr(updater, "app_root", lambda: root)
-    assert window._update_timer.interval() == UPDATE_EVERY_MS == 60 * 60 * 1000
+    assert window._update_timer.interval() == UPDATE_EVERY_MS == 30 * 60 * 1000
     window.hide() if in_tray else window.show()
     started: list[str] = []
     monkeypatch.setattr("blacklist_detect.ui_update.Download.start", lambda self, rel, where, folder: started.append(rel.version))
@@ -369,6 +370,45 @@ def test_a_version_found_while_open_waits_as_you_geng_xin(window, tmp_path, monk
     assert not window.update_pill.isHidden() and window.update_button.text() == "有更新" and not window._updating
     window.update_button.click()
     assert started == ["v9.0.0", "v9.0.0"]
+
+
+def test_bringing_the_window_back_looks_again_after_ten_minutes(window, tmp_path, monkeypatch):
+    """A version that came out since the last look shows when the window comes back, not at the next
+    half hour; a window brought up again and again does not ask every time."""
+    from blacklist_detect.ui import UPDATE_AGAIN_MS
+
+    root = tmp_path / "BlackListDetect"
+    root.mkdir()
+    monkeypatch.setattr(updater, "app_root", lambda: root)
+    asked: list[bool] = []
+    monkeypatch.setattr(window.updates, "check", lambda: asked.append(True) or True)
+
+    class Clock:
+        def __init__(self, ms: int) -> None:
+            self.ms = ms
+
+        def isValid(self) -> bool:  # noqa: N802
+            return True
+
+        def elapsed(self) -> int:
+            return self.ms
+
+        def start(self) -> None:
+            self.ms = 0
+
+    window._update_clock = Clock(UPDATE_AGAIN_MS - 1000)
+    window._check_updates_on_return()
+    assert asked == []
+    window._update_clock = Clock(UPDATE_AGAIN_MS)
+    window._check_updates_on_return()
+    assert asked == [True] and window._update_later is True, "found now, it waits as 有更新"
+    window._check_updates_on_return()
+    assert asked == [True], "the look just made counts"
+    # The window coming to the front is what asks.
+    window._update_clock = Clock(UPDATE_AGAIN_MS)
+    monkeypatch.setattr(window, "isActiveWindow", lambda: True)
+    window.changeEvent(QEvent(QEvent.Type.ActivationChange))
+    assert len(asked) == 2
 
 
 def _focused():  # noqa: ANN201

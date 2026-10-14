@@ -8,7 +8,7 @@ import threading
 import time
 from datetime import datetime
 
-from PySide6.QtCore import QEvent, QPoint, QRect, QSize, Qt, QThread, QTimer, Signal
+from PySide6.QtCore import QElapsedTimer, QEvent, QPoint, QRect, QSize, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import (
     QColor,
     QCursor,
@@ -225,8 +225,10 @@ DEBUG_KEEP = 30
 DEMO_MS = 7_000
 DEMO_SETTLE_MS = 80
 DEMO_SHARE = 0.6
-# While the app is open it looks again every hour; what it finds then waits for the player (有更新).
-UPDATE_EVERY_MS = 60 * 60 * 1000
+# While the app is open it looks again every half hour, and as soon as the window is brought up
+# when its last look was ten minutes ago or more; what it finds then waits for the player (有更新).
+UPDATE_EVERY_MS = 30 * 60 * 1000
+UPDATE_AGAIN_MS = 10 * 60 * 1000
 
 # 主题色, the accent picker in 设置 › 外观, is hidden for now. True brings the row back. While it is
 # hidden every window wears the default accent; a choice saved before waits in the settings.
@@ -487,7 +489,11 @@ class MainWindow(QMainWindow):
         self._update_timer = QTimer(self)
         self._update_timer.setInterval(UPDATE_EVERY_MS)
         self._update_timer.timeout.connect(self._check_updates_later)
+        # Since the last look for a new version. The one at start counts from now: the window comes
+        # up before it, and that must not turn it into a look that only offers.
+        self._update_clock = QElapsedTimer()
         if updater.app_root() is not None:
+            self._update_clock.start()
             QTimer.singleShot(UPDATE_FIRST_MS, self._check_updates)
             QTimer.singleShot(3000, self._confirm_update)
             self._update_timer.start()
@@ -1581,6 +1587,11 @@ class MainWindow(QMainWindow):
         self._remember_geometry_soon()
         # A version found while the window was in the tray is told about now.
         self._announce_update()
+
+    def changeEvent(self, event) -> None:  # noqa: ANN001
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.ActivationChange and self.isActiveWindow():
+            self._check_updates_on_return()
 
     def _list_cell(self, text: str, store_index: int | None = None, font=None, ink=None) -> QTableWidgetItem:  # noqa: ANN001
         item = QTableWidgetItem(text)
@@ -4146,14 +4157,24 @@ class MainWindow(QMainWindow):
         if updater.app_root() is None or self._closing:
             return
         if self.updates.check():
+            self._update_clock.start()
             self._update_later = False
 
     def _check_updates_later(self) -> None:
-        """The hourly look while the app is open: a new version is offered as 有更新, not installed."""
+        """The look while the app is open (every half hour, and when the window comes back): a new
+        version is offered as 有更新, not installed."""
         if updater.app_root() is None or self._closing or self._updating:
             return
         if self.updates.check():
+            self._update_clock.start()
             self._update_later = True
+
+    def _check_updates_on_return(self) -> None:
+        """The window is in front again: look now if the last look was UPDATE_AGAIN_MS ago or more,
+        so a version that came out meanwhile shows as 有更新 now and not at the next half hour."""
+        if not self._update_clock.isValid() or self._update_clock.elapsed() < UPDATE_AGAIN_MS:
+            return
+        self._check_updates_later()
 
     def _check_updates_now(self) -> None:
         """检查更新: look now. A new version installs the way it does at start; otherwise the answer
@@ -4166,6 +4187,7 @@ class MainWindow(QMainWindow):
             return
         if self._updating or not self.updates.check():
             return
+        self._update_clock.start()
         self._update_later = False
         self._update_asked = True
         self.update_button.setEnabled(False)
