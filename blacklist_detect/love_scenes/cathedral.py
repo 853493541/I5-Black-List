@@ -8,9 +8,8 @@ each corner and a pendant trefoil at each end, and under it over the title a fri
 pointed arches whose two halves meet in a quatrefoil above its middle with a burst of light. In the
 top left a great cusped arch sweeps from the top edge down to the side, holding a round window of
 quatrefoil tracery, trefoils and filigree scrolls that curl as they grow. In the top right a rose
-window draws its tracery from the middle out, then its glass lights up from the middle, honey and
-amber lights round a pale boss, glowing roundels and ruby beads in deep amber, wavering like
-candlelight; it throws slow shafts of light down toward the lobby, dust turning in them. The gold is
+window draws its tracery from the middle out, then its glass lights up from the middle, six honey
+and amber petals round a pale boss in deep amber, wavering like candlelight; it throws slow shafts of light down toward the lobby, dust turning in them. The gold is
 shaded per pixel, raised and lit from the upper left; once it is all drawn, glints run along it.
 Gold-leaf feathers fall down the sides, flashing as they turn, and motes rise from the candlelight.
 At the end it all fades.
@@ -239,7 +238,7 @@ def _cathedral(width: float, height: float, u: float) -> tuple[list[_Line], tupl
         foil = _foil(x, low + 14 * u, 10 * u, 3, math.pi / 2)
         add(foil, 1.8, QPointF(x, low), 0.12 + (low - 10 * u) / (SPREAD * u), closed=True)
         add([QPointF(x, low + 24 * u), QPointF(x, low + 38 * u)], 2.4, QPointF(x, low), 0.12 + (low + 10 * u) / (SPREAD * u))
-    center, radius = QPointF(width - 150 * u, 132 * u), 104 * u
+    center, radius = QPointF(width - 150 * u, 132 * u), 92 * u
     # The arch's ends, on the fine rules.
     a, c, b = at(470, 22), at(120, 120), at(22, 430)
     base = 58 * u
@@ -340,34 +339,28 @@ def _spandrel(add, a: QPointF, c: QPointF, b: QPointF, u: float, origin: QPointF
 
 
 def _rose_lines(add, center: QPointF, radius: float, u: float) -> None:  # noqa: ANN001
-    """The rose window's tracery, drawing from its middle out: a boss, twelve spokes, the pointed heads
-    of the lights between them, twelve roundels and the rings round it all."""
+    """The rose window's tracery, drawing from its middle out: a boss, six spokes, the pointed heads
+    of the six lights between them and the ring round it all."""
     t0 = 0.5
     x, y, r = center.x(), center.y(), radius
-    add(_circle(x, y, 0.2 * r, 30), 2.4, center, t0, closed=True)
-    add(_foil(x, y, 0.15 * r, 6, 0.0), 1.2, center, t0, closed=True)
-    head = 0.68 * r
-    for k in range(12):
-        turn = k * math.pi / 6 - math.pi / 2
-        foot, top = 0.2 * r, 0.58 * r
+    add(_circle(x, y, 0.22 * r, 30), 2.4, center, t0, closed=True)
+    foot, top, head = 0.22 * r, 0.62 * r, 0.86 * r
+    for k in range(6):
+        turn = k * math.pi / 3 - math.pi / 2
         add([QPointF(x + foot * math.cos(turn), y + foot * math.sin(turn)), QPointF(x + top * math.cos(turn), y + top * math.sin(turn))], 1.8, center, t0)
         # The pointed head over the light between this spoke and the next.
-        next_turn = turn + math.pi / 6
-        mid_turn = turn + math.pi / 12
+        next_turn = turn + math.pi / 3
+        mid_turn = turn + math.pi / 6
         p0 = QPointF(x + top * math.cos(turn), y + top * math.sin(turn))
         p1 = QPointF(x + top * math.cos(next_turn), y + top * math.sin(next_turn))
         tip = QPointF(x + head * math.cos(mid_turn), y + head * math.sin(mid_turn))
-        bend = 0.05 * r
+        bend = 0.07 * r
         out = QPointF(math.cos(mid_turn), math.sin(mid_turn))
         c0 = QPointF((p0.x() + tip.x()) / 2 + out.x() * bend, (p0.y() + tip.y()) / 2 + out.y() * bend)
         c1 = QPointF((p1.x() + tip.x()) / 2 + out.x() * bend, (p1.y() + tip.y()) / 2 + out.y() * bend)
         arch = [quad(p0, c0, tip, i / 8) for i in range(9)] + [quad(tip, c1, p1, i / 8) for i in range(1, 9)]
         add(arch, 1.6, center, t0, after=0.05)
-        add(_circle(x + 0.8 * r * math.cos(mid_turn), y + 0.8 * r * math.sin(mid_turn), 0.095 * r, 16), 1.5, center, t0, closed=True, after=0.05)
-        add(_circle(x + 0.83 * r * math.cos(turn), y + 0.83 * r * math.sin(turn), 0.045 * r, 10), 1.2, center, t0, closed=True, after=0.08)
-    for rr, thick in ((0.93, 1.4), (1.0, 2.2)):
-        add(_circle(x, y, rr * r, 96), thick, center, t0, closed=True)
-    add(_circle(x, y, r + 6 * u, 96), 3.4, center, t0, closed=True)
+    add(_circle(x, y, r, 96), 3.0, center, t0, closed=True)
 
 
 def _dist(a: QPointF, b: QPointF) -> float:
@@ -603,9 +596,8 @@ def _gilt(rect: QRectF, lines: list[_Line], scale: float, u: float) -> tuple[QIm
 
 
 def _rose_glass(center: QPointF, radius: float, scale: float, u: float) -> tuple[QRectF, QImage, QRectF, QImage]:
-    """The rose window's glass, per pixel: honey and amber lights between the spokes, pale roundels
-    and ruby beads round them in deep amber, each pane mottled and streaked as old glass is, dark lead
-    where panes meet, brightest in the middle where the light comes through and glowing over the lead;
+    """The rose window's glass, per pixel: six honey and amber lights between the spokes in deep amber,
+    each pane mottled and streaked as old glass is, dark lead where panes meet, brightest in the middle where the light comes through and glowing over the lead;
     and the light it throws round itself."""
     rect = QRectF(center.x() - radius, center.y() - radius, 2 * radius, 2 * radius)
     n = max(8, math.ceil(2 * radius * scale))
@@ -613,35 +605,25 @@ def _rose_glass(center: QPointF, radius: float, scale: float, u: float) -> tuple
     x, y = (xs / n * 2 - 1), (ys / n * 2 - 1)
     rho = np.hypot(x, y)
     theta = np.arctan2(y, x) + math.pi / 2
-    sector = np.floor((theta % (2 * math.pi)) / (math.pi / 6)).astype(int)
-    within = (theta % (math.pi / 6)) / (math.pi / 6) - 0.5
+    sector = np.floor((theta % (2 * math.pi)) / (math.pi / 3)).astype(int)
+    within = (theta % (math.pi / 3)) / (math.pi / 3) - 0.5
     # The lights: between the boss and their pointed heads.
-    head = 0.58 + 0.1 * (1 - np.abs(within) * 2) ** 1.6
-    light = (rho > 0.2) & (rho < head)
-    # The roundels, one over each light.
-    mid_turn = (sector + 0.5) * math.pi / 6 - math.pi / 2
-    rx, ry = 0.8 * np.cos(mid_turn), 0.8 * np.sin(mid_turn)
-    roundel_d = np.hypot(x - rx, y - ry) / 0.095
-    roundel = roundel_d < 1
-    # Ruby beads between the roundels, where the lights' heads meet.
-    edge_turn = sector * math.pi / 6 - math.pi / 2
-    bead = np.hypot(x - 0.83 * np.cos(edge_turn), y - 0.83 * np.sin(edge_turn)) < 0.045
+    head = 0.62 + 0.24 * (1 - np.abs(within) * 2) ** 1.4
+    light = (rho > 0.22) & (rho < head)
     rnd = np.random.default_rng(7)
     even = ((sector % 2) == 0)[..., None]
-    honey, amber, pale, ruby, deep = (rgb(c) for c in ("#ffcf55", "#ec8f22", "#ffe7a0", "#d23a2a", "#8a4c12"))
+    honey, amber, pale, deep = (rgb(c) for c in ("#ffcf55", "#ec8f22", "#ffe7a0", "#8a4c12"))
     # The outer field deep amber, darker toward the rim; the lights honey and amber in turn.
     tint = deep * (1.25 - 0.5 * smooth(0.6, 0.95, rho))[..., None]
     tint = np.where(light[..., None], np.where(even, honey, amber), tint)
-    tint = np.where(roundel[..., None], pale * (1.15 - 0.35 * roundel_d)[..., None], tint)
-    tint = np.where(bead[..., None], ruby, tint)
-    tint = np.where((rho <= 0.2)[..., None], pale * 0.7 + honey * 0.3, tint)
+    tint = np.where((rho <= 0.22)[..., None], pale * 0.7 + honey * 0.3, tint)
     # Each pane a little different, mottled and streaked.
-    shade = rnd.uniform(0.85, 1.1, 12)[sector]
+    shade = np.where(light, rnd.uniform(0.85, 1.1, 6)[sector], 1.0)
     mottle = noise(n, n, n * 0.06, 3, 11)
     streak = noise(n, n, n * 0.02, 2, 12)
     bright = shade * (0.78 + 0.32 * mottle + 0.1 * streak) * (1.2 - 0.35 * rho)
     # Dark lead where one pane meets the next, under the gold.
-    pane = np.where(rho <= 0.2, 0, np.where(light, 1 + sector, np.where(roundel, 13 + sector, np.where(bead, 37 + sector, 25 + sector))))
+    pane = np.where(rho <= 0.22, 0, np.where(light, 1 + sector, 7))
     seam = np.zeros((n, n), dtype=np.float32)
     seam[1:, :] += pane[1:, :] != pane[:-1, :]
     seam[:, 1:] += pane[:, 1:] != pane[:, :-1]
@@ -651,7 +633,8 @@ def _rose_glass(center: QPointF, radius: float, scale: float, u: float) -> tuple
     hot = np.clip(color - 0.55, 0, None)
     color = color + np.dstack([blur(hot[..., k], max(1.0, n / 90)) for k in range(3)]) * 0.9
     edge = 1 - smooth(0.985, 1.0, rho)
-    alpha = edge * (0.9 + 0.08 * mottle)
+    # The field round the lights lets the lobby through: only the lights and the boss are full glass.
+    alpha = edge * (0.9 + 0.08 * mottle) * np.where(light | (rho <= 0.22), 1.0, 0.55)
     glass = picture(color, alpha)
     # Its light, spilled round it: worked out at a quarter of the size, three radii across.
     m = max(8, math.ceil(6 * radius * scale * 0.25))

@@ -1,20 +1,20 @@
-"""天使: a crest of gold-leaf wings and a gold halo round the title, in golden light.
+"""天使: a gold halo round the title and two soft golden cat paws raised beside it, in golden light.
 
 Warm gold light washes in at the top and down the sides. A halo of molten gold comes down to float
 just above the title 推演成功, and golden rays stream down from it, slowly sweeping and breathing,
-faint over the names. Two great wings of gold leaf unfold from behind the title in a burst of light:
-every feather is polished metal shaded per pixel, deep amber in its hollows and pale gold where it
-catches the light, and a sheen runs out along each wing as it opens, and again later. They spread
-to either side of the top of the screen and breathe, and fade to a whisper behind the title's lines
-and leave its words clear. Gold dust sifts down from them and glints on their feathers; glowing
-golden clouds drift in the two top corners, gold feathers drift down the two sides, gold motes rise
-from the bottom corners. At the end the halo and the wings rise into the light and it all fades.
+faint over the names. Two forelegs pop up from behind the title in a burst of light, their paws
+raised either side of the halo: chubby paws of soft golden fur shaded per pixel, lit from the halo
+and rimmed gold, palms to the front with glossy pink beans. They wave by turns, glints flaring on
+their beans, and fade to a whisper behind the title's lines and leave its words clear. Gold dust
+sifts down from them; glowing golden clouds drift in the two top corners, gold feathers drift down
+the two sides, gold motes rise from the bottom corners. At the end the halo and the paws rise into
+the light and it all fades.
 
 The marks are gilded too, and keep moving: the ring is a band of polished gold round 准备案件还原,
 soft rays of light shimmering beyond it and a glint running round it; the badge a gold halo disc,
 its field finely engraved, a raised star in its middle and rays turning round it; the card ivory
-paper in a gilt frame with filigree scrolls in its corners and a small pair of gilded wings on its
-top edge, a sheen passing over the gold now and then; a tiny gold feather before each name.
+paper in a gilt frame with filigree scrolls in its corners and a little gilded paw print under a
+halo on its top edge, a sheen passing over the gold now and then; a tiny gold feather before each name.
 """
 
 from __future__ import annotations
@@ -48,8 +48,8 @@ if TYPE_CHECKING:
     from blacklist_detect.love_scenes import Stage
 
 DURATION = 5.0
-# Soft light throughout: drawn at one pixel per point and scaled up on a sharper screen; the wings,
-# with their fine feathers, and the halo are drawn on top at the screen's own sharpness.
+# Soft light throughout: drawn at one pixel per point and scaled up on a sharper screen; the paws,
+# with their fine fur, and the halo are drawn on top at the screen's own sharpness.
 MAX_RATIO = 1.0
 IVORY = "#fffaf0"
 HONEY = "#ffd98a"
@@ -70,7 +70,7 @@ LOOK = {
     "deep_glow": (245, 190, 80),
 }
 MARKS_ANIMATED = True
-# Room above the card for its little gilded wings, and the names' margins inside its gilt frame.
+# Room above the card for its little gilded paw print, and the names' margins inside its gilt frame.
 CARD_TOP = 18
 CARD_PAD = (14, 10, 14, 9)
 # The marks' windows reach this far past the cover and the badge (the glow room the app gives them).
@@ -85,18 +85,23 @@ RAMP = (
     (0.93, "#ffeaa6"),
     (1.0, "#fffbee"),
 )
-# Rays, clouds and the wings' mask are soft: worked out at this share of the size and laid on scaled up.
+# Rays, clouds and the paws' mask are soft: worked out at this share of the size and laid on scaled up.
 SOFT = 0.25
 # Feather shapes: width (share of length), the leading vane's share of it, how far the shaft bends
 # (share of length), how much of the base is down.
 KINDS = {
-    "primary": (0.2, 0.36, 0.035, 0.1),
-    "secondary": (0.3, 0.44, 0.025, 0.12),
-    "covert": (0.46, 0.48, 0.02, 0.16),
     "loose": (0.34, 0.42, 0.09, 0.3),
 }
-# The longest each kind of feather is in a wing, as a share of the wing: its picture is made at that length.
-LONGEST = {"primary": 0.44, "secondary": 0.35, "covert": 0.2}
+# The toes round the top of a paw's palm, as angles from its middle (degrees, counterclockwise from the right).
+TOES = (152, 113, 67, 28)
+# Soft golden fur from the shade the light misses to where it catches it.
+FUR = (
+    (0.0, "#8a5a1c"),
+    (0.42, "#d29a46"),
+    (0.66, "#f3d391"),
+    (0.86, "#ffefcc"),
+    (1.0, "#fffaf0"),
+)
 # Pictures made once and kept: feathers, and the marks for each size and sharpness they are shown at.
 _SPRITES: dict[tuple[str, int], tuple[QImage, float]] = {}
 _MARKS: dict[tuple, tuple] = {}
@@ -107,20 +112,21 @@ def make(stage: Stage):  # noqa: ANN201
     u = stage.unit()
     rnd = random.Random(29)
     halo_at = QPointF(width * 0.53, height * 0.04)
-    # The wings meet behind the title's middle and reach out to about 0.15 and 0.9 of the width.
+    # Two forelegs come up from behind the title, either side of its middle, their paws raised beside
+    # the halo: where each leg starts and where its paw's middle is, the right one first.
     axis = width * 0.525
-    span = min(width * 0.33, height * 0.64)
-    roots = (QPointF(axis + width * 0.035, height * 0.2), QPointF(axis - width * 0.035, height * 0.2))
+    paw = min(width * 0.105, height * 0.2)
+    roots = (QPointF(axis + width * 0.16, height * 0.235), QPointF(axis - width * 0.16, height * 0.235))
+    raised = (QPointF(axis + width * 0.225, height * 0.11), QPointF(axis - width * 0.225, height * 0.11))
     band = QRectF(0, 0, width, height * 0.36)
-    cut = _wing_mask(band, width, height, u)
+    cut = _crest_mask(band, width, height, u)
     heaven = Wash(lambda q, w, h: _heaven(q, w, h, u))
     rays = (_ray_layer(width, height, halo_at, 3, u), _ray_layer(width, height, halo_at, 8, u))
     shade = _ray_mask(width, height, gap, u)
     clouds = _clouds(width, height, u)
-    plan = _wing_plan()
     sprites = _SPRITES
-    # The open wing, drawn once for the sharpness it is shown at.
-    opened: dict[float, tuple[QRectF, QImage]] = {}
+    # The paw, drawn once for the sharpness it is shown at.
+    paws: dict[float, tuple[QRectF, QImage]] = {}
     halos: dict[int, QImage] = {}
     falling = [
         (
@@ -145,10 +151,10 @@ def make(stage: Stage):  # noqa: ANN201
         )
         for i in range(36)
     ]
-    dust = _dust(roots, span, u, rnd)
+    dust = _dust(raised, paw, u, rnd)
     glints = _glint_spots(rnd)
     sparkles = _sparkle_spots(width, height, gap, u, rnd)
-    # Glints the burst throws out along the wings, either way and a little up.
+    # Glints the burst throws out toward the paws, either way and a little up.
     burst = [
         (rnd.choice((0.0, math.pi)) + rnd.uniform(-0.45, 0.12) * (1 if i % 2 else -1), rnd.uniform(160, 460) * u, rnd.uniform(0.7, 1.2))
         for i in range(22)
@@ -157,7 +163,7 @@ def make(stage: Stage):  # noqa: ANN201
     def crest(p: QPainter, t: float) -> None:
         p.save()
         p.setOpacity(p.opacity() * win(t, 0.0, 0.3))
-        _crest(p, t, halo_at, roots, span, band, cut, u, plan, sprites, opened, halos, burst, glints)
+        _crest(p, t, halo_at, roots, raised, paw, band, cut, u, paws, halos, burst, glints)
         p.restore()
 
     def paint(p: QPainter, t: float, sharp: bool = True) -> None:
@@ -182,7 +188,7 @@ def make(stage: Stage):  # noqa: ANN201
 
 
 def _burst(t: float) -> float:
-    """The light that bursts as the wings open: quick to come, slow to go."""
+    """The light that bursts as the paws come up: quick to come, slow to go."""
     return ease_out(win(t, 0.95, 1.2)) * (1 - ease_in_out(win(t, 1.2, 2.1)))
 
 
@@ -211,10 +217,10 @@ def _box(xs: np.ndarray, ys: np.ndarray, rect: QRectF, feather: float) -> np.nda
     return 1 - smooth(-feather * 0.5, feather, out)
 
 
-def _ramp(b: np.ndarray) -> np.ndarray:
-    """Brightness 0..1 as polished gold shows it (RAMP), straight color (h, w, 3)."""
-    at = [k for k, _color in RAMP]
-    shades = [rgb(color) for _k, color in RAMP]
+def _ramp(b: np.ndarray, tones: tuple = RAMP) -> np.ndarray:
+    """Brightness 0..1 as polished gold shows it (RAMP, or other tones), straight color (h, w, 3)."""
+    at = [k for k, _color in tones]
+    shades = [rgb(color) for _k, color in tones]
     b = np.clip(b, 0, 1)
     return np.stack([np.interp(b, at, [shade[c] for shade in shades]) for c in range(3)], axis=-1).astype(np.float32)
 
@@ -263,7 +269,7 @@ def _heaven(p: QPainter, width: float, height: float, u: float) -> None:
 def _ray_layer(width: float, height: float, source: QPointF, seed: int, u: float) -> tuple[QRectF, QImage]:
     """Golden rays streaming down and out from the halo, worked out per pixel at SOFT size: streaks
     by angle, each its own length, coming on just beyond the halo and fading as they go. Brightest
-    out to the sides, under the wings; softer straight down. A margin round the stage lets them turn."""
+    out to the sides, under the paws; softer straight down. A margin round the stage lets them turn."""
     margin = width * 0.12
     box = QRectF(-margin, -margin, width + 2 * margin, height + margin)
     w, h = max(1, round(box.width() * SOFT)), max(1, round(box.height() * SOFT))
@@ -465,73 +471,8 @@ def _lay(p: QPainter, sprite: tuple[QImage, float], x: float, y: float, angle: f
     p.restore()
 
 
-def _wing_plan() -> list[tuple[float, float, float, str]]:
-    """The right wing's feathers, drawn in this order: (where along the arm 0..1, angle open, length
-    as a share of the wing, kind). The arm reaches out and a little up; flight feathers hang from it,
-    the secondaries down and out near the root, the primaries fanning out from the wrist and lifting
-    at the tip; rows of coverts, shorter and shorter, lie over their bases."""
-
-    def angle(a: float) -> float:
-        return 64 - 70 * a
-
-    def flight(a: float) -> float:
-        return 0.16 + 0.3 * a ** 1.1 - 0.03 * clamp((a - 0.9) / 0.1)
-
-    # No two feathers quite alike: each a little turned and a little longer or shorter.
-    rnd = random.Random(5)
-    plan = []
-    for i in range(31):
-        a = 1 - i / 30
-        plan.append((a, angle(a) + rnd.uniform(-2.0, 2.0), flight(a) * rnd.uniform(0.95, 1.04), "primary" if a > 0.62 else "secondary"))
-    for count, start, end, share, lift, kind in ((22, 0.0, 0.97, 0.55, 4, "secondary"), (18, 0.0, 0.92, 0.34, 7, "covert"), (14, 0.0, 0.85, 0.18, 10, "covert")):
-        for i in range(count):
-            a = clamp(end - i / (count - 1) * (end - start) + rnd.uniform(-0.008, 0.008))
-            plan.append((a, angle(a) + lift + rnd.uniform(-3.5, 3.5), (flight(a) * share + 0.04) * rnd.uniform(0.92, 1.06), kind))
-    return plan
-
-
-def _arm(at: float) -> tuple[float, float]:
-    """Where along the open right wing's arm a feather sits, as shares of the wing from its root."""
-    (x0, y0), (cx, cy), (x1, y1) = (0.0, 0.0), (0.26, -0.17), (0.62, -0.17)
-    m = 1 - at
-    return m * m * x0 + 2 * m * at * cx + at * at * x1, m * m * y0 + 2 * m * at * cy + at * at * y1
-
-
-def _wing(p: QPainter, span: float, plan: list[tuple], sprites: dict, density: float, k: float) -> None:
-    """The right wing with its root at the origin, span long, open by k: each feather on the arm,
-    the arm and the feathers' angles and lengths going from tucked in behind the title to spread."""
-    fold = ((0.0, 0.0), (0.03, 0.04), (0.08, 0.06))
-    spread = ((0.0, 0.0), (0.26, -0.17), (0.62, -0.17))
-    (x0, y0), (cx, cy), (x1, y1) = ((fx + (sx - fx) * k, fy + (sy - fy) * k) for (fx, fy), (sx, sy) in zip(fold, spread, strict=True))
-    for at, angle, length, kind in plan:
-        m = 1 - at
-        x = m * m * x0 + 2 * m * at * cx + at * at * x1
-        y = m * m * y0 + 2 * m * at * cy + at * at * y1
-        size = span * length * (0.45 + 0.55 * k)
-        _lay(p, _sprite(sprites, kind, span * LONGEST[kind], density), x * span, y * span, 100 + (angle - 100) * k, size)
-
-
-def _open_wing(span: float, plan: list[tuple], sprites: dict, density: float) -> tuple[QRectF, QImage]:
-    """The right wing spread, drawn once at the screen's sharpness: where it lies round its root, and
-    the picture. Once open it only breathes, which turns it whole."""
-    box = QRectF(-0.08 * span, -0.42 * span, 1.18 * span, 0.76 * span)
-    image = QImage(max(1, math.ceil(box.width() * density)), max(1, math.ceil(box.height() * density)), QImage.Format_ARGB32_Premultiplied)
-    image.fill(Qt.transparent)
-    q = QPainter(image)
-    q.setRenderHint(QPainter.Antialiasing)
-    q.setRenderHint(QPainter.SmoothPixmapTransform)
-    q.scale(density, density)
-    q.translate(-box.left(), -box.top())
-    _wing(q, span, plan, sprites, density, 1.0)
-    # Deeper amber toward the trailing tips, away from the light falling on the arm.
-    q.setCompositionMode(QPainter.CompositionMode_SourceAtop)
-    q.fillRect(box, gradient(QPointF(0, -0.2 * span), QPointF(0.1 * span, 0.3 * span), ((0, "#5a3306", 0), (1, "#5a3306", 0.4))))
-    q.end()
-    return box, image
-
-
-def _wing_mask(band: QRectF, width: float, height: float, u: float) -> QImage:
-    """Where the wings may show over band, at SOFT size: a whisper behind the title's lines and none
+def _crest_mask(band: QRectF, width: float, height: float, u: float) -> QImage:
+    """Where the paws may show over band, at SOFT size: a whisper behind the title's lines and none
     over its words."""
     w, h = max(1, round(band.width() * SOFT)), max(1, round(band.height() * SOFT))
     ys, xs = np.mgrid[0:h, 0:w].astype(np.float32) + 0.5
@@ -568,10 +509,128 @@ def _halo_picture(px: int) -> QImage:
     return glow(light)
 
 
-def _crest(p: QPainter, t: float, halo_at: QPointF, roots: tuple, span: float, band: QRectF, cut: QImage, u: float, plan: list, sprites: dict, opened: dict, halos: dict, burst: list, glints: list) -> None:
-    """The crest round the title: the halo comes down above it, the wings unfold from behind it with
-    a burst of light and breathe, glints coming and going on their gold; at the end they rise into
-    the light and fade."""
+def _smin(a: np.ndarray, b: np.ndarray, k: float) -> np.ndarray:
+    """The nearer of two distances, blended over k where they meet, so the shapes flow into each other."""
+    h = np.clip(0.5 + 0.5 * (b - a) / k, 0, 1)
+    return b + (a - b) * h - k * h * (1 - h)
+
+
+def _leg(root: QPointF, raised: QPointF) -> tuple[float, float]:
+    """How long the foreleg from root to its raised paw's middle is, and how far it leans out from
+    upright, in degrees (the right one's way)."""
+    dx, dy = abs(raised.x() - root.x()), root.y() - raised.y()
+    return math.hypot(dx, dy), math.degrees(math.atan2(dx, dy))
+
+
+def _toes(spread: float = 1.0) -> list[tuple[float, float]]:
+    """Where each toe's middle is from the palm's, in shares of a paw's width."""
+    return [(0.31 * spread * math.cos(math.radians(a)), -0.29 * spread * math.sin(math.radians(a))) for a in TOES]
+
+
+def _paw_picture(w: float, length: float, lean: float, density: float) -> tuple[QRectF, QImage]:
+    """The right paw raised, w points wide, palm to the front, on a foreleg length points long leaning
+    lean degrees out, per pixel: soft golden fur combed in fine streaks, its edge frayed into tufts,
+    lit from the halo (up and to its left on the screen) and rimmed gold, with glossy pink beans.
+    Where it lies round its palm's middle (the leg running down from it), and the picture."""
+    box = QRectF(-0.62 * w, -0.62 * w, 1.24 * w, length + 0.95 * w)
+    pw, ph, xs, ys = _grid(box.width(), box.height(), density)
+    x, y = (xs + box.left()) / w, (ys + box.top()) / w
+    reach = length / w
+    px = w * density
+
+    def ellipse(cx: float, cy: float, rx: float, ry: float) -> tuple[np.ndarray, np.ndarray]:
+        n = np.hypot((x - cx) / rx, (y - cy) / ry)
+        return (n - 1) * min(rx, ry), np.sqrt(np.clip(1 - n * n, 0, 1)) * min(rx, ry)
+
+    def lit(dome: np.ndarray, light: tuple[float, float, float]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        gy, gx = np.gradient(dome)
+        norm = np.sqrt(gx * gx + gy * gy + 1)
+        lx, ly, lz = light
+        hx, hy, hz = lx, ly, lz + 1
+        half = math.sqrt(hx * hx + hy * hy + hz * hz)
+        facing = np.clip((-gx * lx - gy * ly + lz) / norm, 0, 1)
+        mirror = np.clip((-gx * hx - gy * hy + hz) / (half * norm), 0, 1)
+        return facing, mirror, norm
+
+    # The light from the halo, turned into the picture's way (it is laid turned lean degrees).
+    turn = math.radians(lean)
+    sx, sy = -0.92, -0.38
+    light = (sx * math.cos(turn) + sy * math.sin(turn), -sx * math.sin(turn) + sy * math.cos(turn), 0.75)
+    size = math.sqrt(sum(c * c for c in light))
+    light = tuple(c / size for c in light)
+    # The palm, a toe on each of its top, and the leg, thick and thinning a little toward its root.
+    thick = 0.29 - 0.03 * np.clip(y / reach, 0, 1)
+    along = np.hypot(x, y - np.clip(y, 0.1, reach + 0.5))
+    leg = (along - thick, np.sqrt(np.clip(1 - (along / thick) ** 2, 0, 1)) * thick)
+    parts = [ellipse(0, 0, 0.34, 0.3), *(ellipse(tx, ty, 0.125, 0.135) for tx, ty in _toes()), leg]
+    d = parts[0][0]
+    for other, _dome in parts[1:]:
+        d = _smin(d, other, 0.035)
+    tufts = noise(pw, ph, max(1.0, 0.018 * px), 2, 13) - 0.5
+    streaks = noise(pw, ph, max(1.0, 0.005 * px), 2, 7) - 0.5
+    alpha = np.clip(-(d + 0.03 * tufts) * px * 0.8 + 0.5, 0, 1) * (1 - smooth(reach - 0.55, reach + 0.25, y))
+    # Each part a soft dome: the toes rise from the palm with a crease between them.
+    dome = blur(np.maximum.reduce([h for _d, h in parts]) * px, 0.8 * density)
+    facing, _mirror, _norm = lit(dome, light)
+    color = _ramp(np.clip(0.36 + 0.64 * facing + 0.08 * streaks, 0, 1), FUR)
+    rim = 1 - smooth(0.0, 0.07, -d)
+    color = color + (rgb("#ffcf66") - color) * (rim * 0.55)[..., None]
+    # The beans: a three-lobed pad under the row of toes and one on each toe, glossy and raised.
+    beans = _smin(ellipse(0, 0.07, 0.17, 0.12)[0], np.minimum(ellipse(-0.085, 0.14, 0.08, 0.075)[0], ellipse(0.085, 0.14, 0.08, 0.075)[0]), 0.04)
+    for tx, ty in _toes(0.97):
+        beans = np.minimum(beans, ellipse(tx, ty + 0.012, 0.06, 0.072)[0])
+    bean = np.clip(-beans * px + 0.5, 0, 1)
+    bump = blur(np.sqrt(np.clip(-beans / 0.05, 0, 1)) * 0.05 * px, 0.5 * density)
+    bean_facing, bean_mirror, _norm = lit(bump, light)
+    pink = rgb("#d65c7e") + (rgb("#ffb8cb") - rgb("#d65c7e")) * bean_facing[..., None]
+    pink = pink + (1 - pink) * (bean_mirror**28 * 0.9)[..., None]
+    nested = (1 - smooth(0.0, 0.04, beans)) * (1 - bean)
+    color = color * (1 - 0.2 * nested)[..., None]
+    color = color * (1 - bean[..., None]) + pink * bean[..., None]
+    return box, picture(color, alpha)
+
+
+def _paws(p: QPainter, t: float, roots: tuple, raised: tuple, paw: float, band: QRectF, cut: QImage, lift: float, shown: tuple, density: float, k: float, glints: list, u: float) -> None:
+    """Both paws on a picture of the band they live in, at the screen's sharpness, cut away over the
+    title, and laid on: each pops up along its leg from behind the title (k, overshooting a little),
+    then the two wave by turns, a warm light behind them and glints flaring on their beans."""
+    layer = QImage(max(1, math.ceil(band.width() * density)), max(1, math.ceil(band.height() * density)), QImage.Format_ARGB32_Premultiplied)
+    layer.fill(Qt.transparent)
+    q = QPainter(layer)
+    q.setRenderHint(QPainter.Antialiasing)
+    q.setRenderHint(QPainter.SmoothPixmapTransform)
+    q.scale(density, density)
+    q.translate(-band.left(), -band.top() + lift)
+    q.setOpacity(clamp(win(t, 0.6, 0.85)))
+    box, image = shown
+    length, lean = _leg(roots[0], raised[0])
+    for side, (root, top) in enumerate(zip(roots, raised, strict=True)):
+        soft_dot(q, top.x(), top.y(), paw * 0.8, "#ffc95e", 0.22 * clamp(k))
+        wave = 5.0 * math.sin(2 * math.pi * (t - 1.4) / 1.5 + side * math.pi) * ease_in_out(win(t, 1.3, 1.9))
+        q.save()
+        q.translate(root)
+        q.scale(1 if side == 0 else -1, 1)
+        q.rotate(lean + wave)
+        q.translate(0, -length * (0.15 + 0.85 * k))
+        q.drawImage(box, image)
+        for spot, x, y, when, life in glints:
+            shine = math.sin(math.pi * win(t, when, when + life))
+            if spot == side and shine > 0:
+                soft_dot(q, x * paw, y * paw, 10 * u, HONEY, 0.45 * shine)
+                star(q, x * paw, y * paw, (5 + 8 * shine) * u, "#fffaf0", shine, 0.08)
+        q.restore()
+    q.resetTransform()
+    q.setOpacity(1.0)
+    q.setCompositionMode(QPainter.CompositionMode_DestinationIn)
+    q.drawImage(QRectF(0, 0, layer.width(), layer.height()), cut)
+    q.end()
+    p.drawImage(band, layer)
+
+
+def _crest(p: QPainter, t: float, halo_at: QPointF, roots: tuple, raised: tuple, paw: float, band: QRectF, cut: QImage, u: float, paws: dict, halos: dict, burst: list, glints: list) -> None:
+    """The crest round the title: the halo comes down above it, two paws pop up from behind it with
+    a burst of light and wave, glints coming and going on their beans; at the end they rise into the
+    light and fade."""
     leave = ease_in_out(win(t, 4.15, 4.95))
     rise = ease_in(win(t, 3.95, 4.95))
     flash = _burst(t)
@@ -581,8 +640,10 @@ def _crest(p: QPainter, t: float, halo_at: QPointF, roots: tuple, span: float, b
     px = max(16, math.ceil(rx * 2 * density / 8) * 8)
     if px not in halos:
         halos[px] = _halo_picture(px)
-    for kind, longest in LONGEST.items():
-        _sprite(sprites, kind, span * longest, density)
+    if density not in paws:
+        paws.clear()
+        length, lean = _leg(roots[0], raised[0])
+        paws[density] = _paw_picture(paw, length, lean, density)
     a = 1 - leave
     if a <= 0.01:
         return
@@ -590,14 +651,13 @@ def _crest(p: QPainter, t: float, halo_at: QPointF, roots: tuple, span: float, b
     p.save()
     p.setOpacity(p.opacity() * a)
     p.setRenderHint(QPainter.SmoothPixmapTransform)
-    k = ease_back(win(t, 0.6, 1.6), 1.2)
+    k = ease_back(win(t, 0.6, 1.4), 1.8)
     if k > 0:
-        _wings(p, t, roots, span, band, cut, lift, plan, sprites, opened, density, k)
-        _wing_glints(p, t, glints, roots, span, lift, u)
+        _paws(p, t, roots, raised, paw, band, cut, lift, paws[density], density, k, glints, u)
     _halo(p, t, QPointF(halo_at.x(), halo_at.y() + lift), rx, halos[px], px, flash, u)
     p.restore()
     hc = QPointF(halo_at.x(), halo_at.y() + lift)
-    # Glints thrown out by the burst along the wings, slowing as they go.
+    # Glints thrown out by the burst toward the paws, slowing as they go.
     for angle, far, life in burst:
         age = t - 1.0
         if 0 < age < life:
@@ -619,94 +679,15 @@ def _crest(p: QPainter, t: float, halo_at: QPointF, roots: tuple, span: float, b
                 star(p, x, y, 8 * u * math.sin(math.pi * k_), "#fffaf0", 1 - k_ * 0.6)
 
 
-def _sheen(t: float) -> float | None:
-    """How far out along the wings the sheen has run, 0 at the roots to past the tips, or None: once
-    as they finish opening, once more later."""
-    for start, end in ((1.45, 2.45), (3.0, 3.9)):
-        if start <= t <= end:
-            return ease_in_out(win(t, start, end))
-    return None
-
-
-def _wings(p: QPainter, t: float, roots: tuple, span: float, band: QRectF, cut: QImage, lift: float, plan: list, sprites: dict, opened: dict, density: float, k: float) -> None:
-    """Both wings drawn on a picture of the band they live in, at the screen's sharpness, a sheen
-    run along their gold, cut away over the title, and laid on: a warm light behind them once they
-    are open. Unfolding, each feather moves; open, each wing is laid whole, breathing as it turns a
-    little about its root."""
-    layer = QImage(max(1, math.ceil(band.width() * density)), max(1, math.ceil(band.height() * density)), QImage.Format_ARGB32_Premultiplied)
-    layer.fill(Qt.transparent)
-    q = QPainter(layer)
-    q.setRenderHint(QPainter.Antialiasing)
-    q.setRenderHint(QPainter.SmoothPixmapTransform)
-    q.scale(density, density)
-    q.translate(-band.left(), -band.top() + lift)
-    spread = ease_out(win(t, 0.8, 1.6))
-    for mirror, root in zip((1, -1), roots, strict=True):
-        soft_dot(q, root.x() + mirror * span * 0.5, root.y() - span * 0.15, span * 0.5, "#ffc95e", 0.24 * spread)
-    q.setOpacity(clamp(win(t, 0.55, 0.85)))
-    beat = -3.2 * math.sin(2 * math.pi * (t - 1.6) / 2.1) * win(t, 1.6, 2.2)
-    if t >= 1.6 and density not in opened:
-        opened.clear()
-        opened[density] = _open_wing(span, plan, sprites, density)
-    for mirror, root in zip((1, -1), roots, strict=True):
-        q.save()
-        q.translate(root)
-        q.scale(mirror, 1)
-        q.rotate(beat)
-        if t >= 1.6:
-            box, image = opened[density]
-            q.drawImage(box, image)
-        else:
-            _wing(q, span, plan, sprites, density, k)
-        q.restore()
-    sweep = _sheen(t)
-    if sweep is not None:
-        # A slanted band of pale light laid over the gold only, running out from each root to the tip.
-        q.setOpacity(1.0)
-        q.setCompositionMode(QPainter.CompositionMode_SourceAtop)
-        reach = span * 0.16
-        for mirror, root in zip((1, -1), roots, strict=True):
-            x = root.x() + mirror * span * (sweep * 1.35 - 0.2)
-            shine = QLinearGradient(QPointF(x - mirror * reach, root.y() + reach * 0.5), QPointF(x + mirror * reach, root.y() - reach * 0.5))
-            strength = math.sin(math.pi * sweep) * 0.9
-            shine.setColorAt(0, col("#fff6d8", 0))
-            shine.setColorAt(0.4, col("#ffe9a6", strength * 0.5))
-            shine.setColorAt(0.5, col("#fffcf0", strength))
-            shine.setColorAt(0.6, col("#ffe9a6", strength * 0.5))
-            shine.setColorAt(1, col("#fff6d8", 0))
-            q.fillRect(QRectF(x - reach * 2, band.top() - lift, reach * 4, band.height()), shine)
-    q.resetTransform()
-    q.setOpacity(1.0)
-    q.setCompositionMode(QPainter.CompositionMode_DestinationIn)
-    q.drawImage(QRectF(0, 0, layer.width(), layer.height()), cut)
-    q.end()
-    p.drawImage(band, layer)
-
-
 def _glint_spots(rnd: random.Random) -> list[tuple]:
-    """Where the gold catches the light on the open wings now and then: on a feather of either wing,
-    toward the outer half and the tips, as (side, x, y from the root in shares of the wing, when, how long)."""
+    """Where the paws catch the light now and then: on a bean of either paw, as (side, x, y from the
+    palm's middle in shares of a paw's width, when, how long)."""
+    spots = [(0.0, 0.07), *_toes(0.97)]
     out = []
-    for i in range(16):
-        at = rnd.uniform(0.25, 1.0)
-        x, y = _arm(at)
-        reach = rnd.uniform(0.05, 0.3)
-        angle = math.radians(64 - 70 * at)
-        out.append(((1, -1)[i % 2], x + math.cos(angle) * reach, y + math.sin(angle) * reach, rnd.uniform(1.7, 3.9), rnd.uniform(0.5, 0.9)))
+    for i in range(12):
+        x, y = rnd.choice(spots)
+        out.append((i % 2, x + rnd.uniform(-0.03, 0.03), y + rnd.uniform(-0.04, 0.02), rnd.uniform(1.6, 3.9), rnd.uniform(0.5, 0.9)))
     return out
-
-
-def _wing_glints(p: QPainter, t: float, glints: list, roots: tuple, span: float, lift: float, u: float) -> None:
-    """The glints on the wings: a little star flaring and going, with a warm halo."""
-    for side, x, y, when, life in glints:
-        k = win(t, when, when + life)
-        if not 0 < k < 1:
-            continue
-        root = roots[0] if side > 0 else roots[1]
-        shine = math.sin(math.pi * k)
-        gx, gy = root.x() + side * x * span, root.y() + y * span + lift
-        soft_dot(p, gx, gy, 14 * u, HONEY, 0.5 * shine)
-        star(p, gx, gy, (6 + 10 * shine) * u, "#fffaf0", shine, 0.08)
 
 
 def _halo(p: QPainter, t: float, hc: QPointF, rx: float, image: QImage, px: int, flash: float, u: float) -> None:
@@ -797,22 +778,18 @@ def _motes(p: QPainter, t: float, motes: list[tuple], u: float, a: float) -> Non
         soft_dot(p, px, py, r * 1.3, "#fff4d0", 0.95 * fade * twinkle)
 
 
-def _dust(roots: tuple, span: float, u: float, rnd: random.Random) -> list[tuple]:
-    """Gold dust shed by the open wings: specks born under either wing, as (when, x, y, drift, fall,
+def _dust(raised: tuple, paw: float, u: float, rnd: random.Random) -> list[tuple]:
+    """Gold dust shed by the raised paws: specks born round either paw, as (when, x, y, drift, fall,
     size, phase, how long)."""
     out = []
-    for i in range(84):
-        side = (1, -1)[i % 2]
-        root = roots[0] if side > 0 else roots[1]
-        at = rnd.uniform(0.3, 1.0)
-        x, y = _arm(at)
-        hang = rnd.uniform(0.02, 0.24)
+    for i in range(64):
+        top = raised[i % 2]
         out.append(
             (
-                rnd.uniform(1.15, 4.1),
-                root.x() + side * (x + 0.25 * hang) * span,
-                root.y() + (y + hang) * span,
-                side * rnd.uniform(4, 18) * u,
+                rnd.uniform(1.2, 4.1),
+                top.x() + rnd.uniform(-0.55, 0.55) * paw,
+                top.y() + rnd.uniform(-0.3, 0.5) * paw,
+                (1, -1)[i % 2] * rnd.uniform(4, 18) * u,
                 rnd.uniform(16, 40) * u,
                 rnd.uniform(1.1, 2.6) * u,
                 rnd.uniform(0, 6.28),
@@ -1057,25 +1034,14 @@ def _filigree(q: QPainter, frame: QRectF, size: float) -> None:
     q.restore()
 
 
-def _little_wings(q: QPainter, x: float, y: float, size: float) -> None:
-    """A pair of little wings spread either side of (x, y), each three feathers fanning up and out,
-    a tiny halo over a bead between them; each feather edged so it shows from the next."""
-    for mirror in (1, -1):
-        for length, angle, thick in ((size * 1.25, -14, size * 0.3), (size * 1.0, -36, size * 0.28), (size * 0.72, -58, size * 0.26)):
-            q.save()
-            q.translate(x + mirror * size * 0.22, y)
-            q.scale(mirror, 1)
-            q.rotate(angle)
-            feather = QPainterPath(QPointF(0, 0))
-            feather.cubicTo(length * 0.25, -thick * 1.1, length * 0.75, -thick * 0.9, length, -thick * 0.2)
-            feather.cubicTo(length * 0.75, thick * 0.55, length * 0.3, thick * 0.6, 0, 0)
-            q.setPen(QPen(Qt.black, size * 0.07))
-            q.setBrush(Qt.white)
-            q.drawPath(feather)
-            q.restore()
+def _little_paw(q: QPainter, x: float, y: float, size: float) -> None:
+    """A little paw print at (x, y), a tiny halo over it: its pad and four toes, each edged so it
+    shows from the next."""
     q.setPen(QPen(Qt.black, size * 0.06))
     q.setBrush(Qt.white)
-    q.drawEllipse(QPointF(x, y), size * 0.2, size * 0.2)
+    q.drawEllipse(QPointF(x, y + size * 0.12), size * 0.3, size * 0.24)
+    for tx, ty in _toes(1.2):
+        q.drawEllipse(QPointF(x + size * tx, y + size * (0.12 + ty)), size * 0.12, size * 0.14)
     q.setPen(QPen(Qt.white, size * 0.08))
     q.setBrush(Qt.NoBrush)
     q.drawEllipse(QPointF(x, y - size * 0.5), size * 0.3, size * 0.1)
@@ -1084,7 +1050,7 @@ def _little_wings(q: QPainter, x: float, y: float, size: float) -> None:
 def _card_pictures(w: float, h: float, density: float) -> tuple[QImage, QImage]:
     """The card for a window w by h, at density, per pixel: ivory paper with fine fibres, warmer
     toward its edges, in a gilt frame (a band, a hairline inside it, filigree scrolls in the corners)
-    with the little wings on its top edge, the gold polished and casting a faint shadow on the paper.
+    with the little paw print on its top edge, the gold polished and casting a faint shadow on the paper.
     The ornaments are smaller on a smaller card (fewer names, or names made small on a small game),
     so they keep clear of the names. Also the gold alone, for the sheen to run over."""
     pw, ph, xs, ys = _grid(w, h, density)
@@ -1108,7 +1074,7 @@ def _card_pictures(w: float, h: float, density: float) -> tuple[QImage, QImage]:
         frame = body.adjusted(4.9, 4.9, -4.9, -4.9)
         q.drawRoundedRect(frame, 3, 3)
         _filigree(q, frame.adjusted(-1, -1, 1, 1), 8.0 * k * k)
-        _little_wings(q, w / 2, CARD_TOP - 3.0 * k, 16.0 * k)
+        _little_paw(q, w / 2, CARD_TOP - 3.0 * k, 16.0 * k)
 
     gold = mask(pw, ph, draw)
     raised = blur(gold, 0.7 * density) * 1.4 * density
@@ -1121,7 +1087,7 @@ def _card_pictures(w: float, h: float, density: float) -> tuple[QImage, QImage]:
 
 
 def card(p: QPainter, rect: QRectF, t: float) -> None:
-    """Ivory in a gilt frame with filigree corners and little gilded wings on top; now and then a
+    """Ivory in a gilt frame with filigree corners and a little gilded paw print on top; now and then a
     sheen passes over the gold."""
     density = _density(p)
     paper, gold = _kept(("card", round(rect.width(), 1), round(rect.height(), 1), round(density, 2)), lambda: _card_pictures(rect.width(), rect.height(), density))

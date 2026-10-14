@@ -16,7 +16,7 @@ from blacklist_detect import love_scenes  # noqa: E402
 from blacklist_detect.love_scenes import KEYS, Stage, choose, sample_stage  # noqa: E402
 
 # The scenes that draw the 心动 marks as themes of their own.
-THEMES = ("cyber", "neon", "angel", "heaven", "cathedral", "equation", "fluffy")
+THEMES = ("cyber", "neon", "angel", "cathedral", "equation", "fluffy")
 
 
 @pytest.fixture(scope="module")
@@ -77,7 +77,7 @@ def test_choosing_one_random_or_none():
     assert all(a != b for a, b in zip(picks, picks[1:], strict=False))
     # 命运红线, 雪纺, 缎带, 花雨, 纸鹤晚霞 and 蝶梦 are gone: a player who had one, or a key from another
     # version, gets 经典花边. 香槟 is gone too, and 天使 took its place.
-    assert KEYS == ("classic", "ice", "stars", "cyber", "neon", "angel", "heaven", "cathedral", "equation", "fluffy")
+    assert KEYS == ("classic", "ice", "stars", "cyber", "neon", "angel", "cathedral", "equation", "fluffy")
     for gone in ("thread", "chiffon", "ribbon", "petals", "cranes", "butterfly", "disco"):
         assert choose(gone, "", rng) == "classic"
     assert choose("champagne", "", rng) == "angel"
