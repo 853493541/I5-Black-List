@@ -349,9 +349,15 @@ def test_the_border_fits_a_game_in_a_window(window, monkeypatch):
     window._hide_panel_after_title()
 
 
-def test_reminding_can_leave_out_either_list_and_keeps_one(window):
-    """提醒 in the 检查 panel: 黑名单 and 嘉宾, each ticked (✓) until untouched. Unticked, a list's players
-    are not told about in a check: no ring, card, glow, effect or corner message. One stays on."""
+def test_every_check_tells_about_both_lists(window):
+    """提醒 is gone from the 检查 panel: a check always tells about 黑名单 and 嘉宾 players, also when an
+    older version saved either left out."""
+    import json
+
+    settings = json.loads(window.store.settings_path.read_text(encoding="utf-8"))
+    window.store.settings_path.write_text(json.dumps({**settings, "check_blacklist": False, "check_likes": False}), encoding="utf-8")
+    window.store = Store(window.store.root)
+    assert window.store.safe_mode is False
     window.store.add("坏人", tags=("炸房",))
     window.store.add_like("小明")
     names = [
@@ -362,48 +368,33 @@ def test_reminding_can_leave_out_either_list_and_keeps_one(window):
     screen = QApplication.primaryScreen().availableGeometry()
     left = screen.left() + screen.width() // 2 - 90
     button = (left, screen.top() + 300, left + 180, screen.top() + 360)
-    boxes = window.remind_boxes
-    assert [box.text() for box in boxes.values()] == ["黑名单", "嘉宾"]
-    assert all(box.isChecked() and not box.icon().isNull() for box in boxes.values())
-    assert "提醒 黑名单+嘉宾" in window.settings_line()
-    # 黑名单 off: the listed player is not told about, and a lobby with nobody to tell about is 检查完成.
-    boxes["blacklist"].click()
-    assert window.store.check_blacklist is False and Store(window.store.root).check_blacklist is False
-    assert boxes["blacklist"].icon().isNull() and "提醒 只有嘉宾" in window.settings_line()
+    assert not hasattr(window, "remind_boxes") and not hasattr(window.store, "check_blacklist")
+    assert "提醒" not in window.settings_line()
+    assert not [label for label in window.check_panel.findChildren(QLabel) if label.text() == "提醒"]
     window._live_check = True
     window._on_lobby_placed(button)
     window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
-    assert window.panel.mode == "liked" and not window.hit_card.isVisible() and window.like_card.isVisible()
-    window._show_panel(CheckResult(True, "", names=names[1:], hits=[hit], button_box=button))
-    assert window.panel.mode == "clear" and window.panel.toolTip() == "检查完成" and not window.hit_card.isVisible()
+    assert window.panel.mode == "both" and window.hit_card.isVisible() and window.like_card.isVisible()
     window._hide_panel_after_title()
-    # The last one ticked stays: unticking 嘉宾 now does nothing.
-    boxes["likes"].click()
-    assert boxes["likes"].isChecked() and window.store.check_likes is True
-    # 嘉宾 off, 黑名单 back on: 嘉宾 players are not told about, nor greeted.
-    boxes["blacklist"].click()
-    boxes["likes"].click()
-    assert (window.store.check_blacklist, window.store.check_likes) == (True, False)
-    assert "提醒 只有黑名单" in window.settings_line()
     window._on_lobby_placed(button)
     window._show_panel(CheckResult(True, "", names=names[:1], button_box=button))
-    assert window.panel.mode == "clear" and window.panel.toolTip() == "未发现黑名单"
-    assert not window.like_card.isVisible() and not window.love.playing()
-    window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
-    assert window.panel.mode == "hit" and window.hit_card.isVisible() and not window.like_card.isVisible()
+    assert window.panel.mode == "liked" and window.like_card.isVisible()
     window._hide_panel_after_title()
-    # 测试效果 still shows its two 嘉宾 players: it is a test of what viewers would see.
-    window._demo_likes = [Entry("心动小鹿")]
-    assert [like.name for like in window._likes_in(CheckResult(True, "", names=names))] == ["心动小鹿"]
-    window._demo_likes = None
+    window._on_lobby_placed(button)
+    window._show_panel(CheckResult(True, "", names=names[1:], button_box=button))
+    assert window.panel.mode == "clear" and window.panel.toolTip() == "未发现黑名单"
+    window._hide_panel_after_title()
+    # Saved again, the old keys are gone.
+    window.store.save_settings()
+    saved = window.store.settings_path.read_text(encoding="utf-8")
+    assert "check_blacklist" not in saved and "check_likes" not in saved
 
 
-def test_the_corner_message_says_checked_when_the_blacklist_is_left_out():
+def test_the_corner_message_says_no_blacklist_when_none_is_there():
     from blacklist_detect.ui_notice import result_messages
 
     assert result_messages([], [], 0)[0].title == "未发现黑名单"
-    assert result_messages([], [], 0, blacklist=False)[0].title == "检查完成"
-    assert result_messages([], ["小明"], 1, blacklist=False)[0].title == "检查完成"
+    assert result_messages([], ["小明"], 1)[0].title == "未发现黑名单"
 
 
 def test_a_guest_picks_a_theme_and_the_page_shows_and_orders_them(window):

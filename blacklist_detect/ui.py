@@ -13,7 +13,6 @@ from PySide6.QtGui import (
     QColor,
     QCursor,
     QFontMetrics,
-    QIcon,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -400,11 +399,6 @@ class CheckWorker(QThread):
     def stop(self) -> None:
         self._queue.put(None)
 
-
-
-def _show_tick(button: QPushButton) -> None:
-    """A choice that goes with the others beside it shows a ✓ while it is on."""
-    button.setIcon(line_icon("check", 14, THEME["on_accent"]) if button.isChecked() else QIcon())
 
 
 def _known_scene(key: str) -> bool:
@@ -1040,24 +1034,7 @@ class MainWindow(QMainWindow):
         self.settings_label.setWordWrap(True)
         self.settings_label.hide()
         check.add_widget(self.settings_label, separated=False, indent=True)
-        # 3 提醒: which lists a check tells about. Both are ticked; either can go, and one stays.
-        self.remind_boxes: dict[str, QPushButton] = {}
-        for key, name, on in (("blacklist", "黑名单", self.store.check_blacklist), ("likes", "嘉宾", self.store.check_likes)):
-            box = QPushButton(name)
-            box.setObjectName("segment")
-            box.setProperty("place", "only")
-            box.setCheckable(True)
-            box.setAutoDefault(False)
-            box.setCursor(Qt.PointingHandCursor)
-            box.setChecked(on)
-            box.toggled.connect(lambda _on, box=box: _show_tick(box))
-            box.clicked.connect(lambda _checked=False, key=key: self._on_remind(key))
-            _show_tick(box)
-            self.remind_boxes[key] = box
-        self.remind_boxes["blacklist"].setToolTip("取消勾选：黑名单里的人进大厅时不提醒")
-        self.remind_boxes["likes"].setToolTip("取消勾选：嘉宾进大厅时不提醒，也不放嘉宾场景")
-        check.add_row("提醒", *self.remind_boxes.values())
-        # 4 直播模式: a window for the streaming app, with the marks and never a 黑名单 name.
+        # 3 直播模式: a window for the streaming app, with the marks and never a 黑名单 name.
         self.stream_choice = SegmentedControl([("on", "开启"), ("off", "关闭")], "on" if self.store.stream_mode else "off")
         self.stream_choice.setAccessibleName("直播模式")
         self.stream_choice.changed.connect(lambda key: self._on_stream_switch(key == "on"))
@@ -1371,8 +1348,6 @@ class MainWindow(QMainWindow):
         self.display_mode.set_current("safe")
         self.stream_choice.set_current("off")
         self.stream_frame_box.setChecked(self.store.stream_test_frame)
-        for box in self.remind_boxes.values():
-            box.setChecked(True)
         self.notice.hide()
         if not self._watch_timer.isActive():
             self.watch = LobbyWatch()
@@ -3219,17 +3194,6 @@ class MainWindow(QMainWindow):
             self.store.save_settings()
             self._show_stream_guide()
 
-    def _on_remind(self, key: str) -> None:
-        """提醒: a list ticked or not, kept for the next start. One stays on: a check that tells about
-        neither would show nothing."""
-        ticked = {each: box.isChecked() for each, box in self.remind_boxes.items()}
-        if not any(ticked.values()):
-            self.remind_boxes[key].setChecked(True)
-            return
-        self.store.check_blacklist, self.store.check_likes = ticked["blacklist"], ticked["likes"]
-        self.store.save_settings()
-        log.info("提醒: 黑名单 %s, 嘉宾 %s.", "on" if ticked["blacklist"] else "off", "on" if ticked["likes"] else "off")
-
     def _on_test_frame(self, on: bool) -> None:
         """测试框 ticked or not: 直播画面's red frame round the game, kept for the next start."""
         if on != self.store.stream_test_frame:
@@ -3752,7 +3716,7 @@ class MainWindow(QMainWindow):
         if not self._live_check or not result.header_found:
             self._hide_panel_after_title()
             return
-        hits = self._hits_in(result)
+        hits = list(result.hits)
         likes = self._likes_in(result)
         # The scenes for these 嘉宾: a combination of theirs, else the top one's own (guests.lobby_choice).
         self._lobby_choice = self._choice_for(likes)
@@ -3812,8 +3776,7 @@ class MainWindow(QMainWindow):
         self.hit_card.hide()
         self.like_card.hide()
         self.alert.leave()
-        # Nothing was looked for in 黑名单 when 提醒 leaves it out: the lobby was only checked.
-        text = "未发现黑名单" if self.store.check_blacklist else "检查完成"
+        text = "未发现黑名单"
         unclear = sum(1 for slot in result.names if slot.unclear)
         if unclear:
             text += f"\n{unclear} 人未识别"
@@ -3866,7 +3829,6 @@ class MainWindow(QMainWindow):
             [
                 "显示 " + ("安全模式" if store.safe_mode else "完整模式"),
                 "方式 " + ("自动检查" if store.auto_capture else f"手动检查 ({store.hotkey or '无快捷键'})"),
-                "提醒 " + ("黑名单+嘉宾" if store.check_blacklist and store.check_likes else "只有黑名单" if store.check_blacklist else "只有嘉宾"),
                 "直播模式 " + ("开" if store.stream_mode else "关") + ("" if store.stream_test_frame else " (测试框 关)"),
                 "声音 " + ("静音" if store.sound_muted else "开"),
                 f"场景 {store.quick_scene} ({store.effect_hotkey or '无快捷键'})",
@@ -4206,15 +4168,11 @@ class MainWindow(QMainWindow):
         self.love.choice = "classic"
         log.info("场景 hotkey: done.")
 
-    def _hits_in(self, result: CheckResult) -> list[Hit]:
-        """黑名单 players in the lobby, when 提醒 tells about them."""
-        return list(result.hits) if self.store.check_blacklist else []
-
     def _show_notice(self, result: CheckResult) -> None:
         """安全模式: who is in the lobby, in messages at the bottom right of the screen the game is on,
         above the taskbar: the corner of the screen, never the corner of a windowed game."""
         people: list[tuple[str, tuple[str, ...]]] = []
-        for hit in self._hits_in(result):
+        for hit in result.hits:
             person = (hit.entry_name, tuple(hit.tags))
             if person not in people:
                 people.append(person)
@@ -4226,7 +4184,7 @@ class MainWindow(QMainWindow):
             left, top, right, bottom = result.button_box
             x, y, _ratio = native_to_logical((left + right) / 2 + origin_x, (top + bottom) / 2 + origin_y)
             screen = QApplication.screenAt(QPoint(int(x), int(y))) or screen
-        self.notice.show_result(people, likes, unclear, screen, blacklist=self.store.check_blacklist)
+        self.notice.show_result(people, likes, unclear, screen)
 
     def _show_alert(self) -> None:
         """The red glow over the game's screen, under the ring and the cards."""
@@ -4352,13 +4310,10 @@ class MainWindow(QMainWindow):
         self._place_beside(self.hit_card)
 
     def _likes_in(self, result: CheckResult) -> list[Entry]:
-        """嘉宾 players in the lobby, in seat order, each once, when 提醒 tells about them (测试效果's
-        always)."""
+        """嘉宾 players in the lobby, in seat order, each once (测试效果's own while it runs)."""
         if self._demo_likes is not None:
             return list(self._demo_likes)
         found: list[Entry] = []
-        if not self.store.check_likes:
-            return found
         for slot in result.names:
             label = NameLabel(raw=slot.raw, visible=slot.visible, truncated=slot.truncated, unclear=slot.unclear)
             for match in match_label(label, list(self.store.likes)):

@@ -606,21 +606,16 @@ def test_a_saved_hotkey_of_three_keys_keeps_two(tmp_path):
     assert Store(root).hotkey == "Alt+1"
 
 
-def test_reminding_about_each_list_is_kept_and_one_stays_on(tmp_path):
+def test_reminding_about_one_list_only_is_gone(tmp_path):
+    """检查 › 提醒 could leave 黑名单 or 嘉宾 out up to v0.9.14: what it saved is not read, and not saved again."""
     import json
 
+    (tmp_path / "settings.json").write_text(json.dumps({"check_blacklist": False, "check_likes": True}), encoding="utf-8")
     store = Store(tmp_path)
-    assert (store.check_blacklist, store.check_likes) == (True, True)
-    store.check_blacklist = False
+    assert not hasattr(store, "check_blacklist") and not hasattr(store, "check_likes")
     store.save_settings()
-    assert (Store(tmp_path).check_blacklist, Store(tmp_path).check_likes) == (False, True)
-    # Both off would tell about nothing: both come back on.
     settings = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
-    settings["check_likes"] = False
-    (tmp_path / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
-    assert (Store(tmp_path).check_blacklist, Store(tmp_path).check_likes) == (True, True)
-    store.reset()
-    assert (store.check_blacklist, store.check_likes) == (True, True)
+    assert "check_blacklist" not in settings and "check_likes" not in settings
 
 
 def test_mute_is_kept_and_reset(tmp_path):

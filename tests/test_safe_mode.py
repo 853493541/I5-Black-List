@@ -260,7 +260,7 @@ def test_both_lists_are_always_checked(window):
     assert window.notice.kind == "hit"
     _arrive(window.notice)
     assert window.notice.likes.names() == ["小红"]
-    assert not hasattr(window, "remind_blacklist")
+    assert not hasattr(window, "remind_blacklist") and not hasattr(window, "remind_boxes")
 
 
 def _answer(monkeypatch, answer: bool) -> list[tuple[str, str, str]]:  # noqa: ANN001
