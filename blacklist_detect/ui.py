@@ -3800,9 +3800,12 @@ class MainWindow(QMainWindow):
             tune = self._tune_for(self._lobby_choice)
             if self._demo_likes is not None:
                 # 测试效果 plays it every time it is pressed.
-                self.music.preview(tune)
+                started = self.music.preview(tune)
             else:
-                self.music.lobby([like.name for like in likes], tune)
+                started = self.music.lobby([like.name for like in likes], tune)
+            if started:
+                # The lobby's music now, not ▶'s on 特效: leaving that page or picking there leaves it on.
+                self.effects_page.sounding = False
         if self.store.safe_mode:
             self._show_notice(result)
             log.info("Check %d shown: the corner message (安全模式).", self._check_number)

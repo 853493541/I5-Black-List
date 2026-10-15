@@ -692,3 +692,28 @@ def test_music_from_the_preview_stops_as_the_page_goes(window):
     window.tabs.setCurrentIndex(window.history_tab)
     assert window.played[-1] == "classic"
     window.hide()
+
+
+def test_a_real_lobbys_music_plays_on_whatever_the_page_does(window, monkeypatch):
+    from blacklist_detect import ui
+
+    page = window.effects_page
+    window.tabs.setCurrentIndex(window.effects_tab)
+    window.show()
+    QApplication.processEvents()
+    page.preview.play_button.click()
+    assert page.sounding and window.played == ["classic"]
+    # A real lobby with a 嘉宾 in it, its music after ▶'s.
+    monkeypatch.setattr(window, "_likes_in", lambda _result: [ui.Entry("心动小鹿")])
+    monkeypatch.setattr(window, "_choice_for", lambda _likes: "stars")
+    window._live_check = True
+    screen = window.screen().geometry()
+    button = (screen.x() + 600, screen.y() + 700, screen.x() + 800, screen.y() + 760)
+    window._show_panel(CheckResult(header_found=True, message="", button_box=button))
+    assert window.played == ["classic", "stars"] and not page.sounding
+    # Picking on 特效 and leaving it stop nothing.
+    page.scenes.buttons["fluffy"].click()
+    window.tabs.setCurrentIndex(window.history_tab)
+    assert len(window.played) == 2
+    window._hide_panel_after_title()
+    window.hide()
