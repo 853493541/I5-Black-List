@@ -332,7 +332,7 @@ def _peaks(plan: tuple, xs: np.ndarray, ymin: np.ndarray, base: float, gap: QRec
 
 def _ridge(xs: np.ndarray, x0: float, wl: float, wr: float, bumps: list, u: float, seed: int, rough: bool = True) -> np.ndarray:
     """A peak's ridge as a share of its height along xs: its main top and the smaller tops on its
-    shoulders, each steep with a rounded top, and a little unevenness along it."""
+    shoulders, each rounded, and some unevenness along it."""
     out = np.zeros(xs.shape, dtype=np.float32)
     for at, tall, wide in bumps:
         cx = x0 + at * (wr if at > 0 else wl)
@@ -405,15 +405,15 @@ def _hill(xs, ys, ridge, base, peak, line, wash, grain, fibre, hairs, kind, u, s
 
 
 def _mist(xs, skyline, base, top, bh, gap, strength, u, seed) -> dict:  # noqa: ANN001
-    """The mist at a range's feet, as a quarter-size density that drifts and rises: where it lies (a
+    """The mist at a range's feet, as a small density that drifts and rises: where it lies (a
     band hugging the lower slopes, none over the gap) and the noise that moves through it."""
     q = 6
     w4, h4 = math.ceil(len(xs) / q) + 1, math.ceil(bh / q) + 1
     x4 = (np.arange(w4, dtype=np.float32) + 0.5) * q
     y4 = top + (np.arange(h4, dtype=np.float32) + 0.5) * q
     sky = np.interp(x4, xs, skyline)
-    centre = sky + 0.62 * (base - sky)
-    thick = 0.5 * (base - sky) + 10 * u
+    centre = np.maximum(sky + 0.62 * (base - sky), base - 60 * u)
+    thick = np.minimum(0.5 * (base - sky), 34 * u) + 10 * u
     where = np.exp(-(((y4[:, None] - centre[None, :]) / thick[None, :]) ** 2)) * _away(gap, x4[None, :], y4[:, None], u)
     extra = math.ceil(260 * u / q) + 2
     rising = math.ceil(60 * u / q) + 2
@@ -423,7 +423,7 @@ def _mist(xs, skyline, base, top, bh, gap, strength, u, seed) -> dict:  # noqa: 
 
 
 def _mist_paint(p: QPainter, t: float, mist: dict, gust: float, life: float, u: float) -> None:
-    """The mist drifting right with the wind and rising, at a quarter size and laid on smoothed."""
+    """The mist drifting right with the wind and rising, worked out small and laid on smoothed."""
     q = mist["q"]
     drift = (14 * t + 150 * gust * max(0.0, t - 3.0)) * u / q
     rise = (4 * t + 30 * ease_in_out(win(t, 3.3, 4.9))) * u / q
@@ -468,6 +468,8 @@ class _Silk:
     tw: int
     u: float
     lag: float = 0.0
+    # Where along its line the heart's cleft is: the braid lets go there, the bend being too tight.
+    cleft: float = -1e9
     s: np.ndarray = field(default_factory=lambda: np.zeros(0))
 
     def head(self, t: float) -> float:
@@ -490,7 +492,8 @@ def _ribbons(stage: Stage, u: float) -> list[_Silk]:
     tip = (hx, hy + 0.574 * size)
     phi = np.linspace(0, 1, 260)[1:-1]
     a = math.pi - TAU * phi
-    hxs = hx + 16 * np.sin(a) ** 3 * size / 34
+    # The cleft at its top rounded a little: a loose heart of silk, not a drawn one.
+    hxs = hx + (16 * np.sin(a) ** 3 + 2.4 * np.sin(a) * np.exp(-((a / 0.7) ** 2))) * size / 34
     hys = hy - (13 * np.cos(a) - 5 * np.cos(2 * a) - 2 * np.cos(3 * a) - np.cos(4 * a) - 2.5) * size / 34
     loop = np.column_stack([hxs, hys])
     into = _spline([(-0.05 * width, 215 * u), (0.1 * width, 160 * u), (0.27 * width, 80 * u), (0.45 * width, 36 * u), (0.62 * width, 34 * u),
@@ -515,6 +518,7 @@ def _ribbons(stage: Stage, u: float) -> list[_Silk]:
     stop = bottom["start"] + float(_along(low)[np.argmin(np.abs(low[:, 0] - (gap.left() - 40 * u)))])
     blue = _Silk(bottom["path"], bottom["along"], bottom["normals"], 26 * u, blue_length, (0.5, 2.25), (bottom["start"], stop, bottom["end"] + blue_length),
                  0.0, 4.2, *_silk("#4fa3a8", "#1d4f66", "#d4f3ec", 26 * u, u, 7), u)  # fmt: skip
+    jade.cleft = pale.cleft = top["start"] + _along(into)[-1] + heart / 2
     for silk in (jade, pale, blue):
         silk.s = np.arange(0, silk.length, 1.5 * u)
     return [jade, pale, blue]
@@ -580,7 +584,7 @@ def _silk(tint: str, deep: str, light: str, width: float, u: float, seed: int) -
     cloud = np.tile(_tile(noise(2 * TILE, tw, 9 * u, 2, seed + 3), TILE), 3)
     edge = smooth(1 + 0.9 / half, 1 - 0.9 / half, av)
     hem = smooth(0.72, 0.97, av)
-    thread = np.exp(-(((av - 0.84) * half / 0.8) ** 2))
+    thread = np.exp(-(((av - 0.83) * half / max(1.1, 0.07 * half)) ** 2))
     glow = 0.16 * np.exp(-np.maximum(av - 1, 0) * half / (2.2 * u)) * (1 - edge)
     round_ = 1 + 0.07 * (1 - v * v)
     deep_c, tint_c, light_c = rgb(deep), rgb(tint), rgb(light)
@@ -594,7 +598,7 @@ def _silk(tint: str, deep: str, light: str, width: float, u: float, seed: int) -
         gloss = (sheen * (0.3 + 0.7 * fibre))[..., None]
         color = color + (light_c - color) * gloss * 0.55 + (1 - color) * gloss * 0.12
         color = color * (1 - hem * 0.1)[..., None]
-        gold = _mix(rgb("#8a6a26"), rgb("#fbecb4"), np.clip(0.15 + 0.75 * lum + 0.6 * (spark - 0.5), 0, 1))
+        gold = _mix(rgb("#8a6a26"), rgb("#fbecb4"), np.clip(0.4 + 0.6 * lum + 0.5 * (spark - 0.5), 0, 1))
         color = _mix(color, gold, thread * 0.95)
         alpha = 0.42 + 0.3 * fold + 0.16 * sheen * (0.4 + 0.6 * fibre) + 0.2 * hem + 0.06 * (cloud - 0.5)
         alpha = np.maximum(alpha, thread * 0.95)
@@ -620,14 +624,14 @@ def _silk_paint(p: QPainter, layer: QImage, silk: _Silk, t: float, gust: float, 
     hold = _hold(t)
     share = s / silk.length
     # Braided round its twin by the line, rippling along itself, the free end most.
-    offset = silk.braid * u * np.sin(TAU * d / (240 * u))
+    offset = silk.braid * u * np.sin(TAU * d / (240 * u)) * (1 - np.exp(-(((d - silk.cleft) / (45 * u)) ** 2)))
     amp = (3 + 13 * share) * u * (1 - 0.55 * hold) + gust * 26 * u * share
     offset = offset + amp * np.sin(TAU * (s / (170 * u) - 0.9 * t) + silk.phase)
     x, y = bx + nx * offset, by + ny * offset
     if x.max() < -60 * u or x.min() > layer.width() + 60 * u or y.max() < -60 * u or y.min() > layer.height() + 60 * u:
         return
     theta = 1.05 * np.sin(TAU * (s / (150 * u) - 1.1 * t) + silk.phase * 1.7) + 0.5 * np.sin(TAU * (s / (420 * u) + 0.35 * t) + silk.phase)
-    width = silk.width * (0.42 + 0.58 * smooth(0, 60 * u, s)) * (1 - 0.55 * smooth(0.82 * silk.length, silk.length, s))
+    width = silk.width * (0.2 + 0.8 * smooth(0, 70 * u, s)) * (1 - 0.55 * smooth(0.82 * silk.length, silk.length, s))
     pad = silk.width + 8 * u
     x0, y0 = max(0, int(x.min() - pad)), max(0, int(y.min() - pad))
     x1, y1 = min(layer.width(), math.ceil(x.max() + pad)), min(layer.height(), math.ceil(y.max() + pad))
@@ -680,7 +684,10 @@ def _lay(q: QPainter, x: np.ndarray, y: np.ndarray, s: np.ndarray, theta: np.nda
     if len(chosen) < 2:
         return
     at = np.array(chosen)
-    k = (np.where(np.abs(cos) < 0.05, 0.05 * facing, cos) * width / 2 / half * tw / 2)[at]
+    k = np.where(np.abs(cos) < 0.05, 0.05 * facing, cos) * width / 2 / half * tw / 2
+    # On a bend tighter than the silk is wide it folds narrower, so its inner edge never crosses over.
+    bend = np.abs(np.gradient(np.unwrap(np.arctan2(ty, tx)))) / np.maximum(np.abs(np.gradient(s)), 1e-6)
+    k = (np.sign(k) * np.minimum(np.abs(k), 0.9 / np.maximum(bend, 1e-6)))[at]
     x, y, s, tx, ty, lum = (a[at] for a in (x, y, s, tx, ty, lum))
     keep = keep[at] if keep is not None else np.ones(len(at), dtype=bool)
     # Where it turns over between two points, a point between them twice: edge on, a thread wide,
@@ -755,8 +762,8 @@ def _crane_frame(span: float, phase: float, scale: float) -> QImage:
     def wing(far: bool) -> tuple[QPolygonF, QPolygonF]:
         """The wing's outline, broad and swept back, its primaries spread like fingers at the tip;
         and its black secondaries along the inner trailing edge."""
-        lift = up * (0.86 if far else 1.0)
-        shoulder = np.array([0.07 * s - (0.05 * s if far else 0), -0.03 * s])
+        lift = up * (0.9 if far else 1.0)
+        shoulder = np.array([0.07 * s + (0.05 * s if far else 0), -0.03 * s])
         elbow = shoulder + [-0.04 * s, -0.26 * s * lift]
         tip = shoulder + [-0.3 * s, -0.46 * s * lift + 0.06 * s * (1 - lift)]
         ks = np.linspace(0, 1, 22)
@@ -765,10 +772,10 @@ def _crane_frame(span: float, phase: float, scale: float) -> QImage:
         tangent = tangent / np.maximum(np.hypot(tangent[:, 0], tangent[:, 1]), 1e-9)[:, None]
         across = np.column_stack([tangent[:, 1], -tangent[:, 0]])
         back = np.where(across[:, :1] < 0, across, -across)
-        chord = s * (0.25 * (1 - ks) + 0.08 * ks) * np.where((ks > 0.62) & (np.arange(len(ks)) % 2 == 1), 1.3, 1.0)
+        chord = s * (0.25 * (1 - ks) + 0.08 * ks) * np.where((ks > 0.62) & (np.arange(len(ks)) % 2 == 1), 1.12, 1.0)
         trail = lead + back * chord[:, None]
         inner = lead + back * (chord * np.where(ks < 0.62, 0.66, 0.66 + (ks - 0.62) * 4))[:, None]
-        black = [*inner[ks < 0.72], *reversed(trail[ks < 0.72])]
+        black = [*inner[ks < 0.6], *reversed(trail[ks < 0.6])]
         outline = [*lead, *reversed(trail)]
         return QPolygonF([QPointF(*point) for point in outline]), QPolygonF([QPointF(*point) for point in black])
 
@@ -852,7 +859,7 @@ def _crane_paint(p: QPainter, t: float, crane: dict, life: float) -> None:
     angle = math.degrees(math.atan2(dy, dx)) * 0.6
     frames = crane["frames"]
     # Slow beats, then a long glide on raised wings, then beats again.
-    beat = (t * 1.1) % 1.0 if t < 1.5 or t > 2.6 else 0.0
+    beat = (t * 1.1) % 1.0 if t < 1.5 or t > 2.6 else 0.3
     frame = frames[int(beat * len(frames)) % len(frames)]
     p.save()
     p.setOpacity(life * smooth(0.0, 0.06, np.float32(k)).item() * (1 - smooth(0.92, 1.0, np.float32(k)).item()))
