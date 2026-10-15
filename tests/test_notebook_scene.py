@@ -109,3 +109,27 @@ def test_it_draws_the_marks_itself(qapp):
     marks.close()
     lead = module.lead(18, 1)
     assert lead.devicePixelRatio() >= 2 and not lead.isNull()
+
+
+def test_no_paper_rests_on_a_name(qapp):
+    """A flying leaf crosses a name row straight and fast: looked at every 0.05 s, none lies over a
+    name for more than 0.2 s."""
+    import math
+
+    from PySide6.QtGui import QPolygonF
+
+    from blacklist_detect.love_scenes import notebook
+
+    stage = sample_stage()
+    plan = notebook._Plan(stage)
+    tooth = notebook._Tooth(plan.u)
+    leaves = notebook._leaves(plan, notebook._Book(plan, tooth), tooth)
+    names = [QPolygonF(QRectF(name)) for name in stage.names()]
+    for leaf in leaves:
+        over = [0] * len(names)
+        for step in range(round(notebook.DURATION / 0.05) + 1):
+            tq = math.floor(step * 0.05 * notebook.TWOS) / notebook.TWOS
+            paper = QPolygonF(leaf.corners(tq))
+            for index, name in enumerate(names):
+                over[index] = over[index] + 1 if len(paper) and paper.intersects(name) else 0
+                assert over[index] * 0.05 <= 0.2 + 1e-6, (step * 0.05, stage.names()[index])

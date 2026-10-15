@@ -1,20 +1,20 @@
 """风翻笔记: the wind turns 吴邪's notebook, drawn by hand in pencil and watercolour, for a 小说家-吴邪 player.
 
-A breeze arrives as six 手书 speed lines in chalk and mint pencil, curling at their ends, with three
-pencil bamboo leaves tumbling in on it. 吴邪's brown leather notebook (its strap and red seal) tumbles in
-along the lane between the rows, flips open in the left margin and riffles as it drifts on. Its
-loose-leaf insert slips out as one sheet and the wind lays it over the whole screen, left to right: the
-fold a wobbly band of bright paper with a pencil edge and a soft shadow ahead of it, the sheet behind
-it a granulated celadon wash with mint and teal deckle edges, darker dried edges and soft teal ruled
-lines, creeping on with the wind; the notebook is whisked off ahead of it. Pencil sketches draw
-themselves on the sheet for a moment each and smear away: a 吴山居 lattice window and bamboo either side
-of the title, the 蛇眉铜鱼 three-fish ring and 西湖's ripples in the lane. The sheet lifts and fans into
-loose leaves, white paper washed mint at the edges, each with a little graphite doodle, that stream
-along four lanes trailing wide mint watercolour and hatching; then a mint-into-teal watercolour ribbon
-loops round the cards on a gust and the leaves ride it home into the notebook, which blows back in
-along the top, snaps shut and is carried off. Pencil doodle stars pop where a leaf flips over. The
-ribbon dries to its edges and drifts out, the wind curls are rubbed out and a few bamboo leaves drift
-away.
+A breeze arrives as six 手书 speed lines in chalk and mint pencil, curling at their ends, with mint
+watercolour ribbons sweeping in along the top, the lane, the left margin and low either side of the
+gap, and bamboo leaves tumbling on it. 吴邪's brown leather notebook (its strap and red seal) tumbles in
+along the lane between the rows, flips open in the left margin and riffles as it drifts on; the wind
+snaps it shut and whisks it off, its leaves fanning out of its edge. One loose-leaf page slips out and
+the wind lays it across the screen, left to right: celadon paper washed mint, its teal rules, red
+margin line and binder holes, its leading edge bending and sagging with a shadow ahead of it, its top
+corner curling over as a roll. Pencil sketches draw themselves in its wake for half a second each and
+smear away: a 吴山居 moon window with bamboo behind it and the 蛇眉铜鱼 three-fish ring, bamboo and
+西湖's ripples. Then loose leaves, mint-washed paper each with a little graphite doodle, stream along
+the free bands trailing wide mint watercolour and hatching, crossing a name row only straight and
+fast between two names; a mint-into-teal watercolour ribbon loops round the cards on a gust and the
+leaves ride it home into the notebook, which blows back in along the top, snaps shut and is carried
+off. Pencil doodle stars pop where a leaf flips over. The ribbon dries to its edges and drifts out,
+the wind curls are rubbed out and the last bamboo leaves drift away.
 
 Lines boil as drawn lines do (three drawings of each, ten times a second), drawn things move on twos,
 colour is hatching and watercolour, and the grain lives on the paper and in the washes. The washes are
@@ -108,9 +108,8 @@ CARD_FONT = "KaiTi"
 # Lines are drawn again, a little differently, BOIL times a second; drawn things move TWOS times a second.
 BOIL = 10
 TWOS = 12
-# The sheet: its fold crosses the screen over SWEEP, and it lifts over LIFT as its leaves fan out.
-SWEEP = (1.0, 2.0)
-LIFT = (2.0, 2.4)
+# The page is laid across the screen over SWEEP.
+SWEEP = (1.0, 2.15)
 # The sheet creeps on with the wind, points a second.
 CREEP = 80.0
 # The ribbon's gust: its head goes round the loop over GUST; its tail follows TAIL seconds behind.
@@ -119,6 +118,8 @@ TAIL = 0.34
 # The notebook tumbles in along the lane over TUMBLE and opens; it snaps shut at SHUT, carried on by
 # the gust.
 TUMBLE = (0.25, 0.55)
+# The wind snaps it shut at AWAY and whisks it off along the lane.
+AWAY = 1.0
 SHUT = 4.3
 
 
@@ -127,8 +128,7 @@ def make(stage: Stage):  # noqa: ANN201
     u = plan.u
     tooth = _Tooth(u)
     near, rest = _cut(plan)
-    sheet = _Sheet(plan)
-    fold = _Fold(plan)
+    page = _Page(plan)
     sketches = _sketches(plan, tooth)
     speed = _speed_lines(plan, random.Random(3))
     book = _Book(plan, tooth)
@@ -152,16 +152,11 @@ def make(stage: Stage):  # noqa: ANN201
         q.setRenderHint(QPainter.Antialiasing)
         q.setRenderHint(QPainter.SmoothPixmapTransform)
         # Only the part drawn on is rubbed and laid on.
-        strong = _union(fold.paint(q, t), trails.paint(q, t), ribbon.paint(q, t), *(breeze.paint(q, t) for breeze in breezes))
-        strong = _pixels(strong, plan)
-        if not strong.isEmpty():
-            q.setCompositionMode(QPainter.CompositionMode_DestinationOut)
-            q.drawImage(strong, near, strong)
-        # The sheet, under them: it is no more than about 12% anywhere, names or not.
-        q.setCompositionMode(QPainter.CompositionMode_DestinationOver)
-        drawn = _pixels(_union(strong, sheet.paint(q, t, fold)), plan)
+        drawn = _union(page.paint(q, t), trails.paint(q, t), ribbon.paint(q, t), *(breeze.paint(q, t) for breeze in breezes))
+        drawn = _pixels(drawn, plan)
         if not drawn.isEmpty():
             q.setCompositionMode(QPainter.CompositionMode_DestinationOut)
+            q.drawImage(drawn, near, drawn)
             q.drawImage(drawn, rest, drawn)
         q.end()
         if not drawn.isEmpty():
@@ -221,6 +216,7 @@ class _Plan:
         rows = [r for r in ([n for n in names if n.center().y() < middle], [n for n in names if n.center().y() >= middle]) if r]
         if len(rows) < 2:
             rows = [names, names]
+        self.rows = [sorted(row, key=lambda n: n.left()) for row in rows]
         self.grow, self.feather = 8 * u, 10 * u
         out = self.grow + self.feather
         self.keep1 = (min(n.top() for n in rows[0]) - out, max(n.bottom() for n in rows[0]) + out)
@@ -235,6 +231,12 @@ class _Plan:
         self.right_x = (self.right + self.w) / 2
         # The title, as the lobby draws it.
         self.title = QRectF(self.x(656), self.y(63), self.x(1069) - self.x(656), self.y(251) - self.y(63))
+
+    def between(self, x: float, row: int) -> float:
+        """The middle of the space between two names of a row (0 or 1), the one nearest x."""
+        names = self.rows[row]
+        gaps = [(a.right() + b.left()) / 2 for a, b in zip(names, names[1:], strict=False)]
+        return min(gaps, key=lambda g: abs(g - x)) if gaps else x
 
     def x(self, x: float) -> float:
         return x * self.sx
@@ -608,201 +610,152 @@ def _deckle(w: float, h: float, rnd: random.Random, u: float, rough: float = 1.6
     return pts + _normals(pts) * wander[:, None]
 
 
-# The sheet ------------------------------------------------------------------------------------
+# The page ---------------------------------------------------------------------------------------
 
 
-class _Sheet:
-    """The notebook's loose-leaf sheet laid over the screen behind the fold: a granulated celadon
-    wash, uneven, in patches with darker dried edges, its top and left deckle edges washed mint and
-    teal, soft teal ruled lines in the free bands between the name rows, breaking round the title.
-    It creeps on with the wind, sagging a little; it lifts from its trailing edge as its leaves fan out."""
+class _Page:
+    """The notebook's loose-leaf page as the wind lays it across the screen, left to right: a sheet of
+    celadon paper about PAGE points wide, washed mint in uneven granulated patches, its teal rules and
+    a soft red margin line, binder holes down its trailing edge, its top and trailing deckle edges
+    washed mint and teal. Its leading edge bends and sags as paper does, a soft shadow ahead of it;
+    its top corner curls over as a roll, showing the paper's back, shaded in pencil, a shadow under
+    its edge. It is three drawings, boiling, laid across as one picture."""
 
-    RATIO = 0.5
-
-    def __init__(self, plan: _Plan) -> None:
-        self.plan = plan
-        u, r = plan.u, self.RATIO
-        self.x0 = -70 * u
-        sw, sh = plan.w - self.x0 + 20 * u, plan.h
-        w, h = max(4, math.ceil(sw * r)), max(4, math.ceil(sh * r))
-        xs = self.x0 + (np.arange(w, dtype=np.float32) + 0.5) / r
-        ys = (np.arange(h, dtype=np.float32) + 0.5) / r
-        rnd = random.Random(23)
-        left_edge = -40 * u + _tremor(ys.astype(np.float64), rnd, 4 * u, 120 * u) + noise(1, h, 2, 2, 31)[:, 0] * 3 * u
-        top_edge = 10 * u + _tremor(xs.astype(np.float64), rnd, 4 * u, 160 * u) + noise(w, 1, 2, 2, 32)[0] * 3 * u
-        de = np.minimum(xs[None, :] - left_edge[:, None], ys[:, None] - top_edge[None, :])
-        fibre = noise(w, h, 1.0, 2, 33)
-        inside = smooth(-1.2 * u, 1.6 * u, de + 2.2 * u * (fibre - 0.5))
-        flow = noise(w, h, 70 * u * r, 3, 34)
-        patch = smooth(0.46, 0.54, noise(w, h, 110 * u * r, 3, 35))
-        gran = noise(w, h, 1.3, 2, 36)
-        rim = np.clip(patch - blur(patch, 3.5 * u * r), 0, 1) * 3.0 + np.clip(blur(patch, 3.5 * u * r) - patch, 0, 1) * 1.2
-        rim = np.clip(rim, 0, 1)
-        pigment = (0.4 + 0.3 * flow + 0.25 * patch) * (0.72 + 0.56 * gran)
-        alpha = 0.15 * pigment + 0.1 * rim * (0.7 + 0.6 * gran)
-        # Over the dark game the pale celadon alone reads as grey haze: its pigment is mint, more of it
-        # in the patches and pooled at their rims.
-        color = _mix(np.broadcast_to(rgb(SHEET) * 0.4 + rgb(WET_LIGHT) * 0.6, (h, w, 3)), rgb(WET), np.clip(0.45 * patch + 0.8 * rim, 0, 1))
-        # The deckle washed mint and teal, pigment pooled darker at the very edge.
-        edge = np.exp(-np.maximum(de, 0) / (11 * u)) * (0.6 + 0.4 * flow) * inside
-        pooled = np.exp(-np.maximum(de, 0) / (2.2 * u)) * inside
-        color = _mix(color, rgb(WET), np.clip(edge * 1.2, 0, 1))
-        color = _mix(color, rgb(WET_TEAL), np.clip(pooled * 0.9, 0, 1))
-        alpha = alpha + 0.32 * edge * (0.75 + 0.5 * gran) + 0.3 * pooled
-        # Soft teal ruled lines, only in the free bands, lifting before the title.
-        rules = mask(w, h, lambda q: self._rules(q, plan, r))
-        tooth = noise(w, h, 0.9, 2, 37)
-        rules = rules * (0.55 + 0.6 * tooth)
-        color = _mix(color, rgb(TEAL), np.clip(rules * 1.4, 0, 1))
-        alpha = alpha + 0.4 * rules
-        self.image = picture(color, alpha * inside)
-        self.size = QRectF(self.x0, 0, w / r, h / r)
-
-    def _rules(self, q: QPainter, plan: _Plan, r: float) -> None:
-        u = plan.u
-        rnd = random.Random(41)
-        q.scale(r, r)
-        q.translate(-self.x0, 0)
-        q.setPen(Qt.NoPen)
-        q.setBrush(QColor("#ffffff"))
-        step = 30 * u
-        bands = [(26 * u, plan.keep1[0] - 6 * u), (plan.keep1[1] + 6 * u, plan.keep2[0] - 6 * u), (plan.keep2[1] + 8 * u, plan.h - 8 * u)]
-        title = plan.title.adjusted(-90 * u, -10 * u, 50 * u, 10 * u)
-        for top, bottom in bands:
-            y = top + step * 0.5
-            while y < bottom:
-                spans = [(-40 * u, plan.w + 20 * u)]
-                if title.top() < y < title.bottom():
-                    spans = [(-40 * u, title.left()), (title.right(), plan.w + 20 * u)]
-                for a, b in spans:
-                    a += rnd.uniform(0, 30) * u
-                    b -= rnd.uniform(0, 30) * u
-                    if b - a < 20 * u:
-                        continue
-                    pts = np.array([[a, y + rnd.uniform(-0.6, 0.6) * u], [b, y + rnd.uniform(-0.6, 0.6) * u]])
-                    line = _Stroke(pts, 1.6 * u, rnd, u, wobble=0.5, ends=(10, 14))
-                    path = line.path(0)
-                    if path is not None:
-                        q.drawPath(path)
-                y += step
-
-    def paint(self, q: QPainter, t: float, fold: _Fold) -> QRectF:
-        if not (SWEEP[0] < t < LIFT[1]):
-            return QRectF()
-        plan = self.plan
-        # Behind the fold, and right of the trailing edge as the sheet lifts.
-        lift = ease_in(win(t, LIFT[0], LIFT[1]))
-        trailing = -60 * plan.u + (plan.w + 160 * plan.u) * lift
-        region = fold.behind(t, trailing)
-        if region is None:
-            return QRectF()
-        q.save()
-        q.setClipPath(region)
-        q.setOpacity(1 - 0.6 * lift)
-        q.drawImage(self.size.translated(_creep(plan.u, t)), self.image)
-        q.restore()
-        return region.boundingRect()
-
-
-class _Fold:
-    """The sheet's leading corner curling over as the wind lays it: a flap showing the paper's back,
-    widest at the top corner that leads and narrowing to the foot, celadon with its deckle washed mint
-    and teal, shaded in pencil toward the fold, its fold and its free edge drawn in pencil, a shadow
-    cast from it onto the sheet and a soft uneven one ahead of it onto the game. It is three drawings,
-    boiling."""
+    PAGE = 520
 
     def __init__(self, plan: _Plan) -> None:
         self.plan = plan
         u = plan.u
         h = plan.h
         rnd = random.Random(53)
-        self.wide = 180 * u
+        self.page = self.PAGE * u
+        self.corner = (190 * u, 300 * u)
         self.shade = 60 * u
+        self.top = 18 * u
         ys = np.arange(0, h + 12 * u, 6 * u, dtype=np.float64)
         mid = h / 2
-        # The fold across the screen: tilted, its top leading and bowing forward into the corner, a
-        # little sag in the middle and a hand's wobble.
+        # The leading edge: tilted, its top leading; bowed back in the middle as a sheet sags in the
+        # wind; a hand's wobble.
         self.curve_y = ys
-        self.curve_x = (0.1 * (mid - ys) - 16 * u * (1 - ((ys - mid) / mid) ** 2) + 34 * u * np.clip(1 - ys / h, 0, 1) ** 3
-                        + _tremor(ys, rnd, 3 * u, 260 * u))  # fmt: skip
+        self.curve_x = 0.1 * (mid - ys) - 34 * u * (1 - ((ys - mid) / mid) ** 2) + _tremor(ys, rnd, 3 * u, 260 * u)
         lo, hi = self.curve_x.min(), self.curve_x.max()
-        self.ox = lo - self.wide - 30 * u
-        bw = hi + self.shade + 6 * u - self.ox
+        self.ox = lo - self.page - 24 * u
+        bw = hi + self.shade + 8 * u - self.ox
         self.start = -(hi + self.shade + 10 * u)
-        self.end = plan.w - lo + self.wide + 30 * u
-        self.images = [self._band(bw, h, v) for v in range(3)]
+        self.end = plan.w - lo + self.page + 30 * u
+        self.images = [self._bake(bw, h, v) for v in range(3)]
 
-    def width(self, ys: np.ndarray) -> np.ndarray:
-        """How far back the flap reaches from the fold, down the screen: most at the top corner."""
-        return 20 * self.plan.u + (self.wide - 20 * self.plan.u) * np.clip(1 - ys / self.plan.h, 0, 1) ** 1.7
+    def curl(self, ys: np.ndarray) -> np.ndarray:
+        """How far back the curled corner reaches from the leading edge, down the page: most at the
+        top, nothing below the corner."""
+        reach, tall = self.corner
+        return reach * np.clip(1 - (ys - self.top) / tall, 0, 1) ** 1.4
 
-    def _band(self, bw: float, h: float, v: int) -> QImage:
+    def _bake(self, bw: float, h: float, v: int) -> QImage:
         u = self.plan.u
         w, hh = max(4, math.ceil(bw)), max(4, math.ceil(h))
         xs = self.ox + np.arange(w, dtype=np.float32) + 0.5
         ys = np.arange(hh, dtype=np.float32) + 0.5
         c = np.interp(ys, self.curve_y, self.curve_x).astype(np.float32)
         d = c[:, None] - xs[None, :]
-        reach = self.width(ys)[:, None]
-        q = d / reach
-        flow = noise(w, hh, 18 * u, 3, 60 + v)
+        flow = noise(w, hh, 22 * u, 3, 60 + v)
         grain = noise(w, hh, 1.2, 2, 63 + v)
         fibre = noise(w, hh, 1.0, 2, 66 + v)
-        # The flap: the paper's back, celadon, rounding into shade toward the fold.
-        flap = smooth(-0.6, 0.6, d) * smooth(0.6, -0.6, d - reach + 1.6 * u * (fibre - 0.5))
-        paper = rgb("#e2f2e9") * (0.95 + 0.06 * grain + 0.04 * (flow - 0.5))[..., None]
-        color = _mix(paper, rgb("#b9d4c9"), np.exp(-np.clip(q, 0, None) / 0.18) * 0.65)
-        color = _mix(color, rgb("#f4fbf7"), np.exp(-(((q - 0.42) / 0.16) ** 2)) * 0.5)
-        # Its deckle, the sheet's edge, washed mint and teal, pooled darker at the very edge.
-        edge = np.exp(-np.clip(reach - d, 0, None) / (9 * u)) * flap
-        color = _mix(color, rgb(WET), np.clip(edge * (0.8 + 0.5 * flow), 0, 1))
-        color = _mix(color, rgb(WET_TEAL), np.clip(np.exp(-np.clip(reach - d, 0, None) / (2.2 * u)) * flap, 0, 1) * 0.8)
-        alpha = flap * (0.92 + 0.06 * grain)
-        # Pencil shading toward the fold, as a curve is shaded.
+        rnd = random.Random(70 + v)
+        # Its deckle edges: the trailing one and the top, wandering.
+        trail = (self.page + _tremor(ys.astype(np.float64), rnd, 4 * u, 90 * u)).astype(np.float32)[:, None]
+        top = (self.top + _tremor(xs.astype(np.float64), rnd, 3 * u, 120 * u)).astype(np.float32)[None, :]
+        to_trail = trail - d
+        to_top = ys[:, None] - top
+        edge_d = np.minimum(to_trail, to_top)
+        body = smooth(-0.6, 0.6, d) * smooth(-1.0, 1.0, edge_d + 1.6 * u * (fibre - 0.5))
+        # Binder holes down the trailing edge: the game shows through them.
+        holes = np.zeros_like(d)
+        for k in range(6):
+            hy = self.top + 60 * u + k * (hh - self.top - 120 * u) / 5
+            holes = np.maximum(holes, smooth(7 * u + 0.6, 7 * u - 0.6, np.hypot(to_trail - 18 * u, ys[:, None] - hy)))
+        body = body * (1 - holes)
+        # The paper: celadon, washed mint in uneven patches, their rims dried darker, granulated.
+        patch = smooth(0.45, 0.58, noise(w, hh, 60 * u, 3, 67 + v))
+        rim = np.clip((patch - blur(patch, 3 * u)) * 3, 0, 1)
+        color = rgb(SHEET) * (0.95 + 0.06 * grain + 0.04 * (flow - 0.5))[..., None]
+        color = _mix(color, rgb(WET_LIGHT), patch * (0.55 + 0.3 * flow))
+        color = _mix(color, rgb(WET), rim * 0.8)
+        deckle = np.exp(-np.clip(edge_d, 0, None) / (12 * u)) * (0.7 + 0.5 * flow)
+        color = _mix(color, rgb(WET), np.clip(deckle, 0, 1))
+        color = _mix(color, rgb(WET_TEAL), np.clip(np.exp(-np.clip(edge_d, 0, None) / (2.5 * u)), 0, 1) * 0.85)
+        # Teal rules and a red margin line, drawn by hand.
+        lines = mask(w, hh, lambda p: self._rules(p, v, hh))
+        margin = mask(w, hh, lambda p: self._margin(p, v, hh))
+        color = _mix(color, rgb(TEAL), np.clip(lines * (0.55 + 0.5 * grain), 0, 1))
+        color = _mix(color, rgb(SEAL), np.clip(margin * (0.45 + 0.4 * grain), 0, 1))
+        alpha = body * (0.5 + 0.15 * flow + 0.1 * patch + 0.25 * deckle) + body * 0.3 * (lines + margin)
+        alpha = np.clip(alpha, 0, 0.92)
+        # The curled corner: the paper's back, rolling over; lit along a ridge, in shade toward the
+        # fold, its free edge pooled teal; the page's rules showing through, slanting.
+        reach = self.curl(ys)[:, None]
+        q = d / np.maximum(reach, 1e-3)
+        flap = (reach > 1) * smooth(-0.6, 0.6, d) * smooth(0.6, -0.6, d - reach + 1.4 * u * (fibre - 0.5)) * smooth(-1.0, 1.0, to_top)
+        back = rgb("#eef7f2") * (0.95 + 0.06 * grain)[..., None]
+        back = _mix(back, rgb("#a9c7bb"), np.exp(-np.clip(q, 0, None) / 0.16) * 0.7)
+        back = _mix(back, rgb("#ffffff"), np.exp(-(((q - 0.34) / 0.12) ** 2)) * 0.55)
+        back = _mix(back, rgb(WET), np.clip(np.exp(-np.clip(reach - d, 0, None) / (9 * u)) * (0.8 + 0.4 * flow), 0, 1))
+        back = _mix(back, rgb(WET_TEAL), np.clip(np.exp(-np.clip(reach - d, 0, None) / (2.2 * u)), 0, 1) * 0.8)
         hatch = mask(w, hh, lambda p: self._hatching(p, v, hh))
-        color = _mix(color, rgb(SOFT), np.clip(hatch * smooth(0.55, 0.0, q) * 0.85, 0, 1) * flap)
-        # The notebook's ruled lines on it, slanting as the paper turns over.
-        rules = mask(w, hh, lambda p: self._rules(p, w, hh))
-        color = _mix(color, rgb(TEAL), np.clip(rules * (0.5 + 0.4 * grain), 0, 1) * flap * smooth(0.05, 0.3, q))
-        # Shadows: cast by the flap's free edge onto the sheet behind, and ahead onto the game.
-        behind = np.clip(d - reach, 0, None)
-        cast = (d > reach) * np.exp(-behind / (7 * u)) * 0.32 * (0.75 + 0.5 * flow)
-        ahead = np.clip(-d, 0, None)
-        shadow = (d < 0) * np.exp(-ahead / (0.35 * self.shade)) * 0.4 * (0.7 + 0.6 * flow)
-        dark = np.maximum(cast, shadow)
-        out_c = color * alpha[..., None] + rgb("#0b1517") * (dark * (1 - alpha))[..., None]
-        out_a = alpha + dark * (1 - alpha)
+        back = _mix(back, rgb(SOFT), np.clip(hatch * smooth(0.5, 0.0, q), 0, 1) * 0.85)
+        color = _mix(color, back, flap)
+        alpha = np.maximum(alpha * (1 - flap), flap * 0.96)
+        # Shadows: under the curl's free edge onto the page, and ahead of the page onto the game.
+        under = (reach > 1) * (d > reach) * np.exp(-np.clip(d - reach, 0, None) / (8 * u)) * 0.45 * smooth(-1.0, 1.0, to_top)
+        color = _mix(color, rgb("#24413c"), np.clip(under, 0, 1) * (1 - flap))
+        ahead = (d < 0) * np.exp(-np.clip(-d, 0, None) / (0.35 * self.shade)) * 0.4 * (0.7 + 0.6 * flow) * smooth(-14 * u, 10 * u, to_top)
+        out_c = color * alpha[..., None] + rgb("#0b1517") * (ahead * (1 - alpha))[..., None]
+        out_a = alpha + ahead * (1 - alpha)
         image = picture(out_c / np.maximum(out_a, 1e-4)[..., None], out_a)
-        # The fold and the free edge in graphite, a line of the curl beside the fold.
+        # Pencil: the leading edge, the curl's fold and its free edge, a line of the roll.
         p = QPainter(image)
         p.setRenderHint(QPainter.Antialiasing)
         p.translate(-self.ox, 0)
-        fold = np.column_stack([self.curve_x, self.curve_y])
-        rim = fold - np.column_stack([self.width(self.curve_y), np.zeros(len(fold))])
+        lead = np.column_stack([self.curve_x, self.curve_y])
+        below = self.curve_y > self.top
         graphite = QBrush(QColor(GRAPHITE))
-        _Stroke(fold, 2.2 * u, random.Random(70 + v), u, wobble=0.6, ends=(20, 20)).fill(p, v, graphite)
-        _Stroke(rim, 1.9 * u, random.Random(75 + v), u, wobble=0.7, ends=(20, 6)).fill(p, v, graphite)
-        curl = fold - np.column_stack([0.16 * self.width(self.curve_y), np.zeros(len(fold))])
-        k = len(curl)
-        for a, b in ((0.0, 0.3), (0.36, 0.62)):
-            part = curl[int(a * k) : int(b * k)]
-            if len(part) > 2:
-                _Stroke(part, 1.2 * u, random.Random(80 + v), u, wobble=0.8).fill(p, v, QBrush(QColor(SOFT)))
+        _Stroke(lead[below], 2.0 * u, random.Random(71 + v), u, wobble=0.6, ends=(20, 20)).fill(p, v, graphite)
+        reach_line = self.curl(self.curve_y)
+        rows = (reach_line > 2 * u) & below
+        if rows.sum() > 2:
+            rim_line = lead[rows] - np.column_stack([reach_line[rows], np.zeros(rows.sum())])
+            _Stroke(rim_line, 1.9 * u, random.Random(75 + v), u, wobble=0.5, ends=(4, 10)).fill(p, v, graphite)
+            roll = lead[rows] - np.column_stack([0.14 * reach_line[rows], np.zeros(rows.sum())])
+            _Stroke(roll, 1.2 * u, random.Random(80 + v), u, wobble=0.6, ends=(4, 12)).fill(p, v, QBrush(QColor(SOFT)))
         p.end()
         return image
 
-    def _rules(self, p: QPainter, w: int, hh: int) -> None:
+    def _rules(self, p: QPainter, v: int, hh: int) -> None:
         u = self.plan.u
-        rnd = random.Random(99)
+        rnd = random.Random(99 + v)
+        p.translate(-self.ox, 0)
         p.setPen(Qt.NoPen)
         p.setBrush(QColor("#ffffff"))
-        y = -0.3 * w
+        y = self.top + 34 * u
         while y < hh:
-            pts = np.array([[0.0, y], [w * 0.5, y + 0.14 * w * 0.5 + rnd.uniform(-1, 1) * u], [float(w), y + 0.3 * w]])
-            path = _Stroke(pts, 1.3 * u, rnd, u, wobble=0.3, ends=(4, 4)).path(0)
+            c = float(np.interp(y, self.curve_y, self.curve_x))
+            pts = np.array([[c - self.page + 30 * u, y + rnd.uniform(-0.6, 0.6) * u], [c - 6 * u, y + rnd.uniform(-0.6, 0.6) * u]])
+            path = _Stroke(pts, 1.5 * u, rnd, u, wobble=0.4, ends=(8, 8)).path(0)
             if path is not None:
                 p.drawPath(path)
-            y += 26 * u
+            y += 30 * u
+
+    def _margin(self, p: QPainter, v: int, hh: int) -> None:
+        u = self.plan.u
+        rnd = random.Random(98 + v)
+        p.translate(-self.ox, 0)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor("#ffffff"))
+        pts = np.column_stack([np.interp(self.curve_y, self.curve_y, self.curve_x) - self.page + 52 * u, self.curve_y])
+        pts = pts[self.curve_y > self.top + 8 * u]
+        path = _Stroke(pts, 1.6 * u, rnd, u, wobble=0.5, ends=(10, 10)).path(0)
+        if path is not None:
+            p.drawPath(path)
 
     def _hatching(self, p: QPainter, v: int, hh: int) -> None:
         u = self.plan.u
@@ -810,14 +763,15 @@ class _Fold:
         p.translate(-self.ox, 0)
         p.setPen(Qt.NoPen)
         p.setBrush(QColor("#ffffff"))
-        y = 0.0
-        while y < hh:
+        y = self.top
+        while y < self.top + self.corner[1]:
             c = float(np.interp(y, self.curve_y, self.curve_x))
-            length = rnd.uniform(0.25, 0.5) * float(self.width(np.array([y]))[0])
-            pts = np.array([[c - 1.5 * u, y], [c - length, y + length * 0.45 + rnd.uniform(-1, 1) * u]])
-            path = _Stroke(pts, 1.1 * u, rnd, u, wobble=0.2, ends=(2, 6)).path(0)
-            if path is not None:
-                p.drawPath(path)
+            length = rnd.uniform(0.25, 0.5) * float(self.curl(np.array([y]))[0])
+            if length > 3 * u:
+                pts = np.array([[c - 1.5 * u, y], [c - length, y + length * 0.45 + rnd.uniform(-1, 1) * u]])
+                path = _Stroke(pts, 1.1 * u, rnd, u, wobble=0.2, ends=(2, 6)).path(0)
+                if path is not None:
+                    p.drawPath(path)
             y += rnd.uniform(3.5, 7.0) * u
 
     def at(self, t: float) -> float:
@@ -825,22 +779,9 @@ class _Fold:
         k = 0.75 * k + 0.25 * k * k * (3 - 2 * k)
         return self.start + (self.end - self.start) * k
 
-    def behind(self, t: float, trailing: float) -> QPainterPath | None:
-        """The screen behind the fold and ahead of the sheet's trailing edge."""
-        x = self.at(t) if t < SWEEP[1] else self.end
-        h = self.plan.h
-        if x + self.curve_x.max() <= max(0.0, trailing):
-            return None
-        pts = [QPointF(x + cx - 2, cy) for cx, cy in zip(self.curve_x.tolist(), self.curve_y.tolist(), strict=True)]
-        path = QPainterPath()
-        path.moveTo(trailing, -10)
-        path.lineTo(pts[0].x(), -10)
-        for point in pts:
-            path.lineTo(point)
-        path.lineTo(pts[-1].x(), h + 10)
-        path.lineTo(trailing, h + 10)
-        path.closeSubpath()
-        return path
+    def edge(self, y: float, t: float) -> float:
+        """Where the page's leading edge is across the screen, at height y."""
+        return self.at(t) + float(np.interp(y, self.curve_y, self.curve_x))
 
     def paint(self, q: QPainter, t: float) -> QRectF:
         if not (SWEEP[0] <= t <= SWEEP[1] + 0.05):
@@ -849,7 +790,6 @@ class _Fold:
         at = QPointF(self.at(t) + self.ox, 0)
         q.drawImage(at, image)
         return QRectF(at.x(), 0, image.width(), image.height())
-
 
 
 # Sketches on the sheet ------------------------------------------------------------------------
@@ -963,11 +903,11 @@ def _sketches(plan: _Plan, tooth: _Tooth) -> list[_Sketch]:
     u = plan.u
     out = []
     for build, (x, y), start in (
-        (_lattice, plan.p(510, 140), 1.3),
+        (_lattice, plan.p(510, 140), 1.58),
         # Between two row-2 avatars, where the chalk reads.
-        (_fish_ring, (plan.x(612), plan.lane + 6 * plan.u), 1.45),
-        (_bamboo_sprig, plan.p(1230, 140), 1.65),
-        (_ripples, (plan.x(1300), plan.lane), 1.72),
+        (_fish_ring, (plan.x(612), plan.lane + 6 * plan.u), 1.62),
+        (_bamboo_sprig, plan.p(1230, 140), 1.9),
+        (_ripples, (plan.x(1300), plan.lane), 1.95),
     ):
         groups, box = build(QPointF(x, y), u, random.Random(int(x) + 7), on_paper=False)
         out.append(_Sketch(plan, box, groups, start, tooth))
@@ -1348,7 +1288,7 @@ class _Book:
         w = plan.w
         # (time, x, y) on its way: in along the lane, open over the left margin, drifting on, whisked off.
         self.out_path = [(TUMBLE[0], -110 * u, lane - 10 * u), (TUMBLE[1], max(self.cw * 1.05, plan.x(200)), lane), (1.02, plan.x(290), lane + 2 * u),
-                         (1.38, plan.x(900), lane - 4 * u), (1.75, w + 260 * u, lane - 10 * u)]  # fmt: skip
+                         (1.4, plan.x(820), lane - 4 * u), (1.62, plan.x(1290), lane - 6 * u), (1.95, w + 260 * u, lane - 10 * u)]  # fmt: skip
         title = plan.title
         # Back in along the top band, over the title, shut right of it and away off the top right.
         self.home_path = [(3.45, -160 * u, plan.y(170)), (3.75, plan.x(330), plan.y(130)), (4.0, title.center().x(), max(55 * u, title.top() - 14 * u)),
@@ -1437,8 +1377,11 @@ class _Book:
         w, h = math.ceil(W * s), math.ceil(H * s)
         m = _fill_mask(w, h, s, body)
         color, alpha = self._wash(m, s, 140)
-        pages = _fill_mask(w, h, s, QRectF(pad + 5 * u, pad + 4 * u, self.cw * 2 - 10 * u, self.ch - 8 * u))
-        paper = _paper(w, h, s, 150)
+        pages = _fill_mask(w, h, s, QRectF(pad + 10 * u, pad + 8 * u, self.cw * 2 - 20 * u, self.ch - 16 * u))
+        paper = _paper(w, h, s, 150, "#f1f7f2")
+        # The page block's edges washed mint, and the stack of pages showing at its sides.
+        rim = np.clip(1 - blur(pages, 5 * u * s) * 1.4, 0, 1) * pages
+        paper = _mix(paper, rgb(WET), np.clip(rim * 1.3, 0, 1))
         xs = np.arange(w, dtype=np.float32)[None, :] / s
         gutter = np.exp(-np.abs(xs - W / 2) / (7 * u))
         paper = paper * (1 - 0.1 * gutter)[..., None]
@@ -1520,7 +1463,38 @@ class _Book:
         if opening < 1:
             self._open(p, x, y, opening, v)
             return
-        self._riffle(p, x, y, t - TUMBLE[1] - 0.12, v, 2 * math.sin(t * 9) + 0.08 * heading)
+        if t < AWAY:
+            self._riffle(p, x, y, t - TUMBLE[1] - 0.12, v, 2 * math.sin(t * 9) + 0.08 * heading)
+            return
+        # The wind snaps it shut and whisks it off, its pages fanning out of its edge.
+        shut = win(t, AWAY, AWAY + 0.1)
+        if shut < 1:
+            self._open(p, x, y, 1 - shut, v)
+            return
+        self._closed(p, x + self.cw / 2, y, t, v, 3 * math.sin(t * 11))
+
+    def _closed(self, p: QPainter, x: float, y: float, t: float, v: int, angle: float) -> None:
+        """Shut and carried on the wind, three or four leaves fanning out of its fore-edge, flapping,
+        their edges washed mint."""
+        u = self.plan.u
+        p.save()
+        p.translate(x, y)
+        p.rotate(angle)
+        edge = self.tooth.brush(GRAPHITE)
+        for k in range(4):
+            flap = 0.5 + 0.5 * math.sin(t * 19 + k * 1.7)
+            reach = (10 + 26 * flap) * u * (1 - 0.15 * k)
+            top, bottom = -self.ch / 2 + (4 + 3 * k) * u, self.ch / 2 - (4 + 2 * k) * u
+            root = self.cw / 2 - 6 * u
+            leaf = QPainterPath(QPointF(root, top))
+            leaf.quadTo(QPointF(root + reach * 0.7, top - 6 * u * flap), QPointF(root + reach, top + 4 * u))
+            leaf.lineTo(QPointF(root + reach * 0.9, bottom - 2 * u))
+            leaf.quadTo(QPointF(root + reach * 0.5, bottom + 4 * u * flap), QPointF(root, bottom))
+            leaf.closeSubpath()
+            p.fillPath(leaf, QBrush(mix("#eef6f0", WET, 0.25 + 0.2 * k)))
+            p.strokePath(leaf, QPen(edge, 1.1 * u))
+        _put(p, self.covers[v], 0, 0)
+        p.restore()
 
     def _open(self, p: QPainter, x: float, y: float, k: float, v: int) -> None:
         """The cover swinging open about the spine (k 0 shut .. 1 open), the spread's right page under it."""
@@ -1587,6 +1561,9 @@ class _Book:
         if t < SHUT - 0.08:
             self._riffle(p, x, y, t - 3.45, v, tilt)
             return
+        if t > SHUT + 0.04:
+            self._closed(p, x + self.cw / 2, y, t, v, tilt - 10 * win(t, SHUT, 4.7))
+            return
         k = win(t, SHUT - 0.08, SHUT + 0.04)
         if k < 1:
             p.save()
@@ -1637,16 +1614,19 @@ class _Leaf:
         self.home = home
 
     def distance(self, t: float) -> float:
-        k = win(t, self.start, self.end)
-        return self.route.length * (0.55 * k + 0.45 * k * k)
+        """How far along its way it is: at one steady speed, so it is as quick crossing a name row as
+        anywhere."""
+        return self.route.length * win(t, self.start, self.end)
 
     def turn(self, t: float) -> tuple[float, float]:
         """How far it has tumbled end over end (radians), and how far it has swung side to side."""
         return self.phase + self.flip * (t - self.start), 0.7 * math.sin(self.spin * t + self.phase)
 
-    def paint(self, p: QPainter, tq: float, v: int) -> None:
+    def place(self, tq: float, v: int = 0) -> tuple[QImage, QPointF, float, list[QPointF], float] | None:
+        """Where it is and how it lies at tq, or None while it is not seen: its picture, its middle, its
+        roll in degrees, its corners round its middle (before the roll) and its opacity."""
         if tq < self.born or tq >= self.end:
-            return
+            return None
         x, y, heading = self.route.at(self.distance(tq))
         # Lifting off the sheet: it rises out of it, opening up from flat.
         rise = ease_out(win(tq, self.born, self.born + 0.15))
@@ -1668,12 +1648,29 @@ class _Leaf:
             quad.append(QPointF(x2 * k * size, y1 * k * size))
         area = abs((quad[2].x() - quad[0].x()) * (quad[3].y() - quad[1].y()) - (quad[3].x() - quad[1].x()) * (quad[2].y() - quad[0].y()))
         if area < 0.02 * w * h * size * size:
+            return None
+        return image, QPointF(x, y), roll, quad, rise * (1 - home * 0.6)
+
+    def corners(self, tq: float) -> list[QPointF]:
+        """Its picture's corners on the screen at tq (none while it is not seen)."""
+        placed = self.place(tq)
+        if placed is None:
+            return []
+        _image, at, roll, quad, _alpha = placed
+        a = math.radians(roll)
+        return [QPointF(at.x() + c.x() * math.cos(a) - c.y() * math.sin(a), at.y() + c.x() * math.sin(a) + c.y() * math.cos(a)) for c in quad]
+
+    def paint(self, p: QPainter, tq: float, v: int) -> None:
+        placed = self.place(tq, v)
+        if placed is None:
             return
+        image, at, roll, quad, alpha = placed
+        w, h = image.width() / image.devicePixelRatio(), image.height() / image.devicePixelRatio()
         p.save()
-        p.translate(x, y)
+        p.translate(at)
         p.rotate(roll)
         p.setTransform(QTransform.quadToQuad(QPolygonF([QPointF(0, 0), QPointF(w, 0), QPointF(w, h), QPointF(0, h)]), QPolygonF(quad)), True)
-        p.setOpacity(rise * (1 - home * 0.6))
+        p.setOpacity(alpha)
         p.drawImage(QRectF(0, 0, w, h), image)
         p.restore()
 
@@ -1755,33 +1752,37 @@ def _leaf_sprites(plan: _Plan, doodle: str, size: float, seed: int, tooth: _Toot
 
 
 def _leaves(plan: _Plan, book: _Book, tooth: _Tooth) -> list[_Leaf]:
-    """Eight leaves, in pairs along four lanes: across the top band left to right; along the lane
-    right to left; down a long diagonal from the top right to the bottom left; in low from the right
-    edge and up into the lane. Then they ride the gust round the cards and home into the notebook."""
+    """Eight leaves, in pairs along four ways, crossing a name row only straight up or down, between
+    two names and fast: across the top band left to right and down the right margin; along the lane
+    right to left; from the top right in steps, down between two row-1 names, along the lane and down
+    between two row-2 names to the low band; in low from the right edge and up into the lane. Then
+    they ride the gust round the cards and home into the notebook."""
     u, w = plan.u, plan.w
     lane, low = plan.lane, plan.low
     gap = plan.gap
     L, R = plan.left_x, plan.right_x
     top = plan.y(150)
-    k1b, k2b = plan.keep1[1], plan.keep2[1]
-    # The gust's loop, as the leaves ride it: down the right margin, low right of the gap, up over the
-    # row-2 avatars and down again, low left of the gap, up the left margin and on along the top.
-    arc = [(gap.right() + 50 * u, low), (gap.right() + 40 * u, k2b - 10 * u), (gap.right() - 40 * u, lane + 10 * u), (gap.left() + 40 * u, lane + 10 * u),
-           (gap.left() - 40 * u, k2b - 10 * u), (gap.left() - 50 * u, low)]  # fmt: skip
-    lanes = {
-        "top": [(plan.x(90), top), (plan.x(380), plan.y(130)), (plan.title.center().x(), plan.y(40)), (plan.x(1300), plan.y(110)), (R, plan.y(170))],
-        "lane": [(plan.x(1420), lane), (plan.x(900), lane + 8 * u), (plan.x(500), lane - 6 * u), (L + 30 * u, lane)],
-        "diagonal": [(plan.x(1400), plan.y(130)), (plan.x(1150), plan.y(300)), (plan.x(900), (k1b + lane) / 2), (plan.x(600), lane + 20 * u),
-                     (plan.x(380), k2b + 6 * u), (plan.x(250), low + 10 * u)],  # fmt: skip
-        "low": [(w + 60 * u, low + 8 * u), (gap.right() + 120 * u, low), (gap.right() + 40 * u, (k2b + lane) / 2), (gap.right() - 60 * u, lane),
-                (plan.x(600), lane + 6 * u), (L + 40 * u, lane - 4 * u)],  # fmt: skip
-    }
-    rides = {
-        "top": [(R, plan.y(170)), (R, plan.y(420)), (R, k2b), (R - 30 * u, low), *arc],
-        "lane": [(L + 30 * u, lane), (L, plan.y(300))],
-        "diagonal": [(plan.x(250), low + 10 * u), (L, low - 20 * u), (L, plan.y(300))],
-        "low": [(L + 40 * u, lane - 4 * u), (L, plan.y(300))],
-    }
+    k1, k2 = plan.keep1, plan.keep2
+    rise1 = plan.between(plan.x(1096), 0)
+    drop2 = plan.between(plan.x(419), 1)
+    # Right of the button, between two row-2 names.
+    up2 = max(gap.right() + 60 * u, plan.between(plan.x(1324), 1))
+    up1 = plan.between(plan.x(864), 0)
+    ways = {
+        # Across the top band, down the right margin, low right of the gap, up into the lane, along
+        # it and up between two row-1 names to the notebook in the top band.
+        "top": ([(plan.x(90), top), (plan.x(380), plan.y(130)), (plan.title.center().x(), plan.y(40)), (plan.x(1300), plan.y(110)), (R, plan.y(170))],
+                [(R, k1[0] - 20 * u), (R, k2[1] + 10 * u), (R - 50 * u, low), (up2 + 60 * u, low + 6 * u), (up2, k2[1] + 14 * u), (up2, k2[0] - 14 * u),
+                 (up2 - 60 * u, lane), (up1 + 70 * u, lane), (up1, k1[1] + 12 * u), (up1, k1[0] - 16 * u)]),
+        "lane": ([(plan.x(1420), lane), (plan.x(900), lane + 8 * u), (plan.x(500), lane - 6 * u), (L + 30 * u, lane)],
+                 [(L, k1[1]), (L, plan.y(300))]),
+        "diagonal": ([(plan.x(1400), plan.y(130)), (rise1 + 80 * u, plan.y(170)), (rise1, plan.y(250)), (rise1, k1[0] - 16 * u), (rise1, k1[1] + 14 * u),
+                      (rise1 - 70 * u, lane), (drop2 + 70 * u, lane), (drop2, k2[0] - 14 * u), (drop2, k2[1] + 14 * u), (drop2 - 60 * u, low)],
+                     [(L + 30 * u, low - 6 * u), (L, k2[0]), (L, plan.y(300))]),
+        "low": ([(w + 60 * u, low + 8 * u), (up2 + 80 * u, low), (up2, k2[1] + 14 * u), (up2, k2[0] - 14 * u), (up2 - 70 * u, lane), (plan.x(600), lane + 6 * u),
+                 (L + 40 * u, lane - 4 * u)],
+                [(L, k1[1]), (L, plan.y(300))]),
+    }  # fmt: skip
     doodles = {"top": ("window", "bamboo"), "lane": ("ripple", "fish"), "diagonal": ("bamboo", "window"), "low": ("fish", "ripple")}
     born = {"top": 2.02, "lane": 2.22, "diagonal": 2.26, "low": 2.3}
     arrive = {"top": (4.1, 4.2), "lane": (3.95, 4.05), "diagonal": (4.0, 4.12), "low": (4.15, 4.24)}
@@ -1789,19 +1790,19 @@ def _leaves(plan: _Plan, book: _Book, tooth: _Tooth) -> list[_Leaf]:
     out = []
     seed = 300
     for name in ("top", "lane", "diagonal", "low"):
+        lead, ride = ways[name]
         for k in range(2):
             end = arrive[name][k]
             bx, by = book.where(end)
-            lead = [(px + rnd.uniform(-10, 10) * u * (j > 0), py + rnd.uniform(-8, 8) * u * (j > 0)) for j, (px, py) in enumerate(lanes[name])]
+            first = list(lead)
             if k:
-                lead[0] = (lead[0][0] + (40 * u if name != "low" else 50 * u), lead[0][1] + 6 * u)
-            ride = rides[name][1:]
-            home = [(L + 10 * u, plan.y(120)), (bx - 120 * u, by + 10 * u), (bx, by)]
+                first[0] = (first[0][0] + (40 * u if name != "low" else 50 * u), first[0][1] + 6 * u)
             if name == "top":
-                # Up from the arc over the row-1 names, steeply, to meet the notebook.
-                home = [(plan.title.center().x() - 60 * u, plan.y(260)), (bx, by)]
-            route = _Route(lead + ride + home, 2 * u)
-            lane_route = _Route(lead, 2 * u)
+                home = [(up1, plan.y(250)), (bx, by)]
+            else:
+                home = [(L + 10 * u, plan.y(120)), (bx - 120 * u, by + 10 * u), (bx, by)]
+            route = _Route(first + ride + home, 2 * u)
+            lane_route = _Route(first, 2 * u)
             size = rnd.uniform(100, 116) if name != "lane" else rnd.uniform(92, 100)
             sprites = _leaf_sprites(plan, doodles[name][k], size, seed, tooth)
             seed += 17
