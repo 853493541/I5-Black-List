@@ -6,8 +6,8 @@ import pytest
 
 pytest.importorskip("PySide6")
 
-from PySide6.QtCore import QPoint, QRect, Qt  # noqa: E402
-from PySide6.QtGui import QPixmap  # noqa: E402
+from PySide6.QtCore import QEvent, QPoint, QRect, Qt  # noqa: E402
+from PySide6.QtGui import QKeyEvent, QPixmap  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from blacklist_detect.pipeline import CheckResult, Hit, NameSlot  # noqa: E402
@@ -74,27 +74,47 @@ def _on_screen(widget) -> bool:  # noqa: ANN001
     return widget.isVisible() and not widget.testAttribute(Qt.WA_DontShowOnScreen)
 
 
-def test_the_choice_is_remembered_and_opens_the_window(window):
+def test_the_header_switch_is_remembered_and_opens_the_window(window):
+    """直播模式 is a switch in the header, right of the 检查 pill, with its ⓘ beside it: no panel of its own."""
     from blacklist_detect.storage import Store
     from blacklist_detect.ui_dialogs import StreamGuideDialog
+    from blacklist_detect.ui_header import StreamSwitch
     from blacklist_detect.ui_stream import TITLE
 
-    assert not window.stream.enabled()
-    # 开启; the window is clear behind the marks, so no 色度键 is needed.
-    window.stream_choice.buttons["on"].click()
+    switch = window.stream_switch
+    assert isinstance(switch, StreamSwitch) and switch.text() == "直播模式" and switch.accessibleName() == "直播模式"
+    assert not switch.isChecked() and not window.stream.enabled()
+    assert switch.cursor().shape() == Qt.PointingHandCursor and switch.focusPolicy() == Qt.TabFocus
+    # On; the window is clear behind the marks, so no 色度键 is needed.
+    switch.click()
+    assert switch.isChecked() and window.store.stream_mode == "on"
     assert window.stream.enabled() and window.stream.isVisible() and window.stream.mode() == "on"
     assert window.stream.windowTitle() == TITLE == "模仿者小工具·直播画面"
     assert Store(window.store.root).stream_mode == "on"
+    assert not window.stream_test.isHidden(), "测试效果 in the 检查 panel while it is on"
     # The first time, the guide opens with it; after that, from the ⓘ beside the switch.
     assert len(StreamGuideDialog.shown) == 1 and Store(window.store.root).stream_guided is True
-    window.stream_choice.buttons["off"].click()
-    assert not window.stream.enabled() and not window.stream.isVisible()
-    assert Store(window.store.root).stream_mode == ""
-    window.stream_choice.buttons["on"].click()
+    switch.click()
+    assert not switch.isChecked() and not window.stream.enabled() and not window.stream.isVisible()
+    assert Store(window.store.root).stream_mode == "" and window.stream_test.isHidden()
+    switch.click()
     assert len(StreamGuideDialog.shown) == 1
     window.stream_guide.click()
     assert len(StreamGuideDialog.shown) == 2
-    window.stream_choice.buttons["off"].click()
+    # Turned off from elsewhere, the switch follows without turning it over again.
+    window._set_stream_mode("")
+    assert not switch.isChecked() and not window.stream.enabled()
+    # Space on the switch turns it, as a click does.
+    QApplication.sendEvent(switch, QKeyEvent(QEvent.Type.KeyPress, Qt.Key_Space, Qt.NoModifier, " "))
+    assert switch.isChecked() and window.store.stream_mode == "on"
+    # Saved on, it is on at the next start.
+    from blacklist_detect.ui import MainWindow
+
+    again = MainWindow()
+    assert again.stream_switch.isChecked() and not again.stream_test.isHidden()
+    again._set_stream_mode("")
+    again._watch_timer.stop()
+    again.close()
 
 
 def test_the_guide_is_one_page_what_viewers_see_then_how(window):

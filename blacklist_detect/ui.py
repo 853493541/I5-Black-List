@@ -106,7 +106,7 @@ from blacklist_detect.ui_dialogs import (
     _confirm,
 )
 from blacklist_detect.ui_effects import EffectsPage
-from blacklist_detect.ui_header import CheckPanel, ProfileChip, StatusChip
+from blacklist_detect.ui_header import CheckPanel, ProfileChip, StatusChip, StreamSwitch
 from blacklist_detect.ui_icons import icon as line_icon
 from blacklist_detect.ui_icons import pixmap as line_pixmap
 from blacklist_detect.ui_kit import (
@@ -408,6 +408,8 @@ def _known_scene(key: str) -> bool:
 
 class MainWindow(QMainWindow):
     uncaught = Signal(str)
+    # The box for the player's name in the header, at its widest.
+    NAME_BOX = 180
 
     def __init__(self) -> None:
         super().__init__()
@@ -630,10 +632,10 @@ class MainWindow(QMainWindow):
             header_row.addWidget(button, 0, Qt.AlignBottom)
         self._tab_group.idClicked.connect(self.tabs.setCurrentIndex)
         header_row.addStretch(1)
-        # The chips keep clear of the header's line, which only the tab underline touches.
+        # The chips keep clear of the header's line, which only the tab underline touches, and of the tabs.
         right = QWidget()
         right_row = QHBoxLayout(right)
-        right_row.setContentsMargins(0, 0, 0, 4)
+        right_row.setContentsMargins(8, 0, 0, 4)
         right_row.setSpacing(0)
         # 有更新: a new version found while the app was open. A click opens 发现新版本 under it.
         self.update_pill = QPushButton("有更新")
@@ -644,17 +646,27 @@ class MainWindow(QMainWindow):
         self.update_pill.clicked.connect(lambda: self.update_panel.toggle())
         self.update_pill.hide()
         right_row.addWidget(self.update_pill, 0, Qt.AlignVCenter)
-        right_row.addSpacing(10)
+        right_row.addSpacing(8)
         # What checking is doing. A click opens the 检查 settings under it.
         self.status_chip = StatusChip()
         self.status_chip.clicked.connect(lambda: self.check_panel.toggle())
         right_row.addWidget(self.status_chip, 0, Qt.AlignVCenter)
-        right_row.addSpacing(12)
+        right_row.addSpacing(6)
+        # 直播模式, on or off right here: a window for the streaming app, with the marks and never a
+        # 黑名单 name. ⓘ beside it: what viewers see, and how to set it up in 直播姬, with screenshots.
+        self.stream_switch = StreamSwitch()
+        self.stream_switch.setChecked(bool(self.store.stream_mode))
+        self.stream_switch.clicked.connect(self._on_stream_switch)
+        right_row.addWidget(self.stream_switch, 0, Qt.AlignVCenter)
+        self.stream_guide = IconButton("info", "直播模式说明")
+        self.stream_guide.clicked.connect(self._show_stream_guide)
+        right_row.addWidget(self.stream_guide, 0, Qt.AlignVCenter)
+        right_row.addSpacing(6)
         divider = QFrame()
         divider.setObjectName("headerDivider")
         divider.setFixedSize(1, 18)
         right_row.addWidget(divider, 0, Qt.AlignVCenter)
-        right_row.addSpacing(8)
+        right_row.addSpacing(6)
         # 角色名称 where an app shows whose it is. A click turns the chip into a box for the
         # name, in the same place: Enter or a click elsewhere keeps it, Esc puts it back.
         self.profile_chip = ProfileChip()
@@ -665,7 +677,7 @@ class MainWindow(QMainWindow):
         self.player_edit.setObjectName("nameEdit")
         self.player_edit.setPlaceholderText("游戏名")
         self.player_edit.setAccessibleName("游戏名")
-        self.player_edit.setFixedWidth(180)
+        self.player_edit.setFixedWidth(self.NAME_BOX)
         self.player_edit.hide()
         self.player_edit.installEventFilter(self)
         self.player_edit.returnPressed.connect(self._finish_player_name)
@@ -674,6 +686,9 @@ class MainWindow(QMainWindow):
         header_row.addWidget(right, 0, Qt.AlignBottom)
         self._sync_tab_buttons(self.tabs.currentIndex())
         outer.addWidget(header)
+        # The window at its narrowest, with everything in the header: 直播模式 says 直播 (_fit_header).
+        self.header = header
+        header.installEventFilter(self)
         self.check_panel.attach(root, self.status_chip)
         self.tabs.currentChanged.connect(lambda _index: self.check_panel.close_panel())
         self.update_panel = CheckPanel(self._update_card())
@@ -966,7 +981,7 @@ class MainWindow(QMainWindow):
         """One card per row, like settings grouped with like, all on one screen:
         常规, 嘉宾, 外观, then 帮助 at the foot, where starting over is out of the way.
 
-        检查 (显示, 方式, 直播模式) opens from the status pill in the header, 角色名称 is in the
+        检查 (显示, 方式) opens from the status pill in the header, 直播模式 and 角色名称 are in the
         header too, 标签 beside the list on 黑名单, each 嘉宾's and 组合's 场景 on 嘉宾, and the 场景
         hotkey with the 场景 it plays on 场景管理.
         """
@@ -1003,7 +1018,7 @@ class MainWindow(QMainWindow):
             return card
 
         # 检查: how and when a lobby is checked, in a card that opens from the status pill.
-        check = SettingsSection("检查", metrics.horizontalAdvance("直播模式") + 20)
+        check = SettingsSection("检查", metrics.horizontalAdvance("显示") + 20)
         # 1 显示: 安全模式 shows the result in a corner box; 完整模式 draws it over the game.
         self.display_mode = SegmentedControl(
             [("safe", "安全模式"), ("full", "完整模式")], "safe" if self.store.safe_mode else "full"
@@ -1033,23 +1048,18 @@ class MainWindow(QMainWindow):
         self.settings_label.setWordWrap(True)
         self.settings_label.hide()
         check.add_widget(self.settings_label, separated=False, indent=True)
-        # 3 直播模式: a window for the streaming app, with the marks and never a 黑名单 name.
-        self.stream_choice = SegmentedControl([("on", "开启"), ("off", "关闭")], "on" if self.store.stream_mode else "off")
-        self.stream_choice.setAccessibleName("直播模式")
-        self.stream_choice.changed.connect(lambda key: self._on_stream_switch(key == "on"))
-        # ⓘ: what viewers see, and how to set it up in 直播姬, with screenshots.
-        self.stream_guide = IconButton("info", "直播模式说明")
-        self.stream_guide.clicked.connect(self._show_stream_guide)
-        # 测试效果: the marks of a lobby with a 黑名单 and two 嘉宾 players, now, with no lobby: what
-        # viewers will see, without waiting for someone listed to turn up.
+        # 3 直播, while 直播模式 (its switch is in the header) is on. 测试效果: the marks of a lobby with a
+        # 黑名单 and two 嘉宾 players, now, with no lobby: what viewers will see, without waiting for
+        # someone listed to turn up.
         self.stream_test = QPushButton("测试效果")
         self.stream_test.setAutoDefault(False)
         self.stream_test.setCursor(Qt.PointingHandCursor)
         self.stream_test.setToolTip("不用排队：在示例截图上放一遍嘉宾场景，看看直播间能不能看到")
         self.stream_test.clicked.connect(self.start_stream_test)
         self.stream_test.setVisible(bool(self.store.stream_mode))
-        check.add_row("直播模式", self.stream_choice, self.stream_guide, self.stream_test)
-        # Whether 直播姬 shows the window, under 直播模式 while it is on: green when it does, in
+        self._stream_row = check.add_row("直播", self.stream_test)
+        check.show_row(self._stream_row, bool(self.store.stream_mode))
+        # Whether 直播姬 shows the window, under 测试效果 while 直播模式 is on: green when it does, in
         # red until it does (see livehime). Nothing for a streamer without 直播姬.
         self.stream_status = QLabel("")
         self.stream_status.setObjectName("streamStatus")
@@ -1338,7 +1348,7 @@ class MainWindow(QMainWindow):
         self.love.choice = "classic"
         self._sync_sound()
         self.display_mode.set_current("safe")
-        self.stream_choice.set_current("off")
+        self._sync_stream_controls()
         self.notice.hide()
         if not self._watch_timer.isActive():
             self.watch = LobbyWatch()
@@ -1372,6 +1382,9 @@ class MainWindow(QMainWindow):
         self._name_before = self.store.player_name
         self.player_edit.setText(self.store.player_name)
         self.player_edit.setFixedHeight(self.profile_chip.height())
+        # As wide as the room the chip leaves, at most NAME_BOX: the window at its narrowest has little.
+        spare = self.header.width() - self.header.layout().sizeHint().width()
+        self.player_edit.setFixedWidth(max(64, min(self.NAME_BOX, self.profile_chip.sizeHint().width() + spare)))
         self.profile_chip.hide()
         self.player_edit.show()
         self.player_edit.setFocus(Qt.MouseFocusReason)
@@ -1419,6 +1432,9 @@ class MainWindow(QMainWindow):
             self._set_result(self._watch_full, self._watch_tone, self._status_kind, self._watch_tip)
         if hasattr(self, "profile_chip"):
             self.status_chip.update()
+            self.stream_switch.update()
+            self.stream_guide.refresh()
+            self.display_guide.refresh()
             self.profile_chip.update()
         if hasattr(self, "detail_tip"):
             self.detail_tip.apply_theme()
@@ -1507,6 +1523,9 @@ class MainWindow(QMainWindow):
                 return True
             if event.type() == QEvent.Type.FocusOut:
                 finish()
+        if watched is getattr(self, "header", None) and event.type() in (QEvent.Type.Resize, QEvent.Type.LayoutRequest):
+            self._fit_header()
+            return False
         if event.type() == QEvent.Type.KeyPress and self._list_key(watched, event):
             return True
         boxes = (getattr(self, "hotkey_edit", None), getattr(self, "effect_hotkey_edit", None))
@@ -2864,8 +2883,7 @@ class MainWindow(QMainWindow):
         self.store.stream_mode = "on" if on else ""
         self.store.save_settings()
         self.stream.enable(self.store.stream_mode)
-        self.stream_choice.set_current("on" if self.store.stream_mode else "off")
-        self.stream_test.setVisible(bool(self.store.stream_mode))
+        self._sync_stream_controls()
         if self._overlay_target() == "":
             # 安全模式 without 直播模式 draws nothing: a 场景 hotkey play is over, music and all.
             self._end_quick_play()
@@ -2877,8 +2895,27 @@ class MainWindow(QMainWindow):
             self._stream_watch.stop()
         self._check_stream_setup()
 
+    def _sync_stream_controls(self) -> None:
+        """The header's 直播模式 switch as the store has it, and the 检查 panel's 直播 row (测试效果) only
+        while it is on."""
+        on = bool(self.store.stream_mode)
+        self.stream_switch.blockSignals(True)
+        self.stream_switch.setChecked(on)
+        self.stream_switch.blockSignals(False)
+        self.stream_test.setVisible(on)
+        self.check_panel.card.show_row(self._stream_row, on)
+        if self.check_panel.isVisible():
+            self.check_panel._place()
+
+    def _fit_header(self) -> None:
+        """直播模式 says 直播 when its whole name would not leave the player's name its room: at the window's
+        narrowest, with 有更新 and tab counts. The name then gives way, down to its initial (ProfileChip)."""
+        switch = self.stream_switch
+        others = self.header.layout().sizeHint().width() - switch.sizeHint().width()
+        switch.set_short(others + switch.width_for(switch.FULL) > self.header.width())
+
     def _check_stream_setup(self) -> None:
-        """直播模式: whether 直播姬's current scene shows the window, said under the switch."""
+        """直播模式: whether 直播姬's current scene shows the window, said in the 检查 panel under 测试效果."""
         state = ""
         if self.store.stream_mode and not self._closing and livehime.log_path().is_file():
             point = self._game_point()

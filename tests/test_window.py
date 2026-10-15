@@ -594,10 +594,15 @@ def test_the_header_pill_opens_the_check_settings(qapp, tmp_path, monkeypatch):
     assert chip.hovered() is True
     qapp.sendEvent(chip, QEvent(QEvent.Type.Leave))
     assert chip.hovered() is False
-    # 显示, 方式 and 直播模式 are in the card under the pill, not in 设置.
+    # 显示 and 方式 are in the card under the pill, not in 设置; 直播模式 is in the header itself.
     settings_page = window.tabs.widget(window.settings_tab)
-    for control in (window.display_mode, window.auto_mode, window.hotkey_edit, window.stream_choice):
+    for control in (window.display_mode, window.auto_mode, window.hotkey_edit):
         assert panel.isAncestorOf(control) and not settings_page.isAncestorOf(control)
+    for control in (window.stream_switch, window.stream_guide):
+        assert not panel.isAncestorOf(control) and not settings_page.isAncestorOf(control)
+        assert control.parentWidget() is chip.parentWidget()
+    rows = [label.text() for label in panel.findChildren(QLabel, "rowLabel") if label.isVisibleTo(panel)]
+    assert rows == ["显示", "方式"], "nothing about 直播模式 while it is off, and no 提醒"
     assert not panel.isVisible()
     chip.click()
     assert panel.isVisible()
@@ -635,6 +640,82 @@ def test_the_header_pill_opens_the_check_settings(qapp, tmp_path, monkeypatch):
     window.tabs.setCurrentIndex(window.blacklist_tab)
     assert not panel.isVisible()
     window._watch_timer.stop()
+    window.close()
+
+
+def test_the_header_fits_the_smallest_window(qapp, tmp_path, monkeypatch):
+    """At 900 px, the least the window can be, the tabs with their counts, 有更新, the 检查 pill with its
+    hotkey, 直播模式 with its ⓘ and the player's name all fit side by side, none cut or overlapping. Short of
+    room, 直播模式 says 直播 and the name is cut with …; with room, both are whole, and so is the box for the
+    name while it is typed in. (The tests' fonts are wider than Windows' for Latin letters and digits:
+    what fits here has room to spare on Windows, at 100%, 150% and 200% alike.)"""
+    from blacklist_detect.model import Entry
+    from blacklist_detect.ui_header import StreamSwitch
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    window.store.entries.extend(Entry(f"名字{index}") for index in range(128))
+    for index in range(15):
+        window.store.add_like(f"嘉宾{index}")
+    window.store.player_name = "一个很长很长的玩家名字"
+    window.profile_chip.set_name(window.store.player_name)
+    window._show_list()
+    window.likes_page.changed.emit()
+    window.update_pill.show()
+    window.resize(900, 560)
+    window.show()
+    for _ in range(5):
+        qapp.processEvents()
+    tabs = window._tab_buttons
+    assert tabs[window.blacklist_tab].count() == 128 and tabs[window.likes_tab].count() == 15
+    assert window.status_chip.text() == "手动检查" and window.status_chip.key_text() == "Alt+1"
+    header = window.header
+    right = (window.update_pill, window.status_chip, window.stream_switch, window.stream_guide)
+
+    def fits(widgets):  # noqa: ANN001, ANN202
+        for widget in widgets:
+            assert widget.isVisible() and widget.width() >= widget.minimumSizeHint().width(), widget
+        edges = [(widget.mapTo(header, QPoint(0, 0)).x(), widget.mapTo(header, QPoint(widget.width(), 0)).x()) for widget in widgets]
+        assert all(left >= 0 and end <= header.width() for left, end in edges), edges
+        assert all(edges[i][1] <= edges[i + 1][0] for i in range(len(edges) - 1)), edges
+        assert edges[len(tabs)][0] - edges[len(tabs) - 1][1] >= 8, "room between the last tab and the right end"
+
+    fits((*tabs, *right, window.profile_chip))
+    switch, chip = window.stream_switch, window.profile_chip
+    assert switch.text() == StreamSwitch.SHORT and switch.toolTip() == "直播模式" and switch.accessibleName() == "直播模式"
+    assert chip.width() < chip.sizeHint().width() and chip.toolTip() == "一个很长很长的玩家名字"
+    # The box for the name takes the room the chip had, at least a few letters' worth.
+    chip.click()
+    for _ in range(3):
+        qapp.processEvents()
+    assert 64 <= window.player_edit.width() < window.NAME_BOX
+    window._finish_player_name()
+    # A wider window has room: 直播模式 and the name are whole, and the box is as wide as it gets.
+    window.resize(1100, 560)
+    for _ in range(3):
+        qapp.processEvents()
+    fits((*tabs, *right, chip))
+    assert switch.text() == "直播模式" and switch.toolTip() == "" and chip.width() == chip.sizeHint().width()
+    chip.click()
+    for _ in range(3):
+        qapp.processEvents()
+    fits((*tabs, *right, window.player_edit))
+    assert window.player_edit.width() == window.NAME_BOX
+    window._finish_player_name()
+    # What the header holds changes with the window as it is: a longer hotkey in the pill takes the room.
+    window.store.hotkey = "Ctrl+Shift+F11"
+    window._sync_watch_idle()
+    for _ in range(3):
+        qapp.processEvents()
+    fits((*tabs, *right, chip))
+    assert switch.text() == StreamSwitch.SHORT
+    window.store.hotkey = "Alt+1"
+    window._sync_watch_idle()
+    for _ in range(3):
+        qapp.processEvents()
+    assert switch.text() == "直播模式"
     window.close()
 
 
@@ -1126,6 +1207,8 @@ def test_reset_asks_before_clearing_everything(qapp, tmp_path, monkeypatch):
     window._show_list()
     window._on_auto_mode("manual")
     assert window.store.auto_capture is False
+    window._set_stream_mode(True)
+    assert window.stream_switch.isChecked()
     monkeypatch.setattr("blacklist_detect.ui._confirm", lambda *_args: False)
     window._ask_reset()
     assert [entry.name for entry in window.store.entries] == ["甲"]
@@ -1144,7 +1227,7 @@ def test_reset_asks_before_clearing_everything(qapp, tmp_path, monkeypatch):
     assert window.hotkey_edit.isEnabled() is True
     assert window.safe_on.isChecked() is True
     assert window.auto_off.isChecked() is True
-    assert window.stream_choice.current() == "off" and window.store.stream_guided is False
+    assert not window.stream_switch.isChecked() and window.stream_test.isHidden() and window.store.stream_guided is False
     # Every control that shows a setting goes back with it.
     assert window.status_chip.text() == "手动检查"
     again = Store(window.store.root)
@@ -2684,6 +2767,7 @@ def test_chinese_input_stays_switchable_where_nothing_takes_text(qapp, tmp_path,
         window._tab_buttons[0],
         window.status_chip,
         window.profile_chip,
+        window.stream_switch,
         window.toolbar_buttons[0],
     ):
         assert takes_input(widget), widget

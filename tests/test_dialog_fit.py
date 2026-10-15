@@ -170,19 +170,30 @@ def test_a_long_hotkey_is_shown_whole(window):
 
 
 def test_the_check_panel_rows_are_alike_and_each_info_mark_is_beside_its_choice(window):
-    # 显示 and 直播模式 are each two joined choices, their ⓘ right after them; 方式 has 手动检查
-    # beside its hotkey.
+    # 显示 is two joined choices, its ⓘ right after them; 方式 has 手动检查 beside its hotkey. 直播模式's
+    # ⓘ is right after its switch in the header.
     window.show()
     window.check_panel.toggle()
     for _ in range(5):
         QApplication.processEvents()
     panel = window.check_panel
-    assert list(window.auto_mode.buttons) == ["auto", "manual"] and list(window.stream_choice.buttons) == ["on", "off"]
-    for choice, info in ((window.display_mode, window.display_guide), (window.stream_choice, window.stream_guide)):
-        end = choice.mapTo(panel, QPoint(choice.width(), 0)).x()
-        assert 0 <= info.mapTo(panel, QPoint(0, 0)).x() - end <= 16
+    assert list(window.auto_mode.buttons) == ["auto", "manual"]
+    end = window.display_mode.mapTo(panel, QPoint(window.display_mode.width(), 0)).x()
+    assert 0 <= window.display_guide.mapTo(panel, QPoint(0, 0)).x() - end <= 16
     manual = window.auto_mode.buttons["manual"]
     assert window.hotkey_edit.mapTo(panel, QPoint(0, 0)).x() - manual.mapTo(panel, QPoint(manual.width(), 0)).x() <= 16
+    header = window.stream_switch.parentWidget()
+    switch_end = window.stream_switch.mapTo(header, QPoint(window.stream_switch.width(), 0)).x()
+    assert 0 <= window.stream_guide.mapTo(header, QPoint(0, 0)).x() - switch_end <= 8
+    # With 直播模式 on, 测试效果 has a row of its own in the panel, lined up with the others.
+    window._set_stream_mode(True)
+    for _ in range(5):
+        QApplication.processEvents()
+    assert window.stream_test.isVisible() and panel.isAncestorOf(window.stream_test)
+    left = window.display_mode.mapTo(panel, QPoint(0, 0)).x()
+    assert window.stream_test.mapTo(panel, QPoint(0, 0)).x() == left
+    assert window.auto_mode.mapTo(panel, QPoint(0, 0)).x() == left
+    window._set_stream_mode("")
     window.check_panel.close_panel()
 
 

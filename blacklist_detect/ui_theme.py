@@ -735,7 +735,7 @@ def _window_style(family: str) -> str:
                 font-weight: 600;
                 min-height: 28px;
                 max-height: 28px;
-                padding: 0 14px;
+                padding: 0 12px;
             }}
             QPushButton#updatePill:hover {{
                 background: {t["accent_hover"]};
