@@ -90,6 +90,14 @@ class LoveBorder(QWidget):
             self._picked = (self.choice, love_scenes.choose(self.choice, self._last, self._rng))
         return self._picked[1]
 
+    def draw_again(self) -> None:
+        """A new lobby: the next pick() draws its own scene, one of several or any, not the last lobby's."""
+        self._picked = None
+
+    def heard(self, scene: str) -> None:
+        """scene's sound greeted a lobby, its scene shown or not (安全模式): the next one is another."""
+        self._last = scene
+
     def playing(self) -> bool:
         return self._tick.isActive()
 

@@ -3873,6 +3873,9 @@ class MainWindow(QMainWindow):
         # The scenes for these 嘉宾: a combination of theirs, else the top one's own (guests.lobby_choice).
         self._lobby_choice = self._choice_for(likes)
         self._lobby_seats = self._seats_of(result)
+        if not self._love_played:
+            # Each lobby its own scene: 安全模式 shows none, so only the music would draw it.
+            self.love.draw_again()
         if not hits and self._love_for(len(likes)):
             # Never with a 黑名单 player: the warning is the news then, not the music.
             tune = self._tune_for(self._lobby_choice)
@@ -3884,6 +3887,7 @@ class MainWindow(QMainWindow):
             if started:
                 # The lobby's music now, not ▶'s on 场景管理: leaving that page or picking there leaves it on.
                 self.effects_page.sounding = False
+                self.love.heard(tune)
         if self.store.safe_mode:
             self._show_notice(result)
             log.info("Check %d shown: the corner message (安全模式).", self._check_number)
