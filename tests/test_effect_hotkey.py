@@ -199,7 +199,7 @@ def test_the_effect_hotkey_can_be_none(window):
         _press(edit, key)
         QApplication.instance().sendEvent(edit, QFocusEvent(QEvent.Type.FocusOut))
         assert window.store.effect_hotkey == "" and Store(window.store.root).effect_hotkey == ""
-        assert edit.text() == "" and edit.placeholderText() == "无"
+        assert edit.text() == "" and edit.placeholderText() == "未设置"
         assert window.effect_hotkey.active == "" and window.hotkey.active == "Alt+1" and window.effects_page.note.isHidden()
     again = type(window)()
     assert again.store.effect_hotkey == "" and again.effect_hotkey.active == "" and again.effect_hotkey_edit.text() == ""
@@ -232,6 +232,26 @@ def test_a_letter_or_number_alone_is_no_hotkey(window, monkeypatch):
     # An F key alone is no letter anyone types.
     _press(window.effect_hotkey_edit, Qt.Key_F8)
     assert window.store.effect_hotkey == "F8"
+
+
+def test_a_player_whose_check_key_was_alt_f12_is_told_the_effect_hotkey_is_not_set(tmp_path, monkeypatch):
+    from blacklist_detect.ui import MainWindow
+
+    QApplication.instance() or QApplication([])
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    root = Store().root
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "settings.json").write_text(json.dumps({"hotkey": "Alt+F12"}), encoding="utf-8")
+    window = MainWindow()
+    window._watch_timer.stop()
+    edit = window.effect_hotkey_edit
+    assert window.store.effect_hotkey == "" and window.effect_hotkey.active == ""
+    assert edit.text() == "" and edit.placeholderText() == "未设置"
+    assert window.effects_page.note.text() == "检查已在用 Alt+F12，特效快捷键未设置"
+    # 检查's own box still says 无 when it has none.
+    assert window.hotkey_edit.placeholderText() == "无"
+    window.close()
 
 
 def test_the_hotkey_box_keeps_its_width_while_it_waits(window):

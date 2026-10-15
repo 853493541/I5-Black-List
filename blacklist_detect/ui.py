@@ -90,7 +90,7 @@ from blacklist_detect.pipeline import (
     glance_title,
     same_band,
 )
-from blacklist_detect.storage import Store, clean_tag, describe_entry, tag_text
+from blacklist_detect.storage import DEFAULT_EFFECT_HOTKEY, Store, clean_tag, describe_entry, tag_text
 from blacklist_detect.ui_alert import AlertGlow
 from blacklist_detect.ui_demo import BUTTON as DEMO_BUTTON
 from blacklist_detect.ui_demo import DemoLobby, sample_screen
@@ -613,7 +613,7 @@ class MainWindow(QMainWindow):
         self.likes_page = LikesPage(self.store, self._say, music=self.music)
         self.likes_page.changed.connect(self._likes_changed)
         self.likes_tab = self.tabs.addTab(self.likes_page, "嘉宾")
-        self.effect_hotkey_edit = self._hotkey_box("特效快捷键")
+        self.effect_hotkey_edit = self._hotkey_box("特效快捷键", none="未设置")
         self.effects_page = EffectsPage(self.store, self.music, self.effect_hotkey_edit, self._play_from_page)
         self.effects_tab = self.tabs.addTab(self.effects_page, "特效")
         self.settings_tab = self.tabs.addTab(self._settings_page(), "设置")
@@ -2969,11 +2969,13 @@ class MainWindow(QMainWindow):
         self.auto_on.setEnabled(not self.store.safe_mode)
         self._sync_status_tip()
 
-    def _hotkey_box(self, name: str) -> QLineEdit:
-        """A box that takes a hotkey as it is pressed (eventFilter, _take_hotkey): 检查's, or the 特效 page's."""
+    def _hotkey_box(self, name: str, none: str = "无") -> QLineEdit:
+        """A box that takes a hotkey as it is pressed (eventFilter, _take_hotkey): 检查's, or the 特效 page's.
+        none: what it says with no key, 未设置 for the 特效 hotkey, which can be none."""
         edit = QLineEdit()
         edit.setReadOnly(True)
-        edit.setPlaceholderText("无")
+        edit.setProperty("none", none)
+        edit.setPlaceholderText(none)
         edit.textChanged.connect(lambda _text: self._fit_hotkey_box(edit))
         self._fit_hotkey_box(edit)
         edit.setCursor(Qt.PointingHandCursor)
@@ -3006,7 +3008,7 @@ class MainWindow(QMainWindow):
 
     def _end_hotkey(self, edit: QLineEdit | None = None) -> None:
         edit = self.hotkey_edit if edit is None else edit
-        edit.setPlaceholderText("无")
+        edit.setPlaceholderText(edit.property("none"))
         self._fit_hotkey_box(edit)
         self._show_hotkey(edit)
         self._sync_hotkey_mode()
@@ -3135,6 +3137,10 @@ class MainWindow(QMainWindow):
         self._sync_hotkey_mode()
         self._show_hotkey(self.effect_hotkey_edit)
         self._sync_effect_hotkey()
+        check = parse_hotkey(self.store.hotkey)
+        if not self.store.effect_hotkey and check is not None and check.display == DEFAULT_EFFECT_HOTKEY:
+            # 检查 had the 特效 hotkey's key before there was one: say why it has none.
+            self.effects_page.say(f"检查已在用 {DEFAULT_EFFECT_HOTKEY}，特效快捷键未设置")
 
     def check_now(self) -> None:
         log.info("Hotkey: checking.")
