@@ -237,6 +237,20 @@ def test_a_lobby_plays_one_of_the_ticked_never_the_same_twice_in_a_row(window):
     assert window.like_card.look == love_look(played[-1])
 
 
+@pytest.mark.parametrize("scenes", [Scenes(("ice", "stars", "angel")), Scenes()])
+def test_in_safe_mode_each_lobby_draws_its_own_music_never_the_same_twice_in_a_row(window, scenes):
+    from pathlib import Path
+
+    # 安全模式 shows no scene over the game: the music is all a lobby gets of it.
+    window._on_display_mode("safe")
+    window.store.add_like("小明", scenes=scenes)
+    for _ in range(10):
+        _check(window, "小明")
+        assert not window.love.playing()
+    heard = [Path(tune).name for tune in window.tunes if tune]
+    assert len(set(heard)) > 1 and all(a != b for a, b in zip(heard, heard[1:], strict=False))
+
+
 def test_a_lobby_with_everyone_on_no_scene_shows_the_marks_and_plays_nothing(window):
     window.store.add_like("小明", scenes=Scenes(("ice",), off=True))
     window.store.add_like("小红", scenes=OFF)
@@ -299,13 +313,14 @@ def test_no_scene_greys_the_list_and_keeps_the_ticks(qapp):
 
     picker = ScenePicker(Scenes(("ice",)))
     picker.mode.buttons["off"].click()
-    assert not picker.scenes.isEnabled() and not picker.hint.isEnabled()
+    assert not picker.scenes.isEnabled() and picker.hint.isHidden()
     assert picker.value() == Scenes(("ice",), off=True)
     picker.buttons["ice"].grab()
     picker.mode.buttons["on"].click()
-    assert picker.scenes.isEnabled() and picker.value() == Scenes(("ice",))
+    assert picker.scenes.isEnabled() and not picker.hint.isHidden() and picker.value() == Scenes(("ice",))
     # Opened on 不放, it starts greyed.
-    assert not ScenePicker(OFF).scenes.isEnabled()
+    off = ScenePicker(OFF)
+    assert not off.scenes.isEnabled() and off.hint.isHidden()
     # None ticked: 经典 highlighted, nothing ticked.
     picker = ScenePicker(Scenes())
     assert picker.key == "classic" and picker.scenes.chosen() == () and picker.value() == Scenes()

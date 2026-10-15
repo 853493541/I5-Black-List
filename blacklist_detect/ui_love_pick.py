@@ -536,10 +536,10 @@ class ScenePicker(Modal):
         return self.value() != self._before
 
     def _show_mode(self, _key: str = "") -> None:
-        """不放 greys the list and its hint: no scene plays for them."""
+        """不放 greys the list and hides its hint: no scene plays for them."""
         on = self.mode.current() != "off"
         self.scenes.setEnabled(on)
-        self.hint.setEnabled(on)
+        self.hint.setHidden(not on)
 
     def show_scene(self, key: str) -> None:
         """Highlight this scene and play it, quietly: the music of the one before stops."""
