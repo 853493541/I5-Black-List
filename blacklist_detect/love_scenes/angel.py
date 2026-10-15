@@ -8,9 +8,9 @@ each corner and a pendant trefoil at each end, and under it over the title a fri
 pointed arches whose two halves meet in a quatrefoil above its middle with a burst of light. In the
 top left a great cusped arch sweeps from the top edge down to the side, holding a round window of
 quatrefoil tracery, trefoils and filigree scrolls that curl as they grow. In the top right a round
-window draws its gold tracery from the middle out, an angel with its wings spread and a halo over
-its head, then its glass lights up from the middle: the angel in pale glowing glass on rays of
-honey and amber, wavering like candlelight; it throws slow shafts of light down toward the lobby,
+window draws its gold ring, then its glass lights up from the middle: the game's 愚人 icon, a jester's
+hat, in raised gold, its seams engraved, on rays of deep garnet and amber glass, wavering like
+candlelight, a glint sweeping across the gold; it throws slow shafts of light down toward the lobby,
 dust turning in them. The gold is
 shaded per pixel, raised and lit from the upper left; once it is all drawn, glints run along it.
 Gold-leaf feathers fall down the sides, flashing as they turn, and motes rise from the candlelight.
@@ -28,11 +28,23 @@ from __future__ import annotations
 import math
 import random
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QBrush, QColor, QImage, QPainter, QPainterPath, QPen, QPixmap, QPolygonF, QRadialGradient, QTransform
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QImage,
+    QLinearGradient,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPixmap,
+    QRadialGradient,
+    QTransform,
+)
 
 from blacklist_detect.love_scenes.draw import (
     Wash,
@@ -83,6 +95,11 @@ SPREAD = 560.0
 DRAW = 620.0
 # The round window's shafts of light are soft: worked out at this share of the size and laid on scaled up.
 SOFT = 0.25
+ASSETS = Path(__file__).resolve().parent.parent / "assets"
+# The game's 愚人 icon (role_fool.png, from the 第五人格 BWIKI) fills this share of the round window's width.
+HAT = 0.7
+# Glints sweep across the hat's gold from its upper left: when each starts, how long it takes, how bright.
+SWEEPS = ((2.3, 0.7, 1.0), (3.4, 0.6, 0.6))
 
 
 @dataclass
@@ -341,49 +358,9 @@ def _spandrel(add, a: QPointF, c: QPointF, b: QPointF, u: float, origin: QPointF
 
 
 def _rose_lines(add, center: QPointF, radius: float, u: float) -> None:  # noqa: ANN001
-    """The round window's tracery, drawing from its middle out: an angel with its wings spread and a
-    halo over its head, and the ring round it all."""
-    t0 = 0.5
-    for outline, thick in _angel_outlines():
-        add([QPointF(center.x() + x * radius, center.y() + y * radius) for x, y in outline], thick, center, t0, closed=True)
-    add(_circle(center.x(), center.y(), radius, 96), 3.0, center, t0, closed=True)
-
-
-def _angel_outlines() -> list[tuple[list[tuple[float, float]], float]]:
-    """The angel in the round window, in shares of its radius from its middle (y down), each a closed
-    outline with the width its gold is drawn: the two wings, the robe, the head and the halo."""
-
-    def bend(a: tuple, c: tuple, b: tuple, steps: int) -> list[tuple[float, float]]:
-        return [
-            ((1 - k) ** 2 * a[0] + 2 * (1 - k) * k * c[0] + k * k * b[0], (1 - k) ** 2 * a[1] + 2 * (1 - k) * k * c[1] + k * k * b[1])
-            for k in (i / steps for i in range(steps + 1))
-        ]
-
-    def ring(cx: float, cy: float, rx: float, ry: float) -> list[tuple[float, float]]:
-        return [(cx + rx * math.sin(i * math.pi / 16), cy - ry * math.cos(i * math.pi / 16)) for i in range(33)]
-
-    def wing(side: int) -> list[tuple[float, float]]:
-        # Up and out from the shoulder to the tip, then back down the trailing edge, a bulge for
-        # each of four long feathers, and in along the robe to the shoulder.
-        root, tip, end = (0.12, -0.1), (0.76, -0.4), (0.22, 0.22)
-        points = bend(root, (0.34, -0.54), tip, 14)
-        for i in range(4):
-            a = (tip[0] + (end[0] - tip[0]) * i / 4, tip[1] + (end[1] - tip[1]) * i / 4)
-            b = (tip[0] + (end[0] - tip[0]) * (i + 1) / 4, tip[1] + (end[1] - tip[1]) * (i + 1) / 4)
-            points += bend(a, ((a[0] + b[0]) / 2 + 0.05, (a[1] + b[1]) / 2 + 0.045), b, 6)[1:]
-        points += bend(end, (0.12, 0.06), root, 6)[1:]
-        return [(side * x, y) for x, y in points]
-
-    robe = bend((-0.055, -0.225), (-0.13, -0.21), (-0.15, -0.13), 6)
-    for a, c, b, steps in (
-        ((-0.15, -0.13), (-0.2, 0.22), (-0.3, 0.6), 10),
-        ((-0.3, 0.6), (0.0, 0.7), (0.3, 0.6), 12),
-        ((0.3, 0.6), (0.2, 0.22), (0.15, -0.13), 10),
-        ((0.15, -0.13), (0.13, -0.21), (0.055, -0.225), 6),
-        ((0.055, -0.225), (0.0, -0.21), (-0.055, -0.225), 4),
-    ):
-        robe += bend(a, c, b, steps)[1:]
-    return [(wing(1), 1.5), (wing(-1), 1.5), (robe, 1.7), (ring(0, -0.33, 0.1, 0.1), 1.6), (ring(0, -0.5, 0.15, 0.045), 2.2)]
+    """The round window's tracery: its ring, drawing round both ways. The 愚人 hat in it is gold of its
+    own, lit with the glass (_rose_glass)."""
+    add(_circle(center.x(), center.y(), radius, 96), 3.0, center, 0.5, closed=True)
 
 
 def _dist(a: QPointF, b: QPointF) -> float:
@@ -618,64 +595,49 @@ def _gilt(rect: QRectF, lines: list[_Line], scale: float, u: float) -> tuple[QIm
     return gold, glow(light * 0.85)
 
 
-def _rose_glass(center: QPointF, radius: float, scale: float, u: float) -> tuple[QRectF, QImage, QRectF, QImage]:
-    """The round window's glass, per pixel: an angel in pale gold glass, its wings streaked in feathers,
-    on rays of honey and amber, mottled and streaked as old glass is, dark lead where panes meet, brightest in the middle where the light comes through and glowing over the lead;
-    and the light it throws round itself."""
+def _rose_glass(center: QPointF, radius: float, scale: float, u: float) -> tuple[QRectF, QImage, QImage, QRectF, QImage]:
+    """The round window's glass, per pixel, with the 愚人 hat in gold in its middle: rays of garnet and
+    amber glass, mottled and streaked as old glass is, deeper and quieter behind the hat and paling to
+    honey toward the rim, the brightest glowing over the lead; dark lead round the hat and its shadow
+    under it. The hat is raised, polished gold lit from the upper left, its seams engraved. Also
+    where the gold shines, for the glints that sweep across it, and the light the window spills round
+    itself."""
     rect = QRectF(center.x() - radius, center.y() - radius, 2 * radius, 2 * radius)
     n = max(8, math.ceil(2 * radius * scale))
     ys, xs = np.mgrid[0:n, 0:n].astype(np.float32) + 0.5
     x, y = (xs / n * 2 - 1), (ys / n * 2 - 1)
     rho = np.hypot(x, y)
     rnd = np.random.default_rng(7)
-
-    def shape(points: list[tuple[float, float]]) -> np.ndarray:
-        def draw(q: QPainter) -> None:
-            q.translate(n / 2, n / 2)
-            q.scale(n / 2, n / 2)
-            q.setPen(Qt.NoPen)
-            q.setBrush(Qt.white)
-            q.drawPolygon(QPolygonF([QPointF(px, py) for px, py in points]))
-
-        return mask(n, n, draw)
-
-    outlines = _angel_outlines()
-    figure = np.maximum(shape(outlines[2][0]), shape(outlines[3][0]))
-    wings = np.maximum(shape(outlines[0][0]), shape(outlines[1][0])) * (1 - figure)
-    honey, amber, pale = (rgb(c) for c in ("#ffcf55", "#ec8f22", "#ffe7a0"))
-    # Behind the angel, rays of honey and amber glass from its heart, deeper toward the rim, and the
-    # light it gives round it.
-    fx, fy = x, y + 0.15
-    rays = smooth(0.2, 0.8, 0.5 + 0.5 * np.cos(np.arctan2(fy, fx) * 12))
-    tint = (amber + (honey - amber) * rays[..., None]) * (1.2 - 0.55 * smooth(0.45, 0.95, rho))[..., None]
-    tint = tint + (pale - tint) * (np.exp(-(fx * fx + fy * fy) / 0.12) * 0.6)[..., None]
-    # The wings pale gold, streaked in feathers fanning from the shoulders; the robe and head paler,
-    # the robe falling in soft folds; the halo glowing.
-    fan = 0.5 + 0.5 * np.cos(np.arctan2(y + 0.1, np.abs(x) - 0.12) * 18)
-    plume = rgb("#ffcf5e") + (rgb("#fff4d6") - rgb("#ffcf5e")) * (fan * (1 - 0.35 * smooth(0.3, 0.8, np.abs(x))))[..., None]
-    tint = tint * (1 - wings[..., None]) + plume * wings[..., None]
-    folds = 0.9 + 0.1 * np.cos(x * 40) * smooth(-0.1, 0.4, y)
-    robe = rgb("#fffbef") + (rgb("#ffe2a0") - rgb("#fffbef")) * (smooth(-0.3, 0.7, y) * 0.8 + 0.3 * smooth(0.06, 0.3, np.abs(x)))[..., None]
-    tint = tint * (1 - figure[..., None]) + (robe * folds[..., None]) * figure[..., None]
-    around = np.hypot(x / 0.15, (y + 0.5) / 0.045)
-    tint = tint + rgb("#fff1b0") * (np.exp(-((around - 1) ** 2) / 0.3) * 0.5)[..., None]
-    # Mottled and streaked as old glass is.
+    px = u * scale
+    hat, seams, deep = _fool(n, HAT)
+    behind = blur(hat, 9 * px)
+    garnet, amber, honey = (rgb(c) for c in ("#7a1f12", "#d4731c", "#ffcf55"))
+    # Rays of garnet and amber from the middle, paling to honey toward the rim.
+    rays = smooth(0.2, 0.8, 0.5 + 0.5 * np.cos(np.arctan2(y, x) * 12))
+    tint = garnet + (amber - garnet) * rays[..., None]
+    tint = tint + (honey - tint) * (smooth(0.5, 0.97, rho) * 0.6)[..., None]
+    # Mottled and streaked as old glass is, less so and darker behind the hat.
     mottle = noise(n, n, n * 0.06, 3, 11)
     streak = noise(n, n, n * 0.02, 2, 12)
-    bright = (0.82 + 0.28 * mottle + 0.08 * streak) * (1.15 - 0.3 * rho) * rnd.uniform(0.97, 1.03)
-    # Dark lead where one pane meets the next, under the gold.
-    pane = np.where(figure > 0.5, 2, np.where(wings > 0.5, 1, 0))
-    seam = np.zeros((n, n), dtype=np.float32)
-    seam[1:, :] += pane[1:, :] != pane[:-1, :]
-    seam[:, 1:] += pane[:, 1:] != pane[:, :-1]
-    lead = np.clip(blur(np.clip(seam, 0, 1), max(0.6, n / 260)) * 2.2, 0, 1)
-    color = tint * bright[..., None] * (1 - 0.7 * lead[..., None])
+    bright = (0.82 + (0.28 * mottle + 0.08 * streak) * (1 - 0.6 * behind)) * (1 - 0.35 * behind) * rnd.uniform(0.97, 1.03)
+    # Dark lead round the hat, and its shadow down and to the right.
+    lead = np.clip(blur(hat, max(0.6, 1.1 * px)) * 2.4, 0, 1) * (1 - hat)
+    shadow = _shift(blur(hat, max(0.6, 2.2 * px)), max(1, round(1.8 * px)), max(1, round(1.2 * px))) * (1 - hat)
+    color = tint * bright[..., None] * (1 - 0.8 * lead - 0.45 * shadow)[..., None]
     # Lit from behind, the brightest glass glows over the lead round it.
     hot = np.clip(color - 0.55, 0, None)
     color = color + np.dstack([blur(hot[..., k], max(1.0, n / 90)) for k in range(3)]) * 0.9
+    # The gold: each part of the hat rising to a rounded ridge along its middle (full height 9 icon
+    # pixels in), bevelled at its edges, its seams cut in and dark.
+    groove = blur(seams, max(0.5, 0.45 * px))
+    rise = 1 - (1 - np.clip(deep / 9, 0, 1)) ** 2
+    height = blur(0.75 * rise + 0.25 * hat, max(0.6, 0.8 * px)) - 0.25 * groove
+    gold = _metal(height, 9 * px) * (1 - 0.75 * np.clip(groove * 2, 0, 1))[..., None]
+    color = color * (1 - hat[..., None]) + gold * hat[..., None]
     edge = 1 - smooth(0.985, 1.0, rho)
-    alpha = edge * (0.9 + 0.08 * mottle)
+    alpha = edge * (0.9 + 0.08 * mottle) * (1 - hat) + hat
     glass = picture(color, alpha)
+    shine = picture(np.ones((n, n, 3), dtype=np.float32) * rgb("#fff3cc"), hat * (0.6 + 0.4 * smooth(0.3, 0.9, gold.mean(axis=-1))))
     # Its light, spilled round it: worked out at a quarter of the size, three radii across.
     m = max(8, math.ceil(6 * radius * scale * 0.25))
     ys, xs = np.mgrid[0:m, 0:m].astype(np.float32) + 0.5
@@ -683,7 +645,65 @@ def _rose_glass(center: QPointF, radius: float, scale: float, u: float) -> tuple
     spill = np.exp(-((np.maximum(d - 0.85, 0)) / 0.4) ** 2) * 0.6 + np.exp(-((np.maximum(d - 0.9, 0)) / 0.8) ** 2) * 0.25
     spill = spill * smooth(0.5, 1.0, d) * 0.75
     halo = glow(rgb(HONEY)[None, None, :] * spill[..., None])
-    return rect, glass, QRectF(center.x() - 3 * radius, center.y() - 3 * radius, 6 * radius, 6 * radius), halo
+    return rect, glass, shine, QRectF(center.x() - 3 * radius, center.y() - 3 * radius, 6 * radius, 6 * radius), halo
+
+
+def _fool(n: int, wide: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """The game's 愚人 icon over the round window's n by n pixels, centred and wide (a share of the
+    window's width) across: how much of each pixel the hat covers, its seams filled in; where its
+    seams are; and how deep inside its part each pixel is, in icon pixels. Its shape is the icon's
+    own: its alpha scaled up smoothly to these pixels and cut at half, the faint haze round it
+    dropped, with a crisp edge a pixel wide."""
+    image = QImage(str(ASSETS / "role_fool.png")).convertToFormat(QImage.Format_Alpha8)
+    stride = image.bytesPerLine()
+    rows = np.frombuffer(image.constBits(), dtype=np.uint8, count=stride * image.height()).reshape(image.height(), stride)
+    alpha = rows[:, : image.width()].astype(np.float32) / 255.0
+    ys, xs = np.nonzero(alpha >= 0.5)
+    # Icon pixels to the window's radius, from the window's middle to the drawing's.
+    per = (xs.max() + 1 - xs.min()) / (2 * wide)
+    at = ((np.arange(n, dtype=np.float32) + 0.5) / n * 2 - 1) * per - 0.5
+    across = _cubic(at + (xs.min() + xs.max() + 1) / 2, alpha.shape[1])
+    down = _cubic(at + (ys.min() + ys.max() + 1) / 2, alpha.shape[0])
+    # Its seams, the deep narrow gaps between its parts, filled; not the soft rim round its outline.
+    fill = _close(alpha, 2.0) - alpha
+    whole = alpha + fill * smooth(0.2, 0.4, fill)
+    hat = _edge(down @ whole @ across.T)
+    cut = _edge(down @ alpha @ across.T)
+    # How far in from the edge of its part each pixel is, in icon pixels: worn away a pixel at a time,
+    # by a cross and a square in turn so that it wears about round.
+    cross = ((0, 0), (-1, 0), (1, 0), (0, -1), (0, 1))
+    square = (*cross, (-1, -1), (-1, 1), (1, -1), (1, 1))
+    worn, deep = alpha, np.zeros_like(alpha)
+    for k in range(16):
+        worn = np.min([_shift(worn, dy, dx) for dy, dx in (square if k % 2 else cross)], axis=0)
+        deep += smooth(0.3, 0.7, worn)
+    return hat, hat * (1 - cut), np.maximum(down @ blur(deep, 1.2) @ across.T, 0) * hat
+
+
+def _cubic(at: np.ndarray, size: int) -> np.ndarray:
+    """Weights (len(at), size) that sample a row of size pixels at at (pixel k's middle at k), smoothly
+    between them (Catmull-Rom)."""
+    base = np.floor(at).astype(int)
+    t = at - base
+    out = np.zeros((len(at), size), dtype=np.float32)
+    rows = np.arange(len(at))
+    for k, weight in ((-1, t * (t * (2 - t) - 1) / 2), (0, (t * t * (3 * t - 5) + 2) / 2), (1, t * (t * (4 - 3 * t) + 1) / 2), (2, t * t * (t - 1) / 2)):
+        np.add.at(out, (rows, np.clip(base + k, 0, size - 1)), weight)
+    return out
+
+
+def _edge(field: np.ndarray) -> np.ndarray:
+    """Where a smooth field (0..1) is over half, with an antialiased edge a pixel wide."""
+    gy, gx = np.gradient(field)
+    return np.clip((field - 0.5) / np.maximum(np.hypot(gx, gy), 1e-4) + 0.5, 0, 1)
+
+
+def _close(a: np.ndarray, r: float) -> np.ndarray:
+    """Dark gaps narrower than about 2r pixels filled in (a grey closing), the rest as it was."""
+    k = math.ceil(r)
+    near = [(dy, dx) for dy in range(-k, k + 1) for dx in range(-k, k + 1) if dx * dx + dy * dy <= r * r]
+    grown = np.max([_shift(a, dy, dx) for dy, dx in near], axis=0)
+    return np.min([_shift(grown, dy, dx) for dy, dx in near], axis=0)
 
 
 def _wave(x: np.ndarray, cell: float, rnd: np.random.Generator) -> np.ndarray:
@@ -876,9 +896,10 @@ def _dust(p: QPainter, t: float, dust: list[tuple], center: QPointF, radius: flo
 
 
 def _rose(p: QPainter, t: float, art: tuple, center: QPointF, radius: float, lit: float, a: float, u: float, spark: QImage) -> None:
-    """The round window's glass lights from the middle out, flaring as it fills, and its light spills
-    round it; the glass is laid on under its tracery."""
-    rect, glass, halo_rect, halo = art
+    """The round window's glass lights from the middle out with the hat's gold in it, flaring as it
+    fills, and its light spills round it; glints sweep across the gold; the glass is laid on under its
+    tracery."""
+    rect, glass, shine, halo_rect, halo = art
     if lit <= 0 or a <= 0.01:
         return
     base = p.opacity()
@@ -901,10 +922,38 @@ def _rose(p: QPainter, t: float, art: tuple, center: QPointF, radius: float, lit
         p.setBrush(brush)
         reach = radius * lit
         p.drawEllipse(center, reach, reach)
+    _sweep(p, t, shine, rect, base * a)
     if flare > 0.01:
         p.setCompositionMode(QPainter.CompositionMode_Plus)
         _lay(p, spark, center.x(), center.y(), radius * 1.1, base * a * flare * 0.7)
     p.restore()
+
+
+def _sweep(p: QPainter, t: float, shine: QImage, rect: QRectF, a: float) -> None:
+    """Glints sweeping across the hat's gold from its upper left to its lower right: a soft band of
+    light let through only where the gold shines."""
+    for when, span, strength in SWEEPS:
+        k = win(t, when, when + span)
+        if not 0 < k < 1 or a <= 0.01:
+            continue
+        n = shine.width()
+        # The band's middle runs along the diagonal, from the hat's upper left corner to its lower right.
+        at = (0.12 + 0.76 * ease_in_out(k)) * n
+        band = QImage(shine.size(), QImage.Format_ARGB32_Premultiplied)
+        band.fill(Qt.transparent)
+        q = QPainter(band)
+        light = QLinearGradient(QPointF(at - 0.07 * n, at - 0.07 * n), QPointF(at + 0.07 * n, at + 0.07 * n))
+        light.setColorAt(0, col("#ffffff", 0))
+        light.setColorAt(0.5, col("#ffffff", 1))
+        light.setColorAt(1, col("#ffffff", 0))
+        q.fillRect(band.rect(), light)
+        q.setCompositionMode(QPainter.CompositionMode_DestinationIn)
+        q.drawImage(0, 0, shine)
+        q.end()
+        p.setCompositionMode(QPainter.CompositionMode_Plus)
+        p.setOpacity(a * strength * math.sin(math.pi * k))
+        p.drawImage(rect, band)
+        p.setCompositionMode(QPainter.CompositionMode_SourceOver)
 
 
 def _flare(p: QPainter, t: float, at: QPointF, when: float, spark: QImage, u: float) -> None:
