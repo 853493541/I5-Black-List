@@ -11,8 +11,8 @@ band. The slashes fray away, the fog clears and the names come back. Its sound (
 指挥家's music, with the notice's own sound in it at the strike (build/ambush_tune.py).
 
 The 嘉宾 marks wear it: a misty glass card with the 指挥家's glowing notes on its corner, a lilac rim
-round the button with claw marks at two corners that now and then strike again, and a claw-mark X on
-a dark disc for a badge. No heart.
+round the button with claw marks at two corners that now and then strike again, and the 指挥家's own
+role icon from the game on a dark disc for a badge. No heart.
 """
 
 from __future__ import annotations
@@ -88,6 +88,9 @@ ASSETS = Path(__file__).resolve().parent.parent / "assets"
 NOTICE_PAPER = ((0, 335), (572, 416))
 NOTICE_WORDS = ((585, 455), (1026, 177))
 NOTICE_HIGH = 42.0
+# The 指挥家's role icon from the game, for the badge, and the tip of his baton in its pixels.
+ROLE = "role_conductor.png"
+ROLE_TIP = (31.5, 28.5)
 
 
 def make(stage: Stage):  # noqa: ANN201
@@ -367,10 +370,11 @@ def _slash_sprite(length: float, thick: float, u: float) -> QImage:
 
 
 def _rgba(image: QImage) -> np.ndarray:
-    """A picture's pixels as (h, w, 4) premultiplied RGBA bytes."""
+    """A picture's pixels as (h, w, 4) premultiplied RGBA bytes, copied out: the converted picture they
+    were read from is gone when this returns."""
     image = image.convertToFormat(QImage.Format_RGBA8888_Premultiplied)
     rows = np.frombuffer(image.constBits(), dtype=np.uint8, count=image.bytesPerLine() * image.height())
-    return rows.reshape(image.height(), image.bytesPerLine())[:, : image.width() * 4].reshape(image.height(), image.width(), 4)
+    return rows.reshape(image.height(), image.bytesPerLine())[:, : image.width() * 4].reshape(image.height(), image.width(), 4).copy()
 
 
 def _frayed(sprite: QImage, k: float, seed: int) -> QImage:
@@ -660,7 +664,8 @@ def ring(p: QPainter, cover: QRectF, t: float) -> None:
 
 
 def badge(p: QPainter, box: QRectF, t: float) -> None:
-    """A dark misty disc in a lilac rim with a claw-mark X glowing on it, the X pulsing."""
+    """A dark misty disc in a lilac rim with the 指挥家's role icon glowing on it, the glow breathing
+    and the tip of his baton glinting now and then."""
     scale = _sharpness(p)
     side = box.width()
     disc = _kept(("disc", round(side, 1), scale), lambda: _disc(side, scale))
@@ -671,14 +676,86 @@ def badge(p: QPainter, box: QRectF, t: float) -> None:
     p.setBrush(halo)
     p.drawEllipse(box.center(), side * 0.75, side * 0.75)
     p.drawImage(box, disc)
-    marks_a = _kept(("x_a", round(side, 1), scale), lambda: _claw_marks(side * 0.6, max(1.8, side * 0.075), scale, -45, spacing=side * 0.13))
-    marks_b = _kept(("x_b", round(side, 1), scale), lambda: _claw_marks(side * 0.6, max(1.8, side * 0.075), scale, 45, spacing=side * 0.13))
-    pulse = 0.82 + 0.18 * math.sin(t * 3.0)
-    for marks in (marks_a, marks_b):
-        m = marks.width() / scale
-        p.setOpacity(pulse)
-        p.drawImage(QRectF(box.center().x() - m / 2, box.center().y() - m / 2, m, m), marks)
+    glow, role, tip = _kept(("role", round(side, 1), scale), lambda: _role(side, scale))
+    p.setOpacity(0.75 + 0.25 * math.sin(t * 3.0))
+    p.drawImage(box, glow)
     p.setOpacity(1.0)
+    p.drawImage(box, role)
+    # Every few seconds the baton's tip catches the light.
+    glint = clamp(1 - abs(t % 3.4 - 0.3) / 0.3)
+    if glint > 0:
+        at = box.center() + tip
+        soft_dot(p, at.x(), at.y(), side * 0.16, LILAC, 0.55 * glint)
+        soft_dot(p, at.x(), at.y(), side * 0.06, "#ffffff", glint)
+
+
+def _role(side: float, scale: float) -> tuple[QImage, QImage, QPointF]:
+    """The 指挥家's role icon for a badge side points wide, at scale pixels to the point: its glow (purple,
+    where the game's is red), the icon itself pale white-lilac and lit from the top left, both centred
+    in a picture as big as the badge; and where the baton's tip is, in points from the middle.
+
+    The shape is the icon's own: its alpha enlarged smoothly and cut at half to a crisp edge, worked
+    out a few times finer than it shows and then averaged down, so its baton and the gaps between its
+    fingers stay. Its own painted shading shades it."""
+    pixels = _rgba(QImage(str(ASSETS / ROLE))).astype(np.float32) / 255.0
+    alpha = pixels[..., 3]
+    lum = pixels[..., :3].mean(axis=-1)
+    ys, xs = np.nonzero(alpha >= 0.5)
+    cx, cy = (xs.min() + xs.max() + 1) / 2, (ys.min() + ys.max() + 1) / 2
+    reach = float(np.hypot(xs + 0.5 - cx, ys + 0.5 - cy).max())
+    # Points to the icon's pixel: its farthest point just inside the rim.
+    k = side * 0.37 / reach
+    n = max(4, math.ceil(side * scale))
+    fine = max(1, math.ceil(4 / (k * scale)))
+    m = n * fine
+    per = k * scale * fine
+    grid = (np.arange(m, dtype=np.float32) + 0.5 - m / 2) / per
+    sx, sy = np.meshgrid(grid + cx - 0.5, grid + cy - 0.5)
+    there = _sample(alpha, sx, sy)
+    # Its lightness where it is (its pixels are premultiplied).
+    lit_by = _sample(lum, sx, sy) / np.maximum(there, 1e-3)
+    edge = min(0.2, 0.6 / per)
+    soft = blur(there, 0.3 * per)
+    core = smooth(0.5 - edge, 0.5 + edge, soft)
+    # Its own shading, from its darkest to its lightest inside the shape: deeper lilac to white-lilac.
+    inner = lit_by[core > 0.5]
+    lo, hi = (np.percentile(inner, 5), np.percentile(inner, 95)) if inner.size else (0.0, 1.0)
+    g = 0.3 + 0.7 * smooth(lo, hi + 1e-3, lit_by)[..., None]
+    body = rgb("#a990f2") * (1 - g) + rgb("#f6f2ff") * g
+    # Lit from the top left: brighter where the soft shape rises that way, deeper where it falls away.
+    step = max(1, round(0.6 * scale * fine))
+    height = blur(core, 0.7 * scale * fine)
+    slope = np.clip((height - np.roll(np.roll(height, step, 0), step, 1)) * 2.2, -1, 1)[..., None]
+    lit, shade = np.maximum(slope, 0), np.maximum(-slope, 0) * 0.6
+    body = body * (1 - lit * 0.5) + rgb(CORE) * (lit * 0.5)
+    body = body * (1 - shade) + rgb("#4a2fa8") * shade
+    # Where the icon thins inside its shape, between its fingers, it deepens.
+    groove = (smooth(0.85, 0.55, soft) * 0.55)[..., None]
+    body = body * (1 - groove) + rgb("#5b3fc0") * groove
+    # Averaged down to the pixels it shows at.
+    a = core.reshape(n, fine, n, fine).mean(axis=(1, 3))
+    lit_color = (body * core[..., None]).reshape(n, fine, n, fine, 3).mean(axis=(1, 3)) / np.maximum(a, 1e-4)[..., None]
+    role = picture(lit_color, a)
+    halo = np.clip(blur(a, 1.2 * scale) * 0.8 + blur(a, 3.0 * scale) * 0.7, 0, 1)
+    tint = rgb(LILAC) * smooth(0.0, 0.7, halo)[..., None] + rgb(PURPLE) * (1 - smooth(0.0, 0.7, halo))[..., None]
+    glow = picture(tint, halo * 0.85)
+    for image in (glow, role):
+        image.setDevicePixelRatio(scale)
+    return glow, role, QPointF((ROLE_TIP[0] - cx) * k, (ROLE_TIP[1] - cy) * k)
+
+
+def _sample(a: np.ndarray, x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """a at the points (x, y), in its pixels from the middle of its first, read smoothly between them
+    (bilinear); nothing beyond its edges."""
+    h, w = a.shape
+    padded = np.pad(a, 1)
+    x, y = np.clip(x + 1, 0, w), np.clip(y + 1, 0, h)
+    x0, y0 = np.floor(x).astype(int), np.floor(y).astype(int)
+    fx, fy = x - x0, y - y0
+    x1, y1 = np.minimum(x0 + 1, w + 1), np.minimum(y0 + 1, h + 1)
+    top = padded[y0, x0] * (1 - fx) + padded[y0, x1] * fx
+    bottom = padded[y1, x0] * (1 - fx) + padded[y1, x1] * fx
+    return top * (1 - fy) + bottom * fy
 
 
 def _disc(side: float, scale: float) -> QImage:

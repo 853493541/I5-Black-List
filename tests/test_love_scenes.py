@@ -413,3 +413,23 @@ def test_the_claw_rips_down_from_the_top(qapp):
     assert above > 0 and below == 0
     above, below = lit(claw.SLASHES[-1][1] + claw.GROW)
     assert above > 0 and below > 0
+
+
+@pytest.mark.parametrize("scale", [1.0, 2.0])
+def test_the_conductors_badge_holds_his_role_icon(qapp, scale):
+    """演说家遇袭's badge is the 指挥家's role icon from the game, centred inside the disc's rim, his
+    baton's tip at its top left."""
+    from blacklist_detect.love_scenes import claw
+
+    side = 56.0
+    _glow, role, tip = claw._role(side, scale)
+    alpha = claw._rgba(role)[..., 3]
+    ys, xs = (alpha > 128).nonzero()
+    middle = role.width() / 2
+    assert abs((xs.min() + xs.max() + 1) / 2 - middle) <= 1.5 and abs((ys.min() + ys.max() + 1) / 2 - middle) <= 1.5
+    # All of it inside the rim, which starts at 0.4 of the side out from the middle.
+    assert ((xs + 0.5 - middle) ** 2 + (ys + 0.5 - middle) ** 2).max() ** 0.5 <= side * scale * 0.4
+    # Tall as the icon is: about two thirds as wide as it is high.
+    assert 0.55 <= (xs.max() - xs.min()) / (ys.max() - ys.min()) <= 0.8
+    x, y = round(middle + tip.x() * scale), round(middle + tip.y() * scale)
+    assert tip.x() < 0 and tip.y() < 0 and alpha[y - 1 : y + 2, x - 1 : x + 2].max() > 100
