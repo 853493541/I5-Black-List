@@ -56,13 +56,16 @@ def scaled_tune(path: Path, volume: int, folder: Path, seconds: float | None = N
     """The tune at volume percent of its loudness, and with seconds only its start, fading out: a copy
     with its samples scaled, made once in folder and named for the file and the volume. The whole tune at
     100% is the file itself. None when no copy can be made: better nothing than a tune too loud. Copies at
-    another volume are dropped as one is made, so the folder holds one volume's."""
+    another volume, of an older file (an update rewrites every tune) or left half written are dropped as
+    one is made, so the folder holds one volume's of the tunes as they are."""
     if volume >= 100 and seconds is None:
         return path
     try:
         stat = path.stat()
         length = f"-{round(seconds * 1000)}ms" if seconds is not None else ""
-        made = folder / f"{volume}-{path.stem}-{stat.st_size}-{stat.st_mtime_ns}{length}.wav"
+        tune = f"{volume}-{path.stem}-"
+        current = f"{tune}{stat.st_size}-{stat.st_mtime_ns}"
+        made = folder / f"{current}{length}.wav"
         if made.is_file():
             return made
         with wave.open(str(path)) as source:
@@ -76,17 +79,23 @@ def scaled_tune(path: Path, volume: int, folder: Path, seconds: float | None = N
             fade = min(len(samples) // params.nchannels, round(SAMPLE_FADE_S * params.framerate))
             samples[len(samples) - fade * params.nchannels :] *= np.repeat(np.linspace(1.0, 0.0, fade), params.nchannels)
         folder.mkdir(parents=True, exist_ok=True)
-        for old in folder.glob("*.wav"):
-            if not old.name.startswith(f"{volume}-"):
+        for old in folder.iterdir():
+            name = old.name
+            stale = name.startswith(tune) and not name.startswith(f"{current}-") and not name.startswith(f"{current}.")
+            if old.suffix == ".part" or not name.startswith(f"{volume}-") or stale:
                 try:
                     old.unlink()
                 except OSError:
                     pass  # Playing still: it goes with the next one made.
         part = made.with_suffix(".part")
-        with wave.open(str(part), "wb") as copy:
-            copy.setparams(params)
-            copy.writeframes(np.clip(np.rint(samples), -32768, 32767).astype("<i2").tobytes())
-        part.replace(made)
+        try:
+            with wave.open(str(part), "wb") as copy:
+                copy.setparams(params)
+                copy.writeframes(np.clip(np.rint(samples), -32768, 32767).astype("<i2").tobytes())
+            part.replace(made)
+        except (OSError, wave.Error):
+            part.unlink(missing_ok=True)
+            raise
         return made
     except (OSError, EOFError, wave.Error):
         return None

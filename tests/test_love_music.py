@@ -1,6 +1,8 @@
 """嘉宾音乐: each 嘉宾特效 theme's own sound whenever a 嘉宾 is in the lobby, once per lobby, as loud as
 设置 › 常规 › 声音 says, or not at all with 静音."""
 
+import os
+import shutil
 import wave
 
 import numpy as np
@@ -296,6 +298,24 @@ def test_a_quieter_tune_is_its_samples_scaled_made_once(tmp_path):
     assert not _samples(scaled_tune(tune, 0, tmp_path))[1].any()
     # No copy can be made: nothing, rather than the tune too loud.
     assert scaled_tune(tmp_path / "gone.wav", 50, tmp_path) is None
+
+
+def test_an_updated_tune_leaves_no_old_copies_behind(tmp_path):
+    """An update rewrites every tune: the next copy at the same volume takes the old ones' place (whole
+    and moment alike), and a copy left half written goes too, while other tunes' copies stay."""
+    source, folder = tmp_path / "assets", tmp_path / "sounds"
+    source.mkdir()
+    tune, other = source / TUNES["lace"].name, source / TUNES["ice"].name
+    shutil.copyfile(TUNES["lace"], tune)
+    shutil.copyfile(TUNES["ice"], other)
+    old = [scaled_tune(tune, 70, folder), scaled_tune(tune, 70, folder, SAMPLE_S)]
+    kept = scaled_tune(other, 70, folder)
+    (folder / "70-broken.part").write_bytes(b"")
+    stamp = tune.stat().st_mtime_ns + 10**9
+    os.utime(tune, ns=(stamp, stamp))
+    new = [scaled_tune(tune, 70, folder), scaled_tune(tune, 70, folder, SAMPLE_S)]
+    assert set(new).isdisjoint(old)
+    assert sorted(folder.iterdir()) == sorted([*new, kept])
 
 
 def test_the_sample_is_the_organ_s_start_fading_out(tmp_path):
