@@ -46,7 +46,7 @@ rerun alone before it counts as a failure.
 - Every choice in 设置 lists its default first. 设置 fits 900x760 without scrolling, so it gets no new rows
   (常规's 声音 row, volume slider and 静音 for every sound, came in by putting 开机启动 and 关闭窗口时 on one row).
   Every dialog fits 672 px of usable height (1080p at 150%) with its buttons in view;
-  `tests/test_dialog_fit.py` guards this. 选择特效 is the tallest (a list of every scene), then 添加嘉宾 /
+  `tests/test_dialog_fit.py` guards this. 选择场景 is the tallest (a list of every scene), then 添加嘉宾 /
   编辑嘉宾, so a scene or a row added there is paid for elsewhere.
 - `reference-lobby.png` and `assets/sample-lobby.jpg` are crops of a lobby, not whole screens. Check
   anything about where the game, border or cards sit on a whole 16:9 frame.
