@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import shutil
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,7 +14,7 @@ from blacklist_detect import love_scenes
 from blacklist_detect.hotkey import parse_hotkey, two_keys
 from blacklist_detect.match import MIN_PREFIX_CHARS, clean_stored_name, fold
 from blacklist_detect.model import Combo, Entry
-from blacklist_detect.paths import app_dir
+from blacklist_detect.paths import app_dir, custom_sound_dir
 
 # What changed in each list, as counts: never a name.
 _log = logging.getLogger("blacklist_detect.storage")
@@ -380,6 +381,50 @@ def _theme(value: object) -> str:
     return value.strip()[:40] if isinstance(value, str) else ""
 
 
+def _seconds(value: object) -> float | None:
+    """Where a 特效's own sound was cut from the file it came from, or how long: seconds, else None."""
+    if isinstance(value, bool) or not isinstance(value, int | float) or not 0 <= value < 24 * 3600:
+        return None
+    return float(value)
+
+
+def _scene_sound(value: object, folder: Path) -> dict | None:
+    """One 特效's sound as saved: its own 音量 and, with a file still in folder, the player's own sound. None
+    when that is the default (100%, the scene's own) or not a sound at all."""
+    if not isinstance(value, dict):
+        return None
+    entry: dict = {"volume": _volume(value.get("volume"))}
+    file = value.get("file")
+    # A name in folder only, never a path elsewhere.
+    if isinstance(file, str) and file and file == Path(file).name and ":" not in file and (folder / file).is_file():
+        name = value.get("name")
+        entry["file"] = file
+        entry["name"] = name.strip()[:_MAX_NAME * 4] if isinstance(name, str) else ""
+        for field in ("start", "length"):
+            seconds = _seconds(value.get(field))
+            if seconds is not None:
+                entry[field] = seconds
+    return entry if entry != {"volume": 100} else None
+
+
+def _scene_sounds(value: object, folder: Path) -> dict[str, dict]:
+    """特效管理 as saved: by scene key, each 特效's own 音量 and sound (_scene_sound). A key this version does
+    not have is kept for the one that has; a replaced scene's is its replacement's, unless that has its own.
+    Never raises: a bad entry is dropped, not the rest of the settings."""
+    sounds: dict[str, dict] = {}
+    if not isinstance(value, dict):
+        return sounds
+    for raw, saved in value.items():
+        try:
+            key = love_scenes.shown(str(raw).strip()[:40])
+            entry = _scene_sound(saved, folder)
+            if key and entry is not None and not (key != raw and key in value):
+                sounds[key] = entry
+        except Exception:
+            _log.info("特效管理: the saved sound of %r dropped.", raw)
+    return sounds
+
+
 class Store:
     def __init__(self, root: Path | None = None) -> None:
         self.root = root or app_dir()
@@ -426,6 +471,10 @@ class Store:
         # 设置 › 声音: how loud every sound the app makes is, in percent (steps of 5, as 设置 sets it), and 静音.
         self.sound_volume = 100
         self.sound_muted = False
+        # 特效管理: by scene key, a 特效's own 音量 (percent of 声音's, steps of 5) and the player's own sound for
+        # it, if any: {"volume": 100, "file": "<key>.wav" in custom_sounds, "name": the file it came from,
+        # "start" and "length": the part of it kept, in seconds}. A 特效 with neither has no entry.
+        self.scene_sounds: dict[str, dict] = {}
         # 特效: the scene the 特效 hotkey plays (a love_scenes key), and that hotkey; it never equals 检查's.
         self.quick_scene = "classic"
         self.effect_hotkey = DEFAULT_EFFECT_HOTKEY
@@ -461,6 +510,12 @@ class Store:
     @first_run.setter
     def first_run(self, value: bool) -> None:
         self.welcomed = not value
+
+    def scene_sound(self, key: str) -> tuple[Path | None, int]:
+        """A 特效's sound as 特效管理 sets it: the player's own file (None for the scene's own) and its 音量."""
+        entry = self.scene_sounds.get(key) or {}
+        file = entry.get("file")
+        return (custom_sound_dir(self.root) / file if file else None), _volume(entry.get("volume", 100))
 
     def _known_tags(self) -> list[str]:
         names = [tag for tag in TAGS if tag not in self.hidden_tags]
@@ -844,6 +899,9 @@ class Store:
                 "love_scene": self.love_scene,
                 "sound_volume": self.sound_volume,
                 "sound_muted": self.sound_muted,
+                "scene_sounds": {
+                    key: dict(entry) for key, entry in self.scene_sounds.items() if entry.get("file") or entry.get("volume", 100) != 100
+                },
                 "quick_scene": self.quick_scene,
                 "effect_hotkey": self.effect_hotkey,
                 "stream_mode": self.stream_mode,
@@ -903,6 +961,7 @@ class Store:
             # Up to v0.9.12 设置 › 嘉宾特效 › 音乐 turned the sound on or off: its 无 is 静音 now.
             muted = settings.get("sound_muted", settings.get("love_music") == "off")
             self.sound_muted = muted is True
+            self.scene_sounds = _scene_sounds(settings.get("scene_sounds"), custom_sound_dir(self.root))
             # A scene this version has (one replaced is its replacement), else 经典.
             scene = love_scenes.shown(str(settings.get("quick_scene", "") or ""))
             self.quick_scene = scene if scene in love_scenes.KEYS else "classic"
@@ -1148,6 +1207,9 @@ class Store:
         self.love_scene = "classic"
         self.sound_volume = 100
         self.sound_muted = False
+        # The player's own sounds go with the rest.
+        self.scene_sounds = {}
+        shutil.rmtree(custom_sound_dir(self.root), ignore_errors=True)
         self.quick_scene = "classic"
         self.effect_hotkey = DEFAULT_EFFECT_HOTKEY
         self.dropped_hotkey = ""

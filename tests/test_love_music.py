@@ -81,7 +81,7 @@ def window(tmp_path, monkeypatch):  # noqa: ANN001, ANN201
     made._watch_timer.stop()
     made.store.disclaimer_accepted = True
     tunes: list = []
-    made.music = ThemeMusic(play=tunes.append)
+    made.music = ThemeMusic(play=tunes.append, sounds=made.store.scene_sound)
     made.tunes = tunes
     made.store.add_like("小红")
     made.store.add_like("小明")
@@ -170,14 +170,31 @@ def test_a_blacklist_player_means_no_music(window):
     assert window.tunes == []
 
 
+def _own_sound(store, key: str, like: str = "ice", volume: int = 100):  # noqa: ANN001, ANN202
+    """The player's own sound for a 特效 as 特效管理 keeps it: here a copy of another scene's tune."""
+    from blacklist_detect.paths import custom_sound_dir
+
+    own = custom_sound_dir(store.root) / f"{key}.wav"
+    own.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(TUNES[like], own)
+    store.scene_sounds[key] = {"volume": volume, "file": own.name, "name": "我的声音.mp3"}
+    return own
+
+
 def test_clearing_the_data_puts_the_effects_and_the_sound_back_to_their_defaults(window, monkeypatch):
     window.volume_slider.setValue(6)
     window.mute_box.click()
     window.love_switch.click()
     assert (window.store.sound_volume, window.store.sound_muted, window.store.love_scene) == (30, True, "off")
+    own = _own_sound(window.store, "classic")
+    window.store.scene_sounds["ice"] = {"volume": 40}
+    window.store.save_settings()
     window.tunes.clear()
     monkeypatch.setattr("blacklist_detect.ui._confirm", lambda *_args: True)
     window._ask_reset()
+    # The player's own sounds go too, nothing playing them first.
+    assert window.tunes[0] is None and window.store.scene_sounds == {} and not own.parent.exists()
+    assert window.music.pick("classic") == "" and window.music.level("ice") == 100
     assert (window.store.sound_volume, window.store.sound_muted, window.store.love_scene) == (100, False, "classic")
     assert window.love.choice == "classic" and window.love_switch.isChecked()
     assert window.volume_slider.value() == 20 and window.volume_label.text() == "100%" and not window.mute_box.isChecked()
@@ -276,7 +293,8 @@ def _samples(path):  # noqa: ANN001, ANN202
 
 def test_a_quieter_tune_is_its_samples_scaled_made_once(tmp_path):
     """winsound plays at the system volume: a quieter tune is a copy with every sample scaled, made once
-    and kept by tune and volume; 100% is the tune itself. The folder keeps one volume's copies."""
+    and kept by tune and volume; 100% is the tune itself. The folder keeps one copy of each tune, each at
+    its own volume (特效管理 gives each 特效 its own)."""
     tune = TUNES["ice"]
     assert scaled_tune(tune, 100, tmp_path) == tune and not any(tmp_path.iterdir())
     quiet = scaled_tune(tune, 40, tmp_path)
@@ -289,11 +307,12 @@ def test_a_quieter_tune_is_its_samples_scaled_made_once(tmp_path):
     # Asked again: the same copy, not made again.
     made = quiet.stat().st_mtime_ns
     assert scaled_tune(tune, 40, tmp_path) == quiet and quiet.stat().st_mtime_ns == made
-    # Another tune at that volume sits beside it; another volume takes their place.
+    # Another tune sits beside it, at that volume or another; the tune at another volume takes its place.
     other = scaled_tune(TUNES["stars"], 40, tmp_path)
-    assert quiet.is_file() and other.is_file()
+    third = scaled_tune(TUNES["cyber"], 85, tmp_path)
+    assert quiet.is_file() and other.is_file() and third.is_file()
     louder = scaled_tune(tune, 75, tmp_path)
-    assert list(tmp_path.iterdir()) == [louder]
+    assert sorted(tmp_path.iterdir()) == sorted([louder, other, third])
     assert np.abs(_samples(louder)[1] - np.rint(original * 0.75)).max() <= 1
     assert not _samples(scaled_tune(tune, 0, tmp_path))[1].any()
     # No copy can be made: nothing, rather than the tune too loud.
@@ -404,7 +423,7 @@ def test_ticking_mute_stops_the_sound_playing(window):
 
 def test_every_sound_goes_through_the_sound_control(window):
     """A lobby's, ▶ on 特效, ▶ in 选择特效 (the 嘉宾 and 组合 dialogs'), the 特效 hotkey and 播放: each at
-    声音's volume, none with 静音."""
+    声音's volume times the 特效's own 音量, the player's own sound for it if any, none with 静音."""
     from blacklist_detect.ui_likes import LikeDialog
     from blacklist_detect.ui_love_pick import ScenePicker
     from blacklist_detect.ui_music import sound_dir
@@ -434,6 +453,114 @@ def test_every_sound_goes_through_the_sound_control(window):
     assert [tune.parent for tune in heard] == [sound_dir()] * 4
     assert all(tune.name.startswith("50-") for tune in heard)
     assert [TUNES[key].stem in tune.name for key, tune in zip(("stars", "stars", "fluffy", "angel"), heard, strict=True)] == [True] * 4
+    # 特效管理: 星河许愿 the player's own sound at 60%, 毛茸茸 its own at 40%, 天使 the player's at 100%.
+    _own_sound(window.store, "stars", like="ice", volume=60)
+    window.store.scene_sounds["fluffy"] = {"volume": 40}
+    _own_sound(window.store, "angel", like="cyber")
+    heard = every_path()
+    assert [tune.parent for tune in heard] == [sound_dir()] * 4
+    starts = ("30-stars-", "30-stars-", f"20-{TUNES['fluffy'].stem}-", "50-angel-")
+    assert [tune.name.startswith(start) for start, tune in zip(starts, heard, strict=True)] == [True] * 4
+    _, ice = _samples(TUNES["ice"])
+    assert np.abs(_samples(heard[0])[1] - np.rint(ice * 0.3)).max() <= 1
     window.mute_box.click()
     assert every_path() == []
     picker.close()
+
+
+def _managed(tmp_path, sounds: dict):  # noqa: ANN001, ANN202
+    """ThemeMusic with 特效管理's sounds: by key, (the player's file or None, 音量)."""
+    played: list = []
+    clock = Clock()
+    music = ThemeMusic(play=played.append, clock=clock, folder=tmp_path / "sounds", sounds=lambda key: sounds.get(key, (None, 100)))
+    return music, played, clock
+
+
+def test_an_effect_plays_at_its_own_volume_times_the_sound_s(tmp_path):
+    """特效管理's 音量 on top of 声音's: 80% of 60% is 48%. 静音 silences every 特效, and one at 0% plays
+    nothing, so its lobby is greeted again once it is heard."""
+    music, played, clock = _managed(tmp_path, {"stars": (None, 60), "ice": (None, 0)})
+    music.volume = 80
+    assert (music.level("stars"), music.level("ice"), music.level("cyber")) == (48, 0, 80)
+    assert music.lobby(["小红"], "stars") == "stars" and played[-1].name.startswith(f"48-{TUNES['stars'].stem}-")
+    assert np.abs(_samples(played[-1])[1] - np.rint(_samples(TUNES["stars"])[1] * 0.48)).max() <= 1
+    assert music.preview("cyber") == "cyber" and played[-1].name.startswith("80-")
+    played.clear()
+    assert music.lobby(["小明"], "ice") == "" and music.preview("ice") == "" and not music.taste("ice")
+    assert played == [None, None]
+    music.muted = True
+    played.clear()
+    clock.now += SAME_LOBBY_S + 1
+    assert music.lobby(["小红"], "stars") == "" and music.preview("stars") == "" and not music.taste("stars")
+    assert played == [None, None]
+    # At 100% of 100% the tune itself.
+    music.muted, music.volume = False, 100
+    assert music.preview("cyber") == "cyber" and played[-1] == TUNES["cyber"]
+
+
+def test_an_effect_plays_the_player_s_own_sound_classic_too(tmp_path):
+    """A 特效 given the player's own sound plays it instead of its own; 经典, silent by itself, plays one
+    given it. Its file gone, the 特效 plays its own again (经典 none)."""
+    own = tmp_path / "custom_sounds"
+    own.mkdir()
+    classic, stars = own / "classic.wav", own / "stars.wav"
+    shutil.copyfile(TUNES["ice"], classic)
+    shutil.copyfile(TUNES["cyber"], stars)
+    music, played, _clock = _managed(tmp_path, {"classic": (classic, 100), "stars": (stars, 50)})
+    assert (music.pick("classic"), music.pick("stars"), music.pick("ribbon")) == ("classic", "stars", "")
+    assert music.lobby(["小红"], "classic") == "classic" and played[-1] == classic
+    assert music.preview("stars") == "stars" and played[-1].name.startswith("50-stars-")
+    assert np.abs(_samples(played[-1])[1] - np.rint(_samples(TUNES["cyber"])[1] * 0.5)).max() <= 1
+    classic.unlink()
+    stars.unlink()
+    assert music.pick("classic") == "" and music.preview("classic") == "" and played[-1] is None
+    assert music.preview("stars") == "stars" and played[-1].name.startswith(f"50-{TUNES['stars'].stem}-")
+
+
+def test_a_taste_is_a_moment_of_the_effect_s_sound_as_loud_as_it_plays(tmp_path):
+    """What a 特效's 音量 in 特效管理 plays as it is set: a moment of that 特效's sound, the player's own if
+    it has one, at 声音 times its 音量. 声音's own moment stays 玫瑰花边's organ at 声音's volume."""
+    own = tmp_path / "custom_sounds"
+    own.mkdir()
+    shutil.copyfile(TUNES["fluffy"], own / "classic.wav")
+    music, played, _clock = _managed(tmp_path, {"ice": (None, 50), "classic": (own / "classic.wav", 40)})
+    music.volume = 60
+    assert music.taste("ice")
+    params, samples = _samples(played[-1])
+    assert played[-1].name.startswith(f"30-{TUNES['ice'].stem}-") and len(samples) == round(SAMPLE_S * params.framerate)
+    _, ice = _samples(TUNES["ice"])
+    head = len(samples) // 2
+    assert np.abs(samples[:head] - np.rint(ice[:head] * 0.3)).max() <= 1
+    assert music.taste("classic") and played[-1].name.startswith("24-classic-")
+    assert music.sample() and played[-1].name.startswith(f"60-{TUNES[SAMPLE_TUNE].stem}-")
+    # 经典 with none of the player's has nothing to taste.
+    bare, played, _clock = _managed(tmp_path, {})
+    assert not bare.taste("classic") and played == [None]
+
+
+def test_effects_at_different_volumes_keep_their_copies_side_by_side(tmp_path):
+    """Each 特效 at its own 音量: one quieter copy of each, made once, not one making the other's again."""
+    music, played, _clock = _managed(tmp_path, {"ice": (None, 40), "stars": (None, 70)})
+    music.preview("ice")
+    music.preview("stars")
+    music.taste("ice")
+    first = list(played)
+    assert len({tune.name for tune in first}) == 3 and all(tune.is_file() for tune in first)
+    made = [tune.stat().st_mtime_ns for tune in first]
+    played.clear()
+    music.preview("ice")
+    music.preview("stars")
+    music.taste("ice")
+    assert played == first and [tune.stat().st_mtime_ns for tune in first] == made
+    assert sorted((tmp_path / "sounds").iterdir()) == sorted(first)
+
+
+def test_the_window_greets_with_classic_s_own_sound_once_given_one(window):
+    """经典 greets in silence until 特效管理 gives it the player's own sound."""
+    window._show_panel(_lobby())
+    assert window.tunes == []
+    window._hide_panel_after_title()
+    own = _own_sound(window.store, "classic", like="stars")
+    window.music._last_lobby = frozenset()
+    window._show_panel(_lobby())
+    assert window.tunes == [own]

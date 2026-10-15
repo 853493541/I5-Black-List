@@ -7,13 +7,16 @@ accents on the scene's moments. build/theme_tunes.py plays 冰蓝极光's, 星�
 模仿者狂欢 with the 演说家遇袭 notice's sound in it at its strike (build/ambush_tune.py): the game's own
 recording, the user's choice made knowing NetEase owns it.
 
-The sound follows the theme. 设置 › 常规 › 声音 sets how loud every sound is, or 静音 none: winsound plays at
-the system volume only, from a file, so a quieter one is a copy of the tune with its samples scaled
-(scaled_tune), kept in a folder of the app's own (paths.app_dir).
+The sound follows the theme. 设置 › 常规 › 声音 sets how loud every sound is, or 静音 none; 特效管理 gives each
+特效 its own 音量 on top of that, and may give it the player's own sound instead (经典 too), converted once
+as it was added into a tune like these (paths.custom_sound_dir). winsound plays at the system volume only,
+from a file, so a quieter one is a copy of the tune with its samples scaled (scaled_tune), kept in a folder
+of the app's own (paths.app_dir).
 """
 
 from __future__ import annotations
 
+import re
 import sys
 import time
 import wave
@@ -45,6 +48,8 @@ SAMPLE_S = 1.5
 SAMPLE_FADE_S = 0.25
 # The same 嘉宾 players found again this soon are the same lobby, checked again: no second tune.
 SAME_LOBBY_S = 60.0
+# A quieter copy's name: volume, the tune's name, its file's size and time, and for a moment its length.
+_COPY = re.compile(r"(\d+)-(.+)-(\d+)-(\d+)(-\d+ms)?\.wav")
 
 
 def sound_dir() -> Path:
@@ -55,17 +60,17 @@ def sound_dir() -> Path:
 def scaled_tune(path: Path, volume: int, folder: Path, seconds: float | None = None) -> Path | None:
     """The tune at volume percent of its loudness, and with seconds only its start, fading out: a copy
     with its samples scaled, made once in folder and named for the file and the volume. The whole tune at
-    100% is the file itself. None when no copy can be made: better nothing than a tune too loud. Copies at
-    another volume, of an older file (an update rewrites every tune) or left half written are dropped as
-    one is made, so the folder holds one volume's of the tunes as they are."""
+    100% is the file itself. None when no copy can be made: better nothing than a tune too loud. As one is
+    made, the same tune's copies of that length at another volume, its copies of an older file (an update
+    rewrites every tune, a player's own sound is replaced) and copies left half written are dropped, so the
+    folder holds each tune as it is now, at its own volume."""
     if volume >= 100 and seconds is None:
         return path
     try:
         stat = path.stat()
         length = f"-{round(seconds * 1000)}ms" if seconds is not None else ""
-        tune = f"{volume}-{path.stem}-"
-        current = f"{tune}{stat.st_size}-{stat.st_mtime_ns}"
-        made = folder / f"{current}{length}.wav"
+        current = f"{stat.st_size}-{stat.st_mtime_ns}"
+        made = folder / f"{volume}-{path.stem}-{current}{length}.wav"
         if made.is_file():
             return made
         with wave.open(str(path)) as source:
@@ -80,9 +85,15 @@ def scaled_tune(path: Path, volume: int, folder: Path, seconds: float | None = N
             samples[len(samples) - fade * params.nchannels :] *= np.repeat(np.linspace(1.0, 0.0, fade), params.nchannels)
         folder.mkdir(parents=True, exist_ok=True)
         for old in folder.iterdir():
-            name = old.name
-            stale = name.startswith(tune) and not name.startswith(f"{current}-") and not name.startswith(f"{current}.")
-            if old.suffix == ".part" or not name.startswith(f"{volume}-") or stale:
+            # A .part (or anything else no copy's name) goes; another tune's copy stays.
+            copy = _COPY.fullmatch(old.name)
+            if copy is None:
+                stale = True
+            elif copy[2] != path.stem:
+                stale = False
+            else:
+                stale = f"{copy[3]}-{copy[4]}" != current or (copy[5] or "") == length
+            if stale:
                 try:
                     old.unlink()
                 except OSError:
@@ -117,27 +128,45 @@ def play_tune(path: Path | None) -> None:
 
 
 class ThemeMusic:
-    """Plays a theme's sound, once per lobby, at 设置's 声音: volume percent of its loudness, or nothing
-    while muted. folder: where the quieter copies go (sound_dir when None)."""
+    """Plays a theme's sound, once per lobby, at 设置's 声音 times the 特效's own 音量 (level), or nothing
+    while muted. folder: where the quieter copies go (sound_dir when None). sounds: each 特效's own sound by
+    its key, the player's file (None for the scene's own) and 音量 in percent (Store.scene_sound); with
+    none, every scene plays its own at 声音's volume."""
 
     def __init__(
         self,
         play: Callable[[Path | None], None] = play_tune,
         clock: Callable[[], float] = time.monotonic,
         folder: Path | None = None,
+        sounds: Callable[[str], tuple[Path | None, int]] | None = None,
     ) -> None:
         self._play = play
         self._clock = clock
         self._folder = folder
+        self._sounds = sounds
         self._last_lobby: frozenset[str] = frozenset()
         self._last_at = float("-inf")
         self.volume = 100
         self.muted = False
 
-    @staticmethod
-    def pick(scene: str) -> str:
-        """The tune for a scene: its own, or "" for none (a scene with none)."""
-        return scene if scene in TUNES else ""
+    def pick(self, scene: str) -> str:
+        """The tune for a scene: the player's own or the scene's, or "" for none (经典, with none of the
+        player's)."""
+        return scene if self._tune(scene) is not None else ""
+
+    def level(self, scene: str) -> int:
+        """How loud a scene's sound plays, in percent of its loudness: 声音 times the 特效's own 音量."""
+        return round(self.volume * self._own(scene)[1] / 100)
+
+    def _own(self, scene: str) -> tuple[Path | None, int]:
+        if self._sounds is None or not scene:
+            return None, 100
+        return self._sounds(scene)
+
+    def _tune(self, scene: str) -> Path | None:
+        """The file a scene's sound is in: the player's own while it is there, else the scene's."""
+        own = self._own(scene)[0]
+        return own if own is not None and own.is_file() else TUNES.get(scene)
 
     def audible(self) -> bool:
         return not self.muted and self.volume > 0
@@ -145,7 +174,7 @@ class ThemeMusic:
     def lobby(self, likes: list[str], scene: str) -> str:
         """A lobby with these 嘉宾 players, greeted by this scene: play its sound, unless it just did
         for them."""
-        if not likes or not self.pick(scene) or not self.audible():
+        if not likes or not self.pick(scene) or not self.audible() or self.level(scene) <= 0:
             return ""
         players = frozenset(likes)
         now = self._clock()
@@ -157,15 +186,19 @@ class ThemeMusic:
     def preview(self, scene: str) -> str:
         """Play a scene's sound now; with none, or muted, stop whatever is playing."""
         tune = self.pick(scene)
-        return tune if self._start(TUNES[tune] if tune else None) else ""
+        return tune if self._start(self._tune(tune), self.level(tune)) else ""
+
+    def taste(self, scene: str) -> bool:
+        """A moment of a 特效's sound as loud as it plays, for its 音量 in 特效管理."""
+        return self._start(self._tune(scene), self.level(scene), SAMPLE_S)
 
     def sample(self) -> bool:
         """A moment of 玫瑰花边's sound at this volume, for 声音's slider let go."""
-        return self._start(TUNES[SAMPLE_TUNE], SAMPLE_S)
+        return self._start(TUNES[SAMPLE_TUNE], self.volume, SAMPLE_S)
 
-    def _start(self, tune: Path | None, seconds: float | None = None) -> bool:
-        if tune is not None and self.audible():
-            tune = scaled_tune(tune, self.volume, self._folder or sound_dir(), seconds)
+    def _start(self, tune: Path | None, volume: int, seconds: float | None = None) -> bool:
+        if tune is not None and not self.muted and volume > 0:
+            tune = scaled_tune(tune, volume, self._folder or sound_dir(), seconds)
         else:
             tune = None
         self._play(tune)

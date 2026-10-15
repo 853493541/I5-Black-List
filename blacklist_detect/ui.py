@@ -468,8 +468,8 @@ class MainWindow(QMainWindow):
         self._lobby_seats: tuple[QRectF, ...] = ()
 
         # 嘉宾音乐: the same lobby, in either 显示, also gets a few seconds of wedding music, as loud as
-        # 设置 › 声音 says.
-        self.music = ThemeMusic(folder=sound_dir())
+        # 设置 › 声音 and the 特效's own 音量 say, or the player's own sound for it (特效管理).
+        self.music = ThemeMusic(folder=sound_dir(), sounds=self.store.scene_sound)
         self.music.volume, self.music.muted = self.store.sound_volume, self.store.sound_muted
         # Whether a scene greets 嘉宾 at all: 设置 › 嘉宾特效. Each lobby's own is worked out as it shows.
         self.love.choice = self.store.love_scene
@@ -1380,6 +1380,8 @@ class MainWindow(QMainWindow):
         if not _confirm(self, "清空数据后无法恢复，是否确定清空？", "清空数据", "清空"):
             return
         self._end_quick_play()
+        # Nothing playing holds on to a player's own sound as it goes.
+        self.music.stop()
         self.store.reset()
         self.hotkey.clear()
         self.effect_hotkey.clear()

@@ -521,3 +521,111 @@ def test_the_sound_volume_and_mute_are_kept_and_reset(tmp_path):
     store.reset()
     assert (store.sound_volume, store.sound_muted) == (100, False)
     assert (Store(tmp_path).sound_volume, Store(tmp_path).sound_muted) == (100, False)
+
+
+def _own_sound(store: Store, key: str) -> str:
+    """A player's own sound for a 特效, as 特效管理 keeps it: <key>.wav in custom_sounds."""
+    from blacklist_detect.paths import custom_sound_dir
+
+    folder = custom_sound_dir(store.root)
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / f"{key}.wav").write_bytes(b"RIFF")
+    return f"{key}.wav"
+
+
+def test_each_effect_s_volume_and_own_sound_are_kept_and_cleared(tmp_path):
+    """特效管理: each 特效's own 音量 and the player's own sound for it, kept as set; a 特效 left as it was
+    (100%, its own sound) is not saved. 清空数据 drops them, the sounds' folder too."""
+    import json
+
+    from blacklist_detect.paths import custom_sound_dir
+
+    store = Store(tmp_path)
+    assert store.scene_sounds == {} and store.scene_sound("ice") == (None, 100)
+    store.scene_sounds = {
+        "ice": {"volume": 60},
+        "classic": {"volume": 100, "file": _own_sound(store, "classic"), "name": "生日歌.mp3", "start": 12.5, "length": 5.0},
+        "stars": {"volume": 100},
+    }
+    store.save_settings()
+    saved = json.loads(store.settings_path.read_text(encoding="utf-8"))["scene_sounds"]
+    assert set(saved) == {"ice", "classic"}
+    again = Store(tmp_path)
+    assert again.scene_sounds == {"ice": {"volume": 60}, "classic": store.scene_sounds["classic"]}
+    assert again.scene_sound("ice") == (None, 60)
+    assert again.scene_sound("classic") == (custom_sound_dir(tmp_path) / "classic.wav", 100)
+    assert again.scene_sound("stars") == (None, 100)
+    # A sound whose file is gone plays the scene's own again; its 音量 stays.
+    again.scene_sounds["ice"] = {"volume": 45, "file": _own_sound(again, "ice"), "name": "a.wav"}
+    again.save_settings()
+    (custom_sound_dir(tmp_path) / "ice.wav").unlink()
+    assert Store(tmp_path).scene_sounds["ice"] == {"volume": 45}
+    again.reset()
+    assert again.scene_sounds == {} and Store(tmp_path).scene_sounds == {}
+    assert not custom_sound_dir(tmp_path).exists()
+    # The folder kept apart from the quieter copies' (sounds/), whose files go as new ones are made.
+    assert custom_sound_dir(tmp_path).name == "custom_sounds"
+
+
+def test_bad_effect_sounds_are_dropped_and_the_other_settings_kept(tmp_path):
+    """A 特效管理 entry that is no sound is dropped by itself: the rest of 设置 is as saved. A volume that is
+    none is 100%, a file named with a path (or not there) is none, a key this version does not know is kept
+    for the version that does."""
+    import json
+
+    store = Store(tmp_path)
+    store.sound_volume, store.theme = 35, "紫色"
+    own = _own_sound(store, "neon")
+    store.save_settings()
+    elsewhere = tmp_path / "elsewhere.wav"
+    elsewhere.write_bytes(b"RIFF")
+    settings = json.loads(store.settings_path.read_text(encoding="utf-8"))
+    for garbage in ("loud", [1, 2], 7, None):
+        settings["scene_sounds"] = garbage
+        store.settings_path.write_text(json.dumps(settings), encoding="utf-8")
+        loaded = Store(tmp_path)
+        assert (loaded.scene_sounds, loaded.load_warning, loaded.sound_volume, loaded.theme) == ({}, "", 35, "紫色"), garbage
+    settings["scene_sounds"] = {
+        "ice": "loud",
+        "stars": {"volume": "x"},
+        "cyber": {"volume": 55, "file": 3},
+        "neon": {"volume": True, "file": own, "name": 9, "start": "a", "length": -1},
+        "lace": {"volume": 72, "file": "lace.wav"},
+        "fluffy": {"volume": 30, "file": "../neon.wav"},
+        "claw": {"volume": 30, "file": "..\\custom_sounds\\" + own},
+        "equation": {"volume": 30, "file": str(elsewhere)},
+        "angel": {"volume": 30, "file": f"C:{own}"},
+        "future": {"volume": 25},
+        "": {"volume": 25},
+    }
+    store.settings_path.write_text(json.dumps(settings), encoding="utf-8")
+    loaded = Store(tmp_path)
+    assert (loaded.load_warning, loaded.sound_volume, loaded.theme) == ("", 35, "紫色")
+    assert loaded.scene_sounds == {
+        "cyber": {"volume": 55},
+        "neon": {"volume": 100, "file": own, "name": ""},
+        "lace": {"volume": 70},
+        "fluffy": {"volume": 30},
+        "claw": {"volume": 30},
+        "equation": {"volume": 30},
+        "angel": {"volume": 30},
+        "future": {"volume": 25},
+    }
+    loaded.save_settings()
+    assert Store(tmp_path).scene_sounds == loaded.scene_sounds
+
+
+def test_a_replaced_effect_s_sound_is_its_replacement_s(tmp_path):
+    """香槟's 音量 and sound are 天使's, which replaced it, unless 天使 has its own."""
+    import json
+
+    store = Store(tmp_path)
+    store.save_settings()
+    settings = json.loads(store.settings_path.read_text(encoding="utf-8"))
+    settings["scene_sounds"] = {"champagne": {"volume": 40}}
+    store.settings_path.write_text(json.dumps(settings), encoding="utf-8")
+    assert Store(tmp_path).scene_sounds == {"angel": {"volume": 40}}
+    for both in ({"champagne": {"volume": 40}, "angel": {"volume": 80}}, {"angel": {"volume": 80}, "champagne": {"volume": 40}}):
+        settings["scene_sounds"] = both
+        store.settings_path.write_text(json.dumps(settings), encoding="utf-8")
+        assert Store(tmp_path).scene_sounds == {"angel": {"volume": 80}}

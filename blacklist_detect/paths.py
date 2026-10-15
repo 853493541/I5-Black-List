@@ -18,6 +18,12 @@ def app_dir(platform: str | None = None, env: dict[str, str] | None = None) -> P
     return Path(base) / "BlackListDetect"
 
 
+def custom_sound_dir(root: Path | None = None) -> Path:
+    """The player's own 特效 sounds, each converted once as it was added: in the app's folder (root, when
+    the lists are kept elsewhere), apart from sounds/, whose quieter copies are dropped as new ones are made."""
+    return (root or app_dir()) / "custom_sounds"
+
+
 # OMP_NUM_THREADS as this copy found it when it started, before it dropped it (see __main__).
 inherited_threads: str | None = None
 # Set in this process for this process (Paddle: OMP_NUM_THREADS=1, Intel OpenMP: its marker),
