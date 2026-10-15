@@ -1,11 +1,11 @@
-"""Draw each 嘉宾特效 scene's picture for the 特效 cards (ui_theme_cards): the scene at its best moment
+"""Draw each 嘉宾特效 scene's picture for its thumbnails (ui_guests.thumbnail): the scene at its best moment
 over the fake-name sample lobby, with the app's 嘉宾 marks in its look, as a lobby would show it.
 
     python build/theme_posters.py
 
 Writes blacklist_detect/assets/posters/<key>.jpg for every scene in love_scenes.SCENES, WIDTH pixels
 wide. Run it again when a scene changes or a new one is added (a new one is caught at POSTER_SHARE of
-its length until it gets a moment of its own here); tests/test_theme_cards.py checks every scene has one.
+its length until it gets a moment of its own here); tests/test_love_scenes.py checks every scene has one.
 """
 
 from __future__ import annotations

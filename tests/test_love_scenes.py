@@ -1,4 +1,4 @@
-"""嘉宾特效: the scenes, choosing one or a random one, the picker with its preview, and the 嘉宾 marks a
+"""嘉宾特效: the scenes, choosing one or a random one, their pictures and preview, and the 嘉宾 marks a
 scene dresses or draws itself."""
 
 import random
@@ -115,47 +115,20 @@ def test_the_border_plays_the_choice_and_nothing_when_off(qapp):
     border.stop()
 
 
-def test_the_picker_saves_each_choice_and_previews_it(qapp, tmp_path, monkeypatch):
-    from blacklist_detect.storage import Store
-    from blacklist_detect.ui_love_pick import LoveEffectsDialog
-    from blacklist_detect.ui_music import TUNES, ThemeMusic
+def test_every_scene_has_its_picture(qapp):
+    from pathlib import Path
 
-    monkeypatch.setenv("APPDATA", str(tmp_path))
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
-    store = Store()
-    played: list = []
-    dialog = LoveEffectsDialog(store, ThemeMusic(play=played.append))
-    # The default first, then the others, 随机, and 无 last and in red.
-    assert list(dialog.scene_buttons) == [*KEYS, "random", "off"] and KEYS[0] == "classic"
-    # 音乐 follows the theme or is off.
-    assert list(dialog.music_buttons) == ["theme", "off"] and dialog.music_buttons["theme"].text() == "跟随特效"
-    assert dialog.scene_buttons["off"].text() == dialog.music_buttons["off"].text() == "无"
-    assert dialog.scene_buttons["classic"].isChecked() and dialog.music_buttons["theme"].isChecked()
-    assert dialog.scene_buttons["off"].property("off") is True and dialog.scene_buttons["random"].property("off") is False
-    assert dialog.preview.scene == "classic"
-    # ▶ on the preview plays the scene with its music.
-    assert dialog.play_button is dialog.preview.play_button and dialog.play_button.accessibleName() == "播放"
-    dialog.scene_buttons["stars"].click()
-    assert store.love_scene == "stars" and dialog.preview.scene == "stars"
-    assert Store(store.root).love_scene == "stars"
-    dialog.music_buttons["off"].click()
-    assert store.love_music == "off" and played == [None]
-    dialog.music_buttons["theme"].click()
-    assert store.love_music == "theme" and played[-1] == TUNES["stars"]
-    dialog.play_button.click()
-    assert played[-1] == TUNES["stars"] and dialog.preview.scene == "stars"
-    dialog.scene_buttons["off"].click()
-    assert dialog.preview.scene == "" and store.love_scene == "off"
-    # The preview draws the lobby whatever the choice.
-    dialog.preview.grab()
-    dialog.reject()
-    assert played[-1] is None, "closing stops the music"
-    # A scene that is gone shows what plays for it: 天使 for 香槟, 经典花边 for the others.
-    for saved, shown in (("champagne", "angel"), ("ribbon", "classic")):
-        store.love_scene = saved
-        dialog = LoveEffectsDialog(store, ThemeMusic(play=played.append))
-        assert dialog.scene_buttons[shown].isChecked() and dialog.preview.scene == shown
-        dialog.reject()
+    from blacklist_detect.ui_guests import POSTERS, poster, thumbnail
+
+    # build/theme_posters.py draws them; a scene added without one would show a blank thumbnail.
+    assert {path.stem for path in Path(POSTERS).glob("*.jpg")} == set(KEYS)
+    for key in KEYS:
+        assert not poster(key).isNull(), key
+    # One this version does not have shows what plays for it.
+    assert poster("ribbon").cacheKey() == poster("classic").cacheKey()
+    assert poster("champagne").cacheKey() == poster("angel").cacheKey()
+    small = thumbnail("stars", 56)
+    assert small.width() / small.devicePixelRatio() == 56
 
 
 def test_the_border_settles_its_scene_before_it_plays(qapp):
@@ -204,8 +177,9 @@ def test_the_preview_shows_each_scenes_marks(qapp):
     ice = preview._marks
     preview.show_scene("angel")
     assert preview._marks is not ice
-    preview.show_scene("off")
-    assert preview._marks is preview._marks_for("classic")
+    # One this version no longer has plays 经典, in its look.
+    preview.show_scene("ribbon")
+    assert preview.scene == "classic" and preview._marks is preview._marks_for("classic")
     preview.stop()
 
 

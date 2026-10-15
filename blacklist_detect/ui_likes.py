@@ -1,13 +1,15 @@
 """嘉宾: players worth meeting again, the other side of 黑名单.
 
 A 嘉宾 player has a name, a 昵称, a 原因 and a 特效; no 标签. When a lobby has one, the app shows
-the 昵称, or the full name when there is none, and greets them with their 特效 (默认: 嘉宾特效's
-choice). The list is in the player's order, newest first until they drag a row elsewhere; when 嘉宾
-with different 特效 meet in a lobby the higher one decides, unless a 组合 of theirs is all there. A player is on one list at a time: a 黑名单
-name is refused here, and putting a 嘉宾 name on 黑名单 asks to move it.
+the 昵称, or the full name when there is none, and greets them with their 特效 (经典 when they have
+none of their own). The list is in the player's order, newest first until they drag a row elsewhere;
+when 嘉宾 with different 特效 meet in a lobby the higher one decides, unless a 组合 of theirs is all
+there. A player is on one list at a time: a 黑名单 name is refused here, and putting a 嘉宾 name on
+黑名单 asks to move it.
 
-The page is laid out like 黑名单 with a 特效 column for 标签: search, 组合, 嘉宾特效, 批量导入, 添加,
-and under 更多, 复制名单 and 清空嘉宾列表.
+The page is laid out like 黑名单 with a 特效 column for 标签: search, 批量导入, 添加, and under 更多,
+复制名单 and 清空嘉宾列表; then the 组合 (ui_guests.ComboStrip) over the list. 嘉宾特效 itself, on or
+off, and its music are in 设置.
 """
 
 from __future__ import annotations
@@ -20,7 +22,6 @@ from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QHeaderView,
-    QLabel,
     QLineEdit,
     QMenu,
     QPlainTextEdit,
@@ -41,13 +42,11 @@ from blacklist_detect.ui_dialogs import (
     _primary,
     _say_error,
 )
-from blacklist_detect.ui_guests import CombosDialog, ScenePlayer, ThemeRow, scene_name
+from blacklist_detect.ui_guests import ComboStrip, ThemeField, scene_name
 from blacklist_detect.ui_icons import icon as line_icon
 from blacklist_detect.ui_kit import ConfirmDialog, EmptyState, IconButton, Modal
-from blacklist_detect.ui_love_pick import ScenePreview
 from blacklist_detect.ui_theme import ROW_H, THEME, _page, _pointing
-from blacklist_detect.ui_theme_cards import showcase
-from blacklist_detect.ui_widgets import NEVER_MET, _mark_menu_item, _PlainItemDelegate, _zh_ago, _zh_date
+from blacklist_detect.ui_widgets import NEVER_MET, _mark_menu_item, _PlainItemDelegate, _zh_ago
 
 # Columns of the list.
 NAME, NICKNAME, THEME_COLUMN, REASON, MET = range(5)
@@ -85,13 +84,10 @@ class LikeDialog(Modal):
         name: str = "",
         nickname: str = "",
         reason: str = "",
-        title: str = "添加",
         allow_delete: bool = False,
-        added_at: str = "",
         theme: str = "",
-        default_scene: str = "classic",
         music=None,  # noqa: ANN001
-        music_choice: str = "organ",
+        music_choice: str = "theme",
         taken: frozenset[str] | set[str] = frozenset(),
         blacklisted: frozenset[str] | set[str] = frozenset(),
         parent=None,  # noqa: ANN001
@@ -106,44 +102,33 @@ class LikeDialog(Modal):
         self.detail = reason
         self.theme = theme
         self.deleted = False
-        layout = _frame(self, title)
-        layout.setSpacing(16)
-        # The picked 特效 playing on the left, the fields on its right, the 特效 cards under both.
-        self.player = ScenePlayer(music, music_choice)
-        self.preview = ScenePreview(self, play=self.player)
-        self.player.preview = self.preview
-        side = showcase(self, layout, self.preview)
+        layout = _frame(self, f"编辑嘉宾 · {name}" if allow_delete else "添加嘉宾")
+        self.card.setFixedWidth(520)
         self.name_edit = QLineEdit(name)
-        added_on = _zh_date(added_at)
-        self.added_on = QLabel(added_on)
-        self.added_on.setObjectName("sub")
-        self.added_on.setToolTip("添加的日期")
-        self.added_on.setVisible(bool(added_on))
-        self.name_error = _field(side, "名字", self.name_edit, aside=self.added_on if added_on else None)
+        self.name_error = _field(layout, "名字", self.name_edit)
         self.name_edit.textChanged.connect(self._clear_name_error)
         self.nickname_edit = QLineEdit(nickname)
         self.nickname_edit.setPlaceholderText("遇到时显示的名字")
-        _field(side, "昵称", self.nickname_edit)
+        _field(layout, "昵称", self.nickname_edit)
         self.detail_edit = QPlainTextEdit()
         self.detail_edit.setPlainText(reason)
         self.detail_edit.setTabChangesFocus(True)
-        self.detail_edit.setFixedHeight(self.fontMetrics().lineSpacing() * 3 + 18)
-        _field(side, "原因", self.detail_edit)
-        side.addStretch(1)
-        self.theme_row = ThemeRow(layout, theme, with_default=True, preview=self.preview, default=default_scene)
+        self.detail_edit.setFixedHeight(self.fontMetrics().lineSpacing() * 2 + 18)
+        _field(layout, "原因", self.detail_edit)
+        self.theme_field = ThemeField(theme, name, music, music_choice)
+        _field(layout, "特效", self.theme_field)
         remove = _danger("删除", self._delete) if allow_delete else None
         self.footer(_primary("保存" if allow_delete else "添加", self._accept), left=remove)
-        self.finished.connect(self.player.stop)
         self.name_edit.returnPressed.connect(self._accept)
         self.nickname_edit.returnPressed.connect(self._accept)
-        self._before = (name, nickname, reason, self.theme_row.value())
+        self._before = (name, nickname, reason, self.theme_field.value())
         _pointing(self)
 
     def _clear_name_error(self, _text: str) -> None:
         _say_error(self.name_error, "")
 
     def has_changes(self) -> bool:
-        now = (self.name_edit.text(), self.nickname_edit.text(), self.detail_edit.toPlainText(), self.theme_row.value())
+        now = (self.name_edit.text(), self.nickname_edit.text(), self.detail_edit.toPlainText(), self.theme_field.value())
         return now != self._before
 
     def _accept(self) -> None:
@@ -164,7 +149,7 @@ class LikeDialog(Modal):
         self.name = self.name_edit.text()
         self.nickname = self.nickname_edit.text()
         self.detail = self.detail_edit.toPlainText()
-        self.theme = self.theme_row.value()
+        self.theme = self.theme_field.value()
         self.deleted = False
         self.accept()
 
@@ -187,9 +172,8 @@ class LikesPage(QWidget):
         super().__init__(parent)
         self.store = store
         self._say = say
-        # The wedding music, for ▶ on a 嘉宾's or a 组合's preview.
+        # The themes' music, for ▶ on a 嘉宾's or a 组合's 特效.
         self.music = music
-        self.show_effects = lambda: None
         self._met_cache: tuple | None = None
         outer = QVBoxLayout(self)
         _page(outer)
@@ -204,17 +188,6 @@ class LikesPage(QWidget):
         self.search.textChanged.connect(self.refresh)
         toolbar.addWidget(self.search, 1)
         toolbar.addStretch(1)
-        # 嘉宾特效: the scene and the music for 嘉宾 players in a lobby, here beside the players it
-        # is for, and shown on an empty list too. The window gives the page the way to open it.
-        self.effects_button = QPushButton("嘉宾特效")
-        self.effects_button.setIcon(line_icon("heart", 16, THEME["rose"]))
-        self.effects_button.clicked.connect(lambda: self.show_effects())
-        # 组合: 嘉宾 who, all in one lobby, get a 特效 of their own.
-        self.combos_button = QPushButton("组合")
-        self.combos_button.setIcon(line_icon("users", 16, THEME["rose"]))
-        self.combos_button.clicked.connect(self.show_combos)
-        toolbar.addWidget(self.combos_button)
-        toolbar.addWidget(self.effects_button)
         batch = QPushButton("批量导入")
         batch.clicked.connect(self.import_many)
         add = QPushButton("添加")
@@ -233,6 +206,10 @@ class LikesPage(QWidget):
         self.more_button.clicked.connect(self._open_more)
         toolbar.addWidget(self.more_button)
         outer.addLayout(toolbar)
+        # 组合: 嘉宾 who, all in one lobby, get a 特效 of their own, in view over the list.
+        self.combo_strip = ComboStrip(store, music)
+        self.combo_strip.changed.connect(self.changed)
+        outer.addWidget(self.combo_strip)
         self.table = _GuestTable()
         self.table.moved.connect(self._moved)
         self.table.setObjectName("likes")
@@ -307,12 +284,13 @@ class LikesPage(QWidget):
                 item.setData(Qt.UserRole, index)
                 if column == REASON and text:
                     item.setToolTip(text)
-                if column in (NICKNAME, MET) or (column == THEME_COLUMN and not like.theme):
+                if column in (NICKNAME, MET):
                     item.setForeground(QColor(THEME["rose"] if column == NICKNAME else THEME["muted"]))
                 table.setItem(row, column, item)
         has_any = count > 0
-        for widget in (*self.toolbar_buttons, self.combos_button, self.more_button, self.search):
+        for widget in (*self.toolbar_buttons, self.more_button, self.search):
             widget.setVisible(has_any or (widget is self.search and bool(self.search.text())))
+        self.combo_strip.refresh()
         if has_any and not rows:
             self.empty.set_icon("search")
             self.empty.set_text(f"没有找到「{self.search.text().strip()}」")
@@ -352,7 +330,6 @@ class LikesPage(QWidget):
     def add_one(self, name: str = "") -> None:
         dialog = LikeDialog(
             name if isinstance(name, str) else "",
-            default_scene=self.store.love_scene,
             music=self.music,
             music_choice=self.store.love_music,
             taken=self._taken(),
@@ -372,8 +349,8 @@ class LikesPage(QWidget):
             return
         like = self.store.likes[index]
         dialog = LikeDialog(
-            like.name, like.nickname, like.reason, title="编辑", allow_delete=True, added_at=like.added_at,
-            theme=like.theme, default_scene=self.store.love_scene, music=self.music, music_choice=self.store.love_music,
+            like.name, like.nickname, like.reason, allow_delete=True,
+            theme=like.theme, music=self.music, music_choice=self.store.love_music,
             taken=self._taken(skip=index),
             blacklisted=self._blacklisted(), parent=self.window(),
         )
@@ -401,10 +378,6 @@ class LikesPage(QWidget):
         """置顶: this 嘉宾 first, deciding before every other."""
         if self.store.move_like(index, len(self.store.likes) - 1):
             self.refresh()
-
-    def show_combos(self) -> None:
-        CombosDialog(self.store, parent=self.window(), music=self.music).exec()
-        self.changed.emit()
 
     def delete(self, index: int) -> None:
         if not 0 <= index < len(self.store.likes):
@@ -496,10 +469,9 @@ class LikesPage(QWidget):
         self.more_button.refresh()
         self.empty.refresh()
         self.search_icon.setIcon(line_icon("search", 16, THEME["muted"]))
-        self.effects_button.setIcon(line_icon("heart", 16, THEME["rose"]))
-        self.combos_button.setIcon(line_icon("users", 16, THEME["rose"]))
         for action in (self.copy_action, self.clear_action):
             _mark_menu_item(action, str(action.property("icon_name") or ""))
+        self.combo_strip.refresh(force=True)
         self.refresh()
 
 

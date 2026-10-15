@@ -15,11 +15,15 @@ def _present(*names: str) -> list[Entry]:
 def test_the_top_guest_with_a_theme_of_their_own_decides():
     # 阿星 is above 小明 on the list: 阿星's 天使.
     assert lobby_choice(LIKES, [], _present("小明", "阿星"), "classic") == "angel"
-    # 新来的 is on top but follows the default: the next one down with a theme decides.
+    # 新来的 is on top but picked none: the next one down with a theme decides.
     assert lobby_choice(LIKES, [], _present("新来的", "小明"), "classic") == "cyber"
-    # Nobody here has one: 嘉宾特效's own choice.
-    assert lobby_choice(LIKES, [], _present("小红", "新来的"), "stars") == "stars"
-    assert lobby_choice(LIKES, [], [], "stars") == "stars"
+
+
+def test_with_no_pick_a_lobby_gets_classic():
+    # Nobody here picked a 特效 of their own, and no 组合 of theirs is all there: 经典, the default.
+    assert lobby_choice(LIKES, [], _present("小红", "新来的"), "classic") == "classic"
+    assert lobby_choice(LIKES, [Combo(("小明", "小红"), "equation")], _present("小红"), "classic") == "classic"
+    assert lobby_choice(LIKES, [], [], "classic") == "classic"
 
 
 def test_a_combination_wins_when_all_of_it_is_there_the_biggest_first():
@@ -32,7 +36,7 @@ def test_a_combination_wins_when_all_of_it_is_there_the_biggest_first():
     assert lobby_choice(LIKES, combos, _present("小明", "阿星"), "classic") == "angel"
 
 
-def test_a_theme_this_version_does_not_play_follows_the_default():
+def test_a_theme_this_version_does_not_play_is_passed_over():
     known = {"classic", "cyber"}.__contains__
     assert lobby_choice(LIKES, [], _present("小明", "阿星"), "classic", known) == "cyber", "阿星's angel is skipped"
     assert lobby_choice(LIKES, [Combo(("小明", "小红"), "gone")], _present("小明", "小红"), "classic", known) == "cyber"

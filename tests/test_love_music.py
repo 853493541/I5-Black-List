@@ -115,7 +115,7 @@ def test_the_theme_brings_its_sound_until_music_is_off(window):
     window._show_panel(_lobby())
     assert window.tunes == []
     window._hide_panel_after_title()
-    window.store.love_scene = "lace"
+    window.store.update_like(1, "小明", "", "", "lace")
     window._on_lobby_placed(_lobby().button_box)
     window.music._last_lobby = frozenset()
     window._show_panel(_lobby())
@@ -144,7 +144,7 @@ def test_an_old_tune_choice_follows_the_theme(tmp_path):
 def test_music_plays_in_either_display_mode(window, safe):
     """安全模式 draws nothing over the game, but the music is only sound: it plays there too."""
     window.store.safe_mode = safe
-    window.store.love_scene = "angel"
+    window.store.update_like(1, "小明", "", "", "angel")
     window._show_panel(_lobby())
     assert window.tunes == [TUNES["angel"]]
 
@@ -155,12 +155,63 @@ def test_a_blacklist_player_means_no_music(window):
 
 
 def test_clearing_the_data_puts_the_effects_back_to_their_defaults(window, monkeypatch):
-    window.store.love_music = "off"
-    window.store.love_scene = "ice"
+    window.love_music_choice.buttons["off"].click()
+    window.love_switch.click()
+    assert (window.store.love_music, window.store.love_scene) == ("off", "off")
     monkeypatch.setattr("blacklist_detect.ui._confirm", lambda *_args: True)
     window._ask_reset()
     assert (window.store.love_music, window.store.love_scene) == ("theme", "classic")
     assert window.love.choice == "classic"
+    assert window.love_switch.isChecked() and window.love_music_choice.current() == "theme"
+    assert not window.love_music_choice.isHidden()
+
+
+def test_the_settings_switch_turns_guest_effects_off_with_music_beside_it(window):
+    """设置 › 嘉宾 › 嘉宾特效: on, each 嘉宾 and 组合 is greeted with its 特效 (经典 for none) and 音乐
+    sits on the same row, its default first; off, no scene greets anyone and 音乐 goes."""
+    from blacklist_detect.storage import Store
+
+    window.store.update_like(1, "小明", "", "", "angel")
+    assert window.love_switch.isChecked() and window.love_switch.accessibleName() == "嘉宾特效"
+    assert [(key, button.text()) for key, button in window.love_music_choice.buttons.items()] == list(MUSIC_CHOICES)
+    assert window.love_music_choice.current() == "theme" and not window.love_music_label.isHidden()
+    assert window._choice_for(window.store.likes) == "angel"
+    window.love_switch.click()
+    assert window.store.love_scene == "off" and Store(window.store.root).love_scene == "off"
+    assert window.love_music_choice.isHidden() and window.love_music_label.isHidden()
+    assert window._choice_for(window.store.likes) == "off"
+    window._show_panel(_lobby())
+    assert not window.love.playing() and window.tunes == []
+    window._hide_panel_after_title()
+    window.love_switch.click()
+    assert window.store.love_scene == "classic" and not window.love_music_choice.isHidden()
+    window.love_music_choice.buttons["off"].click()
+    assert Store(window.store.root).love_music == "off"
+
+
+def test_an_old_saved_off_stays_off(tmp_path, monkeypatch):
+    """嘉宾特效 set to 无 before 设置 had the switch: it opens off."""
+    import json
+
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication
+
+    from blacklist_detect.storage import Store
+    from blacklist_detect.ui import MainWindow
+
+    QApplication.instance() or QApplication([])
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    store = Store()
+    store.save_settings()
+    settings = json.loads(store.settings_path.read_text(encoding="utf-8"))
+    settings["love_scene"] = "off"
+    store.settings_path.write_text(json.dumps(settings), encoding="utf-8")
+    window = MainWindow()
+    window._watch_timer.stop()
+    assert window.store.love_scene == "off" and not window.love_switch.isChecked()
+    assert window.love_music_choice.isHidden() and window.love.choice == "off"
+    window.close()
 
 
 def _likes(count: int):  # noqa: ANN202

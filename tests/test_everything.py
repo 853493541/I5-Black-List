@@ -3,8 +3,8 @@
 It opens fresh, agrees to 使用声明 and runs the first 检查; fills 黑名单 by hand and by 批量导入,
 and 嘉宾; checks the bundled sample lobby (made-up names) with the real recognition on the real
 worker thread, the way the hotkey does; sees the result in 安全模式, in 完整模式 and in 直播模式;
-gets the 嘉宾 scene and music when the lobby has two 嘉宾 players and no 黑名单; reads 记录; uses
-the 检查 panel, 嘉宾特效, 设置 › 检查 and 导出日志; and ends with 清空数据.
+gets their 组合's scene and music when the lobby has two 嘉宾 players and no 黑名单; reads 记录;
+uses the 检查 panel, 选择特效, 设置 › 嘉宾特效, 设置 › 检查 and 导出日志; and ends with 清空数据.
 
 Each step's own details are tested elsewhere. This one shows they work together. It needs the
 local PaddleOCR model, like test_reference_screenshot.py; CI skips it.
@@ -55,10 +55,11 @@ def _typed(text: str):  # noqa: ANN202
 
 def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     from blacklist_detect import ui
+    from blacklist_detect.model import Combo
     from blacklist_detect.ui import MainWindow
     from blacklist_detect.ui_dialogs import BatchAddDialog, DisclaimerDialog, GuideDialog
     from blacklist_detect.ui_likes import LikeDialog
-    from blacklist_detect.ui_love_pick import LoveEffectsDialog
+    from blacklist_detect.ui_love_pick import ScenePicker
     from blacklist_detect.ui_music import TUNES, ThemeMusic
 
     monkeypatch.setenv("APPDATA", str(tmp_path))
@@ -173,8 +174,8 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     # --- 9. Two 嘉宾 players and no 黑名单: the 嘉宾 scene and the music. -------------------------
     played: list = []
     window.music = ThemeMusic(play=played.append)
-    # 玫瑰花边, with its wedding march (经典 greets in silence).
-    window.store.love_scene, window.store.love_music = "lace", "theme"
+    # Their 组合's 玫瑰花边, with its wedding march (经典 greets in silence).
+    window.store.set_combos([Combo(("心动小鹿", "心动星星"), "lace")])
     window.store.remove_at(0)
     window._love_played = False
     window.check_now()
@@ -184,17 +185,19 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     window.love.stop()
     window._hide_panel_after_title()
 
-    # --- 10. 嘉宾特效: every scene previews; the choice is kept. ---------------------------------
-    effects = LoveEffectsDialog(window.store, window.music, window)
+    # --- 10. 选择特效: every scene previews; 设置 › 嘉宾特效 and its 音乐 are kept. ------------------
+    picker = ScenePicker("lace", "心动小鹿", window.music, parent=window)
     for key in love_scenes.KEYS:
-        effects.scene_buttons[key].click()
-        assert effects.preview.scene == key
-        effects.preview.grab()
-    effects.scene_buttons["stars"].click()
-    effects.music_buttons["off"].click()
-    effects.accept()
+        picker.buttons[key].click()
+        assert picker.preview.scene == key
+        picker.preview.grab()
+    picker.buttons["stars"].click()
+    picker.accept()
+    assert picker.key == "stars"
+    window.love_music_choice.buttons["off"].click()
+    window.love_switch.click()
     again = Store(window.store.root)
-    assert (again.love_scene, again.love_music) == ("stars", "off")
+    assert (again.love_scene, again.love_music) == ("off", "off")
     # Every scene plays through over a real-size screen, the button left bare.
     stage = love_scenes.sample_stage()
     for key in love_scenes.KEYS:

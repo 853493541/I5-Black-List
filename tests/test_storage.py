@@ -447,12 +447,28 @@ def test_an_old_guest_count_setting_is_let_go(tmp_path):
     path = tmp_path / "settings.json"
     settings = json.loads(path.read_text(encoding="utf-8"))
     settings["love_counts"] = [2, 3]
-    settings["love_scene"] = "stars"
     path.write_text(json.dumps(settings), encoding="utf-8")
     again = Store(tmp_path)
-    assert again.love_scene == "stars"
     again.save_settings()
     assert "love_counts" not in json.loads(path.read_text(encoding="utf-8"))
+
+
+def test_an_old_effects_choice_is_on_and_an_old_off_stays_off(tmp_path):
+    """嘉宾特效 was one scene for every 嘉宾, 随机 or 无 once; it is on or off in 设置 now. A scene or
+    随机 is on (经典 for 嘉宾 with no 特效 of their own); 无 stays off."""
+    import json
+
+    Store(tmp_path).save_settings()
+    path = tmp_path / "settings.json"
+    for saved, now in (("stars", "classic"), ("random", "classic"), ("ribbon", "classic"), ("off", "off"), (None, "classic")):
+        settings = json.loads(path.read_text(encoding="utf-8"))
+        settings["love_scene"] = saved
+        path.write_text(json.dumps(settings), encoding="utf-8")
+        assert Store(tmp_path).love_scene == now, saved
+    store = Store(tmp_path)
+    store.love_scene = "off"
+    store.save_settings()
+    assert Store(tmp_path).love_scene == "off"
 
 
 def test_a_saved_hotkey_of_three_keys_keeps_two(tmp_path):

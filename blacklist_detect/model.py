@@ -10,7 +10,7 @@ class Entry:
     """One listed player: when it was added, the name, tags, and a written reason.
 
     A 嘉宾 entry has no tags; its nickname, when set, is what a lobby shows for it, and its theme,
-    when set, is the 嘉宾特效 scene that greets it ("" follows 嘉宾特效's own choice).
+    when set, is the 嘉宾特效 scene that greets it ("" for none of its own: 经典).
     """
 
     name: str

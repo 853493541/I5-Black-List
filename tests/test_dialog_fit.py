@@ -8,6 +8,7 @@ import pytest
 from PySide6.QtCore import QPoint, QRect
 from PySide6.QtWidgets import QApplication, QDialog, QFrame, QLabel, QPushButton
 
+from blacklist_detect.model import Combo
 from blacklist_detect.ui import MainWindow
 from blacklist_detect.ui_dialogs import StreamGuideDialog
 from blacklist_detect.ui_kit import ConfirmDialog, Modal, _height_for
@@ -30,6 +31,8 @@ def window(qapp, tmp_path, monkeypatch):
     window.store.add("示例坏人", tags=("炸房",), reason="开局就退")
     window.store.add("路过的捣蛋鬼", tags=("场外", "挂机"), reason="场外报点，还在频道里骂人，这是一段很长很长的原因")
     window.store.add_like("心动小鹿", nickname="小鹿")
+    window.store.add_like("心动星星")
+    window.store.set_combos([Combo(("心动小鹿", "心动星星"), "angel")])
     yield window
     window.close()
 
@@ -56,6 +59,7 @@ def _dialogs(window, monkeypatch) -> dict[str, Modal]:
         monkeypatch.setattr(kind, "open", keep)
     from blacklist_detect.diagnostics import FlowTest
     from blacklist_detect.ui_dialogs import FlowReportDialog, PictureResultDialog
+    from blacklist_detect.ui_love_pick import ScenePicker
 
     runs = [{"capture": 0.08, "find": 0.04, "read": 0.06}] * 3
     openers = {
@@ -65,7 +69,9 @@ def _dialogs(window, monkeypatch) -> dict[str, Modal]:
         "清空黑名单": window._clear_list,
         "添加嘉宾": window.likes_page.add_one,
         "编辑嘉宾": lambda: window.likes_page.edit(0),
-        "嘉宾特效": window._show_love_effects,
+        "添加组合": window.likes_page.combo_strip.add,
+        "编辑组合": lambda: window.likes_page.combo_strip.edit(0),
+        "选择特效": lambda: ScenePicker("angel", "心动小鹿", parent=window).exec(),
         "显示说明": window._show_display_guide,
         "直播模式说明": window._show_stream_guide,
         "使用声明": window._show_disclaimer,
@@ -85,26 +91,15 @@ def test_every_dialog_fits_a_short_screen_with_its_buttons(window, monkeypatch):
         assert _card_height(dialog) <= SHORT - 8, title
 
 
-def test_love_effects_fits_a_laptop_without_scrolling(window, monkeypatch):
-    effects = _dialogs(window, monkeypatch)["嘉宾特效"]
-    if QApplication.platformName() == "windows":
-        # Measured with Windows' own fonts; the offscreen platform some tests use draws a fallback
-        # face a few percent taller.
-        effects.fit_height(LAPTOP)
-        assert effects.scroll is None
-        assert _card_height(effects) <= LAPTOP - 8
-    # Shorter still it fits too, or its cards scroll between the title and 完成, which stays in view.
-    effects.fit_height(SHORT)
-    assert _card_height(effects) <= SHORT - 8
-    done = next(button for button in effects.findChildren(QPushButton) if button.text() == "完成")
-    assert effects.scroll is None or (effects.scroll.isAncestorOf(effects.scene_buttons["classic"]) and not effects.scroll.isAncestorOf(done))
-
-
-def test_a_guest_with_the_theme_preview_fits_a_laptop_without_scrolling(window, monkeypatch):
+def test_the_picker_and_the_guest_dialogs_fit_a_short_screen_without_scrolling(window, monkeypatch):
+    """选择特效, the tallest of them, shows every scene and 用这个 at once on 1080p at 150%."""
     dialogs = _dialogs(window, monkeypatch)
-    for title in ("添加嘉宾", "编辑嘉宾"):
-        dialogs[title].fit_height(LAPTOP)
-        assert dialogs[title].scroll is None and _card_height(dialogs[title]) <= LAPTOP - 8, title
+    for title in ("选择特效", "添加嘉宾", "编辑嘉宾", "添加组合", "编辑组合"):
+        dialogs[title].fit_height(SHORT)
+        assert dialogs[title].scroll is None and _card_height(dialogs[title]) <= SHORT - 8, title
+    picker = dialogs["选择特效"]
+    used = next(button for button in picker.findChildren(QPushButton) if button.text() == "用这个")
+    assert used.isVisibleTo(picker) and picker.scroll is None
 
 
 def test_a_long_hotkey_is_shown_whole(window):

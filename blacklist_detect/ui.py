@@ -122,8 +122,7 @@ from blacklist_detect.ui_kit import (
 )
 from blacklist_detect.ui_likes import LikesPage
 from blacklist_detect.ui_love import LoveBorder
-from blacklist_detect.ui_love_pick import LoveEffectsDialog
-from blacklist_detect.ui_music import ThemeMusic
+from blacklist_detect.ui_music import MUSIC_CHOICES, ThemeMusic
 from blacklist_detect.ui_notice import CornerNotice
 from blacklist_detect.ui_overlay import (
     _COVER_OUTSET,
@@ -474,7 +473,7 @@ class MainWindow(QMainWindow):
 
         # 嘉宾音乐: the same lobby, in either 显示, also gets a few seconds of wedding music.
         self.music = ThemeMusic()
-        # Which scene and which music: 嘉宾 › 嘉宾特效.
+        # Whether a scene greets 嘉宾 at all: 设置 › 嘉宾特效. Each lobby's own is worked out as it shows.
         self.love.choice = self.store.love_scene
         # 黑名单 players in the lobby: a red glow at the screen's edges while the result is up.
         self.alert = AlertGlow()
@@ -611,7 +610,6 @@ class MainWindow(QMainWindow):
         self.history_tab = self.tabs.addTab(self._history_page(), "记录")
         self.blacklist_tab = self.tabs.addTab(self._list_page(), "黑名单")
         self.likes_page = LikesPage(self.store, self._say, music=self.music)
-        self.likes_page.show_effects = self._show_love_effects
         self.likes_page.changed.connect(self._likes_changed)
         self.likes_tab = self.tabs.addTab(self.likes_page, "嘉宾")
         self.settings_tab = self.tabs.addTab(self._settings_page(), "设置")
@@ -983,10 +981,10 @@ class MainWindow(QMainWindow):
 
     def _settings_page(self) -> QWidget:
         """One card per row, like settings grouped with like, all on one screen:
-        常规, 外观, then 帮助 at the foot, where starting over is out of the way.
+        常规, 嘉宾, 外观, then 帮助 at the foot, where starting over is out of the way.
 
         检查 (显示, 方式, 直播模式) opens from the status pill in the header, 角色名称 is in the
-        header too, 标签 beside the list on 黑名单, and 嘉宾特效 on 嘉宾.
+        header too, 标签 beside the list on 黑名单, and each 嘉宾's and 组合's 特效 on 嘉宾.
         """
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -1134,6 +1132,24 @@ class MainWindow(QMainWindow):
         self.disclaimer_button.setAutoDefault(False)
         self.disclaimer_button.setCursor(Qt.PointingHandCursor)
         self.disclaimer_button.clicked.connect(self._show_disclaimer)
+
+        # 嘉宾: whether a scene greets 嘉宾 players in a lobby, and while it does, its music on the same row.
+        guests = section("嘉宾")
+        on = self.store.love_scene != "off"
+        self.love_switch = Switch(on)
+        self.love_switch.setAccessibleName("嘉宾特效")
+        self.love_switch.toggled.connect(self._set_love_effects)
+        self.love_music_label = QLabel("音乐")
+        self.love_music_label.setObjectName("rowLabel")
+        self.love_music_label.setContentsMargins(20, 0, 0, 0)
+        self.love_music_choice = SegmentedControl(list(MUSIC_CHOICES), self.store.love_music)
+        self.love_music_choice.setAccessibleName("音乐")
+        # 无 in red: it turns the music off.
+        self.love_music_choice.buttons["off"].setProperty("off", True)
+        self.love_music_choice.changed.connect(self._set_love_music)
+        for widget in (self.love_music_label, self.love_music_choice):
+            widget.setVisible(on)
+        guests.add_row("嘉宾特效", self.love_switch, self.love_music_label, self.love_music_choice)
 
         # 外观: how the window looks.
         look = section("外观")
@@ -1377,6 +1393,10 @@ class MainWindow(QMainWindow):
         self._sync_switch(self.autostart_switch, autostart.is_enabled())
         self.close_mode.set_current("tray" if self.store.close_to_tray else "quit")
         self.love.choice = self.store.love_scene
+        self._sync_switch(self.love_switch, self.store.love_scene != "off")
+        self.love_music_choice.set_current(self.store.love_music)
+        for widget in (self.love_music_label, self.love_music_choice):
+            widget.setVisible(self.store.love_scene != "off")
         self.display_mode.set_current("safe")
         self.stream_choice.set_current("off")
         self.stream_frame_box.setChecked(self.store.stream_test_frame)
@@ -2871,9 +2891,18 @@ class MainWindow(QMainWindow):
             for mark in marks:
                 mark.setAttribute(Qt.WA_DontShowOnScreen, hidden)
 
-    def _show_love_effects(self) -> None:
-        LoveEffectsDialog(self.store, self.music, self).exec()
+    def _set_love_effects(self, on: bool) -> None:
+        """嘉宾特效 on: each 嘉宾 and 组合 is greeted with its 特效, 经典 for none; off: no scene for anyone.
+        音乐 shows beside it only while it is on."""
+        self.store.love_scene = "classic" if on else "off"
+        self.store.save_settings()
         self.love.choice = self.store.love_scene
+        self.love_music_label.setVisible(on)
+        self.love_music_choice.setVisible(on)
+
+    def _set_love_music(self, key: str) -> None:
+        self.store.love_music = key
+        self.store.save_settings()
 
     def _set_stream_mode(self, on: bool | str) -> None:
         if bool(on) != bool(self.store.stream_mode):
@@ -3684,7 +3713,7 @@ class MainWindow(QMainWindow):
             return
         hits = self._hits_in(result)
         likes = self._likes_in(result)
-        # The scene for these 嘉宾: a combination of theirs, the top one's own theme, or 嘉宾特效's.
+        # The scene for these 嘉宾: a combination of theirs, the top one's own theme, or 经典.
         self._lobby_choice = self._choice_for(likes)
         self._lobby_seats = self._seats_of(result)
         if not hits and self._love_for(len(likes)):
@@ -3790,7 +3819,7 @@ class MainWindow(QMainWindow):
                 "方式 " + ("自动检查" if store.auto_capture else f"手动检查 ({store.hotkey or '无快捷键'})"),
                 "提醒 " + ("黑名单+嘉宾" if store.check_blacklist and store.check_likes else "只有黑名单" if store.check_blacklist else "只有嘉宾"),
                 "直播模式 " + ("开" if store.stream_mode else "关") + ("" if store.stream_test_frame else " (测试框 关)"),
-                f"嘉宾特效 {store.love_scene} + {store.love_music}",
+                "嘉宾特效 " + ("关" if store.love_scene == "off" else f"开 (音乐 {store.love_music})"),
                 f"外观 {store.appearance}",
                 "关闭窗口时 " + ("最小化到托盘" if store.close_to_tray else "退出程序"),
                 f"黑名单 {len(store.entries)}, 嘉宾 {len(store.likes)}, 记录 {len(store.scans)}",
@@ -3798,15 +3827,17 @@ class MainWindow(QMainWindow):
         )
 
     def _choice_for(self, likes: list[Entry]) -> str:
-        """The 嘉宾特效 choice for a lobby with these 嘉宾 (guests.lobby_choice). 测试效果's sample
-        嘉宾 are on no list: 嘉宾特效's own choice."""
+        """The 嘉宾特效 scene for a lobby with these 嘉宾 (guests.lobby_choice), "off" while 嘉宾特效 is
+        off in 设置. 测试效果's sample 嘉宾 are on no list: 经典."""
+        if self.store.love_scene == "off":
+            return "off"
         if self._demo_likes is not None:
-            return self.store.love_scene
-        return lobby_choice(self.store.likes, self.store.combos, likes, self.store.love_scene, known=_known_scene)
+            return "classic"
+        return lobby_choice(self.store.likes, self.store.combos, likes, "classic", known=_known_scene)
 
     def _tune_for(self, choice: str) -> str:
-        """The music for a lobby with this 嘉宾特效 choice: the sound of the scene that plays (随机
-        settled now), none for 无 or when 音乐 is 无."""
+        """The music for a lobby with this 嘉宾特效 choice: the sound of the scene that plays, none when
+        嘉宾特效 or 音乐 is off."""
         if self.store.love_music == "off":
             return ""
         self.love.choice = choice
@@ -3827,8 +3858,8 @@ class MainWindow(QMainWindow):
 
     def _dress_love(self, playing: bool) -> None:
         """The 嘉宾 marks (the ring, the badge and the card) in the look of this lobby's scene: the one
-        about to play, settled now if it is 随机, or the one that played for this lobby. With none
-        playing, the look of the lobby's choice; 经典's under 随机 or 无."""
+        about to play, or the one that played for this lobby. With none playing, the look of the
+        lobby's choice; 经典's while 嘉宾特效 is off."""
         choice = self._lobby_choice or self.store.love_scene
         if playing and self._love_played:
             scene = self.love.scene
@@ -4000,10 +4031,7 @@ class MainWindow(QMainWindow):
             return
         self._love_played = True
         choice = self._lobby_choice or self.store.love_scene
-        log.info(
-            "Check %d shown: 嘉宾特效 (%s%s, music %s).", self._check_number, choice,
-            "" if choice == self.store.love_scene else f" for these 嘉宾, not {self.store.love_scene}", self.store.love_music,
-        )  # fmt: skip
+        log.info("Check %d shown: 嘉宾特效 (%s, music %s).", self._check_number, choice, self.store.love_music)
         badge = self.clear_mark.geometry().center() if self.clear_mark.isVisible() else None
         self.love.choice = choice
         self.love.play(self._game_area(screen), keep, badge, self._lobby_seats)

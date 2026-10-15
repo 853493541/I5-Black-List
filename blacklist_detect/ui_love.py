@@ -1,7 +1,8 @@
 """The scene that greets 嘉宾 players in a lobby, over the game.
 
-Which scene plays is the player's choice in 嘉宾 › 嘉宾特效: one of love_scenes.SCENES, 随机 (any
-but the one just played), or 关闭. It plays once, about five seconds, then goes. The bottom of the
+Which scene plays is the lobby's (guests.lobby_choice): one of love_scenes.SCENES, picked by its 组合
+or its 嘉宾, else 经典; none while 设置 › 嘉宾特效 is off. 随机 (any but the one just played) is still
+understood. It plays once, about five seconds, then goes. The bottom of the
 scene parts around the accept button and its marks, and clicks pass through the whole window to
 the game.
 """

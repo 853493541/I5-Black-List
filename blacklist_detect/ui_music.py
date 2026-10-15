@@ -7,7 +7,7 @@ accents on the scene's moments. build/theme_tunes.py plays 冰蓝极光's, 星�
 模仿者狂欢 with the 演说家遇袭 notice's sound in it at its strike (build/ambush_tune.py): the game's own
 recording, the user's choice made knowing NetEase owns it.
 
-The sound follows the theme: 音乐 in 嘉宾特效 only turns it on (跟随特效) or off (无).
+The sound follows the theme: 设置 › 嘉宾特效 › 音乐 only turns it on (跟随特效) or off (无).
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ TUNES: dict[str, Path] = {
     "fluffy": ASSETS / "theme-fluffy.wav",
     "claw": ASSETS / "ambush.wav",
 }
-# 音乐's choices in 嘉宾特效, its default first: the theme's own sound, or none.
+# 音乐's choices in 设置 › 嘉宾特效, its default first: the theme's own sound, or none.
 MUSIC_CHOICES = (("theme", "跟随特效"), ("off", "无"))
 # The same 嘉宾 players found again this soon are the same lobby, checked again: no second tune.
 SAME_LOBBY_S = 60.0

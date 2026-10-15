@@ -365,15 +365,10 @@ def _set_aside(path: Path) -> Path:
 
 
 def _theme(value: object) -> str:
-    """A 嘉宾's or a combination's theme as saved: a scene's key, or "" to follow 嘉宾特效. Whether this
-    version still has the scene is the player's business (guests.lobby_choice skips one it has not)."""
+    """A 嘉宾's or a combination's theme as saved: a scene's key, or "" for none of their own (经典). Whether
+    this version still has the scene is the player's business (guests.lobby_choice skips one it has not)."""
     return value.strip()[:40] if isinstance(value, str) else ""
 
-
-def _choice(value: object, default: str) -> str:
-    """A 嘉宾特效 choice as saved: a key, "random" or "off". Anything else is the default; the
-    scene and the music each fall back on their own when a key they do not know comes in."""
-    return value if isinstance(value, str) and value.strip() else default
 
 class Store:
     def __init__(self, root: Path | None = None) -> None:
@@ -415,9 +410,8 @@ class Store:
         # 显示: 安全模式 marks nothing on the game, the result comes as messages at the bottom right
         # of the screen; 完整模式 (False) draws the marks over it. On unless turned off, also for old settings.
         self.safe_mode = True
-        # 嘉宾特效: the scene over the game, a key of love_scenes.SCENES, "random" or "off" (经典 until
-        # another is chosen); and its music, which follows the scene ("theme") or is "off"
-        # (ui_music.MUSIC_CHOICES).
+        # 设置 › 嘉宾特效: on ("classic", 经典 greeting 嘉宾 with no 特效 of their own) or "off" (no scene for
+        # anyone); and the music, which follows the scene ("theme") or is "off" (ui_music.MUSIC_CHOICES).
         self.love_scene = "classic"
         self.love_music = "theme"
         # 直播模式: a window for a streaming app with the 嘉宾 marks only, clear behind them. "" off, "on" on.
@@ -876,7 +870,8 @@ class Store:
             self.welcomed = bool(settings.get("welcomed", True))
             self.close_to_tray = bool(settings.get("close_to_tray", True))
             self.safe_mode = bool(settings.get("safe_mode", True))
-            self.love_scene = _choice(settings.get("love_scene"), "classic")
+            # A scene, 随机 or 无 was the one choice for every 嘉宾 once: any of them is on now; 无 stays off.
+            self.love_scene = "off" if settings.get("love_scene") == "off" else "classic"
             # The five wedding tunes and 随机 that came before follow the theme now; 无 stays off.
             self.love_music = "off" if settings.get("love_music") == "off" else "theme"
             # v0.6.0 saved "key" (green) or "alpha" (clear), v0.6.1 "key": each is on, and clear now.

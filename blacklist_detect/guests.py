@@ -2,7 +2,7 @@
 
 A combination whose 嘉宾 are all in the lobby wins, the one with the most of them first (the earlier
 one on a tie); other 嘉宾 there with it don't stop it. Else the 嘉宾 highest on the list with a theme of
-their own decides: the list shows the newest first, and the player orders it. Else 嘉宾特效's own choice.
+their own decides: the list shows the newest first, and the player orders it. Else the default, 经典.
 """
 
 from __future__ import annotations
@@ -22,8 +22,9 @@ def lobby_choice(
 ) -> str:
     """The 嘉宾特效 choice for a lobby with these 嘉宾 present.
 
-    likes is 嘉宾 as saved (the last is the top of the list); known says whether a theme is one this
-    version plays, so a theme it no longer has follows the default instead."""
+    likes is 嘉宾 as saved (the last is the top of the list); default is what plays when none of them
+    picked one ("classic"); known says whether a theme is one this version plays, so a theme it no
+    longer has gives way as if it were not picked."""
     here = {fold(like.name) for like in present}
     if not here:
         return default
