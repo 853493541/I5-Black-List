@@ -596,37 +596,28 @@ def _gilt(rect: QRectF, lines: list[_Line], scale: float, u: float) -> tuple[QIm
 
 
 def _rose_glass(center: QPointF, radius: float, scale: float, u: float) -> tuple[QRectF, QImage, QImage, QRectF, QImage]:
-    """The round window's glass, per pixel, with the 愚人 hat in gold in its middle: rays of garnet and
-    amber glass, mottled and streaked as old glass is, deeper and quieter behind the hat and paling to
-    honey toward the rim, the brightest glowing over the lead; dark lead round the hat and its shadow
-    under it. The hat is raised, polished gold lit from the upper left, its seams engraved. Also
-    where the gold shines, for the glints that sweep across it, and the light the window spills round
-    itself."""
+    """The round window, per pixel, with the 愚人 hat in gold in its middle. Round it the lobby shows
+    through, as in the window on the left: only a light smoky veil, and pale gold light behind the hat;
+    a dark line round the hat and its shadow under it. The hat is raised, polished gold lit from the
+    upper left, its seams engraved. Also where the gold shines, for the glints that sweep across it,
+    and the light the window spills round itself."""
     rect = QRectF(center.x() - radius, center.y() - radius, 2 * radius, 2 * radius)
     n = max(8, math.ceil(2 * radius * scale))
     ys, xs = np.mgrid[0:n, 0:n].astype(np.float32) + 0.5
     x, y = (xs / n * 2 - 1), (ys / n * 2 - 1)
     rho = np.hypot(x, y)
-    rnd = np.random.default_rng(7)
     px = u * scale
     hat, seams, deep = _fool(n, HAT)
-    behind = blur(hat, 9 * px)
-    garnet, amber, honey = (rgb(c) for c in ("#7a1f12", "#d4731c", "#ffcf55"))
-    # Rays of garnet and amber from the middle, paling to honey toward the rim.
-    rays = smooth(0.2, 0.8, 0.5 + 0.5 * np.cos(np.arctan2(y, x) * 12))
-    tint = garnet + (amber - garnet) * rays[..., None]
-    tint = tint + (honey - tint) * (smooth(0.5, 0.97, rho) * 0.6)[..., None]
-    # Mottled and streaked as old glass is, less so and darker behind the hat.
-    mottle = noise(n, n, n * 0.06, 3, 11)
-    streak = noise(n, n, n * 0.02, 2, 12)
-    bright = (0.82 + (0.28 * mottle + 0.08 * streak) * (1 - 0.6 * behind)) * (1 - 0.35 * behind) * rnd.uniform(0.97, 1.03)
-    # Dark lead round the hat, and its shadow down and to the right.
+    # A light smoky veil, lighter toward the ring, and pale gold light behind the hat.
+    behind = np.clip(blur(hat, 14 * px) * 1.3, 0, 1)
+    dark = rgb("#1c1308")
+    color = np.broadcast_to(dark + (rgb("#ffe7aa") - dark) * behind[..., None], (n, n, 3)).copy()
+    veil = 0.3 * (1 - 0.45 * smooth(0.35, 1.0, rho)) * (1 - behind) + 0.55 * behind
+    # A dark line round the hat, and its shadow down and to the right.
     lead = np.clip(blur(hat, max(0.6, 1.1 * px)) * 2.4, 0, 1) * (1 - hat)
     shadow = _shift(blur(hat, max(0.6, 2.2 * px)), max(1, round(1.8 * px)), max(1, round(1.2 * px))) * (1 - hat)
-    color = tint * bright[..., None] * (1 - 0.8 * lead - 0.45 * shadow)[..., None]
-    # Lit from behind, the brightest glass glows over the lead round it.
-    hot = np.clip(color - 0.55, 0, None)
-    color = color + np.dstack([blur(hot[..., k], max(1.0, n / 90)) for k in range(3)]) * 0.9
+    color = color * (1 - 0.85 * lead - 0.5 * shadow)[..., None]
+    veil = np.maximum(veil, np.maximum(0.7 * lead, 0.45 * shadow))
     # The gold: each part of the hat rising to a rounded ridge along its middle (full height 9 icon
     # pixels in), bevelled at its edges, its seams cut in and dark.
     groove = blur(seams, max(0.5, 0.45 * px))
@@ -635,7 +626,7 @@ def _rose_glass(center: QPointF, radius: float, scale: float, u: float) -> tuple
     gold = _metal(height, 9 * px) * (1 - 0.75 * np.clip(groove * 2, 0, 1))[..., None]
     color = color * (1 - hat[..., None]) + gold * hat[..., None]
     edge = 1 - smooth(0.985, 1.0, rho)
-    alpha = edge * (0.9 + 0.08 * mottle) * (1 - hat) + hat
+    alpha = edge * veil * (1 - hat) + hat
     glass = picture(color, alpha)
     shine = picture(np.ones((n, n, 3), dtype=np.float32) * rgb("#fff3cc"), hat * (0.6 + 0.4 * smooth(0.3, 0.9, gold.mean(axis=-1))))
     # Its light, spilled round it: worked out at a quarter of the size, three radii across.
