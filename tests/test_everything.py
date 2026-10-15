@@ -173,13 +173,14 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     # --- 9. Two 嘉宾 players and no 黑名单: the 嘉宾 scene and the music. -------------------------
     played: list = []
     window.music = ThemeMusic(play=played.append)
-    window.store.love_scene, window.store.love_music = "classic", "theme"
+    # 玫瑰花边, with its wedding march (经典 greets in silence).
+    window.store.love_scene, window.store.love_music = "lace", "theme"
     window.store.remove_at(0)
     window._love_played = False
     window.check_now()
     _wait(qapp, lambda: window.love.playing() or window.panel.mode == "liked")
-    assert window.panel.mode == "liked" and window.love.playing() and window.love.scene == "classic"
-    assert played == [TUNES["classic"]]
+    assert window.panel.mode == "liked" and window.love.playing() and window.love.scene == "lace"
+    assert played == [TUNES["lace"]]
     window.love.stop()
     window._hide_panel_after_title()
 

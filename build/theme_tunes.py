@@ -2,14 +2,14 @@
 
     python build/theme_tunes.py
 
-Each sound is made for its scene, its accents on the scene's moments (love_scenes): 经典's harp runs up
-as its frame draws and a celesta rings as 心动嘉宾 comes in; 冰蓝极光's glass rings as its heart forms;
-星河许愿's music box plays the Bridal Chorus and a shooting star chimes as its two stars meet; 赛博 zaps
-at each of its five strikes over a synthwave pulse; 霓虹都市 rains and thunders at each of its four
-strikes over city-pop chords; 毛茸茸 plucks a bouncy tune, pops its stars, boings its sprouts and pats
-its paw prints. The tunes are this script's own or public domain (the Bridal Chorus, 1850), so a
-stream can carry them. 玫瑰花边, 天使 and 数学 keep the wedding tunes made for them
-(build/wedding_tunes.py: organ, bells, canon) and 遇袭 its own (build/ambush_tune.py).
+Each sound is made for its scene, its accents on the scene's moments (love_scenes): 冰蓝极光's glass
+rings as its heart forms; 星河许愿 plays Twinkle, Twinkle, Little Star on a celesta and a shooting star
+chimes as its two stars meet; 赛博朋克·一 zaps at each of its five strikes over a synthwave pulse;
+赛博朋克·二 rains and thunders at each of its four strikes over city-pop chords; 毛茸茸保护协会 plucks a
+bouncy tune, pops its stars, boings its sprouts and pats its paw prints. The tunes are this script's
+own or public domain, so a stream can carry them. 经典 greets in silence; 玫瑰花边, 可我觉得很神圣啊 and
+数学公式 keep the wedding tunes made for them (build/wedding_tunes.py: organ, bells, canon) and 遇袭 its
+own (build/ambush_tune.py).
 
 Each is mono 16-bit 44.1 kHz, as long as its scene, at about -19 dBFS with peaks under -3 dBFS.
 """
@@ -19,7 +19,8 @@ from __future__ import annotations
 import math
 
 import numpy as np
-from wedding_tunes import BRIDE, C4, C6, D4, E4, G3, G4, SR, finish, harp, hz, music_box, render, reverb, strings, times, write
+import wedding_tunes
+from wedding_tunes import SR, finish, harp, hz, music_box, render, reverb, times, write
 
 RNG = np.random.default_rng(11)
 
@@ -239,32 +240,6 @@ def heartbeat(vel: float = 1.0) -> np.ndarray:
 D3, A3 = 50, 57
 
 
-def classic_take() -> np.ndarray:
-    """经典, 4.4 s: a warm string swell in D; a harp runs up as the frame draws (0.2-1.35 s), a celesta
-    chord rings as 心动嘉宾 comes in (0.6 s), a shimmer as its sheen passes (1.55-2.35 s); then G and
-    home to D."""
-    ev = []
-    for note in (38, D3, A3, 62, 66):
-        ev.append((0.0, strings, note, 2.4, 0.9))
-    for note in (43, 50, 55, 59, 62):
-        ev.append((2.4, strings, note, 1.3, 0.8))
-    for note in (38, D3, 57, 62, 66):
-        ev.append((3.4, strings, note, 0.6, 0.7))
-    run = (62, 64, 66, 69, 71, 74, 76, 78, 81, 83, 86)
-    for k, note in enumerate(run):
-        ev.append((0.2 + k * 0.1, harp, note, 0.4, 0.45 + 0.35 * k / len(run)))
-    for k, note in enumerate((86, 81, 78, 74)):
-        ev.append((0.6 + k * 0.05, celesta, note, 0.9 - 0.12 * k))
-    for k in range(10):
-        ev.append((1.55 + k * 0.075, celesta, 93 + (2, 4, 7, 9, 11)[k % 5] + (12 if k > 6 else 0) - 12, 0.28 * math.sin(math.pi * (k + 1) / 11)))
-        ev.append((1.58 + k * 0.075, sparkle, 0.6))
-    for k, note in enumerate((55, 59, 62, 67, 71)):
-        ev.append((2.4 + k * 0.06, harp, note, 0.6, 0.4))
-    ev.append((3.0, celesta, 86, 0.5))
-    ev.append((3.4, harp, 50, 1.0, 0.5))
-    return finish(reverb(render(ev, 5.5), 2.6, 0.38, 6000), 4.4, 0.9)
-
-
 def ice_take() -> np.ndarray:
     """冰蓝极光, 5.0 s: a glass-harmonica chord in C# minor; a celesta runs up as the frost grows
     (0.15-1.3 s), the glass rings as the heart forms (1.55 s), a run as the prism sweeps (1.75 s), two
@@ -295,20 +270,35 @@ def ice_take() -> np.ndarray:
 
 
 def stars_take() -> np.ndarray:
-    """星河许愿, 5.0 s: the Bridal Chorus on a music box under a dusk sky; a shooting star rushes in and
-    chimes where the two wishing stars meet (1.75 s), and gold dust glitters after it."""
-    beat = 60 / 100
-    ev = [(at * beat, music_box, note + 12, length * beat, 0.9) for at, length, note in BRIDE]
-    for at, note in ((0, C4), (1, G4), (2, E4), (3, G4), (4, G3), (5, D4), (6, C4), (6.5, E4), (7, G4)):
-        ev.append((at * beat, music_box, note + 12, 1.0, 0.4))
-    ev.append((8.0 * beat, music_box, C6 + 12, 1.0, 0.22))
+    """星河许愿, 5.0 s: "Twinkle, Twinkle, Little Star" (an old French tune, public domain) on a celesta
+    under the dusk sky, a music box an octave over it, a harp rocking under it and a glassy pad; a
+    shooting star rushes in and chimes where the two wishing stars meet (1.75 s), gold dust glittering
+    after it, and another streaks past (3.1 s)."""
+    beat = 0.3
+    # (beat, beats, note), in F: twinkle, twinkle, little star, how I wonder what you are.
+    tune = (
+        (0, 1, 65), (1, 1, 65), (2, 1, 72), (3, 1, 72), (4, 1, 74), (5, 1, 74), (6, 2, 72),
+        (8, 1, 70), (9, 1, 70), (10, 1, 69), (11, 1, 69), (12, 1, 67), (13, 1, 67), (14, 2, 65),
+    )  # fmt: skip
+    ev = []
+    for at, _length, note in tune:
+        ev.append((0.1 + at * beat, celesta, note + 12, 0.95))
+        ev.append((0.1 + at * beat, music_box, note + 24, 0.6, 0.22))
+    # Under it, the harp rocks through the chords, two beats each: F, F, Bb, F, Bb, F, C, F.
+    chords = ((53, 60, 65), (53, 60, 65), (58, 62, 65), (53, 60, 65), (58, 62, 65), (53, 60, 65), (48, 55, 64), (53, 60, 65))
+    for k, (low, mid, high) in enumerate(chords):
+        at = 0.1 + k * 2 * beat
+        for step, note in enumerate((low, mid, high, mid)):
+            ev.append((at + step * beat / 2, harp, note, beat, 0.35 if step else 0.5))
+    for note in (53, 60, 65, 69):
+        ev.append((0.0, glass, note, 4.3, 0.45))
     ev.append((1.2, whoosh, 0.6, 9000, 2500, 0.55))
     for k, note in enumerate((96, 103, 100, 108)):
-        ev.append((1.75 + k * 0.03, chime, note, 0.75 - 0.1 * k))
+        ev.append((1.75 + k * 0.03, chime, note, 0.6 - 0.08 * k))
     for k in range(8):
-        ev.append((1.85 + k * 0.06 + RNG.uniform(0, 0.03), sparkle, 0.7))
+        ev.append((1.85 + k * 0.06 + RNG.uniform(0, 0.03), sparkle, 0.6))
     ev.append((3.1, whoosh, 0.45, 8000, 3000, 0.25))
-    return finish(reverb(render(ev, 5.5), 2.2, 0.32, 7000), 5.0, 0.7)
+    return finish(reverb(render(ev, 5.5), 2.4, 0.36, 7000), 5.0, 0.7)
 
 
 def cyber_take() -> np.ndarray:
@@ -395,12 +385,15 @@ def fluffy_take() -> np.ndarray:
 
 
 def main() -> None:
-    write("theme-classic.wav", classic_take())
-    write("theme-ice.wav", ice_take())
-    write("theme-stars.wav", stars_take())
-    write("theme-cyber.wav", cyber_take())
-    write("theme-neon.wav", neon_take())
-    write("theme-fluffy.wav", fluffy_take())
+    global RNG
+    # Each sound with randomness of its own, so changing one leaves the others as they were.
+    for seed, (name, take) in enumerate(
+        (("theme-ice.wav", ice_take), ("theme-stars.wav", stars_take), ("theme-cyber.wav", cyber_take),
+         ("theme-neon.wav", neon_take), ("theme-fluffy.wav", fluffy_take)),
+        start=11,
+    ):  # fmt: skip
+        RNG = wedding_tunes.RNG = np.random.default_rng(seed)
+        write(name, take())
 
 
 if __name__ == "__main__":

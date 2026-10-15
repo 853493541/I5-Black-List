@@ -1,9 +1,9 @@
 """嘉宾音乐: each 嘉宾特效 theme's own few seconds of sound, played as it greets 嘉宾 players in a lobby.
 
-Every scene in love_scenes.SCENES has one (TUNES), made for it, its accents on the scene's moments.
-build/theme_tunes.py plays 经典's, 冰蓝极光's, 星河许愿's, 赛博's, 霓虹都市's and 毛茸茸's; build/wedding_tunes.py
-the wedding tunes 玫瑰花边 (the Bridal Chorus on organ), 天使 (church bells) and 数学 (Pachelbel's Canon on
-harp) keep. No recording is used for those, so a stream can carry them. 遇袭's is the 指挥家's music from
+Every scene in love_scenes.SCENES but 经典, which greets in silence, has one (TUNES), made for it, its
+accents on the scene's moments. build/theme_tunes.py plays 冰蓝极光's, 星河许愿's, 赛博朋克's two and
+毛茸茸保护协会's; build/wedding_tunes.py the wedding tunes 玫瑰花边 (the Bridal Chorus on organ), 可我觉得很神圣啊
+(church bells) and 数学公式 (Pachelbel's Canon on harp) keep. No recording is used for those, so a stream can carry them. 遇袭's is the 指挥家's music from
 模仿者狂欢 with the 演说家遇袭 notice's sound in it at its strike (build/ambush_tune.py): the game's own
 recording, the user's choice made knowing NetEase owns it.
 
@@ -18,9 +18,8 @@ from collections.abc import Callable
 from pathlib import Path
 
 ASSETS = Path(__file__).resolve().parent / "assets"
-# Each scene's sound, by the scene's key.
+# Each scene's sound, by the scene's key. 经典 has none: it greets in silence.
 TUNES: dict[str, Path] = {
-    "classic": ASSETS / "theme-classic.wav",
     "lace": ASSETS / "wedding-organ.wav",
     "ice": ASSETS / "theme-ice.wav",
     "stars": ASSETS / "theme-stars.wav",

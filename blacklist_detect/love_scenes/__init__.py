@@ -59,11 +59,11 @@ SCENES: tuple[tuple[str, str], ...] = (
     ("lace", "玫瑰花边"),
     ("ice", "冰蓝极光"),
     ("stars", "星河许愿"),
-    ("cyber", "赛博"),
-    ("neon", "霓虹都市"),
-    ("angel", "天使"),
-    ("equation", "数学"),
-    ("fluffy", "毛茸茸"),
+    ("cyber", "赛博朋克·一"),
+    ("neon", "赛博朋克·二"),
+    ("angel", "可我觉得很神圣啊"),
+    ("equation", "数学公式"),
+    ("fluffy", "毛茸茸保护协会"),
     ("claw", "遇袭"),
 )
 KEYS = tuple(key for key, _name in SCENES)

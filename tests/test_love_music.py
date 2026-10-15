@@ -24,8 +24,9 @@ def _music():  # noqa: ANN202
 
 
 def test_every_theme_has_its_own_sound_as_long_as_it():
-    """One sound for each scene, mono 16-bit 44.1 kHz, no longer than the scene (遇袭's runs its 6.6 s)."""
-    assert set(TUNES) == set(love_scenes.KEYS)
+    """One sound for each scene but 经典, which greets in silence: mono 16-bit 44.1 kHz, no longer than
+    the scene (遇袭's runs its 6.6 s)."""
+    assert set(TUNES) == set(love_scenes.KEYS) - {"classic"}
     for key, tune in TUNES.items():
         assert tune.is_file(), key
         with wave.open(str(tune)) as w:
@@ -110,8 +111,15 @@ def test_the_theme_brings_its_sound_until_music_is_off(window):
     from blacklist_detect.storage import Store
 
     assert window.store.love_music == "theme" and window.store.love_scene == "classic"
+    # 经典 greets in silence.
     window._show_panel(_lobby())
-    assert window.tunes == [TUNES["classic"]]
+    assert window.tunes == []
+    window._hide_panel_after_title()
+    window.store.love_scene = "lace"
+    window._on_lobby_placed(_lobby().button_box)
+    window.music._last_lobby = frozenset()
+    window._show_panel(_lobby())
+    assert window.tunes == [TUNES["lace"]]
     window.store.love_music = "off"
     window.store.save_settings()
     assert Store(window.store.root).love_music == "off"
@@ -181,7 +189,7 @@ def test_the_effect_plays_for_one_guest_or_more(window):
         window._love_played = False
         window._show_panel(_likes(likes))
         assert window.love.playing(), likes
-        assert window.tunes == [TUNES["classic"]], likes
+        assert window.tunes == [], "经典 greets in silence"
         assert window.panel.mode == "liked" and window.like_card.isVisible()
         window._hide_panel_after_title()
 
