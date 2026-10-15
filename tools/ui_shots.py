@@ -68,7 +68,7 @@ def shoot(args) -> None:  # noqa: ANN001
     from PySide6.QtCore import QPoint
     from PySide6.QtWidgets import QDialog
 
-    from blacklist_detect import __version__, ui
+    from blacklist_detect import __version__, hotkey, ui
     from blacklist_detect.ui_kit import Modal
     from blacklist_detect.ui_love_pick import ScenePicker
 
@@ -96,6 +96,9 @@ def shoot(args) -> None:  # noqa: ANN001
 
     Modal.exec = photograph
     Modal.open = photograph
+    # The app on this PC may hold a hotkey, and a key pressed meanwhile must not reach this copy.
+    hotkey._register = lambda _ident, _modifiers, _vk: True
+    hotkey._unregister = lambda _ident: None
 
     def step(name: str, action) -> None:  # noqa: ANN001
         label["name"] = name
@@ -110,9 +113,23 @@ def shoot(args) -> None:  # noqa: ANN001
     window.resize(*args.size)
     window.show()
     settle(0.8)
-    for index, name in enumerate(("记录", "黑名单", "嘉宾", "设置")):
+    for index in range(window.tabs.count()):
         window.tabs.setCurrentIndex(index)
-        save(window, f"page_{name}")
+        save(window, f"page_{window._tab_buttons[index].name()}")
+
+    def same_key() -> None:
+        from PySide6.QtCore import QEvent, Qt
+        from PySide6.QtGui import QFocusEvent, QKeyEvent
+
+        # 检查's own key pressed for the 特效 hotkey: refused, under the box.
+        window.tabs.setCurrentIndex(window.effects_tab)
+        edit = window.effect_hotkey_edit
+        app.sendEvent(edit, QFocusEvent(QEvent.Type.FocusIn))
+        app.sendEvent(edit, QKeyEvent(QEvent.Type.KeyPress, Qt.Key_F11, Qt.KeyboardModifier.AltModifier))
+        save(window, "page_特效_同一个键")
+        app.sendEvent(edit, QFocusEvent(QEvent.Type.FocusOut))
+
+    step("page_特效_同一个键", same_key)
     window.tabs.setCurrentIndex(0)
     step("header_检查", lambda: (window.check_panel.toggle(), save(window, "header_检查"), window.check_panel.close_panel()))
 
@@ -125,7 +142,7 @@ def shoot(args) -> None:  # noqa: ANN001
         save(window, "header_发现新版本")
         window.update_panel.close_panel()
         save(window, "header_有更新")
-        window.tabs.setCurrentIndex(3)
+        window.tabs.setCurrentIndex(window.settings_tab)
         save(window, "page_设置_有更新")
         window._offered = None
         window.update_pill.hide()
@@ -149,7 +166,7 @@ def shoot(args) -> None:  # noqa: ANN001
     if window.store.combos:
         step("dlg_编辑组合", lambda: likes.combo_strip.edit(0))
     step("dlg_选择特效", lambda: ScenePicker("fluffy", "心动小鹿", parent=window).exec())
-    window.tabs.setCurrentIndex(3)
+    window.tabs.setCurrentIndex(window.settings_tab)
     step("dlg_显示说明", window._show_display_guide)
     step("dlg_直播模式说明", window._show_stream_guide)
     step("dlg_使用声明", window._show_disclaimer)

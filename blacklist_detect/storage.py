@@ -9,7 +9,8 @@ from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
-from blacklist_detect.hotkey import two_keys
+from blacklist_detect import love_scenes
+from blacklist_detect.hotkey import parse_hotkey, two_keys
 from blacklist_detect.match import MIN_PREFIX_CHARS, clean_stored_name, fold
 from blacklist_detect.model import Combo, Entry
 from blacklist_detect.paths import app_dir
@@ -301,6 +302,8 @@ def _window_size(value) -> tuple[int, int] | None:
 # Name, tags, reason, last met. Tags fit about three short pills; the reason takes the spare width.
 DEFAULT_COLUMN_WIDTHS = [200, 176, 340, 120]
 DEFAULT_HOTKEY = "Alt+1"
+# The 特效 hotkey, which plays the 特效 picked on 特效 at once, with no check.
+DEFAULT_EFFECT_HOTKEY = "Alt+F12"
 
 
 def _column_widths(value) -> list[int] | None:
@@ -414,6 +417,9 @@ class Store:
         # anyone); and the music, which follows the scene ("theme") or is "off" (ui_music.MUSIC_CHOICES).
         self.love_scene = "classic"
         self.love_music = "theme"
+        # 特效: the scene the 特效 hotkey plays (a love_scenes key), and that hotkey; it never equals 检查's.
+        self.quick_scene = "classic"
+        self.effect_hotkey = DEFAULT_EFFECT_HOTKEY
         # 直播模式: a window for a streaming app with the 嘉宾 marks only, clear behind them. "" off, "on" on.
         self.stream_mode = ""
         # 直播模式's 测试框: the red frame round the game in that window while no mark shows.
@@ -824,6 +830,8 @@ class Store:
                 "safe_mode": self.safe_mode,
                 "love_scene": self.love_scene,
                 "love_music": self.love_music,
+                "quick_scene": self.quick_scene,
+                "effect_hotkey": self.effect_hotkey,
                 "stream_mode": self.stream_mode,
                 "stream_test_frame": self.stream_test_frame,
                 "check_blacklist": self.check_blacklist,
@@ -874,6 +882,15 @@ class Store:
             self.love_scene = "off" if settings.get("love_scene") == "off" else "classic"
             # The five wedding tunes and 随机 that came before follow the theme now; 无 stays off.
             self.love_music = "off" if settings.get("love_music") == "off" else "theme"
+            # A scene this version has (one replaced is its replacement), else 经典.
+            scene = love_scenes.shown(str(settings.get("quick_scene", "") or ""))
+            self.quick_scene = scene if scene in love_scenes.KEYS else "classic"
+            # A key that is no hotkey is the default again; the same as 检查's is none.
+            effect = parse_hotkey(two_keys(str(settings.get("effect_hotkey", "") or "")))
+            self.effect_hotkey = effect.display if effect is not None else DEFAULT_EFFECT_HOTKEY
+            check = parse_hotkey(self.hotkey)
+            if check is not None and check.display == self.effect_hotkey:
+                self.effect_hotkey = ""
             # v0.6.0 saved "key" (green) or "alpha" (clear), v0.6.1 "key": each is on, and clear now.
             self.stream_mode = "on" if settings.get("stream_mode") in ("on", "key", "alpha") else ""
             self.stream_test_frame = settings.get("stream_test_frame") is not False
@@ -1099,6 +1116,8 @@ class Store:
         self.safe_mode = True
         self.love_scene = "classic"
         self.love_music = "theme"
+        self.quick_scene = "classic"
+        self.effect_hotkey = DEFAULT_EFFECT_HOTKEY
         self.stream_mode = ""
         self.stream_test_frame = True
         self.check_blacklist = True

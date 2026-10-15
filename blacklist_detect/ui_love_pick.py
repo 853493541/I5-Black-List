@@ -1,15 +1,16 @@
 """选择特效: the scene a 嘉宾 or a 组合 is greeted with, picked from every one in love_scenes.SCENES.
 
-The scenes are listed by name, each with a dot in its colour; the one highlighted plays on the right
-over the fake-name sample lobby, with the app's own marks on it, and ▶ plays it from its start with its
-music (unless 设置 › 音乐 is 无). 用这个 gives its key; closing changes nothing.
+The scenes are listed by name, each with a dot in its colour (SceneList); the one highlighted plays on
+the right over the fake-name sample lobby, with the app's own marks on it (ScenePreview), and ▶ plays it
+from its start with its music (unless 设置 › 音乐 is 无). 用这个 gives its key; closing changes nothing.
+The 特效 page (ui_effects) is made of the same list and preview.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QElapsedTimer, QPoint, QPointF, QRectF, QSize, Qt, QTimer
+from PySide6.QtCore import QElapsedTimer, QPoint, QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPainterPath, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import QAbstractButton, QButtonGroup, QHBoxLayout, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
@@ -130,7 +131,6 @@ class ScenePreview(QWidget):
                 " border-radius: 18px; padding: 0 0 0 2px; }"
                 " QPushButton#previewPlay:hover { background: rgba(10, 13, 20, 215); border-color: rgba(255, 255, 255, 170); }"
             )
-            button.move(self.width() - 36 - 10, self.height() - 36 - 10)
             button.clicked.connect(play)
             self.play_button = button
         self.setAccessibleName("嘉宾特效预览")
@@ -145,6 +145,16 @@ class ScenePreview(QWidget):
         self._tick = QTimer(self)
         self._tick.setInterval(33)
         self._tick.timeout.connect(self.update)
+        self._place_play()
+
+    def set_width(self, width: int) -> None:
+        """As wide as this, the lobby's shape kept, ▶ staying in its corner."""
+        self.setFixedSize(QSize(width, round(width * DESIGN[1] / DESIGN[0])))
+        self._place_play()
+
+    def _place_play(self) -> None:
+        if self.play_button is not None:
+            self.play_button.move(self.width() - 36 - 10, self.height() - 36 - 10)
 
     def show_scene(self, scene: str) -> None:
         """Play this scene from its start; one this version no longer has plays what replaced it, or 经典."""
@@ -154,6 +164,10 @@ class ScenePreview(QWidget):
         self._marks = self._marks_for(self.scene)
         self._clock.start()
         self._tick.start()
+
+    def pause(self) -> None:
+        """Stop playing until show_scene, while it is out of sight."""
+        self._tick.stop()
 
     def stop(self) -> None:
         self._tick.stop()
@@ -273,11 +287,47 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         p.end()
 
 
+class SceneList(QWidget):
+    """Every scene in love_scenes.SCENES by name, one highlighted: 选择特效's list, and the 特效 page's.
+    key is the one highlighted, 经典 for one this version does not have; picked(key) says a click
+    highlighted one."""
+
+    picked = Signal(str)
+    W = 200
+
+    def __init__(self, current: str = "", parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setFixedWidth(self.W)
+        column = QVBoxLayout(self)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(2)
+        group = QButtonGroup(self)
+        group.setExclusive(True)
+        self.buttons: dict[str, SceneChoice] = {}
+        for key, title in love_scenes.SCENES:
+            button = SceneChoice(key, title)
+            button.clicked.connect(lambda _checked=False, key=key: self._click(key))
+            group.addButton(button)
+            column.addWidget(button)
+            self.buttons[key] = button
+        column.addStretch(1)
+        self.key = ""
+        self.select(current)
+
+    def select(self, key: str) -> None:
+        """Highlight this scene: one replaced is its replacement, one this version does not have 经典."""
+        key = love_scenes.shown(key)
+        self.key = key if key in self.buttons else love_scenes.KEYS[0]
+        self.buttons[self.key].setChecked(True)
+
+    def _click(self, key: str) -> None:
+        self.select(key)
+        self.picked.emit(key)
+
+
 class ScenePicker(Modal):
     """选择特效: the scenes by name on the left, the highlighted one playing on the right. key is the
     one highlighted; 用这个 accepts it."""
-
-    LIST_W = 200
 
     def __init__(
         self,
@@ -293,38 +343,24 @@ class ScenePicker(Modal):
         layout = self.frame(f"选择特效 · {name}" if name else "选择特效")
         row = QHBoxLayout()
         row.setSpacing(20)
-        side = QWidget()
-        side.setFixedWidth(self.LIST_W)
-        column = QVBoxLayout(side)
-        column.setContentsMargins(0, 0, 0, 0)
-        column.setSpacing(2)
-        group = QButtonGroup(self)
-        group.setExclusive(True)
-        self.buttons: dict[str, SceneChoice] = {}
-        for key, title in love_scenes.SCENES:
-            button = SceneChoice(key, title)
-            button.clicked.connect(lambda _checked=False, key=key: self.show_scene(key))
-            group.addButton(button)
-            column.addWidget(button)
-            self.buttons[key] = button
-        column.addStretch(1)
-        row.addWidget(side)
+        self.scenes = SceneList(current)
+        self.scenes.picked.connect(self.show_scene)
+        self.buttons = self.scenes.buttons
+        row.addWidget(self.scenes)
         self.preview = ScenePreview(self, play=self.play)
         self.play_button = self.preview.play_button
         row.addWidget(self.preview, 0, Qt.AlignVCenter)
         layout.addLayout(row)
         self.footer(_primary("用这个", self.accept))
         _pointing(self)
-        current = love_scenes.shown(current)
-        self.key = current if current in self.buttons else love_scenes.KEYS[0]
-        self.buttons[self.key].setChecked(True)
+        self.key = self.scenes.key
         self.preview.show_scene(self.key)
 
     def show_scene(self, key: str) -> None:
         """Highlight this scene and play it, quietly: the music of the one before stops."""
-        self.key = key
-        self.buttons[key].setChecked(True)
-        self.preview.show_scene(key)
+        self.scenes.select(key)
+        self.key = self.scenes.key
+        self.preview.show_scene(self.key)
         if self.music is not None:
             self.music.stop()
 

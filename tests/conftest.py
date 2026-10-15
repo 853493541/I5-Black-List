@@ -72,6 +72,19 @@ def _no_capture_question(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_global_hotkeys(monkeypatch):
+    """No test window takes a hotkey from Windows: the app on this PC may hold it, and a key pressed
+    while the tests run must not reach them. Each one taken is noted in registered (id, modifiers, key)."""
+    from blacklist_detect import hotkey
+
+    registered: list[tuple[int, int, int]] = []
+    monkeypatch.setattr(hotkey, "_register", lambda ident, modifiers, vk: registered.append((ident, modifiers, vk)) or True)
+    monkeypatch.setattr(hotkey, "_unregister", lambda _ident: None)
+    monkeypatch.setattr(hotkey, "registered", registered, raising=False)
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _keep_windows():
     yield
     try:

@@ -1,4 +1,4 @@
-"""Main window, tray status, and the lobby check loop."""
+"""Main window, tray status, the lobby check loop, and the 特效 hotkey that plays a 特效 with no check."""
 
 from __future__ import annotations
 
@@ -107,6 +107,7 @@ from blacklist_detect.ui_dialogs import (
     TagSuggestDialog,
     _confirm,
 )
+from blacklist_detect.ui_effects import EffectsPage
 from blacklist_detect.ui_header import CheckPanel, ProfileChip, StatusChip
 from blacklist_detect.ui_icons import icon as line_icon
 from blacklist_detect.ui_icons import pixmap as line_pixmap
@@ -228,6 +229,8 @@ DEMO_SETTLE_MS = 80
 DEMO_SHARE = 0.6
 # 直播模式: how long after a check the layout of 直播画面 and 直播姬 is written to the log.
 LAYOUT_MS = 1_000
+# The 特效 hotkey: how long its ring and badge stay once its scene has played, then all goes.
+QUICK_HOLD_MS = 1_200
 # While the app is open it looks again every half hour, and as soon as the window is brought up
 # when its last look was ten minutes ago or more; what it finds then waits for the player (有更新).
 UPDATE_EVERY_MS = 30 * 60 * 1000
@@ -434,6 +437,8 @@ class MainWindow(QMainWindow):
         self._geometry_timer.timeout.connect(self._remember_size)
         self.setWindowIcon(_icon())
         self.hotkey = GlobalHotkey(self.check_now)
+        # The 特效 hotkey, in either 方式: the 特效 picked on 特效, at once, with no check.
+        self.effect_hotkey = GlobalHotkey(self.play_quick_scene, 2)
         self.worker = CheckWorker()
         self.worker.done.connect(self._on_worker)
         self.worker.placed.connect(self._on_lobby_placed)
@@ -518,6 +523,12 @@ class MainWindow(QMainWindow):
         self._demo_saved: tuple | None = None
         self._demo_round = 0
         self.demo_lobby = DemoLobby()
+        # The 特效 hotkey's play while it runs: its scene, where it shows when no lobby was checked
+        # yet, and what it put aside, as 测试效果 does.
+        self._quick_scene = ""
+        self._quick_area: QRect | None = None
+        self._quick_saved: tuple | None = None
+        self._quick_round = 0
         self._history_hover = (-1, -1)
         self._closed_days: set[str] = set()
         self._day_hover = -1
@@ -600,6 +611,9 @@ class MainWindow(QMainWindow):
         self.likes_page = LikesPage(self.store, self._say, music=self.music)
         self.likes_page.changed.connect(self._likes_changed)
         self.likes_tab = self.tabs.addTab(self.likes_page, "嘉宾")
+        self.effect_hotkey_edit = self._hotkey_box("特效快捷键")
+        self.effects_page = EffectsPage(self.store, self.music, self.effect_hotkey_edit, self.play_quick_scene)
+        self.effects_tab = self.tabs.addTab(self.effects_page, "特效")
         self.settings_tab = self.tabs.addTab(self._settings_page(), "设置")
         self.tabs.tabBar().hide()
         self.tabs.currentChanged.connect(self._sync_tab_buttons)
@@ -968,7 +982,8 @@ class MainWindow(QMainWindow):
         常规, 嘉宾, 外观, then 帮助 at the foot, where starting over is out of the way.
 
         检查 (显示, 方式, 直播模式) opens from the status pill in the header, 角色名称 is in the
-        header too, 标签 beside the list on 黑名单, and each 嘉宾's and 组合's 特效 on 嘉宾.
+        header too, 标签 beside the list on 黑名单, each 嘉宾's and 组合's 特效 on 嘉宾, and the 特效
+        hotkey with the 特效 it plays on 特效.
         """
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -995,7 +1010,6 @@ class MainWindow(QMainWindow):
         scroll.setWidget(body)
         layout.addWidget(scroll, 1)
         metrics = QFontMetrics(chinese_font())
-        slot = metrics.horizontalAdvance("手动检查") + 28
         label_width = metrics.horizontalAdvance("关闭窗口时") + 8
 
         def section(title: str) -> SettingsSection:
@@ -1026,16 +1040,7 @@ class MainWindow(QMainWindow):
         self.auto_off = self.auto_mode.buttons["manual"]
         self.auto_mode.changed.connect(self._on_auto_mode)
         self._sync_auto_controls()
-        self.hotkey_edit = QLineEdit()
-        self.hotkey_edit.setReadOnly(True)
-        self.hotkey_edit.setPlaceholderText("无")
-        # Room for the longest two keys, Shift+F12, and wider for anything longer: never cut.
-        self._hotkey_room = (slot, metrics)
-        self.hotkey_edit.textChanged.connect(self._fit_hotkey_box)
-        self._fit_hotkey_box()
-        self.hotkey_edit.setCursor(Qt.PointingHandCursor)
-        self.hotkey_edit.installEventFilter(self)
-        self.hotkey_edit.setAccessibleName("快捷键")
+        self.hotkey_edit = self._hotkey_box("快捷键")
         check.add_row("方式", self.auto_mode, self.hotkey_edit)
         # Hotkey problems show right under the hotkey they are about.
         self.settings_label = QLabel("")
@@ -1362,15 +1367,19 @@ class MainWindow(QMainWindow):
     def _ask_reset(self) -> None:
         if not _confirm(self, "清空数据后无法恢复，是否确定清空？", "清空数据", "清空"):
             return
+        self._end_quick_play()
         self.store.reset()
         self.hotkey.clear()
+        self.effect_hotkey.clear()
         self._tag_filter = ""
         self.player_edit.setText("")
         self.profile_chip.set_name("")
         self.hotkey_edit.clearFocus()
-        self._show_hotkey()
-        self._sync_hotkey_mode()
+        self.effect_hotkey_edit.clearFocus()
+        self._restore_hotkey()
         self._set_settings_note("")
+        self.effects_page.say("")
+        self.effects_page.select(self.store.quick_scene)
         self._sync_auto_controls()
         if autostart.is_enabled():
             autostart.set_enabled(False)
@@ -1558,17 +1567,19 @@ class MainWindow(QMainWindow):
                 finish()
         if event.type() == QEvent.Type.KeyPress and self._list_key(watched, event):
             return True
-        edit = getattr(self, "hotkey_edit", None)
-        if edit is not None and watched is edit:
+        boxes = (getattr(self, "hotkey_edit", None), getattr(self, "effect_hotkey_edit", None))
+        if watched is not None and any(watched is box for box in boxes):
+            # 检查's box takes a key in 手动检查 only; the 特效 hotkey's always.
+            takes = watched is boxes[1] or not self.store.auto_capture
             kind = event.type()
             if kind == QEvent.Type.FocusIn:
-                if not self.store.auto_capture:
-                    self._begin_hotkey()
+                if takes:
+                    self._begin_hotkey(watched)
             elif kind == QEvent.Type.FocusOut:
-                self._end_hotkey()
+                self._end_hotkey(watched)
             elif kind == QEvent.Type.KeyPress and event.key() not in (Qt.Key_Tab, Qt.Key_Backtab):
-                if not self.store.auto_capture:
-                    self._take_hotkey(event)
+                if takes:
+                    self._take_hotkey(event, watched)
                 return True
         table = getattr(self, "history_table", None)
         if table is not None and watched is table.viewport() and event.type() == QEvent.Type.Leave:
@@ -2112,7 +2123,8 @@ class MainWindow(QMainWindow):
             ("Ctrl+1", self._show_records_page),
             ("Ctrl+2", self._show_blacklist_page),
             ("Ctrl+3", self._show_likes_page),
-            ("Ctrl+4", self._show_settings_page),
+            ("Ctrl+4", self._show_effects_page),
+            ("Ctrl+5", self._show_settings_page),
             ("Ctrl+F", self._focus_search),
             ("Ctrl+N", self._add_by_dialog),
             ("Ctrl+I", self._add_many_by_dialog),
@@ -2129,6 +2141,9 @@ class MainWindow(QMainWindow):
 
     def _show_likes_page(self) -> None:
         self.tabs.setCurrentIndex(self.likes_tab)
+
+    def _show_effects_page(self) -> None:
+        self.tabs.setCurrentIndex(self.effects_tab)
 
     def _show_settings_page(self) -> None:
         self.tabs.setCurrentIndex(self.settings_tab)
@@ -2940,23 +2955,55 @@ class MainWindow(QMainWindow):
         self.auto_on.setEnabled(not self.store.safe_mode)
         self._sync_status_tip()
 
-    def _begin_hotkey(self) -> None:
-        self._set_settings_note("")
+    def _hotkey_box(self, name: str) -> QLineEdit:
+        """A box that takes a hotkey as it is pressed (eventFilter, _take_hotkey): 检查's, or the 特效 page's."""
+        edit = QLineEdit()
+        edit.setReadOnly(True)
+        edit.setPlaceholderText("无")
+        edit.textChanged.connect(lambda _text: self._fit_hotkey_box(edit))
+        self._fit_hotkey_box(edit)
+        edit.setCursor(Qt.PointingHandCursor)
+        edit.installEventFilter(self)
+        edit.setAccessibleName(name)
+        return edit
+
+    def _hotkey_of(self, edit: QLineEdit) -> tuple[GlobalHotkey, str]:
+        """The hotkey a box sets, and its name in the store: 检查's, or the 特效 hotkey."""
+        if edit is getattr(self, "effect_hotkey_edit", None):
+            return self.effect_hotkey, "effect_hotkey"
+        return self.hotkey, "hotkey"
+
+    def _hotkey_note(self, edit: QLineEdit, text: str) -> None:
+        """What is wrong with a key, under the box it was pressed in."""
+        if edit is getattr(self, "effect_hotkey_edit", None):
+            self.effects_page.say(text)
+        else:
+            self._set_settings_note(text)
+
+    def _begin_hotkey(self, edit: QLineEdit | None = None) -> None:
+        """The box waits for a key. Both hotkeys let go of theirs meanwhile, so either key reaches it."""
+        edit = self.hotkey_edit if edit is None else edit
+        self._hotkey_note(edit, "")
         self.hotkey.clear()
-        self.hotkey_edit.clear()
-        self.hotkey_edit.setPlaceholderText("请按下快捷键")
-        self._fit_hotkey_box()
+        self.effect_hotkey.clear()
+        edit.clear()
+        edit.setPlaceholderText("请按下快捷键")
+        self._fit_hotkey_box(edit)
 
-    def _end_hotkey(self) -> None:
-        self.hotkey_edit.setPlaceholderText("无")
-        self._fit_hotkey_box()
-        self._show_hotkey()
+    def _end_hotkey(self, edit: QLineEdit | None = None) -> None:
+        edit = self.hotkey_edit if edit is None else edit
+        edit.setPlaceholderText("无")
+        self._fit_hotkey_box(edit)
+        self._show_hotkey(edit)
         self._sync_hotkey_mode()
+        self._sync_effect_hotkey()
 
-    def _fit_hotkey_box(self, _text: str = "") -> None:
-        slot, metrics = self._hotkey_room
-        shown = max(("Shift+F12", self.hotkey_edit.text(), self.hotkey_edit.placeholderText()), key=metrics.horizontalAdvance)
-        self.hotkey_edit.setFixedWidth(max(slot, metrics.horizontalAdvance(shown) + 32))
+    @staticmethod
+    def _fit_hotkey_box(edit: QLineEdit) -> None:
+        """Room for the longest two keys, Shift+F12, and wider for anything longer: never cut."""
+        metrics = QFontMetrics(chinese_font())
+        shown = max(("Shift+F12", edit.text(), edit.placeholderText()), key=metrics.horizontalAdvance)
+        edit.setFixedWidth(max(metrics.horizontalAdvance("手动检查") + 28, metrics.horizontalAdvance(shown) + 32))
 
     def _sync_hotkey_mode(self) -> None:
         """Auto check and the hotkey do not run together."""
@@ -2970,17 +3017,25 @@ class MainWindow(QMainWindow):
         if spec is not None and self.hotkey.active != spec.display and not self.hotkey.apply(spec):
             log.warning("Hotkey %s did not register: another program holds it, or this PC has none.", spec.display)
 
-    def _take_hotkey(self, event) -> None:
+    def _sync_effect_hotkey(self) -> None:
+        """The 特效 hotkey works in either 方式."""
+        spec = parse_hotkey(self.store.effect_hotkey)
+        if spec is not None and self.effect_hotkey.active != spec.display and not self.effect_hotkey.apply(spec):
+            log.warning("特效 hotkey %s did not register: another program holds it, or this PC has none.", spec.display)
+
+    def _take_hotkey(self, event, edit: QLineEdit | None = None) -> None:  # noqa: ANN001
+        edit = self.hotkey_edit if edit is None else edit
+        keeper, field = self._hotkey_of(edit)
         if event.isAutoRepeat():
             return
         if event.key() == Qt.Key_Escape:
-            self.hotkey_edit.clearFocus()
+            edit.clearFocus()
             return
         if event.key() in (Qt.Key_Control, Qt.Key_Alt, Qt.Key_Shift, Qt.Key_Meta):
             return
         key = _qt_key_name(event.key())
         if key is None:
-            self._set_settings_note("用字母、数字或 F1–F12")
+            self._hotkey_note(edit, "用字母、数字或 F1–F12")
             return
         modifiers = []
         flags = event.modifiers()
@@ -2994,40 +3049,49 @@ class MainWindow(QMainWindow):
             modifiers.append("Win")
         if len(modifiers) > 1:
             # Two keys at most: short to press mid-game, and short to read.
-            self._set_settings_note("最多两个键，比如 Alt+1")
+            self._hotkey_note(edit, "最多两个键，比如 Alt+1")
             return
         spec = parse_hotkey("+".join([*modifiers, key]))
         if spec is None:
-            self._set_settings_note("这个键用不了，换一个")
+            self._hotkey_note(edit, "这个键用不了，换一个")
             return
-        registered = self.hotkey.apply(spec)
-        log.info("Hotkey set to %s%s.", spec.display, "" if registered else ", which did not register")
-        self.store.hotkey = spec.display
+        # 检查 and 特效 never share a key: one press would do both.
+        other = parse_hotkey(self.store.hotkey if field == "effect_hotkey" else self.store.effect_hotkey)
+        if other is not None and other.display == spec.display:
+            self._hotkey_note(edit, "检查已在用这个键，换一个" if field == "effect_hotkey" else "特效已在用这个键，换一个")
+            return
+        registered = keeper.apply(spec)
+        what = "特效 hotkey" if field == "effect_hotkey" else "Hotkey"
+        log.info("%s set to %s%s.", what, spec.display, "" if registered else ", which did not register")
+        setattr(self.store, field, spec.display)
         self.store.save_settings()
-        self.hotkey_edit.setText(spec.display)
+        edit.setText(spec.display)
         if registered:
-            self._set_settings_note("")
+            self._hotkey_note(edit, "")
         elif sys.platform != "win32":
-            self._set_settings_note("这台电脑用不了快捷键")
+            self._hotkey_note(edit, "这台电脑用不了快捷键")
         else:
-            self.store.hotkey = ""
+            setattr(self.store, field, "")
             self.store.save_settings()
-            self.hotkey_edit.clear()
-            self._set_settings_note("这个键被别的程序占了，换一个")
-        self.hotkey_edit.clearFocus()
+            edit.clear()
+            self._hotkey_note(edit, "这个键被别的程序占了，换一个")
+        edit.clearFocus()
         if self._status_kind == "idle":
             self._sync_watch_idle()
 
-    def _show_hotkey(self) -> None:
-        spec = parse_hotkey(self.store.hotkey)
+    def _show_hotkey(self, edit: QLineEdit | None = None) -> None:
+        edit = self.hotkey_edit if edit is None else edit
+        spec = parse_hotkey(getattr(self.store, self._hotkey_of(edit)[1]))
         if spec is None:
-            self.hotkey_edit.clear()
+            edit.clear()
             return
-        self.hotkey_edit.setText(spec.display)
+        edit.setText(spec.display)
 
     def _restore_hotkey(self) -> None:
         self._show_hotkey()
         self._sync_hotkey_mode()
+        self._show_hotkey(self.effect_hotkey_edit)
+        self._sync_effect_hotkey()
 
     def check_now(self) -> None:
         log.info("Hotkey: checking.")
@@ -3435,8 +3499,9 @@ class MainWindow(QMainWindow):
 
     def _start(self, fn, live: bool = False) -> bool:
         if live:
-            # A real lobby comes first: 测试效果 gives way.
+            # A real lobby comes first: 测试效果 and the 特效 hotkey's play give way.
             self._end_stream_test()
+            self._end_quick_play()
         self._live_check = live
         quiet = self._rescan_active
         if live and self.panel.isVisible() and not quiet:
@@ -3519,7 +3584,8 @@ class MainWindow(QMainWindow):
             # Copied before the border started, or through it: no answer either way.
             return
         if not value:
-            if self.panel.isVisible():
+            # The 特效 hotkey's play is over no lobby: it goes by itself.
+            if self.panel.isVisible() and not self._quick_scene:
                 self._hide_panel_after_title()
         else:
             self._panel_hide_timer.stop()
@@ -3800,6 +3866,7 @@ class MainWindow(QMainWindow):
                 "提醒 " + ("黑名单+嘉宾" if store.check_blacklist and store.check_likes else "只有黑名单" if store.check_blacklist else "只有嘉宾"),
                 "直播模式 " + ("开" if store.stream_mode else "关") + ("" if store.stream_test_frame else " (测试框 关)"),
                 "嘉宾特效 " + ("关" if store.love_scene == "off" else f"开 (音乐 {store.love_music})"),
+                f"特效 {store.quick_scene} ({store.effect_hotkey or '无快捷键'})",
                 f"外观 {store.appearance}",
                 "关闭窗口时 " + ("最小化到托盘" if store.close_to_tray else "退出程序"),
                 f"黑名单 {len(store.entries)}, 嘉宾 {len(store.likes)}, 记录 {len(store.scans)}",
@@ -3866,6 +3933,7 @@ class MainWindow(QMainWindow):
         if self._demo_likes is not None or self.worker.running_job or not self.store.disclaimer_accepted:
             return False
         self.check_panel.close_panel()
+        self._end_quick_play()
         picture, where = self._demo_place()
         self._demo_saved = (self._game_box, self._game_screen, self._game_windows, QRect(self.stream._frame), self._live_check)
         self._demo_area = picture
@@ -3895,14 +3963,9 @@ class MainWindow(QMainWindow):
         window's screen. Returns it, and what it is over, for the log."""
         target: QRect | None = None
         where = "the middle of this window's screen"
-        if self.store.stream_mode:
-            capture = livehime.game_capture(self._scene_watch.scene(), STREAM_TITLE)
-            native = livehime.client_rect(capture) if capture is not None else None
-            if native is not None:
-                left, top, right, bottom = native
-                x, y, ratio = native_to_logical(left, top)
-                target = QRect(round(x), round(y), round((right - left) / ratio), round((bottom - top) / ratio))
-                where = f"直播姬's capture ({capture.exe or capture.title})"
+        found = self._livehime_game() if self.store.stream_mode else None
+        if found is not None:
+            target, where = found
         if target is None and self._game_box is not None:
             origin_x, origin_y = virtual_origin()
             left, top, right, bottom = self._game_box
@@ -3915,10 +3978,27 @@ class MainWindow(QMainWindow):
             width = round(screen.width() * DEMO_SHARE)
             target = QRect(0, 0, width, round(width * 9 / 16))
             target.moveCenter(screen.center())
+        return self._sixteen_nine(target), where
+
+    def _livehime_game(self) -> tuple[QRect, str] | None:
+        """The window 直播姬's scene shows the game with, in Qt's units, and what it is, for the log;
+        None when it shows none, or it is not open."""
+        capture = livehime.game_capture(self._scene_watch.scene(), STREAM_TITLE)
+        native = livehime.client_rect(capture) if capture is not None else None
+        if native is None:
+            return None
+        left, top, right, bottom = native
+        x, y, ratio = native_to_logical(left, top)
+        window = QRect(round(x), round(y), round((right - left) / ratio), round((bottom - top) / ratio))
+        return window, f"直播姬's capture ({capture.exe or capture.title})"
+
+    @staticmethod
+    def _sixteen_nine(target: QRect) -> QRect:
+        """The biggest 16:9 area in target, in its middle: where a game screen sits in its window."""
         scale = min(target.width() / 16, target.height() / 9)
         picture = QRect(0, 0, round(16 * scale), round(9 * scale))
         picture.moveCenter(target.center())
-        return picture, where
+        return picture
 
     @staticmethod
     def _demo_boxes(picture: QRect) -> tuple[tuple[int, ...], tuple[float, ...]]:
@@ -3966,6 +4046,99 @@ class MainWindow(QMainWindow):
         self._glance_pause_until = 0.0
         log.info("测试效果: done.")
 
+    def play_quick_scene(self) -> bool:
+        """The 特效 hotkey, and 播放 on 特效: the 特效 picked there, at once, with no check (no screen
+        copy, no recognition), as a 嘉宾 lobby would get it: the rose ring and the badge on 准备案件还原,
+        the scene over the game and its music (设置 › 音乐), on the screen, or only in 直播画面 when
+        安全模式 puts the marks there. It plays with 嘉宾特效 off too, and pressed again it starts over.
+        A real lobby comes first: while one is checked or its marks show, the press does nothing, and a
+        check takes the play down.
+
+        Where: the last lobby's game, as a check found it; with none yet, the window 直播姬 shows the
+        game with (直播模式), else the screen under the pointer, as a full-screen game. The button
+        sits where the lobby puts it on a 16:9 game screen there."""
+        if self._closing:
+            return False
+        real = self.panel.isVisible() and not self._quick_scene and self._demo_likes is None
+        if self._check_started is not None or real:
+            log.info("特效 hotkey: a lobby is being checked or shown, and comes first; nothing played.")
+            return False
+        self._end_stream_test()
+        self._end_quick_play()
+        scene = self.store.quick_scene
+        self._quick_saved = (
+            self._game_box, self._game_screen, self._game_windows, QRect(self.stream._frame), self._lobby_choice, self._lobby_seats,
+        )  # fmt: skip
+        if self._game_box is not None:
+            where = "the last lobby's game"
+        else:
+            picture, window, where = self._quick_place()
+            self._quick_area = picture
+            self._game_box, self._game_screen = self._demo_boxes(picture)
+            self._game_windows = ()
+        self._quick_scene = scene
+        self._quick_round += 1
+        turn = self._quick_round
+        log.info(
+            "特效 hotkey: %s over %s; 显示 %s, 直播模式 %s, music %s.",
+            scene, where, "安全模式" if self.store.safe_mode else "完整模式", "on" if self.store.stream_mode else "off",
+            self.store.love_music,
+        )  # fmt: skip
+        if self._quick_area is None:
+            self._frame_stream()
+        elif self.store.stream_mode:
+            # The window the game is in: the one 直播姬 captures, or the whole screen.
+            self.stream.set_frame(window)
+            QTimer.singleShot(LAYOUT_MS, lambda: self.stream.note_layout("特效 hotkey"))
+        self._lobby_choice = scene
+        self._lobby_seats = ()
+        self.music.preview(self._tune_for(scene))
+        self.hit_card.hide()
+        # No names to show: no 嘉宾 card.
+        self.like_card.hide()
+        self.alert.leave()
+        self.love.stop()
+        self._love_played = False
+        self._dress_love(playing=True)
+        # Not _open_panel: that starts the look for the lobby leaving, a screen copy, and there is none.
+        self._panel_hide_timer.stop()
+        self._show_panel_at(self._game_box, "liked", "")
+        self._show_clear_mark(heart=True)
+        self._play_love()
+        shown = round(self.love.duration() * 1000) if self.love.playing() else 0
+        QTimer.singleShot(shown + QUICK_HOLD_MS, lambda: self._end_quick_play(turn))
+        return True
+
+    def _quick_place(self) -> tuple[QRect, QRect, str]:
+        """Where the 特效 hotkey plays when no lobby was checked yet: the game's screen, the window it
+        is in (what a 窗口捕捉 captures), and what that is, for the log."""
+        found = self._livehime_game() if self.store.stream_mode else None
+        if found is not None:
+            window, where = found
+        else:
+            screen = QApplication.screenAt(QCursor.pos()) or QApplication.primaryScreen()
+            window = screen.geometry()
+            where = "the screen under the pointer"
+        return self._sixteen_nine(window), window, where
+
+    def _end_quick_play(self, turn: int | None = None) -> None:
+        """Take the 特效 hotkey's marks down and put back what it set aside. turn: only that play's
+        end; without it, a play cut short (by a check, or by the hotkey again) stops its music too."""
+        if not self._quick_scene or (turn is not None and turn != self._quick_round):
+            return
+        self._quick_round += 1
+        self._hide_panel_after_title()
+        if turn is None:
+            self.music.stop()
+        self._quick_scene = ""
+        self._quick_area = None
+        if self._quick_saved is not None:
+            self._game_box, self._game_screen, self._game_windows, frame, self._lobby_choice, self._lobby_seats = self._quick_saved
+            self.stream.set_frame(frame)
+            self._quick_saved = None
+        self.love.choice = self.store.love_scene
+        log.info("特效 hotkey: done.")
+
     def _hits_in(self, result: CheckResult) -> list[Hit]:
         """黑名单 players in the lobby, when 提醒 tells about them."""
         return list(result.hits) if self.store.check_blacklist else []
@@ -4011,7 +4184,8 @@ class MainWindow(QMainWindow):
             return
         self._love_played = True
         choice = self._lobby_choice or self.store.love_scene
-        log.info("Check %d shown: 嘉宾特效 (%s, music %s).", self._check_number, choice, self.store.love_music)
+        who = "特效 hotkey" if self._quick_scene else f"Check {self._check_number}"
+        log.info("%s shown: 嘉宾特效 (%s, music %s).", who, choice, self.store.love_music)
         badge = self.clear_mark.geometry().center() if self.clear_mark.isVisible() else None
         self.love.choice = choice
         self.love.play(self._game_area(screen), keep, badge, self._lobby_seats)
@@ -4032,7 +4206,7 @@ class MainWindow(QMainWindow):
             log.info("直播模式 mirrors the game's window: %dx%d.", frame.width(), frame.height())
         self.stream.set_frame(frame)
         # Written once the marks are up, so it never holds them back.
-        why = f"check {self._check_number}" if self._demo_likes is None else "测试效果"
+        why = "特效 hotkey" if self._quick_scene else f"check {self._check_number}" if self._demo_likes is None else "测试效果"
         QTimer.singleShot(LAYOUT_MS, lambda: self.stream.note_layout(why))
 
     def _game_area(self, screen) -> QRect:  # noqa: ANN001
@@ -4044,9 +4218,11 @@ class MainWindow(QMainWindow):
         (a picture of it in 照片) gives way to where the lobby puts the game (game_area.game_rect).
         innermost=False is the whole top-level window, what a 窗口捕捉 captures, as it is."""
         area = screen.geometry()
-        if self._demo_area is not None:
-            # 测试效果 with no lobby seen: over the window 直播姬 shows the game with, or a screen.
-            return QRect(self._demo_area)
+        stand_in = self._demo_area if self._demo_area is not None else self._quick_area
+        if stand_in is not None:
+            # 测试效果, or the 特效 hotkey with no lobby seen: over the window 直播姬 shows the game with,
+            # or a screen.
+            return QRect(stand_in)
         if self._game_box is None:
             return area
         origin_x, origin_y = virtual_origin()
@@ -4510,6 +4686,7 @@ class MainWindow(QMainWindow):
         self.stream.enable("")
         self.stream.close()
         self.hotkey.clear()
+        self.effect_hotkey.clear()
         self.worker.stop()
         # A check or a model load cannot be interrupted. Ending the thread under it crashes on exit.
         if not self.worker.wait(20_000):

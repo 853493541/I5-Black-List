@@ -103,18 +103,32 @@ def two_keys(text: str) -> str:
     return f"{spec.modifiers[0]}+{spec.display.rsplit('+', 1)[-1]}"
 
 
+def _register(ident: int, modifiers: int, vk: int) -> bool:
+    """Windows' RegisterHotKey for this thread, under ident."""
+    import ctypes
+
+    return bool(ctypes.windll.user32.RegisterHotKey(None, ident, modifiers, vk))
+
+
+def _unregister(ident: int) -> None:
+    import ctypes
+
+    ctypes.windll.user32.UnregisterHotKey(None, ident)
+
+
 class GlobalHotkey:
     """RegisterHotKey on Windows. The key is not synthesized into the lobby.
 
-    On any other system this stores nothing with the OS. Callers still save
-    the chosen text so the same settings file works on Windows later.
+    ident tells two of them apart: 检查's is 1, the 特效 hotkey's 2. On any other system this stores
+    nothing with the OS. Callers still save the chosen text so the same settings file works on
+    Windows later.
     """
 
-    def __init__(self, callback) -> None:
+    def __init__(self, callback, ident: int = 1) -> None:  # noqa: ANN001
         self.callback = callback
         self._filter = None
         self._registered = False
-        self._id = 1
+        self._id = ident
         self.active = ""
         self.error = ""
 
@@ -132,9 +146,7 @@ class GlobalHotkey:
                 app.removeNativeEventFilter(self._filter)
         self._filter = None
         if self._registered and sys.platform == "win32":
-            import ctypes
-
-            ctypes.windll.user32.UnregisterHotKey(None, self._id)
+            _unregister(self._id)
         self._registered = False
         self.active = ""
 
@@ -146,14 +158,12 @@ class GlobalHotkey:
             self.active = ""
             self.error = "已保存，但这台电脑用不了快捷键"
             return False
-        import ctypes
         from ctypes import wintypes
 
         from PySide6.QtCore import QAbstractNativeEventFilter
         from PySide6.QtWidgets import QApplication
 
-        user32 = ctypes.windll.user32
-        if not user32.RegisterHotKey(None, self._id, spec.win_modifiers, spec.vk):
+        if not _register(self._id, spec.win_modifiers, spec.vk):
             self.error = "这个键用不了，换一个"
             return False
 

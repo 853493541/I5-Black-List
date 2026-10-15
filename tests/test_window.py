@@ -682,8 +682,8 @@ def test_tabs_show_counts_as_badges(qapp, tmp_path, monkeypatch):
     window = MainWindow()
     window._watch_timer.stop()
     tabs = window._tab_buttons
-    assert [tab.name() for tab in tabs] == ["记录", "黑名单", "嘉宾", "设置"]
-    assert [tab.count() for tab in tabs] == [0, 0, 0, 0]
+    assert [tab.name() for tab in tabs] == ["记录", "黑名单", "嘉宾", "特效", "设置"]
+    assert [tab.count() for tab in tabs] == [0, 0, 0, 0, 0]
     narrow = tabs[window.blacklist_tab].sizeHint().width()
     window.store.add("甲")
     window.store.add("乙")
@@ -694,7 +694,7 @@ def test_tabs_show_counts_as_badges(qapp, tmp_path, monkeypatch):
     assert window.tabs.tabText(window.blacklist_tab) == "黑名单  2"
     tabs[2].click()
     assert window.tabs.currentIndex() == 2
-    assert [tab.isChecked() for tab in tabs] == [False, False, True, False]
+    assert [tab.isChecked() for tab in tabs] == [False, False, True, False, False]
     window.tabs.setCurrentIndex(window.blacklist_tab)
     assert tabs[window.blacklist_tab].isChecked()
     assert tabs[0].focusPolicy() == Qt.TabFocus
@@ -917,7 +917,7 @@ def test_auto_check_does_not_leave_the_current_tab(qapp, tmp_path, monkeypatch):
     window._on_auto_mode("auto")
     window.worker.request = lambda fn, kind="check": True
     assert window.tabs.tabText(0).startswith("记录")
-    assert window.tabs.count() == 4
+    assert window.tabs.count() == 5
     settings = window.tabs.count() - 1
     window.tabs.setCurrentIndex(settings)
     window._start(lambda: None, live=True)
@@ -1795,9 +1795,11 @@ def test_keyboard_reaches_every_page_and_list(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
     window._watch_timer.stop()
-    # Ctrl+1/2/3/4 open the pages in their order; Ctrl+F lands on 黑名单.
+    # Ctrl+1 to Ctrl+5 open the pages in their order; Ctrl+F lands on 黑名单.
+    window.shortcuts["Ctrl+5"].activated.emit()
+    assert window.tabs.currentIndex() == window.settings_tab == 4
     window.shortcuts["Ctrl+4"].activated.emit()
-    assert window.tabs.currentIndex() == window.settings_tab == 3
+    assert window.tabs.currentIndex() == window.effects_tab == 3
     window.shortcuts["Ctrl+3"].activated.emit()
     assert window.tabs.currentIndex() == window.likes_tab == 2
     window.shortcuts["Ctrl+1"].activated.emit()
