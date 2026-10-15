@@ -361,7 +361,7 @@ def test_pressed_again_it_starts_over(window):
 def test_it_plays_with_every_guest_on_no_scene(window):
     from blacklist_detect.model import Scenes
 
-    window.store.add_like("心动小鹿", scenes=Scenes(("ice",), off=True))
+    window.store.add_like("心动小鹿", scenes=Scenes())
     assert window._choice_for(window.store.likes) == "off"
     window.store.quick_scene = "claw"
     assert window.play_quick_scene()

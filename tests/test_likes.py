@@ -8,7 +8,7 @@ from PySide6.QtCore import QRect, Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication, QDialog, QLabel  # noqa: E402
 
 from blacklist_detect.importing import ELSEWHERE, MERGE, plan_import  # noqa: E402
-from blacklist_detect.model import Entry, Scenes  # noqa: E402
+from blacklist_detect.model import ANY_SCENE, Entry, Scenes  # noqa: E402
 from blacklist_detect.pipeline import CheckResult, Hit, NameSlot  # noqa: E402
 from blacklist_detect.storage import Store  # noqa: E402
 
@@ -87,9 +87,9 @@ def test_the_page_lists_names_with_their_nicknames(window):
     window._show_list()
     assert window._tab_buttons[window.likes_tab].count() == 2
     rows = [[page.table.item(r, c).text() for c in range(5)] for r in range(page.table.rowCount())]
-    # Newest first; 昵称 beside the name; 全部随机 under 场景 for none ticked (any scene); a dash for
+    # Newest first; 昵称 beside the name; 随机 under 场景 for any scene; a dash for
     # 最近遇到 until they are met.
-    assert rows == [["小红", "", "全部随机", "", "—"], ["救人很稳的小明", "明哥", "全部随机", "上把救了我", "—"]]
+    assert rows == [["小红", "", "随机", "", "—"], ["救人很稳的小明", "明哥", "随机", "上把救了我", "—"]]
     page.search.setText("明哥")
     assert page.table.rowCount() == 1
     page.search.setText("没有这个")
@@ -274,7 +274,7 @@ def test_the_marks_wear_the_look_of_the_scene_that_greets_them(window):
     window._hide_panel_after_title()
     # Both on 不放: no scene, 小明's own neither, and 经典's look.
     for index, like in enumerate(window.store.likes):
-        window.store.update_like(index, like.name, scenes=Scenes(like.scenes.keys, True))
+        window.store.update_like(index, like.name, scenes=Scenes())
     window._on_lobby_placed(button)
     window._show_panel(CheckResult(True, "", names=names[:2], button_box=button))
     assert not window.love.playing() and all(mark.look is love_look("classic") for mark in marks)
@@ -403,7 +403,7 @@ def test_a_guest_picks_a_theme_and_the_page_shows_and_orders_them(window):
     dialog = LikeDialog(parent=window)
     field = dialog.theme_field
     # A new 嘉宾 is greeted by any scene until they tick some.
-    assert dialog.windowTitle() == "添加嘉宾" and field.name.text() == "全部场景 · 随机" and field.value() == Scenes()
+    assert dialog.windowTitle() == "添加嘉宾" and field.name.text() == "全部场景 · 随机" and field.value() == ANY_SCENE
     dialog.name_edit.setText("小明")
     _pick_in(field, "cyber")
     assert field.name.text() == "赛博朋克·一" and dialog.has_changes()
@@ -416,7 +416,7 @@ def test_a_guest_picks_a_theme_and_the_page_shows_and_orders_them(window):
     window.store.add_like("阿星", scenes=Scenes(("angel",)))
     page.refresh()
     shown = lambda: [(page.table.item(r, 0).text(), page.table.item(r, 2).text()) for r in range(page.table.rowCount())]  # noqa: E731
-    assert shown() == [("阿星", "金色传说"), ("小红", "全部随机"), ("小明", "赛博朋克·一")]
+    assert shown() == [("阿星", "金色传说"), ("小红", "随机"), ("小明", "赛博朋克·一")]
     assert page.table.dragEnabled()
     # A row dragged to the top decides first.
     page.table.moved.emit(2, 0)
@@ -454,7 +454,7 @@ def test_a_combination_needs_two_guests_and_greets_them_with_its_theme(window):
     store.add_like("小红")
     editor = ComboDialog(store.likes, parent=window)
     # A new combination starts as a new 嘉宾 does: any scene.
-    assert editor.windowTitle() == "添加组合" and editor.theme.value() == Scenes()
+    assert editor.windowTitle() == "添加组合" and editor.theme.value() == ANY_SCENE
     editor.people_buttons["小明"].click()
     editor._accept()
     assert editor.combo is None and editor.people_error.text() == "至少选两位嘉宾"
@@ -588,8 +588,8 @@ def test_combinations_head_the_list_tagged_and_open_to_edit(window, monkeypatch)
         ["明哥 + 小红", "", "金色传说", "", "—"],
         ["小红 + 阿星", "", "毛茸茸保护协会", "", "—"],
         ["阿星", "", "赛博朋克·一", "", "—"],
-        ["小红", "", "全部随机", "", "—"],
-        ["小明", "明哥", "全部随机", "", "—"],
+        ["小红", "", "随机", "", "—"],
+        ["小明", "明哥", "随机", "", "—"],
     ]
     assert page.table.item(0, 0).data(PEOPLE_ROLE) == [("明哥", True), ("小红", True)]
     assert [page._combo_at(r) for r in range(5)] == [0, 1, -1, -1, -1]
@@ -748,8 +748,8 @@ def test_add_offers_a_guest_or_a_combination(window, monkeypatch):
 
     monkeypatch.setattr(ComboDialog, "exec", add)
     page.add_combo_action.trigger()
-    assert dialogs[-1].windowTitle() == "添加组合" and store.combos == [Combo(("小明", "小红"), Scenes())]
-    assert _rows(page)[0][:3] == ["小明 + 小红", "", "全部随机"]
+    assert dialogs[-1].windowTitle() == "添加组合" and store.combos == [Combo(("小明", "小红"), ANY_SCENE)]
+    assert _rows(page)[0][:3] == ["小明 + 小红", "", "随机"]
 
 
 def test_the_list_is_empty_only_with_no_guest_and_no_combination(window):

@@ -218,7 +218,7 @@ def test_settings_has_no_scene_switch_and_no_place_turns_scenes_off(window):
     assert "常规" in titles and "嘉宾" not in titles
     assert window._choice_for(window.store.likes) == "angel"
     for index, like in enumerate(window.store.likes):
-        window.store.update_like(index, like.name, "", "", Scenes(like.scenes.keys, True))
+        window.store.update_like(index, like.name, "", "", Scenes())
     assert window._choice_for(window.store.likes) == "off"
     window._show_panel(_lobby())
     assert not window.love.playing() and window.tunes == []
@@ -252,8 +252,8 @@ def test_an_old_saved_off_puts_every_guest_on_no_scene(tmp_path, monkeypatch):
     window._watch_timer.stop()
     tunes: list = []
     window.music = ThemeMusic(play=tunes.append, sounds=window.store.scene_sound)
-    assert [like.scenes for like in window.store.likes] == [Scenes(("lace",), True), Scenes(("angel", "stars"), True)]
-    assert window.store.combos[0].scenes == Scenes(("cyber",), True)
+    assert [like.scenes for like in window.store.likes] == [Scenes(), Scenes()]
+    assert window.store.combos[0].scenes == Scenes()
     assert window._choice_for(window.store.likes) == "off" and window.love.choice == "classic"
     window._live_check = True
     window._show_panel(_lobby())

@@ -7,16 +7,21 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Scenes:
-    """The 场景 a 嘉宾 or a 组合 is greeted with: one of keys at random each time, never the one just
-    played twice in a row; any scene when none is ticked. off (不放): none for them. keys stay while
-    off, so 放场景 brings them back."""
+    """The 场景 a 嘉宾 or a 组合 is greeted with, one of three: keys ticked, one of them at random each
+    time, never the one just played twice in a row; random (随机), any scene, ticks kept alongside but
+    random wins; or nothing asked for (不放), none for them and the next in line decides."""
 
     keys: tuple[str, ...] = ()
-    off: bool = False
+    random: bool = False
+
+    @property
+    def off(self) -> bool:
+        """不放: neither random nor any scene ticked."""
+        return not self.random and not self.keys
 
 
-# On with none ticked: any scene. What a new 嘉宾 or 组合 starts on.
-ANY_SCENE = Scenes()
+# 随机: any scene. What a new 嘉宾 or 组合 starts on.
+ANY_SCENE = Scenes(random=True)
 
 
 @dataclass

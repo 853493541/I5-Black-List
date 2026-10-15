@@ -2,7 +2,7 @@
 lobby, get scenes of their own (guests.lobby_choice).
 
 The 场景 row shows the scene as a small picture and its name, several as their pictures stacked and
-N个场景 · 随机, none ticked as 全部场景 · 随机 (any scene), and 不放 as 不放场景; ▶ and 更换 › open
+N个场景 · 随机, 随机 as 全部场景 · 随机 (any scene), and 不放 as 不放场景; ▶ and 更换 › open
 选择场景 (ui_love_pick). The 嘉宾 list says the same in a word or two (scenes_said).
 The 组合 head the 嘉宾 page's list (ui_likes), each a row tagged 组合 that opens ComboDialog; 添加 ›
 添加组合 adds one.
@@ -52,13 +52,13 @@ def scene_name(key: str) -> str:
 
 
 def scenes_said(scenes: Scenes) -> str:
-    """A 嘉宾's or a 组合's scenes as the 嘉宾 list says them: 不放, the one scene's name, N个场景, or
-    全部随机 for none ticked (any scene)."""
+    """A 嘉宾's or a 组合's scenes as the 嘉宾 list says them: 不放, 随机 (any scene), the one scene's name,
+    or N个场景."""
     if scenes.off:
         return "不放"
-    keys = ticked(scenes)
+    keys = () if scenes.random else ticked(scenes)
     if not keys:
-        return "全部随机"
+        return "随机"
     return scene_name(keys[0]) if len(keys) == 1 else f"{len(keys)}个场景"
 
 
@@ -203,7 +203,7 @@ class ThemeField(QWidget):
         return self._scenes
 
     def _show(self) -> None:
-        keys = ticked(self._scenes)
+        keys = () if self._scenes.random else ticked(self._scenes)
         if self._scenes.off:
             picture, words = no_scene(self.THUMB_W), "不放场景"
         elif not keys:

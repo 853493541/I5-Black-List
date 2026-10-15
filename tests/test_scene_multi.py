@@ -14,11 +14,11 @@ from PySide6.QtWidgets import QApplication, QDialog  # noqa: E402
 
 from blacklist_detect.guests import lobby_choice, ticked  # noqa: E402
 from blacklist_detect.love_scenes import KEYS, choose  # noqa: E402
-from blacklist_detect.model import Combo, Entry, Scenes  # noqa: E402
+from blacklist_detect.model import ANY_SCENE, Combo, Entry, Scenes  # noqa: E402
 from blacklist_detect.pipeline import CheckResult, NameSlot  # noqa: E402
 from blacklist_detect.storage import Store  # noqa: E402
 
-OFF = Scenes(off=True)
+OFF = Scenes()
 
 
 @pytest.fixture(scope="module")
@@ -78,16 +78,16 @@ def test_several_ticked_come_as_a_choice_of_them():
 def test_a_guest_on_no_scene_is_passed_over_and_the_next_decides():
     # 不要场景的人 is above 阿星: 阿星 decides.
     assert lobby_choice(LIKES, [], _here("阿星", "不要场景的人"), "classic") == "angel"
-    # Above 小红, who ticked none: any scene.
+    # Above 小红, on 随机: any scene.
     assert lobby_choice(LIKES, [], _here("小红", "不要场景的人"), "classic") == "random"
     # Every one there on 不放: no scene.
     assert lobby_choice(LIKES, [], _here("不要场景的人"), "classic") == "off"
 
 
-def test_the_top_guest_with_scenes_ticked_comes_before_one_with_none():
-    # 新来的 tops the list with none ticked; 小明 below has his: his.
+def test_the_top_guest_with_scenes_ticked_comes_before_one_on_random():
+    # 新来的 tops the list on 随机; 小明 below has his ticked: his.
     assert lobby_choice(LIKES, [], _here("新来的", "小明"), "classic") == ("cyber", "ice")
-    # 新来的 and 小红, none ticked either: any scene.
+    # 新来的 and 小红, both on 随机: any scene.
     assert lobby_choice(LIKES, [], _here("新来的", "小红"), "classic") == "random"
 
 
@@ -96,13 +96,13 @@ def test_a_combination_on_no_scene_gives_way_to_the_next_in_line():
         Combo(("小明", "小红", "阿星"), OFF),
         Combo(("小明", "小红"), Scenes(("lace", "stars"))),
         Combo(("阿星", "不要场景的人"), OFF),
-        Combo(("小红", "新来的"), Scenes()),
+        Combo(("小红", "新来的"), ANY_SCENE),
     ]
     # The biggest is on 不放: the next combination there decides.
     assert lobby_choice(LIKES, combos, _here("小明", "小红", "阿星"), "classic") == ("lace", "stars")
     # A combination on 不放 alone: the list decides.
     assert lobby_choice(LIKES, combos, _here("阿星", "不要场景的人"), "classic") == "angel"
-    # One with none ticked: any scene, even with 小明's own there.
+    # One on 随机: any scene, even with 阿星's own there.
     assert lobby_choice(LIKES, combos, _here("小红", "新来的", "阿星"), "classic") == "random"
     # Everyone and every combination there on 不放: no scene.
     only = [Combo(("不要场景的人", "也不要的人"), Scenes(("ice",)))]
@@ -130,44 +130,44 @@ def test_the_old_one_theme_form_is_read(tmp_path):
         encoding="utf-8",
     )
     store = Store(tmp_path)
-    assert [like.scenes for like in store.likes] == [Scenes(("cyber",)), Scenes(), Scenes(("angel",)), Scenes()]
-    assert [combo.scenes for combo in store.combos] == [Scenes(("equation",)), Scenes()]
+    assert [like.scenes for like in store.likes] == [Scenes(("cyber",)), ANY_SCENE, Scenes(("angel",)), ANY_SCENE]
+    assert [combo.scenes for combo in store.combos] == [Scenes(("equation",)), ANY_SCENE]
     assert store.load_warning == ""
 
 
 def test_the_new_form_is_saved_and_read_back(tmp_path):
     store = Store(tmp_path)
     store.add_like("小明", scenes=Scenes(("cyber", "ice", "cyber")))
-    store.add_like("小红", scenes=Scenes(("lace",), off=True))
+    store.add_like("小红", scenes=OFF)
     store.add_like("阿星")
     store.set_combos([Combo(("小明", "小红"), Scenes(("stars", "neon"))), Combo(("小红", "阿星"), OFF)])
     saved = json.loads((tmp_path / "likes.json").read_text(encoding="utf-8"))
     assert saved["likes"][0]["scenes"] == ["cyber", "ice"] and saved["likes"][1]["no_scene"] is True
     assert "theme" not in saved["likes"][0]
     again = Store(tmp_path)
-    # Each once; 不放 keeps its ticks for 放场景.
-    assert [like.scenes for like in again.likes] == [Scenes(("cyber", "ice")), Scenes(("lace",), True), Scenes()]
+    # Each once.
+    assert [like.scenes for like in again.likes] == [Scenes(("cyber", "ice")), OFF, ANY_SCENE]
     assert [combo.scenes for combo in again.combos] == [Scenes(("stars", "neon")), OFF]
 
 
 @pytest.mark.parametrize(
-    "scenes, off, kept",
+    "scenes, off, kept, combo",
     [
-        (None, None, Scenes()),
-        ("ice", "yes", Scenes()),
-        ([1, None, {"a": 1}, "", "  ice  ", "ice"], 1, Scenes(("ice",))),
-        ({"ice": True}, [], Scenes()),
-        (["x" * 500], True, Scenes(("x" * 40,), off=True)),
+        (None, None, ANY_SCENE, ANY_SCENE),
+        ("ice", "yes", ANY_SCENE, ANY_SCENE),
+        ([1, None, {"a": 1}, "", "  ice  ", "ice"], 1, Scenes(("ice",)), Scenes(("ice",))),
+        ({"ice": True}, [], ANY_SCENE, ANY_SCENE),
+        (["x" * 500], True, OFF, Scenes(("x" * 40,))),
     ],
 )
-def test_bad_scenes_never_lose_the_list(tmp_path, scenes, off, kept):
+def test_bad_scenes_never_lose_the_list(tmp_path, scenes, off, kept, combo):
     (tmp_path / "likes.json").write_text(
         json.dumps({"likes": [{"name": "小明", "scenes": scenes, "no_scene": off}], "combos": [{"names": ["小明", "小红"], "scenes": scenes}]}),
         encoding="utf-8",
     )
     store = Store(tmp_path)
     assert store.load_warning == "" and [like.name for like in store.likes] == ["小明"] and len(store.combos) == 1
-    assert store.likes[0].scenes == kept and store.combos[0].scenes == Scenes(kept.keys)
+    assert store.likes[0].scenes == kept and store.combos[0].scenes == combo
 
 
 def test_a_scene_dropped_since_is_skipped_in_a_lobby(tmp_path):
@@ -237,7 +237,7 @@ def test_a_lobby_plays_one_of_the_ticked_never_the_same_twice_in_a_row(window):
     assert window.like_card.look == love_look(played[-1])
 
 
-@pytest.mark.parametrize("scenes", [Scenes(("ice", "stars", "angel")), Scenes()])
+@pytest.mark.parametrize("scenes", [Scenes(("ice", "stars", "angel")), ANY_SCENE])
 def test_in_safe_mode_each_lobby_draws_its_own_music_never_the_same_twice_in_a_row(window, scenes):
     from pathlib import Path
 
@@ -252,7 +252,7 @@ def test_in_safe_mode_each_lobby_draws_its_own_music_never_the_same_twice_in_a_r
 
 
 def test_a_lobby_with_everyone_on_no_scene_shows_the_marks_and_plays_nothing(window):
-    window.store.add_like("小明", scenes=Scenes(("ice",), off=True))
+    window.store.add_like("小明", scenes=OFF)
     window.store.add_like("小红", scenes=OFF)
     _check(window, "小明", "小红")
     assert window._lobby_choice == "off" and not window.love.playing()
@@ -352,23 +352,25 @@ def test_the_picker_ticks_without_moving_the_highlight(qapp):
     picker.done(QDialog.Rejected)
 
 
-def test_no_scene_greys_the_list_and_keeps_the_ticks(qapp):
+def test_no_scene_greys_the_list_and_keeps_the_ticks_shown(qapp):
     from blacklist_detect.ui_love_pick import ScenePicker
 
     picker = ScenePicker(Scenes(("ice",)))
     picker.mode.buttons["off"].click()
     assert not picker.scenes.isEnabled() and picker.hint.isHidden()
-    assert picker.value() == Scenes(("ice",), off=True)
+    assert picker.value() == OFF
     picker.buttons["ice"].grab()
     picker.mode.buttons["on"].click()
     assert picker.scenes.isEnabled() and not picker.hint.isHidden() and picker.value() == Scenes(("ice",))
     # Opened on 不放, it starts greyed.
     off = ScenePicker(OFF)
     assert not off.scenes.isEnabled() and off.hint.isHidden()
-    # None ticked: 经典 highlighted, nothing ticked.
-    picker = ScenePicker(Scenes())
-    assert picker.key == "classic" and picker.scenes.chosen() == () and picker.value() == Scenes()
-    picker.done(QDialog.Rejected)
+    # 随机: 经典 highlighted, nothing ticked, the ticks kept alongside not shown.
+    for scenes in (ANY_SCENE, Scenes(("ice",), random=True)):
+        picker = ScenePicker(scenes)
+        assert picker.mode.current() == "on" and picker.scenes.isEnabled()
+        assert picker.key == "classic" and picker.scenes.chosen() == () and picker.value() == ANY_SCENE
+        picker.done(QDialog.Rejected)
 
 
 def test_the_scene_row_says_what_is_ticked(qapp, monkeypatch):
@@ -390,8 +392,8 @@ def test_the_scene_row_says_what_is_ticked(qapp, monkeypatch):
 
     for scenes, words in (
         (Scenes(("ice", "stars", "cyber")), "3个场景 · 随机"),
-        (Scenes(), "全部场景 · 随机"),
-        (Scenes(("ice", "stars"), off=True), "不放场景"),
+        (ANY_SCENE, "全部场景 · 随机"),
+        (OFF, "不放场景"),
         (Scenes(("lace",)), "玫瑰花边"),
     ):
         monkeypatch.setattr(ScenePicker, "exec", answer(scenes))
@@ -408,9 +410,8 @@ def test_the_scene_row_says_what_is_ticked(qapp, monkeypatch):
     field.change_button.click()
     assert field.value() == Scenes(("ice", "stars"))
     # The list says it in a word or two.
-    assert [scenes_said(s) for s in (Scenes(("ice",)), Scenes(("ice", "lace")), Scenes(), OFF, Scenes(("ribbon",)))] == [
-        "冰蓝极光", "2个场景", "全部随机", "不放", "全部随机",
-    ]  # fmt: skip
+    said = (Scenes(("ice",)), Scenes(("ice", "lace")), ANY_SCENE, Scenes(("ice",), random=True), OFF, Scenes(("ribbon",)))
+    assert [scenes_said(s) for s in said] == ["冰蓝极光", "2个场景", "随机", "随机", "不放", "随机"]
 
 
 def test_the_guest_list_shows_each_one_s_scenes(window):

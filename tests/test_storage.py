@@ -470,8 +470,8 @@ def _files(root) -> dict:  # noqa: ANN001
 
 def test_an_old_scene_switch_turned_off_puts_every_guest_and_combo_on_no_scene(tmp_path):
     """设置 › 嘉宾 › 场景 is gone (v0.9.14 and before). Left off, every 嘉宾 and 组合 is on 不放 instead, their
-    场景 kept ticked for 放场景, once: the switch is not saved again, the next open changes nothing, and a 嘉宾
-    added later starts on as ever."""
+    ticks dropped, once: the switch is not saved again, the next open changes nothing, and a 嘉宾 added later
+    starts on 随机 as ever."""
     import json
 
     from blacklist_detect.model import ANY_SCENE, Combo, Scenes
@@ -479,12 +479,12 @@ def test_an_old_scene_switch_turned_off_puts_every_guest_and_combo_on_no_scene(t
     store = Store(tmp_path)
     store.add_like("心动小鹿", scenes=Scenes(("ice", "stars")))
     store.add_like("心动星星")
-    store.add_like("示例朋友", scenes=Scenes(("cyber",), off=True))
+    store.add_like("示例朋友", scenes=Scenes())
     store.set_combos([Combo(("心动小鹿", "心动星星"), Scenes(("angel",))), Combo(("心动星星", "示例朋友"))])
     _with_settings(tmp_path, love_scene="off", theme="紫色")
     loaded = Store(tmp_path)
-    assert [like.scenes for like in loaded.likes] == [Scenes(("ice", "stars"), True), Scenes((), True), Scenes(("cyber",), True)]
-    assert [combo.scenes for combo in loaded.combos] == [Scenes(("angel",), True), Scenes((), True)]
+    assert [like.scenes for like in loaded.likes] == [Scenes(), Scenes(), Scenes()]
+    assert [combo.scenes for combo in loaded.combos] == [Scenes(), Scenes()]
     assert loaded.theme == "紫色" and loaded.load_warning == ""
     assert "love_scene" not in json.loads(loaded.settings_path.read_text(encoding="utf-8"))
     saved = _files(tmp_path)
@@ -499,6 +499,88 @@ def test_an_old_scene_switch_turned_off_puts_every_guest_and_combo_on_no_scene(t
         assert Store(other).likes[0].scenes == Scenes(("ice",)), kept
     _with_settings(tmp_path / "none", love_scene="off")
     assert Store(tmp_path / "none").likes == [] and not (tmp_path / "none" / "likes.json").exists()
+
+
+def test_scenes_saved_by_every_version_read_as_ticked_random_or_no_scene(tmp_path):
+    """likes.json up to v0.9.14 has no "random": none ticked was any scene (随机 now), "no_scene" true 不放 with
+    its ticks dropped; up to v0.9.13 one "theme". Since, "random" as saved, false with none ticked 不放."""
+    import json
+
+    from blacklist_detect.model import ANY_SCENE, Scenes
+
+    rows = [
+        ({"scenes": [], "no_scene": False}, ANY_SCENE),
+        ({"scenes": ["lace", "ice"], "no_scene": False}, Scenes(("lace", "ice"))),
+        ({"scenes": ["lace"], "no_scene": True}, Scenes()),
+        ({"scenes": [], "no_scene": True}, Scenes()),
+        ({"theme": "cyber"}, Scenes(("cyber",))),
+        ({"theme": ""}, ANY_SCENE),
+        ({}, ANY_SCENE),
+        ({"scenes": [], "random": True}, ANY_SCENE),
+        ({"scenes": ["lace"], "random": True}, Scenes(("lace",), random=True)),
+        ({"scenes": ["lace"], "random": False}, Scenes(("lace",))),
+        ({"scenes": [], "random": False}, Scenes()),
+        ({"scenes": [], "random": False, "no_scene": False}, Scenes()),
+        ({"scenes": [], "random": "yes"}, Scenes()),
+    ]
+    likes = [{"name": f"嘉宾{index}", **saved} for index, (saved, _read) in enumerate(rows)]
+    (tmp_path / "likes.json").write_text(json.dumps({"likes": likes}), encoding="utf-8")
+    loaded = Store(tmp_path)
+    for (saved, read), like in zip(rows, loaded.likes, strict=True):
+        assert like.scenes == read, saved
+    # Saved back, each reads the same, and a 不放 one also says "no_scene" for v0.9.14.
+    loaded.save_likes()
+    assert [like.scenes for like in Store(tmp_path).likes] == [read for _saved, read in rows]
+    written = json.loads((tmp_path / "likes.json").read_text(encoding="utf-8"))["likes"]
+    assert written[0] == {"name": "嘉宾0", "nickname": "", "reason": "", "added_at": "", "scenes": [], "random": True, "no_scene": False}
+    assert [(like["scenes"], like["random"], like["no_scene"]) for like in written[1:4]] == [
+        (["lace", "ice"], False, False), ([], False, True), ([], False, True),
+    ]  # fmt: skip
+
+
+def test_a_file_saved_now_reads_the_same_in_v0_9_14(tmp_path):
+    """Rolled back, v0.9.14 reads "scenes" and "no_scene": 随机 and ticked ones as they were, 不放 as 不放."""
+    import json
+
+    from blacklist_detect.model import ANY_SCENE, Combo, Scenes
+
+    store = Store(tmp_path)
+    store.add_like("心动小鹿", scenes=Scenes(("ice",)))
+    store.add_like("心动星星")
+    store.add_like("示例朋友", scenes=Scenes())
+    store.set_combos([Combo(("心动小鹿", "心动星星"), Scenes())])
+    data = json.loads((tmp_path / "likes.json").read_text(encoding="utf-8"))
+    old = [(like["scenes"], like["no_scene"]) for like in data["likes"]]
+    assert old == [(["ice"], False), ([], False), ([], True)]
+    assert (data["combos"][0]["scenes"], data["combos"][0]["no_scene"]) == ([], True)
+    assert store.likes[1].scenes == ANY_SCENE
+
+
+def test_me_has_scenes_of_its_own_kept_by_clearing_the_list_but_not_by_reset(tmp_path):
+    """我: none (不放) until set, saved in likes.json beside 嘉宾; 清空嘉宾列表 keeps it, 清空数据 does not."""
+    import json
+
+    from blacklist_detect.model import ANY_SCENE, Scenes
+
+    store = Store(tmp_path)
+    assert store.me == Scenes() and Store(tmp_path).me == Scenes()
+    store.set_me(Scenes(("lace", "ice")))
+    assert Store(tmp_path).me == Scenes(("lace", "ice"))
+    me = json.loads((tmp_path / "likes.json").read_text(encoding="utf-8"))["me"]
+    assert me == {"scenes": ["lace", "ice"], "random": False, "no_scene": False}
+    store.set_me(ANY_SCENE)
+    assert Store(tmp_path).me == ANY_SCENE
+    store.add_like("心动小鹿")
+    store.clear_likes()
+    assert Store(tmp_path).me == ANY_SCENE and Store(tmp_path).likes == []
+    store.reset()
+    assert store.me == Scenes() and Store(tmp_path).me == Scenes()
+    # Saved before 我 had any (v0.9.14), or not one: none.
+    for saved in ({"likes": []}, {"me": "lace"}, {"me": None}):
+        (tmp_path / "likes.json").write_text(json.dumps(saved), encoding="utf-8")
+        assert Store(tmp_path).me == Scenes(), saved
+    (tmp_path / "likes.json").write_text(json.dumps({"me": {"scenes": ["cyber"], "no_scene": False}}), encoding="utf-8")
+    assert Store(tmp_path).me == Scenes(("cyber",))
 
 
 def test_the_old_sound_volume_is_folded_into_every_scene_s_own_once(tmp_path):
@@ -574,11 +656,11 @@ def test_old_settings_that_cannot_be_saved_are_folded_again_the_next_open(tmp_pa
 
     monkeypatch.setattr(storage, "_atomic_write", refuse)
     loaded = Store(tmp_path)
-    assert loaded.scene_sound("ice")[1] == 50 and loaded.likes[0].scenes == Scenes(("ice",), True)
+    assert loaded.scene_sound("ice")[1] == 50 and loaded.likes[0].scenes == Scenes()
     assert _files(tmp_path) == saved
     monkeypatch.undo()
     again = Store(tmp_path)
-    assert again.scene_sound("ice")[1] == 50 and again.likes[0].scenes == Scenes(("ice",), True)
+    assert again.scene_sound("ice")[1] == 50 and again.likes[0].scenes == Scenes()
     assert Store(tmp_path).scene_sound("ice")[1] == 50
 
 

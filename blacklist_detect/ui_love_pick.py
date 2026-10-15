@@ -487,13 +487,13 @@ class ScenePicker(Modal):
     ) -> None:
         super().__init__(parent)
         if isinstance(current, str):
-            current = Scenes((current,) if current else ())
+            current = Scenes((current,)) if current else ANY_SCENE
         self.music = music
         self.music_choice = music_choice
         layout = self.frame(f"选择场景 · {name}" if name else "选择场景")
         row = QHBoxLayout()
         row.setSpacing(20)
-        known = [key for key in map(love_scenes.shown, current.keys) if key in love_scenes.KEYS]
+        known = [key for key in map(love_scenes.shown, () if current.random else current.keys) if key in love_scenes.KEYS]
         self.scenes = SceneList(known[0] if known else "", chosen=tuple(known))
         self.scenes.picked.connect(self.show_scene)
         self.buttons = self.scenes.buttons
@@ -529,8 +529,11 @@ class ScenePicker(Modal):
         self.preview.show_scene(self.key)
 
     def value(self) -> Scenes:
-        """The scenes ticked (none: any, at random), and whether on 不放, which keeps them for 放场景."""
-        return Scenes(self.scenes.chosen(), self.mode.current() == "off")
+        """The scenes ticked, 随机 for none, or 不放."""
+        if self.mode.current() == "off":
+            return Scenes()
+        chosen = self.scenes.chosen()
+        return Scenes(chosen, random=not chosen)
 
     def has_changes(self) -> bool:
         return self.value() != self._before

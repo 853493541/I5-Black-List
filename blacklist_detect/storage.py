@@ -395,27 +395,34 @@ def _folded(own: int, sound: int) -> int:
     return level
 
 
-def _scenes(keys: object, off: object = False) -> Scenes:
+def _scenes(keys: object, random: object = False) -> Scenes:
     """A 嘉宾's or a combination's scenes as saved: the keys ticked, each once (one replaced is its
-    replacement), and whether they are on 不放. Whether this version still has a scene is the player's
+    replacement), and whether they are on 随机. Whether this version still has a scene is the player's
     business (guests.lobby_choice skips one it has not). Never raises: what is not a key is dropped."""
     if not isinstance(keys, list | tuple):
         keys = ()
     cleaned = (love_scenes.shown(key.strip()[:40]) for key in keys if isinstance(key, str) and key.strip())
-    return Scenes(tuple(dict.fromkeys(cleaned))[:_MAX_SCENES], off is True)
+    return Scenes(tuple(dict.fromkeys(cleaned))[:_MAX_SCENES], random is True)
 
 
 def _saved_scenes(item: dict) -> Scenes:
-    """The scenes of a 嘉宾 or a combination in likes.json: "scenes" and "no_scene", or up to v0.9.13 one
-    "theme", a key (that one ticked) or "" for none of their own (any scene now)."""
-    if "scenes" in item:
-        return _scenes(item.get("scenes"), item.get("no_scene"))
-    theme = item.get("theme")
-    return _scenes([theme] if isinstance(theme, str) else [])
+    """The scenes of a 嘉宾, a combination or 我 in likes.json: "scenes" and "random" (随机; false with none
+    ticked is 不放). Up to v0.9.14 there was no "random": "no_scene" true was 不放 and none ticked was any
+    scene, now 随机; up to v0.9.13 one "theme", a key (that one ticked) or "" for any scene."""
+    if "random" in item:
+        return _scenes(item.get("scenes"), item.get("random"))
+    if "scenes" not in item:
+        theme = item.get("theme")
+        item = {"scenes": [theme] if isinstance(theme, str) else []}
+    if item.get("no_scene") is True:
+        return Scenes()
+    scenes = _scenes(item.get("scenes"))
+    return scenes if scenes.keys else ANY_SCENE
 
 
 def _scenes_saved(scenes: Scenes) -> dict:
-    return {"scenes": list(scenes.keys), "no_scene": scenes.off}
+    """Scenes as likes.json keeps them; "no_scene" still written so v0.9.14 reads the file back the same."""
+    return {"scenes": list(scenes.keys), "random": scenes.random, "no_scene": scenes.off}
 
 
 def _seconds(value: object) -> float | None:
@@ -475,6 +482,8 @@ class Store:
         self.likes: list[Entry] = []
         # 嘉宾 who, all in one lobby, get a scene of their own (guests.lobby_choice).
         self.combos: list[Combo] = []
+        # 我: the 场景 the player asked for themselves (none, 不放, unless set). The name is player_name.
+        self.me = Scenes()
         self.scans: list[dict] = []
         self.hotkey = DEFAULT_HOTKEY
         # 方式: 自动检查 watches for the lobby; 手动检查 (the default) checks on the hotkey.
@@ -733,10 +742,14 @@ class Store:
     def _load_likes(self) -> None:
         self.likes = []
         self.combos = []
+        self.me = Scenes()
         if not self.likes_path.exists():
             return
         try:
             data = json.loads(self.likes_path.read_text(encoding="utf-8"))
+            me = data.get("me")
+            if isinstance(me, dict):
+                self.me = _saved_scenes(me)
             for item in data.get("likes", []):
                 name = clean_stored_name(str(item.get("name", "")))
                 if not name or any(fold(like.name) == fold(name) for like in self.likes):
@@ -757,15 +770,16 @@ class Store:
         except (OSError, ValueError, AttributeError, TypeError) as exc:
             self.likes = []
             self.combos = []
+            self.me = Scenes()
             backup = _set_aside(self.likes_path)
             _log_set_aside(exc, backup)
             self.load_warning = "嘉宾文件坏了，已备份，先用空列表"
 
     def _fold_old_settings(self) -> None:
         """Settings saved up to v0.9.14, once, into what took their place: 声音 below 100 into every 场景's own
-        音量 (nothing is heard louder than it was), and 嘉宾 › 场景 off into 不放 for every 嘉宾 and 组合 (their
-        scenes kept ticked, so 放场景 brings them back). Saved, the old ones are gone: the next open changes
-        nothing. Not saved (a file that cannot be written), it is done again from them the next open."""
+        音量 (nothing is heard louder than it was), and 嘉宾 › 场景 off into 不放 for every 嘉宾 and 组合. Saved,
+        the old ones are gone: the next open changes nothing. Not saved (a file that cannot be written), it is
+        done again from them the next open."""
         folding = self._old_volume < 100
         if folding:
             for key in dict.fromkeys([*love_scenes.KEYS, *self.scene_sounds]):
@@ -775,8 +789,8 @@ class Store:
             _log.info("声音 %d%% folded into every 场景's own 音量.", self._old_volume)
         try:
             if self._old_scenes_off:
-                self.likes = [replace(like, scenes=Scenes(like.scenes.keys, True)) for like in self.likes]
-                self.combos = [Combo(combo.names, Scenes(combo.scenes.keys, True)) for combo in self.combos]
+                self.likes = [replace(like, scenes=Scenes()) for like in self.likes]
+                self.combos = [Combo(combo.names, Scenes()) for combo in self.combos]
                 if self.likes or self.combos:
                     self.save_likes()
                 _log.info("嘉宾 › 场景 was off: every 嘉宾 and 组合 on 不放.")
@@ -799,8 +813,15 @@ class Store:
                     for like in self.likes
                 ],
                 "combos": [{"names": list(combo.names), **_scenes_saved(combo.scenes)} for combo in self.combos],
+                "me": _scenes_saved(self.me),
             },
         )
+
+    def set_me(self, scenes: Scenes) -> None:
+        """Save the 场景 of 我."""
+        self.me = _scenes(scenes.keys, scenes.random)
+        self.save_likes()
+        _log.info("我: 场景 set.")
 
     def like_index(self, name: str) -> int:
         """Where this name is on 嘉宾, or -1."""
@@ -822,7 +843,7 @@ class Store:
             reason=(reason or "").strip()[:_MAX_NOTE],
             added_at=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
             nickname=_clean_nickname(nickname),
-            scenes=_scenes(scenes.keys, scenes.off),
+            scenes=_scenes(scenes.keys, scenes.random),
         )
         self.likes.append(like)
         self.save_likes()
@@ -842,7 +863,7 @@ class Store:
             reason=(reason or "").strip()[:_MAX_NOTE],
             added_at=current.added_at,
             nickname=_clean_nickname(nickname),
-            scenes=_scenes(scenes.keys, scenes.off),
+            scenes=_scenes(scenes.keys, scenes.random),
         )
         # A new name for a 嘉宾 in a combination: the combination follows it.
         if fold(current.name) != fold(cleaned):
@@ -1237,6 +1258,7 @@ class Store:
         self.entries = []
         self.likes = []
         self.combos = []
+        self.me = Scenes()
         self.scans = []
         self.hotkey = DEFAULT_HOTKEY
         # 安全模式 and 手动检查 again, until agreed to otherwise.

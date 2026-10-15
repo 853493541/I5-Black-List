@@ -2,9 +2,9 @@
 
 A combination whose 嘉宾 are all in the lobby wins, the one with the most of them first (the earlier
 one on a tie); other 嘉宾 there with it don't stop it. Else the 嘉宾 highest on the list with scenes
-ticked decides: the list shows the newest first, and the player orders it. Else the highest with none
-ticked: any scene. One on 不放 asks for none and the next in line decides; with every one there on
-不放, no scene plays.
+ticked decides: the list shows the newest first, and the player orders it. Else the highest on 随机:
+any scene. One on 不放 asks for none and the next in line decides; with every one there on 不放, no
+scene plays.
 """
 
 from __future__ import annotations
@@ -38,7 +38,8 @@ def lobby_choice(
 
     likes is 嘉宾 as saved (the last is the top of the list); default is the choice with none of them
     here ("classic"); known says whether a scene is one this version plays, so ticked ones it no
-    longer has are left out, and a set left with none is as if none were ticked."""
+    longer has are left out, and a set left with none is as if on 随机. One on 随机 is 随机 whatever
+    it has ticked."""
     here = {fold(like.name) for like in present}
     if not here:
         return default
@@ -50,13 +51,18 @@ def lobby_choice(
     # The most 嘉宾 first; sorted keeps the earlier first on a tie.
     for _size, combo in sorted(found, key=lambda pair: -pair[0]):
         if not combo.scenes.off:
-            return _choice(ticked(combo.scenes, known))
+            return _choice(_asked(combo.scenes, known))
     on = [like for like in reversed(likes) if fold(like.name) in here and not like.scenes.off]
     for like in on:
-        keys = ticked(like.scenes, known)
+        keys = _asked(like.scenes, known)
         if keys:
             return _choice(keys)
     return "random" if on else "off"
+
+
+def _asked(scenes: Scenes, known: Callable[[str], bool]) -> tuple[str, ...]:
+    """The scenes asked for by ticks: none on 随机, its ticks kept but not used."""
+    return () if scenes.random else ticked(scenes, known)
 
 
 def _choice(keys: tuple[str, ...]) -> str | tuple[str, ...]:
