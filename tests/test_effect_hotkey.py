@@ -433,6 +433,22 @@ def test_safe_mode_takes_a_play_down_music_and_all(window):
     assert not window.panel.isVisible() and not window.love.playing() and window.played[-1] == "stop"
 
 
+def test_stream_mode_off_in_safe_mode_takes_a_play_down_music_and_all(window):
+    window._on_display_mode("safe")
+    window._set_stream_mode(True)
+    window.store.quick_scene = "claw"
+    assert window.play_quick_scene() and window.played == ["claw"]
+    window._set_stream_mode(False)
+    assert window._quick_scene == "" and window._quick_area is None and window._game_box is None
+    assert not window.panel.isVisible() and not window.love.playing() and window.played[-1] == "stop"
+    # In 完整模式 the play goes on over the screen.
+    window._on_display_mode("full")
+    window._set_stream_mode(True)
+    assert window.play_quick_scene()
+    window._set_stream_mode(False)
+    assert window._quick_scene == "claw" and window.played[-1] == "claw"
+
+
 def test_picking_a_scene_mid_play_leaves_the_plays_music(window):
     page = window.effects_page
     window.tabs.setCurrentIndex(window.effects_tab)

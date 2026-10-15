@@ -2919,6 +2919,9 @@ class MainWindow(QMainWindow):
         self.stream_choice.set_current("on" if self.store.stream_mode else "off")
         self.stream_test.setVisible(bool(self.store.stream_mode))
         self.stream_frame_box.setVisible(bool(self.store.stream_mode))
+        if self._overlay_target() == "":
+            # 安全模式 without 直播模式 draws nothing: a 特效 hotkey play is over, music and all.
+            self._end_quick_play()
         self._sync_overlay_target()
         self._sync_name_hiding()
         if self.store.stream_mode:
