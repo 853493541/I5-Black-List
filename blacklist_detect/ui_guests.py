@@ -199,11 +199,6 @@ class ThemeField(QWidget):
         row.addWidget(self.change_button, 0, Qt.AlignVCenter)
         self._show()
 
-    def scene(self) -> str:
-        """The first scene ticked that this version plays, 经典 for none."""
-        keys = ticked(self._scenes)
-        return keys[0] if keys else love_scenes.KEYS[0]
-
     def value(self) -> Scenes:
         return self._scenes
 
