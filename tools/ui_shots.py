@@ -121,11 +121,21 @@ def shoot(args) -> None:  # noqa: ANN001
         from PySide6.QtCore import QEvent, Qt
         from PySide6.QtGui import QFocusEvent, QKeyEvent
 
-        # 检查's own key pressed for the 特效 hotkey: refused, under the box.
+        from blacklist_detect.hotkey import parse_hotkey
+
+        # 检查's own key (Alt+F11, or Shift+F12 with the stress data) pressed for the 特效 hotkey:
+        # refused, under the box.
+        spec = parse_hotkey(window.store.hotkey)
+        name = spec.display.rsplit("+", 1)[-1]
+        key = Qt.Key_F1 + int(name[1:]) - 1 if len(name) > 1 else ord(name)
+        flags = {"Ctrl": Qt.ControlModifier, "Alt": Qt.AltModifier, "Shift": Qt.ShiftModifier, "Win": Qt.MetaModifier}
+        modifiers = Qt.KeyboardModifier.NoModifier
+        for modifier in spec.modifiers:
+            modifiers |= flags[modifier]
         window.tabs.setCurrentIndex(window.effects_tab)
         edit = window.effect_hotkey_edit
         app.sendEvent(edit, QFocusEvent(QEvent.Type.FocusIn))
-        app.sendEvent(edit, QKeyEvent(QEvent.Type.KeyPress, Qt.Key_F11, Qt.KeyboardModifier.AltModifier))
+        app.sendEvent(edit, QKeyEvent(QEvent.Type.KeyPress, key, modifiers))
         save(window, "page_特效_同一个键")
         app.sendEvent(edit, QFocusEvent(QEvent.Type.FocusOut))
 
