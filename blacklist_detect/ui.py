@@ -2918,6 +2918,7 @@ class MainWindow(QMainWindow):
         self.store.sound_volume = step * VOLUME_STEP
         self.music.volume = self.store.sound_volume
         self.volume_label.setText(f"{self.store.sound_volume}%")
+        self.effects_page.sync_sound()
         if not self.volume_slider.isSliderDown():
             self._volume_set()
 
@@ -2932,6 +2933,7 @@ class MainWindow(QMainWindow):
         self.store.sound_muted = on
         self.store.save_settings()
         self.music.muted = on
+        self.effects_page.sync_sound()
         if on:
             self.music.stop()
             self.effects_page.sounding = False
@@ -2946,6 +2948,7 @@ class MainWindow(QMainWindow):
             control.blockSignals(False)
         self.volume_label.setText(f"{self.store.sound_volume}%")
         self.music.volume, self.music.muted = self.store.sound_volume, self.store.sound_muted
+        self.effects_page.sync_sound()
 
     def _sound_said(self) -> str:
         """声音 for the log."""
@@ -4164,14 +4167,15 @@ class MainWindow(QMainWindow):
         self._glance_pause_until = 0.0
         log.info("测试效果: done.")
 
-    def play_quick_scene(self, under_pointer: bool = True) -> bool:
-        """The 特效 hotkey, and 播放 on 特效: the 特效 picked there, at once, with no check (no screen
-        copy, no recognition), as a 嘉宾 lobby would get it: the rose ring and the badge on 准备案件还原,
-        the scene over the game and its music (设置 › 声音), on the screen, or only in 直播画面 when
-        安全模式 puts the marks there. It plays with 嘉宾特效 off too, and pressed again it starts over.
-        It plays nothing when _quick_refusal says why not: before 使用声明 is agreed to, in 安全模式
-        without 直播模式 (nothing is drawn over the game there), and while a real lobby is checked or
-        its marks show, since that comes first; a check takes the play down.
+    def play_quick_scene(self, under_pointer: bool = True, scene: str = "") -> bool:
+        """The 特效 hotkey, and 播放 on 特效: the hotkey's 特效 (store.quick_scene), or for 播放 the one shown
+        there (scene), at once, with no check (no screen copy, no recognition), as a 嘉宾 lobby would get
+        it: the rose ring and the badge on 准备案件还原, the scene over the game and its music (设置 › 声音,
+        and the 特效's own 音量), on the screen, or only in 直播画面 when 安全模式 puts the marks there. It
+        plays with 嘉宾特效 off too, and pressed again it starts over. It plays nothing when _quick_refusal
+        says why not: before 使用声明 is agreed to, in 安全模式 without 直播模式 (nothing is drawn over the
+        game there), and while a real lobby is checked or its marks show, since that comes first; a check
+        takes the play down.
 
         Where: the last lobby's game, as a check found it; with none yet, in the window 直播姬 shows
         the game with (直播模式), else in the window under the pointer, else on its screen as a
@@ -4186,7 +4190,7 @@ class MainWindow(QMainWindow):
         # The music is the play's now, not the 特效 page's preview's.
         self.effects_page.sounding = False
         self._end_quick_play()
-        scene = self.store.quick_scene
+        scene = scene or self.store.quick_scene
         self._quick_saved = (
             self._game_box, self._game_screen, self._game_windows,
             QRect(self.stream._frame), self._lobby_choice, self._lobby_seats,
@@ -4243,12 +4247,12 @@ class MainWindow(QMainWindow):
             return "正在检查，稍后再试"
         return ""
 
-    def _play_from_page(self) -> None:
-        """播放 on 特效: the play, or why there is none, under it."""
+    def _play_from_page(self, scene: str) -> None:
+        """播放 on 特效: the 特效 shown there played as the hotkey plays its own, or why not, under it."""
         why = self._quick_refusal()
         self.effects_page.say(why)
         if not why:
-            self.play_quick_scene(under_pointer=False)
+            self.play_quick_scene(under_pointer=False, scene=scene)
 
     def _quick_place(self, under_pointer: bool = True) -> tuple[QRect, QRect, str]:
         """Where the 特效 hotkey plays when no lobby was checked yet: the game's screen, the window it

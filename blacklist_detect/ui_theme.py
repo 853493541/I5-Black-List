@@ -662,6 +662,7 @@ def _kit_rules(family: str) -> str:
                 color: {t["text"]};
                 background: transparent;
             }}
+            QLabel#rowLabel:disabled {{ color: {t["muted"]}; }}
             QLabel#streamStatus {{
                 font-family: "{family}";
                 font-size: {SMALL_PT}pt;
@@ -946,6 +947,8 @@ def _window_style(family: str) -> str:
                 border: 1px solid {t["field_line"]};
             }}
             QSlider::handle:horizontal:hover {{ border-color: {t["accent_line"]}; }}
+            QSlider::sub-page:horizontal:disabled {{ background: {t["field_line"]}; }}
+            QSlider::handle:horizontal:disabled {{ background: {t["surface_alt"]}; border-color: {t["border"]}; }}
             QToolTip {{
                 font-family: "{family}";
                 font-size: {SMALL_PT}pt;

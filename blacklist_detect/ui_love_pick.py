@@ -3,7 +3,8 @@
 The scenes are listed by name, each with a dot in its colour (SceneList); the one highlighted plays on
 the right over the fake-name sample lobby, with the app's own marks on it (ScenePreview), and ▶ plays it
 from its start with its music (as loud as 设置 › 声音 says). 用这个 gives its key; closing changes nothing.
-The 特效 page (ui_effects) is made of the same list and preview.
+The 特效 page (ui_effects) is made of the same list and preview, its list marking the 特效 the hotkey plays
+with ✓ apart from the one shown, and with ♪ each 特效 given the player's own sound.
 """
 
 from __future__ import annotations
@@ -227,9 +228,30 @@ def tune_for(scene: str, music_choice: str) -> str:
     return scene if music_choice != "off" else ""
 
 
+def _draw_note(p: QPainter, centre: QPointF, color: str) -> None:
+    """A small ♪, 14 px tall, drawn rather than typed so every font shows it alike."""
+    p.save()
+    p.translate(centre - QPointF(7, 7))
+    p.setPen(Qt.NoPen)
+    p.setBrush(QColor(color))
+    p.save()
+    p.translate(5.2, 11)
+    p.rotate(-20)
+    p.drawEllipse(QPointF(0, 0), 3.0, 2.2)
+    p.restore()
+    p.drawRect(QRectF(7.3, 1.5, 1.4, 9.5))
+    flag = QPainterPath(QPointF(8.7, 1.5))
+    flag.cubicTo(9.5, 4.0, 12.5, 4.2, 11.8, 7.8)
+    flag.cubicTo(11.4, 5.8, 10.0, 5.2, 8.7, 4.9)
+    flag.closeSubpath()
+    p.drawPath(flag)
+    p.restore()
+
+
 class SceneChoice(_KeyboardRing, QAbstractButton):
     """One scene in 选择特效's list: a dot in its colour and its name. Picked, it sits in a ringed band
-    with a ✓ at its end; under the mouse, the band shows faintly."""
+    with a ✓ at its end; under the mouse, the band shows faintly. On the 特效 page the ✓ is apart from the
+    band (tick: the hotkey plays it), and own puts a ♪ before it (the player's own sound)."""
 
     H = 34
     RADIUS = 8
@@ -250,11 +272,20 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.dot = QColor(*love_look(key).glow)
         self._hover = False
+        # None: the ✓ goes with the band, as in 选择特效.
+        self.tick: bool | None = None
+        self.own = False
+
+    def set_marks(self, tick: bool, own: bool) -> None:
+        self.tick, self.own = tick, own
+        said = ["快捷键播放这个"] * tick + ["自定义声音"] * own
+        self.setAccessibleDescription("，".join(said))
+        self.update()
 
     def sizeHint(self) -> QSize:
         font = chinese_font()
         font.setWeight(QFont.DemiBold)
-        return QSize(self.TEXT_X + QFontMetrics(font).horizontalAdvance(self.text()) + 44, self.H)
+        return QSize(self.TEXT_X + QFontMetrics(font).horizontalAdvance(self.text()) + 44 + 20 * self.own, self.H)
 
     def enterEvent(self, event) -> None:  # noqa: ANN001
         self._hover = True
@@ -289,9 +320,12 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         font.setWeight(QFont.DemiBold if self.isChecked() else QFont.Normal)
         p.setFont(font)
         p.setPen(QColor(THEME["text"]))
-        words = QRectF(self.TEXT_X, 0, self.width() - self.TEXT_X - 36, self.height())
+        words = QRectF(self.TEXT_X, 0, self.width() - self.TEXT_X - 36 - 20 * self.own, self.height())
         p.drawText(words, Qt.AlignLeft | Qt.AlignVCenter, QFontMetrics(font).elidedText(self.text(), Qt.ElideRight, int(words.width())))
-        if self.isChecked():
+        if self.own:
+            _draw_note(p, QPointF(self.width() - 45, self.height() / 2), THEME["muted"])
+        ticked = self.isChecked() if self.tick is None else self.tick
+        if ticked:
             tick = line_pixmap("check", 16, THEME["accent_line"], stroke=2.0)
             p.drawPixmap(QRectF(self.width() - 32, (self.height() - 16) / 2, 16, 16), tick, QRectF(tick.rect()))
         p.end()
@@ -300,12 +334,13 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
 class SceneList(QWidget):
     """Every scene in love_scenes.SCENES by name, one highlighted: 选择特效's list, and the 特效 page's.
     key is the one highlighted, 经典 for one this version does not have; picked(key) says a click
-    highlighted one."""
+    highlighted one. On the page (marks), set_marks puts the ✓ on the hotkey's and a ♪ on each with
+    the player's own sound."""
 
     picked = Signal(str)
     W = 200
 
-    def __init__(self, current: str = "", parent: QWidget | None = None) -> None:
+    def __init__(self, current: str = "", parent: QWidget | None = None, marks: bool = False) -> None:
         super().__init__(parent)
         self.setFixedWidth(self.W)
         column = QVBoxLayout(self)
@@ -323,6 +358,14 @@ class SceneList(QWidget):
         column.addStretch(1)
         self.key = ""
         self.select(current)
+        if marks:
+            self.set_marks(self.key, ())
+
+    def set_marks(self, ticked: str, own) -> None:  # noqa: ANN001
+        """The ✓ on ticked alone (one replaced is its replacement), the ♪ on each key in own."""
+        ticked = love_scenes.shown(ticked)
+        for key, button in self.buttons.items():
+            button.set_marks(key == ticked, key in own)
 
     def select(self, key: str) -> None:
         """Highlight this scene: one replaced is its replacement, one this version does not have 经典."""

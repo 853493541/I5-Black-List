@@ -1,5 +1,6 @@
-"""特效: the page where the 特效 hotkey's scene is picked, and that hotkey, which plays it at once over
-the game with no check, on the screen and in 直播画面."""
+"""特效: the page where the 特效 hotkey's scene is picked (快捷键放这个), and that hotkey, which plays it at
+once over the game with no check, on the screen and in 直播画面. tests/test_effects_manager.py has the rest of
+the page: each 特效's sound and 音量."""
 
 import json
 import os
@@ -144,7 +145,7 @@ def test_the_settings_save_and_load_and_bad_ones_fall_back(tmp_path):
     assert store.dropped_hotkey == store.dropped_effect_hotkey == ""
 
 
-def test_the_page_lists_every_scene_and_saves_the_one_picked(window):
+def test_the_page_lists_every_scene_and_saves_the_one_given_the_hotkey(window):
     assert window.tabs.tabText(window.effects_tab) == "特效"
     assert window.likes_tab < window.effects_tab < window.settings_tab
     page = window.effects_page
@@ -154,9 +155,13 @@ def test_the_page_lists_every_scene_and_saves_the_one_picked(window):
     window.show()
     QApplication.processEvents()
     assert page.preview.scene == "classic" and page.preview._tick.isActive()
+    # A click shows a scene; 快捷键放这个 gives it the hotkey.
     page.scenes.buttons["fluffy"].click()
+    assert window.store.quick_scene == "classic" and page.assign_button.isEnabled()
+    page.assign_button.click()
     assert window.store.quick_scene == "fluffy" and Store(window.store.root).quick_scene == "fluffy"
     assert [key for key, button in page.scenes.buttons.items() if button.isChecked()] == ["fluffy"]
+    assert not page.assign_button.isEnabled()
     # It plays quietly; ▶ plays it with its music, which the next pick stops.
     assert page.preview.scene == "fluffy" and window.played == []
     page.preview.play_button.click()
@@ -166,24 +171,35 @@ def test_the_page_lists_every_scene_and_saves_the_one_picked(window):
     # Out of sight, the preview rests.
     window.tabs.setCurrentIndex(window.settings_tab)
     assert not page.preview._tick.isActive()
-    # Labels only: the hotkey and 播放, in one row.
+    # Labels only: the hotkey, 快捷键放这个 and 播放, in one row.
     assert window.effect_hotkey_edit.text() == "Alt+F12" and page.play_button.text() == "播放"
+    assert page.assign_button.text() == "快捷键放这个"
     assert page.note.isHidden()
     window.hide()
 
 
 def test_the_page_fits_the_smallest_window(window):
+    """At 900x560 every control is in view, a note under the rows too; the preview gives up room for them,
+    never below _Fitted.MIN_W (test_effects_manager has a 特效 with the player's own sound)."""
+    from blacklist_detect.ui_effects import _Fitted
+
     window.resize(900, 560)
     window.tabs.setCurrentIndex(window.effects_tab)
     window.show()
     _wait(50)
     page = window.effects_page
-    preview = page.preview.geometry().translated(page.preview.parentWidget().mapTo(page, page.preview.pos()) - page.preview.pos())
-    assert page.rect().contains(preview) and preview.width() >= 560
-    button = page.play_button
-    assert page.rect().contains(button.geometry().translated(button.parentWidget().mapTo(page, button.pos()) - button.pos()))
-    last = page.scenes.buttons["claw"]
-    assert page.rect().contains(last.geometry().translated(last.parentWidget().mapTo(page, last.pos()) - last.pos()))
+    page._tell("这个视频里没有能放的声音")
+    _wait(20)
+
+    def placed(widget):  # noqa: ANN001, ANN202
+        return widget.geometry().translated(widget.parentWidget().mapTo(page, widget.pos()) - widget.pos())
+
+    assert page.rect().contains(placed(page.preview)) and page.preview.width() >= _Fitted.MIN_W
+    controls = (page.sound_text, page.upload_button, page.volume_slider, page.volume_label, page.level_note,
+                window.effect_hotkey_edit, page.assign_button, page.play_button, page.note, page.scenes.buttons["claw"])  # fmt: skip
+    for control in controls:
+        assert page.rect().contains(placed(control)), control
+    assert not placed(page.note).intersects(placed(page.play_button))
     window.hide()
 
 
@@ -506,7 +522,7 @@ def test_picking_a_scene_mid_play_leaves_the_plays_music(window):
     window.tabs.setCurrentIndex(window.effects_tab)
     window.show()
     QApplication.processEvents()
-    window.store.quick_scene = "stars"
+    page.scenes.buttons["stars"].click()
     page.play_button.click()
     assert window.played == ["stars"]
     page.scenes.buttons["fluffy"].click()
@@ -780,6 +796,7 @@ def test_the_note_that_checks_key_did_not_register_goes_once_it_does(window, mon
 def test_starting_over_puts_the_effect_hotkey_and_page_back(window, monkeypatch):
     page = window.effects_page
     page.scenes.buttons["claw"].click()
+    page.assign_button.click()
     _press(window.effect_hotkey_edit, Qt.Key_9, Qt.KeyboardModifier.ControlModifier)
     QApplication.instance().sendEvent(window.effect_hotkey_edit, QFocusEvent(QEvent.Type.FocusOut))
     page.say("最多两个键，比如 Alt+1")

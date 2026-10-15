@@ -145,6 +145,16 @@ def shoot(args) -> None:  # noqa: ANN001
         app.sendEvent(edit, QFocusEvent(QEvent.Type.FocusOut))
 
     step("page_特效_同一个键", same_key)
+
+    def own_sound() -> None:
+        # 毛茸茸保护协会 shown, with the player's own sound (seeded as 心动音乐.mp3), 声音 below 100%.
+        window.tabs.setCurrentIndex(window.effects_tab)
+        window.effects_page.scenes.buttons["fluffy"].click()
+        save(window, "page_特效_自定义声音")
+        window.effects_page.scenes.buttons[window.store.quick_scene].click()
+
+    if args.data != "empty":
+        step("page_特效_自定义声音", own_sound)
     window.tabs.setCurrentIndex(0)
     step("header_检查", lambda: (window.check_panel.toggle(), save(window, "header_检查"), window.check_panel.close_panel()))
 
@@ -200,21 +210,9 @@ def shoot(args) -> None:  # noqa: ANN001
     step("dlg_选择特效", lambda: ScenePicker("fluffy", "心动小鹿", parent=window).exec())
 
     def trim() -> None:
-        import numpy as np
-
         from blacklist_detect.ui_sound_trim import SoundTrimDialog
 
-        # 20 s of made-up music: a plucked note every quarter second, swelling and fading. No recording.
-        rate = 44100
-        t = np.arange(rate * 20) / rate
-        sound = np.zeros_like(t)
-        for index, at in enumerate(np.arange(0, 20, 0.25)):
-            later = t >= at
-            after = t[later] - at
-            pitch = 220 * 2 ** ((index * 5 % 12) / 12)
-            sound[later] += np.exp(-after * 6) * np.sin(2 * np.pi * pitch * after) * (0.4 + 0.6 * abs(np.sin(index / 9)))
-        samples = (sound / np.abs(sound).max() * 0.7 * 32767).astype(np.int16)
-        SoundTrimDialog(samples, rate, "心动音乐.mp3", lambda _start, _length: None, lambda: None, parent=window).exec()
+        SoundTrimDialog(_music(20), 44100, "心动音乐.mp3", lambda _start, _length: None, lambda: None, parent=window).exec()
 
     step("dlg_选择片段", trim)
     window.tabs.setCurrentIndex(window.settings_tab)
@@ -292,6 +290,21 @@ def shoot(args) -> None:  # noqa: ANN001
     os._exit(0)
 
 
+def _music(seconds: float):  # noqa: ANN202
+    """Made-up music, int16 at 44.1 kHz: a plucked note every quarter second, swelling and fading. No recording."""
+    import numpy as np
+
+    rate = 44100
+    t = np.arange(round(rate * seconds)) / rate
+    sound = np.zeros_like(t)
+    for index, at in enumerate(np.arange(0, seconds, 0.25)):
+        later = t >= at
+        after = t[later] - at
+        pitch = 220 * 2 ** ((index * 5 % 12) / 12)
+        sound[later] += np.exp(-after * 6) * np.sin(2 * np.pi * pitch * after) * (0.4 + 0.6 * abs(np.sin(index / 9)))
+    return (sound / np.abs(sound).max() * 0.7 * 32767).astype(np.int16)
+
+
 class _Registry:
     """The Run key 开机启动 reads and writes, in memory (as tests/conftest.py has it). values: what it holds."""
 
@@ -351,6 +364,13 @@ def _seed(root: Path, args, version: str) -> None:  # noqa: ANN001
         store.add_like("一起开黑的朋友", reason="每次都带我赢", theme="cyber")
         store.set_combos([Combo(("心动小鹿", "心动星星"), "angel"), Combo(("心动星星", "一起开黑的朋友"), "fluffy")])
         store.add_scan([{"seat": i + 1, "name": n, "unclear": n == "摸鱼大师"} for i, n in enumerate(SEATS)], elapsed=0.31)
+        # 特效管理: 毛茸茸保护协会 with the player's own sound, 4 s of made-up music under a made-up name.
+        from blacklist_detect import sound_import
+        from blacklist_detect.paths import custom_sound_dir
+
+        kept = sound_import.save_clip(sound_import.Decoded(_music(4), 4.0, "心动音乐"), "fluffy", custom_sound_dir(root))
+        store.scene_sounds["fluffy"] = {"volume": 80, "file": kept.path.name, "name": "心动音乐.mp3", "start": 0.0, "length": kept.length_s}
+        store.sound_volume = 60
     if args.data == "stress":
         store.add_custom_tag("不尊重底牌还骂人")
         for number in range(1, 124):

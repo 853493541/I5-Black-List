@@ -4,6 +4,7 @@ A screen is measured by the room Windows leaves for windows: 1366×768 with its 
 1080p at 150% (1280×720) leaves 672. Every dialog fits the second, with its buttons in view.
 """
 
+import numpy as np
 import pytest
 from PySide6.QtCore import QPoint, QRect
 from PySide6.QtWidgets import QApplication, QDialog, QFrame, QLabel, QPushButton
@@ -61,7 +62,9 @@ def _dialogs(window, monkeypatch) -> dict[str, Modal]:
     from blacklist_detect.diagnostics import FlowTest
     from blacklist_detect.ui_dialogs import FlowReportDialog, PictureResultDialog
     from blacklist_detect.ui_love_pick import ScenePicker
+    from blacklist_detect.ui_sound_trim import SoundTrimDialog
 
+    song = (np.sin(np.arange(20 * 44100) / 44100 * 2 * np.pi * 440) * 12000).astype(np.int16)
     runs = [{"capture": 0.08, "find": 0.04, "read": 0.06}] * 3
     openers = {
         "添加": window._add_by_dialog,
@@ -73,6 +76,7 @@ def _dialogs(window, monkeypatch) -> dict[str, Modal]:
         "添加组合": window.likes_page.add_combo,
         "编辑组合": lambda: window.likes_page.edit_combo(0),
         "选择特效": lambda: ScenePicker("angel", "心动小鹿", parent=window).exec(),
+        "选择片段": lambda: SoundTrimDialog(song, 44100, "心动音乐.mp3", lambda _start, _length: None, lambda: None, window).exec(),
         "显示说明": window._show_display_guide,
         "直播模式说明": window._show_stream_guide,
         "使用声明": window._show_disclaimer,
