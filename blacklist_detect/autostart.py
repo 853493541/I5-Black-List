@@ -32,11 +32,18 @@ def command() -> str:
     return f'"{exe}" {BACKGROUND}' if exe is not None else ""
 
 
+def _registry():  # noqa: ANN202
+    """winreg. The tests put an in-memory one in its place (tests/conftest.py): a test run never adds
+    or removes the player's own 开机启动 entry."""
+    import winreg
+
+    return winreg
+
+
 def _read() -> str:
     if sys.platform != "win32":
         return ""
-    import winreg
-
+    winreg = _registry()
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as key:
             value, _kind = winreg.QueryValueEx(key, VALUE_NAME)
@@ -53,8 +60,7 @@ def set_enabled(enabled: bool) -> bool:
     """Add or remove the Run entry. Returns False when it could not be changed."""
     if sys.platform != "win32":
         return False
-    import winreg
-
+    winreg = _registry()
     try:
         with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE) as key:
             if enabled:

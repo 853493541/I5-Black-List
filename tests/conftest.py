@@ -7,6 +7,7 @@ so it never meets this; a test run makes and drops dozens. So the windows each t
 makes are kept until the run ends, and the run then exits without tearing Qt down.
 """
 
+import contextlib
 import os
 import sys
 
@@ -81,6 +82,47 @@ def _no_global_hotkeys(monkeypatch):
     monkeypatch.setattr(hotkey, "_register", lambda ident, modifiers, vk: registered.append((ident, modifiers, vk)) or True)
     monkeypatch.setattr(hotkey, "_unregister", lambda _ident: None)
     monkeypatch.setattr(hotkey, "registered", registered, raising=False)
+    yield
+
+
+class StartupRegistry:
+    """The Run key 开机启动 writes, in memory. values: what it holds, by name."""
+
+    HKEY_CURRENT_USER = "HKCU"
+    KEY_SET_VALUE = 2
+    REG_SZ = 1
+
+    def __init__(self):
+        self.values: dict[str, str] = {}
+
+    def OpenKey(self, root, path):  # noqa: N802
+        return contextlib.nullcontext()
+
+    def CreateKeyEx(self, root, path, reserved, access):  # noqa: N802
+        return contextlib.nullcontext()
+
+    def QueryValueEx(self, key, name):  # noqa: N802
+        if name not in self.values:
+            raise FileNotFoundError(name)
+        return self.values[name], self.REG_SZ
+
+    def SetValueEx(self, key, name, reserved, kind, value):  # noqa: N802
+        self.values[name] = value
+
+    def DeleteValue(self, key, name):  # noqa: N802
+        if name not in self.values:
+            raise FileNotFoundError(name)
+        del self.values[name]
+
+
+@pytest.fixture(autouse=True)
+def _no_startup_entry(monkeypatch):
+    """No test reads or changes the player's own 开机启动 entry: 清空数据 in a test turns off one in
+    memory. A test that means to look at it uses autostart._registry()."""
+    from blacklist_detect import autostart
+
+    fake = StartupRegistry()
+    monkeypatch.setattr(autostart, "_registry", lambda: fake)
     yield
 
 

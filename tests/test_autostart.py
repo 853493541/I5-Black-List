@@ -46,14 +46,19 @@ class FakeRegistry:
         del self.values[name]
 
 
-@pytest.fixture()
-def registry(monkeypatch):
-    fake = FakeRegistry()
+def _module(fake: FakeRegistry) -> types.ModuleType:
     module = types.ModuleType("winreg")
     for name in dir(fake):
         if not name.startswith("__"):
             setattr(module, name, getattr(fake, name))
-    monkeypatch.setitem(sys.modules, "winreg", module)
+    return module
+
+
+@pytest.fixture()
+def registry(monkeypatch):
+    fake = FakeRegistry()
+    module = _module(fake)
+    monkeypatch.setattr(autostart, "_registry", lambda: module)
     monkeypatch.setattr(autostart.sys, "platform", "win32")
     return fake
 
@@ -83,3 +88,32 @@ def test_without_the_launcher_it_cannot_be_turned_on(registry, monkeypatch):
     assert autostart.available() is False
     assert autostart.set_enabled(True) is False
     assert autostart.is_enabled() is False
+
+
+def test_clearing_data_in_a_test_leaves_the_players_own_entry_alone(tmp_path, monkeypatch):
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication
+
+    from blacklist_detect.ui import MainWindow
+
+    QApplication.instance() or QApplication([])
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    monkeypatch.setattr(autostart.sys, "platform", "win32")
+    # Windows' own registry, with the player's 开机启动 entry in it.
+    own = FakeRegistry()
+    entry = '"C:/Users/玩家/AppData/Local/模仿者小工具/模仿者小工具.exe" --background'
+    own.values[autostart.VALUE_NAME] = entry
+    monkeypatch.setitem(sys.modules, "winreg", _module(own))
+    # The tests' own, in memory (tests/conftest.py), with one like it.
+    tests = autostart._registry()
+    assert tests is not sys.modules["winreg"]
+    tests.values[autostart.VALUE_NAME] = entry
+    monkeypatch.setattr("blacklist_detect.ui._confirm", lambda *_args: True)
+    window = MainWindow()
+    window._watch_timer.stop()
+    window._ask_reset()
+    window.close()
+    # 清空数据 turned off the one in memory; the player's is as it was.
+    assert autostart.VALUE_NAME not in tests.values
+    assert own.values == {autostart.VALUE_NAME: entry}
