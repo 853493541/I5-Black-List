@@ -112,24 +112,26 @@ def load(key: str) -> ModuleType:
 
 
 def shown(choice: str) -> str:
-    """A saved 嘉宾特效 choice as this version has it: a scene that was replaced is its replacement."""
+    """A saved 嘉宾场景 choice as this version has it: a scene that was replaced is its replacement."""
     return REPLACED.get(choice, choice)
 
 
-def choose(choice: str, last: str, rng: random.Random) -> str:
-    """The scene to play for a 嘉宾特效 choice: a key, "random" (any but the last one), or "off" ("").
-    香槟 plays 天使, which replaced it. Any other key this version does not have (命运红线, gone in
-    v0.8.2; 雪纺, gone in v0.9.0; 缎带, 花雨, 纸鹤晚霞 and 蝶梦, gone in the next version) plays
-    经典, the default."""
+def choose(choice: str | tuple[str, ...], last: str, rng: random.Random) -> str:
+    """The scene to play for a 嘉宾场景 choice: a key, keys to pick one of (a 嘉宾's or a 组合's ticked
+    ones), "random" (any), or "off" (""). Picked from several, it is never the last one again when
+    another is there. 香槟 plays 天使, which replaced it. Any other key this version does not have
+    (命运红线, gone in v0.8.2; 雪纺, gone in v0.9.0; 缎带, 花雨, 纸鹤晚霞 and 蝶梦, gone in the next
+    version) plays 经典, the default, alone; among others it is left out."""
+    if choice == "random":
+        choice = KEYS
+    if isinstance(choice, tuple):
+        keys = [key for key in dict.fromkeys(map(shown, choice)) if key in KEYS] or list(KEYS)
+        pool = [key for key in keys if key != last] or keys
+        return rng.choice(pool)
     choice = shown(choice)
     if choice == "off":
         return ""
-    if choice in KEYS:
-        return choice
-    if choice != "random":
-        return "classic"
-    pool = [key for key in KEYS if key != last] or list(KEYS)
-    return rng.choice(pool)
+    return choice if choice in KEYS else "classic"
 
 
 def sample_stage(width: float = DESIGN[0], height: float = DESIGN[1]) -> Stage:

@@ -1,16 +1,29 @@
-"""Which 嘉宾特效 scene greets the 嘉宾 in a lobby. No UI imports.
+"""Which 嘉宾场景 greet the 嘉宾 in a lobby. No UI imports.
 
 A combination whose 嘉宾 are all in the lobby wins, the one with the most of them first (the earlier
-one on a tie); other 嘉宾 there with it don't stop it. Else the 嘉宾 highest on the list with a theme of
-their own decides: the list shows the newest first, and the player orders it. Else the default, 经典.
+one on a tie); other 嘉宾 there with it don't stop it. Else the 嘉宾 highest on the list with scenes
+ticked decides: the list shows the newest first, and the player orders it. Else the highest with none
+ticked: any scene. One on 不放 asks for none and the next in line decides; with every one there on
+不放, no scene plays.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
 
+from blacklist_detect import love_scenes
 from blacklist_detect.match import fold
-from blacklist_detect.model import Combo, Entry
+from blacklist_detect.model import Combo, Entry, Scenes
+
+
+def _plays(key: str) -> bool:
+    return key in love_scenes.KEYS
+
+
+def ticked(scenes: Scenes, known: Callable[[str], bool] = _plays) -> tuple[str, ...]:
+    """The scenes ticked that this version plays, each once: one replaced is its replacement, one it no
+    longer has is left out."""
+    return tuple(dict.fromkeys(key for key in map(love_scenes.shown, scenes.keys) if known(key)))
 
 
 def lobby_choice(
@@ -18,29 +31,39 @@ def lobby_choice(
     combos: Iterable[Combo],
     present: Iterable[Entry],
     default: str,
-    known: Callable[[str], bool] = lambda _key: True,
-) -> str:
-    """The 嘉宾特效 choice for a lobby with these 嘉宾 present.
+    known: Callable[[str], bool] = _plays,
+) -> str | tuple[str, ...]:
+    """The 嘉宾场景 choice for a lobby with these 嘉宾 present, as love_scenes.choose takes it: a key,
+    keys to pick one of, "random" (any scene), or "off" when each one there is on 不放.
 
-    likes is 嘉宾 as saved (the last is the top of the list); default is what plays when none of them
-    picked one ("classic"); known says whether a theme is one this version plays, so a theme it no
-    longer has gives way as if it were not picked."""
+    likes is 嘉宾 as saved (the last is the top of the list); default is the choice with none of them
+    here ("classic"); known says whether a scene is one this version plays, so ticked ones it no
+    longer has are left out, and a set left with none is as if none were ticked."""
     here = {fold(like.name) for like in present}
     if not here:
         return default
-    best: Combo | None = None
+    found = []
     for combo in combos:
         members = {fold(name) for name in combo.names}
-        if len(members) < 2 or not members <= here or not known(combo.theme):
-            continue
-        if best is None or len(members) > len({fold(name) for name in best.names}):
-            best = combo
-    if best is not None:
-        return best.theme
-    for like in reversed(likes):
-        if fold(like.name) in here and like.theme and known(like.theme):
-            return like.theme
-    return default
+        if len(members) >= 2 and members <= here:
+            found.append((len(members), combo))
+    # The most 嘉宾 first; sorted keeps the earlier first on a tie.
+    for _size, combo in sorted(found, key=lambda pair: -pair[0]):
+        if not combo.scenes.off:
+            return _choice(ticked(combo.scenes, known))
+    on = [like for like in reversed(likes) if fold(like.name) in here and not like.scenes.off]
+    for like in on:
+        keys = ticked(like.scenes, known)
+        if keys:
+            return _choice(keys)
+    return "random" if on else "off"
+
+
+def _choice(keys: tuple[str, ...]) -> str | tuple[str, ...]:
+    """Scenes ticked as a choice: the one, the several, or any for none."""
+    if not keys:
+        return "random"
+    return keys[0] if len(keys) == 1 else keys
 
 
 def members(combo: Combo, likes: list[Entry]) -> list[tuple[str, bool]]:

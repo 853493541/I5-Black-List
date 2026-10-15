@@ -346,7 +346,7 @@ def _screen_percent() -> int:
 
 
 def _seed(root: Path, args, version: str) -> None:  # noqa: ANN001
-    from blacklist_detect.model import Combo
+    from blacklist_detect.model import Combo, Scenes
     from blacklist_detect.storage import Store
 
     store = Store(root)
@@ -359,10 +359,10 @@ def _seed(root: Path, args, version: str) -> None:  # noqa: ANN001
             ("小透明", ("挂机",), "全程挂机不动，一句话也不说，这是一段很长的原因，看看表格会不会把它截断"),
         ):
             store.add(name, tags=tags, reason=reason)
-        store.add_like("心动小鹿", nickname="小鹿", reason="声音好听", theme="fluffy")
+        store.add_like("心动小鹿", nickname="小鹿", reason="声音好听", scenes=Scenes(("fluffy",)))
         store.add_like("心动星星")
-        store.add_like("一起开黑的朋友", reason="每次都带我赢", theme="cyber")
-        store.set_combos([Combo(("心动小鹿", "心动星星"), "angel"), Combo(("心动星星", "一起开黑的朋友"), "fluffy")])
+        store.add_like("一起开黑的朋友", reason="每次都带我赢", scenes=Scenes(("cyber",)))
+        store.set_combos([Combo(("心动小鹿", "心动星星"), Scenes(("angel",))), Combo(("心动星星", "一起开黑的朋友"), Scenes(("fluffy",)))])
         store.add_scan([{"seat": i + 1, "name": n, "unclear": n == "摸鱼大师"} for i, n in enumerate(SEATS)], elapsed=0.31)
         # 特效管理: 毛茸茸保护协会 with the player's own sound, 4 s of made-up music under a made-up name.
         from blacklist_detect import sound_import

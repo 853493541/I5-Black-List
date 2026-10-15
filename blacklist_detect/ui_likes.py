@@ -1,15 +1,15 @@
 """嘉宾: players worth meeting again, the other side of 黑名单.
 
-A 嘉宾 player has a name, a 昵称, a 原因 and a 特效; no 标签. When a lobby has one, the app shows
-the 昵称, or the full name when there is none, and greets them with their 特效 (经典 when they have
-none of their own). The list is in the player's order, newest first until they drag a row elsewhere;
-when 嘉宾 with different 特效 meet in a lobby the higher one decides, unless a 组合 of theirs is all
-there. A player is on one list at a time: a 黑名单 name is refused here, and putting a 嘉宾 name on
-黑名单 asks to move it.
+A 嘉宾 player has a name, a 昵称, a 原因 and their 场景; no 标签. When a lobby has one, the app shows
+the 昵称, or the full name when there is none, and greets them with one of their 场景 (any when none is
+ticked; none on 不放). The list is in the player's order, newest first until they drag a row elsewhere;
+when 嘉宾 with different 场景 meet in a lobby the higher one decides, unless a 组合 of theirs is all
+there (guests.lobby_choice). A player is on one list at a time: a 黑名单 name is refused here, and putting
+a 嘉宾 name on 黑名单 asks to move it.
 
-The page is laid out like 黑名单 with a 特效 column for 标签: search, 批量导入, 添加 (添加嘉宾 or
+The page is laid out like 黑名单 with a 场景 column for 标签: search, 批量导入, 添加 (添加嘉宾 or
 添加组合), and under 更多, 复制名单 and 清空嘉宾列表. The 组合 head the list, each a row tagged 组合 with
-its 嘉宾 and its 特效; under them the 嘉宾, whose rows drag into another order. 嘉宾特效 itself, on or
+its 嘉宾 and its 场景; under them the 嘉宾, whose rows drag into another order. 嘉宾场景 itself, on or
 off, and its music are in 设置.
 """
 
@@ -38,7 +38,7 @@ from PySide6.QtWidgets import (
 from blacklist_detect import love_scenes
 from blacklist_detect.guests import members
 from blacklist_detect.match import clean_stored_name, fold, last_seen
-from blacklist_detect.model import Combo, Entry
+from blacklist_detect.model import ANY_SCENE, Combo, Entry, Scenes
 from blacklist_detect.ui_dialogs import (
     BatchAddDialog,
     _danger,
@@ -47,7 +47,7 @@ from blacklist_detect.ui_dialogs import (
     _primary,
     _say_error,
 )
-from blacklist_detect.ui_guests import ComboDialog, ThemeField, scene_name
+from blacklist_detect.ui_guests import ComboDialog, ThemeField, scenes_said
 from blacklist_detect.ui_icons import icon as line_icon
 from blacklist_detect.ui_kit import ConfirmDialog, EmptyState, IconButton, Modal
 from blacklist_detect.ui_theme import ROW_H, THEME, _page, _pointing, chinese_font
@@ -182,7 +182,7 @@ class _GuestTable(QTableWidget):
 
 
 class LikeDialog(Modal):
-    """One 嘉宾 player: 名字, a 昵称 to show for them, the 特效 that greets them, and why."""
+    """One 嘉宾 player: 名字, a 昵称 to show for them, the 场景 that greet them, and why."""
 
     def __init__(
         self,
@@ -190,7 +190,7 @@ class LikeDialog(Modal):
         nickname: str = "",
         reason: str = "",
         allow_delete: bool = False,
-        theme: str = "",
+        scenes: Scenes = ANY_SCENE,
         music=None,  # noqa: ANN001
         taken: frozenset[str] | set[str] = frozenset(),
         blacklisted: frozenset[str] | set[str] = frozenset(),
@@ -204,7 +204,7 @@ class LikeDialog(Modal):
         self.name = name
         self.nickname = nickname
         self.detail = reason
-        self.theme = theme
+        self.scenes = scenes
         self.deleted = False
         layout = _frame(self, "编辑嘉宾" if allow_delete else "添加嘉宾")
         self.card.setFixedWidth(520)
@@ -219,8 +219,8 @@ class LikeDialog(Modal):
         self.detail_edit.setTabChangesFocus(True)
         self.detail_edit.setFixedHeight(self.fontMetrics().lineSpacing() * 2 + 18)
         _field(layout, "原因", self.detail_edit)
-        self.theme_field = ThemeField(theme, name, music)
-        _field(layout, "特效", self.theme_field)
+        self.theme_field = ThemeField(scenes, name, music)
+        _field(layout, "场景", self.theme_field)
         remove = _danger("删除", self._delete) if allow_delete else None
         self.footer(_primary("保存" if allow_delete else "添加", self._accept), left=remove)
         self.name_edit.returnPressed.connect(self._accept)
@@ -253,7 +253,7 @@ class LikeDialog(Modal):
         self.name = self.name_edit.text()
         self.nickname = self.nickname_edit.text()
         self.detail = self.detail_edit.toPlainText()
-        self.theme = self.theme_field.value()
+        self.scenes = self.theme_field.value()
         self.deleted = False
         self.accept()
 
@@ -276,7 +276,7 @@ class LikesPage(QWidget):
         super().__init__(parent)
         self.store = store
         self._say = say
-        # The themes' music, for ▶ on a 嘉宾's or a 组合's 特效.
+        # The scenes' music, for ▶ on a 嘉宾's or a 组合's 场景.
         self.music = music
         self._met_cache: tuple | None = None
         outer = QVBoxLayout(self)
@@ -300,7 +300,7 @@ class LikesPage(QWidget):
         self.toolbar_buttons = (batch, self.add_button)
         toolbar.addWidget(batch)
         toolbar.addWidget(self.add_button)
-        # 添加: a 嘉宾, or a 组合 of them, who all in one lobby get a 特效 of their own.
+        # 添加: a 嘉宾, or a 组合 of them, who all in one lobby get 场景 of their own.
         self.add_menu = QMenu(self)
         self.add_menu.setToolTipsVisible(True)
         self.add_like_action = self.add_menu.addAction("添加嘉宾", self.add_one)
@@ -321,13 +321,15 @@ class LikesPage(QWidget):
         self.table.moved.connect(self._moved)
         self.table.setObjectName("likes")
         self.table.setAccessibleName("嘉宾列表")
-        self.table.setHorizontalHeaderLabels(["名字", "昵称", "特效", "原因", "最近遇到"])
+        self.table.setHorizontalHeaderLabels(["名字", "昵称", "场景", "原因", "最近遇到"])
         head = self.table.horizontalHeader()
         head.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         head.setHighlightSections(False)
-        # 特效 as wide as the longest scene name and the cell's padding: 毛茸茸保护协会 is never cut.
+        # 场景 as wide as the longest scene name or word for several and the cell's padding: 毛茸茸保护协会
+        # is never cut.
         metrics = QFontMetrics(chinese_font())
-        theme_width = max(110, max(metrics.horizontalAdvance(name) for _key, name in love_scenes.SCENES) + 2 * 12 + 16)
+        words = [name for _key, name in love_scenes.SCENES] + ["全部随机", f"{len(love_scenes.SCENES)}个场景"]
+        theme_width = max(110, max(metrics.horizontalAdvance(word) for word in words) + 2 * 12 + 16)
         for column, width in ((NAME, 200), (NICKNAME, 140), (THEME_COLUMN, theme_width), (MET, 120)):
             head.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
             self.table.setColumnWidth(column, width)
@@ -399,12 +401,12 @@ class LikesPage(QWidget):
 
     def _combo_row(self, row: int, number: int, met: dict[int, str]) -> None:
         """A 组合's row: the 组合 tag and its 嘉宾 under 名字 and on across 昵称, which a 组合 has none of,
-        its 特效, and when they were last all met."""
+        its 场景, and when they were last all met."""
         combo = self.store.combos[number]
         self.table.setSpan(row, NAME, 1, 2)
         people = members(combo, self.store.likes)
         who = " + ".join(name for name, _present in people)
-        cells = (who, "", scene_name(combo.theme), "", _zh_ago(met[number]) if number in met else NEVER_MET)
+        cells = (who, "", scenes_said(combo.scenes), "", _zh_ago(met[number]) if number in met else NEVER_MET)
         for column, text in enumerate(cells):
             item = QTableWidgetItem(text)
             item.setData(COMBO_ROLE, number)
@@ -432,7 +434,7 @@ class LikesPage(QWidget):
             self._combo_row(row, number, combo_met)
         for row, index in enumerate(rows, len(combos)):
             like = self.store.likes[index]
-            cells = (like.name, like.nickname, scene_name(like.theme) if like.theme else "", like.reason, _zh_ago(met[index]) if index in met else NEVER_MET)
+            cells = (like.name, like.nickname, scenes_said(like.scenes), like.reason, _zh_ago(met[index]) if index in met else NEVER_MET)
             for column, text in enumerate(cells):
                 item = QTableWidgetItem(" ".join(text.split()) if column == REASON else text)
                 item.setData(Qt.UserRole, index)
@@ -502,7 +504,7 @@ class LikesPage(QWidget):
         if dialog.exec() != QDialog.Accepted or dialog.deleted:
             return
         before = (self.store.snapshot_likes(), self.store.snapshot_entries())
-        like = self.store.add_like(dialog.name, dialog.nickname, dialog.detail, dialog.theme)
+        like = self.store.add_like(dialog.name, dialog.nickname, dialog.detail, dialog.scenes)
         if like is None:
             return
         self._done(f"「{like.shown()}」加进嘉宾了", before)
@@ -513,7 +515,7 @@ class LikesPage(QWidget):
         like = self.store.likes[index]
         dialog = LikeDialog(
             like.name, like.nickname, like.reason, allow_delete=True,
-            theme=like.theme, music=self.music,
+            scenes=like.scenes, music=self.music,
             taken=self._taken(skip=index),
             blacklisted=self._blacklisted(), parent=self.window(),
         )
@@ -522,7 +524,7 @@ class LikesPage(QWidget):
         if dialog.deleted:
             self.delete(index)
             return
-        self.store.update_like(index, dialog.name, dialog.nickname, dialog.detail, dialog.theme)
+        self.store.update_like(index, dialog.name, dialog.nickname, dialog.detail, dialog.scenes)
         self._met_cache = None
         self.refresh()
         self.changed.emit()
@@ -538,7 +540,7 @@ class LikesPage(QWidget):
         return ComboDialog(self.store.likes, combo, parent=self.window(), music=self.music)
 
     def add_combo(self, _checked: bool = False) -> None:
-        """添加组合: two or more 嘉宾 and the 特效 that greets them all in one lobby."""
+        """添加组合: two or more 嘉宾 and the 场景 that greet them all in one lobby."""
         if len(self.store.likes) < 2:
             self._say(TOO_FEW)
             return

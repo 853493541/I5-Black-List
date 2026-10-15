@@ -8,7 +8,7 @@ from PySide6.QtCore import QRect, Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication, QDialog, QLabel  # noqa: E402
 
 from blacklist_detect.importing import ELSEWHERE, MERGE, plan_import  # noqa: E402
-from blacklist_detect.model import Entry  # noqa: E402
+from blacklist_detect.model import Entry, Scenes  # noqa: E402
 from blacklist_detect.pipeline import CheckResult, Hit, NameSlot  # noqa: E402
 from blacklist_detect.storage import Store  # noqa: E402
 
@@ -87,9 +87,9 @@ def test_the_page_lists_names_with_their_nicknames(window):
     window._show_list()
     assert window._tab_buttons[window.likes_tab].count() == 2
     rows = [[page.table.item(r, c).text() for c in range(5)] for r in range(page.table.rowCount())]
-    # Newest first; 昵称 beside the name; nothing under 特效 for no 特效 of their own (经典); a dash for
+    # Newest first; 昵称 beside the name; 全部随机 under 场景 for none ticked (any scene); a dash for
     # 最近遇到 until they are met.
-    assert rows == [["小红", "", "", "", "—"], ["救人很稳的小明", "明哥", "", "上把救了我", "—"]]
+    assert rows == [["小红", "", "全部随机", "", "—"], ["救人很稳的小明", "明哥", "全部随机", "上把救了我", "—"]]
     page.search.setText("明哥")
     assert page.table.rowCount() == 1
     page.search.setText("没有这个")
@@ -147,7 +147,7 @@ def test_a_record_shows_a_like_in_rose_with_its_nickname(window):
 
 def test_a_live_check_rings_likes_in_rose_and_splits_the_ring_with_a_hit(window):
     window.store.add_like("救人很稳的小明", "明哥")
-    window.store.add_like("小红", theme="lace")
+    window.store.add_like("小红", scenes=Scenes(("lace",)))
     names = [
         NameSlot(0, (0, 0, 1, 1), "救人很稳", "救人很稳", False, 0.9, False),
         NameSlot(1, (0, 0, 1, 1), "小红", "小红", False, 0.9, False),
@@ -247,15 +247,15 @@ def test_the_guest_card_is_as_tall_as_the_cover_whatever_the_names(qapp):
 def test_the_marks_wear_the_look_of_the_scene_that_greets_them(window):
     from blacklist_detect.ui_overlay import love_look
 
-    window.store.add_like("小明", theme="ice")
-    window.store.add_like("小红")
+    window.store.add_like("小红", scenes=Scenes(("classic",)))
+    window.store.add_like("小明", scenes=Scenes(("ice",)))
     names = [NameSlot(i, (0, 0, 1, 1), name, name, False, 0.9, False) for i, name in enumerate(("小明", "小红", "坏人"))]
     screen = QApplication.primaryScreen().availableGeometry()
     left = screen.left() + screen.width() // 2 - 90
     button = (left, screen.top() + 300, left + 180, screen.top() + 360)
     window._live_check = True
     marks = (window.panel, window.clear_mark, window.like_card)
-    # 小红 picked none of their own: 经典, and the marks wear its look.
+    # 小红 on 经典: the marks wear its look.
     window._on_lobby_placed(button)
     window._show_panel(CheckResult(True, "", names=names[1:2], button_box=button))
     assert window.love.playing() and window.love.scene == "classic" and all(mark.look is love_look("classic") for mark in marks)
@@ -272,7 +272,7 @@ def test_the_marks_wear_the_look_of_the_scene_that_greets_them(window):
     window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
     assert window.panel.mode == "both" and window.panel.look is love_look("ice")
     window._hide_panel_after_title()
-    # 嘉宾特效 off in 设置: no scene, 小明's own neither, and 经典's look.
+    # 嘉宾场景 off in 设置: no scene, 小明's own neither, and 经典's look.
     window._set_love_effects(False)
     window._on_lobby_placed(button)
     window._show_panel(CheckResult(True, "", names=names[:2], button_box=button))
@@ -410,21 +410,21 @@ def test_a_guest_picks_a_theme_and_the_page_shows_and_orders_them(window):
 
     dialog = LikeDialog(parent=window)
     field = dialog.theme_field
-    # A new 嘉宾 shows 经典, the scene that greets them until they pick one.
-    assert dialog.windowTitle() == "添加嘉宾" and field.name.text() == "经典" and field.value() == ""
+    # A new 嘉宾 is greeted by any scene until they tick some.
+    assert dialog.windowTitle() == "添加嘉宾" and field.name.text() == "全部场景 · 随机" and field.value() == Scenes()
     dialog.name_edit.setText("小明")
     _pick_in(field, "cyber")
     assert field.name.text() == "赛博朋克·一" and dialog.has_changes()
     dialog._accept()
-    assert dialog.theme == "cyber"
-    assert LikeDialog("小明", allow_delete=True, theme="cyber", parent=window).windowTitle() == "编辑嘉宾"
+    assert dialog.scenes == Scenes(("cyber",))
+    assert LikeDialog("小明", allow_delete=True, scenes=Scenes(("cyber",)), parent=window).windowTitle() == "编辑嘉宾"
     page = window.likes_page
-    window.store.add_like(dialog.name, theme=dialog.theme)
+    window.store.add_like(dialog.name, scenes=dialog.scenes)
     window.store.add_like("小红")
-    window.store.add_like("阿星", theme="angel")
+    window.store.add_like("阿星", scenes=Scenes(("angel",)))
     page.refresh()
     shown = lambda: [(page.table.item(r, 0).text(), page.table.item(r, 2).text()) for r in range(page.table.rowCount())]  # noqa: E731
-    assert shown() == [("阿星", "金色传说"), ("小红", ""), ("小明", "赛博朋克·一")]
+    assert shown() == [("阿星", "金色传说"), ("小红", "全部随机"), ("小明", "赛博朋克·一")]
     assert page.table.dragEnabled()
     # A row dragged to the top decides first.
     page.table.moved.emit(2, 0)
@@ -438,11 +438,11 @@ def test_a_guest_picks_a_theme_and_the_page_shows_and_orders_them(window):
 
 
 def _pick_in(field, key: str) -> None:  # noqa: ANN001
-    """更换 › on a 特效 row, and 用这个 on this scene in 选择特效."""
+    """更换 › on a 场景 row, and 确定 on this scene alone ticked in 选择场景."""
     from blacklist_detect import ui_love_pick
 
     def choose(picker) -> int:  # noqa: ANN001
-        picker.buttons[key].click()
+        picker.scenes.set_chosen((key,))
         picker.accept()
         return picker.result()
 
@@ -458,18 +458,18 @@ def test_a_combination_needs_two_guests_and_greets_them_with_its_theme(window):
     from blacklist_detect.ui_overlay import love_look
 
     store = window.store
-    store.add_like("小明", theme="cyber")
+    store.add_like("小明", scenes=Scenes(("cyber",)))
     store.add_like("小红")
     editor = ComboDialog(store.likes, parent=window)
-    # A new combination starts on 经典.
-    assert editor.windowTitle() == "添加组合" and editor.theme.value() == "classic"
+    # A new combination starts as a new 嘉宾 does: any scene.
+    assert editor.windowTitle() == "添加组合" and editor.theme.value() == Scenes()
     editor.people_buttons["小明"].click()
     editor._accept()
     assert editor.combo is None and editor.people_error.text() == "至少选两位嘉宾"
     editor.people_buttons["小红"].click()
     _pick_in(editor.theme, "equation")
     editor._accept()
-    assert editor.combo == Combo(("小明", "小红"), "equation")
+    assert editor.combo == Combo(("小明", "小红"), Scenes(("equation",)))
     store.set_combos([editor.combo])
     # Both in the lobby: the combination's 数学 dresses the marks, not 小明's own 赛博.
     names = [
@@ -502,7 +502,7 @@ def test_editing_a_combination_keeps_a_guest_since_taken_off_the_list(window):
     store = window.store
     store.add_like("小明")
     store.add_like("小红")
-    editor = ComboDialog(store.likes, Combo(("小明", "已删掉"), "angel"), parent=window)
+    editor = ComboDialog(store.likes, Combo(("小明", "已删掉"), Scenes(("angel",))), parent=window)
     # The one taken off shows, struck out and still ticked, after the 组合's own on the list and before the rest.
     editor.ensurePolished()
     gone = editor.people_buttons["已删掉"]
@@ -511,13 +511,13 @@ def test_editing_a_combination_keeps_a_guest_since_taken_off_the_list(window):
     assert gone.isChecked() and gone.font().strikeOut() and not editor.people_buttons["小明"].font().strikeOut()
     # 保存 keeps them.
     editor._accept()
-    assert editor.combo == Combo(("小明", "已删掉"), "angel")
+    assert editor.combo == Combo(("小明", "已删掉"), Scenes(("angel",)))
     # Unticked, they go.
-    editor = ComboDialog(store.likes, Combo(("小明", "已删掉"), "angel"), parent=window)
+    editor = ComboDialog(store.likes, Combo(("小明", "已删掉"), Scenes(("angel",))), parent=window)
     editor.people_buttons["已删掉"].click()
     editor.people_buttons["小红"].click()
     editor._accept()
-    assert editor.combo == Combo(("小明", "小红"), "angel")
+    assert editor.combo == Combo(("小明", "小红"), Scenes(("angel",)))
 
 
 def test_the_picker_returns_the_scene_used_and_closing_changes_nothing(window, monkeypatch):
@@ -532,7 +532,7 @@ def test_the_picker_returns_the_scene_used_and_closing_changes_nothing(window, m
     played: list = []
     picker = ScenePicker("fluffy", "心动小鹿", ThemeMusic(play=played.append), parent=window)
     # Every scene by name, each with a dot in its colour; the current one highlighted and playing.
-    assert picker.windowTitle() == "选择特效 · 心动小鹿"
+    assert picker.windowTitle() == "选择场景 · 心动小鹿"
     assert [(key, button.text()) for key, button in picker.buttons.items()] == list(love_scenes.SCENES)
     assert picker.buttons["ice"].dot == QColor(*love_look("ice").glow)
     assert picker.key == "fluffy" and picker.preview.scene == "fluffy" and picker.preview._tick.isActive()
@@ -549,23 +549,24 @@ def test_the_picker_returns_the_scene_used_and_closing_changes_nothing(window, m
     assert not picker.preview._tick.isActive()
     # A scene this version no longer has starts on what replaced it, or 经典.
     assert ScenePicker("champagne").key == "angel" and ScenePicker("ribbon").key == "classic"
-    assert ScenePicker().windowTitle() == "选择特效"
+    assert ScenePicker().windowTitle() == "选择场景"
 
-    # Closed without 用这个: the 特效 row keeps what it had.
+    # Closed without 确定: the 场景 row keeps what it had.
     def close(dialog) -> int:  # noqa: ANN001
         dialog.buttons["claw"].click()
+        dialog.scenes.set_chosen(("claw",))
         dialog.reject()
         return dialog.result()
 
     monkeypatch.setattr(ScenePicker, "exec", close)
-    field = ThemeField("angel", "小明", ThemeMusic(play=played.append))
+    field = ThemeField(Scenes(("angel",)), "小明", ThemeMusic(play=played.append))
     field.change_button.click()
-    assert field.value() == "angel" and field.name.text() == "金色传说"
-    # ▶ on the row opens 选择特效 on the row's scene, playing with its music.
+    assert field.value() == Scenes(("angel",)) and field.name.text() == "金色传说"
+    # ▶ on the row opens 选择场景 on the row's scene, playing with its music.
     seen = []
     monkeypatch.setattr(ScenePicker, "exec", lambda dialog: seen.append((dialog.key, dialog.windowTitle())) or QDialog.Rejected)
     field.play_button.click()
-    assert seen == [("angel", "选择特效 · 小明")] and played[-1] == TUNES["angel"]
+    assert seen == [("angel", "选择场景 · 小明")] and played[-1] == TUNES["angel"]
 
 
 def _rows(page) -> list[list[str]]:  # noqa: ANN001
@@ -584,19 +585,19 @@ def test_combinations_head_the_list_tagged_and_open_to_edit(window, monkeypatch)
     page, store = window.likes_page, window.store
     store.add_like("小明", "明哥")
     store.add_like("小红")
-    store.add_like("阿星", theme="cyber")
-    store.set_combos([Combo(("小明", "小红"), "angel"), Combo(("小红", "阿星"), "fluffy")])
+    store.add_like("阿星", scenes=Scenes(("cyber",)))
+    store.set_combos([Combo(("小明", "小红"), Scenes(("angel",))), Combo(("小红", "阿星"), Scenes(("fluffy",)))])
     page.refresh()
     window._show_list()
     # The tab counts 嘉宾, not 组合.
     assert window._tab_buttons[window.likes_tab].count() == 3
-    # Each 组合 on top in its order, its 嘉宾 by 昵称 or name, its 特效; nothing under 昵称 or 原因.
+    # Each 组合 on top in its order, its 嘉宾 by 昵称 or name, its 场景; nothing under 昵称 or 原因.
     assert _rows(page) == [
         ["明哥 + 小红", "", "金色传说", "", "—"],
         ["小红 + 阿星", "", "毛茸茸保护协会", "", "—"],
         ["阿星", "", "赛博朋克·一", "", "—"],
-        ["小红", "", "", "", "—"],
-        ["小明", "明哥", "", "", "—"],
+        ["小红", "", "全部随机", "", "—"],
+        ["小明", "明哥", "全部随机", "", "—"],
     ]
     assert page.table.item(0, 0).data(PEOPLE_ROLE) == [("明哥", True), ("小红", True)]
     assert [page._combo_at(r) for r in range(5)] == [0, 1, -1, -1, -1]
@@ -618,12 +619,12 @@ def test_combinations_head_the_list_tagged_and_open_to_edit(window, monkeypatch)
     page.table.cellClicked.emit(1, 2)
     assert opened[0].windowTitle() == "编辑组合" and opened[0].theme.name.text() == "冰蓝极光"
     assert {name for name, button in opened[0].people_buttons.items() if button.isChecked()} == {"小红", "阿星"}
-    assert store.combos[1] == Combo(("小红", "阿星"), "ice") and changed
+    assert store.combos[1] == Combo(("小红", "阿星"), Scenes(("ice",))) and changed
     assert _rows(page)[1][2] == "冰蓝极光"
     # Enter on one does the same.
     page.table.setCurrentCell(0, 0)
     QApplication.sendEvent(page.table, QKeyEvent(QEvent.Type.KeyPress, Qt.Key_Return, Qt.NoModifier))
-    assert len(opened) == 2 and opened[1].combo == Combo(("小明", "小红"), "ice")
+    assert len(opened) == 2 and opened[1].combo == Combo(("小明", "小红"), Scenes(("ice",)))
     # Its menu has 编辑 and 删除; 删除 offers 撤销.
     menus = []
     monkeypatch.setattr(QMenu, "popup", lambda menu, *_args: menus.append(menu))
@@ -631,9 +632,9 @@ def test_combinations_head_the_list_tagged_and_open_to_edit(window, monkeypatch)
     actions = menus[0].actions()
     assert [action.text() for action in actions] == ["编辑", "", "删除"]
     actions[-1].trigger()
-    assert store.combos == [Combo(("小明", "小红"), "ice")] and said[-1][0] == "已删除组合「小红 + 阿星」"
+    assert store.combos == [Combo(("小明", "小红"), Scenes(("ice",)))] and said[-1][0] == "已删除组合「小红 + 阿星」"
     said[-1][1]()
-    assert store.combos[1] == Combo(("小红", "阿星"), "ice") and _rows(page)[1][0] == "小红 + 阿星"
+    assert store.combos[1] == Combo(("小红", "阿星"), Scenes(("ice",))) and _rows(page)[1][0] == "小红 + 阿星"
     # A 嘉宾's row keeps its own menu.
     page._row_menu(page.table.visualItemRect(page.table.item(3, 0)).center())
     assert [action.text() for action in menus[-1].actions()] == ["编辑", "复制名字", "置顶", "", "删除"]
@@ -649,8 +650,8 @@ def test_a_combination_is_searched_by_its_guests_and_never_dragged(window):
     page, store = window.likes_page, window.store
     store.add_like("小明", "明哥")
     store.add_like("小红")
-    store.add_like("阿星", theme="cyber")
-    store.set_combos([Combo(("小明", "小红"), "angel"), Combo(("小红", "阿星"), "fluffy")])
+    store.add_like("阿星", scenes=Scenes(("cyber",)))
+    store.set_combos([Combo(("小明", "小红"), Scenes(("angel",))), Combo(("小红", "阿星"), Scenes(("fluffy",)))])
     page.refresh()
     # By a 嘉宾's 昵称 or name.
     page.search.setText("明哥")
@@ -681,7 +682,7 @@ def test_a_combination_shows_when_its_guests_were_last_all_in_one_lobby(window):
     store.add_like("小明")
     store.add_like("小红")
     store.add_like("阿星")
-    store.set_combos([Combo(("小明", "小红"), "angel"), Combo(("小红", "阿星"), "fluffy")])
+    store.set_combos([Combo(("小明", "小红"), Scenes(("angel",))), Combo(("小红", "阿星"), Scenes(("fluffy",)))])
     lobbies = (("小明", "路人"), ("小明", "小红"), ("小红", "阿星", "路人"))
     ats = [f"2026-10-1{day}T20:00:00+08:00" for day in (4, 3, 2)]
     store.scans = [
@@ -690,7 +691,7 @@ def test_a_combination_shows_when_its_guests_were_last_all_in_one_lobby(window):
     ]
     # Records are newest first: 小明 + 小红 met in the second, 小红 + 阿星 in the oldest.
     assert combos_met(store.combos, store.likes, store.scans) == {0: ats[1], 1: ats[2]}
-    assert combos_met([Combo(("小明", "阿星"), "neon")], store.likes, store.scans) == {}
+    assert combos_met([Combo(("小明", "阿星"), Scenes(("neon",)))], store.likes, store.scans) == {}
     page.refresh()
     assert all(row[4] != NEVER_MET for row in _rows(page)[:2])
 
@@ -703,7 +704,7 @@ def test_a_combination_has_not_met_where_a_seat_was_another_guest_of_the_same_st
     page, store = window.likes_page, window.store
     for name in ("心动星星", "心动星星呀", "心动小鹿"):
         store.add_like(name)
-    store.set_combos([Combo(("心动星星呀", "心动小鹿"), "angel")])
+    store.set_combos([Combo(("心动星星呀", "心动小鹿"), Scenes(("angel",)))])
     store.scans = [
         {"at": "2026-10-14T20:00:00+08:00", "names": [{"seat": 1, "name": "心动星星", "unclear": False}, {"seat": 2, "name": "心动小鹿", "unclear": False}]}
     ]
@@ -755,8 +756,8 @@ def test_add_offers_a_guest_or_a_combination(window, monkeypatch):
 
     monkeypatch.setattr(ComboDialog, "exec", add)
     page.add_combo_action.trigger()
-    assert dialogs[-1].windowTitle() == "添加组合" and store.combos == [Combo(("小明", "小红"), "classic")]
-    assert _rows(page)[0][:3] == ["小明 + 小红", "", "经典"]
+    assert dialogs[-1].windowTitle() == "添加组合" and store.combos == [Combo(("小明", "小红"), Scenes())]
+    assert _rows(page)[0][:3] == ["小明 + 小红", "", "全部随机"]
 
 
 def test_the_list_is_empty_only_with_no_guest_and_no_combination(window):
@@ -765,7 +766,7 @@ def test_the_list_is_empty_only_with_no_guest_and_no_combination(window):
     page, store = window.likes_page, window.store
     store.add_like("小明")
     store.add_like("小红")
-    store.set_combos([Combo(("小明", "小红"), "angel")])
+    store.set_combos([Combo(("小明", "小红"), Scenes(("angel",)))])
     store.clear_likes()
     page.refresh()
     # Its 嘉宾 gone, the 组合 waits for them, in the list.
@@ -781,7 +782,7 @@ def test_the_list_is_empty_only_with_no_guest_and_no_combination(window):
     store.set_combos([])
     page.refresh()
     assert page.table.columnSpan(0, 0) == 1
-    store.set_combos([Combo(("小明", "小红"), "angel")])
+    store.set_combos([Combo(("小明", "小红"), Scenes(("angel",)))])
     store.clear_likes()
     store.set_combos([])
     page.refresh()

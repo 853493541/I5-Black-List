@@ -55,7 +55,7 @@ def _typed(text: str):  # noqa: ANN202
 
 def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     from blacklist_detect import ui
-    from blacklist_detect.model import Combo
+    from blacklist_detect.model import Combo, Scenes
     from blacklist_detect.ui import MainWindow
     from blacklist_detect.ui_dialogs import BatchAddDialog, DisclaimerDialog, GuideDialog
     from blacklist_detect.ui_likes import LikeDialog
@@ -175,7 +175,7 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     played: list = []
     window.music = ThemeMusic(play=played.append)
     # Their 组合's 玫瑰花边, with its wedding march (经典 greets in silence).
-    window.store.set_combos([Combo(("心动小鹿", "心动星星"), "lace")])
+    window.store.set_combos([Combo(("心动小鹿", "心动星星"), Scenes(("lace",)))])
     window.store.remove_at(0)
     window._love_played = False
     window.check_now()

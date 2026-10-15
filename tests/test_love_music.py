@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 
 from blacklist_detect import love_scenes
+from blacklist_detect.model import Scenes
 from blacklist_detect.ui_music import SAME_LOBBY_S, SAMPLE_S, SAMPLE_TUNE, TUNES, ThemeMusic, scaled_tune
 
 
@@ -83,8 +84,9 @@ def window(tmp_path, monkeypatch):  # noqa: ANN001, ANN201
     tunes: list = []
     made.music = ThemeMusic(play=tunes.append, sounds=made.store.scene_sound)
     made.tunes = tunes
-    made.store.add_like("小红")
-    made.store.add_like("小明")
+    # Both on 经典, which greets in silence, unless a test gives them another.
+    made.store.add_like("小红", scenes=Scenes(("classic",)))
+    made.store.add_like("小明", scenes=Scenes(("classic",)))
     made._live_check = True
     yield made
     made.notice.hide()
@@ -117,7 +119,7 @@ def test_the_theme_brings_its_sound_until_muted(window):
     window._show_panel(_lobby())
     assert window.tunes == []
     window._hide_panel_after_title()
-    window.store.update_like(1, "小明", "", "", "lace")
+    window.store.update_like(1, "小明", "", "", Scenes(("lace",)))
     window._on_lobby_placed(_lobby().button_box)
     window.music._last_lobby = frozenset()
     window._show_panel(_lobby())
@@ -160,7 +162,7 @@ def test_music_off_before_is_mute_now(tmp_path):
 def test_music_plays_in_either_display_mode(window, safe):
     """安全模式 draws nothing over the game, but the music is only sound: it plays there too."""
     window.store.safe_mode = safe
-    window.store.update_like(1, "小明", "", "", "angel")
+    window.store.update_like(1, "小明", "", "", Scenes(("angel",)))
     window._show_panel(_lobby())
     assert window.tunes == [TUNES["angel"]]
 
@@ -213,7 +215,7 @@ def test_the_settings_switch_turns_guest_effects_off(window):
     anyone, nor its sound."""
     from blacklist_detect.storage import Store
 
-    window.store.update_like(1, "小明", "", "", "angel")
+    window.store.update_like(1, "小明", "", "", Scenes(("angel",)))
     assert window.love_switch.isChecked() and window.love_switch.accessibleName() == "嘉宾特效"
     assert window._choice_for(window.store.likes) == "angel"
     window.love_switch.click()
@@ -287,7 +289,7 @@ def test_a_guest_with_a_theme_brings_its_sound(window):
     with wave.open(str(TUNES["claw"])) as w:
         assert 6.0 <= w.getnframes() / w.getframerate() <= 7.0
     # 阿强, added last, tops the list: his 演说家遇袭 greets the lobby, and its sound with it.
-    window.store.add_like("阿强", theme="claw")
+    window.store.add_like("阿强", scenes=Scenes(("claw",)))
     window._show_panel(_likes(3))
     assert window.tunes == [TUNES["claw"]]
 
@@ -417,7 +419,7 @@ def test_the_sound_row_sets_how_loud_and_plays_a_moment_once_let_go(window):
 
 
 def test_ticking_mute_stops_the_sound_playing(window):
-    window.store.update_like(1, "小明", "", "", "lace")
+    window.store.update_like(1, "小明", "", "", Scenes(("lace",)))
     window._show_panel(_lobby())
     assert window.tunes == [TUNES["lace"]]
     window.mute_box.click()
@@ -438,7 +440,7 @@ def test_every_sound_goes_through_the_sound_control(window):
     assert LikeDialog(music=window.likes_page.music, parent=window).theme_field.music is window.music
     window.store.consented = ["full"]
     window._on_display_mode("full")
-    window.store.update_like(1, "小明", "", "", "angel")
+    window.store.update_like(1, "小明", "", "", Scenes(("angel",)))
     window.store.quick_scene = "stars"
     window.effects_page.select("stars")
     picker = ScenePicker("fluffy", "心动小鹿", window.music, parent=window)

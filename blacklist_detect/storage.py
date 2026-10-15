@@ -13,7 +13,7 @@ from pathlib import Path
 from blacklist_detect import love_scenes
 from blacklist_detect.hotkey import parse_hotkey, two_keys
 from blacklist_detect.match import MIN_PREFIX_CHARS, clean_stored_name, fold
-from blacklist_detect.model import Combo, Entry
+from blacklist_detect.model import ANY_SCENE, Combo, Entry, Scenes
 from blacklist_detect.paths import app_dir, custom_sound_dir
 
 # What changed in each list, as counts: never a name.
@@ -21,6 +21,8 @@ _log = logging.getLogger("blacklist_detect.storage")
 
 _MAX_NAME = 64
 _MAX_NOTE = 200
+# The most scenes a 嘉宾 or a 组合 keeps ticked: far more than there are.
+_MAX_SCENES = 64
 _MAX_SCANS = 40
 # A later check of this 12-player lobby still misreads a few seats.
 # Eight shared names is the same match, so the time is updated.
@@ -375,10 +377,27 @@ def _volume(value: object) -> int:
     return round(value / 5) * 5
 
 
-def _theme(value: object) -> str:
-    """A 嘉宾's or a combination's theme as saved: a scene's key, or "" for none of their own (经典). Whether
-    this version still has the scene is the player's business (guests.lobby_choice skips one it has not)."""
-    return value.strip()[:40] if isinstance(value, str) else ""
+def _scenes(keys: object, off: object = False) -> Scenes:
+    """A 嘉宾's or a combination's scenes as saved: the keys ticked, each once (one replaced is its
+    replacement), and whether they are on 不放. Whether this version still has a scene is the player's
+    business (guests.lobby_choice skips one it has not). Never raises: what is not a key is dropped."""
+    if not isinstance(keys, list | tuple):
+        keys = ()
+    cleaned = (love_scenes.shown(key.strip()[:40]) for key in keys if isinstance(key, str) and key.strip())
+    return Scenes(tuple(dict.fromkeys(cleaned))[:_MAX_SCENES], off is True)
+
+
+def _saved_scenes(item: dict) -> Scenes:
+    """The scenes of a 嘉宾 or a combination in likes.json: "scenes" and "no_scene", or up to v0.9.13 one
+    "theme", a key (that one ticked) or "" for none of their own (any scene now)."""
+    if "scenes" in item:
+        return _scenes(item.get("scenes"), item.get("no_scene"))
+    theme = item.get("theme")
+    return _scenes([theme] if isinstance(theme, str) else [])
+
+
+def _scenes_saved(scenes: Scenes) -> dict:
+    return {"scenes": list(scenes.keys), "no_scene": scenes.off}
 
 
 def _seconds(value: object) -> float | None:
@@ -433,8 +452,8 @@ class Store:
         self.settings_path = self.root / "settings.json"
         self.history_path = self.root / "history.json"
         self.entries: list[Entry] = []
-        # 嘉宾: players worth meeting again. No tags; a nickname to show instead of the name, and a
-        # 嘉宾特效 theme of their own. The last is the top of the list, which decides between them.
+        # 嘉宾: players worth meeting again. No tags; a nickname to show instead of the name, and the
+        # 嘉宾场景 that greet them. The last is the top of the list, which decides between them.
         self.likes: list[Entry] = []
         # 嘉宾 who, all in one lobby, get a scene of their own (guests.lobby_choice).
         self.combos: list[Combo] = []
@@ -713,14 +732,13 @@ class Store:
                         reason=str(item.get("reason", "")).strip()[:_MAX_NOTE],
                         added_at=str(item.get("added_at", "")),
                         nickname=_clean_nickname(str(item.get("nickname", ""))),
-                        theme=_theme(item.get("theme")),
+                        scenes=_saved_scenes(item),
                     )
                 )
             for item in data.get("combos", []):
                 names = tuple(dict.fromkeys(clean_stored_name(str(name))[:_MAX_NAME] for name in item.get("names", []) if str(name).strip()))
-                theme = _theme(item.get("theme"))
-                if len({fold(name) for name in names}) >= 2 and theme:
-                    self.combos.append(Combo(names, theme))
+                if len({fold(name) for name in names}) >= 2:
+                    self.combos.append(Combo(names, _saved_scenes(item)))
         except (OSError, ValueError, AttributeError, TypeError) as exc:
             self.likes = []
             self.combos = []
@@ -734,10 +752,13 @@ class Store:
             self.likes_path,
             {
                 "likes": [
-                    {"name": like.name, "nickname": like.nickname, "reason": like.reason, "added_at": like.added_at, "theme": like.theme}
+                    {
+                        "name": like.name, "nickname": like.nickname, "reason": like.reason, "added_at": like.added_at,
+                        **_scenes_saved(like.scenes),
+                    }  # fmt: skip
                     for like in self.likes
                 ],
-                "combos": [{"names": list(combo.names), "theme": combo.theme} for combo in self.combos],
+                "combos": [{"names": list(combo.names), **_scenes_saved(combo.scenes)} for combo in self.combos],
             },
         )
 
@@ -751,7 +772,7 @@ class Store:
         key = fold(clean_stored_name(name))
         return next((index for index, entry in enumerate(self.entries) if key and fold(entry.name) == key), -1)
 
-    def add_like(self, name: str, nickname: str = "", reason: str = "", theme: str = "") -> Entry | None:
+    def add_like(self, name: str, nickname: str = "", reason: str = "", scenes: Scenes = ANY_SCENE) -> Entry | None:
         """Add one name to 嘉宾. None when it has no letters or digits, or is there already."""
         cleaned = clean_stored_name(name)[:_MAX_NAME]
         if not cleaned or self.like_index(cleaned) >= 0:
@@ -761,14 +782,14 @@ class Store:
             reason=(reason or "").strip()[:_MAX_NOTE],
             added_at=datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
             nickname=_clean_nickname(nickname),
-            theme=_theme(theme),
+            scenes=_scenes(scenes.keys, scenes.off),
         )
         self.likes.append(like)
         self.save_likes()
         _log.info("嘉宾: 1 added, %d in all.", len(self.likes))
         return like
 
-    def update_like(self, index: int, name: str, nickname: str = "", reason: str = "", theme: str = "") -> bool:
+    def update_like(self, index: int, name: str, nickname: str = "", reason: str = "", scenes: Scenes = ANY_SCENE) -> bool:
         if not 0 <= index < len(self.likes):
             return False
         cleaned = clean_stored_name(name)[:_MAX_NAME]
@@ -781,12 +802,12 @@ class Store:
             reason=(reason or "").strip()[:_MAX_NOTE],
             added_at=current.added_at,
             nickname=_clean_nickname(nickname),
-            theme=_theme(theme),
+            scenes=_scenes(scenes.keys, scenes.off),
         )
         # A new name for a 嘉宾 in a combination: the combination follows it.
         if fold(current.name) != fold(cleaned):
             self.combos = [
-                Combo(tuple(cleaned if fold(member) == fold(current.name) else member for member in combo.names), combo.theme)
+                Combo(tuple(cleaned if fold(member) == fold(current.name) else member for member in combo.names), combo.scenes)
                 for combo in self.combos
             ]
         self.save_likes()

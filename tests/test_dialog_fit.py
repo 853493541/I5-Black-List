@@ -9,7 +9,7 @@ import pytest
 from PySide6.QtCore import QPoint, QRect
 from PySide6.QtWidgets import QApplication, QDialog, QFrame, QLabel, QPushButton
 
-from blacklist_detect.model import Combo, Entry
+from blacklist_detect.model import Combo, Entry, Scenes
 from blacklist_detect.ui import MainWindow
 from blacklist_detect.ui_dialogs import StreamGuideDialog
 from blacklist_detect.ui_kit import ConfirmDialog, Modal, _height_for
@@ -34,7 +34,7 @@ def window(qapp, tmp_path, monkeypatch):
     window.store.add("路过的捣蛋鬼", tags=("场外", "挂机"), reason="场外报点，还在频道里骂人，这是一段很长很长的原因")
     window.store.add_like("心动小鹿", nickname="小鹿")
     window.store.add_like("心动星星")
-    window.store.set_combos([Combo(("心动小鹿", "心动星星"), "angel")])
+    window.store.set_combos([Combo(("心动小鹿", "心动星星"), Scenes(("angel",)))])
     yield window
     window.close()
 
@@ -75,7 +75,7 @@ def _dialogs(window, monkeypatch) -> dict[str, Modal]:
         "编辑嘉宾": lambda: window.likes_page.edit(0),
         "添加组合": window.likes_page.add_combo,
         "编辑组合": lambda: window.likes_page.edit_combo(0),
-        "选择特效": lambda: ScenePicker("angel", "心动小鹿", parent=window).exec(),
+        "选择场景": lambda: ScenePicker(Scenes(("angel", "ice")), "心动小鹿", parent=window).exec(),
         "选择片段": lambda: SoundTrimDialog(song, 44100, "心动音乐.mp3", lambda _start, _length: None, lambda: None, window).exec(),
         "显示说明": window._show_display_guide,
         "直播模式说明": window._show_stream_guide,
@@ -97,14 +97,14 @@ def test_every_dialog_fits_a_short_screen_with_its_buttons(window, monkeypatch):
 
 
 def test_the_picker_and_the_guest_dialogs_fit_a_short_screen_without_scrolling(window, monkeypatch):
-    """选择特效, the tallest of them, shows every scene and 用这个 at once on 1080p at 150%."""
+    """选择场景, the tallest of them, shows 放场景 / 不放, every scene and 确定 at once on 1080p at 150%."""
     dialogs = _dialogs(window, monkeypatch)
-    for title in ("选择特效", "添加嘉宾", "编辑嘉宾", "添加组合", "编辑组合"):
+    for title in ("选择场景", "添加嘉宾", "编辑嘉宾", "添加组合", "编辑组合"):
         dialogs[title].fit_height(SHORT)
         assert dialogs[title].scroll is None and _card_height(dialogs[title]) <= SHORT - 8, title
-    picker = dialogs["选择特效"]
-    used = next(button for button in picker.findChildren(QPushButton) if button.text() == "用这个")
-    assert used.isVisibleTo(picker) and picker.scroll is None
+    picker = dialogs["选择场景"]
+    used = next(button for button in picker.findChildren(QPushButton) if button.text() == "确定")
+    assert used.isVisibleTo(picker) and picker.mode.isVisibleTo(picker) and picker.scroll is None
 
 
 def _guests(count: int) -> list[Entry]:
@@ -119,7 +119,7 @@ def test_the_combo_dialogs_fit_a_short_screen_however_many_guests(window, count)
     from blacklist_detect.ui_guests import ComboDialog
 
     likes = _guests(count)
-    combo = Combo((*(like.name for like in likes[:2]), "已删掉的嘉宾"), "angel")
+    combo = Combo((*(like.name for like in likes[:2]), "已删掉的嘉宾"), Scenes(("angel",)))
     for dialog in (ComboDialog(likes, parent=window), ComboDialog(likes, combo, parent=window)):
         for button in dialog.people_buttons.values():
             button.setChecked(False)
@@ -138,7 +138,7 @@ def test_the_combo_dialog_opens_on_its_own_guests_however_far_down_the_list_they
     from blacklist_detect.ui_guests import ComboDialog
 
     likes = _guests(60)
-    combo = Combo((likes[0].name, likes[1].name, "已删掉的嘉宾"), "angel")
+    combo = Combo((likes[0].name, likes[1].name, "已删掉的嘉宾"), Scenes(("angel",)))
     dialog = ComboDialog(likes, combo, parent=window)
     ticked = [button.isChecked() for button in dialog.people_buttons.values()]
     assert ticked == [True] * 3 + [False] * 58

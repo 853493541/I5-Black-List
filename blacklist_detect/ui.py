@@ -409,7 +409,7 @@ def _show_tick(button: QPushButton) -> None:
 
 
 def _known_scene(key: str) -> bool:
-    """Whether this version plays a 嘉宾's or a combination's theme (a scene it dropped is skipped)."""
+    """Whether this version plays a scene ticked for a 嘉宾 or a combination (a scene it dropped is skipped)."""
     return love_scenes.shown(key) in love_scenes.KEYS
 
 
@@ -462,9 +462,10 @@ class MainWindow(QMainWindow):
         # Two or more 嘉宾 players and no 黑名单: a border of silk and flowers, once per lobby.
         self.love = LoveBorder()
         self._love_played = False
-        # This lobby's 嘉宾特效 choice, worked out from the 嘉宾 in it when its result shows, and
-        # where its players' names are, for a scene that plays over them.
-        self._lobby_choice = ""
+        # This lobby's 嘉宾场景 choice (a key, keys to pick one of, "random" or "off"), worked out from
+        # the 嘉宾 in it when its result shows, and where its players' names are, for a scene that
+        # plays over them.
+        self._lobby_choice: str | tuple[str, ...] = ""
         self._lobby_seats: tuple[QRectF, ...] = ()
 
         # 嘉宾音乐: the same lobby, in either 显示, also gets a few seconds of wedding music, as loud as
@@ -3868,7 +3869,7 @@ class MainWindow(QMainWindow):
             return
         hits = self._hits_in(result)
         likes = self._likes_in(result)
-        # The scene for these 嘉宾: a combination of theirs, the top one's own theme, or 经典.
+        # The scenes for these 嘉宾: a combination of theirs, else the top one's own (guests.lobby_choice).
         self._lobby_choice = self._choice_for(likes)
         self._lobby_seats = self._seats_of(result)
         if not hits and self._love_for(len(likes)):
@@ -3986,8 +3987,8 @@ class MainWindow(QMainWindow):
             ]
         )
 
-    def _choice_for(self, likes: list[Entry]) -> str:
-        """The 嘉宾特效 scene for a lobby with these 嘉宾 (guests.lobby_choice), "off" while 嘉宾特效 is
+    def _choice_for(self, likes: list[Entry]) -> str | tuple[str, ...]:
+        """The 嘉宾场景 choice for a lobby with these 嘉宾 (guests.lobby_choice), "off" while 嘉宾场景 is
         off in 设置. 测试效果's sample 嘉宾 are on no list: 经典."""
         if self.store.love_scene == "off":
             return "off"
@@ -3995,9 +3996,9 @@ class MainWindow(QMainWindow):
             return "classic"
         return lobby_choice(self.store.likes, self.store.combos, likes, "classic", known=_known_scene)
 
-    def _tune_for(self, choice: str) -> str:
-        """The music for a lobby with this 嘉宾特效 choice: the sound of the scene that plays, none when
-        嘉宾特效 is off. 声音 decides how loud (ThemeMusic)."""
+    def _tune_for(self, choice: str | tuple[str, ...]) -> str:
+        """The music for a lobby with this 嘉宾场景 choice: the sound of the scene that plays, none when
+        none does. 声音 decides how loud (ThemeMusic)."""
         self.love.choice = choice
         return self.love.pick()
 
@@ -4017,7 +4018,7 @@ class MainWindow(QMainWindow):
     def _dress_love(self, playing: bool) -> None:
         """The 嘉宾 marks (the ring, the badge and the card) in the look of this lobby's scene: the one
         about to play, or the one that played for this lobby. With none playing, the look of the
-        lobby's choice; 经典's while 嘉宾特效 is off."""
+        lobby's choice, 经典's for several to pick from or while 嘉宾场景 is off."""
         choice = self._lobby_choice or self.store.love_scene
         if playing and self._love_played:
             scene = self.love.scene
@@ -4025,7 +4026,7 @@ class MainWindow(QMainWindow):
             self.love.choice = choice
             scene = self.love.pick()
         else:
-            scene = choice
+            scene = choice if isinstance(choice, str) else "random"
         look = love_look(scene)
         self.panel.set_look(look)
         self.clear_mark.set_look(look)
@@ -4363,7 +4364,8 @@ class MainWindow(QMainWindow):
         self._love_played = True
         choice = self._lobby_choice or self.store.love_scene
         who = "特效 hotkey" if self._quick_scene else f"Check {self._check_number}"
-        log.info("%s shown: 嘉宾特效 (%s, sound %s).", who, choice, self._sound_said())
+        said = choice if isinstance(choice, str) else "one of " + "/".join(choice)
+        log.info("%s shown: 嘉宾特效 (%s, sound %s).", who, said, self._sound_said())
         badge = self.clear_mark.geometry().center() if self.clear_mark.isVisible() else None
         self.love.choice = choice
         self.love.play(self._game_area(screen), keep, badge, self._lobby_seats)
