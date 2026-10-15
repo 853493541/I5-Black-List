@@ -4,11 +4,13 @@ A white name tab drops in at the top middle, reading 毛茸茸保护协会, and 
 the screen's edge as a notebook frame: a wobbly ink line that swells and thins as a hand presses,
 a lighter line inside it with a lift or two, and behind them a band of pale teal paper, grained per
 pixel, filling in as they go. Enamel binder rings pop on down the right edge as the pen passes
-them. Green crescent-leaf sprouts, each with a blue bead on its tip, pop up from the frame and sway:
-a tall one in the bottom left, small ones on the left edge and in the bottom right. Puffy mint ❖
-stars pop in round the top corners and down the sides and twinkle, with little sparkles, and
-looping doodles draw themselves between them. Paw prints trot across the two bottom corners,
-stamped one after another. At the end it all fades.
+them. Chubby fluffy cats pop up from behind the frame's line and peek over it, paws on the edge: a
+big white one in the bottom left swishing its tail, a cream one peeking in round the left edge, and
+in the bottom right a patched one huddled with a little one in a mint bow. They breathe, blink and
+flick an ear, and at the end let go and duck back down. Puffy mint ❖ stars pop in round the top
+corners and down the sides and twinkle, with little sparkles, and looping doodles draw themselves
+between them. Paw prints trot across the two bottom corners, stamped one after another. At the end
+it all fades.
 
 Its marks: the card is a notebook page in a teal frame with binder holes down its right, dotted
 like a bullet journal, a sprout peeking over its top and a ❖ on its corner; the names are in a
@@ -95,13 +97,16 @@ def make(stage: Stage):  # noqa: ANN201
     pens = [_frame_lines(route, side, rnd, u, gap) for route, side in zip(routes, (-1, 1), strict=True)]
     rings = _ring_stops(routes[1], width - right, edge + corner + 20 * u, height - edge - corner - 16 * u, 50 * u)
     tab = QRectF(width / 2 - 165 * u, 4 * u, 330 * u, 44 * u)
-    # (where it grows from, how tall, its lean in degrees, when it pops up)
-    sprouts = [
-        (QPointF(96 * u, height - edge + 2 * u), 1.0, -6.0, 0.95),
-        (QPointF(edge - 2 * u, height * 0.43), 0.42, 72.0, 1.25),
-        (QPointF(width - 92 * u, height - edge + 2 * u), 0.5, 8.0, 1.6),
-        (QPointF(width - 128 * u, height - edge + 2 * u), 0.36, -16.0, 1.72),
+    # (where on the frame's line it peeks over, its head's width, which way it looks in (0 up from
+    # the bottom, 90 in from the left), when it pops up, just after the pen has drawn its line, its
+    # coat, which side its tail is on (0: none))
+    cats = [
+        (QPointF(108 * u, height - edge), 112 * u, 0.0, 1.05, 0, 1),
+        (QPointF(edge, height * 0.43), 58 * u, 90.0, 1.25, 1, 0),
+        (QPointF(width - 106 * u, height - edge), 66 * u, 0.0, 1.6, 2, 0),
+        (QPointF(width - 154 * u, height - edge), 50 * u, 0.0, 1.72, 3, -1),
     ]
+    edges = [_edge(size, random.Random(43 + index), u) for index, (_base, size, *_rest) in enumerate(cats)]
     # (x, y, radius, tint, when it pops in), from the corners they belong to.
     stars = [
         (70 * u, 74 * u, 24 * u, MINT, 0.75), (160 * u, 160 * u, 14 * u, BEAD, 1.05), (268 * u, 46 * u, 12 * u, MINT, 0.9),
@@ -117,7 +122,7 @@ def make(stage: Stage):  # noqa: ANN201
         (_doodle(QPointF(width - 470 * u, 222 * u), QPointF(width - 190 * u, 190 * u), 3, 11 * u, rnd, u), 1.3, 2.05),
     ]
     trails = [
-        [(QPointF((150 + 44 * i) * u, height - (52 + (9 if i % 2 else -9)) * u), 1.5 + 0.2 * i) for i in range(8)],
+        [(QPointF((200 + 44 * i) * u, height - (52 + (9 if i % 2 else -9)) * u), 1.5 + 0.2 * i) for i in range(8)],
         [(QPointF(width - (478 - 44 * i) * u, height - (54 + (9 if i % 2 else -9)) * u), 2.15 + 0.2 * i) for i in range(7)],
     ]
     # On a narrow window the prints near the gap are left out.
@@ -141,8 +146,21 @@ def make(stage: Stage):  # noqa: ANN201
         ),
         ("ring", lambda scale: _binder(11 * u, scale)),
         *(
-            (f"sprout{index}", lambda scale, tall=tall, index=index: _sprout(118 * u * tall, scale, index))
-            for index, (_base, tall, *_rest) in enumerate(sprouts)
+            (
+                ("cat", index, face),
+                lambda scale, size=size, coat=coat, turn=turn, face=face: _cat(size, scale, coat, -0.82 * turn, face),
+            )
+            for index, (_base, size, turn, _when, coat, _tail) in enumerate(cats)
+            for face in FACES
+        ),
+        *(
+            (("paws", index), lambda scale, size=size, coat=coat: _cat_paws(size, scale, coat))
+            for index, (_base, size, _turn, _when, coat, _tail) in enumerate(cats)
+        ),
+        *(
+            (("tail", index), lambda scale, size=size, coat=coat: _cat_tail(size, scale, coat))
+            for index, (_base, size, _turn, _when, coat, tail) in enumerate(cats)
+            if tail
         ),
         ("paw", lambda scale: _paw_print(34 * u, scale)),
     ]
@@ -192,11 +210,6 @@ def make(stage: Stage):  # noqa: ANN201
                 _place(p, picture_of("ring", scale), QPointF(width - right, y), 0.0, ease_back(k, 2.4))
         for line, start, end in doodles:
             line.paint(p, line.length * _glide(win(t, start, end)), 0.92)
-        for index, (base, _tall, lean, when) in enumerate(sprouts):
-            if t > when:
-                # At the end each ducks back into the frame it grew from.
-                duck = 1 - ease_in(win(t, 4.05 + 0.06 * index, 4.55 + 0.06 * index))
-                _sprout_pop(p, t, picture_of(f"sprout{index}", scale), base, lean, when, u, duck)
         for index, (x, y, r, tint, when) in enumerate(stars):
             k = win(t, when, when + 0.45)
             if k <= 0:
@@ -226,6 +239,11 @@ def make(stage: Stage):  # noqa: ANN201
                     p.setOpacity(a * ease_out(k) * fade * 0.92)
                     _place(p, picture_of("paw", scale), at, 0.0, 1.3 - 0.3 * ease_out(k))
         p.setOpacity(a)
+        for index, cat in enumerate(cats):
+            if t > cat[3]:
+                # At the end each ducks back behind the frame it peeked over.
+                duck = 1 - ease_in(win(t, 4.05 + 0.06 * index, 4.55 + 0.06 * index))
+                _cat_pop(p, t, lambda name: picture_of(name, scale), index, cat, edges[index], u, duck)
         # The tab drops in, swings, and at the end is lifted away.
         drop = ease_back(win(t, 0.05, 0.6), 1.6) - ease_in(win(t, 4.2, 4.75)) * 1.2
         if drop > 0:
@@ -738,28 +756,381 @@ def _sprout(size: float, scale: float, seed: int) -> tuple[QImage, QPointF, floa
     return image, QPointF(-box.left(), -box.top()), -box.top()
 
 
-def _sprout_pop(
-    p: QPainter, t: float, sprout: tuple[QImage, QPointF, float], base: QPointF, lean: float, when: float, u: float, duck: float
+def _fur(
+    box: QRectF,
+    scale: float,
+    parts: list[tuple[QPainterPath, str, float]],
+    soft: float,
+    outline: list[tuple[QPainterPath, float, str]],
+    *,
+    middle: QPointF | None = None,
+    blush: QPainterPath | None = None,
+    cut: float | None = None,
+    seed: int = 1,
+    shadow: float = 0.0,
+    after: Callable[[QPainter], None] | None = None,
+) -> QImage:
+    """Shapes in box (points) as soft fur of scale pixels to the point, outlined by hand as _sticker's
+    are: each part (path, color, lift) swelling from its edges and lit as _shade does, teal creeping
+    into its shade, fine strands of fur growing out from middle (a fine grain without one), a soft
+    pink blush where blush is, and the shade deepening toward cut, the height of the line it hides
+    behind."""
+    w, h = max(1, math.ceil(box.width() * scale)), max(1, math.ceil(box.height() * scale))
+    sx, sy = w / box.width(), h / box.height()
+
+    def place(q: QPainter) -> None:
+        q.scale(sx, sy)
+        q.translate(-box.left(), -box.top())
+
+    def filled(path: QPainterPath) -> np.ndarray:
+        def draw(q: QPainter) -> None:
+            place(q)
+            q.fillPath(path, QColor("#ffffff"))
+
+        return mask(w, h, draw)
+
+    color = np.zeros((h, w, 3), dtype=np.float32)
+    alpha = np.zeros((h, w), dtype=np.float32)
+    swell = np.zeros((h, w), dtype=np.float32)
+    for path, tint, lift in parts:
+        m = filled(path)
+        color += (rgb(tint) - color) * m[..., None]
+        alpha = np.maximum(alpha, m)
+        if lift:
+            swell += blur(m, max(1.0, soft * scale * 0.45)) * m * lift
+    swell += blur(alpha, max(1.0, soft * scale)) * alpha
+    gy, gx = np.gradient(swell)
+    nx, ny = -gx * soft * scale * 5, -gy * soft * scale * 5
+    nz = 1 / np.sqrt(1 + nx * nx + ny * ny)
+    nx, ny = nx * nz, ny * nz
+    lit = np.clip(nx * LIGHT[0] + ny * LIGHT[1] + nz * LIGHT[2], 0, 1)
+    # Fur has no gloss, only a soft sheen where the light lies along it.
+    sheen = np.clip(nx * HALF[0] + ny * HALF[1] + nz * HALF[2], 0, 1) ** 8 * 0.1
+    xs = box.left() + (np.arange(w, dtype=np.float32) + 0.5) / sx
+    ys = box.top() + (np.arange(h, dtype=np.float32) + 0.5) / sy
+    px, py = np.meshgrid(xs, ys)
+    grain = noise(w, h, 1.6 * scale, 2, seed) - 0.5
+    if middle is not None:
+        # Strands: noise drawn out along the lines from middle, fine round it and long along it, and
+        # showing more toward the edge, where the hairs are longer and lie flatter.
+        dx, dy = px - middle.x(), py - middle.y()
+        rad = np.hypot(dx, dy)
+        reach = max(box.width(), box.height()) * 0.42
+        count = max(24, round(2 * math.pi * reach * scale / 2.2))
+        around = (np.arctan2(dy, dx) / (2 * math.pi) + 0.5) * count
+        out = rad / (reach * 0.5)
+        grid = np.random.default_rng(seed).random((int(out.max()) + 3, count), dtype=np.float32)
+        i0 = np.floor(around).astype(int)
+        f = around - i0
+        i0 %= count
+        i1 = (i0 + 1) % count
+        j0 = np.floor(out).astype(int)
+        g = out - j0
+        g = g * g * (3 - 2 * g)
+        strands = (grid[j0, i0] * (1 - f) + grid[j0, i1] * f) * (1 - g) + (grid[j0 + 1, i0] * (1 - f) + grid[j0 + 1, i1] * f) * g
+        grain = (strands - 0.5) * np.clip(rad / reach - 0.2, 0, 1) + 0.4 * grain
+    shade = np.clip(1 + 0.6 * (lit - LIGHT[2]), 0, 1)
+    if cut is not None:
+        # Down toward the line it hides behind, the fur falls into the line's shadow.
+        deep = box.height() * 0.22
+        shade = shade * (1 - 0.3 * np.clip((py - cut + deep) / deep, 0, 1) ** 1.5)
+    tone = (1 + 0.16 * grain) * shade
+    lit_color = color * tone[..., None] + (1 - shade)[..., None] * 0.24 * rgb(TEAL) + sheen[..., None]
+    if blush is not None:
+        flush = blur(filled(blush), max(1.0, soft * scale * 0.6)) * 0.75
+        lit_color += (rgb(PINK) * shade[..., None] - lit_color) * flush[..., None]
+    if shadow > 0:
+        drop = blur(np.roll(alpha, max(1, round(shadow * scale)), axis=0), max(1.0, shadow * scale * 1.4)) * 0.32
+        total = alpha + drop * (1 - alpha)
+        under = rgb("#123a3e") * (drop * (1 - alpha))[..., None]
+        lit_color = (lit_color * alpha[..., None] + under) / np.maximum(total, 1e-4)[..., None]
+        alpha = total
+    image = picture(lit_color, alpha).convertToFormat(QImage.Format_ARGB32_Premultiplied)
+    q = QPainter(image)
+    q.setRenderHint(QPainter.Antialiasing)
+    place(q)
+    rnd = random.Random(seed)
+    for path, width, tint in outline:
+        for ink in _inked(path, width, rnd):
+            q.fillPath(ink, col(tint))
+    if after is not None:
+        after(q)
+    q.end()
+    image.setDevicePixelRatio(sx)
+    return image
+
+
+def _tuft(root: QPointF, tip: QPointF, end: QPointF, bend: float) -> QPainterPath:
+    """A tuft of fur from root out to tip and back to end, curving bend of the way sideways."""
+    path = QPainterPath(root)
+    mid = QPointF((root.x() + end.x()) / 2, (root.y() + end.y()) / 2)
+    side = QPointF(-(tip.y() - mid.y()) * bend, (tip.x() - mid.x()) * bend)
+    path.quadTo(QPointF(root.x() * 0.4 + tip.x() * 0.6 + side.x(), root.y() * 0.4 + tip.y() * 0.6 + side.y()), tip)
+    path.quadTo(QPointF(end.x() * 0.5 + tip.x() * 0.5 + side.x(), end.y() * 0.5 + tip.y() * 0.5 + side.y()), end)
+    path.lineTo(QPointF(mid.x() * 0.8, mid.y() * 0.8))
+    path.closeSubpath()
+    return path
+
+
+def _ear(s: float, side: int, flick: float = 0.0) -> tuple[QPainterPath, QPainterPath]:
+    """A cat's ear on side (-1 left, 1 right) of a head s wide round (0, 0), and its pink inside;
+    flick turns it outward about its root, in degrees."""
+
+    def at(x: float, y: float) -> QPointF:
+        return QPointF(side * x * s, y * s)
+
+    ear = QPainterPath(at(0.47, -0.14))
+    ear.quadTo(at(0.53, -0.42), at(0.47, -0.61))
+    ear.quadTo(at(0.44, -0.68), at(0.38, -0.63))
+    ear.quadTo(at(0.3, -0.52), at(0.21, -0.37))
+    ear.lineTo(at(0.25, -0.1))
+    ear.closeSubpath()
+    inside = QPainterPath(at(0.42, -0.22))
+    inside.quadTo(at(0.46, -0.42), at(0.44, -0.54))
+    inside.quadTo(at(0.42, -0.58), at(0.39, -0.55))
+    inside.quadTo(at(0.33, -0.46), at(0.28, -0.35))
+    inside.quadTo(at(0.34, -0.27), at(0.42, -0.22))
+    if flick:
+        root = at(0.35, -0.26)
+        turn = QTransform().translate(root.x(), root.y()).rotate(side * flick).translate(-root.x(), -root.y())
+        ear, inside = turn.map(ear), turn.map(inside)
+    return ear, inside
+
+
+# Each cat's coat: its fur, the color of a patch over one eye and ear (or none), and whether it wears a mint bow.
+COATS = (("#ffffff", None, False), ("#fff1dc", None, False), ("#ffffff", "#f8e0c2", False), ("#fff1dc", None, True))
+# A cat's faces: eyes open, blinking, and an ear flicked.
+FACES = ("open", "blink", "flick")
+
+
+def _cat(s: float, scale: float, coat: int, tilt: float, face: str) -> tuple[QImage, QRectF]:
+    """A chubby cat's head s wide peeking up over a line (along y = 0, it looks up from it): round,
+    with big ears, fluffy cheeks and a tuft on top, big shining eyes, a pink nose and a ω mouth, and
+    pink cheeks. tilt leans its head, in degrees. Its picture and where it lies about the line's
+    middle, in points; below the line it is cut off."""
+    fur_color, patch_color, bow = COATS[coat]
+    head = QPainterPath()
+    head.addEllipse(QPointF(0, 0), s * 0.5, s * 0.41)
+    flick = 18.0 if face == "flick" else 0.0
+    ears = [_ear(s, -1), _ear(s, 1, flick)]
+    tufts = [_tuft(QPointF(-0.09 * s, -0.395 * s), QPointF(0.03 * s, -0.5 * s), QPointF(0.06 * s, -0.4 * s), 0.25)]
+    for side in (-1, 1):
+        # Three tufts down each cheek: (root, tip, end) for the left one, as parts of s.
+        for root, tip, end in (
+            ((0.495, -0.06), (0.6, 0.04), (0.49, 0.08)),
+            ((0.49, 0.08), (0.57, 0.19), (0.45, 0.18)),
+            ((0.45, 0.18), (0.48, 0.29), (0.38, 0.26)),
+        ):
+            points = [QPointF(side * x * s, y * s) for x, y in (root, tip, end)]
+            tufts.append(_tuft(*points, 0.3 * side))
+    for piece in [ear for ear, _inside in ears] + tufts:
+        head = head.united(piece)
+    insides = QPainterPath()
+    for _ear_path, inside in ears:
+        insides.addPath(inside)
+    parts = [(head, fur_color, 0), (insides, PINK, -0.35)]
+    if patch_color:
+        patch = QPainterPath()
+        patch.addEllipse(QPointF(-0.28 * s, -0.1 * s), 0.25 * s, 0.21 * s)
+        parts.insert(1, (patch.united(ears[0][0]).intersected(head), patch_color, 0))
+    blush = QPainterPath()
+    for side in (-1, 1):
+        blush.addEllipse(QPointF(side * 0.33 * s, 0.155 * s), 0.085 * s, 0.05 * s)
+    outline = [(head, max(0.7, s * 0.023), INK)]
+    bow_path = QPainterPath()
+    if bow:
+        # A mint bow on its left ear's root, its knot a blue bead.
+        at = QPointF(-0.27 * s, -0.33 * s)
+        for angle in (-28, 152):
+            loop = QPainterPath()
+            loop.addEllipse(QPointF(0.12 * s, 0), 0.115 * s, 0.075 * s)
+            bow_path = bow_path.united(QTransform().translate(at.x(), at.y()).rotate(angle).map(loop))
+        knot = QPainterPath()
+        knot.addEllipse(at, 0.05 * s, 0.05 * s)
+        parts += [(bow_path, MINT, 0.8), (knot, BEAD, 1.2)]
+        outline += [(bow_path, max(0.6, s * 0.018), INK), (knot, max(0.5, s * 0.014), INK)]
+    turn = QTransform().translate(0, -0.33 * s).rotate(tilt)
+    parts = [(turn.map(path), tint, lift) for path, tint, lift in parts]
+    outline = [(turn.map(path), width, tint) for path, width, tint in outline]
+
+    def features(q: QPainter) -> None:
+        q.save()
+        q.setTransform(turn, True)
+        ink = col(INK)
+        for side in (-1, 1):
+            eye = QPointF(side * 0.2 * s, 0.03 * s)
+            if face == "blink":
+                lid = QPainterPath(QPointF(eye.x() - 0.07 * s, eye.y()))
+                lid.quadTo(QPointF(eye.x(), eye.y() + 0.06 * s), QPointF(eye.x() + 0.07 * s, eye.y()))
+                q.strokePath(lid, QPen(ink, max(0.6, s * 0.022), Qt.SolidLine, Qt.RoundCap))
+                continue
+            ball = QPainterPath()
+            ball.addEllipse(eye, 0.068 * s, 0.084 * s)
+            q.fillPath(ball, col("#1c4247"))
+            # Light from below, through the eye, as in a drawn cat's eye.
+            lower = QPainterPath()
+            lower.addEllipse(QPointF(eye.x(), eye.y() - 0.05 * s), 0.07 * s, 0.084 * s)
+            q.fillPath(ball.subtracted(lower), col(TEAL, 0.75))
+            q.setPen(Qt.NoPen)
+            q.setBrush(QColor("#ffffff"))
+            q.drawEllipse(QPointF(eye.x() - 0.022 * s, eye.y() - 0.03 * s), 0.028 * s, 0.028 * s)
+            q.drawEllipse(QPointF(eye.x() + 0.024 * s, eye.y() + 0.032 * s), 0.012 * s, 0.012 * s)
+        nose = QPainterPath(QPointF(-0.042 * s, 0.1 * s))
+        nose.quadTo(QPointF(0, 0.088 * s), QPointF(0.042 * s, 0.1 * s))
+        nose.quadTo(QPointF(0.03 * s, 0.128 * s), QPointF(0, 0.137 * s))
+        nose.quadTo(QPointF(-0.03 * s, 0.128 * s), QPointF(-0.042 * s, 0.1 * s))
+        q.fillPath(nose, col(PINK))
+        q.strokePath(nose, QPen(ink, max(0.4, s * 0.012)))
+        mouth = QPainterPath()
+        for side in (-1, 1):
+            mouth.moveTo(0, 0.137 * s)
+            mouth.quadTo(QPointF(side * 0.005 * s, 0.185 * s), QPointF(side * 0.045 * s, 0.18 * s))
+            mouth.quadTo(QPointF(side * 0.072 * s, 0.175 * s), QPointF(side * 0.078 * s, 0.152 * s))
+        q.strokePath(mouth, QPen(ink, max(0.5, s * 0.017), Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        whiskers = QPainterPath()
+        for side in (-1, 1):
+            for y0, y1 in ((0.09, 0.06), (0.135, 0.16)):
+                whiskers.moveTo(side * 0.4 * s, y0 * s)
+                whiskers.quadTo(QPointF(side * 0.5 * s, (y0 + y1) / 2 * s - 0.008 * s), QPointF(side * 0.6 * s, y1 * s))
+        q.strokePath(whiskers, QPen(col(INK, 0.6), max(0.4, s * 0.01), Qt.SolidLine, Qt.RoundCap))
+        q.restore()
+
+    box = QRectF()
+    for path, _tint, _lift in parts:
+        box = box.united(path.boundingRect())
+    box = box.adjusted(-s * 0.06, -s * 0.06, s * 0.06, 0)
+    box.setBottom(min(box.bottom(), s * 0.02))
+    middle, blush = turn.map(QPointF(0, 0.08 * s)), turn.map(blush)
+    image = _fur(box, scale, parts, s * 0.13, outline, middle=middle, blush=blush, cut=0.0, seed=21 + coat, after=features)
+    return image, box
+
+
+def _cat_paws(s: float, scale: float, coat: int) -> tuple[QImage, QRectF]:
+    """The two front paws of a cat with a head s wide, resting on the line it peeks over (y = 0)."""
+    paws, toes = QPainterPath(), QPainterPath()
+    for side in (-1, 1):
+        x = side * 0.25 * s
+        paw = QPainterPath()
+        paw.addEllipse(QPointF(x, -0.03 * s), 0.135 * s, 0.1 * s)
+        paws = paws.united(paw)
+        for dx in (-0.042, 0.042):
+            toes.moveTo(x + dx * s, -0.128 * s)
+            toes.lineTo(x + dx * s * 1.12, -0.09 * s)
+    box = QRectF(-0.42 * s, -0.17 * s, 0.84 * s, 0.17 * s)
+
+    def drawn_toes(q: QPainter) -> None:
+        q.strokePath(toes, QPen(col(INK), max(0.5, s * 0.016), Qt.SolidLine, Qt.RoundCap))
+
+    outline = [(paws, max(0.6, s * 0.022), INK)]
+    image = _fur(box, scale, [(paws, COATS[coat][0], 0)], s * 0.05, outline, seed=31 + coat, shadow=s * 0.012, after=drawn_toes)
+    return image, box
+
+
+def _cat_tail(s: float, scale: float, coat: int) -> tuple[QImage, QRectF]:
+    """The fluffy tail of a cat with a head s wide, curling up from behind the line (y = 0) at (0, 0)."""
+    k = np.linspace(0, 1, 48)
+    p0, p1, p2, p3 = (np.array(xy) * s for xy in ((0, 0.16), (0.06, -0.3), (0.16, -0.66), (-0.1, -0.56)))
+    j = k[:, None]
+    spine = (1 - j) ** 3 * p0 + 3 * (1 - j) ** 2 * j * p1 + 3 * (1 - j) * j * j * p2 + j**3 * p3
+    # Plump, fluffing out toward its curled tip.
+    wide = (0.14 + 0.06 * np.sin(math.pi * k * 0.85)) * s
+    tail = _ribbon(spine, wide)
+    tip = QPainterPath()
+    tip.addEllipse(QPointF(*p3), wide[-1] / 2, wide[-1] / 2)
+    tail = tail.united(tip)
+    # Little puffs of fur along both its sides.
+    side = _normals(spine)
+    for n in range(10, len(spine) - 2, 5):
+        for sign in (-1, 1):
+            r = wide[n] * (0.2 if (n // 5 + (sign > 0)) % 2 else 0.15)
+            at = spine[n] + side[n] * sign * (wide[n] / 2 - r * 0.45)
+            puff = QPainterPath()
+            puff.addEllipse(QPointF(*at), r, r)
+            tail = tail.united(puff)
+    parts = [(tail, COATS[coat][0], 0)]
+    if COATS[coat][1]:
+        end = QPainterPath()
+        end.addEllipse(QPointF(*p3), 0.16 * s, 0.13 * s)
+        parts.append((end.intersected(tail), COATS[coat][1], 0))
+    box = tail.boundingRect().adjusted(-s * 0.05, -s * 0.05, s * 0.05, 0)
+    box.setBottom(s * 0.05)
+    return _fur(box, scale, parts, s * 0.05, [(tail, max(0.6, s * 0.022), INK)], cut=0.0, seed=41 + coat), box
+
+
+def _cat_pop(
+    p: QPainter, t: float, picture_of: Callable, index: int, cat: tuple, edge: QPainterPath, u: float, duck: float
 ) -> None:
-    """A sprout popping up from base and swaying: it grows past its size and settles, then sways on;
-    duck shrinks it back down. Three little lines spring from it as it pops, as in a doodle."""
-    k = win(t, when, when + 0.55)
-    if k <= 0:
+    """A cat peeking up over the frame from base: it pops up from behind the line, squashes as it
+    lands and its paws hop onto the edge, then it breathes, blinks, flicks an ear and swishes its
+    tail; at the end its paws let go and it ducks back down. Three little lines spring from it as it
+    pops, as in a doodle."""
+    base, size, turn, when, _coat, tail = cat
+    head, box = picture_of(("cat", index, _face(t, when, index)))
+    rise = ease_out(win(t, when, when + 0.42)) * duck
+    if rise <= 0:
         return
-    image, foot, tall = sprout
-    sway = 9 * spring(t - when - 0.25, 1.2, 2.4) * win(t, when + 0.25, when + 0.3) + 2.5 * math.sin(1.7 * t + base.x() * 0.01)
-    _place(p, image, base, lean + sway, ease_back(k, 1.8) * duck, foot)
-    burst = win(t, when + 0.2, when + 0.6)
+    p.save()
+    p.translate(base)
+    p.rotate(turn)
+    above = QRectF(-size * 1.5, -size * 2, size * 3, size * 2)
+    p.save()
+    p.setClipRect(above)
+    if tail:
+        image, tail_box = picture_of(("tail", index))
+        up = ease_out(win(t, when + 0.2, when + 0.62)) * duck
+        swish = 14 * math.sin(2.1 * (t - when) + index) * win(t, when + 0.5, when + 1.2)
+        p.save()
+        p.translate(tail * 0.66 * size, (1 - up) * tail_box.height())
+        p.rotate(tail * (swish - 6))
+        p.scale(tail, 1)
+        p.drawImage(tail_box, image)
+        p.restore()
+    # It lands with a squash that springs back, then breathes.
+    land = 0.09 * spring(t - when - 0.42, 2.0, 6.0) if t > when + 0.42 else 0.0
+    breath = 0.012 * math.sin(2.4 * t + index * 1.3)
+    p.save()
+    p.translate(0, (1 - rise) * -box.top())
+    p.scale(1 + 0.6 * land, 1 - land + breath)
+    p.drawImage(box, head)
+    p.restore()
+    p.restore()
+    p.setPen(Qt.NoPen)
+    p.fillPath(edge, col(INK))
+    paws, paws_box = picture_of(("paws", index))
+    hop = ease_back(win(t, when + 0.3, when + 0.48), 2.5) * (1 - win(t, 3.95 + 0.06 * index, 4.05 + 0.06 * index))
+    if hop > 0:
+        p.save()
+        p.setClipRect(above)
+        p.translate(0, (1 - hop) * paws_box.height())
+        p.drawImage(paws_box, paws)
+        p.restore()
+    burst = win(t, when + 0.25, when + 0.65)
     if 0 < burst < 1:
         p.setPen(QPen(col(CHALK, 0.9 * (1 - burst)), 2.2 * u, Qt.SolidLine, Qt.RoundCap))
-        reach = tall * (0.95 + 0.25 * ease_out(burst))
+        reach = -box.top() * (0.95 + 0.25 * ease_out(burst))
         for angle in (-50, -15, 20):
-            a = math.radians(angle - 90 + lean)
+            a = math.radians(angle - 90)
             inner, outer = reach, reach + 12 * u * (1 - 0.5 * burst)
-            p.drawLine(
-                QPointF(base.x() + math.cos(a) * inner, base.y() + math.sin(a) * inner),
-                QPointF(base.x() + math.cos(a) * outer, base.y() + math.sin(a) * outer),
-            )
+            p.drawLine(QPointF(math.cos(a) * inner, math.sin(a) * inner), QPointF(math.cos(a) * outer, math.sin(a) * outer))
+    p.restore()
+
+
+def _face(t: float, when: float, index: int) -> str:
+    """Which face a cat that popped up at when shows at t: now and then it blinks, and less often flicks an ear."""
+    if t < when + 0.9:
+        return "open"
+    if (t - when - 0.9 - index * 0.53) % 2.4 < 0.14:
+        return "blink"
+    flick = (t - when - 1.4 - index * 0.71) % 3.1
+    return "flick" if flick < 0.09 or 0.17 <= flick < 0.26 else "open"
+
+
+def _edge(size: float, rnd: random.Random, u: float) -> QPainterPath:
+    """The frame's ink line again, across a cat's width, drawn in front of the cat hiding behind it."""
+    points = _even(np.array([[-0.66 * size, 0.0], [0.66 * size, 0.0]]), 2.5 * u)
+    at = _along(points)
+    stroke = _stroke(points, at, 3.0 * u, rnd, 0.4 * u, 8 * u, 8 * u)
+    return _ribbon(*stroke[:2])
 
 
 def _paw_shapes(s: float) -> tuple[QPainterPath, QPainterPath]:
