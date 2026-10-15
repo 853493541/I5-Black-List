@@ -4,7 +4,8 @@
                                                  [--size 900 560] [--data normal|empty|stress] [--stream]
 
 Each scale is a run of its own (Qt's scale is set before it starts), into <out dir>\\<scale>[-dark]-<data>.
-The app runs with made-up names in a data folder of its own: nothing of the user's is read or written.
+The app runs with made-up names in a data folder of its own, and 开机启动 with a Run key in memory:
+nothing of the user's is read or written.
 A dialog the app opens with exec() or open() is shown without waiting, photographed and closed, so
 the app's own code builds every one exactly as a player sees it. 截图检查's result reads the
 sample lobby for real, so the recognition models must be on this PC.
@@ -17,6 +18,7 @@ sample lobby for real, so the recognition models must be on this PC.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import shutil
@@ -68,7 +70,7 @@ def shoot(args) -> None:  # noqa: ANN001
     from PySide6.QtCore import QPoint
     from PySide6.QtWidgets import QDialog
 
-    from blacklist_detect import __version__, hotkey, ui
+    from blacklist_detect import __version__, autostart, hotkey, ui
     from blacklist_detect.ui_kit import Modal
     from blacklist_detect.ui_love_pick import ScenePicker
 
@@ -99,6 +101,9 @@ def shoot(args) -> None:  # noqa: ANN001
     # The app on this PC may hold a hotkey, and a key pressed meanwhile must not reach this copy.
     hotkey._register = lambda _ident, _modifiers, _vk: True
     hotkey._unregister = lambda _ident: None
+    # Nor does it read or change the player's own 开机启动 entry: 开机启动 is off, in memory.
+    registry = _Registry()
+    autostart._registry = lambda: registry
 
     def step(name: str, action) -> None:  # noqa: ANN001
         label["name"] = name
@@ -249,6 +254,36 @@ def shoot(args) -> None:  # noqa: ANN001
     sys.stdout.flush()
     # Qt's teardown of a window shown this way can crash; the pictures are saved by now.
     os._exit(0)
+
+
+class _Registry:
+    """The Run key 开机启动 reads and writes, in memory (as tests/conftest.py has it). values: what it holds."""
+
+    HKEY_CURRENT_USER = "HKCU"
+    KEY_SET_VALUE = 2
+    REG_SZ = 1
+
+    def __init__(self) -> None:
+        self.values: dict[str, str] = {}
+
+    def OpenKey(self, root, path):  # noqa: ANN001, ANN201, N802
+        return contextlib.nullcontext()
+
+    def CreateKeyEx(self, root, path, reserved, access):  # noqa: ANN001, ANN201, N802
+        return contextlib.nullcontext()
+
+    def QueryValueEx(self, key, name):  # noqa: ANN001, ANN201, N802
+        if name not in self.values:
+            raise FileNotFoundError(name)
+        return self.values[name], self.REG_SZ
+
+    def SetValueEx(self, key, name, reserved, kind, value):  # noqa: ANN001, ANN201, N802
+        self.values[name] = value
+
+    def DeleteValue(self, key, name):  # noqa: ANN001, ANN201, N802
+        if name not in self.values:
+            raise FileNotFoundError(name)
+        del self.values[name]
 
 
 def _screen_percent() -> int:
