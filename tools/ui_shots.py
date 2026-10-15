@@ -198,6 +198,25 @@ def shoot(args) -> None:  # noqa: ANN001
 
     step("menu_添加嘉宾", add_menu)
     step("dlg_选择特效", lambda: ScenePicker("fluffy", "心动小鹿", parent=window).exec())
+
+    def trim() -> None:
+        import numpy as np
+
+        from blacklist_detect.ui_sound_trim import SoundTrimDialog
+
+        # 20 s of made-up music: a plucked note every quarter second, swelling and fading. No recording.
+        rate = 44100
+        t = np.arange(rate * 20) / rate
+        sound = np.zeros_like(t)
+        for index, at in enumerate(np.arange(0, 20, 0.25)):
+            later = t >= at
+            after = t[later] - at
+            pitch = 220 * 2 ** ((index * 5 % 12) / 12)
+            sound[later] += np.exp(-after * 6) * np.sin(2 * np.pi * pitch * after) * (0.4 + 0.6 * abs(np.sin(index / 9)))
+        samples = (sound / np.abs(sound).max() * 0.7 * 32767).astype(np.int16)
+        SoundTrimDialog(samples, rate, "心动音乐.mp3", lambda _start, _length: None, lambda: None, parent=window).exec()
+
+    step("dlg_选择片段", trim)
     window.tabs.setCurrentIndex(window.settings_tab)
     step("dlg_显示说明", window._show_display_guide)
     step("dlg_直播模式说明", window._show_stream_guide)
