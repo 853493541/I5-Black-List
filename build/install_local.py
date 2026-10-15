@@ -29,7 +29,7 @@ sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO / "build"))
 
 from app_exe import make_app_exe  # noqa: E402
-from make_release import EXE_NAME, Pruner, _verify, _version  # noqa: E402
+from make_release import EXE_NAME, QTMEDIA_FILES, Pruner, _stage_qtmedia, _verify, _version  # noqa: E402
 
 from blacklist_detect.paths import message_running_copy  # noqa: E402
 
@@ -38,7 +38,8 @@ SHORTCUT = "模仿者小工具"
 OLD_SHORTCUT = "黑名单检测"
 OLD_FILES = ("黑名单检测.exe", "runtime/I5黑名单.exe")
 # Inside the app folder these are never copied from the repo or removed by a sync.
-_KEEP = {"__pycache__", "models"}
+# qtmedia is not in the repo: install_qtmedia copies it from the runtime, as make_release does.
+_KEEP = {"__pycache__", "models", "qtmedia"}
 
 
 def install_dir() -> Path:
@@ -135,6 +136,20 @@ def sync_tree(source: Path, target: Path) -> tuple[int, int]:
     return copied, removed
 
 
+def install_qtmedia(site_packages: Path, app: Path) -> int:
+    """The release's qtmedia folder (make_release._stage_qtmedia), which 上传 reads MP3 and video with:
+    the runtime installed here leaves QtMultimedia out like the release's. Copied only when a file
+    changed; kept as it is when the runtime it came from is gone. Returns how many files changed."""
+    changed = []
+    for rel, name in QTMEDIA_FILES.items():
+        source, target = site_packages / rel, app / "qtmedia" / name
+        if not target.is_file() or (source.is_file() and not _same(source, target)):
+            changed.append(rel)
+    if changed:
+        _stage_qtmedia(site_packages, app)
+    return len(changed)
+
+
 def install_runtime(root: Path, runtime: Path, models: Path) -> None:
     print(f"Copying the Python runtime to {root} (once) ...")
     if (root / "runtime").exists():
@@ -212,6 +227,7 @@ def main() -> int:
             print(f"Removed {leftover}.")
     (root / "update.check").unlink(missing_ok=True)
     copied, removed = sync_tree(REPO / "blacklist_detect", root / "blacklist_detect")
+    copied += install_qtmedia(args.runtime / "Lib" / "site-packages", root / "blacklist_detect")
     launcher = root / EXE_NAME
     if args.launcher.is_file() and not _same(args.launcher, launcher):
         shutil.copy2(args.launcher, launcher)
