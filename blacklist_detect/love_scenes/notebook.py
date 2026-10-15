@@ -36,7 +36,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QBrush, QColor, QImage, QPainter, QPainterPath, QPixmap, QPolygonF, QTransform
+from PySide6.QtGui import QBrush, QColor, QImage, QPainter, QPainterPath, QPainterPathStroker, QPixmap, QPolygonF, QTransform
 
 from blacklist_detect.love_scenes.draw import clamp, ease_in, ease_in_out, ease_out, win
 from blacklist_detect.love_scenes.light import blur, mask, noise, picture, rgb, smooth
@@ -113,7 +113,7 @@ def make(stage: Stage):  # noqa: ANN201
     plan = _Plan(stage)
     u = plan.u
     tooth = _Tooth(u)
-    near, bare = _cut(plan)
+    near, thin, bare = _cut(plan)
     sheet = _Sheet(plan)
     fold = _Fold(plan)
     sketches = _sketches(plan, tooth)
@@ -146,6 +146,7 @@ def make(stage: Stage):  # noqa: ANN201
         drawn |= sheet.paint(q, t, fold)
         if drawn:
             q.setCompositionMode(QPainter.CompositionMode_DestinationOut)
+            q.drawImage(0, 0, thin)
             q.drawImage(0, 0, bare)
         q.end()
         if drawn:
@@ -260,16 +261,18 @@ def _creep(u: float, t: float) -> QPointF:
     return QPointF(CREEP * u * k, 2.5 * u * math.sin(k * 5.1) + 1.5 * u * math.sin(k * 8.3))
 
 
-def _cut(plan: _Plan) -> tuple[QImage, QImage]:
+def _cut(plan: _Plan) -> tuple[QImage, QImage, QImage]:
     """What is rubbed off the washes: over the names, most of the strong ones, thinning irregularly as
-    a wash does near them, never in a rectangle, so nothing translucent keeps more than about 12%
-    there; and in the gap all of everything, easing in over a ragged edge round it."""
+    a wash does near them, never in a rectangle; then about half of everything, the faint sheet too, so
+    nothing translucent keeps more than about 12% there; and in the gap all of everything, easing in
+    over a ragged edge round it."""
     u = plan.u
     keep = plan.keep_map()
     jag = noise(plan.pw, plan.ph, 9 * u, 3, 5)
     grain = noise(plan.pw, plan.ph, 1.6 * u, 2, 6)
     spread = np.maximum(keep, blur(keep, 9 * u) * 1.6)
-    near = smooth(0.12, 0.95, spread + 0.7 * (jag - 0.5) + 0.12 * (grain - 0.5)) * 0.9
+    # Irregular round a name, but all of it over the name itself.
+    near = np.maximum(smooth(0.12, 0.95, spread + 0.7 * (jag - 0.5) + 0.12 * (grain - 0.5)), smooth(0.6, 1.0, keep)) * 0.9
     black = np.zeros((plan.ph, plan.pw, 3), dtype=np.float32)
     gap = plan.gap
     xs = np.arange(plan.pw, dtype=np.float32)[None, :] + 0.5
@@ -278,7 +281,7 @@ def _cut(plan: _Plan) -> tuple[QImage, QImage]:
     dy = np.maximum(np.maximum(gap.top() - ys, ys - gap.bottom()), 0)
     d = np.sqrt(dx * dx + dy * dy) + 8 * u * (jag - 0.5)
     bare = smooth(26 * u, 4 * u, d)
-    return picture(black, near), picture(black, bare)
+    return picture(black, near), picture(black, near * 0.55), picture(black, bare)
 
 
 # Pencil ---------------------------------------------------------------------------------------
@@ -508,12 +511,13 @@ def _brush_wash(pts: np.ndarray, widths: np.ndarray, origin: tuple[float, float]
     gran = noise(w, h, 1.3, 2, seed + 1)
     ragged = noise(w, h, 3 * u * r, 3, seed + 2)
     rnd = np.random.default_rng(seed)
-    bristles = np.interp(across_at, np.linspace(0, 1, 90), np.convolve(rnd.random(90), np.ones(3) / 3, mode="same"))
+    bristles = np.interp(across_at, np.linspace(0, 1, 70), np.convolve(rnd.random(70), np.ones(5) / 5, mode="same"))
     edge = 0.93 + 0.12 * (ragged - 0.5) - 0.1 * smooth(0.62, 0.85, flow)
     body = inside * smooth(edge, edge - 0.06, e)
     pool = smooth(0.68, 0.95, e / np.maximum(edge, 0.1)) * body
-    dry = smooth(0.22, 0.6, bristles + 0.45 * (flow - 0.5))
-    alpha = strength * body * (0.2 + 0.24 * dry * (0.6 + 0.8 * gran)) + strength * 0.34 * pool * (0.65 + 0.7 * gran)
+    # A few bristle streaks, mostly where the brush ran thin.
+    dry = 1 - 0.55 * smooth(0.55, 0.3, bristles + 0.5 * (flow - 0.5)) * (0.4 + 0.6 * e)
+    alpha = strength * body * (0.15 + 0.22 * dry * (0.6 + 0.8 * gran)) + strength * 0.36 * pool * (0.65 + 0.7 * gran)
     # Over the dark game a pale tint goes grey; the pigment is mint and teal at full strength, paling
     # where it is thin.
     color = _mix(np.broadcast_to(rgb(WET), (h, w, 3)), rgb(WET_LIGHT), smooth(0.45, 0.85, flow) * (1 - e))
@@ -594,12 +598,14 @@ class _Sheet:
         rim = np.clip(rim, 0, 1)
         pigment = (0.4 + 0.3 * flow + 0.25 * patch) * (0.72 + 0.56 * gran)
         alpha = 0.085 * pigment + 0.06 * rim * (0.7 + 0.6 * gran)
-        color = _mix(np.broadcast_to(rgb(SHEET), (h, w, 3)), rgb(MINT), np.clip(0.3 * patch + 0.8 * rim, 0, 1))
+        # Over the dark game the pale celadon alone reads as grey haze: its pigment is mint, more of it
+        # in the patches and pooled at their rims.
+        color = _mix(np.broadcast_to(rgb(SHEET) * 0.4 + rgb(WET_LIGHT) * 0.6, (h, w, 3)), rgb(WET), np.clip(0.45 * patch + 0.8 * rim, 0, 1))
         # The deckle washed mint and teal, pigment pooled darker at the very edge.
         edge = np.exp(-np.maximum(de, 0) / (11 * u)) * (0.6 + 0.4 * flow) * inside
         pooled = np.exp(-np.maximum(de, 0) / (2.2 * u)) * inside
-        color = _mix(color, rgb(MINT), np.clip(edge * 1.2, 0, 1))
-        color = _mix(color, rgb(TEAL), np.clip(pooled * 0.9, 0, 1))
+        color = _mix(color, rgb(WET), np.clip(edge * 1.2, 0, 1))
+        color = _mix(color, rgb(WET_TEAL), np.clip(pooled * 0.9, 0, 1))
         alpha = alpha + 0.2 * edge * (0.75 + 0.5 * gran) + 0.2 * pooled
         # Soft teal ruled lines, only in the free bands, lifting before the title.
         rules = mask(w, h, lambda q: self._rules(q, plan, r))
@@ -936,9 +942,10 @@ def _leaf_shape(base: np.ndarray, tip: np.ndarray, wide: float, bend: float) -> 
     return np.vstack([side1, side2[::-1]])
 
 
-def _bamboo_leaf(base: tuple[float, float], angle: float, length: float, u: float, rnd: random.Random, line: str, tint: str, width: float) -> tuple[list[_Stroke], list[_Stroke]]:
+def _bamboo_leaf(base: tuple[float, float], angle: float, length: float, u: float, rnd: random.Random, line: str, tint: str,
+                 width: float) -> tuple[list[_Stroke], list[_Stroke], np.ndarray]:  # fmt: skip
     """One leaf: its outline drawn in one go from the stalk round the tip and back, a midrib, and
-    hatching inside."""
+    hatching inside; and its shape."""
     b = np.array(base, dtype=np.float64)
     a = math.radians(angle)
     tip = b + length * np.array([math.cos(a), math.sin(a)])
@@ -949,7 +956,7 @@ def _bamboo_leaf(base: tuple[float, float], angle: float, length: float, u: floa
     mid = np.array([b + (tip - b) * k for k in (0.05, 0.5, 0.86)])
     lines.append(_Stroke(mid, width * 0.6, rnd, u, 0.15, ends=(2, 5)))
     hatching = [_Stroke(seg, 0.9 * u, rnd, u, 0.1, ends=(1.5, 2.5)) for seg in _hatch(shape, angle + 55, 2.6 * u, rnd, u, over=0.6, skip=0.15)]
-    return lines, hatching
+    return lines, hatching, shape
 
 
 def _bamboo_sprig(c: QPointF, u: float, rnd: random.Random, on_paper: bool, size: float = 1.0) -> tuple[list, QRectF]:
@@ -972,7 +979,7 @@ def _bamboo_sprig(c: QPointF, u: float, rnd: random.Random, on_paper: bool, size
             if k >= 1:
                 for angle in (rnd.uniform(-30, -5), rnd.uniform(5, 35)):
                     base = (n0[0] + 2 * u, n0[1])
-                    lines, hatch = _bamboo_leaf(base, angle, rnd.uniform(34, 48) * u * size, u, rnd, line, tint, width * 0.9)
+                    lines, hatch, _shape = _bamboo_leaf(base, angle, rnd.uniform(34, 48) * u * size, u, rnd, line, tint, width * 0.9)
                     leaves += lines
                     hatching += hatch
     groups = [(culms, line), (nodes + leaves[: len(leaves) // 2], line), (leaves[len(leaves) // 2 :], line), (hatching, tint)]
@@ -981,51 +988,55 @@ def _bamboo_sprig(c: QPointF, u: float, rnd: random.Random, on_paper: bool, size
 
 def _fish(c: QPointF, r: float, a0: float, span: float, u: float, rnd: random.Random, width: float) -> tuple[list[_Stroke], np.ndarray]:
     """One bronze fish curled along a ring of radius r round c, its tail at angle a0 (radians) and
-    its nose span further round: a plump body tapering to a forked tail, an eye under a wavy snake's
-    brow, a fin and a few scales."""
-    k = np.linspace(0, 1, 40)
-    ang = a0 + span * k
-    thick = r * (0.06 + 0.26 * np.sin(np.pi * np.clip(k * 0.92 + 0.06, 0, 1)) ** 0.8 * (0.55 + 0.45 * k))
-    outer = np.column_stack([c.x() + (r + thick) * np.cos(ang), c.y() + (r + thick) * np.sin(ang)])
-    inner = np.column_stack([c.x() + (r - thick) * np.cos(ang), c.y() + (r - thick) * np.sin(ang)])
-    nose = np.array([c.x() + r * math.cos(ang[-1] + 0.08), c.y() + r * math.sin(ang[-1] + 0.08)])
-    body = np.vstack([outer, nose, inner[::-1]])
-    strokes = [_Stroke(body, width, rnd, u, 0.2, ends=(2.5, 2.5))]
-    # The forked tail.
-    tail = np.array([c.x() + r * math.cos(a0), c.y() + r * math.sin(a0)])
-    back = np.array([-math.sin(a0), math.cos(a0)]) * -1
-    out = np.array([math.cos(a0), math.sin(a0)])
-    for side in (1, -1):
-        fin = np.array([tail, tail + back * r * 0.32 + out * side * r * 0.24, tail + back * r * 0.18])
-        strokes.append(_Stroke(fin, width * 0.9, rnd, u, 0.15, ends=(2, 2)))
-    # Eye and brow near the nose.
-    ea = ang[-1] - span * 0.16
-    eye = np.array([c.x() + (r + r * 0.07) * math.cos(ea), c.y() + (r + r * 0.07) * math.sin(ea)])
-    ring = np.array([eye + r * 0.07 * np.array([math.cos(q), math.sin(q)]) for q in np.linspace(0, 2 * math.pi * 1.1, 14)])
-    strokes.append(_Stroke(ring, width * 0.7, rnd, u, 0.05, ends=(1, 1)))
-    brow = []
-    for q in np.linspace(-0.12, 0.1, 9):
-        rr = r + r * (0.22 + 0.05 * math.sin(q * 60))
-        brow.append((c.x() + rr * math.cos(ea + q), c.y() + rr * math.sin(ea + q)))
-    strokes.append(_Stroke(np.array(brow), width * 0.75, rnd, u, 0.05, ends=(1.5, 2)))
-    for f in (0.35, 0.5, 0.62):
-        sa = a0 + span * f
-        scale_arc = np.array([(c.x() + (r + r * 0.05 * math.sin(q * 9)) * math.cos(sa + q), c.y() + (r + r * 0.05 * math.sin(q * 9)) * math.sin(sa + q)) for q in np.linspace(-0.07, 0.07, 6)])
-        strokes.append(_Stroke(scale_arc, width * 0.55, rnd, u, 0.05, ends=(1, 1)))
+    its nose span further round, its back outward: a plump body with a round head, a forked tail, a
+    fin on its back, an eye under a wavy snake's brow, a gill and a few scales. Gives its strokes and
+    the outline of its body and tail together (for a wash)."""
+    length = r * span
+
+    def bend(points: list[tuple[float, float]] | np.ndarray) -> np.ndarray:
+        pts = np.asarray(points, dtype=np.float64)
+        ang = a0 + span * pts[:, 0] / length
+        rad = r + pts[:, 1]
+        return np.column_stack([c.x() + rad * np.cos(ang), c.y() + rad * np.sin(ang)])
+
+    L = length
+    xs = np.linspace(0.2, 1.0, 30)
+    thick = L * (0.05 + 0.17 * np.sin(np.pi * np.clip((xs - 0.2) / 0.8, 0, 1) ** 0.75) ** 0.9)
+    head = np.clip((xs - 0.8) / 0.2, 0, 1)
+    thick = thick * np.sqrt(np.clip(1 - head**2, 0, 1)) + 0.002 * L
+    back = [(x * L, t) for x, t in zip(xs, thick, strict=True)]
+    belly = [(x * L, -t * 0.88) for x, t in zip(xs, thick, strict=True)]
+    tail = [(0.2 * L, -0.05 * L), (0.02 * L, -0.19 * L), (0.09 * L, 0.0), (0.02 * L, 0.19 * L), (0.2 * L, 0.05 * L)]
+    body = bend(back + belly[::-1] + tail)
+    strokes = [_Stroke(bend(back + belly[::-1]), width, rnd, u, 0.15, ends=(2.5, 2.5))]
+    strokes.append(_Stroke(bend(tail), width * 0.9, rnd, u, 0.1, ends=(2, 2)))
+    # A fin on its back, a gill, its eye and the wavy snake's brow over it, a few scales.
+    strokes.append(_Stroke(bend([(0.4 * L, 0.18 * L), (0.5 * L, 0.27 * L), (0.6 * L, 0.2 * L)]), width * 0.75, rnd, u, 0.05, ends=(1.5, 1.5)))
+    strokes.append(_Stroke(bend([(0.72 * L, 0.13 * L), (0.69 * L, 0.0), (0.72 * L, -0.12 * L)]), width * 0.7, rnd, u, 0.05, ends=(1.5, 1.5)))
+    eye = [(0.86 * L + 0.035 * L * math.cos(q), 0.05 * L + 0.035 * L * math.sin(q)) for q in np.linspace(0, math.tau * 1.15, 14)]
+    strokes.append(_Stroke(bend(eye), width * 0.9, rnd, u, 0.03, ends=(1, 1)))
+    brow = [(0.76 * L + 0.18 * L * k, 0.13 * L + 0.025 * L * math.sin(k * math.tau * 1.5)) for k in np.linspace(0, 1, 12)]
+    strokes.append(_Stroke(bend(brow), width * 0.8, rnd, u, 0.03, ends=(1.5, 2)))
+    for x0 in (0.42, 0.53):
+        for y0 in (-0.05, 0.07):
+            scale_arc = [(x0 * L + 0.04 * L * math.sin(q), y0 * L + 0.04 * L * math.cos(q)) for q in np.linspace(-1.3, 1.3, 7)]
+            strokes.append(_Stroke(bend(scale_arc), width * 0.55, rnd, u, 0.03, ends=(1, 1)))
     return strokes, body
 
 
 def _fish_ring(c: QPointF, u: float, rnd: random.Random, on_paper: bool, size: float = 1.0) -> tuple[list, QRectF]:
     """The 蛇眉铜鱼: three fish curled nose to tail into a ring, hatched teal or mint."""
     line, tint = _colors(on_paper)
-    r = 30 * u * size
+    r = 28 * u * size
     width = (1.4 if not on_paper else 1.1) * u
     bodies, details, hatching = [], [], []
     for k in range(3):
-        strokes, body = _fish(c, r, math.radians(-90 + 120 * k), math.radians(104), u, rnd, width)
+        strokes, body = _fish(c, r, math.radians(-90 + 120 * k), math.radians(112), u, rnd, width)
         bodies.append(strokes[0])
         details += strokes[1:]
-        hatching += [_Stroke(seg, 0.85 * u, rnd, u, 0.1, ends=(1.2, 2)) for seg in _hatch(body, 35 + 40 * k, 2.6 * u, rnd, u, over=0.4, skip=0.2)]
+        inner = body[np.hypot(body[:, 0] - c.x(), body[:, 1] - c.y()) <= r + 0.5 * u]
+        if len(inner) > 3:
+            hatching += [_Stroke(seg, 0.85 * u, rnd, u, 0.1, ends=(1.2, 2)) for seg in _hatch(inner, 35 + 40 * k, 2.4 * u, rnd, u, over=0.4, skip=0.2)]
     groups = [(bodies, line), (details, line), (hatching, tint)]
     side = r * 2 + 30 * u * size
     return groups, QRectF(c.x() - side / 2, c.y() - side / 2, side, side)
@@ -1183,14 +1194,14 @@ class _Book:
         gran = noise(w, h, 1.1 * scale, 2, seed + 1)
         tone = 0.94 + 0.16 * (flow - 0.5) - 0.22 * (gran - 0.5)
         color = rgb(LEATHER) * tone[..., None]
-        color = _mix(color, rgb("#b8997b"), smooth(0.6, 0.78, flow) * 0.5)
+        color = _mix(color, rgb("#a2846a"), smooth(0.58, 0.8, flow) * 0.45)
         color = _mix(color, rgb(HIDE), rim * 0.6)
         ys, xs = np.mgrid[0:h, 0:w].astype(np.float32)
         bx, by, br = w * 0.7, h * 0.32, min(w, h) * 0.17
         ragged = br * (1 + 0.25 * (noise(w, h, 3 * scale, 2, seed + 2) - 0.5))
         blot = smooth(1.5, -1.5, np.hypot(xs - bx, ys - by) - ragged)
         bloom_rim = np.clip(blur(blot, 1.0 * scale) - blot * 0.7, 0, 1) * blot
-        color = _mix(color, rgb("#a68667"), blot * 0.5)
+        color = _mix(color, rgb("#9a7c61"), blot * 0.4)
         color = _mix(color, rgb(HIDE), np.clip(bloom_rim * 2.2, 0, 1) * 0.5)
         return color, m * (0.95 + 0.05 * gran)
 
@@ -1228,10 +1239,15 @@ class _Book:
             _Stroke(_straight((x, pad - 3 * u), (x, pad + self.ch + 3 * u), rnd, u, 0), 1.0 * u, rnd, u, 0.2).fill(q, v, hide)
         # A red tassel hanging from the spine's foot.
         red = tooth.brush(SEAL)
-        for k in range(4):
-            dx = (k - 1.5) * 1.4 * u
-            pts = np.array([(pad + 4 * u, pad + self.ch - 2 * u), (pad + 2 * u + dx, pad + self.ch + 5 * u), (pad + dx * 1.6, pad + self.ch + 7.5 * u)])
-            _Stroke(pts, 1.0 * u, rnd, u, 0.1, ends=(1, 2)).fill(q, v, red)
+        for k in range(5):
+            dx = (k - 2) * 1.1 * u
+            pts = np.array([(pad + 5 * u, pad + self.ch - 3 * u), (pad + 3 * u + dx * 0.5, pad + self.ch + 1 * u), (pad + 1 * u + dx * 1.4, pad + self.ch + 7 * u)])
+            _Stroke(pts, 1.1 * u, rnd, u, 0.1, ends=(1, 2)).fill(q, v, red)
+        # A small fish cut into the seal.
+        seal = QPointF(pad + self.cw * 0.2, pad + self.ch * 0.74)
+        fish = np.array([(seal.x() - 4.5 * u, seal.y() - 1.5 * u), (seal.x() - 3 * u, seal.y()), (seal.x() - 4.5 * u, seal.y() + 1.5 * u),
+                         (seal.x() + 1 * u, seal.y() - 2.4 * u), (seal.x() + 4 * u, seal.y()), (seal.x() + 1 * u, seal.y() + 2.4 * u), (seal.x() - 3 * u, seal.y())])  # fmt: skip
+        _Stroke(fish, 0.8 * u, rnd, u, 0.05, ends=(1, 1)).fill(q, v, tooth.brush("#f6e9e0", 0.9))
         # A chalk line sketched loosely round its top and left, for the dark game round it.
         chalk = tooth.brush(CHALK, 0.85)
         for p0, p1 in ((corners[3], corners[0]), (corners[0], corners[1])):
@@ -1269,7 +1285,7 @@ class _Book:
             y += 11 * u
         graphite = tooth.brush(GRAPHITE)
         teal = tooth.brush(TEAL)
-        lines, hatch = _bamboo_leaf((pad + 28 * u, pad + 70 * u), -32, 52 * u, u, rnd, GRAPHITE, TEAL, 1.1 * u)
+        lines, hatch, _shape = _bamboo_leaf((pad + 28 * u, pad + 70 * u), -32, 52 * u, u, rnd, GRAPHITE, TEAL, 1.1 * u)
         for stroke in lines:
             stroke.fill(q, v, graphite)
         for stroke in hatch:
@@ -1378,11 +1394,15 @@ class _Book:
             reach = wide * c
             path = QPainterPath(QPointF(0, top))
             path.quadTo(QPointF(reach * 0.5, top - lift), QPointF(reach, top - lift * 0.4))
-            path.lineTo(QPointF(reach, bottom - lift * 0.3))
-            path.quadTo(QPointF(reach * 0.5, bottom - lift * 0.8), QPointF(0, bottom))
+            path.lineTo(QPointF(reach, bottom - lift * 0.4))
+            path.quadTo(QPointF(reach * 0.5, bottom - lift), QPointF(0, bottom))
             path.closeSubpath()
             p.fillPath(path, brush)
-            outline = np.array([(0, top), (reach * 0.5, top - lift), (reach, top - lift * 0.4), (reach, bottom - lift * 0.3), (reach * 0.5, bottom - lift * 0.8), (0, bottom)])
+            for share in (0.25, 0.42, 0.59, 0.76):
+                y0 = top + (bottom - top) * share
+                rule = np.array([(2 * u, y0), (reach * 0.5, y0 - lift * (0.9 - 0.1 * share)), (reach * 0.95, y0 - lift * 0.4)])
+                _Stroke(rule, 0.7 * u, random.Random(k), u, 0.1, ends=(4, 4)).fill(p, v, self.tooth.brush(TEAL, 0.5))
+            outline = np.array([(0, top), (reach * 0.5, top - lift), (reach, top - lift * 0.4), (reach, bottom - lift * 0.4), (reach * 0.5, bottom - lift), (0, bottom)])
             _Stroke(_spline(outline, 2 * u), 1.0 * u, random.Random(k * 7 + v), u, 0.2, ends=(3, 3)).fill(p, v, edge)
         p.restore()
 
@@ -1541,7 +1561,7 @@ def _leaf_sprites(plan: _Plan, doodle: str, size: float, seed: int, tooth: _Toot
         elif doodle == "ripple":
             groups, _box = _ripples(c, u, random.Random(seed + 20), on_paper=True, size=0.25 * small)
         else:
-            lines, hatch = _bamboo_leaf((W * 0.54 - tall * 0.3, H / 2 + tall * 0.2), -36, tall * 0.62, u, random.Random(seed + 20), GRAPHITE, TEAL, 1.2 * u)
+            lines, hatch, _shape = _bamboo_leaf((W * 0.54 - tall * 0.3, H / 2 + tall * 0.2), -36, tall * 0.62, u, random.Random(seed + 20), GRAPHITE, TEAL, 1.2 * u)
             groups = [(lines, GRAPHITE), (hatch, TEAL)]
         for strokes, tint in groups:
             for stroke in strokes:
@@ -1571,7 +1591,8 @@ def _leaves(plan: _Plan, book: _Book, tooth: _Tooth) -> list[_Leaf]:
     k1b, k2b = plan.keep1[1], plan.keep2[1]
     # The gust's loop, as the leaves ride it: down the right margin, low right of the gap, up over the
     # row-2 avatars and down again, low left of the gap, up the left margin and on along the top.
-    arc = [(gap.right() + 30 * u, low), (gap.right() - 30 * u, lane + 10 * u), (gap.left() + 40 * u, lane + 10 * u), (gap.left() - 40 * u, low)]
+    arc = [(gap.right() + 50 * u, low), (gap.right() + 40 * u, k2b - 10 * u), (gap.right() - 40 * u, lane + 10 * u), (gap.left() + 40 * u, lane + 10 * u),
+           (gap.left() - 40 * u, k2b - 10 * u), (gap.left() - 50 * u, low)]  # fmt: skip
     lanes = {
         "top": [(plan.x(90), top), (plan.x(380), plan.y(130)), (plan.title.center().x(), plan.y(40)), (plan.x(1300), plan.y(110)), (R, plan.y(170))],
         "lane": [(plan.x(1420), lane), (plan.x(900), lane + 8 * u), (plan.x(500), lane - 6 * u), (L + 30 * u, lane)],
@@ -1949,7 +1970,7 @@ def _bamboo(plan: _Plan, tooth: _Tooth) -> list[_Drift]:
             image = _sprite(length + 10 * u, length * 0.5 + 10 * u, 2.0)
             q = QPainter(image)
             q.setRenderHint(QPainter.Antialiasing)
-            lines, hatch = _bamboo_leaf((5 * u, length * 0.25 + 5 * u), 0, length, u, rnd, CHALK, MINT, 1.4 * u)
+            lines, hatch, _shape = _bamboo_leaf((5 * u, length * 0.25 + 5 * u), 0, length, u, rnd, CHALK, MINT, 1.4 * u)
             for stroke in hatch:
                 stroke.fill(q, v, tooth.brush(MINT))
             for stroke in lines:
@@ -2049,11 +2070,15 @@ def _sprig(scale: float, v: int, length: float) -> QImage:
     stem = np.array([(4, 15), (length * 0.5, 13), (length, 15.5)])
     _Stroke(stem, 1.0, rnd, 1.0, 0.2, ends=(3, 3)).fill(q, v, tooth.brush(OLIVE))
     for k, (x, angle, size) in enumerate(((length * 0.62, -18, 17), (length * 0.7, 14, 15), (length * 0.4, -30, 13))):
-        lines, hatch = _bamboo_leaf((x, 14 - k * 0.5), angle, size, 1.0, random.Random(750 + k), GRAPHITE, TEAL, 0.8)
+        lines, hatch, shape = _bamboo_leaf((x, 14 - k * 0.5), angle, size, 1.0, random.Random(750 + k), GRAPHITE, TEAL, 0.8)
+        # Washed mint first, so the leaf reads over the game as well as on the paper.
+        q.setPen(Qt.NoPen)
+        q.setBrush(QColor("#b9e2cd"))
+        q.drawPolygon(_poly(shape))
         for stroke in hatch:
             stroke.fill(q, v, tooth.brush(TEAL))
         for stroke in lines:
-            stroke.fill(q, v, tooth.brush(GRAPHITE))
+            stroke.fill(q, v, tooth.brush(OLIVE))
     q.end()
     return image
 
@@ -2078,7 +2103,7 @@ def lead(size: float, index: int) -> QPixmap:
     image = _sprite(size, size, scale)
     q = QPainter(image)
     q.setRenderHint(QPainter.Antialiasing)
-    lines, hatch = _bamboo_leaf((size * 0.12, size * 0.72), -38 + 10 * (index % 2), size * 0.9, 0.5, random.Random(760 + index), GRAPHITE, TEAL, 0.75)
+    lines, hatch, _shape = _bamboo_leaf((size * 0.12, size * 0.72), -38 + 10 * (index % 2), size * 0.9, 0.5, random.Random(760 + index), GRAPHITE, TEAL, 0.75)
     for stroke in hatch:
         stroke.fill(q, 0, tooth.brush(TEAL))
     for stroke in lines:
@@ -2130,7 +2155,7 @@ def _medal(side: float, scale: float, v: int) -> QImage:
     w = h = math.ceil(side * scale)
     bodies = []
     for k in range(3):
-        _strokes, body = _fish(c, 30 * u * 1.25, math.radians(-90 + 120 * k), math.radians(104), u, random.Random(831 + k), 1.0)
+        _strokes, body = _fish(c, 28 * u * 1.25, math.radians(-90 + 120 * k), math.radians(112), u, random.Random(831 + k), 1.0)
         bodies.append(body)
     m = _fill_mask(w, h, scale, *bodies)
     flow = noise(w, h, 6 * scale, 3, 840)
@@ -2143,10 +2168,19 @@ def _medal(side: float, scale: float, v: int) -> QImage:
     image.setDevicePixelRatio(scale)
     q = QPainter(image)
     q.setRenderHint(QPainter.Antialiasing)
+    # The pencil over it: chalk under a dark bronze line, so it reads on the wash and on the game; the
+    # hatching in the shade side in teal.
     for strokes, tint in groups:
-        brush = tooth.brush("#3c3426" if tint == GRAPHITE else "#e8f3ec")
         for stroke in strokes:
-            stroke.fill(q, v, brush)
+            if tint == GRAPHITE:
+                path = stroke.path(v)
+                if path is not None:
+                    halo = QPainterPathStroker()
+                    halo.setWidth(1.1)
+                    q.fillPath(halo.createStroke(path).united(path), tooth.brush(CHALK, 0.75))
+                    q.fillPath(path, tooth.brush("#3a2f22"))
+            else:
+                stroke.fill(q, v, tooth.brush("#2f6f6c", 0.8))
     q.end()
     return image
 
