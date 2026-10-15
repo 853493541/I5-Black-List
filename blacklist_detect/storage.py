@@ -377,11 +377,22 @@ def _volume(value: object) -> int:
     return round(value / 5) * 5
 
 
+def _scene_volume(value: object) -> int:
+    """A 场景's 音量 as saved: as _volume, but 1 to 4 kept as they are, which only folding in the 声音 of v0.9.14
+    and before leaves (see _folded)."""
+    if isinstance(value, int) and not isinstance(value, bool) and 0 < value < 5:
+        return value
+    return _volume(value)
+
+
 def _folded(own: int, sound: int) -> int:
     """A 场景's 音量 with the 声音 设置 had up to v0.9.14 taken in: the one times the other, down to a step of 5
-    so it is never louder than it was, and never 0 when both were above 0."""
+    so it is never louder than it was. Below 5 it is what was heard then, never 0 when both were above 0: 5% of
+    5% played at 1%, and stays 1%."""
     level = own * sound // 500 * 5
-    return max(level, 5) if own > 0 and sound > 0 else 0
+    if level == 0 and own > 0 and sound > 0:
+        return max(round(own * sound / 100), 1)
+    return level
 
 
 def _scenes(keys: object, off: object = False) -> Scenes:
@@ -419,7 +430,7 @@ def _scene_sound(value: object, folder: Path) -> dict | None:
     when that is the default (100%, the scene's own) or not a sound at all."""
     if not isinstance(value, dict):
         return None
-    entry: dict = {"volume": _volume(value.get("volume"))}
+    entry: dict = {"volume": _scene_volume(value.get("volume"))}
     file = value.get("file")
     # A name in folder only, never a path elsewhere.
     if isinstance(file, str) and file and file == Path(file).name and ":" not in file and (folder / file).is_file():
@@ -541,7 +552,7 @@ class Store:
         """A 场景's sound as 场景管理 sets it: the player's own file (None for the scene's own) and its 音量."""
         entry = self.scene_sounds.get(key) or {}
         file = entry.get("file")
-        return (custom_sound_dir(self.root) / file if file else None), _volume(entry.get("volume", 100))
+        return (custom_sound_dir(self.root) / file if file else None), _scene_volume(entry.get("volume", 100))
 
     def _known_tags(self) -> list[str]:
         names = [tag for tag in TAGS if tag not in self.hidden_tags]
@@ -764,7 +775,7 @@ class Store:
         if folding:
             for key in dict.fromkeys([*love_scenes.KEYS, *self.scene_sounds]):
                 entry = dict(self.scene_sounds.get(key) or {})
-                entry["volume"] = _folded(_volume(entry.get("volume", 100)), self._old_volume)
+                entry["volume"] = _folded(_scene_volume(entry.get("volume", 100)), self._old_volume)
                 self.scene_sounds[key] = entry
             _log.info("声音 %d%% folded into every 场景's own 音量.", self._old_volume)
         try:

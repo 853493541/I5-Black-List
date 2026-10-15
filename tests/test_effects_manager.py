@@ -146,6 +146,15 @@ def test_the_rows_say_what_each_effect_plays(window):
     assert page.volume_slider.value() * 5 == 100 and page.volume_label.text() == "100%" and page.level_note.text() == ""
 
 
+def test_an_old_volume_folded_below_5_says_what_it_plays_until_moved(window):
+    """声音 folded in from v0.9.14 may leave a 场景 at 1 to 4%: the slider stands at 0, the label and the sound say
+    what is heard, and moved it goes back to steps of 5."""
+    window.store.scene_sounds = {"ice": {"volume": 2}}
+    page = _shown(window, "ice")
+    assert page.volume_slider.value() == 0 and page.volume_label.text() == "2%" and window.music.level("ice") == 2
+    page.volume_slider.setValue(1)
+    assert window.store.scene_sounds == {"ice": {"volume": 5}} and page.volume_label.text() == "5%"
+
 def test_volume_is_saved_per_effect_and_heard_as_it_is_let_go(window):
     page = _shown(window, "ice")
     window.played.clear()

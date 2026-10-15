@@ -315,11 +315,13 @@ class EffectsPage(QWidget):
             self.sound_text.set_full("默认" if key in TUNES else "默认 · 无")
         self.upload_button.setText("替换" if own else "上传")
         self.reset_button.setVisible(own)
+        # The 音量 as it plays: 1 to 4% (an old 声音 folded in) stands at 0 but says what is heard.
+        volume = self.store.scene_sound(key)[1]
         self.volume_slider.blockSignals(True)
-        self.volume_slider.setValue(self.store.scene_sound(key)[1] // VOLUME_STEP)
+        self.volume_slider.setValue(volume // VOLUME_STEP)
         self.volume_slider.blockSignals(False)
         self.volume_slider.setEnabled(own or key in TUNES)
-        self.volume_label.setText(f"{self.volume_slider.value() * VOLUME_STEP}%")
+        self.volume_label.setText(f"{volume}%")
         self.volume_label.setEnabled(self.volume_slider.isEnabled())
         self.assign_button.setEnabled(key != self.store.quick_scene)
         self.sync_sound()

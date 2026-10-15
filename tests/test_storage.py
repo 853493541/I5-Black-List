@@ -503,7 +503,7 @@ def test_an_old_scene_switch_turned_off_puts_every_guest_and_combo_on_no_scene(t
 
 def test_the_old_sound_volume_is_folded_into_every_scene_s_own_once(tmp_path):
     """设置 › 声音's slider is gone (v0.9.14 and before): below 100 it is taken into every 场景's own 音量 once, down to
-    a step of 5 so nothing is louder, never 0 when both were above 0, and is not saved again."""
+    a step of 5 so nothing is louder, below 5 as it was heard (never 0 when both were above 0), and is not saved again."""
     import json
 
     from blacklist_detect import love_scenes
@@ -527,18 +527,36 @@ def test_the_old_sound_volume_is_folded_into_every_scene_s_own_once(tmp_path):
     assert "sound_volume" not in settings and settings["scene_sounds"] == expected
     saved = _files(tmp_path)
     assert Store(tmp_path).scene_sounds == expected and _files(tmp_path) == saved
-    # Down to a step of 5, at least 5; 0 for every 场景 at 声音 0, and for a 场景 at 0.
-    for volume, own_volume, now, rest in ((55, 50, 25, 55), (95, 5, 5, 95), (5, 5, 5, 5), (0, 100, 0, 0), (60, 0, 0, 60), (73.4, 100, 75, 75)):
+    # Down to a step of 5; below 5 what was heard (5% of 5% played at 1%), kept so the next open; 0 for every
+    # 场景 at 声音 0, and for a 场景 at 0.
+    cases = ((55, 50, 25, 55), (95, 5, 5, 95), (5, 5, 1, 5), (10, 5, 1, 10), (30, 15, 4, 30), (0, 100, 0, 0), (60, 0, 0, 60),
+             (73.4, 100, 75, 75))
+    for volume, own_volume, now, rest in cases:
         other = tmp_path / f"{volume}-{own_volume}"
         _with_settings(other, sound_volume=volume, scene_sounds={"ice": {"volume": own_volume}})
         folded = Store(other).scene_sounds
         assert (folded["ice"], folded["stars"]) == ({"volume": now}, {"volume": rest}), (volume, own_volume)
+        assert Store(other).scene_sound("ice") == (None, now), (volume, own_volume)
     # At 100, none saved, or none at all (not a number, out of 0-100): as it was, the file not even written again.
     for index, kept in enumerate((100, None, "50", True, -5, 120, [60], {"x": 1})):
         other = tmp_path / f"kept-{index}"
         _with_settings(other, sound_volume=kept, scene_sounds={"stars": {"volume": 50}})
         saved = _files(other)
         assert Store(other).scene_sounds == {"stars": {"volume": 50}} and _files(other) == saved, kept
+
+
+def test_no_folded_volume_plays_louder_than_v0_9_14_played_it():
+    """Every 声音 and 场景 音量 the sliders had: the 音量 folded in is never above what v0.9.14 played (声音 times
+    音量, 1% at least when both were above 0), and below 5 it is exactly that."""
+    from blacklist_detect.storage import _folded
+
+    for sound in range(0, 101, 5):
+        for own in range(0, 101, 5):
+            played = round(sound * own / 100)
+            played = max(played, 1) if sound > 0 and own > 0 else played
+            folded = _folded(own, sound)
+            assert folded <= played and (folded == played if played < 5 else folded % 5 == 0), (sound, own)
+            assert (folded > 0) == (played > 0), (sound, own)
 
 
 def test_old_settings_that_cannot_be_saved_are_folded_again_the_next_open(tmp_path, monkeypatch):
