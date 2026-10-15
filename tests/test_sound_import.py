@@ -1,10 +1,13 @@
 """特效管理's own sound: a player's file read once, as it is chosen, and kept as the app's own WAV,
 mono 16-bit 44.1 kHz, as loud as the built-in tunes. Nothing here plays a sound."""
 
+import gc
 import sys
 import time
 import wave
+import weakref
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -268,6 +271,27 @@ def test_a_video_without_sound_and_garbage_are_refused_at_once(qt, tmp_path):
         with pytest.raises(SoundImportError):
             decode(path)
         assert time.monotonic() - began < 2.0, path.name
+
+
+def test_nothing_read_through_qt_is_kept_once_it_is_returned(qt, tmp_path, monkeypatch):
+    """Each 上传 in a session would otherwise keep its decoder and the whole sound read, tens of MB for a long file."""
+    media = sound_import._load_qtmultimedia()
+    made: list[weakref.ref] = []
+
+    class Tracked(media.QAudioDecoder):
+        def __init__(self, *args) -> None:  # noqa: ANN002
+            super().__init__(*args)
+            made.append(weakref.ref(self))
+
+    tracked = SimpleNamespace(QMediaFormat=media.QMediaFormat, QAudioFormat=media.QAudioFormat, QAudioDecoder=Tracked)
+    monkeypatch.setattr(sound_import, "_load_qtmultimedia", lambda: tracked)
+    decode(SOUNDS / "organ.mp3")
+    (tmp_path / "noise.mp3").write_bytes(np.random.default_rng(5).integers(0, 256, 3000, dtype=np.uint8).tobytes())
+    with pytest.raises(SoundImportError):
+        decode(tmp_path / "noise.mp3")
+    gc.collect()
+    qt.processEvents()
+    assert len(made) == 2 and all(ref() is None for ref in made)
 
 
 def test_the_release_qtmedia_folder_is_loaded_from(tmp_path, monkeypatch):

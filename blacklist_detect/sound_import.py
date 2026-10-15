@@ -268,17 +268,26 @@ def _read_qt(source: Path) -> tuple[np.ndarray, bool]:
     timer = QTimer()
     timer.setInterval(100)
     timer.timeout.connect(check)
-    decoder.start()
-    # Qt's ffmpeg backend fails inside start(), before the loop would hear it.
-    if decoder.error() != media.QAudioDecoder.Error.NoError:
-        state["error"] = state["error"] or decoder.errorString() or "error"
-    if not (state["error"] or state["cut"] or state["done"]):
-        timer.start()
-        loop.exec()
+    try:
+        decoder.start()
+        # Qt's ffmpeg backend fails inside start(), before the loop would hear it. Asked through the class:
+        # decoder.error() (a method named like the signal) keeps a reference to the decoder for good.
+        if media.QAudioDecoder.error(decoder) != media.QAudioDecoder.Error.NoError:
+            state["error"] = state["error"] or decoder.errorString() or "error"
+        if not (state["error"] or state["cut"] or state["done"]):
+            timer.start()
+            loop.exec()
+        if not (state["error"] or state["late"]):
+            take()
+    finally:
         timer.stop()
-    if not (state["error"] or state["late"]):
-        take()
-    decoder.stop()
+        decoder.stop()
+        # PySide holds connected slots from C++, out of gc's sight: left connected, they would keep the
+        # decoder and every sample read alive for as long as the app runs.
+        decoder.bufferReady.disconnect(take)
+        decoder.finished.disconnect(finished)
+        decoder.error.disconnect(failed)
+        timer.timeout.disconnect(check)
     if state["error"]:
         log.info("Qt could not decode %s: %s", source.name, state["error"])
         raise SoundImportError("这个视频里没有能放的声音" if source.suffix.lower() in VIDEO_SUFFIXES else "这个文件放不了")
