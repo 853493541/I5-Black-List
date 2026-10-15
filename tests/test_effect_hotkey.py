@@ -620,6 +620,29 @@ def test_a_hotkey_that_did_not_register_at_start_says_so(window, monkeypatch):
     assert window.settings_label.text() == "这个键被别的程序占了，换一个"
 
 
+def test_the_note_that_checks_key_did_not_register_goes_once_it_does(window, monkeypatch):
+    window.hotkey.clear()
+    monkeypatch.setattr(hotkey, "_register", lambda ident, modifiers, vk: False)
+    window._sync_hotkey_mode()
+    assert window.settings_label.text() == "这个键被别的程序占了，换一个" and not window.settings_label.isHidden()
+    # The other program let go of it: taken as the 特效 box lets go of both, the note goes.
+    monkeypatch.setattr(hotkey, "_register", lambda ident, modifiers, vk: True)
+    window._end_hotkey(window.effect_hotkey_edit)
+    assert window.hotkey.active == "Alt+1" and window.settings_label.isHidden()
+    # And with 自动检查, which takes no hotkey.
+    window.hotkey.clear()
+    monkeypatch.setattr(hotkey, "_register", lambda ident, modifiers, vk: False)
+    window._sync_hotkey_mode()
+    assert not window.settings_label.isHidden()
+    window._on_auto_mode("auto")
+    assert window.settings_label.isHidden() and window.settings_label.text() == ""
+    # A note about a key pressed in the box stays, the key before it taken back or not.
+    window._on_auto_mode("manual")
+    monkeypatch.setattr(hotkey, "_register", lambda ident, modifiers, vk: vk != 0x70)
+    _press(window.hotkey_edit, Qt.Key_F1, Qt.KeyboardModifier.AltModifier)
+    assert window.hotkey.active == "Alt+1" and window.settings_label.text() == "这个键被别的程序占了，换一个"
+
+
 def test_starting_over_puts_the_effect_hotkey_and_page_back(window, monkeypatch):
     page = window.effects_page
     page.scenes.buttons["claw"].click()

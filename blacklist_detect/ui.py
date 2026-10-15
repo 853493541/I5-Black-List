@@ -437,6 +437,8 @@ class MainWindow(QMainWindow):
         self._geometry_timer.timeout.connect(self._remember_size)
         self.setWindowIcon(_icon())
         self.hotkey = GlobalHotkey(self.check_now)
+        # The note under 检查's box says its key did not register: it goes once it does.
+        self._held_note = False
         # The 特效 hotkey, in either 方式: the 特效 picked on 特效, at once, with no check.
         self.effect_hotkey = GlobalHotkey(self.play_quick_scene, 2)
         self.worker = CheckWorker()
@@ -1360,9 +1362,10 @@ class MainWindow(QMainWindow):
             return
         self._refresh_tag_views()
 
-    def _set_settings_note(self, text: str) -> None:
+    def _set_settings_note(self, text: str, held: bool = False) -> None:
         self.settings_label.setText(text)
         self.settings_label.setVisible(bool(text))
+        self._held_note = held
 
     def _ask_reset(self) -> None:
         if not _confirm(self, "清空数据后无法恢复，是否确定清空？", "清空数据", "清空"):
@@ -3021,13 +3024,17 @@ class MainWindow(QMainWindow):
         self.hotkey_edit.setCursor(Qt.PointingHandCursor if manual else Qt.ArrowCursor)
         if not manual:
             self.hotkey.clear()
+            if self._held_note:
+                self._set_settings_note("")
             return
         spec = parse_hotkey(self.store.hotkey)
         if spec is not None and self.hotkey.active != spec.display and not self.hotkey.apply(spec):
             log.warning("Hotkey %s did not register: another program holds it, or this PC has none.", spec.display)
             if sys.platform == "win32":
                 # Shown, so the key in the box is not taken for one that works.
-                self._set_settings_note("这个键被别的程序占了，换一个")
+                self._set_settings_note("这个键被别的程序占了，换一个", held=True)
+        elif self._held_note:
+            self._set_settings_note("")
 
     def _sync_effect_hotkey(self) -> None:
         """The 特效 hotkey works in either 方式."""
