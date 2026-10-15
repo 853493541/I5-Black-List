@@ -258,7 +258,8 @@ class _Plan:
 def _creep(u: float, t: float) -> QPointF:
     """Where the sheet has crept to t seconds in: on with the wind, sagging and lifting a little."""
     k = t - SWEEP[0]
-    return QPointF(CREEP * u * k, 2.5 * u * math.sin(k * 5.1) + 1.5 * u * math.sin(k * 8.3))
+    # It lifts and settles on the air as it creeps, so even its long top edge never holds still.
+    return QPointF(CREEP * u * k, 14 * u - 16 * u * k + 5 * u * math.sin(k * 4.4) + 2.5 * u * math.sin(k * 9.3))
 
 
 def _cut(plan: _Plan) -> tuple[QImage, QImage, QImage]:
