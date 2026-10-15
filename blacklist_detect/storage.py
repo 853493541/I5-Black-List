@@ -521,8 +521,6 @@ class Store:
         self.dropped_effect_hotkey = ""
         # 直播模式: a window for a streaming app with the 嘉宾 marks only, clear behind them. "" off, "on" on.
         self.stream_mode = ""
-        # 直播模式's 测试框: the red frame round the game in that window while no mark shows.
-        self.stream_test_frame = True
         # What the player agreed to after being told the risk: "full" (完整模式). "auto" (自动检查) was
         # asked about before v0.8.1 and is kept, but no longer needed.
         self.consented: list[str] = []
@@ -966,7 +964,6 @@ class Store:
                 "quick_scene": self.quick_scene,
                 "effect_hotkey": self.effect_hotkey,
                 "stream_mode": self.stream_mode,
-                "stream_test_frame": self.stream_test_frame,
                 "consented": list(self.consented),
                 "disclaimer_accepted": self.disclaimer_accepted,
                 "stream_guided": self.stream_guided,
@@ -1039,7 +1036,7 @@ class Store:
                 _log.info("场景 hotkey %s is no hotkey now: %s instead.", self.dropped_effect_hotkey, self.effect_hotkey or "none")
             # v0.6.0 saved "key" (green) or "alpha" (clear), v0.6.1 "key": each is on, and clear now.
             self.stream_mode = "on" if settings.get("stream_mode") in ("on", "key", "alpha") else ""
-            self.stream_test_frame = settings.get("stream_test_frame") is not False
+            # Up to v0.9.14 直播模式 had a 测试框 (stream_test_frame), a red frame in 直播画面: gone, and not read.
             # Up to v0.9.14 检查 › 提醒 could leave 黑名单 or 嘉宾 out (check_blacklist, check_likes): every check
             # looks for both now, and what was saved is not read.
             self.disclaimer_accepted = settings.get("disclaimer_accepted") is True
@@ -1271,7 +1268,6 @@ class Store:
         self.dropped_hotkey = ""
         self.dropped_effect_hotkey = ""
         self.stream_mode = ""
-        self.stream_test_frame = True
         self.consented = []
         self.disclaimer_accepted = False
         self.stream_guided = False

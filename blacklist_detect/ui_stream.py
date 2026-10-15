@@ -24,11 +24,8 @@ game. It used to be pure green for a 色度键 to take out, which took the soft 
 In 直播姬: add a second 窗口捕获, pick 模仿者小工具·直播画面, and put it over the game. A 色度键
 from before does no harm: there is no green left for it to take.
 
-While no mark shows, a red frame (the 测试框) runs round the game, where the marks are drawn: a
-streamer who sees it in the stream knows the marks will be there too, and that they line up. A
-capture that reads nothing of this window (in 直播姬: the 预览 side not yet 同步至直播, BitBlt,
-窗口区域模式) shows no frame. Viewers see it as well: it is for testing, and 直播模式's 测试框 box
-takes it away (set_test_frame).
+While no mark shows, it shows nothing: the stream is the game alone. Up to v0.9.14 a red frame (the
+测试框) ran round the game then; 测试效果 is how a streamer sees the marks land now.
 
 A friend's Windows 10 would not capture it off the screen: 直播姬's capture was in the scene and
 live, and blank, while Windows 11 takes it. So once it is open, Windows is asked as 直播姬 asks it
@@ -68,7 +65,7 @@ import logging
 import sys
 
 from PySide6.QtCore import QPoint, QPointF, QProcess, QProcessEnvironment, QRect, QRectF, QSize, QSizeF, Qt, QTimer
-from PySide6.QtGui import QColor, QFont, QFontMetricsF, QPainter, QPen, QPixmap
+from PySide6.QtGui import QPainter, QPixmap
 from PySide6.QtWidgets import QApplication, QWidget
 
 from blacklist_detect import livehime, livehime_layout, paths, wgc, wgc_diagnose
@@ -79,8 +76,6 @@ log = logging.getLogger(__name__)
 
 TITLE = f"{APP_NAME}·直播画面"
 FRAME_MS = 45
-TEST_TAG = f"{APP_NAME}·测试框"
-_TEST_RED = QColor(225, 38, 52)
 # Where the window sits, each tried in turn until Windows would capture it there: off every screen,
 # touching the rightmost screen by one pixel, or on the game's screen behind every window.
 SPOTS = ("off", "edge", "on")
@@ -135,8 +130,6 @@ class StreamMirror(QWidget):
         self._frame = QRect()
         # 测试效果: a picture under the marks, where it is on the screen, so viewers see it too.
         self._backdrop: tuple[QPixmap, QRect] | None = None
-        # The 测试框 while no mark shows (store.stream_test_frame).
-        self.test_frame = True
         # Where it sits (SPOTS), and Windows' last answer there (wgc): None until it has answered.
         self.spot = _spots()[0]
         self.answer: int | None = None
@@ -287,9 +280,8 @@ class StreamMirror(QWidget):
         found = next((line.removeprefix("verdict: ") for line in lines if line.startswith("verdict: ")), "")
         fix = next((line.removeprefix("fix: ") for line in lines if line.startswith("fix: ")), "")
         report = [line for line in lines if not line.startswith(("verdict: ", "fix: "))]
-        frame = "on" if self.test_frame else "off"
         left_out = ", ".join(sorted(self.without)) or "nothing"
-        report.append(f"fact: from the app: 测试框 {frame}; a mark showing {self.busy()}; left out {left_out}")
+        report.append(f"fact: from the app: a mark showing {self.busy()}; left out {left_out}")
         log.info("直播画面 diagnosis:\n%s", "\n".join(report))
         log.warning("直播画面 diagnosis: %s", found or "no answer (the report above is all there is).")
         if fix in _DROPPABLE and fix not in self.without and self.enabled():
@@ -347,11 +339,6 @@ class StreamMirror(QWidget):
         """Whether a mark is showing now."""
         return self._backdrop is not None or bool(self._marks()) or bool(self._borders()) or self._glow() is not None
 
-    def set_test_frame(self, on: bool) -> None:
-        """Show the 测试框 while no mark shows, or not."""
-        self.test_frame = bool(on)
-        self.update()
-
     def set_backdrop(self, picture: QPixmap | None, where: QRect | None = None) -> None:
         """Draw picture under the marks, at where on the screen (测试效果's sample lobby); None
         takes it away."""
@@ -371,7 +358,6 @@ class StreamMirror(QWidget):
             "on": home.topLeft(),
         }[self.spot]
         self.setGeometry(QRect(corner, QSize(home.width(), round(home.width() * 9 / 16))))
-        # The 测试框 goes round the new area.
         self.update()
 
     def set_frame(self, frame: QRect) -> None:
@@ -612,40 +598,14 @@ class StreamMirror(QWidget):
             area = self._source()
             if area != self._area:
                 self._place(area)
-        # Painted while something shows, and once more after, back to the 测试框.
+        # Painted while something shows, and once more after, clear again.
         if busy or self._active:
             self._active = busy
             self.update()
 
-    def _paint_test_frame(self, painter: QPainter) -> None:
-        """The 测试框: a red line round the mirrored game, its name in a red tag at the top left."""
-        scale, offset = self._fit()
-        if self._area.isEmpty():
-            box = QRectF(self.rect())
-        else:
-            box = QRectF(offset.x(), offset.y(), self._area.width() * scale, self._area.height() * scale)
-        line = max(4.0, self.width() / 240)
-        pen = QPen(_TEST_RED, line)
-        pen.setJoinStyle(Qt.MiterJoin)
-        painter.setPen(pen)
-        painter.setBrush(Qt.NoBrush)
-        painter.drawRect(box.adjusted(line / 2, line / 2, -line / 2, -line / 2))
-        font = QFont(self.font())
-        font.setPixelSize(max(12, round(self.width() / 80)))
-        font.setBold(True)
-        metrics = QFontMetricsF(font)
-        pad = font.pixelSize() * 0.5
-        tag = QRectF(box.left(), box.top(), metrics.horizontalAdvance(TEST_TAG) + pad * 2, metrics.height() + pad)
-        painter.fillRect(tag, _TEST_RED)
-        painter.setFont(font)
-        painter.setPen(QColor("white"))
-        painter.drawText(tag, Qt.AlignCenter, TEST_TAG)
-
     def paintEvent(self, _event) -> None:  # noqa: ANN001
         painter = QPainter(self)
         if not self._active:
-            if self.test_frame:
-                self._paint_test_frame(painter)
             painter.end()
             return
         painter.setRenderHint(QPainter.Antialiasing)

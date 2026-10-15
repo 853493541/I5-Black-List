@@ -306,79 +306,37 @@ def test_a_border_made_only_for_the_stream_does_not_hold_a_glance_back(window):
     assert not window.love.playing() and not window.like_card.isVisible()
 
 
-def test_a_red_test_frame_runs_round_the_game_while_no_mark_shows(window):
-    """The 测试框: with nothing to show, the window is framed in red round the game, so a streamer
-    who sees the frame in the stream knows the marks will be there too, and line up."""
+def test_nothing_shows_while_no_mark_shows(window):
+    """The 测试框 is gone: with nothing to show, 直播画面 is clear all over, the game's edges too, and an
+    older version's setting for it is neither read nor saved again."""
+    import json
 
+    from blacklist_detect.storage import Store
+
+    window.store.save_settings()
+    settings = json.loads(window.store.settings_path.read_text(encoding="utf-8"))
+    window.store.settings_path.write_text(json.dumps({**settings, "stream_test_frame": True}), encoding="utf-8")
+    window.store = Store(window.store.root)
+    assert not hasattr(window.store, "stream_test_frame") and not hasattr(window, "stream_frame_box")
     window._set_stream_mode(True)
+    assert "stream_test_frame" not in window.store.settings_path.read_text(encoding="utf-8")
+    assert "测试框" not in window.settings_line()
     stream = window.stream
-    assert not stream.busy()
-
-    def at(x: float, y: float):  # noqa: ANN202
-        image = stream.grab().toImage()
-        ratio = image.devicePixelRatio()
-        return image.pixelColor(round(x * ratio), round(y * ratio))
-
-    def edges():  # noqa: ANN202
-        scale, offset = stream._fit()
-        line = max(4.0, stream.width() / 240)
-        middle = offset.y() + stream._area.height() * scale / 2
-        return at(offset.x() + line / 2, middle), at(offset.x() + stream._area.width() * scale - line / 2, middle)
-
-    for edge in edges():
-        assert edge.alpha() == 255 and edge.red() > 200 and edge.green() < 80, "a red line round the game"
-    assert _pixel(window, stream._area.center()).alpha() == 0, "clear inside"
-    # Its name in white on a red tag at the top left.
+    assert not stream.busy() and not hasattr(stream, "set_test_frame")
     image = stream.grab().toImage()
-    ratio = image.devicePixelRatio()
-    _scale, offset = stream._fit()
-    corner = [image.pixelColor(x, y) for x in range(round(offset.x() * ratio), round((offset.x() + stream.width() / 4) * ratio), 2)
-              for y in range(round(offset.y() * ratio), round((offset.y() + stream.width() / 40) * ratio), 2)]
-    assert any(color.red() > 230 and color.green() > 230 and color.blue() > 230 for color in corner), "white words on the tag"
-    # It goes round the game's window once a check has found it, where the marks will be drawn: a
-    # square emulator window sits in the middle of the 16:9 window, as 直播姬 fits it.
-    screen = stream._area
-    stream.set_frame(QRect(screen.x() + 40, screen.y() + 40, screen.height() // 2, screen.height() // 2))
-    for edge in edges():
-        assert edge.red() > 200 and edge.alpha() == 255
-    assert at(2, stream.height() / 2).alpha() == 0, "not at the window's own edge any more"
-    # Never while a mark shows: viewers see the marks as they are. Back once they go.
-    framed = []
-    stream._paint_test_frame = lambda _painter: framed.append(1)
+    step = max(1, image.width() // 64)
+    assert all(image.pixelColor(x, y).alpha() == 0 for x in range(0, image.width(), step) for y in range(0, image.height(), step))
+    for x, y in ((0, image.height() // 2), (image.width() - 1, image.height() // 2), (image.width() // 2, 0)):
+        assert image.pixelColor(x, y).alpha() == 0
+    # The marks still show while they play, and the window is clear again once they go.
     _lobby(window, hit=False)
     assert stream.busy()
-    stream.grab()
-    assert framed == []
     window._hide_panel_after_title()
     window.love.stop()
     stream._step()
     stream._step()
-    stream.grab()
-    assert framed
-    del stream._paint_test_frame
-    # The 测试框 box takes it away.
-    stream.set_test_frame(False)
-    assert all(edge.alpha() == 0 for edge in edges())
-
-
-def test_the_test_frame_box_shows_with_stream_mode_and_is_kept(window):
-    """测试框, beside 测试效果: ticked by default; unticked, 直播画面 has no red frame, from then on."""
-    from blacklist_detect.storage import Store
-
-    box = window.stream_frame_box
-    assert box.text() == "测试框" and box.isChecked() and window.stream.test_frame
-    assert box.isHidden(), "only with 直播模式 on"
-    window._set_stream_mode(True)
-    assert not box.isHidden()
-    box.setChecked(False)
-    assert not window.stream.test_frame and Store(window.store.root).stream_test_frame is False
-    assert "直播模式 开 (测试框 关)" in window.settings_line()
-    box.setChecked(True)
-    assert window.stream.test_frame and Store(window.store.root).stream_test_frame is True
-    assert "测试框" not in window.settings_line()
-    window._set_stream_mode("")
-    assert box.isHidden()
-
+    image = stream.grab().toImage()
+    assert all(image.pixelColor(x, y).alpha() == 0 for x in range(0, image.width(), step) for y in range(0, image.height(), step))
 
 def test_where_windows_will_not_capture_the_window_it_moves_until_it_does(window, caplog):
     """A friend's Windows 10 refused to capture it off the screen (E_INVALIDARG), and 直播姬 showed
@@ -475,7 +433,7 @@ def test_refused_everywhere_it_finds_out_why_once_and_leaves_out_what_it_can(win
     stream.diagnosed(report)
     said = "\n".join(record.getMessage() for record in caplog.records)
     assert "build 19045.6466" in said and "test: Qt, without click-through: captured" in said
-    assert "fact: from the app: 测试框 on" in said
+    assert "fact: from the app: a mark showing False" in said and "测试框" not in said
     assert "直播画面 diagnosis: Without click-through Windows takes it" in said
     # Made again without it, from off the screen, and Windows is asked again.
     assert stream.without == {"click-through"} and not stream.windowFlags() & Qt.WindowTransparentForInput
@@ -520,7 +478,7 @@ def test_the_diagnosis_runs_for_real_and_its_report_reaches_the_log(window, monk
         time.sleep(0.02)
     said = "\n".join(record.getMessage() for record in caplog.records)
     assert "直播画面 diagnosis:\nfact: " in said and "test: 直播画面 itself: " in said and "test: Qt, plain window: " in said
-    assert "fact: from the app: 测试框 on" in said and "直播画面 diagnosis: Windows" in said
+    assert "fact: from the app: a mark showing" in said and "直播画面 diagnosis: Windows" in said
     window._set_stream_mode("")
 
 
