@@ -21,7 +21,7 @@ from blacklist_detect.match import fold
 from blacklist_detect.model import Combo, Entry
 from blacklist_detect.ui_dialogs import _danger, _field, _primary, _say_error
 from blacklist_detect.ui_icons import icon as line_icon
-from blacklist_detect.ui_kit import Modal
+from blacklist_detect.ui_kit import Modal, _CardScroll, _height_for
 from blacklist_detect.ui_love_pick import ScenePicker, _triangle
 from blacklist_detect.ui_theme import THEME, _pointing
 from blacklist_detect.ui_widgets import _FlowHost
@@ -162,8 +162,30 @@ class ThemeField(QWidget):
         p.end()
 
 
+class _PeopleScroll(_CardScroll):
+    """The 嘉宾 a 组合 picks from: as tall as their rows up to its maximum height, then scrolling."""
+
+    def __init__(self, content: QWidget) -> None:
+        super().__init__(content)
+        # A scroll area fills its content's background; the pills sit on the card's.
+        content.setAutoFillBackground(False)
+
+    def heightForWidth(self, width: int) -> int:  # noqa: N802
+        # Measured at the whole width: the scroll bar only comes once they are taller than it lets them be.
+        return min(_height_for(self.widget(), width), self.maximumHeight())
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802
+        width = super().minimumSizeHint().width()
+        return QSize(width, self.heightForWidth(max(self.width(), width)))
+
+
 class ComboDialog(Modal):
-    """One combination: the 嘉宾 in it (two or more) and its scene."""
+    """One combination: the 嘉宾 in it (two or more) and its scene.
+
+    The 嘉宾 to pick scroll past ROWS rows and half the next, so a long list shows it goes on and the
+    dialog keeps its height however many 嘉宾 there are."""
+
+    ROWS = 4
 
     def __init__(self, likes: list[Entry], combo: Combo | None = None, parent=None, music=None, music_choice: str = "theme") -> None:  # noqa: ANN001
         super().__init__(parent)
@@ -173,7 +195,8 @@ class ComboDialog(Modal):
         layout = self.frame("编辑组合" if combo else "添加组合")
         self.card.setFixedWidth(520)
         chosen = {fold(name) for name in combo.names} if combo else set()
-        self.people = _FlowHost(gap=8)
+        gap = 8
+        self.people = _FlowHost(gap=gap)
         self.people_buttons: dict[str, QPushButton] = {}
         on_list = {fold(like.name) for like in likes}
         # Its 嘉宾 since taken off the list stay in it, struck out as the list shows them, until unticked.
@@ -197,7 +220,14 @@ class ComboDialog(Modal):
             button.setIcon(line_icon("check", 14, THEME["on_accent"]) if button.isChecked() else QIcon())
             self.people.addWidget(button)
             self.people_buttons[like.name] = button
-        self.people_error = _field(layout, "嘉宾", self.people)
+        self.people_scroll = _PeopleScroll(self.people)
+        self.people_error = _field(layout, "嘉宾", self.people_scroll)
+        if self.people_buttons:
+            # Measured once in the dialog, wearing its style.
+            first = next(iter(self.people_buttons.values()))
+            first.ensurePolished()
+            pill = first.sizeHint().height()
+            self.people_scroll.setMaximumHeight(self.ROWS * (pill + gap) + pill // 2)
         # A combination exists to pick a scene: a new one starts on 经典.
         self.theme = ThemeField(combo.theme if combo else love_scenes.KEYS[0], "组合", music, music_choice)
         _field(layout, "特效", self.theme)

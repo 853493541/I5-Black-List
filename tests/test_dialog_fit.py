@@ -8,10 +8,11 @@ import pytest
 from PySide6.QtCore import QPoint, QRect
 from PySide6.QtWidgets import QApplication, QDialog, QFrame, QLabel, QPushButton
 
-from blacklist_detect.model import Combo
+from blacklist_detect.model import Combo, Entry
 from blacklist_detect.ui import MainWindow
 from blacklist_detect.ui_dialogs import StreamGuideDialog
 from blacklist_detect.ui_kit import ConfirmDialog, Modal, _height_for
+from blacklist_detect.ui_theme import DIALOG_PAD
 from blacklist_detect.ui_widgets import TagPill
 
 LAPTOP = 728
@@ -100,6 +101,43 @@ def test_the_picker_and_the_guest_dialogs_fit_a_short_screen_without_scrolling(w
     picker = dialogs["选择特效"]
     used = next(button for button in picker.findChildren(QPushButton) if button.text() == "用这个")
     assert used.isVisibleTo(picker) and picker.scroll is None
+
+
+def _guests(count: int) -> list[Entry]:
+    """嘉宾 with long names, 12 characters each."""
+    return [Entry(f"心动小鹿的好朋友{index:04d}") for index in range(count)]
+
+
+@pytest.mark.parametrize("count", [0, 2, 20, 60])
+def test_the_combo_dialogs_fit_a_short_screen_however_many_guests(window, count):
+    """添加组合 and 编辑组合 list every 嘉宾 to pick: past a few rows the list scrolls inside them, so
+    neither grows, and 保存 stays in view even with 至少选两位嘉宾 under the list."""
+    from blacklist_detect.ui_guests import ComboDialog
+
+    likes = _guests(count)
+    combo = Combo((*(like.name for like in likes[:2]), "已删掉的嘉宾"), "angel")
+    for dialog in (ComboDialog(likes, parent=window), ComboDialog(likes, combo, parent=window)):
+        for button in dialog.people_buttons.values():
+            button.setChecked(False)
+        dialog._accept()
+        assert dialog.result() != QDialog.Accepted and dialog.people_error.isVisibleTo(dialog)
+        dialog.fit_height(SHORT)
+        assert dialog.scroll is None and _card_height(dialog) <= SHORT - 8, count
+        # The list's own width in the card: past 4½ rows of these names it stops growing and scrolls.
+        people, width = dialog.people_scroll, dialog.card.minimumWidth() - 2 * DIALOG_PAD
+        assert (_height_for(dialog.people, width) > people.maximumHeight()) == (count >= 20), count
+        assert people.heightForWidth(width) == min(_height_for(dialog.people, width), people.maximumHeight())
+
+
+def test_a_guest_far_down_the_combo_list_is_picked_as_any_other(window):
+    from blacklist_detect.ui_guests import ComboDialog
+
+    likes = _guests(60)
+    dialog = ComboDialog(likes, parent=window)
+    dialog.people_buttons[likes[0].name].click()
+    dialog.people_buttons[likes[-1].name].click()
+    dialog._accept()
+    assert dialog.result() == QDialog.Accepted and set(dialog.combo.names) == {likes[0].name, likes[-1].name}
 
 
 def test_a_long_hotkey_is_shown_whole(window):
