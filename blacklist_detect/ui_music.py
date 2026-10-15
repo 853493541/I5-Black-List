@@ -1,4 +1,4 @@
-"""嘉宾音乐: each 嘉宾特效 theme's own few seconds of sound, played as it greets 嘉宾 players in a lobby.
+"""嘉宾音乐: each 嘉宾场景 theme's own few seconds of sound, played as it greets 嘉宾 players in a lobby.
 
 Every scene in love_scenes.SCENES but 经典, which greets in silence, has one (TUNES), made for it, its
 accents on the scene's moments. build/theme_tunes.py plays 冰蓝极光's, 星河许愿's, 赛博朋克's two and
@@ -7,8 +7,8 @@ accents on the scene's moments. build/theme_tunes.py plays 冰蓝极光's, 星�
 模仿者狂欢 with the 演说家遇袭 notice's sound in it at its strike (build/ambush_tune.py): the game's own
 recording, the user's choice made knowing NetEase owns it.
 
-The sound follows the theme. 设置 › 常规 › 声音 sets how loud every sound is, or 静音 none; 特效管理 gives each
-特效 its own 音量 on top of that, and may give it the player's own sound instead (经典 too), converted once
+The sound follows the theme. 设置 › 常规 › 声音 sets how loud every sound is, or 静音 none; 场景管理 gives each
+场景 its own 音量 on top of that, and may give it the player's own sound instead (经典 too), converted once
 as it was added into a tune like these (paths.custom_sound_dir). winsound plays at the system volume only,
 from a file, so a quieter one is a copy of the tune with its samples scaled (scaled_tune), kept in a folder
 of the app's own (paths.app_dir).
@@ -129,8 +129,8 @@ def play_tune(path: Path | None) -> None:
 
 
 class ThemeMusic:
-    """Plays a theme's sound, once per lobby, at 设置's 声音 times the 特效's own 音量 (level), or nothing
-    while muted. folder: where the quieter copies go (sound_dir when None). sounds: each 特效's own sound by
+    """Plays a theme's sound, once per lobby, at 设置's 声音 times the 场景's own 音量 (level), or nothing
+    while muted. folder: where the quieter copies go (sound_dir when None). sounds: each 场景's own sound by
     its key, the player's file (None for the scene's own) and 音量 in percent (Store.scene_sound); with
     none, every scene plays its own at 声音's volume."""
 
@@ -156,7 +156,7 @@ class ThemeMusic:
         return scene if self._tune(scene) is not None else ""
 
     def level(self, scene: str) -> int:
-        """How loud a scene's sound plays, in percent of its loudness: 声音 times the 特效's own 音量. Two that
+        """How loud a scene's sound plays, in percent of its loudness: 声音 times the 场景's own 音量. Two that
         are both heard are never 0 together: 5% of 5% plays at 1%."""
         own = self._own(scene)[1]
         level = round(self.volume * own / 100)
@@ -176,15 +176,18 @@ class ThemeMusic:
         return not self.muted and self.volume > 0
 
     def lobby(self, likes: list[str], scene: str) -> str:
-        """A lobby with these 嘉宾 players, greeted by this scene: play its sound, unless it just did
-        for them."""
-        if not likes or not self.pick(scene) or not self.audible() or self.level(scene) <= 0:
+        """A lobby with these 嘉宾 players, greeted by this scene: play its sound, unless one just
+        greeted them. A scene with no sound (经典, or at 0%) greets them too: checked again, the lobby
+        gets no other scene's."""
+        if not likes or not self.audible():
             return ""
         players = frozenset(likes)
         now = self._clock()
         if players == self._last_lobby and now - self._last_at < SAME_LOBBY_S:
             return ""
         self._last_lobby, self._last_at = players, now
+        if not self.pick(scene) or self.level(scene) <= 0:
+            return ""
         return self.preview(scene)
 
     def preview(self, scene: str) -> str:
@@ -193,11 +196,11 @@ class ThemeMusic:
         return tune if self._start(self._tune(tune), self.level(tune)) else ""
 
     def taste(self, scene: str) -> bool:
-        """A moment of a 特效's sound as loud as it plays, for its 音量 in 特效管理."""
+        """A moment of a 场景's sound as loud as it plays, for its 音量 in 场景管理."""
         return self._start(self._tune(scene), self.level(scene), SAMPLE_S)
 
     def trial(self, path: Path, scene: str) -> bool:
-        """A sound not yet a 特效's (选择片段's 试听), as loud as that 特效 plays: its quieter copy is made
+        """A sound not yet a 场景's (选择片段's 试听), as loud as that 场景 plays: its quieter copy is made
         in a folder beside it, the caller's own, not with the tunes' (making one drops whatever else is
         in its folder)."""
         level = self.level(scene)
@@ -222,7 +225,7 @@ class ThemeMusic:
 
     def drop(self, tune: Path) -> None:
         """Drop the quieter copies made of this tune, those of every other kept (forget drops them all): a
-        player's own sound replaced or put back to the 特效's own leaves none of it behind. One still playing
+        player's own sound replaced or put back to the 场景's own leaves none of it behind. One still playing
         goes with the next copy made."""
         try:
             copies = list((self._folder or sound_dir()).iterdir())

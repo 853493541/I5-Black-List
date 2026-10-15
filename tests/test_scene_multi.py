@@ -267,6 +267,53 @@ def test_a_lobby_with_everyone_on_no_scene_shows_the_marks_and_plays_nothing(win
     assert window._lobby_choice == "off" and not window.love.playing()
 
 
+def _sounds(window) -> list[str]:  # noqa: ANN001
+    from pathlib import Path
+
+    return [Path(tune).name for tune in window.tunes if tune]
+
+
+def test_the_same_lobby_checked_again_keeps_its_scene_and_plays_no_other_music(window):
+    # 经典 (no sound) drawn: 冰蓝极光 just played.
+    window.store.add_like("小明", scenes=Scenes(("classic", "ice")))
+    window.love._last = "ice"
+    _check(window, "小明")
+    assert window.love.scene == "classic" and not _sounds(window)
+    result = _lobby("小明")
+    window._on_lobby_placed(result.button_box)
+    window._show_panel(result)
+    assert window.love.scene == "classic" and window.love._last == "classic"
+    assert not _sounds(window), "another scene's music over 经典"
+
+
+def test_a_lobby_checked_again_with_one_more_guest_plays_the_music_of_the_scene_shown(window):
+    from blacklist_detect.ui_overlay import love_look
+
+    window.store.add_like("小明", scenes=Scenes(("ice", "stars")))
+    window.store.add_like("小红", scenes=Scenes(("ice", "stars")))
+    _check(window, "小明")
+    shown = window.love.scene
+    assert _sounds(window) == [f"theme-{shown}.wav"]
+    # 检查 pressed again with the marks up (it stops the scene), and it reads 小红 too.
+    window.love.stop()
+    result = _lobby("小明", "小红")
+    window._on_lobby_placed(result.button_box)
+    window._show_panel(result)
+    assert window.love.scene == shown and window.like_card.look == love_look(shown)
+    assert set(_sounds(window)) == {f"theme-{shown}.wav"}
+
+
+def test_in_safe_mode_a_silent_scene_greets_the_lobby_and_checking_again_plays_no_other(window):
+    window._on_display_mode("safe")
+    window.store.add_like("小明", scenes=Scenes(("classic", "ice")))
+    # Draws 经典 for the first check, 冰蓝极光 when asked again.
+    order = ["classic", "ice"]
+    window.love._rng = type("Rng", (), {"choice": staticmethod(lambda pool: order.pop(0) if order[0] in pool else pool[0])})()
+    _check(window, "小明")
+    window._show_panel(_lobby("小明"))
+    assert not _sounds(window)
+
+
 def test_with_a_blacklist_player_too_several_ticked_dress_the_marks_as_classic(window):
     from blacklist_detect.pipeline import Hit
     from blacklist_detect.ui_overlay import love_look

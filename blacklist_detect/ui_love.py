@@ -42,7 +42,7 @@ class LoveBorder(QWidget):
         self.choice = "random"
         self.scene = "classic"
         self._last = ""
-        # (choice, scene): the scene pick() settled for the next play, and the choice it was for.
+        # (choice, scene): the scene pick() settled for this lobby's play, and the choice it was for.
         self._picked: tuple[str, str] | None = None
         self._rng = rng or random.Random()
         self._gap = QRectF()
@@ -63,7 +63,6 @@ class LoveBorder(QWidget):
         the choice plays none (不放, or 嘉宾场景 off).
         """
         scene = self.pick()
-        self._picked = None
         if not scene:
             return False
         self.scene = self._last = scene
@@ -84,8 +83,9 @@ class LoveBorder(QWidget):
         return True
 
     def pick(self) -> str:
-        """The scene the next play() plays ("" for 无), settled now, 随机 too, so the 嘉宾 marks can
-        be dressed for it before it starts."""
+        """The scene this lobby's play() plays ("" for 无), settled now, 随机 too, so the 嘉宾 marks can
+        be dressed for it before it starts; once it played, still that one, so checking the lobby again
+        plays its music, not another's."""
         if self._picked is None or self._picked[0] != self.choice:
             self._picked = (self.choice, love_scenes.choose(self.choice, self._last, self._rng))
         return self._picked[1]

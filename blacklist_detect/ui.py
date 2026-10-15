@@ -3877,8 +3877,9 @@ class MainWindow(QMainWindow):
             # Each lobby its own scene: 安全模式 shows none, so only the music would draw it.
             self.love.draw_again()
         if not hits and self._love_for(len(likes)):
-            # Never with a 黑名单 player: the warning is the news then, not the music.
-            tune = self._tune_for(self._lobby_choice)
+            # Never with a 黑名单 player: the warning is the news then, not the music. Checked again
+            # once its scene played: that scene's music, not a new draw's.
+            tune = self.love.pick() if self._love_played else self._tune_for(self._lobby_choice)
             if self._demo_likes is not None:
                 # 测试效果 plays it every time it is pressed.
                 started = self.music.preview(tune)
@@ -4026,7 +4027,8 @@ class MainWindow(QMainWindow):
         lobby's choice, 经典's for several to pick from or while 嘉宾场景 is off."""
         choice = self._lobby_choice or self.store.love_scene
         if playing and self._love_played:
-            scene = self.love.scene
+            # What played for this lobby ("" for 不放).
+            scene = self.love.pick()
         elif playing:
             self.love.choice = choice
             scene = self.love.pick()
