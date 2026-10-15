@@ -91,8 +91,20 @@ def test_the_settings_save_and_load_and_bad_ones_fall_back(tmp_path):
     # 检查 had no key and the 特效 hotkey took Alt+1, where 检查 would come back: the 特效 hotkey keeps it.
     store = saved(hotkey="", effect_hotkey="Alt+1")
     assert (store.hotkey, store.effect_hotkey) == ("", "Alt+1")
+    # None saved (turned off, or 检查's key once) stays none: Alt+F12 is not taken behind the player's back.
     store = saved(hotkey="Ctrl+K", effect_hotkey="")
-    assert (store.hotkey, store.effect_hotkey) == ("Ctrl+K", "Alt+F12")
+    assert (store.hotkey, store.effect_hotkey) == ("Ctrl+K", "")
+    store = saved(hotkey="Ctrl+Alt+K", effect_hotkey="Ctrl+Shift+K")
+    assert (store.hotkey, store.effect_hotkey) == ("Ctrl+K", "")
+    store.save_settings()
+    assert (Store(root).hotkey, Store(root).effect_hotkey) == ("Ctrl+K", "")
+    # A v0.9.11 player with 检查 on Alt+F12 who moves 检查 later keeps the 特效 hotkey none.
+    store = saved(hotkey="Alt+F12")
+    store.hotkey = "Alt+2"
+    store.save_settings()
+    assert (Store(root).hotkey, Store(root).effect_hotkey) == ("Alt+2", "")
+    # None saved for 特效 at all (v0.9.11): the default.
+    assert saved(hotkey="Ctrl+K").effect_hotkey == "Alt+F12"
     store = saved(quick_scene="stars", effect_hotkey="F9")
     store.reset()
     assert store.quick_scene == "classic" and store.effect_hotkey == "Alt+F12"
@@ -111,10 +123,12 @@ def test_the_page_lists_every_scene_and_saves_the_one_picked(window):
     page.scenes.buttons["fluffy"].click()
     assert window.store.quick_scene == "fluffy" and Store(window.store.root).quick_scene == "fluffy"
     assert [key for key, button in page.scenes.buttons.items() if button.isChecked()] == ["fluffy"]
-    # It plays quietly; ▶ plays it with its music.
-    assert page.preview.scene == "fluffy" and window.played == ["stop"]
+    # It plays quietly; ▶ plays it with its music, which the next pick stops.
+    assert page.preview.scene == "fluffy" and window.played == []
     page.preview.play_button.click()
     assert window.played[-1] == "fluffy"
+    page.scenes.buttons["fluffy"].click()
+    assert window.played[-1] == "stop"
     # Out of sight, the preview rests.
     window.tabs.setCurrentIndex(window.settings_tab)
     assert not page.preview._tick.isActive()
@@ -164,6 +178,49 @@ def test_a_new_effect_hotkey_is_saved_and_taken_at_once(window):
     three = Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier
     _press(edit, Qt.Key_K, three)
     assert window.store.effect_hotkey == "Ctrl+9" and window.effects_page.note.text() == "最多两个键，比如 Alt+1"
+
+
+def test_the_effect_hotkey_can_be_none(window):
+    edit = window.effect_hotkey_edit
+    for key in (Qt.Key_Backspace, Qt.Key_Delete):
+        _press(edit, Qt.Key_9, Qt.KeyboardModifier.ControlModifier)
+        assert window.store.effect_hotkey == "Ctrl+9"
+        # Backspace or Delete in its box: none, its key free in every other program, and so after a restart.
+        _press(edit, key)
+        QApplication.instance().sendEvent(edit, QFocusEvent(QEvent.Type.FocusOut))
+        assert window.store.effect_hotkey == "" and Store(window.store.root).effect_hotkey == ""
+        assert edit.text() == "" and edit.placeholderText() == "无"
+        assert window.effect_hotkey.active == "" and window.hotkey.active == "Alt+1" and window.effects_page.note.isHidden()
+    again = type(window)()
+    assert again.store.effect_hotkey == "" and again.effect_hotkey.active == "" and again.effect_hotkey_edit.text() == ""
+    again.close()
+    # 检查's own box has no none: it is how a lobby is checked.
+    _press(window.hotkey_edit, Qt.Key_Backspace)
+    assert window.store.hotkey == "Alt+1" and window.settings_label.text() == "用字母、数字或 F1–F12"
+
+
+def test_a_letter_or_number_alone_is_no_hotkey(window, monkeypatch):
+    monkeypatch.setattr(hotkey, "_register", lambda ident, modifiers, vk: True)
+    # It would be taken from every program: typing it anywhere would press it.
+    for edit, note in ((window.effect_hotkey_edit, window.effects_page.note), (window.hotkey_edit, window.settings_label)):
+        _press(edit, Qt.Key_Q)
+        assert note.text() == "加上 Ctrl、Alt 或 Shift，比如 Alt+1"
+        _press(edit, Qt.Key_7)
+        assert note.text() == "加上 Ctrl、Alt 或 Shift，比如 Alt+1"
+    assert (window.store.hotkey, window.store.effect_hotkey) == ("Alt+1", "Alt+F12")
+    # An F key alone is no letter anyone types.
+    _press(window.effect_hotkey_edit, Qt.Key_F8)
+    assert window.store.effect_hotkey == "F8"
+
+
+def test_the_hotkey_box_keeps_its_width_while_it_waits(window):
+    app = QApplication.instance()
+    for edit in (window.effect_hotkey_edit, window.hotkey_edit):
+        width = edit.width()
+        app.sendEvent(edit, QFocusEvent(QEvent.Type.FocusIn))
+        assert edit.placeholderText() == "请按下快捷键" and edit.width() == width
+        app.sendEvent(edit, QFocusEvent(QEvent.Type.FocusOut))
+        assert edit.width() == width
 
 
 def test_the_two_hotkeys_never_share_a_key(window):
@@ -291,6 +348,8 @@ def test_it_gives_way_to_nothing_but_takes_over_the_stream_test(window):
 
 
 def test_in_stream_mode_it_reaches_the_stream_window(window, monkeypatch):
+    from blacklist_detect import ui
+
     # 安全模式 with 直播模式: the marks only in 直播画面, never on the streamer's screen.
     window._on_display_mode("safe")
     window._set_stream_mode(True)
@@ -301,6 +360,7 @@ def test_in_stream_mode_it_reaches_the_stream_window(window, monkeypatch):
     native = (screen.x() + round(100 * ratio), screen.y() + round(80 * ratio), screen.x() + round(900 * ratio), screen.y() + round(580 * ratio))
     monkeypatch.setattr(livehime, "game_capture", lambda scene, title: game_window)
     monkeypatch.setattr(livehime, "client_rect", lambda capture: native)
+    monkeypatch.setattr(ui, "inner_rect_of", lambda _hwnd, _x, _y: None)
     assert window.play_quick_scene()
     # The game's window is the one 直播姬 captures; the game, 16:9, in it.
     captured = QRect(screen.x() + 100, screen.y() + 80, 800, 500)
@@ -347,6 +407,34 @@ def test_in_safe_mode_without_stream_mode_nothing_is_drawn_over_the_game(window)
     assert not window.effects_page.note.isHidden()
 
 
+def test_safe_mode_takes_a_play_down_music_and_all(window):
+    window.store.quick_scene = "claw"
+    assert window.play_quick_scene()
+    window._on_display_mode("safe")
+    assert window._quick_scene == "" and window._game_box is None and window._quick_area is None
+    assert not window.panel.isVisible() and not window.love.playing() and window.played[-1] == "stop"
+
+
+def test_picking_a_scene_mid_play_leaves_the_plays_music(window):
+    page = window.effects_page
+    window.tabs.setCurrentIndex(window.effects_tab)
+    window.show()
+    QApplication.processEvents()
+    window.store.quick_scene = "stars"
+    page.play_button.click()
+    assert window.played == ["stars"]
+    page.scenes.buttons["fluffy"].click()
+    assert window.played == ["stars"] and window.love.scene == "stars"
+    # ▶ takes the music over; the play cut short then leaves it, and a pick stops it.
+    page.preview.play_button.click()
+    assert window.played[-1] == "fluffy" and page.sounding
+    window._end_quick_play()
+    assert window.played[-1] == "fluffy"
+    page.scenes.buttons["ice"].click()
+    assert window.played[-1] == "stop"
+    window.hide()
+
+
 def test_nothing_plays_before_the_disclaimer_is_agreed_to(window):
     window.store.disclaimer_accepted = False
     assert not window.play_quick_scene() and not window.love.playing() and not window.panel.isVisible()
@@ -387,11 +475,23 @@ def test_with_stream_mode_it_plays_on_the_game_not_on_mumus_bar(window, monkeypa
     game = QRect(screen.x() + 100, screen.y() + 129, 800, 450)
     monkeypatch.setattr(livehime, "game_capture", lambda scene, title: game_window)
     monkeypatch.setattr(livehime, "client_rect", lambda capture: _native(window, whole))
-    monkeypatch.setattr(ui, "window_rect_at", lambda _x, _y, _order=(), innermost=True: _native(window, game))
+    monkeypatch.setattr(livehime, "window_of", lambda capture: 77)
+    # Another program's window in front of MuMu's middle on the screen: 直播姬 captures MuMu all the same.
+    cover = QRect(screen.x() + 400, screen.y() + 250, 420, 300)
+    monkeypatch.setattr(ui, "window_rect_at", lambda _x, _y, _order=(), innermost=True: _native(window, cover))
+    asked: list[int] = []
+    monkeypatch.setattr(ui, "inner_rect_of", lambda hwnd, _x, _y: asked.append(hwnd) or _native(window, game))
     assert window.play_quick_scene()
+    # The game is MuMu's own window in its middle, never what covers it.
+    assert asked == [77]
     assert window.love.geometry() == game and game.contains(window.panel.cover_geometry())
     # 直播画面 is the whole window, bar and all, as 直播姬 captures it.
     assert window.stream._frame == whole
+    window._end_quick_play()
+    # MuMu's own window not found: the whole window it is.
+    monkeypatch.setattr(ui, "inner_rect_of", lambda hwnd, _x, _y: None)
+    assert window.play_quick_scene()
+    assert window.love.geometry() == window._sixteen_nine(whole)
 
 
 def test_with_no_lobby_yet_it_plays_on_the_window_under_the_pointer(window, monkeypatch):

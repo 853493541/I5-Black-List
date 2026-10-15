@@ -45,6 +45,55 @@ def window_order() -> tuple[int, ...]:
     return tuple(order)
 
 
+def _user32():  # noqa: ANN202
+    """user32, its calls here typed."""
+    import ctypes
+    from ctypes import wintypes
+
+    user32 = ctypes.windll.user32
+    user32.GetTopWindow.restype = wintypes.HWND
+    user32.GetTopWindow.argtypes = (wintypes.HWND,)
+    user32.GetWindow.restype = wintypes.HWND
+    user32.GetWindow.argtypes = (wintypes.HWND, wintypes.UINT)
+    user32.IsWindowVisible.argtypes = (wintypes.HWND,)
+    user32.IsIconic.argtypes = (wintypes.HWND,)
+    user32.IsWindow.argtypes = (wintypes.HWND,)
+    user32.GetWindowRect.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.RECT))
+    user32.GetClientRect.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.RECT))
+    user32.ClientToScreen.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.POINT))
+    user32.ScreenToClient.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.POINT))
+    user32.GetWindowThreadProcessId.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.DWORD))
+    user32.GetWindowLongW.argtypes = (wintypes.HWND, ctypes.c_int)
+    user32.ChildWindowFromPointEx.restype = wintypes.HWND
+    user32.ChildWindowFromPointEx.argtypes = (wintypes.HWND, wintypes.POINT, wintypes.UINT)
+    return user32
+
+
+def _inner_rect(user32, hwnd, x: int, y: int, innermost: bool) -> tuple[int, int, int, int] | None:  # noqa: ANN001
+    """The client area of hwnd, or with innermost of its innermost child that draws at (x, y): an
+    emulator's game surface, not its frame. Only hwnd's own children are looked at, never what is in
+    front of it on the screen."""
+    import ctypes
+    from ctypes import wintypes
+
+    for _ in range(16 if innermost else 0):
+        point = wintypes.POINT(x, y)
+        user32.ScreenToClient(hwnd, ctypes.byref(point))
+        child = user32.ChildWindowFromPointEx(hwnd, point, _CWP_SKIPINVISIBLE | _CWP_SKIPTRANSPARENT)
+        if not child or child == hwnd:
+            break
+        hwnd = child
+    client = wintypes.RECT()
+    user32.GetClientRect(hwnd, ctypes.byref(client))
+    corner = wintypes.POINT(0, 0)
+    user32.ClientToScreen(hwnd, ctypes.byref(corner))
+    left, top = corner.x, corner.y
+    right, bottom = left + client.right, top + client.bottom
+    if right <= left or bottom <= top:
+        return None
+    return left, top, right, bottom
+
+
 def window_rect_at(
     x: int, y: int, order: tuple[int, ...] = (), innermost: bool = True
 ) -> tuple[int, int, int, int] | None:
@@ -58,21 +107,7 @@ def window_rect_at(
     import ctypes
     from ctypes import wintypes
 
-    user32 = ctypes.windll.user32
-    user32.GetTopWindow.restype = wintypes.HWND
-    user32.GetTopWindow.argtypes = (wintypes.HWND,)
-    user32.GetWindow.restype = wintypes.HWND
-    user32.GetWindow.argtypes = (wintypes.HWND, wintypes.UINT)
-    user32.IsWindowVisible.argtypes = (wintypes.HWND,)
-    user32.IsIconic.argtypes = (wintypes.HWND,)
-    user32.GetWindowRect.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.RECT))
-    user32.GetClientRect.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.RECT))
-    user32.ClientToScreen.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.POINT))
-    user32.ScreenToClient.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.POINT))
-    user32.GetWindowThreadProcessId.argtypes = (wintypes.HWND, ctypes.POINTER(wintypes.DWORD))
-    user32.GetWindowLongW.argtypes = (wintypes.HWND, ctypes.c_int)
-    user32.ChildWindowFromPointEx.restype = wintypes.HWND
-    user32.ChildWindowFromPointEx.argtypes = (wintypes.HWND, wintypes.POINT, wintypes.UINT)
+    user32 = _user32()
     own = os.getpid()
 
     def cloaked(hwnd) -> bool:  # noqa: ANN001
@@ -98,7 +133,6 @@ def window_rect_at(
         user32.GetWindowRect(hwnd, ctypes.byref(rect))
         return rect.left <= x < rect.right and rect.top <= y < rect.bottom
 
-    user32.IsWindow.argtypes = (wintypes.HWND,)
     if order:
         # Front to back as at the screenshot; a window closed since is passed over.
         hwnd = next((wintypes.HWND(h) for h in order if user32.IsWindow(wintypes.HWND(h)) and takes(wintypes.HWND(h))), None)
@@ -108,23 +142,22 @@ def window_rect_at(
             hwnd = user32.GetWindow(hwnd, _GW_HWNDNEXT)
     if not hwnd:
         return None
-    # Down to the innermost window that draws there: an emulator's game surface, not its frame.
-    for _ in range(16 if innermost else 0):
-        point = wintypes.POINT(x, y)
-        user32.ScreenToClient(hwnd, ctypes.byref(point))
-        child = user32.ChildWindowFromPointEx(hwnd, point, _CWP_SKIPINVISIBLE | _CWP_SKIPTRANSPARENT)
-        if not child or child == hwnd:
-            break
-        hwnd = child
-    client = wintypes.RECT()
-    user32.GetClientRect(hwnd, ctypes.byref(client))
-    corner = wintypes.POINT(0, 0)
-    user32.ClientToScreen(hwnd, ctypes.byref(corner))
-    left, top = corner.x, corner.y
-    right, bottom = left + client.right, top + client.bottom
-    if right <= left or bottom <= top:
+    return _inner_rect(user32, hwnd, x, y, innermost)
+
+
+def inner_rect_of(hwnd: int, x: int, y: int) -> tuple[int, int, int, int] | None:
+    """(left, top, right, bottom) in screen pixels of the innermost window of hwnd's own that draws at
+    (x, y), or of hwnd itself: MuMu's game under its bar, in the window 直播姬 captures, even with
+    another window in front of it on the screen. None when hwnd is not a shown window."""
+    if sys.platform != "win32" or not hwnd:
         return None
-    return left, top, right, bottom
+    from ctypes import wintypes
+
+    user32 = _user32()
+    window = wintypes.HWND(hwnd)
+    if not user32.IsWindow(window) or not user32.IsWindowVisible(window) or user32.IsIconic(window):
+        return None
+    return _inner_rect(user32, window, x, y, True)
 
 
 # How far a window's top and bottom may be from where the lobby puts the game screen, in the

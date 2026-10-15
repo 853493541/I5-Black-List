@@ -127,17 +127,19 @@ class EffectsPage(QWidget):
             self.preview.show_scene(self.scenes.key)
 
     def _pick(self, key: str) -> None:
-        """A click on a scene: it is the hotkey's now, and plays quietly, the music before it stopped."""
+        """A click on a scene: it is the hotkey's now, and plays quietly, the music ▶ started stopped.
+        A play over the game keeps its music."""
         self.store.quick_scene = self.scenes.key
         self.store.save_settings()
         self.preview.show_scene(self.scenes.key)
-        if self.music is not None:
+        if self.sounding and self.music is not None:
             self.music.stop()
         self.sounding = False
         self.picked.emit(self.scenes.key)
 
     def play_preview(self) -> None:
-        """▶: the scene from its start in the preview, with its music."""
+        """▶: the scene from its start in the preview, with its music, which takes over from a play's
+        over the game."""
         self.preview.show_scene(self.scenes.key)
         if self.music is not None:
             self.music.preview(tune_for(self.scenes.key, self.store.love_music))

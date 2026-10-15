@@ -61,7 +61,7 @@ from blacklist_detect.diagnostics import (
     screens_line,
     summary_text,
 )
-from blacklist_detect.game_area import exclusive_fullscreen, game_rect, window_order, window_rect_at
+from blacklist_detect.game_area import exclusive_fullscreen, game_rect, inner_rect_of, window_order, window_rect_at
 from blacklist_detect.guests import lobby_choice
 from blacklist_detect.hotkey import GlobalHotkey, parse_hotkey
 from blacklist_detect.importing import suggest_tags, with_tags
@@ -2869,7 +2869,8 @@ class MainWindow(QMainWindow):
         self._sync_auto_controls()
         self.display_mode.set_current("safe" if self.store.safe_mode else "full")
         if self.store.safe_mode:
-            # Off the game at once: nothing left drawn over it.
+            # Off the game at once: nothing left drawn over it, and a 特效 hotkey play over, music and all.
+            self._end_quick_play()
             self._hide_panel_after_title()
         else:
             self.notice.hide()
@@ -3007,9 +3008,10 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _fit_hotkey_box(edit: QLineEdit) -> None:
-        """Room for the longest two keys, Shift+F12, and wider for anything longer: never cut."""
+        """Room for the longest two keys, Shift+F12, and for 请按下快捷键 while it waits, so it keeps its
+        width then and what is beside it stays put; wider for anything longer: never cut."""
         metrics = QFontMetrics(chinese_font())
-        shown = max(("Shift+F12", edit.text(), edit.placeholderText()), key=metrics.horizontalAdvance)
+        shown = max(("Shift+F12", "请按下快捷键", edit.text(), edit.placeholderText()), key=metrics.horizontalAdvance)
         edit.setFixedWidth(max(metrics.horizontalAdvance("手动检查") + 28, metrics.horizontalAdvance(shown) + 32))
 
     def _sync_hotkey_mode(self) -> None:
@@ -3030,7 +3032,10 @@ class MainWindow(QMainWindow):
     def _sync_effect_hotkey(self) -> None:
         """The 特效 hotkey works in either 方式."""
         spec = parse_hotkey(self.store.effect_hotkey)
-        if spec is not None and self.effect_hotkey.active != spec.display and not self.effect_hotkey.apply(spec):
+        if spec is None:
+            self.effect_hotkey.clear()
+            return
+        if self.effect_hotkey.active != spec.display and not self.effect_hotkey.apply(spec):
             log.warning("特效 hotkey %s did not register: another program holds it, or this PC has none.", spec.display)
             if sys.platform == "win32":
                 self.effects_page.say("这个键被别的程序占了，换一个")
@@ -3044,6 +3049,15 @@ class MainWindow(QMainWindow):
             edit.clearFocus()
             return
         if event.key() in (Qt.Key_Control, Qt.Key_Alt, Qt.Key_Shift, Qt.Key_Meta):
+            return
+        if field == "effect_hotkey" and event.key() in (Qt.Key_Backspace, Qt.Key_Delete):
+            # The 特效 hotkey can be none: its key is then free in every other program.
+            log.info("特效 hotkey set to none.")
+            self.store.effect_hotkey = ""
+            self.store.save_settings()
+            edit.clear()
+            self._hotkey_note(edit, "")
+            edit.clearFocus()
             return
         key = _qt_key_name(event.key())
         if key is None:
@@ -3062,6 +3076,10 @@ class MainWindow(QMainWindow):
         if len(modifiers) > 1:
             # Two keys at most: short to press mid-game, and short to read.
             self._hotkey_note(edit, "最多两个键，比如 Alt+1")
+            return
+        if not modifiers and len(key) == 1:
+            # A letter or a number alone would be taken from every program: typing it anywhere would press it.
+            self._hotkey_note(edit, "加上 Ctrl、Alt 或 Shift，比如 Alt+1")
             return
         spec = parse_hotkey("+".join([*modifiers, key]))
         if spec is None:
@@ -3976,7 +3994,7 @@ class MainWindow(QMainWindow):
         where = "the middle of this window's screen"
         found = self._livehime_game() if self.store.stream_mode else None
         if found is not None:
-            target, where = found
+            target, _game, where = found
         if target is None and self._game_box is not None:
             origin_x, origin_y = virtual_origin()
             left, top, right, bottom = self._game_box
@@ -3991,17 +4009,27 @@ class MainWindow(QMainWindow):
             target.moveCenter(screen.center())
         return self._sixteen_nine(target), where
 
-    def _livehime_game(self) -> tuple[QRect, str] | None:
-        """The window 直播姬's scene shows the game with, in Qt's units, and what it is, for the log;
-        None when it shows none, or it is not open."""
+    def _livehime_game(self) -> tuple[QRect, QRect, str] | None:
+        """The window 直播姬's scene shows the game with, in Qt's units; the game in it, the innermost of
+        its own windows at its middle (MuMu's game, under its bar), else the whole window; and what it
+        is, for the log. Only that window's own are looked at: 直播姬 captures it with another window
+        in front of it on the screen too. None when it shows none, or it is not open."""
         capture = livehime.game_capture(self._scene_watch.scene(), STREAM_TITLE)
         native = livehime.client_rect(capture) if capture is not None else None
         if native is None:
             return None
         left, top, right, bottom = native
+        window = self._logical(native)
+        inner = inner_rect_of(livehime.window_of(capture), (left + right) // 2, (top + bottom) // 2)
+        game = self._game_part(inner, window) or window
+        return window, game, f"直播姬's capture ({capture.exe or capture.title})"
+
+    @staticmethod
+    def _logical(native: tuple[int, int, int, int]) -> QRect:
+        """A rect in desktop pixels, in Qt's units."""
+        left, top, right, bottom = native
         x, y, ratio = native_to_logical(left, top)
-        window = QRect(round(x), round(y), round((right - left) / ratio), round((bottom - top) / ratio))
-        return window, f"直播姬's capture ({capture.exe or capture.title})"
+        return QRect(round(x), round(y), round((right - left) / ratio), round((bottom - top) / ratio))
 
     @staticmethod
     def _sixteen_nine(target: QRect) -> QRect:
@@ -4145,9 +4173,8 @@ class MainWindow(QMainWindow):
         is in (what a 窗口捕捉 captures), and what that is, for the log."""
         found = self._livehime_game() if self.store.stream_mode else None
         if found is not None:
-            window, where = found
-            # MuMu's own bar is in the window 直播姬 captures: the game is the window drawing in its middle.
-            game = self._window_at(window.center(), window) or window
+            # MuMu's own bar is in the window 直播姬 captures: the game is its window drawing in its middle.
+            window, game, where = found
         else:
             screen = QApplication.screenAt(QCursor.pos()) or QApplication.primaryScreen()
             window = screen.geometry()
@@ -4167,23 +4194,28 @@ class MainWindow(QMainWindow):
         area = screen.geometry()
         ratio = screen.devicePixelRatio() or 1.0
         found = window_rect_at(round(area.x() + (point.x() - area.x()) * ratio), round(area.y() + (point.y() - area.y()) * ratio))
+        return MainWindow._game_part(found, within)
+
+    @staticmethod
+    def _game_part(found: tuple[int, int, int, int] | None, within: QRect) -> QRect | None:
+        """A window found (desktop pixels) in Qt's units, cut to within; None when there is none, or it
+        is too small a part of within to be the game."""
         if found is None:
             return None
-        x, y, ratio = native_to_logical(found[0], found[1])
-        rect = QRect(round(x), round(y), round((found[2] - found[0]) / ratio), round((found[3] - found[1]) / ratio))
-        rect = rect.intersected(within)
+        rect = MainWindow._logical(found).intersected(within)
         if rect.width() < within.width() / 4 or rect.height() < within.height() / 4:
             return None
         return rect
 
     def _end_quick_play(self, turn: int | None = None) -> None:
         """Take the 特效 hotkey's marks down and put back what it set aside. turn: only that play's
-        end; without it, a play cut short (by a check, or by the hotkey again) stops its music too."""
+        end; without it, a play cut short (by a check, by the hotkey again, by 安全模式) stops its music
+        too, unless ▶ on 特效 took the music over since."""
         if not self._quick_scene or (turn is not None and turn != self._quick_round):
             return
         self._quick_round += 1
         self._hide_panel_after_title()
-        if turn is None:
+        if turn is None and not self.effects_page.sounding:
             self.music.stop()
         self._quick_scene = ""
         self._quick_area = None
