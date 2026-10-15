@@ -61,7 +61,7 @@ SCENES: tuple[tuple[str, str], ...] = (
     ("stars", "星河许愿"),
     ("cyber", "赛博朋克·一"),
     ("neon", "赛博朋克·二"),
-    ("angel", "可我觉得很神圣啊"),
+    ("angel", "金色传说"),
     ("equation", "数学公式"),
     ("fluffy", "毛茸茸保护协会"),
     ("claw", "演说家遇袭"),

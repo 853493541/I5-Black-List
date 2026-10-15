@@ -412,7 +412,7 @@ def test_a_guest_picks_a_theme_and_the_page_shows_and_orders_them(window):
     window.store.add_like("阿星", theme="angel")
     page.refresh()
     shown = lambda: [(page.table.item(r, 0).text(), page.table.item(r, 2).text()) for r in range(page.table.rowCount())]  # noqa: E731
-    assert shown() == [("阿星", "可我觉得很神圣啊"), ("小红", "默认"), ("小明", "赛博朋克·一")]
+    assert shown() == [("阿星", "金色传说"), ("小红", "默认"), ("小明", "赛博朋克·一")]
     assert page.table.dragEnabled()
     # A row dragged to the top decides first.
     page.table.moved.emit(2, 0)

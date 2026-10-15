@@ -7,7 +7,7 @@ rings as its heart forms; 星河许愿 plays Twinkle, Twinkle, Little Star on a 
 chimes as its two stars meet; 赛博朋克·一 zaps at each of its five strikes over a synthwave pulse;
 赛博朋克·二 rains and thunders at each of its four strikes over city-pop chords; 毛茸茸保护协会 plucks a
 bouncy tune, pops its stars, boings its sprouts and pats its paw prints. The tunes are this script's
-own or public domain, so a stream can carry them. 经典 greets in silence; 玫瑰花边, 可我觉得很神圣啊 and
+own or public domain, so a stream can carry them. 经典 greets in silence; 玫瑰花边, 金色传说 and
 数学公式 keep the wedding tunes made for them (build/wedding_tunes.py: organ, bells, canon) and 演说家遇袭 its
 own (build/ambush_tune.py).
 
