@@ -1378,7 +1378,7 @@ def card(p: QPainter, rect: QRectF, t: float) -> None:
     p.drawImage(rect, image)
     sprig = _mark(("card-sprig",), lambda: _Sprig(_mark_leaves(), 3.0, [(0.9, -40, 0.85, 0), (1.0, -8, 1.0, 2), (0.8, 24, 0.8, 1)], 4.0))
     p.setRenderHint(QPainter.SmoothPixmapTransform)
-    sprig.paint(p, QPointF(rect.left() + 9, rect.top() + CARD_TOP + 6), -100 + 8 * math.sin(t * 1.9) + 4 * math.sin(t * 4.3))
+    sprig.paint(p, QPointF(rect.left() + 9, rect.top() + CARD_TOP + 6), -100 + 8 * math.sin(t * 1.9) + 4 * math.sin(t * 4.3), 1.35)
 
 
 def lead(size: float, index: int) -> QPixmap:
@@ -1447,7 +1447,10 @@ def ring(p: QPainter, cover: QRectF, t: float) -> None:
         _ribbon(p, spine, 2.2, col(MIST, 0), col("#ffffff", 0.9))
     for k in range(4):
         at, angle = point_at(points, run, (t * 95 + k * total / 4 + 20) % total)
-        leaves.draw(p, at, math.degrees(angle) + 30 * math.sin(t * 5 + k), k, 1.0, math.cos(t * 4 + k))
+        # Just outside the band, on the dark of the game, in the light greens.
+        out = 4.5 + 1.5 * math.sin(t * 3 + k)
+        at = QPointF(at.x() + math.sin(angle) * out, at.y() - math.cos(angle) * out)
+        leaves.draw(p, at, math.degrees(angle) + 30 * math.sin(t * 5 + k), (1, 2)[k % 2], 1.15, math.cos(t * 4 + k))
 
 
 def badge(p: QPainter, box: QRectF, t: float) -> None:
