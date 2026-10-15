@@ -17,6 +17,8 @@ from blacklist_detect.love_scenes import KEYS, Stage, choose, sample_stage  # no
 
 # The scenes that draw the 嘉宾 marks as themes of their own.
 THEMES = ("classic", "cyber", "neon", "angel", "equation", "fluffy", "claw")
+# Scenes drawn for a player to see before they go into 设置: the same rules hold for them.
+CONCEPTS = ("bamboo",)
 
 
 @pytest.fixture(scope="module")
@@ -44,7 +46,7 @@ def _drawn(image: QImage) -> bool:
     return any(image.pixelColor(x, y).alpha() for x in range(0, image.width(), 7) for y in range(0, image.height(), 7))
 
 
-@pytest.mark.parametrize("key", KEYS)
+@pytest.mark.parametrize("key", KEYS + CONCEPTS)
 def test_every_scene_plays_through_and_keeps_the_button_bare(qapp, key):
     stage = sample_stage()
     shots = _frames(stage, key)
@@ -57,7 +59,7 @@ def test_every_scene_plays_through_and_keeps_the_button_bare(qapp, key):
         assert all(shot.pixelColor(x, y).alpha() < 40 for x in range(button.left(), button.right(), 6) for y in (button.top(), button.bottom()))
 
 
-@pytest.mark.parametrize("key", KEYS)
+@pytest.mark.parametrize("key", KEYS + CONCEPTS)
 def test_every_scene_fits_another_window_shape(qapp, key):
     """A windowed emulator is narrower and taller than the lobby the scenes were drawn on."""
     stage = Stage(900, 640, QRectF(300, 540, 330, 100), badge=QPointF(600, 580))
@@ -267,7 +269,7 @@ def test_a_theme_brings_its_own_look(qapp):
     assert love_look("off").marks == love_look("draw").marks == "classic"
 
 
-@pytest.mark.parametrize("key", THEMES)
+@pytest.mark.parametrize("key", THEMES + CONCEPTS)
 def test_every_theme_draws_its_marks(qapp, key):
     from blacklist_detect.ui_love_pick import SampleMarks
 
@@ -477,3 +479,18 @@ def test_the_conductors_badge_holds_his_role_icon(qapp, scale):
     assert 0.55 <= (xs.max() - xs.min()) / (ys.max() - ys.min()) <= 0.8
     x, y = round(middle + tip.x() * scale), round(middle + tip.y() * scale)
     assert tip.x() < 0 and tip.y() < 0 and alpha[y - 1 : y + 2, x - 1 : x + 2].max() > 100
+
+
+def test_the_bamboo_frames_the_whole_lobby_in_jade_and_leaves_the_names_readable(qapp):
+    """竹风 is a frame: in the middle of the wind every edge has its jade frame, the whole lobby is
+    tinted green, and over the names the tint stays light."""
+    stage = sample_stage()
+    shot = _frames(stage, "bamboo")[4]
+    assert love_scenes.load("bamboo").DURATION == 5.0
+    middle = stage.height / 2
+    for x, y in ((6, middle), (stage.width - 6, middle), (stage.width * 0.3, 6), (stage.width * 0.3, stage.height - 6)):
+        color = shot.pixelColor(round(x), round(y))
+        assert color.alpha() > 180 and color.green() > color.red() and color.green() > color.blue(), (x, y)
+    for name in stage.names():
+        color = shot.pixelColor(name.center().toPoint())
+        assert 30 < color.alpha() < 110 and color.green() > color.red(), name

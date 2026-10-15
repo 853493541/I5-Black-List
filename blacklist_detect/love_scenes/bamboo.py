@@ -1302,7 +1302,7 @@ def _mark(key: tuple, make_it):  # noqa: ANN001, ANN202
 
 
 def _mark_leaves() -> _Leaves:
-    return _mark(("leaves",), lambda: _Leaves(0.32))
+    return _mark(("leaves",), lambda: _Leaves(0.45))
 
 
 def _cane(length: float, thick: float, scale: float, seed: int) -> tuple[np.ndarray, np.ndarray]:
