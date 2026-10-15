@@ -63,7 +63,7 @@ from blacklist_detect.diagnostics import (
 )
 from blacklist_detect.game_area import exclusive_fullscreen, game_rect, inner_rect_of, window_order, window_rect_at
 from blacklist_detect.guests import lobby_choice
-from blacklist_detect.hotkey import GlobalHotkey, parse_hotkey
+from blacklist_detect.hotkey import GlobalHotkey, everyday, parse_hotkey
 from blacklist_detect.importing import suggest_tags, with_tags
 from blacklist_detect.logs import log, mark_closed, mark_running, masked, on_uncaught, setup_logging
 from blacklist_detect.match import (
@@ -3077,9 +3077,13 @@ class MainWindow(QMainWindow):
             # Two keys at most: short to press mid-game, and short to read.
             self._hotkey_note(edit, "最多两个键，比如 Alt+1")
             return
-        if not modifiers and len(key) == 1:
-            # A letter or a number alone would be taken from every program: typing it anywhere would press it.
-            self._hotkey_note(edit, "加上 Ctrl、Alt 或 Shift，比如 Alt+1")
+        if len(key) == 1 and modifiers in ([], ["Shift"]):
+            # A letter or a number, alone or with Shift, would be taken from every program: typing it anywhere would press it.
+            self._hotkey_note(edit, "加上 Ctrl 或 Alt，比如 Alt+1")
+            return
+        if everyday(tuple(modifiers), key):
+            # Copying, pasting, closing a window: every program's, and Windows' own Win keys.
+            self._hotkey_note(edit, "这是常用的键，换一个")
             return
         spec = parse_hotkey("+".join([*modifiers, key]))
         if spec is None:

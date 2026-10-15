@@ -30,6 +30,9 @@ _MODIFIER_FLAGS = {
     "Win": _MOD_WIN,
 }
 
+# Shortcuts every program, or Windows, has: copying, pasting, undoing, saving, finding, closing.
+_EVERYDAY = frozenset({*(f"Ctrl+{letter}" for letter in "ACFNOPSTVWXYZ"), "Alt+F4", "Ctrl+F4", "Shift+F10"})
+
 
 @dataclass(frozen=True)
 class HotkeySpec:
@@ -66,8 +69,18 @@ def _vk_code(key: str) -> int:
     return 0x70 + number - 1
 
 
+def everyday(modifiers: tuple[str, ...], key: str) -> bool:
+    """Whether a key is one people use everywhere, which a hotkey would take from every program: a
+    letter or a number alone or with Shift (typing), Win with one (Windows' own), or a shortcut every
+    program has (Ctrl+C, Alt+F4)."""
+    if len(key) == 1 and modifiers in ((), ("Shift",), ("Win",)):
+        return True
+    return "+".join((*modifiers, key)) in _EVERYDAY
+
+
 def parse_hotkey(text: str) -> HotkeySpec | None:
-    """Parse 'Ctrl+Shift+F8'. Empty means the capture hotkey is not set."""
+    """Parse 'Ctrl+Shift+F8'. Empty means the capture hotkey is not set; a key in everyday use is none
+    either, so one saved before it was refused (or written in by hand) takes nothing from anyone."""
     raw = (text or "").strip()
     if not raw:
         return None
@@ -92,6 +105,8 @@ def parse_hotkey(text: str) -> HotkeySpec | None:
     ordered = tuple(name for name in _MODIFIER_ORDER if name in modifiers)
     if key == "F12" and not ordered:
         # Windows keeps F12 alone for its debugger: RegisterHotKey refuses it on every PC.
+        return None
+    if everyday(ordered, key):
         return None
     display = "+".join((*ordered, key))
     return HotkeySpec(display=display, modifiers=ordered, vk=_vk_code(key))

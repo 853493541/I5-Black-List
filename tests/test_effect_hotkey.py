@@ -86,6 +86,13 @@ def test_the_settings_save_and_load_and_bad_ones_fall_back(tmp_path):
     assert saved(effect_hotkey="Ctrl+Alt").effect_hotkey == "Alt+F12"
     assert saved(effect_hotkey=["F8"]).effect_hotkey == "Alt+F12"
     assert saved(effect_hotkey="ctrl+alt+f9").effect_hotkey == "Ctrl+F9"
+    # One in everyday use, from before it was refused or written in by hand, is the default too.
+    for key in ("Q", "Shift+Q", "Shift+7", "Ctrl+C", "Ctrl+Shift+V", "Alt+F4", "Win+D"):
+        assert saved(effect_hotkey=key).effect_hotkey == "Alt+F12", key
+    assert saved(hotkey="Alt+F12", effect_hotkey="Ctrl+V").effect_hotkey == ""
+    # 检查's is none then, as for a key that is no hotkey: nothing taken from typing.
+    store = saved(hotkey="Shift+A")
+    assert hotkey.parse_hotkey(store.hotkey) is None and store.effect_hotkey == "Alt+F12"
     assert saved(hotkey="Alt+F12").effect_hotkey == ""
     assert saved(hotkey="Alt+1", effect_hotkey="alt+1").effect_hotkey == ""
     # 检查 had no key and the 特效 hotkey took Alt+1, where 检查 would come back: the 特效 hotkey keeps it.
@@ -201,12 +208,23 @@ def test_the_effect_hotkey_can_be_none(window):
 
 def test_a_letter_or_number_alone_is_no_hotkey(window, monkeypatch):
     monkeypatch.setattr(hotkey, "_register", lambda ident, modifiers, vk: True)
-    # It would be taken from every program: typing it anywhere would press it.
+    shift = Qt.KeyboardModifier.ShiftModifier
+    # It would be taken from every program: typing it anywhere would press it. With Shift too.
     for edit, note in ((window.effect_hotkey_edit, window.effects_page.note), (window.hotkey_edit, window.settings_label)):
-        _press(edit, Qt.Key_Q)
-        assert note.text() == "加上 Ctrl、Alt 或 Shift，比如 Alt+1"
-        _press(edit, Qt.Key_7)
-        assert note.text() == "加上 Ctrl、Alt 或 Shift，比如 Alt+1"
+        for key, modifiers in ((Qt.Key_Q, Qt.KeyboardModifier.NoModifier), (Qt.Key_7, Qt.KeyboardModifier.NoModifier),
+                               (Qt.Key_Q, shift), (Qt.Key_7, shift)):  # fmt: skip
+            note.setText("")
+            _press(edit, key, modifiers)
+            assert note.text() == "加上 Ctrl 或 Alt，比如 Alt+1"
+    assert (window.store.hotkey, window.store.effect_hotkey) == ("Alt+1", "Alt+F12")
+    # Nor a shortcut every program has: copying, pasting, closing a window.
+    ctrl, alt = Qt.KeyboardModifier.ControlModifier, Qt.KeyboardModifier.AltModifier
+    for edit, note in ((window.effect_hotkey_edit, window.effects_page.note), (window.hotkey_edit, window.settings_label)):
+        for key, modifiers in ((Qt.Key_C, ctrl), (Qt.Key_V, ctrl), (Qt.Key_Z, ctrl), (Qt.Key_S, ctrl), (Qt.Key_F4, alt),
+                               (Qt.Key_D, Qt.KeyboardModifier.MetaModifier)):  # fmt: skip
+            note.setText("")
+            _press(edit, key, modifiers)
+            assert note.text() == "这是常用的键，换一个"
     assert (window.store.hotkey, window.store.effect_hotkey) == ("Alt+1", "Alt+F12")
     # An F key alone is no letter anyone types.
     _press(window.effect_hotkey_edit, Qt.Key_F8)
