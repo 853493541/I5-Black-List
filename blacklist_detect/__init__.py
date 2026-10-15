@@ -1,3 +1,3 @@
 """Black List Detect — desktop lobby name check."""
 
-__version__ = "v0.9.12"
+__version__ = "v0.9.13"
