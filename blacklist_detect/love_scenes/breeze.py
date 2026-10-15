@@ -87,7 +87,7 @@ LIGHT = _L / np.linalg.norm(_L)
 HALF = (LIGHT + [0, 0, 1]) / np.linalg.norm(LIGHT + [0, 0, 1])
 # How many shades of each silk are made, from the deepest fold to full sheen, and how long its
 # picture runs before it repeats.
-LEVELS = 40
+LEVELS = 64
 TILE = 192
 TAU = math.tau
 
@@ -240,9 +240,9 @@ def _shaded(m: np.ndarray, soft: float) -> np.ndarray:
 # mist at its feet, and its peaks on each side, from the screen's edge in: (where, in shares of the
 # side; how much of the room there it takes; how wide for its height).
 RANGES = (
-    (0.4, 0.45, 0.45, 0.5, 0.6, ((0.06, 1.0, 0.95), (0.4, 0.8, 1.25), (0.74, 0.55, 1.2))),
-    (0.12, 0.12, 0.85, 1.0, 0.65, ((-0.02, 0.95, 0.75), (0.24, 0.72, 0.8), (0.52, 0.62, 1.0), (0.86, 0.42, 1.0))),
-    (-0.2, 0.0, 1.0, 0.7, 0.5, ((0.14, 0.62, 1.1), (0.46, 0.5, 1.15), (0.84, 0.36, 1.1))),
+    (0.4, 0.45, 0.45, 0.5, 0.85, ((0.06, 1.0, 0.6), (0.42, 0.85, 1.7))),
+    (0.12, 0.12, 0.85, 1.0, 0.85, ((0.0, 0.95, 0.5), (0.3, 0.74, 1.35), (0.78, 0.5, 1.6))),
+    (-0.2, 0.0, 1.0, 0.7, 0.6, ((0.2, 0.6, 2.0), (0.72, 0.46, 1.9))),
 )
 
 
@@ -257,14 +257,14 @@ def _mountains(stage: Stage, u: float) -> tuple[list[list[tuple[QRectF, QImage]]
     xs = np.arange(w, dtype=np.float32) + 0.5
     # The highest a ridge may reach at each x.
     ymin = np.full(w, floor, dtype=np.float32)
-    ymin = np.minimum(ymin, floor + (max(0.0, height - 330 * u) - floor) * smooth(left + 10 * u, left - 150 * u, xs))
-    ymin = np.minimum(ymin, floor + (max(0.0, height - 260 * u) - floor) * smooth(right - 10 * u, right + 110 * u, xs))
+    ymin = np.minimum(ymin, floor + (max(0.0, height - 420 * u) - floor) * smooth(left + 10 * u, left - 150 * u, xs))
+    ymin = np.minimum(ymin, floor + (max(0.0, height - 330 * u) - floor) * smooth(right - 10 * u, right + 110 * u, xs))
     top = max(0, int(ymin.min() - 6 * u))
     bh = max(4, math.ceil(height) - top)
     ys = top + np.arange(bh, dtype=np.float32) + 0.5
     room = max(20 * u, height - floor)
     away = _away(gap, xs[None, :], ys[:, None], u)
-    wash = noise(w, bh, 46 * u, 3, 3)
+    wash = noise(w, bh, 70 * u, 3, 3)
     grain = noise(w, bh, 1.4, 2, 5)
     fibre = _streaks(bh, w, 1.2, 9, 6)
     hairs = noise(256, 256, 2.0, 2, 8)
@@ -316,10 +316,10 @@ def _peaks(plan: tuple, xs: np.ndarray, ymin: np.ndarray, base: float, gap: QRec
             wl = max(46 * u, tall * wide * rnd.uniform(0.85, 1.15))
             wr = max(46 * u, tall * wide * rnd.uniform(0.85, 1.15))
             bumps = [(0.0, 1.0, 1.0)]
-            for side in rnd.sample((-1, 1), rnd.choice((1, 2))):
-                bumps.append((side * rnd.uniform(0.38, 0.6), rnd.uniform(0.5, 0.74), rnd.uniform(0.38, 0.55)))
-            if rnd.random() < 0.6:
-                bumps.append((rnd.uniform(-0.25, 0.25), rnd.uniform(0.82, 0.94), rnd.uniform(0.25, 0.4)))
+            for _ in range(rnd.choice((2, 3, 4))):
+                bumps.append((rnd.uniform(-0.7, 0.7), rnd.uniform(0.45, 0.85), rnd.uniform(0.22, 0.5)))
+            if rnd.random() < 0.5:
+                bumps.append((rnd.uniform(-0.3, 0.3), rnd.uniform(0.8, 0.95), rnd.uniform(0.18, 0.32)))
             near = (xs > x - wl) & (xs < x + wr)
             if near.any():
                 lift = np.maximum(_ridge(xs[near], x, wl, wr, bumps, u, 0, rough=False), 1e-3) * 1.06
@@ -338,9 +338,9 @@ def _ridge(xs: np.ndarray, x0: float, wl: float, wr: float, bumps: list, u: floa
         cx = x0 + at * (wr if at > 0 else wl)
         q = np.where(xs < cx, (cx - xs) / (wl * wide), (xs - cx) / (wr * wide))
         q = np.clip(q, 0, 1)
-        out = np.maximum(out, tall * (0.55 * (1 - q * q) ** 1.6 + 0.45 * (1 - q) ** 2.2))
+        out = np.maximum(out, tall * (0.75 * np.clip(1 - q * q, 0, 1) ** 1.4 + 0.25 * (1 - q) ** 2))
     if rough:
-        out = out * (1 + 0.05 * (noise(len(xs), 1, 9 * u, 2, seed)[0] - 0.5) * np.sqrt(out))
+        out = out * (1 + 0.08 * (noise(len(xs), 1, 7 * u, 3, seed)[0] - 0.5) * np.sqrt(out))
     return out
 
 
@@ -360,8 +360,8 @@ def _hill(xs, ys, ridge, base, peak, line, wash, grain, fibre, hairs, kind, u, s
     inside = smooth(-1.1, 1.1, d)
     w0 = wash - 0.5
     top = _mix(rgb(AZURE), rgb("#2f7f86"), np.clip(0.4 + 0.9 * w0, 0, 1))
-    color = _mix(top, rgb(MALACHITE), smooth(0.05, 0.42, fall + 0.18 * w0))
-    color = _mix(color, _mix(rgb(PALE), rgb("#d8d0a8"), 0.45), smooth(0.45, 1.0, fall + 0.2 * w0))
+    color = _mix(top, rgb(MALACHITE), smooth(0.05, 0.42, fall + 0.1 * w0))
+    color = _mix(color, _mix(rgb(PALE), rgb("#d8d0a8"), 0.45), smooth(0.5, 1.05, fall + 0.1 * w0))
     # Blue pools under the ridge where the wash dried.
     color = _mix(color, rgb("#1e5a6e"), np.exp(-np.maximum(d, 0) / (0.12 * tall + 3 * u)) * 0.45 * inside)
     shade = 1.06 - 0.2 * np.clip(r, -1, 1) - 0.05 * fall
@@ -412,13 +412,14 @@ def _mist(xs, skyline, base, top, bh, gap, strength, u, seed) -> dict:  # noqa: 
     x4 = (np.arange(w4, dtype=np.float32) + 0.5) * q
     y4 = top + (np.arange(h4, dtype=np.float32) + 0.5) * q
     sky = np.interp(x4, xs, skyline)
-    centre = sky + 0.68 * (base - sky)
-    thick = 0.36 * (base - sky) + 10 * u
+    centre = sky + 0.62 * (base - sky)
+    thick = 0.5 * (base - sky) + 10 * u
     where = np.exp(-(((y4[:, None] - centre[None, :]) / thick[None, :]) ** 2)) * _away(gap, x4[None, :], y4[:, None], u)
     extra = math.ceil(260 * u / q) + 2
     rising = math.ceil(60 * u / q) + 2
     billows = noise(w4 + extra, h4 + rising, 30 * u / q, 2, seed)
-    return {"where": where, "billows": billows, "extra": extra, "rising": rising, "q": q, "top": top, "strength": strength, "w4": w4, "h4": h4}
+    return {"where": where, "billows": billows, "extra": extra, "rising": rising, "q": q, "top": top, "strength": strength, "w4": w4, "h4": h4,
+            "color": np.broadcast_to(rgb(PAPER) * 0.45 + rgb("#eef8f2") * 0.55, (h4, w4, 3))}
 
 
 def _mist_paint(p: QPainter, t: float, mist: dict, gust: float, life: float, u: float) -> None:
@@ -431,7 +432,7 @@ def _mist_paint(p: QPainter, t: float, mist: dict, gust: float, life: float, u: 
     ix, iy = int(sx), int(sy)
     density = mist["billows"][iy : iy + mist["h4"], ix : ix + mist["w4"]] * mist["where"]
     alpha = smooth(0.1, 0.72, density) * mist["strength"] * (0.85 + 0.25 * ease_in_out(win(t, 4.3, 4.8)))
-    color = _mix(rgb(PAPER), rgb("#e9f6ef"), np.clip(density * 1.3, 0, 1))
+    color = mist["color"]
     p.setOpacity(life)
     p.drawImage(QRectF((ix - sx) * q, mist["top"] + (iy - sy) * q, mist["w4"] * q, mist["h4"] * q), picture(color, alpha))
 
@@ -513,9 +514,9 @@ def _ribbons(stage: Stage, u: float) -> list[_Silk]:
     bottom = _line(low, blue_length + 120 * u, u)
     stop = bottom["start"] + float(_along(low)[np.argmin(np.abs(low[:, 0] - (gap.left() - 40 * u)))])
     blue = _Silk(bottom["path"], bottom["along"], bottom["normals"], 26 * u, blue_length, (0.5, 2.25), (bottom["start"], stop, bottom["end"] + blue_length),
-                 0.0, 4.2, *_silk("#3f8f98", "#173f55", "#bfe6e0", 26 * u, u, 7), u)  # fmt: skip
+                 0.0, 4.2, *_silk("#4fa3a8", "#1d4f66", "#d4f3ec", 26 * u, u, 7), u)  # fmt: skip
     for silk in (jade, pale, blue):
-        silk.s = np.arange(0, silk.length, 4.5 * u)
+        silk.s = np.arange(0, silk.length, 1.5 * u)
     return [jade, pale, blue]
 
 
@@ -656,6 +657,9 @@ def _lay(q: QPainter, x: np.ndarray, y: np.ndarray, s: np.ndarray, theta: np.nda
     or an overlap, each in the shade its twist turns it to. A face turned toward the light shines, one
     turned edge on is narrow and deep in color; turned past edge on, its back shows."""
     tx, ty = np.gradient(x), np.gradient(y)
+    if len(tx) > 4:
+        # The line's direction a little smoothed, so the edges run clean along a curve.
+        tx, ty = (np.convolve(np.pad(a, 2, mode="edge"), np.ones(5) / 5, mode="valid") for a in (tx, ty))
     norm = np.maximum(np.hypot(tx, ty), 1e-6)
     tx, ty = tx / norm, ty / norm
     cos, sin = np.cos(theta), np.sin(theta)
@@ -664,61 +668,66 @@ def _lay(q: QPainter, x: np.ndarray, y: np.ndarray, s: np.ndarray, theta: np.nda
     diffuse = np.maximum(n @ LIGHT, 0)
     spec = np.maximum(n @ HALF, 0) ** 9
     lum = np.clip(0.1 + 0.62 * diffuse + 0.42 * spec - 0.3 * (1 - np.abs(cos)), 0, 1)
-    # Between two shades, some quads take the one and some the other, in a fixed pattern along the
-    # silk, so a slow change of light does not step.
-    between = (np.arange(len(s) - 1) * 0.618034) % 1.0
-    level = np.minimum(((lum[:-1] + lum[1:]) / 2 * (LEVELS - 1) + between).astype(int), LEVELS - 1)
-    k = np.where(np.abs(cos) < 0.05, 0.05 * facing, cos) * width / 2 / half * tw / 2
-    # Each point's two edges, across the line from it.
+    # The points come close together; a quad spans up to four of them, fewer where the light changes
+    # fast, so no quad is more than about a shade lighter at one end than the other.
+    shade = lum * (LEVELS - 1)
+    chosen = [0]
+    last = shade[0]
+    for i in range(1, len(s)):
+        if i - chosen[-1] >= 4 or abs(shade[i] - last) > 0.9 or i == len(s) - 1:
+            chosen.append(i)
+            last = shade[i]
+    if len(chosen) < 2:
+        return
+    at = np.array(chosen)
+    k = (np.where(np.abs(cos) < 0.05, 0.05 * facing, cos) * width / 2 / half * tw / 2)[at]
+    x, y, s, tx, ty, lum = (a[at] for a in (x, y, s, tx, ty, lum))
+    keep = keep[at] if keep is not None else np.ones(len(at), dtype=bool)
+    # Where it turns over between two points, a point between them twice: edge on, a thread wide,
+    # once each way, so each side of the turn is a proper quad.
+    flip = np.nonzero(k[:-1] * k[1:] < 0)[0]
+    if len(flip):
+        mid = lambda a: (a[flip] + a[flip + 1]) / 2  # noqa: E731
+        thin = 0.6
+        x, y, s, tx, ty, lum = (np.insert(a, np.repeat(flip + 1, 2), np.repeat(mid(a), 2)) for a in (x, y, s, tx, ty, lum))
+        k = np.insert(k, np.repeat(flip + 1, 2), np.column_stack([np.sign(k[flip]) * thin, np.sign(k[flip + 1]) * thin]).ravel())
+        keep = np.insert(keep, np.repeat(flip + 1, 2), True)
+    level = np.rint((lum[:-1] + lum[1:]) / 2 * (LEVELS - 1)).astype(int)
+    # Each point's two edges, across the line from it; each quad's corners, near edge then far.
     ax, ay = x + ty * k, y - tx * k
     bx, by = x - ty * k, y + tx * k
+    x0, y0, x1, y1 = ax[:-1], ay[:-1], ax[1:], ay[1:]
+    x2, y2, x3, y3 = bx[1:], by[1:], bx[:-1], by[:-1]
+    span = s[1:] - s[:-1]
+    start = TILE + s[:-1] % TILE
+    # The square onto each quad (Heckbert's), then the picture's piece onto the square.
+    dx1, dx2, dx3 = x1 - x2, x3 - x2, x0 - x1 + x2 - x3
+    dy1, dy2, dy3 = y1 - y2, y3 - y2, y0 - y1 + y2 - y3
+    den = dx1 * dy2 - dx2 * dy1
+    den = np.where(np.abs(den) < 1e-9, 1e-9, den)
+    g = (dx3 * dy2 - dx2 * dy3) / den
+    h = (dx1 * dy3 - dx3 * dy1) / den
+    # A quad folded over itself (a tight inner bend) is laid as the parallelogram from its near end.
+    turns = [((cx1 - cx0) * (cy2 - cy1) - (cy1 - cy0) * (cx2 - cx1)) for (cx0, cy0), (cx1, cy1), (cx2, cy2) in
+             (((x0, y0), (x1, y1), (x2, y2)), ((x1, y1), (x2, y2), (x3, y3)), ((x2, y2), (x3, y3), (x0, y0)), ((x3, y3), (x0, y0), (x1, y1)))]  # fmt: skip
+    turns = np.array(turns)
+    proper = np.all(turns > 0, axis=0) | np.all(turns < 0, axis=0)
+    g, h = np.where(proper, g, 0), np.where(proper, h, 0)
+    a = np.where(proper, x1 - x0 + g * x1, x1 - x0)
+    b = np.where(proper, x3 - x0 + h * x3, x3 - x0)
+    d = np.where(proper, y1 - y0 + g * y1, y1 - y0)
+    e = np.where(proper, y3 - y0 + h * y3, y3 - y0)
+    safe = np.where(span > 1e-6, span, 1.0)
+    m = np.column_stack([a / safe, d / safe, g / safe, b / tw, e / tw, h / tw, x0 - a * start / safe, y0 - d * start / safe, 1 - g * start / safe])
+    show = keep[:-1] | keep[1:]
+    show &= span > 1e-6
     q.setRenderHint(QPainter.SmoothPixmapTransform)
     q.setRenderHint(QPainter.Antialiasing, False)
-    target = QTransform()
-    for i in range(len(s) - 2, -1, -1):
-        if keep is not None and not (keep[i] or keep[i + 1]):
-            continue
-        start = TILE + float(s[i] % TILE)
-        span = float(s[i + 1] - s[i])
-        image = levels[level[i]]
-        if k[i] * k[i + 1] < 0:
-            # It turns over here: two quads, each narrowing to a thread where it is edge on.
-            mx, my = (x[i] + x[i + 1]) / 2, (y[i] + y[i + 1]) / 2
-            mtx, mty = (tx[i] + tx[i + 1]) / 2, (ty[i] + ty[i + 1]) / 2
-            for a, b, sign, at in ((i, None, np.sign(k[i]), 0.0), (None, i + 1, np.sign(k[i + 1]), 0.5)):
-                thin = sign * 0.6
-                ends = []
-                for j in (a, b):
-                    if j is None:
-                        ends.append((mx + mty * thin, my - mtx * thin, mx - mty * thin, my + mtx * thin))
-                    else:
-                        ends.append((ax[j], ay[j], bx[j], by[j]))
-                _quad(q, target, image, QRectF(start + at * span, 0, span / 2, tw), ends[0], ends[1])
-            continue
-        _quad(q, target, image, QRectF(start, 0, span, tw), (ax[i], ay[i], bx[i], by[i]), (ax[i + 1], ay[i + 1], bx[i + 1], by[i + 1]))
+    for i in np.nonzero(show)[0][::-1].tolist():
+        piece = QRectF(start[i], 0, span[i], tw)
+        q.setTransform(QTransform(*m[i]))
+        q.drawImage(piece, levels[level[i]], piece)
     q.resetTransform()
-
-
-def _quad(q: QPainter, target: QTransform, image: QImage, piece: QRectF, near: tuple, far: tuple) -> None:
-    """A piece of a ribbon's picture laid between two of its cross lines (each its two edge points):
-    as an exact quad where that is a proper one, else (a tight inner bend) as the parallelogram from
-    its near end."""
-    corners = ((near[0], near[1]), (far[0], far[1]), (far[2], far[3]), (near[2], near[3]))
-    turns = []
-    for j in range(4):
-        (x0, y0), (x1, y1), (x2, y2) = corners[j], corners[(j + 1) % 4], corners[(j + 2) % 4]
-        turns.append((x1 - x0) * (y2 - y1) - (y1 - y0) * (x2 - x1))
-    if all(turn > 0 for turn in turns) or all(turn < 0 for turn in turns):
-        source = QPolygonF([piece.topLeft(), piece.topRight(), piece.bottomRight(), piece.bottomLeft()])
-        quad = QPolygonF([QPointF(*corner) for corner in corners])
-        if QTransform.quadToQuad(source, quad, target):
-            q.setTransform(target)
-            q.drawImage(piece, image, piece)
-            return
-    ex, ey = (far[0] - near[0]) / piece.width(), (far[1] - near[1]) / piece.width()
-    cx, cy = (near[2] - near[0]) / piece.height(), (near[3] - near[1]) / piece.height()
-    q.setTransform(QTransform(ex, ey, cx, cy, near[0] - ex * piece.left(), near[1] - ey * piece.left()))
-    q.drawImage(piece, image, piece)
 
 
 # The crane ------------------------------------------------------------------------------------
@@ -1052,8 +1061,8 @@ def _title(stage: Stage, u: float) -> dict:
     from its rod; the title in 楷体, each character cut into its strokes in writing order, each stroke
     ink per pixel with which way the brush went along it; the red seal under it."""
     names = stage.names()
-    size = 42 * u
-    step = 49 * u
+    size = 46 * u
+    step = 52 * u
     cx = max(48 * u, min(min(n.left() for n in names) * 0.5, 110 * u))
     head = 20 * u + 26 * u
     top = head + 6 * u
@@ -1097,8 +1106,8 @@ def _title(stage: Stage, u: float) -> dict:
             share = TITLE_EACH * weight / sum(weights)
             strokes.append((when, share, *_stroke(m * (owner == k), origin, u, index * 31 + k)))
             when += share
-    seal = QPointF(cx, top + step * (len(TITLE) - 1) + size + 26 * u)
-    scroll = QRectF(cx - 35 * u, 20 * u, 70 * u, seal.y() + 20 * u + 30 * u - 20 * u)
+    seal = QPointF(cx, top + step * (len(TITLE) - 1) + size + 28 * u)
+    scroll = QRectF(cx - 37 * u, 20 * u, 74 * u, seal.y() + 32 * u)
     return {"strokes": strokes, "scroll": _hanging(scroll, u), "seal": _seal(seal, u), "at": seal}
 
 
@@ -1160,7 +1169,7 @@ def _hanging(rect: QRectF, u: float) -> dict:
     sheet = rgb(PAPER) * (0.95 + 0.06 * grain + 0.05 * (fibre - 0.5))[..., None]
     sheet = _mix(sheet, rgb("#e2d6b2"), smooth(0.35, 0.0, np.minimum(ys / h, 1 - ys / h) * 3) * 0.3)
     color = _mix(silk, sheet, paper)
-    hairline = np.clip(blur(paper, 0.9 * u) * 1.7, 0, 1) * (1 - paper)
+    hairline = np.clip(blur(paper, 0.45 * u) * 1.9, 0, 1) * (1 - paper)
     color = _mix(color, rgb(GOLD) * 1.05, np.clip(hairline * 1.5, 0, 1))
     rod = smooth(3.5 * u, 2.5 * u, ys)
     color = _mix(color, rgb("#1b2a26"), rod)
@@ -1189,7 +1198,7 @@ def _seal(at: QPointF, u: float) -> tuple[QRectF, QImage]:
     """The red seal: 嘉宾 cut in white from a block of seal red, its ink uneven and speckled where the
     paper did not take it, its edge a little rough."""
     scale = 2.0
-    sw, sh = 17 * u, 32 * u
+    sw, sh = 20 * u, 38 * u
     w, h = math.ceil((sw + 8 * u) * scale), math.ceil((sh + 8 * u) * scale)
     block = QRectF((w / scale - sw) / 2, (h / scale - sh) / 2, sw, sh)
 
@@ -1379,7 +1388,7 @@ def _ring_line(cover: QRectF, window: QRectF, radius: float, scale: float) -> tu
     """The line round the button the ring's ribbon follows, in the window's pixels, evenly spaced."""
     path = QPainterPath()
     path.addRoundedRect(cover.adjusted(1, 1, -1, -1), radius, radius)
-    count = 150
+    count = 300
     pts = np.array([[path.pointAtPercent(i / count).x(), path.pointAtPercent(i / count).y()] for i in range(count + 1)])
     pts = _even((pts - [window.left(), window.top()]) * scale, path.length() * scale / count)
     return pts, _along(pts) / scale, _normals(pts)
@@ -1389,14 +1398,14 @@ def ring(p: QPainter, cover: QRectF, t: float) -> None:
     """A jade silk ribbon round the button, twisting as it flutters, its gold thread catching the light."""
     scale = _sharpness(p)
     u = scale
-    silk_w = 6.0
+    silk_w = 8.0
     levels, half, tw = _kept(("ring-silk", scale), lambda: _silk(MALACHITE, "#16503f", "#d6f6e6", silk_w * scale, u, 21))
     window = cover.adjusted(-9, -9, 9, 9)
     w, h = math.ceil(window.width() * scale), math.ceil(window.height() * scale)
     layer = _kept(("ring-layer", w, h), lambda: QImage(w, h, QImage.Format_ARGB32_Premultiplied))
     radius = min(cover.height() * 0.3, 18.0)
     pts, s, normals = _kept(("ring-line", cover.x(), cover.y(), cover.width(), cover.height(), scale), lambda: _ring_line(cover, window, radius, scale))
-    wave = 1.2 * np.sin(TAU * (s / 46 - 0.7 * t)) + 0.6 * np.sin(TAU * (s / 130 + 0.3 * t))
+    wave = 1.8 * np.sin(TAU * (s / 46 - 0.7 * t)) + 0.6 * np.sin(TAU * (s / 130 + 0.3 * t))
     pts = pts + normals * (wave * scale)[:, None]
     theta = 1.1 * np.sin(TAU * (s / 60 - 0.55 * t)) + 0.5 * np.sin(TAU * (s / 190 + 0.2 * t))
     layer.fill(Qt.transparent)
@@ -1413,8 +1422,8 @@ def _pendant(side: float, scale: float) -> QImage:
     clouded, its face raised in 谷纹 grain bumps between two carved rings, lit from the top left; a
     silk cord down to it through a small knot."""
     w = h = math.ceil(side * scale)
-    cx, cy = side / 2, side * 0.42
-    outer, inner = side * 0.27, side * 0.085
+    cx, cy = side / 2, side * 0.43
+    outer, inner = side * 0.3, side * 0.095
     ys, xs = np.mgrid[0:h, 0:w].astype(np.float32)
     x, y = xs / scale - cx, ys / scale - cy
     r = np.hypot(x, y)
@@ -1447,7 +1456,7 @@ def _pendant(side: float, scale: float) -> QImage:
     def cord(q2: QPainter) -> None:
         q2.scale(scale, scale)
         q2.setPen(QPen(Qt.white, max(0.8, side * 0.022), Qt.SolidLine, Qt.RoundCap))
-        knot = QPointF(cx, side * 0.08)
+        knot = QPointF(cx, side * 0.065)
         q2.drawLine(QPointF(cx, 0), knot)
         q2.drawLine(knot, QPointF(cx, cy - outer + 1))
         q2.setPen(QPen(Qt.white, max(0.8, side * 0.02)))
@@ -1472,8 +1481,8 @@ def _pendant(side: float, scale: float) -> QImage:
 def _tassel(side: float, scale: float) -> QImage:
     """The tassel under the 玉佩, hung from its top middle: a gold bead, then fine jade silk threads
     falling and fanning a little, their ends ragged."""
-    tall = side * 0.36
-    wide = side * 0.16
+    tall = side * 0.28
+    wide = side * 0.17
     w, h = math.ceil(wide * scale * 1.6), math.ceil(tall * scale)
     ys, xs = np.mgrid[0:h, 0:w].astype(np.float32)
     x, y = xs / scale - w / scale / 2, ys / scale
@@ -1505,7 +1514,7 @@ def badge(p: QPainter, box: QRectF, t: float) -> None:
     p.translate(box.left() + side / 2, box.top())
     p.rotate(sway)
     p.drawImage(QRectF(-side / 2, 0, side, side), pendant)
-    p.translate(0, side * (0.42 + 0.27) - 1)
+    p.translate(0, side * (0.43 + 0.3) - 1)
     p.rotate(9 * math.sin(t * 1.7 - 0.8))
     tw, th = tassel.width() / scale, tassel.height() / scale
     p.drawImage(QRectF(-tw / 2, 0, tw, th), tassel)
