@@ -182,11 +182,16 @@ def _own_sound(store, key: str, like: str = "ice", volume: int = 100):  # noqa: 
 
 
 def test_clearing_the_data_puts_the_effects_and_the_sound_back_to_their_defaults(window, monkeypatch):
+    from blacklist_detect.ui_music import sound_dir
+
+    own = _own_sound(window.store, "classic")
     window.volume_slider.setValue(6)
+    # Heard below 100%, the player's own sound has quieter copies too.
+    assert window.music.preview("classic") == "classic" and window.music.taste("classic")
+    assert len([tune for tune in sound_dir().iterdir() if tune.name.startswith("30-classic-")]) == 2
     window.mute_box.click()
     window.love_switch.click()
     assert (window.store.sound_volume, window.store.sound_muted, window.store.love_scene) == (30, True, "off")
-    own = _own_sound(window.store, "classic")
     window.store.scene_sounds["ice"] = {"volume": 40}
     window.store.save_settings()
     window.tunes.clear()
@@ -194,6 +199,7 @@ def test_clearing_the_data_puts_the_effects_and_the_sound_back_to_their_defaults
     window._ask_reset()
     # The player's own sounds go too, nothing playing them first.
     assert window.tunes[0] is None and window.store.scene_sounds == {} and not own.parent.exists()
+    assert not sound_dir().exists()
     assert window.music.pick("classic") == "" and window.music.level("ice") == 100
     assert (window.store.sound_volume, window.store.sound_muted, window.store.love_scene) == (100, False, "classic")
     assert window.love.choice == "classic" and window.love_switch.isChecked()

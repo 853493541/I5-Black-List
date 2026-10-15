@@ -17,6 +17,7 @@ of the app's own (paths.app_dir).
 from __future__ import annotations
 
 import re
+import shutil
 import sys
 import time
 import wave
@@ -206,3 +207,9 @@ class ThemeMusic:
 
     def stop(self) -> None:
         self._play(None)
+
+    def forget(self) -> None:
+        """Stop, and drop every quieter copy made: 清空数据 leaves none of the player's own sounds behind.
+        The scenes' own are made again as they are next played."""
+        self.stop()
+        shutil.rmtree(self._folder or sound_dir(), ignore_errors=True)

@@ -1380,8 +1380,8 @@ class MainWindow(QMainWindow):
         if not _confirm(self, "清空数据后无法恢复，是否确定清空？", "清空数据", "清空"):
             return
         self._end_quick_play()
-        # Nothing playing holds on to a player's own sound as it goes.
-        self.music.stop()
+        # Nothing playing holds on to a player's own sound as it goes, nor its quieter copies.
+        self.music.forget()
         self.store.reset()
         self.hotkey.clear()
         self.effect_hotkey.clear()
