@@ -103,3 +103,20 @@ The master's rules:
    takes screenshots, presses hotkeys, or drives MuMu or 直播姬, `tools/ui_shots.py` included.
 6. An agent's "done" is checked, not trusted: the master reads the diff and runs the tests itself.
 7. Pushing, releasing and publishing are the master's, after the user says so.
+
+### Cost
+
+Measured on 2026-10-15; the same numbers are in the user's other project (ZPS `AGENTS.md`, "Token cost"). Agents
+are most of the spend, and a session's 5 longest agents were 84% of its agent spend. Every turn re-reads the
+whole conversation, and command output and file reads are almost all of what fills an agent.
+
+- Agents keep output small: commands with short output (`pytest -q`, `git diff --stat` before a full diff), and
+  big files such as `ui.py` read by line range after a grep, never whole.
+- A package is sized to finish in about 50 agent turns. An agent that gets there unfinished commits what works,
+  reports what is done, what is next and the commit to continue from, and stops; the master starts a fresh agent
+  from that commit.
+- Agent reports are about 30 lines: verdict, commits, files, open items.
+- The master's own conversation: once it passes about 300k tokens, or when a batch of work is done, the master
+  writes a handoff to `dist/handoff/<date>/HANDOFF.md` and the work continues in a fresh session that reads it.
+  The handoff holds state only (branches, commits, what is running, next steps); the rules stay in this file.
+  The master updates it after each merge, so a session that runs out of usage loses nothing.

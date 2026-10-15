@@ -34,12 +34,16 @@ The work:
 - Run the full tests and ruff from your worktree, with the main checkout's `.venv` (see CLAUDE.md). Fix
   what you broke. A failure you did not cause goes in the report, with its output.
 - Commit on your branch. A few commits are fine; messages follow CLAUDE.md.
+- Keep output small: `pytest -q`, `git diff --stat` before a full diff, and big files such as `ui.py` read by
+  line range after a grep, never whole (CLAUDE.md, "Cost").
+- About 50 turns in and not done: commit what works and stop. Report what is done, what is next, and the commit
+  to continue from; the master starts a fresh implementer there.
 
 Never: merge, rebase onto another branch, push, switch the main checkout's branch, commit to `main` or
 `improve/quality`, or touch files outside your worktree. Anything that opens real windows, takes
 screenshots, presses hotkeys, or drives MuMu or 直播姬 needs the desktop: only when your brief grants it.
 
-Report:
+Report, in about 30 lines:
 
 - branch and worktree path
 - commits (hash and subject) and files changed

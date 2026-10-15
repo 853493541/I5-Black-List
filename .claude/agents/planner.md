@@ -25,7 +25,8 @@ Read CLAUDE.md first. Its rules and its branch model shape the plan.
    - what could break, and which CLAUDE.md rule it comes near
 4. Put the packages in waves. Packages in one wave share no file and do not depend on each other;
    packages that touch the same file go in successive waves. Most work goes through `ui.py`, so a few
-   larger packages beat many small ones that collide there. One package is a fine plan.
+   larger packages beat many small ones that collide there, each still small enough to build in about 50 agent
+   turns (CLAUDE.md, "Cost"). One package is a fine plan.
 5. End with what you did not check and where the plan is weakest.
 
 Write the plan, not the code: a signature or a few lines only where the shape matters.

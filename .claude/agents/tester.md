@@ -10,7 +10,8 @@ You test; you do not fix. Tracked files stay as they are. Probe scripts and thei
 folder outside the repo. Run Python with the main checkout's `.venv` (see CLAUDE.md).
 
 1. Go to the worktree your brief names. Check `git branch --show-current` is the branch you were given.
-2. Read the change: `git diff <base>...HEAD` and `git log <base>..HEAD`.
+2. Read the change: `git log <base>..HEAD`, `git diff --stat <base>...HEAD`, then the diff file by file. Keep
+   output small and read big files by line range (CLAUDE.md, "Cost").
 3. Run the full tests and ruff. A timing test that fails while other runs are going is rerun alone before
    it counts.
 4. Run the checks your brief or the plan names.
@@ -20,7 +21,7 @@ folder outside the repo. Run Python with the main checkout's `.venv` (see CLAUDE
    Look at 150% first. Look for cut-off text, overlap, dialogs past 672 px, and real player names.
 7. Check the CLAUDE.md rules the change comes near.
 
-Report:
+Report, in about 30 lines:
 
 - verdict: PASS, PASS WITH NOTES, or FAIL
 - each problem: how to reproduce it (command and output, or the screenshot path), and how bad it is
