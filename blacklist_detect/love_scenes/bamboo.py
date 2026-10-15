@@ -46,6 +46,7 @@ from blacklist_detect.love_scenes.draw import (
     ease_in_out,
     ease_out,
     lengths,
+    mix,
     point_at,
     soft_dot,
     star,
@@ -289,41 +290,50 @@ def _settled(width: float, height: float, gap: QRectF, u: float) -> QImage:
     alpha = (0.2 + 0.52 * near ** 1.6) * hole
     color = rgb(TINT[0]) + (rgb(TINT[1]) - rgb(TINT[0])) * (near ** 0.9)[..., None]
     pre = color * alpha[..., None]
-    # The frame's middle line, and how far each point is from it (less than 0 inside).
-    middle = EDGE * u + BAR * u / 2
-    inner = QRectF(middle, middle, width - 2 * middle, height - 2 * middle)
-    d = _rounded(xs, ys, inner, (ROUND - BAR / 2) * u)
-    half = BAR * u / 2
-    # Mint light gathered inside the frame, breathing out from it.
-    inside = np.maximum(-d - half, 0)
-    rim = np.exp(-inside / (24 * u)) * (inside > 0) * hole
-    _over(pre, alpha, rgb(MINT), rim * 0.42)
-    # The frame stops either side of the button, a knob at each end.
-    ends = (gap.left() - 14 * u, gap.right() + 14 * u)
-    bottom = ys > height / 2
-    cut = bottom & (xs > ends[0]) & (xs < ends[1])
-    feather = np.where(bottom, 1 - smooth(ends[0] - 2 * u, ends[0] + 10 * u, xs) * (1 - smooth(ends[1] - 10 * u, ends[1] + 2 * u, xs)), 1.0)
     cloud = noise(max(2, w // 4 + 2), max(2, h // 4 + 2), 18 * u, 3, 7)
-    cloud = cloud[np.minimum(np.arange(h) // 4, cloud.shape[0] - 1)][:, np.minimum(np.arange(w) // 4, cloud.shape[1] - 1)]
-    # Outside the bar, to the screen's edge, deep jade.
-    out = np.clip(d - half + 0.5, 0, 1) * feather
-    _over(pre, alpha, rgb(JADE_DARK) + (rgb(JADE_DEEP) - rgb(JADE_DARK)) * cloud[..., None], out * 0.86)
-    # The bar: a rounded molding with a groove along its inner side.
-    v = np.clip(d / half, -1, 1)
-    bar = np.clip(half - np.abs(d) + 0.5, 0, 1) * ~cut
-    shape = np.sqrt(np.clip(1 - v * v, 0, 1)) - 0.22 * np.exp(-(((v + 0.42) / 0.11) ** 2))
-    height_field = shape * half * (np.abs(d) < half + 2)
-    jade = _jade(height_field, 1.0, np.clip(shape, 0, 1) * 0.8, cloud, JADE_DEEP, "#6fd6a6")
-    _over(pre, alpha, jade, bar)
-    # Its fine gold line, inside.
-    line = d + half + 3.6 * u
-    gold = np.clip(0.75 * u - np.abs(line) + 0.5, 0, 1) * ~cut
-    _over(pre, alpha, rgb(GOLD) * (0.9 + 0.2 * cloud)[..., None], gold * 0.95)
+    # The frame and the light inside it are only near the edges: worked out in four strips there.
+    reach = min(math.ceil(150 * u), h // 2, w // 2)
+    for y0, y1, x0, x1 in ((0, reach, 0, w), (h - reach, h, 0, w), (reach, h - reach, 0, reach), (reach, h - reach, w - reach, w)):
+        if y1 > y0 and x1 > x0:
+            _frame(pre[y0:y1, x0:x1], alpha[y0:y1, x0:x1], xs[:, x0:x1], ys[y0:y1], hole[y0:y1, x0:x1], cloud, width, height, gap, u)
+    middle = EDGE * u + BAR * u / 2
+    ends = (gap.left() - 14 * u, gap.right() + 14 * u)
     for x in ends:
         _over(*_knob(QPointF(x, height - middle), 10.5 * u, u, pre, alpha))
     _festoon(pre, alpha, width, u)
     _corners(pre, alpha, width, height, u)
     return _picture(pre, alpha)
+
+
+def _frame(pre: np.ndarray, alpha: np.ndarray, xs: np.ndarray, ys: np.ndarray, hole: np.ndarray, cloud: np.ndarray, width: float, height: float, gap: QRectF, u: float) -> None:
+    """Mint light gathered inside the frame, deep jade outside it to the screen's edge, the bar (a
+    rounded jade molding with a groove along its inner side) and its fine gold line, in a part of
+    the picture: xs and ys are its points' places."""
+    # The frame's middle line, and how far each point is from it (less than 0 inside).
+    middle = EDGE * u + BAR * u / 2
+    inner = QRectF(middle, middle, width - 2 * middle, height - 2 * middle)
+    d = _rounded(xs, ys, inner, (ROUND - BAR / 2) * u)
+    half = BAR * u / 2
+    inside = np.maximum(-d - half, 0)
+    _over(pre, alpha, rgb(MINT), np.exp(-inside / (24 * u)) * (inside > 0) * hole * 0.42)
+    # The frame stops either side of the button, a knob at each end.
+    ends = (gap.left() - 14 * u, gap.right() + 14 * u)
+    bottom = ys > height / 2
+    cut = bottom & (xs > ends[0]) & (xs < ends[1])
+    feather = np.where(bottom, 1 - smooth(ends[0] - 2 * u, ends[0] + 10 * u, xs) * (1 - smooth(ends[1] - 10 * u, ends[1] + 2 * u, xs)), 1.0)
+    rows = np.minimum((ys[:, 0] // 4).astype(int), cloud.shape[0] - 1)
+    cols = np.minimum((xs[0] // 4).astype(int), cloud.shape[1] - 1)
+    cloud = cloud[rows][:, cols]
+    out = np.clip(d - half + 0.5, 0, 1) * feather
+    _over(pre, alpha, rgb(JADE_DARK) + (rgb(JADE_DEEP) - rgb(JADE_DARK)) * cloud[..., None], out * 0.86)
+    v = np.clip(d / half, -1, 1)
+    bar = np.clip(half - np.abs(d) + 0.5, 0, 1) * ~cut
+    shape = np.sqrt(np.clip(1 - v * v, 0, 1)) - 0.22 * np.exp(-(((v + 0.42) / 0.11) ** 2))
+    jade = _jade(shape * half * (np.abs(d) < half + 2), 1.0, np.clip(shape, 0, 1) * 0.8, cloud, JADE_DEEP, "#6fd6a6")
+    _over(pre, alpha, jade, bar)
+    line = d + half + 3.6 * u
+    gold = np.clip(0.75 * u - np.abs(line) + 0.5, 0, 1) * ~cut
+    _over(pre, alpha, rgb(GOLD) * (0.9 + 0.2 * cloud)[..., None], gold * 0.95)
 
 
 def _knob(center: QPointF, r: float, u: float, pre: np.ndarray, alpha: np.ndarray) -> tuple:
@@ -816,12 +826,12 @@ def _curl(points: list[QPointF], radius: float, turn: int) -> list[QPointF]:
     heading = math.atan2(b.y() - a.y(), b.x() - a.x())
     out = list(points)
     x, y = b.x(), b.y()
-    steps = 26
+    steps, turns = 22, 0.85
     for k in range(1, steps + 1):
-        heading += turn * 2 * math.pi * 1.25 / steps
-        r = radius * (1 - 0.78 * k / steps)
-        x += r * 2 * math.pi * 1.25 / steps * math.cos(heading)
-        y += r * 2 * math.pi * 1.25 / steps * math.sin(heading)
+        heading += turn * 2 * math.pi * turns / steps
+        r = radius * (1 - 0.7 * k / steps)
+        x += r * 2 * math.pi * turns / steps * math.cos(heading)
+        y += r * 2 * math.pi * turns / steps * math.sin(heading)
         out.append(QPointF(x, y))
     return out
 
@@ -1009,16 +1019,28 @@ class _Heroes:
         self.glows: dict[int, QImage] = {}
 
     def paint(self, p: QPainter, t: float, gust: float) -> None:
+        # Both worked out on the first frame, while there is nothing yet to see, so none waits for them.
+        ring, heart = self._pictures(p)
         a = 1 - ease_in(win(t, 4.2, 5.0))
         if a <= 0:
             return
         p.save()
         p.setRenderHint(QPainter.SmoothPixmapTransform)
-        self._fish(p, t, a)
-        self._heart(p, t, a, gust)
+        self._fish(p, t, a, ring)
+        self._heart(p, t, a, gust, heart)
         p.restore()
 
-    def _fish(self, p: QPainter, t: float, a: float) -> None:
+    def _pictures(self, p: QPainter) -> tuple[QImage, QImage]:
+        scale = _sharpness(p)
+        px = max(16, math.ceil(self.size * scale / 8) * 8)
+        if px not in self.rings:
+            self.rings[px] = _fish_ring(px)
+        key = max(16, math.ceil(150 * self.u * scale / 16) * 16)
+        if key not in self.glows:
+            self.glows[key] = _heart_glow(key)
+        return self.rings[px], self.glows[key]
+
+    def _fish(self, p: QPainter, t: float, a: float, image: QImage) -> None:
         u = self.u
         come = ease_out(win(t, 0.3, 1.0))
         if come <= 0:
@@ -1035,10 +1057,6 @@ class _Heroes:
         p.setBrush(halo)
         p.drawEllipse(c, 120 * u, 120 * u)
         _swirl(p, c, whirl, u, a * ease_out(win(t, 0.6, 1.3)), front=False)
-        px = max(16, math.ceil(self.size * _sharpness(p) / 8) * 8)
-        if px not in self.rings:
-            self.rings[px] = _fish_ring(px)
-        image = self.rings[px]
         size = self.size * (0.7 + 0.3 * come)
         p.save()
         p.setOpacity(a)
@@ -1055,7 +1073,7 @@ class _Heroes:
             soft_dot(p, x, y, 10 * u, LIME, 0.45 * a * twinkle)
             star(p, x, y, (4 + 8 * twinkle) * u, "#fffbe6", a * (0.3 + 0.7 * twinkle), 0.12)
 
-    def _heart(self, p: QPainter, t: float, a: float, gust: float) -> None:
+    def _heart(self, p: QPainter, t: float, a: float, gust: float, light: QImage) -> None:
         u = self.u
         form = ease_out(win(t, 0.9, 1.9))
         if form <= 0:
@@ -1063,13 +1081,10 @@ class _Heroes:
         breathe = 1 + 0.045 * math.sin(2 * math.pi * (t - 1.9) / 1.5) * win(t, 1.6, 2.2)
         c = self.heart
         size = 150 * u * breathe
-        key = max(16, math.ceil(size * _sharpness(p) / 16) * 16)
-        if key not in self.glows:
-            self.glows[key] = _heart_glow(key)
         glow_size = size * 1.6
         p.save()
         p.setOpacity(a * form * (0.75 + 0.25 * math.sin(t * 2.4)))
-        p.drawImage(QRectF(c.x() - glow_size / 2, c.y() - glow_size / 2 + 4 * u, glow_size, glow_size), self.glows[key])
+        p.drawImage(QRectF(c.x() - glow_size / 2, c.y() - glow_size / 2 + 4 * u, glow_size, glow_size), light)
         p.restore()
         for scale, phase, speed, thick, tone in ((1.0, 0.0, 0.32, 3.2, MIST), (0.86, 0.33, 0.27, 2.4, LIME), (1.1, 0.62, 0.36, 2.0, MINT), (0.72, 0.15, 0.3, 1.8, MIST)):
             reach = 0.62 * form
@@ -1164,7 +1179,7 @@ def _swirl(p: QPainter, c: QPointF, whirl: float, u: float, a: float, front: boo
             part = spine[k0 : k1 + 1]
             s0, s1 = k0 / count, k1 / count
             _ribbon(p, part, thick * 3.4 * u, col(tone, 0.3 * a * s0), col(tone, 0.32 * a * s1))
-            _ribbon(p, part, thick * u, col(tone, 0.9 * a * s0), col("#fbffe0", 0.95 * a * s1))
+            _ribbon(p, part, thick * u, col(tone, 0.9 * a * s0), mix(tone, "#ffffff", 0.35, 0.95 * a * s1))
         del index
 
 
@@ -1192,11 +1207,12 @@ def _fish_ring(px: int) -> QImage:
     dx, dy = xx - c, yy - c
     r = np.hypot(dx, dy)
     th = np.arctan2(dy, dx)
-    radius, hw = px * 0.29, px * 0.115
-    span = 2 * np.pi / 3 * 0.95
+    radius, hw = px * 0.28, px * 0.125
+    span = 2 * np.pi / 3 * 0.99
     height = np.zeros((px, px), dtype=np.float32)
     cover = np.zeros((px, px), dtype=np.float32)
     eyes = np.zeros((px, px), dtype=np.float32)
+    brows = np.zeros((px, px), dtype=np.float32)
     off = r - radius
     for k in range(3):
         start = k * 2 * np.pi / 3 + 0.3
@@ -1238,12 +1254,13 @@ def _fish_ring(px: int) -> QImage:
         for q in np.linspace(0, 1, 34):
             ubq = 0.99 - 0.36 * q
             vq = 0.62 + 0.16 * math.sin(q * 3 * math.pi) * q - 0.08 * (1 - q) ** 4
-            wq = hw * (0.1 * (1 - 0.65 * q) + 0.07 * max(0.0, 1 - q / 0.12))
+            wq = hw * (0.13 * (1 - 0.6 * q) + 0.09 * max(0.0, 1 - q / 0.14))
             ang = start + (0.2 + 0.8 * ubq) * span
             rad = radius + vq * float(_fish_w(np.float32(ubq), hw))
             bx, by = c + rad * math.cos(ang), c + rad * math.sin(ang)
             d = np.hypot(xx - bx, yy - by)
-            brow = np.maximum(brow, np.sqrt(np.clip(1 - (d / wq) ** 2, 0, 1)) * wq * 1.4)
+            brow = np.maximum(brow, np.sqrt(np.clip(1 - (d / wq) ** 2, 0, 1)) * wq * 2.2)
+            brows = np.maximum(brows, np.clip(wq - d + 0.5, 0, 1))
         lift = np.maximum(lift, (lift + brow * 0.8) * (brow > 0))
         parts = np.stack([body, tail, dorsal, np.clip(brow * 3, 0, 1) * on])
         fish = parts.max(axis=0)
@@ -1259,6 +1276,11 @@ def _fish_ring(px: int) -> QImage:
     patina = np.clip(hollow * 1.1 + smooth(0.42, 0.72, rust) * 0.75, 0, 1) * (0.55 + 0.45 * (1 - diffuse))
     green = rgb(PATINA[0]) + (rgb(PATINA[1]) - rgb(PATINA[0])) * (rust * diffuse)[..., None]
     color = color + (green - color) * (patina * 0.85)[..., None]
+    # The brows are rubbed bright, as raised bronze is, in a dark groove.
+    groove = np.clip(blur(brows, max(0.7, px / 200)) * 1.8 - brows, 0, 1)
+    color = color * (1 - 0.6 * groove)[..., None]
+    shine = _ramp(BRONZE_RAMP, np.clip(0.45 + 0.5 * diffuse + 0.3 * spec ** 6, 0, 1))
+    color = color + (shine - color) * (brows * 0.9)[..., None]
     color = color * (1 - 0.65 * eyes)[..., None] + (spec ** 30 * eyes * 0.9)[..., None]
     shadow = np.roll(np.roll(blur(cover, px / 70), round(px / 70), axis=0), round(px / 110), axis=1) * 0.45
     total = cover + shadow * (1 - cover)
