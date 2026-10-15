@@ -126,9 +126,9 @@ def test_a_press_beside_the_window_brings_it_there(qapp, player):
     assert length == LIMIT_S and start == pytest.approx(9.5, abs=0.05)
 
 
-@pytest.mark.parametrize("seconds", [180.0, 240.0])
+@pytest.mark.parametrize("seconds", [180.0, 240.0, 600.0])
 def test_on_a_long_song_the_narrow_window_still_moves(qapp, player, seconds):
-    """5 s of a 3 or 4 minute song is a dozen pixels: its middle moves it, not an edge."""
+    """5 s of a 3 to 10 minute song is a dozen pixels or less: its middle moves it, not an edge."""
     dialog = _dialog(player, seconds=seconds)
     wave = dialog.wave
     _drag(wave, wave.x_of(2.5), wave.x_of(2.5) + 60)
@@ -139,6 +139,32 @@ def test_on_a_long_song_the_narrow_window_still_moves(qapp, player, seconds):
     _drag(wave, wave.x_of(62.5) - 2, wave.x_of(62.5) + 58)
     start, length = dialog.selection()
     assert length == LIMIT_S and start > 75
+
+
+@pytest.mark.parametrize("seconds", [180.0, 600.0])
+def test_a_press_anywhere_on_a_narrow_window_moves_it(qapp, player, seconds):
+    """5 s of a 3 minute song is 15 pixels, of a 10 minute one under 5, its two grips one blob: a press anywhere
+    on it, grips and all, and a drag moves it whole; just beyond, an edge is taken."""
+    dialog = _dialog(player, seconds=seconds)
+    wave = dialog.wave
+    middle = seconds / 2
+    left, right = wave.x_of(middle), wave.x_of(middle + LIMIT_S)
+    centre = (left + right) / 2
+    # The window, and its grips (7 pixels wide) once they run into one.
+    reach = (right - left) / 2 + (3.5 if right - left < 7 else 0.0)
+    for x in np.arange(centre - reach, centre + reach + 0.01, 0.5):
+        wave.set_selection(middle, LIMIT_S)
+        _drag(wave, x, x + 40)
+        start, length = dialog.selection()
+        assert length == LIMIT_S and start > middle + 1, x - left
+    wave.set_selection(middle, LIMIT_S)
+    _drag(wave, centre - 11, wave.x_of(middle + 3.0))
+    start, length = dialog.selection()
+    assert length < LIMIT_S and start + length == pytest.approx(middle + LIMIT_S)
+    wave.set_selection(middle, LIMIT_S)
+    _drag(wave, centre + 11, wave.x_of(middle + 2.0))
+    start, length = dialog.selection()
+    assert length < LIMIT_S and start == middle
 
 
 def test_a_short_window_moves_and_its_edges_are_still_taken(qapp, player):

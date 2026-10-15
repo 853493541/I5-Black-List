@@ -86,9 +86,10 @@ class Waveform(_KeyboardRing, QWidget):
     RADIUS = 8
     # Room left and right of the sound, so the window's edges at its very start and end can be taken.
     INSET = 8
-    # How near an edge of the window a press takes that edge rather than the window (inside it, at most a
-    # quarter of the window).
+    # How near an edge of the window a press takes that edge rather than the window, and how wide the middle
+    # that moves it stays however narrow the window is (5 s of a 10 minute song is under 5 pixels).
     GRIP = 7
+    MIDDLE = 16
 
     def __init__(self, samples: np.ndarray, rate: int, limit_s: float = LIMIT_S, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -140,17 +141,15 @@ class Waveform(_KeyboardRing, QWidget):
     def _part(self, x: float) -> str:
         """What a press at x takes: an edge of the window, the window, or the strip outside it."""
         left, right = self.x_of(self.start), self.x_of(self.start + self.length)
-        # Inside the window an edge reaches a quarter of it at most, so the middle half of a narrow one (5 s of
-        # a long song is a dozen pixels) still moves it; outside, each edge reaches GRIP.
-        reach = min(self.GRIP, (right - left) / 4)
-        if left + reach < x < right - reach:
+        # Each edge reaches GRIP either side of it, but the window keeps a middle of at least MIDDLE that moves
+        # it: a narrow one moves wherever it and its grips are drawn, and its edges are taken just beyond.
+        centre = (left + right) / 2
+        half = max(self.MIDDLE / 2, (right - left) / 2 - self.GRIP)
+        if abs(x - centre) < half:
             return "move"
-        near_left, near_right = left - self.GRIP <= x <= left + reach, right - reach <= x <= right + self.GRIP
-        if near_left and near_right:
-            return "left" if x < (left + right) / 2 else "right"
-        if near_left:
+        if min(left, centre - half) - self.GRIP <= x < centre:
             return "left"
-        if near_right:
+        if centre < x <= max(right, centre + half) + self.GRIP:
             return "right"
         return ""
 
