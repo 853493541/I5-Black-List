@@ -242,18 +242,21 @@ def window(tmp_path, monkeypatch):  # noqa: ANN001, ANN201
 
 
 def test_update_can_be_checked_from_settings(window, tmp_path, monkeypatch):
-    """设置 › 帮助 › 关于: the version and 检查更新. The answer shows beside the button; a new version
+    """设置 › 帮助 › 声明: the version and 检查更新. The answer shows beside the button; a new version
     installs as it would at start. 有更新 is in the header only once a version waits."""
     from blacklist_detect import __version__
 
     assert window.version_label.text() == __version__, "the version alone, not the app's name"
-    # 检查更新 and 使用声明 are links at the end of the row, not boxed buttons.
-    assert window.update_button.objectName() == "link" and window.disclaimer_button.objectName() == "link"
+    # 检查更新 and 使用声明 are buttons like 开始 and 导出日志, not links.
+    assert window.update_button.objectName() == window.test_button.objectName() == ""
+    assert window.disclaimer_button.objectName() == ""
+    assert window.update_button.font() == window.disclaimer_button.font() == window.test_button.font()
     assert window.update_pill.isHidden() and window.update_pill.text() == "有更新"
+    assert window.update_note.isHidden(), "nothing found yet: no gap between 检查更新 and 使用声明"
     # Run from source: nothing to update.
     monkeypatch.setattr(updater, "app_root", lambda: None)
     window.update_button.click()
-    assert window.update_note.text() == "源码运行时不能更新"
+    assert window.update_note.text() == "源码运行时不能更新" and not window.update_note.isHidden()
     root = tmp_path / "BlackListDetect"
     root.mkdir()
     monkeypatch.setattr(updater, "app_root", lambda: root)
@@ -261,6 +264,7 @@ def test_update_can_be_checked_from_settings(window, tmp_path, monkeypatch):
     monkeypatch.setattr(window.updates, "check", lambda: asked.append(1) or True)
     window.update_button.click()
     assert asked == [1] and not window.update_button.isEnabled() and window.update_button.text() == "检查中…"
+    assert window.update_note.isHidden()
     window.updates.latest.emit()
     assert window.update_button.isEnabled() and window.update_button.text() == "检查更新"
     assert window.update_note.text() == "已是最新版本"
@@ -271,6 +275,34 @@ def test_update_can_be_checked_from_settings(window, tmp_path, monkeypatch):
     window.update_note.setText("")
     window.updates.latest.emit()
     assert window.update_note.text() == ""
+
+
+def test_the_declaration_row_holds_the_version_check_and_disclaimer(window):
+    """设置 › 帮助: 环境测试, then 声明 (version, 检查更新, what it found, 使用声明, all from the left), then 重置."""
+    from PySide6.QtWidgets import QLabel, QSpacerItem
+
+    from blacklist_detect.ui_kit import SettingsSection
+
+    helping = next(
+        section
+        for section in window.tabs.widget(window.settings_tab).findChildren(SettingsSection)
+        if section.findChild(QLabel, "sectionTitle").text() == "帮助"
+    )
+    assert [label.text() for label in helping.findChildren(QLabel, "rowLabel")] == ["环境测试", "声明", "重置"]
+    row = window.version_label.parentWidget().layout().itemAt(0).layout()
+    items = [row.itemAt(i) for i in range(row.count())]
+    widgets = [item.widget() for item in items if item.widget() is not None]
+    assert [w.text() for w in widgets[:1]] == ["声明"]
+    assert widgets[1:] == [window.version_label, window.update_button, window.update_note, window.disclaimer_button]
+    # 使用声明 follows the note; the row's room is after it, not before.
+    assert isinstance(items[-1].spacerItem(), QSpacerItem) and items[-2].widget() is window.disclaimer_button
+    # The 有更新 button while a version waits, and back to 检查更新 once none does.
+    window._offered = Release(version="v9.0.0", url="", sha256="", size=0, base="v0.1.0", notes=())
+    window._show_update_button()
+    assert window.update_button.text() == "有更新" and window.update_button.objectName() == "primary"
+    window._offered = None
+    window._show_update_button()
+    assert window.update_button.text() == "检查更新" and window.update_button.objectName() == ""
 
 
 def test_a_new_version_found_at_start_is_installed_first(window, tmp_path, monkeypatch):

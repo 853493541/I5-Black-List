@@ -1177,23 +1177,18 @@ class MainWindow(QMainWindow):
         self.export_button.setCursor(Qt.PointingHandCursor)
         self.export_button.clicked.connect(self._export_logs)
         helping.add_row("环境测试", self.test_button, self.export_button)
-        # 关于: the version (the app's name is everywhere already), what 检查更新 found in gray beside
-        # it, and 检查更新 and 使用声明 as links at the row's end. A waiting version turns 检查更新 into
-        # the 有更新 button.
+        # 声明: the version (the app's name is everywhere already), the 检查更新 button, what it found in
+        # gray, then the 使用声明 button. A waiting version turns 检查更新 into the 有更新 button.
         self.version_label = QLabel(__version__)
         self.update_note = QLabel("")
         self.update_note.setObjectName("rowHint")
+        self.update_note.hide()
         self.update_button = QPushButton("检查更新")
-        self.update_button.setObjectName("link")
+        self.update_button.setFont(ui_font())
         self.update_button.setAutoDefault(False)
         self.update_button.setCursor(Qt.PointingHandCursor)
         self.update_button.clicked.connect(self._check_updates_now)
-        self.disclaimer_button.setObjectName("link")
-        apart = QWidget()
-        apart.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        helping.add_row(
-            "关于", self.version_label, self.update_note, apart, self.update_button, self.disclaimer_button, stretch=False
-        )
+        helping.add_row("声明", self.version_label, self.update_button, self.update_note, self.disclaimer_button)
         # Starting over sits here too: one card fewer, so 设置 fits the window without scrolling.
         data = helping
         reset = QPushButton("清空数据")
@@ -4595,7 +4590,7 @@ class MainWindow(QMainWindow):
         """检查更新: look now. A new version installs the way it does at start; otherwise the answer
         shows beside the button. Once 有更新 is up, the button installs that version."""
         if updater.app_root() is None:
-            self.update_note.setText("源码运行时不能更新")
+            self._show_update_note("源码运行时不能更新")
             return
         if self._offered is not None and not self._updating:
             self._install_offered()
@@ -4607,13 +4602,13 @@ class MainWindow(QMainWindow):
         self._update_asked = True
         self.update_button.setEnabled(False)
         self.update_button.setText("检查中…")
-        self.update_note.setText("")
+        self._show_update_note("")
 
     def _update_answered(self, note: str) -> None:
         self.update_button.setEnabled(True)
         self._show_update_button()
         if self._update_asked:
-            self.update_note.setText(note)
+            self._show_update_note(note)
         self._update_asked = False
         self._update_later = False
 
@@ -4624,7 +4619,7 @@ class MainWindow(QMainWindow):
         self.update_pill.setToolTip(f"新版本 {release.version}，点一下看看")
         self.update_pill.show()
         self._show_update_button()
-        self.update_note.setText("")
+        self._show_update_note("")
         self.update_title.setText(f"发现新版本 {release.version}")
         self.update_notes.setText("\n".join(f"· {line}" for line in release.notes[:3]))
         self.update_notes.setVisible(bool(release.notes))
@@ -4681,9 +4676,14 @@ class MainWindow(QMainWindow):
         """检查更新, or 有更新 in the accent color while a version waits."""
         offered = self._offered is not None
         self.update_button.setText("有更新" if offered else "检查更新")
-        self.update_button.setObjectName("primary" if offered else "link")
+        self.update_button.setObjectName("primary" if offered else "")
         self.update_button.style().unpolish(self.update_button)
         self.update_button.style().polish(self.update_button)
+
+    def _show_update_note(self, note: str) -> None:
+        """What 检查更新 found, in gray after it. Hidden while empty, so 使用声明 sits one gap after 检查更新."""
+        self.update_note.setText(note)
+        self.update_note.setVisible(bool(note))
 
     def _install_offered(self) -> None:
         self.update_panel.close_panel()
