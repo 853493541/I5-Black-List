@@ -622,9 +622,9 @@ def test_only_the_app_running_for_the_player_makes_a_sound(monkeypatch):
     monkeypatch.setitem(sys.modules, "winsound", fake)
     monkeypatch.setattr(sys, "platform", "win32")
     monkeypatch.setattr(ui_music, "AUDIBLE", False)
-    ui_music.play_tune(TUNES[SAMPLE_TUNE])
+    ui_music.play_tune(TUNES["lace"])
     ui_music.play_tune(None)
     assert calls == []
     ui_music.allow_sound()
-    ui_music.play_tune(TUNES[SAMPLE_TUNE])
+    ui_music.play_tune(TUNES["lace"])
     assert len(calls) == 1
