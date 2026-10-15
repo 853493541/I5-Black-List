@@ -175,9 +175,17 @@ class ComboDialog(Modal):
         chosen = {fold(name) for name in combo.names} if combo else set()
         self.people = _FlowHost(gap=8)
         self.people_buttons: dict[str, QPushButton] = {}
-        # The list's own order, its top first.
-        for like in reversed(likes):
+        on_list = {fold(like.name) for like in likes}
+        # Its 嘉宾 since taken off the list stay in it, struck out as the list shows them, until unticked.
+        self.gone = [name for name in combo.names if fold(name) not in on_list] if combo else []
+        # The list's own order, its top first, then those gone.
+        for like in [*reversed(likes), *(Entry(name) for name in self.gone)]:
             button = QPushButton(like.shown())
+            if like.name in self.gone:
+                face = button.font()
+                face.setStrikeOut(True)
+                button.setFont(face)
+                button.setToolTip("已不在嘉宾里")
             button.setObjectName("segment")
             button.setProperty("place", "only")
             button.setCheckable(True)
@@ -201,8 +209,9 @@ class ComboDialog(Modal):
         _say_error(self.people_error, "")
 
     def picked(self) -> tuple[str, ...]:
-        """The 嘉宾 ticked, in the order they were saved."""
-        return tuple(like.name for like in self.likes if self.people_buttons[like.name].isChecked())
+        """The 嘉宾 ticked, in the order they were saved, then those gone still ticked."""
+        names = [like.name for like in self.likes] + self.gone
+        return tuple(name for name in names if self.people_buttons[name].isChecked())
 
     def _accept(self) -> None:
         if len(self.picked()) < 2:

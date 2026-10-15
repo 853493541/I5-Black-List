@@ -495,6 +495,31 @@ def test_a_combination_needs_two_guests_and_greets_them_with_its_theme(window):
     window._hide_panel_after_title()
 
 
+def test_editing_a_combination_keeps_a_guest_since_taken_off_the_list(window):
+    from blacklist_detect.model import Combo
+    from blacklist_detect.ui_guests import ComboDialog
+
+    store = window.store
+    store.add_like("小明")
+    store.add_like("小红")
+    editor = ComboDialog(store.likes, Combo(("小明", "已删掉"), "angel"), parent=window)
+    # The one taken off shows, struck out and still ticked, after those on the list.
+    editor.ensurePolished()
+    gone = editor.people_buttons["已删掉"]
+    assert gone.font().pointSizeF() == editor.people_buttons["小明"].font().pointSizeF()
+    assert list(editor.people_buttons) == ["小红", "小明", "已删掉"]
+    assert gone.isChecked() and gone.font().strikeOut() and not editor.people_buttons["小明"].font().strikeOut()
+    # 保存 keeps them.
+    editor._accept()
+    assert editor.combo == Combo(("小明", "已删掉"), "angel")
+    # Unticked, they go.
+    editor = ComboDialog(store.likes, Combo(("小明", "已删掉"), "angel"), parent=window)
+    editor.people_buttons["已删掉"].click()
+    editor.people_buttons["小红"].click()
+    editor._accept()
+    assert editor.combo == Combo(("小明", "小红"), "angel")
+
+
 def test_the_picker_returns_the_scene_used_and_closing_changes_nothing(window, monkeypatch):
     from PySide6.QtGui import QColor
 
