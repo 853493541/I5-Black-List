@@ -383,3 +383,13 @@ def test_the_preview_moves_marks_that_move(qapp, theme):
     assert moving.moving and [t for _rect, t in calls["card"]] == [0.5, 1.0]
     moving.close()
     assert moving.at(2.0), "closed, the last grab stays"
+
+
+def test_the_stage_knows_where_the_names_are(qapp):
+    """Where the check read the names, a scene gets them; else the lobby's layout places them."""
+    stage = sample_stage()
+    names = stage.names()
+    assert len(names) == 12 and all(stage.gap.top() > name.bottom() for name in names)
+    assert names[0].center().x() < names[5].center().x() and names[0].center().y() < names[6].center().y()
+    seat = QRectF(10, 20, 30, 12)
+    assert Stage(100, 60, QRectF(0, 50, 100, 10), seats=(seat,)).names() == (seat,)

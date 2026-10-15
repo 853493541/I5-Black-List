@@ -4,6 +4,10 @@ Five tunes, all public domain: Wagner's Bridal Chorus (1850) as church organ, mu
 Pachelbel's Canon on harp, and church bells. build/wedding_tunes.py plays them into the WAV files,
 so no recording is used and a stream can carry them. 设置 picks one, 随机 (a different one each
 time), or 关闭.
+
+A scene can bring its own tune instead (its MUSIC): 遇袭 plays the 指挥家's music from 模仿者狂欢. That
+one IS the game's own recording, the user's choice made knowing NetEase owns it; it is not one of
+the five, so 随机 never picks it.
 """
 
 from __future__ import annotations
@@ -25,6 +29,8 @@ TUNE_LIST: tuple[tuple[str, str, str], ...] = (
 )
 KEYS = tuple(key for key, _name, _file in TUNE_LIST)
 TUNES = {key: ASSETS / file for key, _name, file in TUNE_LIST}
+# Tunes a scene brings with it, by key.
+SCENE_TUNES = {"conductor": ASSETS / "conductor.wav"}
 # The same 嘉宾 players found again this soon are the same lobby, checked again: no second tune.
 SAME_LOBBY_S = 60.0
 
@@ -61,8 +67,9 @@ class WeddingMusic:
         self._last_at = float("-inf")
 
     def pick(self, choice: str) -> str:
-        """The tune for a 嘉宾特效 choice: its key, "random" (any but the one just played), or "off" ("")."""
-        if choice in TUNES:
+        """The tune for a 嘉宾特效 choice: its key (one of the five or a scene's own), "random" (any of
+        the five but the one just played), or "off" ("")."""
+        if choice in TUNES or choice in SCENE_TUNES:
             return choice
         if choice != "random":
             return ""
@@ -85,7 +92,7 @@ class WeddingMusic:
         """Play the tune for a choice now; 关闭 stops whatever is playing."""
         tune = self.pick(choice)
         self._last_tune = tune or self._last_tune
-        self._play(TUNES[tune] if tune else None)
+        self._play((TUNES.get(tune) or SCENE_TUNES[tune]) if tune else None)
         return tune
 
     def stop(self) -> None:

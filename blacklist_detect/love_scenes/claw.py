@@ -1,10 +1,11 @@
 """遇袭 Ambush: you are the one attacked, as in 模仿者狂欢's 迷离 and its kill.
 
 For a moment nothing. Then the 指挥家's fog rolls in from the edges, blue-grey and drifting two ways
-at once, and the view closes to an eye-shaped slit while white music notes swirl through the haze.
-Then the strike, the game's own kill mark made as big as the screen: three tapered slashes rip up
-across the middle, white-hot at their cores and purple at their edges, and a second set crosses them
-a beat later. A lilac flash, a jolt, a puff of pink smoke; the slashes fray away and the fog clears.
+at once, white music notes swirl through the haze, and every player's name is lost in it, a ??? in
+its place, as 迷离 scrambles them. Then the strike, the game's own kill mark made bigger than the
+screen's middle: three tapered slashes rip up across it, white-hot at their cores and purple at their
+edges. A lilac flash, a jolt, a puff of pink smoke; the slashes fray away, the fog clears and the
+names come back. The 指挥家's music plays (MUSIC).
 
 The 嘉宾 marks wear it: a misty glass card scored by three claw marks, a lilac rim round the button
 with claw marks at two corners that now and then strike again, and a claw-mark X on a dark disc for a
@@ -28,6 +29,8 @@ if TYPE_CHECKING:
     from blacklist_detect.love_scenes import Stage
 
 DURATION = 4.8
+# The tune it brings (ui_music.SCENE_TUNES), played instead of 音乐's choice unless that is 无.
+MUSIC = "conductor"
 FOG = "#8fa3b8"
 FOG_DEEP = "#55687d"
 LILAC = "#c9b6ff"
@@ -50,17 +53,18 @@ LOOK = {
 MARKS_ANIMATED = True
 # Room above the card body: the claw marks cut across its top edge.
 CARD_TOP = 6
-# The soft layers (fog, the eye, the flash) are worked out at this share of the stage's size.
+# The soft layers (the fog, the flash) are worked out at this share of the stage's size.
 SOFT = 0.5
-# The strike: when each set lands, the angle its slashes run at (degrees, screen y down), and the
-# three slashes' offsets across it and their delays.
-SET_A = (1.75, -34.0)
-SET_B = (1.95, 36.0)
+# The strike: when it lands, the angle its slashes run at (degrees, screen y down), and the three
+# slashes' offsets across it and their delays.
+STRIKE = (1.75, -34.0)
 SLASHES = ((-1.0, 0.0), (0.0, 0.035), (1.0, 0.07))
 # A slash's length and its thickest, in points at the design size; how far apart the three are.
-LENGTH = 780.0
-THICK = 24.0
-SPACING = 74.0
+LENGTH = 1000.0
+THICK = 32.0
+SPACING = 96.0
+# When the strike has all landed: the flash, the jolt and the smoke start then.
+LANDED = STRIKE[0] + SLASHES[-1][1] + 0.075
 # It grows over this long; then it holds, and frays away over FRAY.
 GROW = 0.075
 HOLD = 0.32
@@ -75,13 +79,17 @@ def make(stage: Stage):  # noqa: ANN201
     rnd = random.Random(19)
     # Where the strike lands: the middle of the screen, high enough that no slash or its glow
     # reaches the button below.
-    centre = QPointF(width * 0.5, min(height * 0.43, gap.top() - (LENGTH * 0.5 * math.sin(math.radians(36)) + SPACING + 70) * u))
+    reach = LENGTH * 0.5 * math.sin(math.radians(abs(STRIKE[1]))) + SPACING * math.cos(math.radians(STRIKE[1])) + 80
+    centre = QPointF(width * 0.5, min(height * 0.43, gap.top() - reach * u))
     sprite = _slash_sprite(LENGTH * u, THICK * u, u)
     frayed = [_frayed(sprite, k / FRAYS, seed) for seed, k in enumerate(range(1, FRAYS + 1))]
     fog = (_fog_layer(width, height, u, 11, 0.9), _fog_layer(width, height, u, 23, 0.7))
     keep = _keep(width, height, gap, u)
     veil = QImage(max(1, round(width * SOFT)), max(1, round(height * SOFT)), QImage.Format_ARGB32_Premultiplied)
     notes = _notes(width, height, gap, u, rnd)
+    seats = stage.names()
+    cloud = _cloud(u)
+    unknown = _unknown(seats)
     puff = [(rnd.uniform(0, math.tau), rnd.uniform(40, 150) * u, rnd.uniform(26, 60) * u, rnd.uniform(0.0, 0.12)) for _ in range(16)]
 
     def paint(p: QPainter, t: float) -> None:
@@ -90,20 +98,19 @@ def make(stage: Stage):  # noqa: ANN201
             return
         p.save()
         p.setOpacity(life)
-        jolt = _jolt(t - SET_B[0] - GROW, u)
-        p.translate(jolt)
-        _veil(p, t, veil, fog, keep, width, height, gap, u)
+        p.translate(_jolt(t - LANDED, u))
+        _veil(p, t, veil, fog, keep, width, height, u)
+        _lost_names(p, t, seats, cloud, unknown, u)
         _notes_paint(p, t, notes, u)
-        for when, angle in (SET_A, SET_B):
-            _strike(p, t - when, angle, centre, sprite, frayed, u)
-        _impact(p, t - SET_B[0] - GROW, centre, u)
-        _puff(p, t - SET_B[0] - GROW, centre, puff, u)
+        _strike(p, t - STRIKE[0], STRIKE[1], centre, sprite, frayed, u)
+        _impact(p, t - LANDED, centre, u)
+        _puff(p, t - LANDED, centre, puff, u)
         p.restore()
 
     return paint
 
 
-# The fog and the eye --------------------------------------------------------------------------
+# The fog --------------------------------------------------------------------------------------
 
 
 def _fog_layer(width: float, height: float, u: float, seed: int, strength: float) -> QImage:
@@ -135,16 +142,14 @@ def _keep(width: float, height: float, gap: QRectF, u: float) -> QImage:
     return picture(np.ones((h, w, 3), dtype=np.float32), alpha)
 
 
-def _veil(p: QPainter, t: float, veil: QImage, fog: tuple, keep: QImage, width: float, height: float, gap: QRectF, u: float) -> None:
-    """The fog rolling in, the eye closing to a slit and opening again, and the strike's flash, put
-    together small, cleared over the button, and laid on."""
-    come = ease_out(win(t, 0.45, 1.55))
-    go = ease_in_out(win(t, 3.0, 4.25))
-    thick = come * (1 - go)
-    eye = ease_in_out(win(t, 0.9, 1.7)) * (1 - ease_in_out(win(t, 2.9, 3.9)))
-    flash = _flash_level(t - SET_B[0] - GROW)
-    if thick <= 0.005 and eye <= 0.005 and flash <= 0.005:
+def _veil(p: QPainter, t: float, veil: QImage, fog: tuple, keep: QImage, width: float, height: float, u: float) -> None:
+    """The fog rolling in and clearing, and the strike's flash, put together small, cleared over the
+    button, and laid on."""
+    thick = _fog_level(t)
+    flash = _flash_level(t - LANDED)
+    if thick <= 0.005 and flash <= 0.005:
         return
+    come = ease_out(win(t, 0.45, 1.55))
     veil.fill(Qt.transparent)
     q = QPainter(veil)
     q.setRenderHint(QPainter.Antialiasing)
@@ -161,8 +166,6 @@ def _veil(p: QPainter, t: float, veil: QImage, fog: tuple, keep: QImage, width: 
             q.setOpacity(thick * (0.85 + 0.15 * math.sin(t * 1.3 + index)))
             q.drawImage(QRectF(x, y, w, h), layer)
         q.setOpacity(1.0)
-    if eye > 0:
-        _eye(q, eye, t, width, height, u)
     if flash > 0:
         bright = QRadialGradient(QPointF(width * 0.5, height * 0.45), width * 0.75)
         bright.setColorAt(0, col("#f3eeff", 0.55 * flash))
@@ -179,34 +182,67 @@ def _veil(p: QPainter, t: float, veil: QImage, fog: tuple, keep: QImage, width: 
     p.restore()
 
 
-def _eye(q: QPainter, k: float, t: float, width: float, height: float, u: float) -> None:
-    """Dark all round an almond-shaped slit that closes in as k grows, its edge soft, swaying a little."""
-    cx, cy = width * 0.5, height * 0.47
-    half_w = width * (0.95 - 0.27 * k)
-    half_h = height * (1.05 - 0.66 * k)
-    tilt = 1.4 * math.sin(t * 1.1) * k
-    q.save()
-    q.translate(cx, cy)
-    q.rotate(tilt)
-    dark = QPainterPath()
-    dark.addRect(QRectF(-width, -height, width * 2, height * 2))
-    q.setPen(Qt.NoPen)
-    steps = 7
-    for step in range(steps):
-        grow = 1 + 0.07 * (steps - 1 - step) / (steps - 1)
-        almond = _almond(half_w * grow, half_h * grow)
-        q.setBrush(col("#04060b", 0.86 * k / steps))
-        q.drawPath(dark.subtracted(almond))
-    q.restore()
+def _fog_level(t: float) -> float:
+    """How thick the fog is: rolling in, then clearing."""
+    return ease_out(win(t, 0.45, 1.55)) * (1 - ease_in_out(win(t, 3.0, 4.25)))
 
 
-def _almond(half_w: float, half_h: float) -> QPainterPath:
-    """An eye's opening: two arcs meeting in points at either side."""
-    path = QPainterPath(QPointF(-half_w, 0))
-    path.quadTo(QPointF(0, -half_h * 2), QPointF(half_w, 0))
-    path.quadTo(QPointF(0, half_h * 2), QPointF(-half_w, 0))
-    path.closeSubpath()
-    return path
+def _cloud(u: float) -> QImage:
+    """A puff of the fog, per pixel, for laying over one name: thick in the middle, wisps at the edge."""
+    w, h = max(8, round(220 * u)), max(8, round(90 * u))
+    billows = noise(w, h, 26 * u, 3, 41)
+    ys, xs = np.mgrid[0:h, 0:w].astype(np.float32)
+    nx, ny = (xs + 0.5) / w * 2 - 1, (ys + 0.5) / h * 2 - 1
+    # A solid middle, wide enough for a long name, and billowing wisps round it.
+    r = np.sqrt((nx / 1.0) ** 2 + (ny / 1.0) ** 2)
+    core = smooth(0.82, 0.55, np.maximum(np.abs(nx) * 0.95, np.abs(ny) * 1.15))
+    wisps = smooth(1.0, 0.6, r) * (0.55 + 0.6 * billows)
+    density = np.clip(np.maximum(core, wisps), 0, 1)
+    light = smooth(0.3, 0.85, billows)[..., None]
+    color = rgb("#4b5d71") * (1 - light) + rgb("#9fb1c4") * light
+    return picture(color, density)
+
+
+def _unknown(seats: tuple[QRectF, ...]) -> list[tuple[QPainterPath, float]]:
+    """??? for each name, as a path the height of its box, centred on the origin, and its width."""
+    out = []
+    for seat in seats:
+        font = QFont("Microsoft YaHei")
+        font.setPixelSize(max(6, round(seat.height() * 0.9)))
+        font.setWeight(QFont.Weight.Bold)
+        font.setLetterSpacing(QFont.AbsoluteSpacing, seat.height() * 0.08)
+        path = QPainterPath()
+        path.addText(QPointF(0, 0), font, "???")
+        box = path.boundingRect()
+        out.append((path.translated(-box.center()), box.width()))
+    return out
+
+
+def _lost_names(p: QPainter, t: float, seats: tuple[QRectF, ...], cloud: QImage, unknown: list[tuple], u: float) -> None:
+    """Each name lost in a puff of fog, one after another, a ??? there instead that now and then
+    flickers as 迷离 scrambles it; the names come back as the fog clears."""
+    for index, seat in enumerate(seats):
+        come = ease_out(win(t, 0.75 + 0.04 * index, 1.15 + 0.04 * index))
+        go = ease_in_out(win(t, 3.05 + 0.03 * index, 3.6 + 0.03 * index))
+        a = come * (1 - go)
+        if a <= 0:
+            continue
+        c = seat.center()
+        w, h = max(seat.width() * 1.6, 150 * u), seat.height() * 2.3
+        drift = 4 * u * math.sin(t * 1.3 + index)
+        p.save()
+        p.setOpacity(p.opacity() * a)
+        p.setRenderHint(QPainter.SmoothPixmapTransform)
+        p.drawImage(QRectF(c.x() - w / 2 + drift, c.y() - h / 2, w, h), cloud)
+        path, width = unknown[index]
+        # 迷离 scrambles it: now and then it jumps sideways and dims for a frame or two.
+        glitch = math.sin(t * 17 + index * 3.1) > 0.94
+        p.translate(c.x() + (3 * u if glitch else 0), c.y())
+        soft_dot(p, 0, 0, max(width, 30 * u) * 0.75, "#dfe6ff", 0.25)
+        p.setPen(Qt.NoPen)
+        p.setBrush(col("#f4f6ff", 0.55 if glitch else 0.95))
+        p.drawPath(path)
+        p.restore()
 
 
 def _notes(width: float, height: float, gap: QRectF, u: float, rnd: random.Random) -> list[tuple]:
@@ -230,7 +266,7 @@ def _notes(width: float, height: float, gap: QRectF, u: float, rnd: random.Rando
 
 def _notes_paint(p: QPainter, t: float, notes: list[tuple], u: float) -> None:
     for at, shape, size, phase, side, born in notes:
-        a = ease_out(win(t, born, born + 0.5)) * (1 - ease_in(win(t, 2.6, 3.4)))
+        a = ease_out(win(t, born, born + 0.5)) * (1 - ease_in(win(t, 2.8, 3.6)))
         if a <= 0:
             continue
         age = t - born
@@ -368,14 +404,14 @@ def _strike(p: QPainter, age: float, angle: float, centre: QPointF, sprite: QIma
 
 
 def _flash_level(age: float) -> float:
-    """The strike's flash: at once, then gone in a quarter of a second."""
+    """The strike's flash: at once, then gone in under a third of a second."""
     if age < 0 or age > 0.3:
         return 0.0
     return (1 - age / 0.3) ** 2
 
 
 def _jolt(age: float, u: float) -> QPointF:
-    """The screen's jolt as the second set lands: a hard shake dying away."""
+    """The screen's jolt as the strike lands: a hard shake dying away."""
     if age < 0 or age > 0.35:
         return QPointF(0, 0)
     fall = math.exp(-age * 14)
@@ -383,11 +419,11 @@ def _jolt(age: float, u: float) -> QPointF:
 
 
 def _impact(p: QPainter, age: float, centre: QPointF, u: float) -> None:
-    """Where the sets cross: a burst of purple light and a white core."""
+    """Where the strike lands: a burst of purple light and a white core."""
     if age < 0 or age > 0.6:
         return
     k = 1 - age / 0.6
-    soft_dot(p, centre.x(), centre.y(), 260 * u * (0.7 + 0.5 * (1 - k)), PURPLE, 0.45 * k)
+    soft_dot(p, centre.x(), centre.y(), 300 * u * (0.7 + 0.5 * (1 - k)), PURPLE, 0.45 * k)
     soft_dot(p, centre.x(), centre.y(), 90 * u, "#ffffff", 0.8 * k ** 2)
 
 

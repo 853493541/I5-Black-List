@@ -197,3 +197,16 @@ def test_the_effect_plays_for_the_numbers_ticked(window, counts, played_for):
         # The marks show whatever the count: the 嘉宾 card names them.
         assert window.panel.mode == "liked" and window.like_card.isVisible()
         window._hide_panel_after_title()
+
+
+def test_a_scene_brings_its_own_tune_but_never_by_chance():
+    """遇袭 plays the 指挥家's music in place of the chosen tune; 随机 never picks it."""
+    from blacklist_detect.ui_music import SCENE_TUNES
+
+    tune = SCENE_TUNES["conductor"]
+    with wave.open(str(tune)) as w:
+        assert (w.getnchannels(), w.getsampwidth(), w.getframerate()) == (1, 2, 44100)
+        assert 4.5 <= w.getnframes() / w.getframerate() <= 7.0
+    music, played, _clock = _music()
+    assert music.preview("conductor") == "conductor" and played == [tune]
+    assert all(music.pick("random") in KEYS for _ in range(30))

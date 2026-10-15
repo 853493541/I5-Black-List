@@ -441,3 +441,11 @@ def test_a_combination_needs_two_guests_and_greets_them_with_its_theme(window):
     window._show_panel(CheckResult(True, "", names=names[:1], button_box=button))
     assert window._lobby_choice == "cyber" and window.panel.look == love_look("cyber")
     window._hide_panel_after_title()
+
+
+def test_a_theme_with_its_own_music_plays_it_unless_music_is_off(window):
+    window.store.love_music = "organ"
+    assert window._tune_for("claw") == "conductor"
+    assert window._tune_for("stars") == "organ"
+    window.store.love_music = "off"
+    assert window._tune_for("claw") == "off"

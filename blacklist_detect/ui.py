@@ -8,7 +8,7 @@ import threading
 import time
 from datetime import datetime
 
-from PySide6.QtCore import QElapsedTimer, QEvent, QPoint, QRect, QSize, Qt, QThread, QTimer, Signal
+from PySide6.QtCore import QElapsedTimer, QEvent, QPoint, QRect, QRectF, QSize, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import (
     QColor,
     QCursor,
@@ -467,8 +467,10 @@ class MainWindow(QMainWindow):
         # Two or more 嘉宾 players and no 黑名单: a border of silk and flowers, once per lobby.
         self.love = LoveBorder()
         self._love_played = False
-        # This lobby's 嘉宾特效 choice, worked out from the 嘉宾 in it when its result shows.
+        # This lobby's 嘉宾特效 choice, worked out from the 嘉宾 in it when its result shows, and
+        # where its players' names are, for a scene that plays over them.
         self._lobby_choice = ""
+        self._lobby_seats: tuple[QRectF, ...] = ()
 
         # 嘉宾音乐: the same lobby, in either 显示, also gets a few seconds of wedding music.
         self.music = WeddingMusic()
@@ -3684,13 +3686,15 @@ class MainWindow(QMainWindow):
         likes = self._likes_in(result)
         # The scene for these 嘉宾: a combination of theirs, the top one's own theme, or 嘉宾特效's.
         self._lobby_choice = self._choice_for(likes)
+        self._lobby_seats = self._seats_of(result)
         if not hits and self._love_for(len(likes)):
             # Never with a 黑名单 player: the warning is the news then, not the music.
+            tune = self._tune_for(self._lobby_choice)
             if self._demo_likes is not None:
                 # 测试效果 plays it every time it is pressed.
-                self.music.preview(self.store.love_music)
+                self.music.preview(tune)
             else:
-                self.music.lobby([like.name for like in likes], self.store.love_music)
+                self.music.lobby([like.name for like in likes], tune)
         if self.store.safe_mode:
             self._show_notice(result)
             log.info("Check %d shown: the corner message (安全模式).", self._check_number)
@@ -3800,6 +3804,29 @@ class MainWindow(QMainWindow):
         if self._demo_likes is not None:
             return self.store.love_scene
         return lobby_choice(self.store.likes, self.store.combos, likes, self.store.love_scene, known=_known_scene)
+
+    def _tune_for(self, choice: str) -> str:
+        """The music for a lobby with this 嘉宾特效 choice: a scene that brings its own (遇袭's 指挥家)
+        plays that, unless 音乐 is 无; else 音乐's choice."""
+        if self.store.love_music == "off":
+            return "off"
+        self.love.choice = choice
+        scene = self.love.pick()
+        own = getattr(love_scenes.load(scene), "MUSIC", "") if scene else ""
+        return own or self.store.love_music
+
+    @staticmethod
+    def _seats_of(result: CheckResult) -> tuple[QRectF, ...]:
+        """The players' names where the check read them, on the screen in Qt's units."""
+        origin_x, origin_y = virtual_origin()
+        seats = []
+        for slot in result.names:
+            left, top, right, bottom = slot.box
+            x0, y0, _ratio = native_to_logical(left + origin_x, top + origin_y)
+            x1, y1, _ratio = native_to_logical(right + origin_x, bottom + origin_y)
+            if x1 > x0 and y1 > y0:
+                seats.append(QRectF(x0, y0, x1 - x0, y1 - y0))
+        return tuple(seats)
 
     def _dress_love(self, playing: bool) -> None:
         """The 嘉宾 marks (the ring, the badge and the card) in the look of this lobby's scene: the one
@@ -3981,7 +4008,7 @@ class MainWindow(QMainWindow):
         )  # fmt: skip
         badge = self.clear_mark.geometry().center() if self.clear_mark.isVisible() else None
         self.love.choice = choice
-        self.love.play(self._game_area(screen), keep, badge)
+        self.love.play(self._game_area(screen), keep, badge, self._lobby_seats)
 
     def _frame_stream(self) -> None:
         """直播模式's window mirrors the game's whole window, the one a streaming app's 窗口捕捉

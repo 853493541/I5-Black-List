@@ -286,7 +286,9 @@ class LoveEffectsDialog(Modal):
     def play_both(self) -> None:
         """The scene from its start and the music with it, as a lobby would get them."""
         self.preview.show_scene(self._current(self.scene_buttons, love_scenes.shown(self.store.love_scene), "classic"))
-        self.music.preview(self.store.love_music)
+        # A scene with its own tune (遇袭's 指挥家) plays that, unless 音乐 is 无.
+        own = getattr(love_scenes.load(self.preview.scene), "MUSIC", "") if self.preview.scene else ""
+        self.music.preview(own if own and self.store.love_music != "off" else self.store.love_music)
 
     def done(self, result: int) -> None:  # noqa: A003
         self.preview.stop()

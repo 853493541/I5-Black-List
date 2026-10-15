@@ -45,6 +45,8 @@ class LoveBorder(QWidget):
         self._rng = rng or random.Random()
         self._gap = QRectF()
         self._badge: QPointF | None = None
+        # The players' names in this window, where the check read them.
+        self._seats: tuple[QRectF, ...] = ()
         self._made: dict[tuple, object] = {}
         self._buffers: dict[tuple, QImage] = {}
         self._clock = QElapsedTimer()
@@ -52,10 +54,11 @@ class LoveBorder(QWidget):
         self._tick.setInterval(33)
         self._tick.timeout.connect(self._step)
 
-    def play(self, area: QRect, keep_clear: QRect, badge: QPoint | None = None) -> bool:
+    def play(self, area: QRect, keep_clear: QRect, badge: QPoint | None = None, seats: tuple[QRectF, ...] = ()) -> bool:
         """Cover area (the game's screen) and play, leaving keep_clear (the button and its marks) bare.
 
-        badge is the 嘉宾 heart, on the screen. Returns False when 嘉宾特效 says 无.
+        badge is the 嘉宾 heart and seats the players' names, on the screen. Returns False when
+        嘉宾特效 says 无.
         """
         scene = self.pick()
         self._picked = None
@@ -67,6 +70,7 @@ class LoveBorder(QWidget):
         self._gap = QRectF(clear.left() - 28, clear.top() - 30, clear.width() + 56, area.height() - clear.top() + 30)
         origin = QPointF(area.topLeft())
         self._badge = QPointF(badge) - origin if badge is not None else None
+        self._seats = tuple(seat.translated(-origin) for seat in seats)
         self._made = {}
         self._clock.start()
         self._tick.start()
@@ -109,7 +113,7 @@ class LoveBorder(QWidget):
 
     def paint_at(self, painter: QPainter, t: float, width: float, height: float, gap: QRectF | None = None) -> None:
         """The scene at t seconds into its play, on a width by height area (this window, or 直播模式's)."""
-        stage = Stage(width, height, gap if gap is not None else self._gap, self._badge)
+        stage = Stage(width, height, gap if gap is not None else self._gap, self._badge, self._seats)
         paint, limit = self._made_for(stage)
         ratio = painter.device().devicePixelRatioF() if painter.device() is not None else 1.0
         if limit is None or ratio <= limit + 0.01:

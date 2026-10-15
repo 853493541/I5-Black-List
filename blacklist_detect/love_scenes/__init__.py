@@ -77,15 +77,26 @@ class Stage:
 
     gap: the bottom area around the button and its marks, which stays bare.
     badge: the 嘉宾 heart beside the button.
+    seats: the twelve players' names, where the check read them, when it did.
     """
 
     width: float
     height: float
     gap: QRectF
     badge: QPointF | None = None
+    seats: tuple[QRectF, ...] = ()
 
     def unit(self) -> float:
         return min(self.width / DESIGN[0], self.height / DESIGN[1])
+
+    def names(self) -> tuple[QRectF, ...]:
+        """The twelve names: where the check read them, else where the lobby's layout puts them on a
+        stage this size (the preview, 测试效果)."""
+        if self.seats:
+            return self.seats
+        from blacklist_detect.layout import NAME_BOXES
+
+        return tuple(QRectF(left * self.width, top * self.height, (right - left) * self.width, (bottom - top) * self.height) for left, top, right, bottom in NAME_BOXES)
 
     def heart(self) -> QPointF:
         """The heart badge, or where it would be: just right of the gap's middle."""
