@@ -49,8 +49,10 @@ def main() -> None:
     fade = int(0.6 * SR)
     duck[-fade:] *= np.linspace(1, 0, fade) ** 1.5
     mix *= duck
+    # The notice goes in at its own level: raised 4 dB it jumped out of the music, and the peak it made held the
+    # whole tune 1.3 dB under the others.
     end = min(n, at + len(notice))
-    mix[at:end] += notice[: end - at] * 1.6
+    mix[at:end] += notice[: end - at]
     rms = np.sqrt(np.mean(mix**2))
     gain = min(10 ** (-19 / 20) / rms, 10 ** (-3 / 20) / np.abs(mix).max())
     mix = np.clip(mix * gain, -1, 1)
