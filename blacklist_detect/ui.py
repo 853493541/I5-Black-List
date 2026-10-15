@@ -610,7 +610,7 @@ class MainWindow(QMainWindow):
         self.tabs.setDocumentMode(True)
         self.history_tab = self.tabs.addTab(self._history_page(), "记录")
         self.blacklist_tab = self.tabs.addTab(self._list_page(), "黑名单")
-        self.likes_page = LikesPage(self.store, self._say)
+        self.likes_page = LikesPage(self.store, self._say, music=self.music)
         self.likes_page.show_effects = self._show_love_effects
         self.likes_page.changed.connect(self._likes_changed)
         self.likes_tab = self.tabs.addTab(self.likes_page, "嘉宾")

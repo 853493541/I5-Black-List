@@ -6,7 +6,7 @@ A screen is measured by the room Windows leaves for windows: 1366×768 with its 
 
 import pytest
 from PySide6.QtCore import QPoint, QRect
-from PySide6.QtWidgets import QApplication, QDialog, QFrame, QLabel
+from PySide6.QtWidgets import QApplication, QDialog, QFrame, QLabel, QPushButton
 
 from blacklist_detect.ui import MainWindow
 from blacklist_detect.ui_dialogs import StreamGuideDialog
@@ -93,10 +93,11 @@ def test_love_effects_fits_a_laptop_without_scrolling(window, monkeypatch):
         effects.fit_height(LAPTOP)
         assert effects.scroll is None
         assert _card_height(effects) <= LAPTOP - 8
-    # Shorter still, the choices scroll between the title and the buttons.
+    # Shorter still it fits too, or its cards scroll between the title and 完成, which stays in view.
     effects.fit_height(SHORT)
-    assert effects.scroll is not None and effects.scroll.isAncestorOf(effects.scene_buttons["classic"])
-    assert not effects.scroll.isAncestorOf(effects.play_button)
+    assert _card_height(effects) <= SHORT - 8
+    done = next(button for button in effects.findChildren(QPushButton) if button.text() == "完成")
+    assert effects.scroll is None or (effects.scroll.isAncestorOf(effects.scene_buttons["classic"]) and not effects.scroll.isAncestorOf(done))
 
 
 def test_a_guest_with_the_theme_preview_fits_a_laptop_without_scrolling(window, monkeypatch):

@@ -1,20 +1,23 @@
-"""嘉宾 themes: the row of scenes a 嘉宾 or a combination picks from, and 组合, the 嘉宾 who, all in one
+"""嘉宾 themes: the 特效 cards a 嘉宾 or a combination picks from, and 组合, the 嘉宾 who, all in one
 lobby, get a scene of their own (guests.lobby_choice).
 
-A 嘉宾's row starts with 默认 (嘉宾特效's own choice), as every choice lists its default first; a
-combination's has only the scenes, since it exists to pick one. Above the row, the picked scene plays
-over the sample lobby, as in 嘉宾特效: 默认 plays what 嘉宾特效 has.
+The 嘉宾 dialogs share one layout, as 嘉宾特效 does: the picked scene playing over the sample lobby on
+the left, the dialog's own fields on its right, and the 特效 as picture cards under both (ui_theme_cards).
+A 嘉宾's cards start with 默认 (嘉宾特效's own choice, which it plays), as every choice lists its
+default first; a combination's have only the scenes, since it exists to pick one.
 """
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QRectF, QSize, Qt
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPixmap
 from PySide6.QtWidgets import (
-    QButtonGroup,
     QDialog,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
@@ -25,14 +28,13 @@ from blacklist_detect.match import fold
 from blacklist_detect.model import Combo, Entry
 from blacklist_detect.ui_dialogs import _danger, _field, _footer, _frame, _primary, _say_error
 from blacklist_detect.ui_kit import IconButton, Modal
-from blacklist_detect.ui_love_pick import ScenePreview
-from blacklist_detect.ui_theme import DIALOG_PAD, _pointing
+from blacklist_detect.ui_love_pick import ScenePreview, tune_for
+from blacklist_detect.ui_theme import THEME, _pointing
+from blacklist_detect.ui_theme_cards import CONTENT_W, ThemeGallery, poster, section, showcase
 from blacklist_detect.ui_widgets import _FlowHost
 
-# What a 嘉宾 with no theme of their own gets, as the row and the list say it.
+# What a 嘉宾 with no theme of their own gets, as the cards and the list say it.
 DEFAULT_NAME = "默认"
-
-
 def scene_name(key: str) -> str:
     """A theme as the list says it: the scene's name, 默认 for none, and the scene that replaced a
     dropped one (one this version never had is 默认 too: it plays 嘉宾特效's choice)."""
@@ -40,75 +42,109 @@ def scene_name(key: str) -> str:
     return names.get(love_scenes.shown(key), DEFAULT_NAME) if key else DEFAULT_NAME
 
 
+def choice_name(key: str) -> str:
+    """嘉宾特效's own choice as words: a scene's name, 随机 or 无."""
+    return {"random": "随机", "off": "无"}.get(key) or scene_name(key)
+
+
 class ThemeRow:
-    """A row of scene buttons, one checked at a time, under a label like the dialog's other fields; the
-    preview, when there is one, plays the one checked (默认: default, 嘉宾特效's choice)."""
+    """The 特效 cards under their heading, one picked at a time; the preview plays the one picked
+    (默认: default, 嘉宾特效's choice, which its card shows)."""
 
     def __init__(
         self,
         layout: QVBoxLayout,
-        label: str,
         current: str,
         with_default: bool,
-        parent: QWidget,
-        preview: ScenePreview | None = None,
+        preview: ScenePreview,
         default: str = "classic",
     ) -> None:
         self.preview = preview
-        self.default = default
-        self.host = _FlowHost(gap=8)
-        self.group = QButtonGroup(parent)
-        self.group.setExclusive(True)
-        self.buttons: dict[str, QPushButton] = {}
+        self.default = default or "classic"
         items = [("", DEFAULT_NAME)] if with_default else []
         items += list(love_scenes.SCENES)
-        current = love_scenes.shown(current)
+        current = love_scenes.shown(current) if current else ""
         if current not in dict(items):
             current = items[0][0]
-        for key, name in items:
-            button = QPushButton(name)
-            button.setObjectName("segment")
-            button.setProperty("place", "only")
-            button.setCheckable(True)
-            button.setAutoDefault(False)
-            button.setChecked(key == current)
-            if not key:
-                button.setToolTip("跟随嘉宾特效里选的特效")
-            button.clicked.connect(lambda _checked=False, key=key: self.show(key))
-            self.group.addButton(button)
-            self.host.addWidget(button)
-            self.buttons[key] = button
-        self.error = _field(layout, label, self.host)
+        block = section(layout, "特效", "默认跟随嘉宾特效里的选择" if with_default else "这几位嘉宾都在大厅时放")
+        self.gallery = ThemeGallery(
+            items,
+            current,
+            CONTENT_W,
+            labels={"": f"{DEFAULT_NAME} · {choice_name(self.default)}"},
+            pictures={"": poster(self.default)},
+        )
+        if with_default:
+            self.gallery.buttons[""].setToolTip("跟随嘉宾特效里选的特效")
+        self.gallery.picked.connect(self.show)
+        block.addWidget(self.gallery)
+        self.buttons = self.gallery.buttons
         self.show(current)
 
     def value(self) -> str:
-        return next((key for key, button in self.buttons.items() if button.isChecked()), "")
+        return self.gallery.value()
 
     def show(self, key: str) -> None:
-        if self.preview is not None:
-            self.preview.show_scene(key or self.default)
+        self.preview.show_scene(key or self.default, DEFAULT_NAME if not key else "")
 
 
-def preview_on_top(dialog: Modal, layout: QVBoxLayout) -> ScenePreview:
-    """The scene preview at the top of a dialog, the card as wide as it, as 嘉宾特效 is; it stops when the
-    dialog closes."""
-    preview = ScenePreview(dialog)
-    layout.addWidget(preview, 0, Qt.AlignHCenter)
-    dialog.card.setFixedWidth(ScenePreview.WIDTH + 2 * DIALOG_PAD)
-    dialog.finished.connect(preview.stop)
-    return preview
+class ScenePlayer:
+    """▶ on the preview: the picked scene from its start with the music a lobby would play with it."""
+
+    def __init__(self, music, music_choice: str) -> None:  # noqa: ANN001
+        self.music = music
+        self.music_choice = music_choice
+        self.preview: ScenePreview | None = None
+
+    def __call__(self) -> None:
+        preview = self.preview
+        if preview is None:
+            return
+        preview.show_scene(preview.choice, preview.prefix)
+        if self.music is not None:
+            self.music.preview(tune_for(preview.scene, self.music_choice))
+
+    def stop(self) -> None:
+        if self.music is not None:
+            self.music.stop()
+
+
+def thumbnail(key: str, width: int, radius: float = 6) -> QPixmap:
+    """A scene's picture made small, its corners rounded, sharp on this screen."""
+    ratio = 2.0
+    picture = poster(key)
+    height = round(width * picture.height() / max(1, picture.width()))
+    out = QPixmap(QSize(round(width * ratio), round(height * ratio)))
+    out.fill(Qt.transparent)
+    p = QPainter(out)
+    p.setRenderHint(QPainter.Antialiasing)
+    p.setRenderHint(QPainter.SmoothPixmapTransform)
+    shape = QPainterPath()
+    shape.addRoundedRect(QRectF(0, 0, out.width(), out.height()), radius * ratio, radius * ratio)
+    p.setClipPath(shape)
+    p.drawPixmap(QRectF(0, 0, out.width(), out.height()), picture, QRectF(picture.rect()))
+    p.setClipping(False)
+    p.setPen(QColor(THEME["border"]))
+    p.drawPath(shape)
+    p.end()
+    out.setDevicePixelRatio(ratio)
+    return out
 
 
 class ComboDialog(Modal):
     """One combination: the 嘉宾 in it (two or more) and its scene."""
 
-    def __init__(self, likes: list[Entry], combo: Combo | None = None, parent=None) -> None:  # noqa: ANN001
+    def __init__(self, likes: list[Entry], combo: Combo | None = None, parent=None, music=None, music_choice: str = "organ") -> None:  # noqa: ANN001
         super().__init__(parent)
         self.likes = likes
         self.deleted = False
         self.combo = combo
         layout = _frame(self, "编辑组合" if combo else "添加组合")
-        self.preview = preview_on_top(self, layout)
+        layout.setSpacing(16)
+        self.player = ScenePlayer(music, music_choice)
+        self.preview = ScenePreview(self, play=self.player)
+        self.player.preview = self.preview
+        side = showcase(self, layout, self.preview)
         chosen = {fold(name) for name in combo.names} if combo else set()
         self.people = _FlowHost(gap=8)
         self.people_buttons: dict[str, QPushButton] = {}
@@ -123,11 +159,21 @@ class ComboDialog(Modal):
             button.toggled.connect(self._clear_error)
             self.people.addWidget(button)
             self.people_buttons[like.name] = button
-        self.people_error = _field(layout, "嘉宾（选两位或更多）", self.people)
-        theme = combo.theme if combo else ""
-        self.theme = ThemeRow(layout, "特效", theme, with_default=False, parent=self, preview=self.preview)
+        # A long list scrolls beside the preview rather than making the dialog taller.
+        scroll = QScrollArea()
+        scroll.setObjectName("peopleScroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        scroll.setStyleSheet("QScrollArea#peopleScroll, QScrollArea#peopleScroll > QWidget > QWidget { background: transparent; }")
+        scroll.setWidget(self.people)
+        scroll.setMaximumHeight(self.preview.height() - 30)
+        self.people_error = _field(side, "嘉宾（选两位或更多）", scroll)
+        side.addStretch(1)
+        self.theme = ThemeRow(layout, combo.theme if combo else "", with_default=False, preview=self.preview)
         remove = _danger("删除", self._delete) if combo else None
         _footer(self, _primary("保存" if combo else "添加", self._accept), left=remove)
+        self.finished.connect(self.player.stop)
         _pointing(self)
 
     def _clear_error(self, _on: bool = False) -> None:
@@ -150,19 +196,23 @@ class ComboDialog(Modal):
 
 
 class CombosDialog(Modal):
-    """组合: each combination as its 嘉宾 and its scene, to edit or add. A 嘉宾 since taken off the list
-    shows struck out: the combination waits until they are back, or is deleted."""
+    """组合: each combination as its scene's picture, its 嘉宾 and the scene's name, to edit or add. A
+    嘉宾 since taken off the list shows struck out: the combination waits until they are back, or is
+    deleted."""
 
-    def __init__(self, store, parent=None) -> None:  # noqa: ANN001
+    THUMB_W = 76
+
+    def __init__(self, store, parent=None, music=None) -> None:  # noqa: ANN001
         super().__init__(parent)
         self.store = store
+        self.music = music
         layout = _frame(self, "组合特效")
         note = QLabel("这几位嘉宾都在大厅时，放这里选的特效")
         note.setObjectName("sub")
         note.setWordWrap(True)
         layout.addWidget(note)
         self.rows = QVBoxLayout()
-        self.rows.setSpacing(6)
+        self.rows.setSpacing(0)
         layout.addLayout(self.rows)
         self.empty = QLabel("还没有组合")
         self.empty.setObjectName("sub")
@@ -172,7 +222,7 @@ class CombosDialog(Modal):
         self.add_button.setAutoDefault(False)
         self.add_button.clicked.connect(self.add)
         _footer(self, _primary("完成", self.accept), left=self.add_button)
-        self.card.setMinimumWidth(480)
+        self.card.setFixedWidth(520)
         self.refresh()
         _pointing(self)
 
@@ -190,26 +240,36 @@ class CombosDialog(Modal):
         self.add_button.setToolTip("" if enough else "先添加至少两位嘉宾")
 
     def _row(self, index: int, combo: Combo) -> QWidget:
-        row = QWidget()
+        row = QFrame()
         row.setObjectName("comboRow")
+        row.setStyleSheet(f"QFrame#comboRow {{ border-bottom: 1px solid {THEME['border']}; }}")
         line = QHBoxLayout(row)
-        line.setContentsMargins(0, 0, 0, 0)
-        line.setSpacing(8)
+        line.setContentsMargins(0, 10, 0, 10)
+        line.setSpacing(12)
+        picture = QLabel()
+        picture.setPixmap(thumbnail(combo.theme or love_scenes.KEYS[0], self.THUMB_W))
+        line.addWidget(picture, 0, Qt.AlignVCenter)
+        words = QVBoxLayout()
+        words.setSpacing(2)
         parts = [name if present else f"<s>{name}</s>" for name, present in members(combo, self.store.likes)]
         who = QLabel(" + ".join(parts))
         who.setTextFormat(Qt.RichText)
         who.setWordWrap(True)
-        line.addWidget(who, 1)
-        theme = QLabel(f"→ {scene_name(combo.theme)}")
-        theme.setObjectName("field")
-        line.addWidget(theme)
+        words.addWidget(who)
+        theme = QLabel(scene_name(combo.theme))
+        theme.setObjectName("sub")
+        words.addWidget(theme)
+        line.addLayout(words, 1)
         edit = IconButton("edit", "编辑")
         edit.clicked.connect(lambda _checked=False, index=index: self.edit(index))
-        line.addWidget(edit)
+        line.addWidget(edit, 0, Qt.AlignVCenter)
         return row
 
+    def _editor(self, combo: Combo | None = None) -> ComboDialog:
+        return ComboDialog(self.store.likes, combo, parent=self, music=self.music, music_choice=self.store.love_music)
+
     def add(self) -> None:
-        dialog = ComboDialog(self.store.likes, parent=self)
+        dialog = self._editor()
         if dialog.exec() != QDialog.Accepted or dialog.combo is None:
             return
         self.store.set_combos([*self.store.combos, dialog.combo])
@@ -218,7 +278,7 @@ class CombosDialog(Modal):
     def edit(self, index: int) -> None:
         if not 0 <= index < len(self.store.combos):
             return
-        dialog = ComboDialog(self.store.likes, self.store.combos[index], parent=self)
+        dialog = self._editor(self.store.combos[index])
         if dialog.exec() != QDialog.Accepted:
             return
         combos = list(self.store.combos)
@@ -230,4 +290,4 @@ class CombosDialog(Modal):
         self.refresh()
 
 
-__all__ = ["DEFAULT_NAME", "ComboDialog", "CombosDialog", "ThemeRow", "preview_on_top", "scene_name"]
+__all__ = ["DEFAULT_NAME", "ComboDialog", "CombosDialog", "ScenePlayer", "ThemeRow", "choice_name", "scene_name", "thumbnail"]

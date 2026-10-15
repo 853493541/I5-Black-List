@@ -12,8 +12,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QElapsedTimer, QPoint, QPointF, QRectF, QSize, Qt, QTimer
-from PySide6.QtGui import QFontMetrics, QIcon, QPainter, QPixmap
-from PySide6.QtWidgets import QButtonGroup, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QWidget
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPainterPath, QPen, QPixmap, QPolygonF
+from PySide6.QtWidgets import QAbstractButton, QButtonGroup, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
 from blacklist_detect import love_scenes
 from blacklist_detect.love_scenes import DESIGN, sample_stage
@@ -21,7 +21,8 @@ from blacklist_detect.ui_dialogs import _primary
 from blacklist_detect.ui_icons import icon as line_icon
 from blacklist_detect.ui_kit import Modal
 from blacklist_detect.ui_music import TUNE_LIST, WeddingMusic
-from blacklist_detect.ui_theme import CONTROL_H, DIALOG_PAD, THEME, _pointing, chinese_font
+from blacklist_detect.ui_theme import SMALL_PT, THEME, _pointing, chinese_font, is_dark
+from blacklist_detect.ui_theme_cards import CONTENT_W, PREVIEW_W, ThemeGallery, section, showcase
 from blacklist_detect.ui_widgets import _FlowHost
 
 SAMPLE_LOBBY = Path(__file__).resolve().parent / "assets" / "sample-lobby.jpg"
@@ -92,17 +93,57 @@ def _sample_marks(scene: str = "classic") -> list[tuple[QPixmap, QPoint]]:
     return shots
 
 
+def _triangle(side: int) -> QIcon:
+    """A solid ▶, white, for the play button over the preview (its own disc is the button)."""
+    ratio = 2.0
+    image = QPixmap(round(side * ratio), round(side * ratio))
+    image.fill(Qt.transparent)
+    p = QPainter(image)
+    p.setRenderHint(QPainter.Antialiasing)
+    p.scale(ratio, ratio)
+    p.setPen(Qt.NoPen)
+    p.setBrush(QColor("#ffffff"))
+    p.drawPolygon(QPolygonF([QPointF(side * 0.22, side * 0.1), QPointF(side * 0.92, side * 0.5), QPointF(side * 0.22, side * 0.9)]))
+    p.end()
+    image.setDevicePixelRatio(ratio)
+    return QIcon(image)
+
+
 class ScenePreview(QWidget):
-    """The sample lobby with a scene playing over it, over and over. 随机 goes through them all."""
+    """The sample lobby with a scene playing over it, over and over, in a rounded frame with the scene's
+    name in its corner. 随机 goes through them all. With play, a ▶ in the other corner calls it (to play
+    the scene from its start with its music)."""
 
-    # With the rows under it, the dialog fits a 1366×768 screen with its taskbar.
-    WIDTH = 576
+    # Beside the dialog's own fields, with the 特效 cards under both.
+    WIDTH = PREVIEW_W
+    RADIUS = 10
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, parent: QWidget | None = None, width: int = WIDTH, play=None) -> None:  # noqa: ANN001
         super().__init__(parent)
-        height = round(self.WIDTH * DESIGN[1] / DESIGN[0])
-        self.setFixedSize(QSize(self.WIDTH, height))
+        self.setFixedSize(QSize(width, round(width * DESIGN[1] / DESIGN[0])))
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        # Said before the scene's name in the corner, as 默认 is.
+        self.prefix = ""
+        self.play_button: QPushButton | None = None
+        if play is not None:
+            button = QPushButton(self)
+            button.setObjectName("previewPlay")
+            button.setToolTip("从头播放，带音乐")
+            button.setAccessibleName("播放")
+            button.setCursor(Qt.PointingHandCursor)
+            button.setAutoDefault(False)
+            button.setFocusPolicy(Qt.TabFocus)
+            button.setIcon(_triangle(14))
+            button.setIconSize(QSize(14, 14))
+            button.setFixedSize(36, 36)
+            button.setStyleSheet(
+                "QPushButton#previewPlay { background: rgba(10, 13, 20, 160); border: 1px solid rgba(255, 255, 255, 90);"
+                " border-radius: 18px; padding: 0 0 0 2px; }"
+                " QPushButton#previewPlay:hover { background: rgba(10, 13, 20, 215); border-color: rgba(255, 255, 255, 170); }"
+            )
+            button.move(self.width() - 36 - 10, self.height() - 36 - 10)
+            button.clicked.connect(play)
+            self.play_button = button
         self.setAccessibleName("嘉宾特效预览")
         self._lobby = QPixmap(str(SAMPLE_LOBBY))
         # The marks in each scene's look, made as each first plays.
@@ -118,9 +159,10 @@ class ScenePreview(QWidget):
         self._tick.setInterval(33)
         self._tick.timeout.connect(self.update)
 
-    def show_scene(self, choice: str) -> None:
+    def show_scene(self, choice: str, prefix: str = "") -> None:
         """Play this choice from its start: a scene, "random" (each in turn) or "off" (the lobby only)."""
         self.choice = choice
+        self.prefix = prefix
         self._turn = -1
         self._next()
         self._tick.start()
@@ -152,11 +194,25 @@ class ScenePreview(QWidget):
         self._marks = self._marks_for(self.scene or "classic")
         self._clock.start()
 
+    def caption(self) -> str:
+        """What the corner says: the scene playing, 随机 before it while they take turns, 无特效 for none."""
+        names = dict(love_scenes.SCENES)
+        if self.choice == "off":
+            words = "无特效"
+        elif self.choice == "random":
+            words = f"随机 · {names.get(self.scene, '')}"
+        else:
+            words = names.get(self.scene, "")
+        return f"{self.prefix} · {words}" if self.prefix else words
+
     def paintEvent(self, _event) -> None:  # noqa: ANN001
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         painter.setRenderHint(QPainter.SmoothPixmapTransform)
         box = QRectF(self.rect())
+        frame = QPainterPath()
+        frame.addRoundedRect(box, self.RADIUS, self.RADIUS)
+        painter.setClipPath(frame)
         painter.drawPixmap(box, self._lobby, QRectF(self._lobby.rect()))
         painter.scale(self.width() / DESIGN[0], self.height() / DESIGN[1])
         t = self._clock.elapsed() / 1000 if self._clock.isValid() else 0.0
@@ -170,32 +226,60 @@ class ScenePreview(QWidget):
         # Marks the scene draws moving move with it, from its start.
         for pixmap, at in self._marks.at(t):
             painter.drawPixmap(QPointF(at), pixmap)
+        painter.resetTransform()
+        self._paint_caption(painter)
+        painter.setClipping(False)
+        painter.setPen(QPen(QColor(255, 255, 255, 40) if is_dark() else QColor(THEME["border"]), 1))
+        painter.setBrush(Qt.NoBrush)
+        painter.drawRoundedRect(box.adjusted(0.5, 0.5, -0.5, -0.5), self.RADIUS, self.RADIUS)
         painter.end()
+
+    def _paint_caption(self, painter: QPainter) -> None:
+        words = self.caption()
+        if not words:
+            return
+        font = chinese_font(SMALL_PT)
+        font.setWeight(QFont.DemiBold)
+        metrics = QFontMetrics(font)
+        pill = QRectF(10, 10, metrics.horizontalAdvance(words) + 20, metrics.height() + 8)
+        painter.setPen(QPen(QColor(255, 255, 255, 60), 1))
+        painter.setBrush(QColor(10, 13, 20, 170))
+        painter.drawRoundedRect(pill, pill.height() / 2, pill.height() / 2)
+        painter.setFont(font)
+        painter.setPen(QColor("#ffffff"))
+        painter.drawText(pill, Qt.AlignCenter, words)
+
+
+def tune_for(scene: str, music_choice: str) -> str:
+    """The music a scene plays with: its own (遇袭's 指挥家) unless 音乐 is 无, else 音乐's choice."""
+    own = getattr(love_scenes.load(scene), "MUSIC", "") if scene else ""
+    return own if own and music_choice != "off" else music_choice
 
 
 class LoveEffectsDialog(Modal):
-    """嘉宾特效: the scene and the music, each a row of choices, with the preview above them."""
+    """嘉宾特效, laid out as the 嘉宾 dialogs: the preview on the left (▶ plays the scene with its
+    music), 嘉宾人数 and 音乐 on its right, and the scenes as picture cards under both, 随机 and 无 last."""
 
     def __init__(self, store, music: WeddingMusic, parent: QWidget | None = None) -> None:  # noqa: ANN001
         super().__init__(parent)
         self.store = store
         self.music = music
         layout = self.frame("嘉宾特效")
-        layout.setSpacing(12)
-        self._name_width = QFontMetrics(chinese_font()).horizontalAdvance("嘉宾人数") + 4
-        self.preview = ScenePreview()
-        layout.addWidget(self.preview, 0, Qt.AlignHCenter)
-        self.count_boxes = self._counts(layout)
-        scenes = [*love_scenes.SCENES, ("random", "随机"), ("off", "无")]
+        layout.setSpacing(16)
+        self.preview = ScenePreview(self, play=self.play_both)
+        self.play_button = self.preview.play_button
+        side = showcase(self, layout, self.preview)
+        self.count_boxes = self._counts(side)
         tunes = [*((key, name) for key, name, _file in TUNE_LIST), ("random", "随机"), ("off", "无")]
-        self.scene_buttons = self._choices(layout, "特效", scenes, love_scenes.shown(store.love_scene), self._pick_scene)
-        self.music_buttons = self._choices(layout, "音乐", tunes, store.love_music, self._pick_music)
-        self.play_button = QPushButton("预览")
-        self.play_button.setAutoDefault(False)
-        self.play_button.clicked.connect(self.play_both)
-        self.footer(self.play_button, _primary("完成", self.accept))
-        # As wide as the preview: the choices wrap under it, and it fits the smallest window.
-        self.card.setFixedWidth(ScenePreview.WIDTH + 2 * DIALOG_PAD)
+        self.music_buttons = self._choices(side, "音乐", tunes, store.love_music, self._pick_music)
+        side.addStretch(1)
+        block = section(layout, "特效", "点一张卡片，左边就放它")
+        scenes = [*love_scenes.SCENES, ("random", "随机"), ("off", "无")]
+        self.gallery = ThemeGallery(scenes, love_scenes.shown(store.love_scene), CONTENT_W)
+        self.gallery.picked.connect(self._pick_scene)
+        block.addWidget(self.gallery)
+        self.scene_buttons = self.gallery.buttons
+        self.footer(_primary("完成", self.accept))
         _pointing(self)
         self.preview.show_scene(self._current(self.scene_buttons, love_scenes.shown(store.love_scene), "classic"))
 
@@ -218,23 +302,28 @@ class LoveEffectsDialog(Modal):
             group.addButton(button)
             host.addWidget(button)
             buttons[key] = button
-        self._beside(layout, label, host)
+        self._above(layout, label, host)
         return buttons
 
-    def _beside(self, layout, label: str, host: QWidget) -> None:  # noqa: ANN001
-        """The row's name on the left, level with the first line of its choices."""
-        row = QHBoxLayout()
-        row.setSpacing(12)
+    @staticmethod
+    def _above(layout, label: str, host: QWidget, aside: QWidget | None = None) -> None:  # noqa: ANN001
+        """The row's name over its choices, as the fields beside the preview have them; aside on its right."""
+        column = QVBoxLayout()
+        column.setSpacing(6)
+        top = QHBoxLayout()
         name = QLabel(label)
         name.setObjectName("field")
-        name.setFixedSize(self._name_width, CONTROL_H)
-        row.addWidget(name, 0, Qt.AlignTop)
-        row.addWidget(host, 1)
-        layout.addLayout(row)
+        top.addWidget(name)
+        top.addStretch(1)
+        if aside is not None:
+            top.addWidget(aside)
+        column.addLayout(top)
+        column.addWidget(host)
+        layout.addLayout(column)
 
     def _counts(self, layout) -> dict[int, QPushButton]:  # noqa: ANN001
-        """Like the rows under it, but any of them can be on together: a ticked one shows a ✓, and the
-        row says 可多选."""
+        """Like 音乐 under it, but any of them can be on together: a ticked one shows a ✓, and the row's
+        name has 可多选 beside it."""
         host = _FlowHost(gap=8)
         buttons: dict[int, QPushButton] = {}
         for count, name in COUNT_NAMES:
@@ -251,9 +340,7 @@ class LoveEffectsDialog(Modal):
             buttons[count] = button
         hint = QLabel("可多选")
         hint.setObjectName("sub")
-        hint.setFixedHeight(CONTROL_H)
-        host.addWidget(hint)
-        self._beside(layout, "嘉宾人数", host)
+        self._above(layout, "嘉宾人数", host, hint)
         return buttons
 
     @staticmethod
@@ -270,7 +357,7 @@ class LoveEffectsDialog(Modal):
         self.store.save_settings()
 
     @staticmethod
-    def _current(buttons: dict[str, QPushButton], saved: str, default: str) -> str:
+    def _current(buttons: dict[str, QAbstractButton], saved: str, default: str) -> str:
         return saved if saved in buttons else default
 
     def _pick_scene(self, key: str) -> None:
@@ -284,11 +371,10 @@ class LoveEffectsDialog(Modal):
         self.music.preview(key)
 
     def play_both(self) -> None:
-        """The scene from its start and the music with it, as a lobby would get them."""
+        """The scene from its start and the music with it, as a lobby would get them: a scene with its
+        own tune (遇袭's 指挥家) plays that, unless 音乐 is 无."""
         self.preview.show_scene(self._current(self.scene_buttons, love_scenes.shown(self.store.love_scene), "classic"))
-        # A scene with its own tune (遇袭's 指挥家) plays that, unless 音乐 is 无.
-        own = getattr(love_scenes.load(self.preview.scene), "MUSIC", "") if self.preview.scene else ""
-        self.music.preview(own if own and self.store.love_music != "off" else self.store.love_music)
+        self.music.preview(tune_for(self.preview.scene, self.store.love_music))
 
     def done(self, result: int) -> None:  # noqa: A003
         self.preview.stop()
