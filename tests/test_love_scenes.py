@@ -64,6 +64,12 @@ def test_every_scene_fits_another_window_shape(qapp, key):
     _frames(stage, key)
 
 
+def test_the_scene_being_drawn_keeps_the_rules(qapp):
+    """清风徐来 is not in SCENES until it is finished; it keeps the same rules meanwhile."""
+    test_every_scene_plays_through_and_keeps_the_button_bare(qapp, "breeze")
+    test_every_scene_fits_another_window_shape(qapp, "breeze")
+
+
 def test_choosing_one_random_or_none():
     rng = random.Random(5)
     assert choose("off", "", rng) == ""
