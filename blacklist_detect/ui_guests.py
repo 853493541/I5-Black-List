@@ -305,7 +305,7 @@ class ComboDialog(Modal):
             button.setAutoDefault(False)
             button.setChecked(fold(like.name) in chosen)
             button.toggled.connect(self._clear_error)
-            # A ✓ while chosen, as 设置's 提醒 shows it.
+            # A ✓ while chosen.
             button.toggled.connect(lambda on, button=button: button.setIcon(line_icon("check", 14, THEME["on_accent"]) if on else QIcon()))
             button.setIcon(line_icon("check", 14, THEME["on_accent"]) if button.isChecked() else QIcon())
             self.people.addWidget(button)

@@ -77,7 +77,7 @@ def topmost(widget) -> bool:  # noqa: ANN001
 def main() -> int:
     app = QApplication(sys.argv)
     from blacklist_detect import __version__, ui
-    from blacklist_detect.pipeline import load_rgb
+    from blacklist_detect.pipeline import check_image, load_rgb
     from blacklist_detect.storage import Store
     from blacklist_detect.ui_overlay import RED
 
@@ -104,19 +104,15 @@ def main() -> int:
     check("the welcome guide shows once, after it", guides == [1] and not window.store.first_run)
     check("the check is remembered for this version", Store(window.store.root).env_checked == __version__)
 
-    # 2. 截图检查 on the reference lobby, with someone from it on the list.
+    # 2. The reader on the reference lobby, with someone from it on the list: a picture read the way a
+    #    live check reads the screen (用截图检查 is gone from the app).
     window.store.add("gffdsd", "测试", tags=("炸房",))
     window._show_list()
-    window._run_picture(str(LOBBY), "截图检查")
-    wait_until(lambda: window._picture_dialog is not None and window._picture_dialog.isVisible(), 120)
-    dialog = window._picture_dialog
-    seats = [seat.text() for seat in dialog.seats] if dialog is not None else []
-    check("截图检查 reads twelve seats", len(seats) == 12, "、".join(seats))
-    # A listed player's seat carries the warning mark, and the dialog adds no counting line.
-    warned = [seat.text() for seat in dialog.seats if seat.parentWidget().findChild(QLabel, "seatWarn")] if dialog else []
-    check("截图检查 marks the listed player", warned == ["gffdsd"] and dialog.summary.isHidden(), "、".join(warned))
-    if dialog is not None:
-        dialog.close()
+    result = check_image(LOBBY, list(window.store.entries))
+    seats = [slot.raw for slot in result.names]
+    check("the reader finds twelve seats in the reference lobby", len(seats) == 12, "、".join(seats))
+    found = [hit.entry_name for hit in result.hits]
+    check("the listed player is found", found == ["gffdsd"], "、".join(found))
 
     # 3. A live lobby check, with the reference shot standing in for the screen.
     frame = load_rgb(LOBBY)

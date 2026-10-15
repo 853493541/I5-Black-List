@@ -271,8 +271,7 @@ def _focus_scene(app, window, snap) -> None:  # noqa: ANN001
     window.tabs.setCurrentIndex(window.settings_tab)
     window.theme_buttons["绿色"].setFocus(Qt.FocusReason.TabFocusReason)
     snap("focus_swatch")
-    window.tabs.setCurrentIndex(window.history_tab)
-    window.picture_button.setFocus(Qt.FocusReason.TabFocusReason)
+    window.export_button.setFocus(Qt.FocusReason.TabFocusReason)
     snap("focus_secondary")
     window.setFocus()
 

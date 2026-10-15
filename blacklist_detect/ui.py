@@ -3214,7 +3214,7 @@ class MainWindow(QMainWindow):
             subprocess.Popen(["explorer", "/select,", str(target)], env=paths.child_env())
 
     def _on_stream_switch(self, on: bool) -> None:
-        """开启｜关闭: the first time it is turned on, how to set it up comes with it."""
+        """The header's switch: the first time it is turned on, how to set it up comes with it."""
         self._set_stream_mode(on)
         if on and not self.store.stream_guided:
             self.store.stream_guided = True
