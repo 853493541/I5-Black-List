@@ -137,7 +137,7 @@ def _unregister(ident: int) -> None:
 class GlobalHotkey:
     """RegisterHotKey on Windows. The key is not synthesized into the lobby.
 
-    ident tells two of them apart: 检查's is 1, the 特效 hotkey's 2. On any other system this stores
+    ident tells two of them apart: 检查's is 1, the 场景 hotkey's 2. On any other system this stores
     nothing with the OS. Callers still save the chosen text so the same settings file works on
     Windows later.
     """

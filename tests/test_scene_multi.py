@@ -387,3 +387,36 @@ def test_the_guest_dialog_saves_the_scenes_ticked(window, monkeypatch):
     window.likes_page.add_one()
     assert window.store.likes[0].scenes == Scenes(("ice", "fluffy"))
     assert Store(window.store.root).likes[0].scenes == Scenes(("ice", "fluffy"))
+
+
+# 场景, not 特效 ------------------------------------------------------------------------------------
+
+
+def _words(root) -> list[str]:  # noqa: ANN001
+    """Everything a player reads on root and in it: texts, tips and the names a screen reader says."""
+    from PySide6.QtWidgets import QAbstractButton, QLabel, QLineEdit, QWidget
+
+    said = []
+    for widget in [root, *root.findChildren(QWidget)]:
+        said += [widget.toolTip(), widget.accessibleName(), widget.accessibleDescription(), widget.windowTitle()]
+        if isinstance(widget, QAbstractButton | QLabel):
+            said.append(widget.text())
+        if isinstance(widget, QLineEdit):
+            said.append(widget.placeholderText())
+    return said
+
+
+def test_the_player_reads_scene_never_effect(window):
+    from blacklist_detect import livehime
+    from blacklist_detect.ui_guests import ComboDialog
+    from blacklist_detect.ui_likes import LikeDialog
+    from blacklist_detect.ui_love_pick import ScenePicker
+
+    window.store.add_like("小明")
+    window.store.add_like("小红")
+    assert window._tab_buttons[window.effects_tab].name() == "场景管理"
+    assert window.love_switch.accessibleName() == "嘉宾场景"
+    for root in (window, LikeDialog(parent=window), ComboDialog(window.store.likes, parent=window), ScenePicker(parent=window)):
+        assert not [words for words in _words(root) if "特效" in words], root
+    # 直播姬's own scenes are said to be 直播姬's.
+    assert all("直播姬场景" in words for words in livehime.WORDS.values() if "场景" in words)

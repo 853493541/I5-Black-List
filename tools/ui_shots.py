@@ -71,6 +71,7 @@ def shoot(args) -> None:  # noqa: ANN001
     from PySide6.QtWidgets import QDialog
 
     from blacklist_detect import __version__, autostart, hotkey, ui
+    from blacklist_detect.model import Scenes
     from blacklist_detect.ui_kit import Modal
     from blacklist_detect.ui_love_pick import ScenePicker
 
@@ -128,7 +129,7 @@ def shoot(args) -> None:  # noqa: ANN001
 
         from blacklist_detect.hotkey import parse_hotkey
 
-        # 检查's own key (Alt+F11, or Shift+F12 with the stress data) pressed for the 特效 hotkey:
+        # 检查's own key (Alt+F11, or Shift+F12 with the stress data) pressed for the 场景 hotkey:
         # refused, under the box.
         spec = parse_hotkey(window.store.hotkey)
         name = spec.display.rsplit("+", 1)[-1]
@@ -141,20 +142,20 @@ def shoot(args) -> None:  # noqa: ANN001
         edit = window.effect_hotkey_edit
         app.sendEvent(edit, QFocusEvent(QEvent.Type.FocusIn))
         app.sendEvent(edit, QKeyEvent(QEvent.Type.KeyPress, key, modifiers))
-        save(window, "page_特效_同一个键")
+        save(window, "page_场景_同一个键")
         app.sendEvent(edit, QFocusEvent(QEvent.Type.FocusOut))
 
-    step("page_特效_同一个键", same_key)
+    step("page_场景_同一个键", same_key)
 
     def own_sound() -> None:
         # 毛茸茸保护协会 shown, with the player's own sound (seeded as 心动音乐.mp3), 声音 below 100%.
         window.tabs.setCurrentIndex(window.effects_tab)
         window.effects_page.scenes.buttons["fluffy"].click()
-        save(window, "page_特效_自定义声音")
+        save(window, "page_场景_自定义声音")
         window.effects_page.scenes.buttons[window.store.quick_scene].click()
 
     if args.data != "empty":
-        step("page_特效_自定义声音", own_sound)
+        step("page_场景_自定义声音", own_sound)
     window.tabs.setCurrentIndex(0)
     step("header_检查", lambda: (window.check_panel.toggle(), save(window, "header_检查"), window.check_panel.close_panel()))
 
@@ -207,7 +208,8 @@ def shoot(args) -> None:  # noqa: ANN001
         likes.add_menu.hide()
 
     step("menu_添加嘉宾", add_menu)
-    step("dlg_选择特效", lambda: ScenePicker("fluffy", "心动小鹿", parent=window).exec())
+    step("dlg_选择场景", lambda: ScenePicker(Scenes(("fluffy", "stars", "lace")), "心动小鹿", parent=window).exec())
+    step("dlg_选择场景_不放", lambda: ScenePicker(Scenes(("ice",), off=True), "心动星星", parent=window).exec())
 
     def trim() -> None:
         from blacklist_detect.ui_sound_trim import SoundTrimDialog
@@ -359,12 +361,13 @@ def _seed(root: Path, args, version: str) -> None:  # noqa: ANN001
             ("小透明", ("挂机",), "全程挂机不动，一句话也不说，这是一段很长的原因，看看表格会不会把它截断"),
         ):
             store.add(name, tags=tags, reason=reason)
-        store.add_like("心动小鹿", nickname="小鹿", reason="声音好听", scenes=Scenes(("fluffy",)))
+        # Several 场景, none ticked (any) and one; a 组合 on 不放.
+        store.add_like("心动小鹿", nickname="小鹿", reason="声音好听", scenes=Scenes(("fluffy", "stars", "lace")))
         store.add_like("心动星星")
         store.add_like("一起开黑的朋友", reason="每次都带我赢", scenes=Scenes(("cyber",)))
-        store.set_combos([Combo(("心动小鹿", "心动星星"), Scenes(("angel",))), Combo(("心动星星", "一起开黑的朋友"), Scenes(("fluffy",)))])
+        store.set_combos([Combo(("心动小鹿", "心动星星"), Scenes(("angel",))), Combo(("心动星星", "一起开黑的朋友"), Scenes(off=True))])
         store.add_scan([{"seat": i + 1, "name": n, "unclear": n == "摸鱼大师"} for i, n in enumerate(SEATS)], elapsed=0.31)
-        # 特效管理: 毛茸茸保护协会 with the player's own sound, 4 s of made-up music under a made-up name.
+        # 场景管理: 毛茸茸保护协会 with the player's own sound, 4 s of made-up music under a made-up name.
         from blacklist_detect import sound_import
         from blacklist_detect.paths import custom_sound_dir
 

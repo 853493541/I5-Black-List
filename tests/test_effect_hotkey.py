@@ -1,6 +1,6 @@
-"""特效: the page where the 特效 hotkey's scene is picked (快捷键放这个), and that hotkey, which plays it at
+"""场景: the page where the 场景 hotkey's scene is picked (快捷键放这个), and that hotkey, which plays it at
 once over the game with no check, on the screen and in 直播画面. tests/test_effects_manager.py has the rest of
-the page: each 特效's sound and 音量."""
+the page: each 场景's sound and 音量."""
 
 import json
 import os
@@ -41,7 +41,7 @@ def window(tmp_path, monkeypatch):  # noqa: ANN001, ANN201
 
     # No screen copy and no recognition: the hotkey checks nothing.
     def never(*_args, **_kwargs):  # noqa: ANN002, ANN003, ANN202
-        raise AssertionError("the 特效 hotkey copied the screen or read it")
+        raise AssertionError("the 场景 hotkey copied the screen or read it")
 
     for name in ("capture_displays", "capture_top_band", "check_frames", "check_image", "glance_title"):
         monkeypatch.setattr(ui, name, never)
@@ -113,7 +113,7 @@ def test_the_settings_save_and_load_and_bad_ones_fall_back(tmp_path):
         store = saved(hotkey=key)
         assert (store.hotkey, store.dropped_hotkey, store.effect_hotkey) == ("Alt+1", key, "Alt+F12"), key
     assert saved(hotkey="alt+q").hotkey == "Alt+Q" and saved(hotkey="alt+q").dropped_hotkey == ""
-    # Alt+1 is the 特效 hotkey's by then: it keeps it, and 检查 is none.
+    # Alt+1 is the 场景 hotkey's by then: it keeps it, and 检查 is none.
     store = saved(hotkey="Shift+A", effect_hotkey="Alt+1")
     assert (store.hotkey, store.effect_hotkey) == ("", "Alt+1")
     store = saved(effect_hotkey="Shift+A")
@@ -122,7 +122,7 @@ def test_the_settings_save_and_load_and_bad_ones_fall_back(tmp_path):
     assert (Store(root).hotkey, Store(root).effect_hotkey, Store(root).dropped_effect_hotkey) == ("Alt+1", "Alt+F12", "")
     assert saved(hotkey="Alt+F12").effect_hotkey == ""
     assert saved(hotkey="Alt+1", effect_hotkey="alt+1").effect_hotkey == ""
-    # 检查 had no key and the 特效 hotkey took Alt+1, where 检查 would come back: the 特效 hotkey keeps it.
+    # 检查 had no key and the 场景 hotkey took Alt+1, where 检查 would come back: the 场景 hotkey keeps it.
     store = saved(hotkey="", effect_hotkey="Alt+1")
     assert (store.hotkey, store.effect_hotkey) == ("", "Alt+1")
     # None saved (turned off, or 检查's key once) stays none: Alt+F12 is not taken behind the player's back.
@@ -132,12 +132,12 @@ def test_the_settings_save_and_load_and_bad_ones_fall_back(tmp_path):
     assert (store.hotkey, store.effect_hotkey) == ("Ctrl+K", "")
     store.save_settings()
     assert (Store(root).hotkey, Store(root).effect_hotkey) == ("Ctrl+K", "")
-    # A v0.9.11 player with 检查 on Alt+F12 who moves 检查 later keeps the 特效 hotkey none.
+    # A v0.9.11 player with 检查 on Alt+F12 who moves 检查 later keeps the 场景 hotkey none.
     store = saved(hotkey="Alt+F12")
     store.hotkey = "Alt+2"
     store.save_settings()
     assert (Store(root).hotkey, Store(root).effect_hotkey) == ("Alt+2", "")
-    # None saved for 特效 at all (v0.9.11): the default.
+    # None saved for 场景 at all (v0.9.11): the default.
     assert saved(hotkey="Ctrl+K").effect_hotkey == "Alt+F12"
     store = saved(quick_scene="stars", hotkey="Q", effect_hotkey="F9")
     store.reset()
@@ -146,7 +146,7 @@ def test_the_settings_save_and_load_and_bad_ones_fall_back(tmp_path):
 
 
 def test_the_page_lists_every_scene_and_saves_the_one_given_the_hotkey(window):
-    assert window.tabs.tabText(window.effects_tab) == "特效管理"
+    assert window.tabs.tabText(window.effects_tab) == "场景管理"
     assert window.likes_tab < window.effects_tab < window.settings_tab
     page = window.effects_page
     assert [(key, button.text()) for key, button in page.scenes.buttons.items()] == list(love_scenes.SCENES)
@@ -180,7 +180,7 @@ def test_the_page_lists_every_scene_and_saves_the_one_given_the_hotkey(window):
 
 def test_the_page_fits_the_smallest_window(window):
     """At 900x560 every control is in view, a note under the rows too; the preview gives up room for them,
-    never below _Fitted.MIN_W (test_effects_manager has a 特效 with the player's own sound)."""
+    never below _Fitted.MIN_W (test_effects_manager has a 场景 with the player's own sound)."""
     from blacklist_detect.ui_effects import _Fitted
 
     window.resize(900, 560)
@@ -211,7 +211,7 @@ def test_the_two_hotkeys_register_each_with_its_own_id(window):
     assert f12 == (hotkey.parse_hotkey("Alt+F12").win_modifiers, 0x7B)
     # Its callback is the play.
     assert window.effect_hotkey.callback == window.play_quick_scene
-    # 自动检查 lets go of 检查's hotkey, never of the 特效 hotkey.
+    # 自动检查 lets go of 检查's hotkey, never of the 场景 hotkey.
     window._on_auto_mode("auto")
     assert window.hotkey.active == "" and window.effect_hotkey.active == "Alt+F12"
 
@@ -279,13 +279,13 @@ def test_a_player_whose_check_key_was_alt_f12_is_told_the_effect_hotkey_is_not_s
     edit = window.effect_hotkey_edit
     assert window.store.effect_hotkey == "" and window.effect_hotkey.active == ""
     assert edit.text() == "" and edit.placeholderText() == "未设置"
-    assert window.effects_page.note.text() == "检查已在用 Alt+F12，特效快捷键未设置"
+    assert window.effects_page.note.text() == "检查已在用 Alt+F12，场景快捷键未设置"
     # 检查's own box still says 无 when it has none.
     assert window.hotkey_edit.placeholderText() == "无"
     # The same key pressed again in 检查's box: still so, still said.
     _press(window.hotkey_edit, Qt.Key_F12, Qt.KeyboardModifier.AltModifier)
-    assert window.effects_page.note.text() == "检查已在用 Alt+F12，特效快捷键未设置"
-    # 检查 moves off it: no longer so, so no longer said; a note about a key pressed for 特效 stays.
+    assert window.effects_page.note.text() == "检查已在用 Alt+F12，场景快捷键未设置"
+    # 检查 moves off it: no longer so, so no longer said; a note about a key pressed for 场景 stays.
     _press(window.hotkey_edit, Qt.Key_2, Qt.KeyboardModifier.AltModifier)
     assert window.store.hotkey == "Alt+2" and window.effects_page.note.isHidden()
     window.effects_page.say("最多两个键，比如 Alt+1")
@@ -311,9 +311,9 @@ def test_the_two_hotkeys_never_share_a_key(window):
     assert not window.effects_page.note.isHidden()
     QApplication.instance().sendEvent(edit, QFocusEvent(QEvent.Type.FocusOut))
     assert edit.text() == "Alt+F12" and window.effect_hotkey.active == "Alt+F12"
-    # And 检查's box refuses the 特效 hotkey's key.
+    # And 检查's box refuses the 场景 hotkey's key.
     _press(window.hotkey_edit, Qt.Key_F12, Qt.KeyboardModifier.AltModifier)
-    assert window.store.hotkey == "Alt+1" and window.settings_label.text() == "特效已在用这个键，换一个"
+    assert window.store.hotkey == "Alt+1" and window.settings_label.text() == "场景已在用这个键，换一个"
 
 
 def test_the_hotkey_plays_the_scene_at_once_with_no_check(window):
@@ -476,8 +476,8 @@ def test_the_play_is_logged(window, caplog):
         window.play_quick_scene()
         window._end_quick_play()
     said = caplog.text
-    assert "特效 hotkey: angel over the screen under the pointer" in said
-    assert "特效 hotkey shown: 嘉宾特效 (angel" in said and "特效 hotkey: done." in said
+    assert "场景 hotkey: angel over the screen under the pointer" in said
+    assert "场景 hotkey shown: 嘉宾场景 (angel" in said and "场景 hotkey: done." in said
 
 
 def test_in_safe_mode_without_stream_mode_nothing_is_drawn_over_the_game(window):
@@ -489,7 +489,7 @@ def test_in_safe_mode_without_stream_mode_nothing_is_drawn_over_the_game(window)
     assert window._quick_scene == "" and window.played == []
     window.tabs.setCurrentIndex(window.effects_tab)
     window.effects_page.play_button.click()
-    assert window._quick_scene == "" and window.effects_page.note.text() == "安全模式下不显示特效"
+    assert window._quick_scene == "" and window.effects_page.note.text() == "安全模式下不显示场景"
     assert not window.effects_page.note.isHidden()
 
 
@@ -708,7 +708,7 @@ def test_a_dropped_check_key_whose_default_the_effect_hotkey_has_asks_for_anothe
 def test_a_dropped_effect_key_is_alt_f12_and_the_page_says_so(tmp_path, monkeypatch):
     window = _opened_with(tmp_path, monkeypatch, effect_hotkey="Ctrl+C")
     assert window.effect_hotkey.active == "Alt+F12" and window.effect_hotkey_edit.text() == "Alt+F12"
-    assert window.effects_page.note.text() == "特效快捷键 Ctrl+C 已不能用，换成了 Alt+F12"
+    assert window.effects_page.note.text() == "场景快捷键 Ctrl+C 已不能用，换成了 Alt+F12"
     assert window.settings_label.text() == ""
     window.close()
 
@@ -775,7 +775,7 @@ def test_the_note_that_checks_key_did_not_register_goes_once_it_does(window, mon
     monkeypatch.setattr(hotkey, "_register", lambda ident, modifiers, vk: False)
     window._sync_hotkey_mode()
     assert window.settings_label.text() == "这个键被别的程序占了，换一个" and not window.settings_label.isHidden()
-    # The other program let go of it: taken as the 特效 box lets go of both, the note goes.
+    # The other program let go of it: taken as the 场景 box lets go of both, the note goes.
     monkeypatch.setattr(hotkey, "_register", lambda ident, modifiers, vk: True)
     window._end_hotkey(window.effect_hotkey_edit)
     assert window.hotkey.active == "Alt+1" and window.settings_label.isHidden()
@@ -914,7 +914,7 @@ def test_a_real_lobbys_music_plays_on_whatever_the_page_does(window, monkeypatch
     button = (screen.x() + 600, screen.y() + 700, screen.x() + 800, screen.y() + 760)
     window._show_panel(CheckResult(header_found=True, message="", button_box=button))
     assert window.played == ["classic", "stars"] and not page.sounding
-    # Picking on 特效 and leaving it stop nothing.
+    # Picking on 场景 and leaving it stop nothing.
     page.scenes.buttons["fluffy"].click()
     window.tabs.setCurrentIndex(window.history_tab)
     assert len(window.played) == 2

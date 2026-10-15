@@ -305,7 +305,7 @@ def _window_size(value) -> tuple[int, int] | None:
 # Name, tags, reason, last met. Tags fit about three short pills; the reason takes the spare width.
 DEFAULT_COLUMN_WIDTHS = [200, 176, 340, 120]
 DEFAULT_HOTKEY = "Alt+1"
-# The 特效 hotkey, which plays the 特效 picked on 特效 at once, with no check.
+# The 场景 hotkey, which plays the 场景 picked on 场景管理 at once, with no check.
 DEFAULT_EFFECT_HOTKEY = "Alt+F12"
 
 
@@ -401,14 +401,14 @@ def _scenes_saved(scenes: Scenes) -> dict:
 
 
 def _seconds(value: object) -> float | None:
-    """Where a 特效's own sound was cut from the file it came from, or how long: seconds, else None."""
+    """Where a 场景's own sound was cut from the file it came from, or how long: seconds, else None."""
     if isinstance(value, bool) or not isinstance(value, int | float) or not 0 <= value < 24 * 3600:
         return None
     return float(value)
 
 
 def _scene_sound(value: object, folder: Path) -> dict | None:
-    """One 特效's sound as saved: its own 音量 and, with a file still in folder, the player's own sound. None
+    """One 场景's sound as saved: its own 音量 and, with a file still in folder, the player's own sound. None
     when that is the default (100%, the scene's own) or not a sound at all."""
     if not isinstance(value, dict):
         return None
@@ -427,7 +427,7 @@ def _scene_sound(value: object, folder: Path) -> dict | None:
 
 
 def _scene_sounds(value: object, folder: Path) -> dict[str, dict]:
-    """特效管理 as saved: by scene key, each 特效's own 音量 and sound (_scene_sound). A key this version does
+    """场景管理 as saved: by scene key, each 场景's own 音量 and sound (_scene_sound). A key this version does
     not have is kept for the one that has; a replaced scene's is its replacement's, unless that has its own.
     Never raises: a bad entry is dropped, not the rest of the settings."""
     sounds: dict[str, dict] = {}
@@ -440,7 +440,7 @@ def _scene_sounds(value: object, folder: Path) -> dict[str, dict]:
             if key and entry is not None and not (key != raw and key in value):
                 sounds[key] = entry
         except Exception:
-            _log.info("特效管理: the saved sound of %r dropped.", raw)
+            _log.info("场景管理: the saved sound of %r dropped.", raw)
     return sounds
 
 
@@ -484,17 +484,17 @@ class Store:
         # 显示: 安全模式 marks nothing on the game, the result comes as messages at the bottom right
         # of the screen; 完整模式 (False) draws the marks over it. On unless turned off, also for old settings.
         self.safe_mode = True
-        # 设置 › 嘉宾特效: on ("classic", 经典 greeting 嘉宾 with no 特效 of their own) or "off" (no scene for
-        # anyone).
+        # 设置 › 嘉宾场景: on ("classic": each 嘉宾 and 组合 greeted with their own, guests.lobby_choice) or
+        # "off" (no scene for anyone).
         self.love_scene = "classic"
         # 设置 › 声音: how loud every sound the app makes is, in percent (steps of 5, as 设置 sets it), and 静音.
         self.sound_volume = 100
         self.sound_muted = False
-        # 特效管理: by scene key, a 特效's own 音量 (percent of 声音's, steps of 5) and the player's own sound for
+        # 场景管理: by scene key, a 场景's own 音量 (percent of 声音's, steps of 5) and the player's own sound for
         # it, if any: {"volume": 100, "file": "<key>.wav" in custom_sounds, "name": the file it came from,
-        # "start" and "length": the part of it kept, in seconds}. A 特效 with neither has no entry.
+        # "start" and "length": the part of it kept, in seconds}. A 场景 with neither has no entry.
         self.scene_sounds: dict[str, dict] = {}
-        # 特效: the scene the 特效 hotkey plays (a love_scenes key), and that hotkey; it never equals 检查's.
+        # 场景管理: the scene the 场景 hotkey plays (a love_scenes key), and that hotkey; it never equals 检查's.
         self.quick_scene = "classic"
         self.effect_hotkey = DEFAULT_EFFECT_HOTKEY
         # A hotkey saved by an earlier version that is none now (Shift+Q, Ctrl+S: parse_hotkey), as it was
@@ -531,7 +531,7 @@ class Store:
         self.welcomed = not value
 
     def scene_sound(self, key: str) -> tuple[Path | None, int]:
-        """A 特效's sound as 特效管理 sets it: the player's own file (None for the scene's own) and its 音量."""
+        """A 场景's sound as 场景管理 sets it: the player's own file (None for the scene's own) and its 音量."""
         entry = self.scene_sounds.get(key) or {}
         file = entry.get("file")
         return (custom_sound_dir(self.root) / file if file else None), _volume(entry.get("volume", 100))
@@ -946,7 +946,7 @@ class Store:
             if self.hotkey != saved:
                 _log.info("Hotkey %s cut to %s: two keys at most.", saved, self.hotkey)
             # Up to v0.9.11 检查 took any key, Q, Shift+A or Ctrl+S too: one that is no hotkey now is the
-            # default again (or none, below, when the 特效 hotkey has that).
+            # default again (or none, below, when the 场景 hotkey has that).
             check = parse_hotkey(self.hotkey)
             self.dropped_hotkey = saved if check is None else ""
             self.hotkey = check.display if check is not None else DEFAULT_HOTKEY
@@ -988,7 +988,7 @@ class Store:
             self.quick_scene = scene if scene in love_scenes.KEYS else "classic"
             # None saved stays none (turned off, or it was 检查's); a key that is no hotkey (one in everyday
             # use too, Shift+A or Ctrl+C: parse_hotkey) is the default again; the same as 检查's is none. When 检查 had none,
-            # or one that is none now, the 特效 hotkey may have taken the key 检查 comes back to: it keeps it, 检查 stays none.
+            # or one that is none now, the 场景 hotkey may have taken the key 检查 comes back to: it keeps it, 检查 stays none.
             saved_effect = settings.get("effect_hotkey", DEFAULT_EFFECT_HOTKEY)
             effect = parse_hotkey(two_keys(str(saved_effect or "")))
             self.effect_hotkey = "" if saved_effect == "" else effect.display if effect is not None else DEFAULT_EFFECT_HOTKEY
@@ -1001,7 +1001,7 @@ class Store:
             if self.dropped_hotkey:
                 _log.info("Hotkey %s is no hotkey now: %s instead.", self.dropped_hotkey, self.hotkey or "none")
             if self.dropped_effect_hotkey:
-                _log.info("特效 hotkey %s is no hotkey now: %s instead.", self.dropped_effect_hotkey, self.effect_hotkey or "none")
+                _log.info("场景 hotkey %s is no hotkey now: %s instead.", self.dropped_effect_hotkey, self.effect_hotkey or "none")
             # v0.6.0 saved "key" (green) or "alpha" (clear), v0.6.1 "key": each is on, and clear now.
             self.stream_mode = "on" if settings.get("stream_mode") in ("on", "key", "alpha") else ""
             self.stream_test_frame = settings.get("stream_test_frame") is not False

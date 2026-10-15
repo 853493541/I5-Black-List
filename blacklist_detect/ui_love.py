@@ -1,9 +1,9 @@
 """The scene that greets 嘉宾 players in a lobby, over the game.
 
-Which scene plays is the lobby's (guests.lobby_choice): one of love_scenes.SCENES, picked by its 组合
-or its 嘉宾, else 经典; none while 设置 › 嘉宾特效 is off. The 特效 hotkey plays the one picked on 特效,
-with no lobby, that switch on or off. 随机 (any but the one just played) is still
-understood. It plays once, about five seconds, then goes. The bottom of the
+Which scene plays is the lobby's (guests.lobby_choice): one of love_scenes.SCENES, ticked by its 组合
+or its 嘉宾, one of several at random but never the one just played twice in a row, any for none ticked;
+none for 不放, or while 设置 › 嘉宾场景 is off. The 场景 hotkey plays the one picked on 场景管理, with no
+lobby, that switch on or off. It plays once, about five seconds, then goes. The bottom of the
 scene parts around the accept button and its marks, and clicks pass through the whole window to
 the game.
 """
@@ -38,7 +38,7 @@ class LoveBorder(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         self.setFocusPolicy(Qt.NoFocus)
-        # 嘉宾特效's choice: a scene's key, "random" or "off".
+        # 嘉宾场景's choice: a scene's key, keys to pick one of, "random" (any) or "off".
         self.choice = "random"
         self.scene = "classic"
         self._last = ""
@@ -60,7 +60,7 @@ class LoveBorder(QWidget):
         """Cover area (the game's screen) and play, leaving keep_clear (the button and its marks) bare.
 
         badge is the 嘉宾 heart and seats the players' names, on the screen. Returns False when
-        嘉宾特效 says 无.
+        the choice plays none (不放, or 嘉宾场景 off).
         """
         scene = self.pick()
         self._picked = None
@@ -73,7 +73,7 @@ class LoveBorder(QWidget):
         origin = QPointF(area.topLeft())
         self._badge = QPointF(badge) - origin if badge is not None else None
         self._seats = tuple(seat.translated(-origin) for seat in seats)
-        # The same scene again (the 特效 hotkey pressed again) keeps the last two made for it, on the
+        # The same scene again (the 场景 hotkey pressed again) keeps the last two made for it, on the
         # screen and in 直播画面: over the same place it starts at once. 演说家遇袭 takes a second to make.
         self._made = dict([(key, made) for key, made in self._made.items() if key[0] == scene][-2:])
         self._clock.start()

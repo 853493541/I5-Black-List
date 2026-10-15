@@ -1,4 +1,4 @@
-"""嘉宾特效: the scenes, choosing one or a random one, their pictures and preview, and the 嘉宾 marks a
+"""嘉宾场景: the scenes, choosing one or a random one, their pictures and preview, and the 嘉宾 marks a
 scene dresses or draws itself."""
 
 import random
@@ -135,7 +135,7 @@ def test_the_same_scene_played_again_is_not_made_again(qapp, monkeypatch):
         painter.end()
         border.stop()
 
-    # The 特效 hotkey pressed again: the same scene over the same place starts at once.
+    # The 场景 hotkey pressed again: the same scene over the same place starts at once.
     play()
     play()
     assert made == ["stars"]

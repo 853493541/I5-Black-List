@@ -1,4 +1,4 @@
-"""嘉宾音乐: each 嘉宾特效 theme's own sound whenever a 嘉宾 is in the lobby, once per lobby, as loud as
+"""嘉宾音乐: each 嘉宾场景 theme's own sound whenever a 嘉宾 is in the lobby, once per lobby, as loud as
 设置 › 常规 › 声音 says, or not at all with 静音."""
 
 import os
@@ -134,8 +134,8 @@ def test_the_theme_brings_its_sound_until_muted(window):
 
 
 def test_music_off_before_is_mute_now(tmp_path):
-    """设置 › 嘉宾特效 › 音乐 无 (up to v0.9.12) opens with 静音 ticked, once: what is saved since counts. The
-    five wedding tunes, 随机 and 跟随特效 that came before play."""
+    """设置 › 嘉宾场景 › 音乐 无 (up to v0.9.12) opens with 静音 ticked, once: what is saved since counts. The
+    five wedding tunes, 随机 and 跟随场景 that came before play."""
     import json
 
     from blacklist_detect.storage import Store
@@ -173,7 +173,7 @@ def test_a_blacklist_player_means_no_music(window):
 
 
 def _own_sound(store, key: str, like: str = "ice", volume: int = 100):  # noqa: ANN001, ANN202
-    """The player's own sound for a 特效 as 特效管理 keeps it: here a copy of another scene's tune."""
+    """The player's own sound for a 场景 as 场景管理 keeps it: here a copy of another scene's tune."""
     from blacklist_detect.paths import custom_sound_dir
 
     own = custom_sound_dir(store.root) / f"{key}.wav"
@@ -211,12 +211,12 @@ def test_clearing_the_data_puts_the_effects_and_the_sound_back_to_their_defaults
 
 
 def test_the_settings_switch_turns_guest_effects_off(window):
-    """设置 › 嘉宾 › 特效: on, each 嘉宾 and 组合 is greeted with its 特效 (经典 for none); off, no scene greets
+    """设置 › 嘉宾 › 场景: on, each 嘉宾 and 组合 is greeted with its 场景 (经典 for none); off, no scene greets
     anyone, nor its sound."""
     from blacklist_detect.storage import Store
 
     window.store.update_like(1, "小明", "", "", Scenes(("angel",)))
-    assert window.love_switch.isChecked() and window.love_switch.accessibleName() == "嘉宾特效"
+    assert window.love_switch.isChecked() and window.love_switch.accessibleName() == "嘉宾场景"
     assert window._choice_for(window.store.likes) == "angel"
     window.love_switch.click()
     assert window.store.love_scene == "off" and Store(window.store.root).love_scene == "off"
@@ -229,7 +229,7 @@ def test_the_settings_switch_turns_guest_effects_off(window):
 
 
 def test_an_old_saved_off_stays_off(tmp_path, monkeypatch):
-    """嘉宾特效 set to 无 before 设置 had the switch: it opens off."""
+    """嘉宾场景 set to 无 before 设置 had the switch: it opens off."""
     import json
 
     pytest.importorskip("PySide6")
@@ -268,7 +268,7 @@ def _likes(count: int):  # noqa: ANN202
 
 
 def test_the_effect_plays_for_one_guest_or_more(window):
-    """嘉宾特效 plays whenever a 嘉宾 is in the lobby, one or more: each 嘉宾 and 组合 picks what greets them."""
+    """嘉宾场景 plays whenever a 嘉宾 is in the lobby, one or more: each 嘉宾 and 组合 picks what greets them."""
     window.store.add_like("阿强")
     window.store.safe_mode = False
     window.store.consented = ["full"]
@@ -285,7 +285,7 @@ def test_the_effect_plays_for_one_guest_or_more(window):
 
 
 def test_a_guest_with_a_theme_brings_its_sound(window):
-    """A 嘉宾's own 特效 brings its own sound: 演说家遇袭 the 指挥家's music with the notice in it."""
+    """A 嘉宾's own 场景 brings its own sound: 演说家遇袭 the 指挥家's music with the notice in it."""
     with wave.open(str(TUNES["claw"])) as w:
         assert 6.0 <= w.getnframes() / w.getframerate() <= 7.0
     # 阿强, added last, tops the list: his 演说家遇袭 greets the lobby, and its sound with it.
@@ -302,7 +302,7 @@ def _samples(path):  # noqa: ANN001, ANN202
 def test_a_quieter_tune_is_its_samples_scaled_made_once(tmp_path):
     """winsound plays at the system volume: a quieter tune is a copy with every sample scaled, made once
     and kept by tune and volume; 100% is the tune itself. The folder keeps one copy of each tune, each at
-    its own volume (特效管理 gives each 特效 its own)."""
+    its own volume (场景管理 gives each 场景 its own)."""
     tune = TUNES["ice"]
     assert scaled_tune(tune, 100, tmp_path) == tune and not any(tmp_path.iterdir())
     quiet = scaled_tune(tune, 40, tmp_path)
@@ -430,8 +430,8 @@ def test_ticking_mute_stops_the_sound_playing(window):
 
 
 def test_every_sound_goes_through_the_sound_control(window):
-    """A lobby's, ▶ on 特效, ▶ in 选择特效 (the 嘉宾 and 组合 dialogs'), the 特效 hotkey and 播放: each at
-    声音's volume times the 特效's own 音量, the player's own sound for it if any, none with 静音."""
+    """A lobby's, ▶ on 场景, ▶ in 选择场景 (the 嘉宾 and 组合 dialogs'), the 场景 hotkey and 播放: each at
+    声音's volume times the 场景's own 音量, the player's own sound for it if any, none with 静音."""
     from blacklist_detect.ui_likes import LikeDialog
     from blacklist_detect.ui_love_pick import ScenePicker
     from blacklist_detect.ui_music import sound_dir
@@ -461,7 +461,7 @@ def test_every_sound_goes_through_the_sound_control(window):
     assert [tune.parent for tune in heard] == [sound_dir()] * 4
     assert all(tune.name.startswith("50-") for tune in heard)
     assert [TUNES[key].stem in tune.name for key, tune in zip(("stars", "stars", "fluffy", "angel"), heard, strict=True)] == [True] * 4
-    # 特效管理: 星河许愿 the player's own sound at 60%, 毛茸茸 its own at 40%, 天使 the player's at 100%.
+    # 场景管理: 星河许愿 the player's own sound at 60%, 毛茸茸 its own at 40%, 天使 the player's at 100%.
     _own_sound(window.store, "stars", like="ice", volume=60)
     window.store.scene_sounds["fluffy"] = {"volume": 40}
     _own_sound(window.store, "angel", like="cyber")
@@ -477,7 +477,7 @@ def test_every_sound_goes_through_the_sound_control(window):
 
 
 def _managed(tmp_path, sounds: dict):  # noqa: ANN001, ANN202
-    """ThemeMusic with 特效管理's sounds: by key, (the player's file or None, 音量)."""
+    """ThemeMusic with 场景管理's sounds: by key, (the player's file or None, 音量)."""
     played: list = []
     clock = Clock()
     music = ThemeMusic(play=played.append, clock=clock, folder=tmp_path / "sounds", sounds=lambda key: sounds.get(key, (None, 100)))
@@ -485,7 +485,7 @@ def _managed(tmp_path, sounds: dict):  # noqa: ANN001, ANN202
 
 
 def test_an_effect_plays_at_its_own_volume_times_the_sound_s(tmp_path):
-    """特效管理's 音量 on top of 声音's: 80% of 60% is 48%. 静音 silences every 特效, and one at 0% plays
+    """场景管理's 音量 on top of 声音's: 80% of 60% is 48%. 静音 silences every 场景, and one at 0% plays
     nothing, so its lobby is greeted again once it is heard."""
     music, played, clock = _managed(tmp_path, {"stars": (None, 60), "ice": (None, 0)})
     music.volume = 80
@@ -507,8 +507,8 @@ def test_an_effect_plays_at_its_own_volume_times_the_sound_s(tmp_path):
 
 
 def test_an_effect_plays_the_player_s_own_sound_classic_too(tmp_path):
-    """A 特效 given the player's own sound plays it instead of its own; 经典, silent by itself, plays one
-    given it. Its file gone, the 特效 plays its own again (经典 none)."""
+    """A 场景 given the player's own sound plays it instead of its own; 经典, silent by itself, plays one
+    given it. Its file gone, the 场景 plays its own again (经典 none)."""
     own = tmp_path / "custom_sounds"
     own.mkdir()
     classic, stars = own / "classic.wav", own / "stars.wav"
@@ -526,7 +526,7 @@ def test_an_effect_plays_the_player_s_own_sound_classic_too(tmp_path):
 
 
 def test_two_volumes_both_heard_never_round_to_silence(tmp_path):
-    """5% of 声音 times 5% of a 特效 plays at 1%, not at 0%; either at 0% is silence."""
+    """5% of 声音 times 5% of a 场景 plays at 1%, not at 0%; either at 0% is silence."""
     music, played, _clock = _managed(tmp_path, {"stars": (None, 5), "ice": (None, 0)})
     music.volume = 5
     assert (music.level("stars"), music.level("ice"), music.level("cyber")) == (1, 0, 5)
@@ -536,7 +536,7 @@ def test_two_volumes_both_heard_never_round_to_silence(tmp_path):
 
 
 def test_a_trial_plays_at_the_effect_s_level_from_the_caller_s_folder(tmp_path):
-    """选择片段's 试听: a sound not yet the 特效's, as loud as that 特效 plays, its copy made beside it and the
+    """选择片段's 试听: a sound not yet the 场景's, as loud as that 场景 plays, its copy made beside it and the
     sound itself left alone; nothing in sounds/, nothing under 静音."""
     music, played, _clock = _managed(tmp_path, {"ice": (None, 50)})
     music.volume = 80
@@ -573,7 +573,7 @@ def test_dropping_one_tune_s_copies_keeps_every_other(tmp_path):
 
 
 def test_a_taste_is_a_moment_of_the_effect_s_sound_as_loud_as_it_plays(tmp_path):
-    """What a 特效's 音量 in 特效管理 plays as it is set: a moment of that 特效's sound, the player's own if
+    """What a 场景's 音量 in 场景管理 plays as it is set: a moment of that 场景's sound, the player's own if
     it has one, at 声音 times its 音量. 声音's own moment stays 玫瑰花边's organ at 声音's volume."""
     own = tmp_path / "custom_sounds"
     own.mkdir()
@@ -594,7 +594,7 @@ def test_a_taste_is_a_moment_of_the_effect_s_sound_as_loud_as_it_plays(tmp_path)
 
 
 def test_effects_at_different_volumes_keep_their_copies_side_by_side(tmp_path):
-    """Each 特效 at its own 音量: one quieter copy of each, made once, not one making the other's again."""
+    """Each 场景 at its own 音量: one quieter copy of each, made once, not one making the other's again."""
     music, played, _clock = _managed(tmp_path, {"ice": (None, 40), "stars": (None, 70)})
     music.preview("ice")
     music.preview("stars")
@@ -611,7 +611,7 @@ def test_effects_at_different_volumes_keep_their_copies_side_by_side(tmp_path):
 
 
 def test_the_window_greets_with_classic_s_own_sound_once_given_one(window):
-    """经典 greets in silence until 特效管理 gives it the player's own sound."""
+    """经典 greets in silence until 场景管理 gives it the player's own sound."""
     window._show_panel(_lobby())
     assert window.tunes == []
     window._hide_panel_after_title()

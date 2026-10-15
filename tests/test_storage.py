@@ -440,7 +440,7 @@ def test_a_snapshot_puts_the_list_back(tmp_path):
 
 
 def test_an_old_guest_count_setting_is_let_go(tmp_path):
-    """嘉宾人数 is gone (嘉宾特效 plays for any 嘉宾): an old settings file's is read past, not saved again."""
+    """嘉宾人数 is gone (嘉宾场景 plays for any 嘉宾): an old settings file's is read past, not saved again."""
     import json
 
     Store(tmp_path).save_settings()
@@ -454,8 +454,8 @@ def test_an_old_guest_count_setting_is_let_go(tmp_path):
 
 
 def test_an_old_effects_choice_is_on_and_an_old_off_stays_off(tmp_path):
-    """嘉宾特效 was one scene for every 嘉宾, 随机 or 无 once; it is on or off in 设置 now. A scene or
-    随机 is on (经典 for 嘉宾 with no 特效 of their own); 无 stays off."""
+    """嘉宾场景 was one scene for every 嘉宾, 随机 or 无 once; it is on or off in 设置 now. A scene or
+    随机 is on (经典 for 嘉宾 with no 场景 of their own); 无 stays off."""
     import json
 
     Store(tmp_path).save_settings()
@@ -524,7 +524,7 @@ def test_the_sound_volume_and_mute_are_kept_and_reset(tmp_path):
 
 
 def _own_sound(store: Store, key: str) -> str:
-    """A player's own sound for a 特效, as 特效管理 keeps it: <key>.wav in custom_sounds."""
+    """A player's own sound for a 场景, as 场景管理 keeps it: <key>.wav in custom_sounds."""
     from blacklist_detect.paths import custom_sound_dir
 
     folder = custom_sound_dir(store.root)
@@ -534,7 +534,7 @@ def _own_sound(store: Store, key: str) -> str:
 
 
 def test_each_effect_s_volume_and_own_sound_are_kept_and_cleared(tmp_path):
-    """特效管理: each 特效's own 音量 and the player's own sound for it, kept as set; a 特效 left as it was
+    """场景管理: each 场景's own 音量 and the player's own sound for it, kept as set; a 场景 left as it was
     (100%, its own sound) is not saved. 清空数据 drops them, the sounds' folder too."""
     import json
 
@@ -568,7 +568,7 @@ def test_each_effect_s_volume_and_own_sound_are_kept_and_cleared(tmp_path):
 
 
 def test_bad_effect_sounds_are_dropped_and_the_other_settings_kept(tmp_path):
-    """A 特效管理 entry that is no sound is dropped by itself: the rest of 设置 is as saved. A volume that is
+    """A 场景管理 entry that is no sound is dropped by itself: the rest of 设置 is as saved. A volume that is
     none is 100%, a file named with a path (or not there) is none, a key this version does not know is kept
     for the version that does."""
     import json

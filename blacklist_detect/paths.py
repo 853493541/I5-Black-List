@@ -19,7 +19,7 @@ def app_dir(platform: str | None = None, env: dict[str, str] | None = None) -> P
 
 
 def custom_sound_dir(root: Path | None = None) -> Path:
-    """The player's own 特效 sounds, each converted once as it was added: in the app's folder (root, when
+    """The player's own 场景 sounds, each converted once as it was added: in the app's folder (root, when
     the lists are kept elsewhere), apart from sounds/, whose quieter copies are dropped as new ones are made."""
     return (root or app_dir()) / "custom_sounds"
 

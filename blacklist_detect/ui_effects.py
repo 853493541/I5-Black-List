@@ -1,13 +1,13 @@
-"""特效管理: every 特效's sound, and which one the 特效 hotkey plays.
+"""场景管理: every 场景's sound, and which one the 场景 hotkey plays.
 
-Every scene in love_scenes.SCENES is listed by name with its dot, as in 选择特效 (ui_love_pick.SceneList).
+Every scene in love_scenes.SCENES is listed by name with its dot, as in 选择场景 (ui_love_pick.SceneList).
 A click shows one: it plays beside the list over the fake-name sample lobby, as big as the page allows, and
-▶ plays it from its start with its music. The list's ✓ is the 特效 the hotkey plays, which 快捷键放这个 makes
-the one shown; a ♪ is a 特效 with the player's own sound.
+▶ plays it from its start with its music. The list's ✓ is the 场景 the hotkey plays, which 快捷键放这个 makes
+the one shown; a ♪ is a 场景 with the player's own sound.
 
-Under the preview, the shown 特效's 声音 (its own, or the player's: 上传 a file, a part of it picked in
-选择片段 when it is longer than a 特效's sound may be, and 恢复默认 to go back), its 音量 on top of 设置's
-声音, and the hotkey, set the way 检查's is (the window's hotkey box), with 播放, which plays the shown 特效
+Under the preview, the shown 场景's 声音 (its own, or the player's: 上传 a file, a part of it picked in
+选择片段 when it is longer than a 场景's sound may be, and 恢复默认 to go back), its 音量 on top of 设置's
+声音, and the hotkey, set the way 检查's is (the window's hotkey box), with 播放, which plays the shown 场景
 the way the hotkey plays its own: at once over the game, with no check (MainWindow.play_quick_scene).
 
 The preview plays only while it can be seen, its window not minimized, and the app is in front: behind the
@@ -134,8 +134,8 @@ def _button(text: str, action, primary: bool = False) -> QPushButton:  # noqa: A
 
 
 class EffectsPage(QWidget):
-    """The 特效管理 page. scenes.key is the 特效 shown, store.quick_scene the hotkey's; hotkey_box is the
-    window's box for the 特效 hotkey, and play(key) what 播放 does with the one shown. sounding: the music
+    """The 场景管理 page. scenes.key is the 场景 shown, store.quick_scene the hotkey's; hotkey_box is the
+    window's box for the 场景 hotkey, and play(key) what 播放 does with the one shown. sounding: the music
     playing is the one ▶ started, which stops as the page goes out of sight."""
 
     def __init__(self, store, music, hotkey_box: QLineEdit, play, parent: QWidget | None = None) -> None:  # noqa: ANN001
@@ -144,7 +144,7 @@ class EffectsPage(QWidget):
         self.music = music
         self.sounding = False
         self.held = False
-        # The 特效 a note about its sound was said for: it goes as another is shown, and a note about the
+        # The 场景 a note about its sound was said for: it goes as another is shown, and a note about the
         # hotkey as it stands (held) comes back.
         self._told = ""
         self._held_text = ""
@@ -157,7 +157,7 @@ class EffectsPage(QWidget):
         self.scenes.picked.connect(self._pick)
         body.addWidget(self.scenes, 0, Qt.AlignTop)
         self.preview = ScenePreview(play=self.play_preview)
-        # The shown 特效's 声音 and 音量, then the hotkey and 播放, right under the preview.
+        # The shown 场景's 声音 and 音量, then the hotkey and 播放, right under the preview.
         below = QWidget()
         rows = QGridLayout(below)
         rows.setContentsMargins(0, 0, 0, 0)
@@ -182,7 +182,7 @@ class EffectsPage(QWidget):
         sound.addWidget(self.reset_button)
         sound.addStretch(1)
         rows.addLayout(sound, 0, 1)
-        # 音量: how loud this 特效 is of 设置's 声音, in its steps; let go, a moment of it at that.
+        # 音量: how loud this 场景 is of 设置's 声音, in its steps; let go, a moment of it at that.
         volume = QHBoxLayout()
         volume.setSpacing(10)
         self.volume_slider = QSlider(Qt.Horizontal)
@@ -190,7 +190,7 @@ class EffectsPage(QWidget):
         self.volume_slider.setPageStep(2)
         self.volume_slider.setFixedWidth(180)
         self.volume_slider.setCursor(Qt.PointingHandCursor)
-        self.volume_slider.setAccessibleName("特效音量")
+        self.volume_slider.setAccessibleName("场景音量")
         self.volume_slider.valueChanged.connect(self._on_volume)
         self.volume_slider.sliderReleased.connect(self._volume_set)
         volume.addWidget(self.volume_slider)
@@ -208,7 +208,7 @@ class EffectsPage(QWidget):
         hotkey.setSpacing(10)
         hotkey.addWidget(hotkey_box)
         self.assign_button = _button("快捷键放这个", self.assign)
-        self.assign_button.setToolTip("按快捷键时放这个特效")
+        self.assign_button.setToolTip("按快捷键时放这个场景")
         hotkey.addWidget(self.assign_button)
         self.play_button = _button("播放", lambda: play(self.scenes.key), primary=True)
         hotkey.addWidget(self.play_button)
@@ -240,7 +240,7 @@ class EffectsPage(QWidget):
 
     def _pick(self, key: str) -> None:
         """A click on a scene: it is shown, and plays quietly, the music ▶ started stopped. A play over the
-        game keeps its music; the hotkey's 特效 stays as it was."""
+        game keeps its music; the hotkey's 场景 stays as it was."""
         self.preview.show_scene(self.scenes.key)
         if self.sounding and self.music is not None:
             self.music.stop()
@@ -250,7 +250,7 @@ class EffectsPage(QWidget):
         self._sync_rows()
 
     def assign(self) -> None:
-        """快捷键放这个: the hotkey plays the shown 特效 from now on."""
+        """快捷键放这个: the hotkey plays the shown 场景 from now on."""
         self.store.quick_scene = self.scenes.key
         self.store.save_settings()
         self._sync_marks()
@@ -273,8 +273,8 @@ class EffectsPage(QWidget):
         self._note(text)
 
     def _tell(self, text: str) -> None:
-        """A note about the shown 特效's sound, over one about the hotkey as it stands: it goes as another
-        特效 is shown, and that one comes back."""
+        """A note about the shown 场景's sound, over one about the hotkey as it stands: it goes as another
+        场景 is shown, and that one comes back."""
         self._told = self.scenes.key if text else ""
         self._note(text or self._held_text)
 
@@ -284,17 +284,17 @@ class EffectsPage(QWidget):
         self.stage.below.layout().activate()
         self.stage.place()
 
-    # The shown 特效's sound.
+    # The shown 场景's sound.
     def _entry(self, key: str) -> dict:
         return dict(self.store.scene_sounds.get(key) or {})
 
     def _own(self, key: str) -> Path | None:
-        """The player's own sound for this 特效, while it is there."""
+        """The player's own sound for this 场景, while it is there."""
         own = self.store.scene_sound(key)[0]
         return own if own is not None and own.is_file() else None
 
     def _set_entry(self, key: str, entry: dict) -> None:
-        """A 特效's entry, or none when it is all default (100%, its own sound): as the store saves them."""
+        """A 场景's entry, or none when it is all default (100%, its own sound): as the store saves them."""
         if entry.get("file") or entry.get("volume", 100) != 100:
             self.store.scene_sounds[key] = entry
         else:
@@ -305,7 +305,7 @@ class EffectsPage(QWidget):
         self.scenes.set_marks(self.store.quick_scene, owned)
 
     def _sync_rows(self) -> None:
-        """声音, 音量 and 快捷键放这个 as they are for the 特效 shown."""
+        """声音, 音量 and 快捷键放这个 as they are for the 场景 shown."""
         key = self.scenes.key
         entry = self._entry(key)
         own = self._own(key) is not None
@@ -335,7 +335,7 @@ class EffectsPage(QWidget):
         self.level_note.setText(text)
 
     def _on_volume(self, step: int) -> None:
-        """音量 moved: the shown 特效 plays this loud from now on. Dragged, it is saved and heard once let go
+        """音量 moved: the shown 场景 plays this loud from now on. Dragged, it is saved and heard once let go
         (_volume_set); moved with the keys, the wheel or a click beside the handle, at once."""
         key = self.scenes.key
         entry = self._entry(key)
@@ -347,14 +347,14 @@ class EffectsPage(QWidget):
             self._volume_set()
 
     def _volume_set(self) -> None:
-        """The 音量 chosen: saved, and a moment of the 特效's sound at it, unless 静音."""
+        """The 音量 chosen: saved, and a moment of the 场景's sound at it, unless 静音."""
         self.store.save_settings()
         if self.music is not None and not self.music.muted:
             self.sounding = False
             self.music.taste(self.scenes.key)
 
     def upload(self) -> None:
-        """上传 (替换): a sound or video of the player's for the shown 特效. One longer than a 特效's sound
+        """上传 (替换): a sound or video of the player's for the shown 场景. One longer than a 场景's sound
         may be is cut to the part picked in 选择片段; either way it is kept as the app's own, played once."""
         key = self.scenes.key
         name = dict(love_scenes.SCENES).get(key, key)
@@ -369,7 +369,7 @@ class EffectsPage(QWidget):
         self._tell("正在读取…")
         self.note.repaint()
         # The window paints on while a video is read, seconds maybe, but takes no clicks: the sound is the
-        # shown 特效's, and nothing (another 特效, 上传 again, 清空数据) may change under it meanwhile.
+        # shown 场景's, and nothing (another 场景, 上传 again, 清空数据) may change under it meanwhile.
         window = self.window()
         window.setEnabled(False)
         QApplication.setOverrideCursor(Qt.WaitCursor)
@@ -392,7 +392,7 @@ class EffectsPage(QWidget):
 
     def _trim(self, decoded, key: str, name: str) -> tuple[float, float] | None:  # noqa: ANN001
         """选择片段 on a long sound: the part picked, or None when it is closed. Its 试听 plays the part as the
-        特效 will (made as save_clip makes it, at the 特效's level), from a folder of the page's own that goes
+        场景 will (made as save_clip makes it, at the 场景's level), from a folder of the page's own that goes
         with the dialog. A part save_clip would refuse (a silent one) is told there, at 试听 and at 确定."""
         folder = Path(tempfile.mkdtemp(prefix="blacklist_detect_trial_"))
 
@@ -429,7 +429,7 @@ class EffectsPage(QWidget):
         return dialog.selection() if accepted else None
 
     def _keep(self, decoded, key: str, name: str, start: float, length: float) -> None:  # noqa: ANN001
-        """The part picked kept as the 特效's sound, its 音量 as it was, and played once unless 静音."""
+        """The part picked kept as the 场景's sound, its 音量 as it was, and played once unless 静音."""
         folder = custom_sound_dir(self.store.root)
         if self.music is not None:
             # Nothing playing holds the sound it replaces, and its quieter copies go with it.
@@ -453,7 +453,7 @@ class EffectsPage(QWidget):
             self.music.taste(key)
 
     def restore(self) -> None:
-        """恢复默认: the 特效's own sound again (经典's none), the player's file and its copies gone, its 音量 kept."""
+        """恢复默认: the 场景's own sound again (经典's none), the player's file and its copies gone, its 音量 kept."""
         key = self.scenes.key
         entry = self._entry(key)
         if not entry.get("file"):
@@ -466,7 +466,7 @@ class EffectsPage(QWidget):
         try:
             own.unlink(missing_ok=True)
         except OSError:
-            pass  # Held by something else: the next upload for this 特效 takes its place.
+            pass  # Held by something else: the next upload for this 场景 takes its place.
         self._set_entry(key, {"volume": entry.get("volume", 100)})
         self.store.save_settings()
         self._sync_marks()

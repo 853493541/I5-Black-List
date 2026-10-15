@@ -281,7 +281,7 @@ def test_turning_down_the_questions_changes_nothing(window, monkeypatch):
     window.full_on.click()
     title, body, cancel = asked[0]
     assert title == "开启完整模式"
-    assert body == "特效直接显示在游戏窗口，可能被游戏当成异常。"
+    assert body == "提醒和场景直接显示在游戏窗口，可能被游戏当成异常。"
     assert cancel == "保持安全模式"
     assert window.store.safe_mode is True
     assert window.safe_on.isChecked() is True

@@ -1,4 +1,4 @@
-"""特效管理 (ui_effects): the 特效 page shows a 特效 apart from the one the hotkey plays, and sets each 特效's
+"""场景管理 (ui_effects): the 场景 page shows a 场景 apart from the one the hotkey plays, and sets each 场景's
 sound (the player's own, cut in 选择片段 when it is long) and 音量. Made-up sounds and file dialogs only:
 nothing is played aloud, and every file is in the test's own folder."""
 
@@ -165,7 +165,7 @@ def test_volume_is_saved_per_effect_and_heard_as_it_is_let_go(window):
     # Back at 100%, nothing is kept for it.
     page.volume_slider.setValue(20)
     assert store.scene_sounds == {} and "ice" not in Store(store.root).scene_sounds
-    # Another 特效 shows its own.
+    # Another 场景 shows its own.
     _shown(window, "stars")
     assert page.volume_slider.value() == 20
     # Under 静音 it is saved, and nothing plays.
@@ -336,7 +336,7 @@ def test_nothing_changes_under_a_file_being_read(window, pick, trim, tmp_path, m
     page.upload_button.click()
     assert seen == {"enabled": False, "note": "正在读取…"}
     assert len(pick["asked"]) == 1 and window.tabs.currentIndex() != window.settings_tab
-    # The sound is the 特效's shown when 上传 was pressed, and the page says so.
+    # The sound is the 场景's shown when 上传 was pressed, and the page says so.
     assert window.isEnabled() and page.scenes.key == "lace" and list(window.store.scene_sounds) == ["lace"]
     assert page.sound_text.full == "自定义 · a.wav · 2.0 秒" and page.scenes.buttons["lace"].own
 
@@ -389,7 +389,7 @@ def test_restoring_the_default_drops_the_file_and_its_copies_and_keeps_the_volum
     page.volume_slider.setValue(12)
     pick["chosen"] = _wav(tmp_path / "a.wav", 2.0)
     page.upload_button.click()
-    # Another 特效's copy, and this one's, are in sounds/.
+    # Another 场景's copy, and this one's, are in sounds/.
     _shown(window, "stars")
     page.volume_slider.setValue(10)
     assert [copy.name[:3] for copy in _copies("ice")] == ["60-"] and _copies(TUNES["stars"].stem)
@@ -492,6 +492,6 @@ def test_the_tab_row_keeps_clear_of_the_chips_in_the_smallest_window(window):
     window.profile_chip.set_name("一二三四五六七八九十")
     _wait(30)
     last = window._tab_buttons[-1]
-    assert window.tabs.tabText(window.effects_tab) == "特效管理"
+    assert window.tabs.tabText(window.effects_tab) == "场景管理"
     assert last.mapTo(window, last.rect().topRight()).x() < window.update_pill.mapTo(window, window.update_pill.rect().topLeft()).x()
     window.hide()

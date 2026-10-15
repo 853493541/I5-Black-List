@@ -189,7 +189,7 @@ QTMEDIA = ("Qt6Multimedia.dll", "QtMultimedia.pyd", "multimedia/windowsmediaplug
 
 
 def test_the_update_brings_what_reading_a_players_sound_needs(tmp_path):
-    """特效管理's 上传 reads MP3 and the rest with QtMultimedia, which the runtime of an older install
+    """场景管理's 上传 reads MP3 and the rest with QtMultimedia, which the runtime of an older install
     lacks: it comes in the app's own folder, so the update zip brings it."""
     zipped = _update_zip(tmp_path / "u.zip", {f"BlackListDetect/blacklist_detect/qtmedia/{name}": name.encode() for name in QTMEDIA})
     root = tmp_path / "app"

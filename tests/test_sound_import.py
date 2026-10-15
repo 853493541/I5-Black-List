@@ -1,4 +1,4 @@
-"""特效管理's own sound: a player's file read once, as it is chosen, and kept as the app's own WAV,
+"""场景管理's own sound: a player's file read once, as it is chosen, and kept as the app's own WAV,
 mono 16-bit 44.1 kHz, as loud as the built-in tunes. Nothing here plays a sound."""
 
 import gc

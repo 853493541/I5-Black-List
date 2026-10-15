@@ -1,4 +1,4 @@
-"""Main window, tray status, the lobby check loop, and the 特效 hotkey that plays a 特效 with no check."""
+"""Main window, tray status, the lobby check loop, and the 场景 hotkey that plays a 场景 with no check."""
 
 from __future__ import annotations
 
@@ -212,7 +212,7 @@ __all__ = [
 CONSENT = {
     "full": (
         "开启完整模式",
-        "特效直接显示在游戏窗口，可能被游戏当成异常。",
+        "提醒和场景直接显示在游戏窗口，可能被游戏当成异常。",
         "开启完整模式",
         "保持安全模式",
     ),
@@ -230,7 +230,7 @@ DEMO_SETTLE_MS = 80
 DEMO_SHARE = 0.6
 # 直播模式: how long after a check the layout of 直播画面 and 直播姬 is written to the log.
 LAYOUT_MS = 1_000
-# The 特效 hotkey: how long its ring and badge stay once its scene has played, then all goes.
+# The 场景 hotkey: how long its ring and badge stay once its scene has played, then all goes.
 QUICK_HOLD_MS = 1_200
 # While the app is open it looks again every half hour, and as soon as the window is brought up
 # when its last look was ten minutes ago or more; what it finds then waits for the player (有更新).
@@ -440,7 +440,7 @@ class MainWindow(QMainWindow):
         self.hotkey = GlobalHotkey(self.check_now)
         # The note under 检查's box says its key did not register: it goes once it does.
         self._held_note = False
-        # The 特效 hotkey, in either 方式: the 特效 picked on 特效, at once, with no check.
+        # The 场景 hotkey, in either 方式: the 场景 picked on 场景管理, at once, with no check.
         self.effect_hotkey = GlobalHotkey(self.play_quick_scene, 2)
         self.worker = CheckWorker()
         self.worker.done.connect(self._on_worker)
@@ -469,10 +469,10 @@ class MainWindow(QMainWindow):
         self._lobby_seats: tuple[QRectF, ...] = ()
 
         # 嘉宾音乐: the same lobby, in either 显示, also gets a few seconds of wedding music, as loud as
-        # 设置 › 声音 and the 特效's own 音量 say, or the player's own sound for it (特效管理).
+        # 设置 › 声音 and the 场景's own 音量 say, or the player's own sound for it (场景管理).
         self.music = ThemeMusic(folder=sound_dir(), sounds=self.store.scene_sound)
         self.music.volume, self.music.muted = self.store.sound_volume, self.store.sound_muted
-        # Whether a scene greets 嘉宾 at all: 设置 › 嘉宾特效. Each lobby's own is worked out as it shows.
+        # Whether a scene greets 嘉宾 at all: 设置 › 嘉宾场景. Each lobby's own is worked out as it shows.
         self.love.choice = self.store.love_scene
         # 黑名单 players in the lobby: a red glow at the screen's edges while the result is up.
         self.alert = AlertGlow()
@@ -529,7 +529,7 @@ class MainWindow(QMainWindow):
         self._demo_saved: tuple | None = None
         self._demo_round = 0
         self.demo_lobby = DemoLobby()
-        # The 特效 hotkey's play while it runs: its scene, where it shows when no lobby was checked
+        # The 场景 hotkey's play while it runs: its scene, where it shows when no lobby was checked
         # yet, and what it put aside, as 测试效果 does.
         self._quick_scene = ""
         self._quick_area: QRect | None = None
@@ -617,9 +617,9 @@ class MainWindow(QMainWindow):
         self.likes_page = LikesPage(self.store, self._say, music=self.music)
         self.likes_page.changed.connect(self._likes_changed)
         self.likes_tab = self.tabs.addTab(self.likes_page, "嘉宾")
-        self.effect_hotkey_edit = self._hotkey_box("特效快捷键", none="未设置")
+        self.effect_hotkey_edit = self._hotkey_box("场景快捷键", none="未设置")
         self.effects_page = EffectsPage(self.store, self.music, self.effect_hotkey_edit, self._play_from_page)
-        self.effects_tab = self.tabs.addTab(self.effects_page, "特效管理")
+        self.effects_tab = self.tabs.addTab(self.effects_page, "场景管理")
         self.settings_tab = self.tabs.addTab(self._settings_page(), "设置")
         self.tabs.tabBar().hide()
         self.tabs.currentChanged.connect(self._sync_tab_buttons)
@@ -988,8 +988,8 @@ class MainWindow(QMainWindow):
         常规, 嘉宾, 外观, then 帮助 at the foot, where starting over is out of the way.
 
         检查 (显示, 方式, 直播模式) opens from the status pill in the header, 角色名称 is in the
-        header too, 标签 beside the list on 黑名单, each 嘉宾's and 组合's 特效 on 嘉宾, and the 特效
-        hotkey with the 特效 it plays on 特效.
+        header too, 标签 beside the list on 黑名单, each 嘉宾's and 组合's 场景 on 嘉宾, and the 场景
+        hotkey with the 场景 it plays on 场景管理.
         """
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -1069,7 +1069,7 @@ class MainWindow(QMainWindow):
             _show_tick(box)
             self.remind_boxes[key] = box
         self.remind_boxes["blacklist"].setToolTip("取消勾选：黑名单里的人进大厅时不提醒")
-        self.remind_boxes["likes"].setToolTip("取消勾选：嘉宾进大厅时不提醒，也不放嘉宾特效")
+        self.remind_boxes["likes"].setToolTip("取消勾选：嘉宾进大厅时不提醒，也不放嘉宾场景")
         check.add_row("提醒", *self.remind_boxes.values())
         # 4 直播模式: a window for the streaming app, with the marks and never a 黑名单 name.
         self.stream_choice = SegmentedControl([("on", "开启"), ("off", "关闭")], "on" if self.store.stream_mode else "off")
@@ -1083,14 +1083,14 @@ class MainWindow(QMainWindow):
         self.stream_test = QPushButton("测试效果")
         self.stream_test.setAutoDefault(False)
         self.stream_test.setCursor(Qt.PointingHandCursor)
-        self.stream_test.setToolTip("不用排队：在示例截图上放一遍嘉宾特效，看看直播间能不能看到")
+        self.stream_test.setToolTip("不用排队：在示例截图上放一遍嘉宾场景，看看直播间能不能看到")
         self.stream_test.clicked.connect(self.start_stream_test)
         self.stream_test.setVisible(bool(self.store.stream_mode))
         # 测试框: the red frame round the game in 直播画面 while nothing plays; viewers see it too.
         self.stream_frame_box = QCheckBox("测试框")
         self.stream_frame_box.setChecked(self.store.stream_test_frame)
         self.stream_frame_box.setCursor(Qt.PointingHandCursor)
-        self.stream_frame_box.setToolTip("直播画面里没有特效时，游戏外围显示一圈红色测试框（观众也看得到）")
+        self.stream_frame_box.setToolTip("直播画面里什么都没显示时，游戏外围显示一圈红色测试框（观众也看得到）")
         self.stream_frame_box.toggled.connect(self._on_test_frame)
         self.stream_frame_box.setVisible(bool(self.store.stream_mode))
         check.add_row("直播模式", self.stream_choice, self.stream_guide, self.stream_test, self.stream_frame_box)
@@ -1153,9 +1153,9 @@ class MainWindow(QMainWindow):
         # 嘉宾: whether a scene greets 嘉宾 players in a lobby.
         guests = section("嘉宾")
         self.love_switch = Switch(self.store.love_scene != "off")
-        self.love_switch.setAccessibleName("嘉宾特效")
+        self.love_switch.setAccessibleName("嘉宾场景")
         self.love_switch.toggled.connect(self._set_love_effects)
-        guests.add_row("特效", self.love_switch)
+        guests.add_row("场景", self.love_switch)
 
         # 外观: how the window looks.
         look = section("外观")
@@ -1582,7 +1582,7 @@ class MainWindow(QMainWindow):
             return True
         boxes = (getattr(self, "hotkey_edit", None), getattr(self, "effect_hotkey_edit", None))
         if watched is not None and any(watched is box for box in boxes):
-            # 检查's box takes a key in 手动检查 only; the 特效 hotkey's always.
+            # 检查's box takes a key in 手动检查 only; the 场景 hotkey's always.
             takes = watched is boxes[1] or not self.store.auto_capture
             kind = event.type()
             if kind == QEvent.Type.FocusIn:
@@ -2882,7 +2882,7 @@ class MainWindow(QMainWindow):
         self._sync_auto_controls()
         self.display_mode.set_current("safe" if self.store.safe_mode else "full")
         if self.store.safe_mode:
-            # Off the game at once: nothing left drawn over it, and a 特效 hotkey play over, music and all.
+            # Off the game at once: nothing left drawn over it, and a 场景 hotkey play over, music and all.
             self._end_quick_play()
             self._hide_panel_after_title()
         else:
@@ -2908,7 +2908,8 @@ class MainWindow(QMainWindow):
                 mark.setAttribute(Qt.WA_DontShowOnScreen, hidden)
 
     def _set_love_effects(self, on: bool) -> None:
-        """嘉宾特效 on: each 嘉宾 and 组合 is greeted with its 特效, 经典 for none; off: no scene for anyone."""
+        """嘉宾场景 on: each 嘉宾 and 组合 is greeted with one of its 场景 (any for none ticked, none on 不放);
+        off: no scene for anyone."""
         self.store.love_scene = "classic" if on else "off"
         self.store.save_settings()
         self.love.choice = self.store.love_scene
@@ -2965,7 +2966,7 @@ class MainWindow(QMainWindow):
         self.stream_test.setVisible(bool(self.store.stream_mode))
         self.stream_frame_box.setVisible(bool(self.store.stream_mode))
         if self._overlay_target() == "":
-            # 安全模式 without 直播模式 draws nothing: a 特效 hotkey play is over, music and all.
+            # 安全模式 without 直播模式 draws nothing: a 场景 hotkey play is over, music and all.
             self._end_quick_play()
         self._sync_overlay_target()
         self._sync_name_hiding()
@@ -3015,8 +3016,8 @@ class MainWindow(QMainWindow):
         self._sync_status_tip()
 
     def _hotkey_box(self, name: str, none: str = "无") -> QLineEdit:
-        """A box that takes a hotkey as it is pressed (eventFilter, _take_hotkey): 检查's, or the 特效 page's.
-        none: what it says with no key, 未设置 for the 特效 hotkey, which can be none."""
+        """A box that takes a hotkey as it is pressed (eventFilter, _take_hotkey): 检查's, or the 场景管理 page's.
+        none: what it says with no key, 未设置 for the 场景 hotkey, which can be none."""
         edit = QLineEdit()
         edit.setReadOnly(True)
         edit.setProperty("none", none)
@@ -3029,7 +3030,7 @@ class MainWindow(QMainWindow):
         return edit
 
     def _hotkey_of(self, edit: QLineEdit) -> tuple[GlobalHotkey, str]:
-        """The hotkey a box sets, and its name in the store: 检查's, or the 特效 hotkey."""
+        """The hotkey a box sets, and its name in the store: 检查's, or the 场景 hotkey."""
         if edit is getattr(self, "effect_hotkey_edit", None):
             return self.effect_hotkey, "effect_hotkey"
         return self.hotkey, "hotkey"
@@ -3087,13 +3088,13 @@ class MainWindow(QMainWindow):
             self._set_settings_note("")
 
     def _sync_effect_hotkey(self) -> None:
-        """The 特效 hotkey works in either 方式."""
+        """The 场景 hotkey works in either 方式."""
         spec = parse_hotkey(self.store.effect_hotkey)
         if spec is None:
             self.effect_hotkey.clear()
             return
         if self.effect_hotkey.active != spec.display and not self.effect_hotkey.apply(spec):
-            log.warning("特效 hotkey %s did not register: another program holds it, or this PC has none.", spec.display)
+            log.warning("场景 hotkey %s did not register: another program holds it, or this PC has none.", spec.display)
             if sys.platform == "win32":
                 self.effects_page.say("这个键被别的程序占了，换一个", held=True)
         elif self.effects_page.held:
@@ -3110,8 +3111,8 @@ class MainWindow(QMainWindow):
         if event.key() in (Qt.Key_Control, Qt.Key_Alt, Qt.Key_Shift, Qt.Key_Meta):
             return
         if field == "effect_hotkey" and event.key() in (Qt.Key_Backspace, Qt.Key_Delete):
-            # The 特效 hotkey can be none: its key is then free in every other program.
-            log.info("特效 hotkey set to none.")
+            # The 场景 hotkey can be none: its key is then free in every other program.
+            log.info("场景 hotkey set to none.")
             self.store.effect_hotkey = ""
             self.store.save_settings()
             edit.clear()
@@ -3148,13 +3149,13 @@ class MainWindow(QMainWindow):
         if spec is None:
             self._hotkey_note(edit, "这个键用不了，换一个")
             return
-        # 检查 and 特效 never share a key: one press would do both.
+        # 检查 and 场景 never share a key: one press would do both.
         other = parse_hotkey(self.store.hotkey if field == "effect_hotkey" else self.store.effect_hotkey)
         if other is not None and other.display == spec.display:
-            self._hotkey_note(edit, "检查已在用这个键，换一个" if field == "effect_hotkey" else "特效已在用这个键，换一个")
+            self._hotkey_note(edit, "检查已在用这个键，换一个" if field == "effect_hotkey" else "场景已在用这个键，换一个")
             return
         registered = keeper.apply(spec)
-        what = "特效 hotkey" if field == "effect_hotkey" else "Hotkey"
+        what = "场景 hotkey" if field == "effect_hotkey" else "Hotkey"
         if not registered and sys.platform == "win32":
             # Refused: the key it had before is kept, and works again as the box lets go.
             log.info("%s %s did not register; %s is kept.", what, spec.display, getattr(self.store, field) or "none")
@@ -3168,7 +3169,7 @@ class MainWindow(QMainWindow):
         edit.setText(spec.display)
         self._hotkey_note(edit, "" if registered else "这台电脑用不了快捷键")
         if field == "hotkey" and spec.display != DEFAULT_EFFECT_HOTKEY and not self.store.effect_hotkey:
-            # 检查 is off the key 特效 says it has: that note goes.
+            # 检查 is off the key 场景 says it has: that note goes.
             if self.effects_page.held:
                 self.effects_page.say("")
         edit.clearFocus()
@@ -3193,10 +3194,10 @@ class MainWindow(QMainWindow):
         if self.store.dropped_hotkey and not self._held_note:
             self._set_settings_note(self._dropped_note("快捷键", self.store.dropped_hotkey, self.store.hotkey))
         if self.store.dropped_effect_hotkey and not self.effects_page.held:
-            self.effects_page.say(self._dropped_note("特效快捷键", self.store.dropped_effect_hotkey, self.store.effect_hotkey))
+            self.effects_page.say(self._dropped_note("场景快捷键", self.store.dropped_effect_hotkey, self.store.effect_hotkey))
         elif not self.store.effect_hotkey and self.store.hotkey == DEFAULT_EFFECT_HOTKEY:
-            # 检查 had the 特效 hotkey's key before there was one: say why it has none, until 检查 moves.
-            self.effects_page.say(f"检查已在用 {DEFAULT_EFFECT_HOTKEY}，特效快捷键未设置", held=True)
+            # 检查 had the 场景 hotkey's key before there was one: say why it has none, until 检查 moves.
+            self.effects_page.say(f"检查已在用 {DEFAULT_EFFECT_HOTKEY}，场景快捷键未设置", held=True)
 
     @staticmethod
     def _dropped_note(what: str, dropped: str, now: str) -> str:
@@ -3609,7 +3610,7 @@ class MainWindow(QMainWindow):
 
     def _start(self, fn, live: bool = False) -> bool:
         if live:
-            # A real lobby comes first: 测试效果 and the 特效 hotkey's play give way.
+            # A real lobby comes first: 测试效果 and the 场景 hotkey's play give way.
             self._end_stream_test()
             self._end_quick_play()
         self._live_check = live
@@ -3694,7 +3695,7 @@ class MainWindow(QMainWindow):
             # Copied before the border started, or through it: no answer either way.
             return
         if not value:
-            # The 特效 hotkey's play is over no lobby: it goes by itself.
+            # The 场景 hotkey's play is over no lobby: it goes by itself.
             if self.panel.isVisible() and not self._quick_scene:
                 self._hide_panel_after_title()
         else:
@@ -3881,7 +3882,7 @@ class MainWindow(QMainWindow):
             else:
                 started = self.music.lobby([like.name for like in likes], tune)
             if started:
-                # The lobby's music now, not ▶'s on 特效: leaving that page or picking there leaves it on.
+                # The lobby's music now, not ▶'s on 场景管理: leaving that page or picking there leaves it on.
                 self.effects_page.sounding = False
         if self.store.safe_mode:
             self._show_notice(result)
@@ -3978,9 +3979,9 @@ class MainWindow(QMainWindow):
                 "方式 " + ("自动检查" if store.auto_capture else f"手动检查 ({store.hotkey or '无快捷键'})"),
                 "提醒 " + ("黑名单+嘉宾" if store.check_blacklist and store.check_likes else "只有黑名单" if store.check_blacklist else "只有嘉宾"),
                 "直播模式 " + ("开" if store.stream_mode else "关") + ("" if store.stream_test_frame else " (测试框 关)"),
-                "嘉宾特效 " + ("关" if store.love_scene == "off" else "开"),
+                "嘉宾场景 " + ("关" if store.love_scene == "off" else "开"),
                 f"声音 {store.sound_volume}%" + (" (静音)" if store.sound_muted else ""),
-                f"特效 {store.quick_scene} ({store.effect_hotkey or '无快捷键'})",
+                f"场景 {store.quick_scene} ({store.effect_hotkey or '无快捷键'})",
                 f"外观 {store.appearance}",
                 "关闭窗口时 " + ("最小化到托盘" if store.close_to_tray else "退出程序"),
                 f"黑名单 {len(store.entries)}, 嘉宾 {len(store.likes)}, 记录 {len(store.scans)}",
@@ -4033,7 +4034,7 @@ class MainWindow(QMainWindow):
         self.like_card.set_look(look)
 
     def _love_for(self, count: int) -> bool:
-        """Whether 嘉宾特效 plays for this many 嘉宾 players: for any, one or more, since each 嘉宾 and
+        """Whether 嘉宾场景 plays for this many 嘉宾 players: for any, one or more, since each 嘉宾 and
         组合 picks what greets them; and always in 测试效果."""
         return count > 0 or self._demo_likes is not None
 
@@ -4169,11 +4170,11 @@ class MainWindow(QMainWindow):
         log.info("测试效果: done.")
 
     def play_quick_scene(self, under_pointer: bool = True, scene: str = "") -> bool:
-        """The 特效 hotkey, and 播放 on 特效: the hotkey's 特效 (store.quick_scene), or for 播放 the one shown
+        """The 场景 hotkey, and 播放 on 场景管理: the hotkey's 场景 (store.quick_scene), or for 播放 the one shown
         there (scene), at once, with no check (no screen copy, no recognition), as a 嘉宾 lobby would get
         it: the rose ring and the badge on 准备案件还原, the scene over the game and its music (设置 › 声音,
-        and the 特效's own 音量), on the screen, or only in 直播画面 when 安全模式 puts the marks there. It
-        plays with 嘉宾特效 off too, and pressed again it starts over. It plays nothing when _quick_refusal
+        and the 场景's own 音量), on the screen, or only in 直播画面 when 安全模式 puts the marks there. It
+        plays with 嘉宾场景 off too, and pressed again it starts over. It plays nothing when _quick_refusal
         says why not: before 使用声明 is agreed to, in 安全模式 without 直播模式 (nothing is drawn over the
         game there), and while a real lobby is checked or its marks show, since that comes first; a check
         takes the play down.
@@ -4185,10 +4186,10 @@ class MainWindow(QMainWindow):
         since the one behind this window is not the game; this window's screen it is."""
         why = self._quick_refusal()
         if why:
-            log.info("特效 hotkey: nothing played (%s).", why)
+            log.info("场景 hotkey: nothing played (%s).", why)
             return False
         self._end_stream_test()
-        # The music is the play's now, not the 特效 page's preview's.
+        # The music is the play's now, not the 场景管理 page's preview's.
         self.effects_page.sounding = False
         self._end_quick_play()
         scene = scene or self.store.quick_scene
@@ -4207,7 +4208,7 @@ class MainWindow(QMainWindow):
         self._quick_round += 1
         turn = self._quick_round
         log.info(
-            "特效 hotkey: %s over %s; 显示 %s, 直播模式 %s, sound %s.",
+            "场景 hotkey: %s over %s; 显示 %s, 直播模式 %s, sound %s.",
             scene, where, "安全模式" if self.store.safe_mode else "完整模式", "on" if self.store.stream_mode else "off",
             self._sound_said(),
         )  # fmt: skip
@@ -4216,7 +4217,7 @@ class MainWindow(QMainWindow):
         elif self.store.stream_mode:
             # The window the game is in: the one 直播姬 captures, or the whole screen.
             self.stream.set_frame(window)
-            QTimer.singleShot(LAYOUT_MS, lambda: self.stream.note_layout("特效 hotkey"))
+            QTimer.singleShot(LAYOUT_MS, lambda: self.stream.note_layout("场景 hotkey"))
         self._lobby_choice = scene
         self._lobby_seats = ()
         self.music.preview(self._tune_for(scene))
@@ -4237,26 +4238,26 @@ class MainWindow(QMainWindow):
         return True
 
     def _quick_refusal(self) -> str:
-        """Why the 特效 hotkey and 播放 would play nothing now, as 特效 says it; "" when they play."""
+        """Why the 场景 hotkey and 播放 would play nothing now, as 场景管理 says it; "" when they play."""
         if self._closing:
             return "正在退出"
         if not self.store.disclaimer_accepted:
             return "先同意使用声明"
         if self._overlay_target() == "":
-            return "安全模式下不显示特效"
+            return "安全模式下不显示场景"
         if self._check_started is not None or (self.panel.isVisible() and not self._quick_scene and self._demo_likes is None):
             return "正在检查，稍后再试"
         return ""
 
     def _play_from_page(self, scene: str) -> None:
-        """播放 on 特效: the 特效 shown there played as the hotkey plays its own, or why not, under it."""
+        """播放 on 场景管理: the 场景 shown there played as the hotkey plays its own, or why not, under it."""
         why = self._quick_refusal()
         self.effects_page.say(why)
         if not why:
             self.play_quick_scene(under_pointer=False, scene=scene)
 
     def _quick_place(self, under_pointer: bool = True) -> tuple[QRect, QRect, str]:
-        """Where the 特效 hotkey plays when no lobby was checked yet: the game's screen, the window it
+        """Where the 场景 hotkey plays when no lobby was checked yet: the game's screen, the window it
         is in (what a 窗口捕捉 captures), and what that is, for the log. under_pointer=False: 播放's
         pointer is on this window, so this window's screen, not whatever is behind it."""
         found = self._livehime_game() if self.store.stream_mode else None
@@ -4299,9 +4300,9 @@ class MainWindow(QMainWindow):
         return rect
 
     def _end_quick_play(self, turn: int | None = None) -> None:
-        """Take the 特效 hotkey's marks down and put back what it set aside. turn: only that play's
+        """Take the 场景 hotkey's marks down and put back what it set aside. turn: only that play's
         end; without it, a play cut short (by a check, by the hotkey again, by 安全模式) stops its music
-        too, unless ▶ on 特效 took the music over since."""
+        too, unless ▶ on 场景管理 took the music over since."""
         if not self._quick_scene or (turn is not None and turn != self._quick_round):
             return
         self._quick_round += 1
@@ -4316,7 +4317,7 @@ class MainWindow(QMainWindow):
             self.stream.set_frame(frame)
             self._quick_saved = None
         self.love.choice = self.store.love_scene
-        log.info("特效 hotkey: done.")
+        log.info("场景 hotkey: done.")
 
     def _hits_in(self, result: CheckResult) -> list[Hit]:
         """黑名单 players in the lobby, when 提醒 tells about them."""
@@ -4363,9 +4364,9 @@ class MainWindow(QMainWindow):
             return
         self._love_played = True
         choice = self._lobby_choice or self.store.love_scene
-        who = "特效 hotkey" if self._quick_scene else f"Check {self._check_number}"
+        who = "场景 hotkey" if self._quick_scene else f"Check {self._check_number}"
         said = choice if isinstance(choice, str) else "one of " + "/".join(choice)
-        log.info("%s shown: 嘉宾特效 (%s, sound %s).", who, said, self._sound_said())
+        log.info("%s shown: 嘉宾场景 (%s, sound %s).", who, said, self._sound_said())
         badge = self.clear_mark.geometry().center() if self.clear_mark.isVisible() else None
         self.love.choice = choice
         self.love.play(self._game_area(screen), keep, badge, self._lobby_seats)
@@ -4386,7 +4387,7 @@ class MainWindow(QMainWindow):
             log.info("直播模式 mirrors the game's window: %dx%d.", frame.width(), frame.height())
         self.stream.set_frame(frame)
         # Written once the marks are up, so it never holds them back.
-        why = "特效 hotkey" if self._quick_scene else f"check {self._check_number}" if self._demo_likes is None else "测试效果"
+        why = "场景 hotkey" if self._quick_scene else f"check {self._check_number}" if self._demo_likes is None else "测试效果"
         QTimer.singleShot(LAYOUT_MS, lambda: self.stream.note_layout(why))
 
     def _game_area(self, screen) -> QRect:  # noqa: ANN001
@@ -4400,7 +4401,7 @@ class MainWindow(QMainWindow):
         area = screen.geometry()
         stand_in = self._demo_area if self._demo_area is not None else self._quick_area
         if stand_in is not None:
-            # 测试效果, or the 特效 hotkey with no lobby seen: over the window 直播姬 shows the game with,
+            # 测试效果, or the 场景 hotkey with no lobby seen: over the window 直播姬 shows the game with,
             # or a screen.
             return QRect(stand_in)
         if self._game_box is None:

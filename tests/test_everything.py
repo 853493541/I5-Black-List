@@ -4,7 +4,7 @@ It opens fresh, agrees to 使用声明 and runs the first 检查; fills 黑名�
 and 嘉宾; checks the bundled sample lobby (made-up names) with the real recognition on the real
 worker thread, the way the hotkey does; sees the result in 安全模式, in 完整模式 and in 直播模式;
 gets their 组合's scene and music when the lobby has two 嘉宾 players and no 黑名单; reads 记录;
-uses the 检查 panel, 选择特效, 设置 › 嘉宾特效, 设置 › 检查 and 导出日志; and ends with 清空数据.
+uses the 检查 panel, 选择场景, 设置 › 嘉宾场景, 设置 › 检查 and 导出日志; and ends with 清空数据.
 
 Each step's own details are tested elsewhere. This one shows they work together. It needs the
 local PaddleOCR model, like test_reference_screenshot.py; CI skips it.
@@ -185,7 +185,7 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     window.love.stop()
     window._hide_panel_after_title()
 
-    # --- 10. 选择特效: every scene previews; 设置 › 嘉宾特效 and 声音 are kept. ----------------------
+    # --- 10. 选择场景: every scene previews; 设置 › 嘉宾场景 and 声音 are kept. ----------------------
     picker = ScenePicker("lace", "心动小鹿", window.music, parent=window)
     for key in love_scenes.KEYS:
         picker.buttons[key].click()

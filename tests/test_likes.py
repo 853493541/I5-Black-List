@@ -708,7 +708,7 @@ def test_a_combination_has_not_met_where_a_seat_was_another_guest_of_the_same_st
     store.scans = [
         {"at": "2026-10-14T20:00:00+08:00", "names": [{"seat": 1, "name": "心动星星", "unclear": False}, {"seat": 2, "name": "心动小鹿", "unclear": False}]}
     ]
-    # The seat is 心动星星 itself, not 心动星星呀 cut short: that lobby never played the 组合's 特效.
+    # The seat is 心动星星 itself, not 心动星星呀 cut short: that lobby never played the 组合's 场景.
     assert combos_met(store.combos, store.likes, store.scans) == {}
     page.refresh()
     assert _rows(page)[0][4] == NEVER_MET

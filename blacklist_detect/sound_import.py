@@ -1,4 +1,4 @@
-"""特效管理's own sound: a player's file, read once as it is chosen, kept as the app's own WAV.
+"""场景管理's own sound: a player's file, read once as it is chosen, kept as the app's own WAV.
 
 Whatever the file (FILTER), decode reads it into mono 16-bit samples at 44.1 kHz, the format of the
 built-in tunes (ui_music.TUNES), and save_clip keeps at most CLIP_S of it, about as loud as they are
@@ -71,7 +71,7 @@ class Decoded:
 
 @dataclass(frozen=True)
 class Imported:
-    """A sound kept for a 特效: the WAV at path, made from length_s seconds of the file called name
+    """A sound kept for a 场景: the WAV at path, made from length_s seconds of the file called name
     (original_s long, as read) from start_s on."""
 
     path: Path

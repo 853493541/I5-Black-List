@@ -1,4 +1,4 @@
-"""选择片段: which part of a sound the player uploaded for a 特效 plays, when the file is longer than a 特效's
+"""选择片段: which part of a sound the player uploaded for a 场景 plays, when the file is longer than a 场景's
 sound may be (5 s).
 
 The whole sound is drawn as a strip, its loudest moment per pixel in the accent colour, with a window over
@@ -26,7 +26,7 @@ from blacklist_detect.ui_dialogs import _primary
 from blacklist_detect.ui_kit import Modal, _KeyboardRing
 from blacklist_detect.ui_theme import THEME, _mix, _pointing, chinese_font, is_dark
 
-# The longest part a 特效's sound keeps, the shortest the window can be made, and an arrow key's step.
+# The longest part a 场景's sound keeps, the shortest the window can be made, and an arrow key's step.
 LIMIT_S = 5.0
 MIN_S = 0.5
 NUDGE_S = 0.1
@@ -268,7 +268,7 @@ class Waveform(_KeyboardRing, QWidget):
 
 
 class SoundTrimDialog(Modal):
-    """选择片段: the part of a sound longer than limit_s that a 特效 plays. samples: the sound, mono int16
+    """选择片段: the part of a sound longer than limit_s that a 场景 plays. samples: the sound, mono int16
     at rate; name: its file's name. preview(start, length) plays that part, or returns why it cannot;
     stop() stops it; check(start, length) is why a part cannot be kept, or "". muted: nothing would be heard,
     so 试听 is off. selection() is (start, length) in seconds; 确定 accepts it."""

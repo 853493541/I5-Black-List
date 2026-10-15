@@ -1,4 +1,4 @@
-"""选择片段 (ui_sound_trim): picking the part of a long uploaded sound a 特效 plays, with made-up sounds only."""
+"""选择片段 (ui_sound_trim): picking the part of a long uploaded sound a 场景 plays, with made-up sounds only."""
 
 import os
 import time

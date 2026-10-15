@@ -36,9 +36,9 @@ BEHIND = "behind"  # the game's capture is over it, so the marks are under the g
 CLOSED = "closed"  # 直播姬 is not running
 WORDS = {
     OK: "✓ 已连上直播姬",
-    MISSING: "直播姬当前场景里还没有「直播画面」",
-    HIDDEN: "「直播画面」被隐藏了，显示后切换一次场景",
-    BEHIND: "「直播画面」被游戏挡住了，置顶后切换一次场景",
+    MISSING: "直播姬场景里还没有「直播画面」",
+    HIDDEN: "「直播画面」被隐藏了，显示后切换一次直播姬场景",
+    BEHIND: "「直播画面」被游戏挡住了，置顶后切换一次直播姬场景",
     CLOSED: "直播姬没有打开",
 }
 
