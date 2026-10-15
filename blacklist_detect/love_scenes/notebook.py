@@ -643,7 +643,9 @@ class _Page:
         bw = hi + self.shade + 8 * u - self.ox
         self.start = -(hi + self.shade + 10 * u)
         self.end = plan.w - lo + self.page + 30 * u
-        self.images = [self._bake(bw, h, v) for v in range(3)]
+        # The paper is worked out once; its pencil edges are drawn over it three times, boiling.
+        paper = self._bake(bw, h, 0)
+        self.images = [self._pencil(QImage(paper), v) for v in range(3)]
 
     def curl(self, ys: np.ndarray) -> np.ndarray:
         """How far back the curled corner reaches from the leading edge, down the page: most at the
@@ -711,8 +713,11 @@ class _Page:
         ahead = (d < 0) * np.exp(-np.clip(-d, 0, None) / (0.35 * self.shade)) * 0.4 * (0.7 + 0.6 * flow) * smooth(-14 * u, 10 * u, to_top)
         out_c = color * alpha[..., None] + rgb("#0b1517") * (ahead * (1 - alpha))[..., None]
         out_a = alpha + ahead * (1 - alpha)
-        image = picture(out_c / np.maximum(out_a, 1e-4)[..., None], out_a)
-        # Pencil: the leading edge, the curl's fold and its free edge, a line of the roll.
+        return picture(out_c / np.maximum(out_a, 1e-4)[..., None], out_a)
+
+    def _pencil(self, image: QImage, v: int) -> QImage:
+        """Pencil over the paper: the leading edge, the curl's fold and its free edge, a line of the roll."""
+        u = self.plan.u
         p = QPainter(image)
         p.setRenderHint(QPainter.Antialiasing)
         p.translate(-self.ox, 0)
@@ -1849,9 +1854,9 @@ class _Wash:
         u = self.plan.u
         q.scale(r, r)
         q.translate(-x0, -y0)
-        q.setPen(Qt.NoPen)
-        q.setBrush(QColor("#ffffff"))
+        # Soft and half the pixels: a plain round pen does, each mark a little heavier or lighter.
         route = self.route
+        marks = QPainterPath()
         d = rnd.uniform(0, 4) * u
         while d < route.length:
             x, y, heading = route.at(d)
@@ -1860,11 +1865,10 @@ class _Wash:
             off = rnd.uniform(-0.4, 0.4) * half
             length = half * rnd.uniform(0.35, 0.75)
             cx, cy = x - off * math.sin(heading), y + off * math.cos(heading)
-            pts = np.array([[cx - length * math.cos(a), cy - length * math.sin(a)], [cx + length * math.cos(a), cy + length * math.sin(a)]])
-            path = _Stroke(pts, 1.6 * u, rnd, u, 0.1, ends=(2, 3)).path(0)
-            if path is not None:
-                q.drawPath(path)
+            marks.moveTo(cx - length * math.cos(a), cy - length * math.sin(a))
+            marks.quadTo(QPointF(cx + rnd.uniform(-1, 1) * u, cy + rnd.uniform(-1, 1) * u), QPointF(cx + length * math.cos(a), cy + length * math.sin(a)))
             d += rnd.uniform(4.0, 9.0) * u
+        q.strokePath(marks, QPen(QColor("#ffffff"), 1.6 * u, Qt.SolidLine, Qt.RoundCap))
 
     def half(self, d: float) -> float:
         return float(np.interp(d, self.route.s, self.widths)) / 2
