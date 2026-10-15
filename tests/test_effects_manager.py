@@ -305,7 +305,7 @@ def test_a_file_that_cannot_be_used_says_why_until_another_is_shown(window, pick
     page.upload_button.click()
     assert page.note.text() == "这个文件是空的" and not page.note.isHidden()
     assert window.store.scene_sounds == {} and trim["opened"] == []
-    assert QApplication.overrideCursor() is None
+    assert QApplication.overrideCursor() is None and window.isEnabled()
     _shown(window, "ice")
     assert page.note.isHidden()
     # A note about the hotkey as it stands comes back after one about a sound.
@@ -314,6 +314,66 @@ def test_a_file_that_cannot_be_used_says_why_until_another_is_shown(window, pick
     assert page.note.text() == "这个文件是空的"
     _shown(window, "stars")
     assert page.note.text() == "这个键被别的程序占了，换一个" and page.held
+
+
+def test_nothing_changes_under_a_file_being_read(window, pick, trim, tmp_path, monkeypatch):
+    page = _shown(window, "lace")
+    read = sound_import.decode
+    seen = {}
+
+    def slow(path):  # noqa: ANN001, ANN202
+        # The player clicks around while it is read, as a video's nested event loop would let them.
+        seen["enabled"] = window.isEnabled()
+        page.scenes.buttons["ice"].click()
+        page.upload_button.click()
+        page.reset_button.click()
+        window._tab_buttons[window.settings_tab].click()
+        seen["note"] = page.note.text()
+        return read(path)
+
+    monkeypatch.setattr(sound_import, "decode", slow)
+    pick["chosen"] = _wav(tmp_path / "a.wav", 2.0)
+    page.upload_button.click()
+    assert seen == {"enabled": False, "note": "正在读取…"}
+    assert len(pick["asked"]) == 1 and window.tabs.currentIndex() != window.settings_tab
+    # The sound is the 特效's shown when 上传 was pressed, and the page says so.
+    assert window.isEnabled() and page.scenes.key == "lace" and list(window.store.scene_sounds) == ["lace"]
+    assert page.sound_text.full == "自定义 · a.wav · 2.0 秒" and page.scenes.buttons["lace"].own
+
+
+def test_a_silent_part_says_so_in_the_part_picker_and_is_not_kept(window, pick, trim, tmp_path):
+    page = _shown(window, "stars")
+    # 5 s of nothing before the music, as a video's intro may be.
+    t = np.arange(12 * 44100) / 44100
+    tone = np.where(t >= 5.0, np.sin(2 * np.pi * 440 * t) * 12000, 0).astype("<i2")
+    with wave.open(str(tmp_path / "intro.wav"), "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(44100)
+        wav.writeframes(tone.tobytes())
+    pick["chosen"] = tmp_path / "intro.wav"
+
+    def choose(dialog) -> bool:  # noqa: ANN001
+        window.played.clear()
+        dialog.toggle_preview()
+        assert not dialog.playing and dialog.play_button.text() == "试听"
+        assert dialog.times.text() == "选的这段没有声音" and dialog.times.objectName() == "error"
+        assert all(tune is None for tune in window.played)
+        # 确定 keeps the dialog open on it, so another part can be picked.
+        dialog.accept()
+        assert dialog.result() != QDialog.Accepted and dialog.times.text() == "选的这段没有声音"
+        dialog.wave.set_selection(6.0, 3.0)
+        assert dialog.times.text().endswith("3.0 秒") and dialog.times.objectName() == ""
+        dialog.toggle_preview()
+        assert dialog.playing and window.played[-1] is not None
+        dialog.accept()
+        assert dialog.result() == QDialog.Accepted
+        return True
+
+    trim["do"] = choose
+    page.upload_button.click()
+    entry = window.store.scene_sounds["stars"]
+    assert (entry["start"], entry["length"]) == (pytest.approx(6.0), pytest.approx(3.0)) and page.note.isHidden()
 
 
 def test_where_only_wav_can_be_read_the_dialog_says_so(window, pick, monkeypatch):

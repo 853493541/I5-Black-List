@@ -368,6 +368,10 @@ class EffectsPage(QWidget):
         source = Path(path)
         self._tell("正在读取…")
         self.note.repaint()
+        # The window paints on while a video is read, seconds maybe, but takes no clicks: the sound is the
+        # shown 特效's, and nothing (another 特效, 上传 again, 清空数据) may change under it meanwhile.
+        window = self.window()
+        window.setEnabled(False)
         QApplication.setOverrideCursor(Qt.WaitCursor)
         try:
             decoded = sound_import.decode(source)
@@ -376,6 +380,7 @@ class EffectsPage(QWidget):
             return
         finally:
             QApplication.restoreOverrideCursor()
+            window.setEnabled(True)
         self._tell("")
         start, length = 0.0, CLIP_S
         if decoded.seconds > CLIP_S:
@@ -388,26 +393,34 @@ class EffectsPage(QWidget):
     def _trim(self, decoded, key: str, name: str) -> tuple[float, float] | None:  # noqa: ANN001
         """选择片段 on a long sound: the part picked, or None when it is closed. Its 试听 plays the part as the
         特效 will (made as save_clip makes it, at the 特效's level), from a folder of the page's own that goes
-        with the dialog."""
+        with the dialog. A part save_clip would refuse (a silent one) is told there, at 试听 and at 确定."""
         folder = Path(tempfile.mkdtemp(prefix="blacklist_detect_trial_"))
 
-        def preview(start: float, length: float) -> None:
+        def check(start: float, length: float) -> str:
+            try:
+                sound_import.save_clip(decoded, "trial", folder, start, length)
+            except SoundImportError as error:
+                return str(error)
+            return ""
+
+        def preview(start: float, length: float) -> str:
             if self.music is None:
-                return
+                return ""
             self.music.stop()
             self.sounding = False
             try:
                 clip = sound_import.save_clip(decoded, "trial", folder, start, length)
-            except SoundImportError:
-                return
+            except SoundImportError as error:
+                return str(error)
             self.music.trial(clip.path, key)
+            return ""
 
         def stop() -> None:
             if self.music is not None:
                 self.music.stop()
 
         muted = self.music is None or self.music.muted
-        dialog = SoundTrimDialog(decoded.samples, sound_import.RATE, name, preview, stop, self.window(), CLIP_S, muted=muted)
+        dialog = SoundTrimDialog(decoded.samples, sound_import.RATE, name, preview, stop, self.window(), CLIP_S, muted=muted, check=check)
         try:
             accepted = dialog.exec() == QDialog.Accepted
         finally:

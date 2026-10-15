@@ -6,7 +6,8 @@ the part that plays: the first limit_s seconds at first. Dragging the window mov
 edges makes it shorter or longer (never longer than limit_s, shorter than MIN_S or past the file's ends), and
 ← → move it by NUDGE_S. What lies outside it is drawn faint. 试听 plays the part picked, through the caller's
 preview(start, length), and turns into 停止 until it has played; under 静音 (muted) it cannot be pressed. 确定
-keeps it, × and Esc keep nothing.
+keeps it, × and Esc keep nothing. Why a part cannot be heard or kept (a silent one, say), as the caller's
+preview or check has it, shows beside 试听 in red until the window moves, and 确定 leaves the dialog open on it.
 
 The dialog is made from plain values (the samples, their rate and the file's name), so it knows nothing of
 how the file was read; the caller keeps only the part picked (selection()).
@@ -268,23 +269,26 @@ class Waveform(_KeyboardRing, QWidget):
 
 class SoundTrimDialog(Modal):
     """选择片段: the part of a sound longer than limit_s that a 特效 plays. samples: the sound, mono int16
-    at rate; name: its file's name. preview(start, length) plays that part, stop() stops it; muted: nothing
-    would be heard, so 试听 is off. selection() is (start, length) in seconds; 确定 accepts it."""
+    at rate; name: its file's name. preview(start, length) plays that part, or returns why it cannot;
+    stop() stops it; check(start, length) is why a part cannot be kept, or "". muted: nothing would be heard,
+    so 试听 is off. selection() is (start, length) in seconds; 确定 accepts it."""
 
     def __init__(
         self,
         samples: np.ndarray,
         rate: int,
         name: str,
-        preview: Callable[[float, float], None],
+        preview: Callable[[float, float], str | None],
         stop: Callable[[], None],
         parent: QWidget | None = None,
         limit_s: float = LIMIT_S,
         muted: bool = False,
+        check: Callable[[float, float], str] | None = None,
     ) -> None:
         super().__init__(parent)
         self.preview = preview
         self.stop = stop
+        self.check = check
         self.playing = False
         layout = self.frame("选择片段")
         self.wave = Waveform(samples, rate, limit_s)
@@ -341,9 +345,13 @@ class SoundTrimDialog(Modal):
     def has_changes(self) -> bool:
         return self.wave.selection() != self._first
 
-    def _show_times(self) -> None:
+    def _show_times(self, reason: str = "") -> None:
+        """Where the part picked starts and ends, or, in red, why it cannot be heard or kept."""
         start, length = self.wave.selection()
-        self.times.setText(f"{clock(start)} – {clock(start + length)} · {length:.1f} 秒")
+        self.times.setObjectName("error" if reason else "")
+        self.times.style().unpolish(self.times)
+        self.times.style().polish(self.times)
+        self.times.setText(reason or f"{clock(start)} – {clock(start + length)} · {length:.1f} 秒")
 
     def _show_play(self, playing: bool) -> None:
         self.play_button.setText("停止" if playing else "试听")
@@ -358,7 +366,9 @@ class SoundTrimDialog(Modal):
         if not self.play_button.isEnabled():
             return
         start, length = self.selection()
-        self.preview(start, length)
+        if reason := self.preview(start, length):
+            self._show_times(reason)
+            return
         self.playing = True
         self._show_play(True)
         self._clock.start()
@@ -398,6 +408,14 @@ class SoundTrimDialog(Modal):
             self.wave.nudge(step)
             return True
         return super().eventFilter(watched, event)
+
+    def accept(self) -> None:
+        """确定: the part picked, unless it cannot be kept; then why, and the dialog stays for another."""
+        self._end(stop=True)
+        if self.check is not None and (reason := self.check(*self.selection())):
+            self._show_times(reason)
+            return
+        super().accept()
 
     def done(self, result: int) -> None:  # noqa: A003
         self._end(stop=True)
