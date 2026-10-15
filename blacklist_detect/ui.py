@@ -618,7 +618,7 @@ class MainWindow(QMainWindow):
         self.likes_tab = self.tabs.addTab(self.likes_page, "嘉宾")
         self.effect_hotkey_edit = self._hotkey_box("特效快捷键", none="未设置")
         self.effects_page = EffectsPage(self.store, self.music, self.effect_hotkey_edit, self._play_from_page)
-        self.effects_tab = self.tabs.addTab(self.effects_page, "特效")
+        self.effects_tab = self.tabs.addTab(self.effects_page, "特效管理")
         self.settings_tab = self.tabs.addTab(self._settings_page(), "设置")
         self.tabs.tabBar().hide()
         self.tabs.currentChanged.connect(self._sync_tab_buttons)

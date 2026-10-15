@@ -420,3 +420,18 @@ def test_settings_saved_by_the_page_load_as_they_were(window, pick, trim, tmp_pa
     assert again.effects_page.scenes.buttons["cyber"].own
     again.close()
 
+
+
+def test_the_tab_row_keeps_clear_of_the_chips_in_the_smallest_window(window):
+    window.resize(900, 560)
+    window.show()
+    # The longest it gets: every count 99+, 有更新 shown and a long 游戏名.
+    for index in (window.history_tab, window.blacklist_tab, window.likes_tab):
+        window._set_tab_count(index, 150)
+    window.update_pill.show()
+    window.profile_chip.set_name("一二三四五六七八九十")
+    _wait(30)
+    last = window._tab_buttons[-1]
+    assert window.tabs.tabText(window.effects_tab) == "特效管理"
+    assert last.mapTo(window, last.rect().topRight()).x() < window.update_pill.mapTo(window, window.update_pill.rect().topLeft()).x()
+    window.hide()

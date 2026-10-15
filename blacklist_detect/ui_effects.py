@@ -134,7 +134,7 @@ def _button(text: str, action, primary: bool = False) -> QPushButton:  # noqa: A
 
 
 class EffectsPage(QWidget):
-    """The 特效 page. scenes.key is the 特效 shown, store.quick_scene the hotkey's; hotkey_box is the
+    """The 特效管理 page. scenes.key is the 特效 shown, store.quick_scene the hotkey's; hotkey_box is the
     window's box for the 特效 hotkey, and play(key) what 播放 does with the one shown. sounding: the music
     playing is the one ▶ started, which stops as the page goes out of sight."""
 

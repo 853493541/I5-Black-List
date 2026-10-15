@@ -679,7 +679,7 @@ def test_tabs_show_counts_as_badges(qapp, tmp_path, monkeypatch):
     window = MainWindow()
     window._watch_timer.stop()
     tabs = window._tab_buttons
-    assert [tab.name() for tab in tabs] == ["记录", "黑名单", "嘉宾", "特效", "设置"]
+    assert [tab.name() for tab in tabs] == ["记录", "黑名单", "嘉宾", "特效管理", "设置"]
     assert [tab.count() for tab in tabs] == [0, 0, 0, 0, 0]
     narrow = tabs[window.blacklist_tab].sizeHint().width()
     window.store.add("甲")

@@ -146,7 +146,7 @@ def test_the_settings_save_and_load_and_bad_ones_fall_back(tmp_path):
 
 
 def test_the_page_lists_every_scene_and_saves_the_one_given_the_hotkey(window):
-    assert window.tabs.tabText(window.effects_tab) == "特效"
+    assert window.tabs.tabText(window.effects_tab) == "特效管理"
     assert window.likes_tab < window.effects_tab < window.settings_tab
     page = window.effects_page
     assert [(key, button.text()) for key, button in page.scenes.buttons.items()] == list(love_scenes.SCENES)
