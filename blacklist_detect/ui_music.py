@@ -5,9 +5,10 @@ Pachelbel's Canon on harp, and church bells. build/wedding_tunes.py plays them i
 so no recording is used and a stream can carry them. 设置 picks one, 随机 (a different one each
 time), or 关闭.
 
-A scene can bring its own tune instead (its MUSIC): 遇袭 plays the 指挥家's music from 模仿者狂欢. That
-one IS the game's own recording, the user's choice made knowing NetEase owns it; it is not one of
-the five, so 随机 never picks it.
+A scene can bring its own tune instead (its MUSIC): 遇袭 plays the 指挥家's music from 模仿者狂欢 with
+the 演说家遇袭 notice's sound mixed in at its strike (build/ambush_tune.py). The music IS the game's own
+recording, the user's choice made knowing NetEase owns it; it is not one of the five, so 随机 never
+picks it.
 """
 
 from __future__ import annotations
@@ -30,7 +31,7 @@ TUNE_LIST: tuple[tuple[str, str, str], ...] = (
 KEYS = tuple(key for key, _name, _file in TUNE_LIST)
 TUNES = {key: ASSETS / file for key, _name, file in TUNE_LIST}
 # Tunes a scene brings with it, by key.
-SCENE_TUNES = {"conductor": ASSETS / "conductor.wav"}
+SCENE_TUNES = {"ambush": ASSETS / "ambush.wav"}
 # The same 嘉宾 players found again this soon are the same lobby, checked again: no second tune.
 SAME_LOBBY_S = 60.0
 

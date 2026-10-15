@@ -3806,7 +3806,7 @@ class MainWindow(QMainWindow):
         return lobby_choice(self.store.likes, self.store.combos, likes, self.store.love_scene, known=_known_scene)
 
     def _tune_for(self, choice: str) -> str:
-        """The music for a lobby with this 嘉宾特效 choice: a scene that brings its own (遇袭's 指挥家)
+        """The music for a lobby with this 嘉宾特效 choice: a scene that brings its own (遇袭's)
         plays that, unless 音乐 is 无; else 音乐's choice."""
         if self.store.love_music == "off":
             return "off"

@@ -1,11 +1,14 @@
 """遇袭 Ambush: you are the one attacked, as in 模仿者狂欢's 迷离 and its kill.
 
-For a moment nothing. Then the 指挥家's fog rolls in from the edges, blue-grey and drifting two ways
-at once, white music notes swirl through the haze, and every player's name is lost in it, a ??? in
-its place, as 迷离 scrambles them. Then the strike, the game's own kill mark made bigger than the
-screen's middle: three tapered slashes rip up across it, white-hot at their cores and purple at their
-edges. A lilac flash, a jolt, a puff of pink smoke; the slashes fray away, the fog clears and the
-names come back. The 指挥家's music plays (MUSIC).
+For a moment nothing. Then the 指挥家's fog rolls in from the edges, heavy at the borders, blue-grey
+and drifting two ways at once, and as it comes every player's name is lost in it, a ??? in its place,
+as 迷离 scrambles them; white music notes swirl through the haze. Two seconds of that, then the
+strike, the game's own kill mark made bigger than the screen's middle: three tapered slashes rip up
+across it, white-hot at their cores and purple at their edges, a lilac flash, a jolt, a puff of pink
+smoke; and at that moment 演说家遇袭 comes up in the top right as the game shows it: a BIG NEWS
+newspaper tossed up into place, the words fading in over a dark band. The slashes fray away, the fog
+clears and the names come back. Its tune (MUSIC) is the 指挥家's music with the notice's sound in it
+at the strike.
 
 The 嘉宾 marks wear it: a misty glass card scored by three claw marks, a lilac rim round the button
 with claw marks at two corners that now and then strike again, and a claw-mark X on a dark disc for a
@@ -16,6 +19,7 @@ from __future__ import annotations
 
 import math
 import random
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -23,14 +27,17 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QFont, QImage, QPainter, QPainterPath, QPen, QPixmap, QRadialGradient
 
 from blacklist_detect.love_scenes.draw import clamp, col, ease_in, ease_in_out, ease_out, soft_dot, win
-from blacklist_detect.love_scenes.light import bloom, mask, noise, picture, rgb, smooth
+from blacklist_detect.love_scenes.light import bloom, blur, mask, noise, picture, rgb, smooth
 
 if TYPE_CHECKING:
     from blacklist_detect.love_scenes import Stage
 
-DURATION = 4.8
+DURATION = 6.6
 # The tune it brings (ui_music.SCENE_TUNES), played instead of 音乐's choice unless that is 无.
-MUSIC = "conductor"
+MUSIC = "ambush"
+# The fog rolls in and clears; the names go and come back with it.
+FOG_IN = (0.35, 1.4)
+FOG_OUT = (4.75, 5.9)
 FOG = "#8fa3b8"
 FOG_DEEP = "#55687d"
 LILAC = "#c9b6ff"
@@ -57,7 +64,7 @@ CARD_TOP = 6
 SOFT = 0.5
 # The strike: when it lands, the angle its slashes run at (degrees, screen y down), and the three
 # slashes' offsets across it and their delays.
-STRIKE = (1.75, -34.0)
+STRIKE = (3.6, -34.0)
 SLASHES = ((-1.0, 0.0), (0.0, 0.035), (1.0, 0.07))
 # A slash's length and its thickest, in points at the design size; how far apart the three are.
 LENGTH = 1000.0
@@ -71,6 +78,15 @@ HOLD = 0.32
 FRAY = 0.55
 # Steps of fraying worked out once: each a little more of the slash eaten away.
 FRAYS = 6
+# 演说家遇袭: shown from the strike for this long, then gone over NOTICE_OUT.
+NOTICE_HOLD = 2.35
+NOTICE_OUT = 0.45
+# The notice's art from the game (assets, cut by build/orator_notice_art.py), and where each piece sat
+# in the picture it was cut from, (left, top), (width, height) in its pixels; the words show this high.
+ASSETS = Path(__file__).resolve().parent.parent / "assets"
+NOTICE_PAPER = ((0, 335), (572, 416))
+NOTICE_WORDS = ((585, 455), (1026, 177))
+NOTICE_HIGH = 42.0
 
 
 def make(stage: Stage):  # noqa: ANN201
@@ -83,17 +99,19 @@ def make(stage: Stage):  # noqa: ANN201
     centre = QPointF(width * 0.5, min(height * 0.43, gap.top() - reach * u))
     sprite = _slash_sprite(LENGTH * u, THICK * u, u)
     frayed = [_frayed(sprite, k / FRAYS, seed) for seed, k in enumerate(range(1, FRAYS + 1))]
-    fog = (_fog_layer(width, height, u, 11, 0.9), _fog_layer(width, height, u, 23, 0.7))
+    fog = (_fog_layer(width, height, u, 11, 1.0), _fog_layer(width, height, u, 23, 0.85))
     keep = _keep(width, height, gap, u)
     veil = QImage(max(1, round(width * SOFT)), max(1, round(height * SOFT)), QImage.Format_ARGB32_Premultiplied)
     notes = _notes(width, height, gap, u, rnd)
     seats = stage.names()
     cloud = _cloud(u)
     unknown = _unknown(seats)
+    notice = _notice_art(u)
+    notice_at = QPointF(width - 26 * u, height * 0.165)
     puff = [(rnd.uniform(0, math.tau), rnd.uniform(40, 150) * u, rnd.uniform(26, 60) * u, rnd.uniform(0.0, 0.12)) for _ in range(16)]
 
     def paint(p: QPainter, t: float) -> None:
-        life = win(t, 0.0, 0.25) * (1 - ease_in(win(t, 4.45, DURATION)))
+        life = win(t, 0.0, 0.25) * (1 - ease_in(win(t, DURATION - 0.4, DURATION)))
         if life <= 0:
             return
         p.save()
@@ -105,6 +123,11 @@ def make(stage: Stage):  # noqa: ANN201
         _strike(p, t - STRIKE[0], STRIKE[1], centre, sprite, frayed, u)
         _impact(p, t - LANDED, centre, u)
         _puff(p, t - LANDED, centre, puff, u)
+        p.restore()
+        # The notice does not shake: it is the game telling you, not the blow.
+        p.save()
+        p.setOpacity(life)
+        _notice(p, t - STRIKE[0], notice, notice_at, u)
         p.restore()
 
     return paint
@@ -121,11 +144,11 @@ def _fog_layer(width: float, height: float, u: float, seed: int, strength: float
     ys, xs = np.mgrid[0:h, 0:w].astype(np.float32)
     nx, ny = (xs / w - 0.5) * 2, (ys / h - 0.5) * 2
     # Thick at the edges, thin over the middle: an ellipse's distance out from the centre.
-    edge = smooth(0.35, 1.25, np.sqrt(nx * nx * 0.8 + ny * ny))
-    density = np.clip((0.22 + 0.78 * edge) * (0.55 + 0.75 * billows) * strength, 0, 1)
+    edge = smooth(0.3, 1.1, np.sqrt(nx * nx * 0.8 + ny * ny))
+    density = np.clip((0.18 + 1.1 * edge) * (0.6 + 0.7 * billows) * strength, 0, 1)
     light = smooth(0.35, 0.9, billows)[..., None]
     color = rgb(FOG_DEEP) * (1 - light) + rgb(FOG) * light
-    return picture(color, density * 0.82)
+    return picture(color, density * 0.96)
 
 
 def _keep(width: float, height: float, gap: QRectF, u: float) -> QImage:
@@ -149,7 +172,7 @@ def _veil(p: QPainter, t: float, veil: QImage, fog: tuple, keep: QImage, width: 
     flash = _flash_level(t - LANDED)
     if thick <= 0.005 and flash <= 0.005:
         return
-    come = ease_out(win(t, 0.45, 1.55))
+    come = ease_out(win(t, *FOG_IN))
     veil.fill(Qt.transparent)
     q = QPainter(veil)
     q.setRenderHint(QPainter.Antialiasing)
@@ -184,7 +207,7 @@ def _veil(p: QPainter, t: float, veil: QImage, fog: tuple, keep: QImage, width: 
 
 def _fog_level(t: float) -> float:
     """How thick the fog is: rolling in, then clearing."""
-    return ease_out(win(t, 0.45, 1.55)) * (1 - ease_in_out(win(t, 3.0, 4.25)))
+    return ease_out(win(t, *FOG_IN)) * (1 - ease_in_out(win(t, *FOG_OUT)))
 
 
 def _cloud(u: float) -> QImage:
@@ -219,14 +242,12 @@ def _unknown(seats: tuple[QRectF, ...]) -> list[tuple[QPainterPath, float]]:
 
 
 def _lost_names(p: QPainter, t: float, seats: tuple[QRectF, ...], cloud: QImage, unknown: list[tuple], u: float) -> None:
-    """Each name lost in a puff of fog, one after another, a ??? there instead that now and then
+    """Each name lost in a puff of fog as the fog comes in, a ??? there instead that now and then
     flickers as 迷离 scrambles it; the names come back as the fog clears."""
+    a = _fog_level(t)
+    if a <= 0:
+        return
     for index, seat in enumerate(seats):
-        come = ease_out(win(t, 0.75 + 0.04 * index, 1.15 + 0.04 * index))
-        go = ease_in_out(win(t, 3.05 + 0.03 * index, 3.6 + 0.03 * index))
-        a = come * (1 - go)
-        if a <= 0:
-            continue
         c = seat.center()
         w, h = max(seat.width() * 1.6, 150 * u), seat.height() * 2.3
         drift = 4 * u * math.sin(t * 1.3 + index)
@@ -259,14 +280,15 @@ def _notes(width: float, height: float, gap: QRectF, u: float, rnd: random.Rando
     for i in range(10):
         side = -1 if i % 2 == 0 else 1
         x = width * (0.5 + side * rnd.uniform(0.3, 0.46))
-        y = height * rnd.uniform(0.12, 0.72)
-        out.append((QPointF(x, y), rnd.choice(shapes), rnd.uniform(0.7, 1.5), rnd.uniform(0, math.tau), side, 0.75 + i * 0.12))
+        # On the right, below where 演说家遇袭 comes up.
+        y = height * rnd.uniform(0.12 if side < 0 else 0.3, 0.72)
+        out.append((QPointF(x, y), rnd.choice(shapes), rnd.uniform(0.7, 1.5), rnd.uniform(0, math.tau), side, 0.55 + i * 0.15))
     return out
 
 
 def _notes_paint(p: QPainter, t: float, notes: list[tuple], u: float) -> None:
     for at, shape, size, phase, side, born in notes:
-        a = ease_out(win(t, born, born + 0.5)) * (1 - ease_in(win(t, 2.8, 3.6)))
+        a = ease_out(win(t, born, born + 0.5)) * (1 - ease_in(win(t, FOG_OUT[0], FOG_OUT[1] - 0.3)))
         if a <= 0:
             continue
         age = t - born
@@ -440,6 +462,83 @@ def _puff(p: QPainter, age: float, centre: QPointF, puff: list[tuple], u: float)
         x = centre.x() + math.cos(angle) * reach * out
         y = centre.y() + math.sin(angle) * reach * out * 0.6 - 40 * u * k
         soft_dot(p, x, y, size * (0.6 + 0.9 * out), PINK, 0.32 * (1 - k) ** 1.4)
+
+
+# 演说家遇袭 --------------------------------------------------------------------------------------
+
+
+def _notice_art(u: float) -> tuple[QImage, QImage, QImage, QImage, QRectF, QRectF]:
+    """The notice's own art from the game (build/orator_notice_art.py): the newspaper, the words, the
+    words blurred (for fading in) and the dark band behind them, made at twice the size they show; and
+    where the newspaper and the words sit, in points, from the words' right middle, as the game spaces
+    them."""
+    k = NOTICE_HIGH * u / NOTICE_WORDS[1][1]
+
+    def at(box: tuple[tuple[int, int], tuple[int, int]]) -> QRectF:
+        (x, y), (w, h) = box
+        right, middle = NOTICE_WORDS[0][0] + NOTICE_WORDS[1][0], NOTICE_WORDS[0][1] + NOTICE_WORDS[1][1] / 2
+        return QRectF((x - right) * k, (y - middle) * k, w * k, h * k)
+
+    paper_box, words_box = at(NOTICE_PAPER), at(NOTICE_WORDS)
+
+    def load(name: str, box: QRectF) -> QImage:
+        image = QImage(str(ASSETS / name)).convertToFormat(QImage.Format_ARGB32_Premultiplied)
+        size = (max(1, round(box.width() * 2)), max(1, round(box.height() * 2)))
+        return image.scaled(*size, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+
+    paper, words = load("orator_paper.png", paper_box), load("orator_words.png", words_box)
+    soft = _blurred(words, 5 * u * 2)
+    bw, bh = round(words_box.width() * 1.3 + 90 * u), round(words_box.height() * 1.9)
+    ys, xs = np.mgrid[0:bh, 0:bw].astype(np.float32)
+    across = smooth(0.0, 0.35, xs / bw) * smooth(1.0, 0.85, xs / bw)
+    down = smooth(0.0, 0.3, ys / bh) * smooth(1.0, 0.7, ys / bh)
+    band = picture(np.zeros((bh, bw, 3), dtype=np.float32), across * down * 0.62)
+    return paper, words, soft, band, paper_box, words_box
+
+
+def _blurred(image: QImage, sigma: float) -> QImage:
+    """A picture softened, its glow spread: the words before they come into focus."""
+    pixels = _rgba(image).astype(np.float32) / 255.0
+    out = np.dstack([blur(pixels[..., c], sigma) for c in range(4)])
+    alpha = np.clip(out[..., 3] * 1.3, 0, 1)
+    return picture(out[..., :3] / np.maximum(out[..., 3:], 1e-4), alpha)
+
+
+def _notice(p: QPainter, age: float, art: tuple, right_middle: QPointF, u: float) -> None:
+    """演说家遇袭 in the top right, as the game shows it: the newspaper tossed up from below into place,
+    wobbling, a blur behind it; then the words coming into focus over the dark band; held; then gone."""
+    if age < 0 or age > NOTICE_HOLD + NOTICE_OUT:
+        return
+    paper, words, soft, band, paper_box, words_box = art
+    leave = ease_in(win(age, NOTICE_HOLD, NOTICE_HOLD + NOTICE_OUT))
+    p.save()
+    p.translate(right_middle.x(), right_middle.y() - 10 * u * leave)
+    p.setRenderHint(QPainter.SmoothPixmapTransform)
+    base = p.opacity()
+    focus = ease_out(win(age, 0.17, 0.29)) * (1 - leave)
+    if focus > 0:
+        bw, bh = band.width(), band.height()
+        p.setOpacity(base * focus)
+        p.drawImage(QRectF(words_box.right() - bw + 30 * u, words_box.center().y() - bh / 2, bw, bh), band)
+        p.setOpacity(base * (1 - focus) * min(1.0, focus * 3))
+        p.drawImage(words_box, soft)
+        p.setOpacity(base * focus)
+        p.drawImage(words_box, words)
+    # The newspaper rises 40 points in a fifth of a second, turning into its tilt with a wobble.
+    rise = ease_out(clamp(age / 0.2))
+    settle = max(0.0, age - 0.2)
+    turn = -16 * (1 - rise) + 7 * math.exp(-settle * 9) * math.sin(settle * 30)
+    alpha = clamp(age / 0.05) * (1 - leave)
+    c = paper_box.center()
+    box = QRectF(-paper_box.width() / 2, -paper_box.height() / 2, paper_box.width(), paper_box.height())
+    for ghost in (2, 1, 0) if rise < 1 else (0,):
+        p.save()
+        p.setOpacity(base * alpha * (1.0 if ghost == 0 else 0.22 / ghost))
+        p.translate(c.x(), c.y() + 40 * u * (1 - rise) + ghost * 9 * u * (1 - rise))
+        p.rotate(turn)
+        p.drawImage(box, paper)
+        p.restore()
+    p.restore()
 
 
 # The 嘉宾 marks -------------------------------------------------------------------------------

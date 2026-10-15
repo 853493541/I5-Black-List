@@ -445,7 +445,7 @@ def test_a_combination_needs_two_guests_and_greets_them_with_its_theme(window):
 
 def test_a_theme_with_its_own_music_plays_it_unless_music_is_off(window):
     window.store.love_music = "organ"
-    assert window._tune_for("claw") == "conductor"
+    assert window._tune_for("claw") == "ambush"
     assert window._tune_for("stars") == "organ"
     window.store.love_music = "off"
     assert window._tune_for("claw") == "off"

@@ -48,7 +48,7 @@ def _drawn(image: QImage) -> bool:
 def test_every_scene_plays_through_and_keeps_the_button_bare(qapp, key):
     stage = sample_stage()
     shots = _frames(stage, key)
-    assert 4.0 <= love_scenes.load(key).DURATION <= 5.5
+    assert 4.0 <= love_scenes.load(key).DURATION <= 7.0
     assert any(_drawn(shot) for shot in shots[1:-1]), "something shows while it plays"
     # The middle of 准备案件还原 stays as the game drew it, at every moment.
     middle = stage.gap.center().toPoint()
