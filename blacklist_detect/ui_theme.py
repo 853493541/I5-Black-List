@@ -352,20 +352,6 @@ def _button_rules(family: str) -> str:
                 color: {t["danger"]};
                 border-color: {t["danger"]};
             }}
-            QPushButton#sideAction {{
-                background: transparent;
-                border: none;
-                color: {t["muted"]};
-                font-size: {SMALL_PT}pt;
-                text-align: left;
-                padding: 0 12px;
-                min-height: 30px;
-                border-radius: {RADIUS}px;
-            }}
-            QPushButton#sideAction:hover {{
-                background: {t["hover"]};
-                color: {t["text"]};
-            }}
             QPushButton#link {{
                 background: transparent;
                 border: none;

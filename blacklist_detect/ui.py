@@ -20,7 +20,6 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
     QDialog,
-    QFileDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -558,8 +557,6 @@ class MainWindow(QMainWindow):
         self._flow_test: FlowTest | None = None
         self._env_report = False
         self._env_right = 0
-        self._picture_pending = ""
-        self._picture_dialog = None
         # The last glance, kept by the worker thread to skip a screen that has not changed.
         self._last_band = None
         self._last_glance: bool | None = None
@@ -905,15 +902,6 @@ class MainWindow(QMainWindow):
         self.history_list.currentRowChanged.connect(self._on_history_picked)
         self.history_list.itemClicked.connect(self._on_history_clicked)
         side_layout.addWidget(self.history_list, 1)
-        # A lobby from a picture, read the way a live check reads it.
-        self.picture_button = QPushButton("用截图检查")
-        self.picture_button.setObjectName("sideAction")
-        self.picture_button.setFont(chinese_font(SMALL_PT))
-        self.picture_button.setIcon(line_icon("picture", 14, THEME["muted"]))
-        self.picture_button.setAutoDefault(False)
-        self.picture_button.setCursor(Qt.PointingHandCursor)
-        self.picture_button.clicked.connect(self.check_picture)
-        side_layout.addWidget(self.picture_button)
         body.addWidget(side)
         record = QWidget()
         record.setObjectName("recordCard")
@@ -977,8 +965,6 @@ class MainWindow(QMainWindow):
         body.addWidget(self.record_column, 1)
         self.history_empty = EmptyState("records", "还没有记录", "进入「推演成功」大厅时自动检查")
         self.history_hint = self.history_empty.title
-        self.picture_empty_button = self.history_empty.add_action(QPushButton("用截图检查"))
-        self.picture_empty_button.clicked.connect(self.check_picture)
         body.addWidget(self.history_empty, 1)
         layout.addLayout(body, 1)
         return page
@@ -1463,8 +1449,6 @@ class MainWindow(QMainWindow):
         if hasattr(self, "tag_list"):
             self.tag_add.refresh()
             self.tag_list.viewport().update()
-        if hasattr(self, "picture_button"):
-            self.picture_button.setIcon(line_icon("picture", 14, THEME["muted"]))
         if hasattr(self, "watch_label"):
             self._set_result(self._watch_full, self._watch_tone, self._status_kind, self._watch_tip)
         if hasattr(self, "profile_chip"):
@@ -3393,55 +3377,6 @@ class MainWindow(QMainWindow):
     def _after_environment_check(self) -> None:
         self.show_first_run_guide()
 
-    def check_picture(self) -> None:
-        path, _filter = QFileDialog.getOpenFileName(self, "选择大厅截图", "", "图片 (*.png *.jpg *.jpeg *.bmp *.webp)")
-        if path:
-            self._run_picture(path, "截图检查")
-
-    def _run_picture(self, path: str, title: str, tries: int = 0) -> None:
-        if self._picture_pending and tries == 0:
-            return
-        entries = list(self.store.entries)
-        # Hold the lobby glances back so this check gets the reader next.
-        self._glance_pause_until = max(self._glance_pause_until, time.perf_counter() + 2.0)
-        if self.worker.request(lambda: check_image(path, entries), kind="picture"):
-            self._picture_pending = title
-            self._sync_picture_buttons()
-            return
-        if tries == 0:
-            self._picture_pending = title
-            self._sync_picture_buttons()
-        if tries < 300:
-            # The reader is busy: a glance, a lobby check, or the first model load.
-            QTimer.singleShot(100, lambda: self._run_picture(path, title, tries + 1))
-            return
-        self._picture_pending = ""
-        self._sync_picture_buttons()
-        self._picture_dialog = PictureResultDialog(title, error="正在识别，稍等一下", parent=self)
-        self._picture_dialog.open()
-
-    def _sync_picture_buttons(self) -> None:
-        busy = bool(self._picture_pending)
-        for button in (self.picture_button, self.picture_empty_button):
-            button.setEnabled(not busy)
-            button.setText("正在识别" if busy else "用截图检查")
-
-    def _on_picture(self, status: str, value) -> None:  # noqa: ANN001
-        title = self._picture_pending or "截图检查"
-        self._picture_pending = ""
-        self._sync_picture_buttons()
-        if status != "ok":
-            log.warning("Picture check failed: %s", value)
-            error = _plain_error(value, "这张图打不开")
-            self._picture_dialog = PictureResultDialog(title, error=error, parent=self)
-        else:
-            log.info("Picture check: lobby %s, %d on the list", value.header_found, len(value.hits))
-            self._picture_dialog = PictureResultDialog(
-                title, result=value, parent=self, likes=self.store.likes, hide_hits=bool(self.store.stream_mode),
-                me=self.store.player_name,
-            )
-        self._picture_dialog.open()
-
     def _set_autostart(self, enabled: bool) -> None:
         if not autostart.set_enabled(enabled):
             log.warning("Could not change start with Windows to %s", enabled)
@@ -3603,9 +3538,6 @@ class MainWindow(QMainWindow):
             return
         if job == "glance":
             self._on_glanced(status, value)
-            return
-        if job == "picture":
-            self._on_picture(status, value)
             return
         if job == "envcheck":
             self._on_env_sample(status, value)

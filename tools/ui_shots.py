@@ -7,8 +7,7 @@ Each scale is a run of its own (Qt's scale is set before it starts), into <out d
 The app runs with made-up names in a data folder of its own, and 开机启动 with a Run key in memory:
 nothing of the user's is read or written.
 A dialog the app opens with exec() or open() is shown without waiting, photographed and closed, so
-the app's own code builds every one exactly as a player sees it. 截图检查's result reads the
-sample lobby for real, so the recognition models must be on this PC.
+the app's own code builds every one exactly as a player sees it.
 
     normal   five 黑名单 (one with a long name and reason), three 嘉宾, two records
     empty    nothing: the empty pages
@@ -231,18 +230,6 @@ def shoot(args) -> None:  # noqa: ANN001
 
     step("menu_更多", menu)
     step("toast", lambda: (window.toast.show_message("已删除「夜猫子」", "撤销", lambda: None, ms=20000), save(window, "toast")))
-
-    def picture() -> None:
-        from blacklist_detect.pipeline import check_image
-        from blacklist_detect.ui_dialogs import PictureResultDialog
-
-        result = check_image(ROOT / "blacklist_detect" / "assets" / "sample-lobby.jpg", list(window.store.entries))
-        label["name"] = "dlg_截图检查"
-        PictureResultDialog("截图检查", result=result, parent=window, likes=window.store.likes, me="测试主播").open()
-        label["name"] = "dlg_截图检查_打不开"
-        PictureResultDialog("截图检查", error="这张图打不开", parent=window).open()
-
-    step("dlg_截图检查", picture)
 
     def report() -> None:
         from blacklist_detect.diagnostics import FlowTest

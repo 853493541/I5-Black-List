@@ -27,7 +27,7 @@ class CaptureUnavailable(RuntimeError):
 
 def capture_capability_message() -> str:
     if sys.platform != "win32":
-        return "读不到游戏画面，可以先用截图检查"
+        return "读不到游戏画面"
     return ""
 
 

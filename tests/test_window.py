@@ -1484,43 +1484,18 @@ def test_batch_import_previews_each_person_before_adding(qapp, tmp_path, monkeyp
     window.close()
 
 
-def test_a_picture_check_opens_its_result(qapp, tmp_path, monkeypatch):
-    from blacklist_detect.ui import PictureResultDialog
-
+def test_there_is_no_picture_check(qapp, tmp_path, monkeypatch):
+    """用截图检查 is gone: neither under 记录 nor on its empty page, and no file dialog to pick a picture."""
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
     window._watch_timer.stop()
-    asked = []
-    window.worker.request = lambda fn, kind="check": asked.append(kind) or True
-    window._run_picture("lobby.png", "识别测试")
-    assert asked == ["picture"]
-    assert window.picture_button.isEnabled() is False
-    assert window.picture_button.text() == "正在识别"
-    assert not any(b.text() == "测试一下" for b in window.findChildren(QPushButton))
-    names = [NameSlot(index, (0, 0, 1, 1), f"名{index}", f"名{index}", False, 0.9, False) for index in range(12)]
-    names[3] = NameSlot(3, (0, 0, 1, 1), "", "", False, 0.1, True)
-    hit = Hit(0, "名0", "名0大王", "", True, "")
-    window._on_worker(("picture", "ok", CheckResult(True, "", names=names, hits=[hit])))
-    shown = window._picture_dialog
-    assert isinstance(shown, PictureResultDialog)
-    assert shown.windowTitle() == "识别测试"
-    # The seats say it: no line above them counting hits and unread seats.
-    assert shown.summary.isHidden()
-    # Cut short by the game: the name once, in full as the list has it.
-    assert shown.seats[0].text() == "名0大王"
-    assert shown.seats[3].text() == "未识别"
-    assert window.picture_button.isEnabled() is True
-    assert window.picture_button.text() == "用截图检查"
-    assert window.picture_empty_button.text() == "用截图检查"
-    # It lives on 记录, not in 设置.
-    assert window.tabs.widget(window.history_tab).isAncestorOf(window.picture_button)
-    assert window.tabs.widget(window.history_tab).isAncestorOf(window.picture_empty_button)
-    shown.close()
-    window._run_picture("x.png", "截图检查")
-    window._on_worker(("picture", "ok", CheckResult(False, "没有找到这间大厅。")))
-    assert "推演成功" in window._picture_dialog.summary.text()
-    window._picture_dialog.close()
+    assert not any("截图" in button.text() for button in window.findChildren(QPushButton))
+    page = window.tabs.widget(window.history_tab)
+    assert [button.text() for button in window.history_empty.findChildren(QPushButton)] == []
+    assert page.isAncestorOf(window.history_list)
+    for gone in ("picture_button", "picture_empty_button", "check_picture", "_run_picture", "_on_picture"):
+        assert not hasattr(window, gone), gone
     window.close()
 
 
@@ -1901,7 +1876,7 @@ def test_a_button_shows_its_focus_ring_only_while_focused(qapp, tmp_path, monkey
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
     window._watch_timer.stop()
-    button = window.picture_button
+    button = window.toolbar_buttons[0]
     ring = button.findChild(_FocusRing)
     assert ring is not None and ring.isHidden()
     qapp.sendEvent(button, QFocusEvent(QEvent.Type.FocusIn, Qt.OtherFocusReason))
@@ -2284,20 +2259,6 @@ def test_a_model_that_will_not_load_stops_the_check_at_its_step(qapp, tmp_path, 
     assert window.setup.title.text() == "环境测试没通过"
     assert "识别功能没装好" in window.setup.message.text()
     assert window.setup.notes[1].text() == ""
-    window.close()
-
-
-def test_a_library_error_is_shown_in_plain_words(qapp, tmp_path, monkeypatch):
-    monkeypatch.setenv("APPDATA", str(tmp_path))
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
-    window = MainWindow()
-    window._watch_timer.stop()
-    window._picture_pending = "截图检查"
-    window._on_worker(("picture", "err", OSError("cannot identify image file 'C:\\x\\a.png'")))
-    shown = window._picture_dialog.summary.text()
-    assert "这张图打不开" in shown
-    assert "cannot" not in shown and "png" not in shown
-    window._picture_dialog.close()
     window.close()
 
 
@@ -2723,7 +2684,7 @@ def test_chinese_input_stays_switchable_where_nothing_takes_text(qapp, tmp_path,
         window._tab_buttons[0],
         window.status_chip,
         window.profile_chip,
-        window.picture_button,
+        window.toolbar_buttons[0],
     ):
         assert takes_input(widget), widget
     # A list turns it off again when its current row changes; it still says it takes input.

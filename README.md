@@ -29,9 +29,7 @@ That folder also holds:
 
 ## Check a screenshot
 
-In **设置 → 截图检查**, **选择截图** runs the same lobby and name check on a picture you pick. It shows the twelve seats, with blacklist matches in red. The live check copies the screen with one GDI BitBlt on Windows; elsewhere only pictures can be checked.
-
-From a terminal, with no window:
+The live check copies the screen with one GDI BitBlt on Windows; elsewhere only pictures can be checked, from a terminal, with no window:
 
 ```bash
 PYTHONPATH=. python -m blacklist_detect check tests/fixtures/reference-lobby.png
