@@ -42,6 +42,15 @@ def _write_wav(path: Path, samples: np.ndarray, rate: int, width: int) -> Path:
     return path
 
 
+def _long_chunk_wav(path: Path) -> Path:
+    """A WAV with a LIST chunk that says it is longer than the file, as a half-saved recording can:
+    Python's wave raises a bare RuntimeError on it."""
+    _write_wav(path, _tone(0.5, channels=1), 44100, 2)
+    whole = path.read_bytes()
+    path.write_bytes(whole[:36] + b"LIST" + (10**6).to_bytes(4, "little") + b"INFO" + whole[36:])
+    return path
+
+
 def _read(path: Path) -> tuple[np.ndarray, tuple[int, int, int]]:
     with wave.open(str(path)) as wav:
         params = (wav.getnchannels(), wav.getsampwidth(), wav.getframerate())
@@ -62,9 +71,10 @@ def qt():  # noqa: ANN201
     pytest.importorskip("PySide6")
     from PySide6.QtWidgets import QApplication
 
+    app = QApplication.instance() or QApplication([])
     if not sound_import.available():
         pytest.skip("QtMultimedia cannot be loaded here")
-    return QApplication.instance() or QApplication([])
+    return app
 
 
 @pytest.mark.parametrize(
@@ -187,8 +197,31 @@ def test_without_qt_only_wav_is_read(tmp_path, monkeypatch):
     monkeypatch.setattr(sound_import, "_load_qtmultimedia", missing)
     assert not sound_import.available()
     assert decode(_write_wav(tmp_path / "ok.wav", _tone(1.0), 44100, 2)).seconds == pytest.approx(1.0)
-    with pytest.raises(SoundImportError, match="WAV"):
+    with pytest.raises(SoundImportError, match="换成 WAV"):
         decode(SOUNDS / "organ.mp3")
+    # A WAV that cannot be read is not told to be a WAV.
+    with pytest.raises(SoundImportError) as refused:
+        decode(_long_chunk_wav(tmp_path / "broken.wav"))
+    assert "换成" not in str(refused.value)
+
+
+def test_without_a_backend_to_decode_with_only_wav_is_read(tmp_path, monkeypatch):
+    """Where QtMultimedia loads but its Windows backend does not (Windows N without the Media Feature
+    Pack), it decodes nothing: an MP3 or a video is told to be a WAV, not that it has no sound."""
+
+    class NoBackend:
+        class QMediaFormat:
+            class ConversionMode:
+                Decode = 0
+
+            def supportedFileFormats(self, mode):  # noqa: ANN001, ANN201
+                return []
+
+    monkeypatch.setattr(sound_import, "_load_qtmultimedia", lambda: NoBackend)
+    assert not sound_import.available()
+    for name in ("organ.mp3", "organ.mp4"):
+        with pytest.raises(SoundImportError, match="换成 WAV"):
+            decode(SOUNDS / name)
 
 
 @pytest.mark.parametrize("name", ["organ.mp3", "organ.m4a", "organ.mp4"])
@@ -228,12 +261,13 @@ def test_a_video_without_sound_and_garbage_are_refused_at_once(qt, tmp_path):
         with pytest.raises(SoundImportError):
             decode(path)
         assert time.monotonic() - began < 2.0, name
-    # A WAV header with nothing sensible after it.
+    # A WAV header with nothing sensible after it, and one whose chunk runs past the end of the file.
     (tmp_path / "header.wav").write_bytes(b"RIFF\x24\x00\x00\x00WAVEfmt " + bytes(40))
-    began = time.monotonic()
-    with pytest.raises(SoundImportError):
-        decode(tmp_path / "header.wav")
-    assert time.monotonic() - began < 2.0
+    for path in (tmp_path / "header.wav", _long_chunk_wav(tmp_path / "chunk.wav")):
+        began = time.monotonic()
+        with pytest.raises(SoundImportError):
+            decode(path)
+        assert time.monotonic() - began < 2.0, path.name
 
 
 def test_the_release_qtmedia_folder_is_loaded_from(tmp_path, monkeypatch):

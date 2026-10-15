@@ -110,11 +110,17 @@ def _load_qtmultimedia():  # noqa: ANN202
 
 
 def available() -> bool:
-    """Whether files other than WAV can be read here (loads QtMultimedia: call it on upload only)."""
+    """Whether files other than WAV can be read here (loads QtMultimedia: call it on upload only).
+    Not where its Windows backend cannot load (Windows N without the Media Feature Pack, a blocked
+    windowsmediaplugin.dll): QtMultimedia itself loads there, but decodes nothing."""
     try:
-        _load_qtmultimedia()
+        media = _load_qtmultimedia()
+        decodes = media.QMediaFormat().supportedFileFormats(media.QMediaFormat.ConversionMode.Decode)
     except (ImportError, OSError):
         log.warning("QtMultimedia cannot be loaded: only WAV can be read", exc_info=True)
+        return False
+    if not decodes:
+        log.warning("QtMultimedia has no backend to decode with: only WAV can be read")
         return False
     return True
 
@@ -133,13 +139,15 @@ def decode(source: Path) -> Decoded:
     if source.suffix.lower() == ".wav":
         try:
             read = _read_wav(source)
-        except (wave.Error, EOFError, ValueError) as error:
-            # Float samples, or a WAV wave cannot read: Qt may.
+        except (wave.Error, EOFError, ValueError, RuntimeError) as error:
+            # Float samples, or a WAV wave cannot read (RuntimeError: a chunk longer than the file): Qt may.
             log.info("WAV %s goes to Qt: %s", source.name, error)
         except OSError as error:
             raise SoundImportError("这个文件打不开") from error
     if read is None:
         if not available():
+            if source.suffix.lower() == ".wav":
+                raise SoundImportError("这个 WAV 文件放不了")
             raise SoundImportError("这台电脑只能用 WAV 文件，换成 WAV 试试")
         read = _read_qt(source)
     samples, cut = read
