@@ -31,6 +31,7 @@ from PySide6.QtGui import (
     QLinearGradient,
     QPainter,
     QPainterPath,
+    QPainterPathStroker,
     QPen,
     QPixmap,
     QPolygonF,
@@ -42,6 +43,7 @@ from blacklist_detect.love_scenes.draw import (
     catmull,
     clamp,
     col,
+    ease_back,
     ease_in,
     ease_in_out,
     ease_out,
@@ -88,7 +90,9 @@ STALKS = (("#24502a", "#58b468", "#eaffd6"), ("#2c5626", "#7bb54e", "#f2ffd0"), 
 # Light from the upper left.
 LIGHT = np.array([-0.5, -0.62, 0.6], dtype=np.float32) / np.linalg.norm([-0.5, -0.62, 0.6])
 # The gusts: when each is strongest, and how strong.
-GUSTS = ((1.3, 1.0), (2.4, 0.85), (3.5, 1.0))
+GUSTS = ((1.6, 0.9), (2.6, 0.9), (3.6, 1.0))
+# The frame, the jade and the bamboo come in over this long.
+ENTER = 1.3
 LOOK = {
     "glow": (96, 214, 160),
     "rim": "#62d6a6",
@@ -120,20 +124,23 @@ def make(stage: Stage):  # noqa: ANN201
     garland = _garland(width, u, rnd, leaves)
     tufts = _tufts(width, height, gap, u, rnd, leaves)
     loop = _path(_loop_points(width, height, u))
-    lane = _lane(stage, u)
     flyers = [
-        (rnd.random() * loop[1][-1], rnd.uniform(-1, 1), rnd.uniform(0.8, 1.15), rnd.randrange(len(LEAVES)), rnd.uniform(0, 6.3), rnd.uniform(0.9, 1.4), 0.75 + rnd.uniform(0, 0.55))
+        (rnd.random() * loop[1][-1], rnd.uniform(-1, 1), rnd.uniform(0.8, 1.15), rnd.randrange(len(LEAVES)), rnd.uniform(0, 6.3), rnd.uniform(0.9, 1.4), 1.1 + rnd.uniform(0, 0.6))
         for _ in range(36)
     ]
-    crossers = [(1.45, 0.95), (2.55, 1.1), (3.3, 0.85)]
     motes = [(rnd.random() * loop[1][-1], rnd.uniform(-1, 1), rnd.uniform(0.5, 1.6), rnd.uniform(1.6, 3.4) * u, rnd.uniform(0, 6.3)) for _ in range(22)]
-    streaks = _streaks(width, height, gap, u, lane)
+    streaks = _streaks(width, height, gap, u)
+    climber = _Climber(58 * u, 300 * u)
+    stalks[1].rider = climber
+    muncher = _Muncher(QPointF(width - MUNCH * u, height - 15 * u), 76 * u, leaves)
+    peeker = _Peeker(QPointF(QPANDA * u, height - (EDGE + BAR) * u), 70 * u)
+    edges = _edges(width, height, u)
     shine = _shine_route(width, height, gap, u)
-    heroes = _Heroes(QPointF(190 * u, 150 * u), QPointF(width - 190 * u, 150 * u), u, leaves)
+    heroes = _Heroes(QPointF(205 * u, 162 * u), QPointF(width - 190 * u, 150 * u), u, leaves)
     travel = _travel()
 
     def paint(p: QPainter, t: float, sharp: bool = True) -> None:
-        life = ease_out(win(t, 0.0, 0.8))
+        life = ease_in_out(win(t, 0.0, ENTER))
         leave = ease_in(win(t, 4.2, 5.0))
         a = life * (1 - leave)
         if a <= 0:
@@ -142,29 +149,32 @@ def make(stage: Stage):  # noqa: ANN201
         p.save()
         p.setRenderHint(QPainter.SmoothPixmapTransform)
         p.setOpacity(a * (0.95 + 0.05 * math.sin(t * 2.4)))
-        p.drawImage(QRectF(0, 0, width, height), settled)
+        # Only the edges have anything on them: the middle is left as the game drew it.
+        for rect in edges:
+            p.drawImage(rect, settled, rect)
         p.setOpacity(1.0)
-        mist.paint(p, t, a * (0.85 + 0.15 * math.sin(t * 1.7 + 1)))
+        mist.paint(p, t, a * (0.85 + 0.15 * math.sin(t * 1.7 + 1)), edges)
         p.setOpacity(a)
         for stalk in stalks:
             stalk.paint(p, t, gust)
         for at, angle, sprig, phase in tufts:
-            grow = ease_out(win(t, 0.35 + phase * 0.05, 0.9 + phase * 0.05))
+            grow = ease_out(win(t, 0.5 + phase * 0.06, 1.2 + phase * 0.06))
             if grow > 0:
                 rustle = 5 * math.sin(t * 2.3 + phase * 1.7) + 9 * _gust(t - 0.1 - phase * 0.02)
                 sprig.paint(p, at, angle + rustle, grow)
+        peeker.paint(p, t, gust, a)
+        muncher.paint(p, t, gust, a)
         for at, angle, sprig, phase in garland:
-            drop = ease_out(win(t, 0.25 + 0.03 * phase, 0.85 + 0.03 * phase))
+            drop = ease_out(win(t, 0.35 + 0.035 * phase, 1.05 + 0.035 * phase))
             if drop > 0:
                 rustle = 4 * math.sin(t * 2.6 + phase * 0.9) - 10 * _gust(t - 0.04 * phase) + 2 * math.sin(t * 7.1 + phase)
                 sprig.paint(p, at, angle + rustle, drop)
-        blow = ease_out(win(t, 0.75, 1.3))
+        blow = ease_out(win(t, 1.0, 1.7))
         for streak in streaks:
             streak.paint(p, t, a)
         _shine(p, t, shine, u, a * blow)
         _motes(p, t, motes, loop, travel, stage, a * blow)
         _flyers(p, t, flyers, loop, travel, leaves, stage, blow * (1 - leave))
-        _crossers(p, t, crossers, lane, leaves, u, 1 - leave)
         p.restore()
         if sharp:
             heroes.paint(p, t, gust)
@@ -175,7 +185,7 @@ def make(stage: Stage):  # noqa: ANN201
 
 def _gust(t: float) -> float:
     """How hard the wind blows t seconds in: a breeze from when it starts, and three gusts."""
-    breeze = 0.3 * ease_out(win(t, 0.6, 1.2))
+    breeze = 0.3 * ease_out(win(t, 0.9, 1.6))
     return breeze + sum(strength * math.exp(-(((t - at) / 0.34) ** 2)) for at, strength in GUSTS)
 
 
@@ -277,18 +287,33 @@ EDGE, BAR, ROUND = 11.0, 15.0, 30.0
 CORNER = 128.0
 
 
+def _near(xs: np.ndarray, ys: np.ndarray, width: float, height: float, u: float, wide: float = 1.0) -> np.ndarray:
+    """How near the screen's edges each point is: 1 at them, 0 well before the names and the title."""
+    side = np.minimum(xs, width - xs)
+    return 1 - smooth(0, 230 * u * wide, side) * smooth(0, 150 * u * wide, ys) * smooth(0, 150 * u * wide, height - ys)
+
+
+def _edges(width: float, height: float, u: float) -> list[QRectF]:
+    """The four strips along the edges that hold all of the jade, the frame and the mist; the middle,
+    where the names and the title are, is bare."""
+    side, top = min(250 * u, width / 2), min(165 * u, height / 2)
+    return [
+        QRectF(0, 0, width, top), QRectF(0, height - top, width, top),
+        QRectF(0, top, side, height - 2 * top), QRectF(width - side, top, side, height - 2 * top),
+    ]  # fmt: skip
+
+
 def _settled(width: float, height: float, gap: QRectF, u: float) -> QImage:
-    """The jade tint over the whole lobby, the mint light inside the frame, the frame and its gold
+    """The jade tint along the edges, the mint light inside the frame, the frame and its gold
     line, its knobs by the button, the festoon of bamboo twig under its top and the lattice corners,
     one picture at a pixel to the point."""
     w, h = max(1, round(width)), max(1, round(height))
     xs = (np.arange(w, dtype=np.float32) + 0.5)[None, :]
     ys = (np.arange(h, dtype=np.float32) + 0.5)[:, None]
-    side = np.minimum(xs, w - xs)
-    near = 1 - smooth(0, 340 * u, side) * smooth(0, 290 * u, ys) * smooth(0, 220 * u, h - ys)
+    near = _near(xs, ys, w, h, u)
     hole = smooth(0, 44 * u, _rounded(xs, ys, gap, 14 * u))
-    alpha = (0.2 + 0.52 * near ** 1.6) * hole
-    color = rgb(TINT[0]) + (rgb(TINT[1]) - rgb(TINT[0])) * (near ** 0.9)[..., None]
+    alpha = 0.66 * near ** 1.6 * hole
+    color = rgb(TINT[0]) + (rgb(TINT[1]) - rgb(TINT[0])) * (near ** 0.6)[..., None]
     pre = color * alpha[..., None]
     cloud = noise(max(2, w // 4 + 2), max(2, h // 4 + 2), 18 * u, 3, 7)
     # The frame and the light inside it are only near the edges: worked out in four strips there.
@@ -370,9 +395,15 @@ def _festoon(pre: np.ndarray, alpha: np.ndarray, width: float, u: float) -> None
 
 
 def _festoon_points(width: float, u: float) -> list[QPointF]:
-    count = 17
+    """Where the festoon is hung and the sprigs hang from it: unevenly spaced, a little up or down."""
+    rnd = random.Random(53)
+    gaps = [rnd.uniform(0.55, 1.5) for _ in range(15)]
     left, right = 280 * u, width - 280 * u
-    return [QPointF(left + (right - left) * k / (count - 1), 33 * u) for k in range(count)]
+    out, gone = [], 0.0
+    for gap in [0.0, *gaps]:
+        gone += gap
+        out.append(QPointF(left + (right - left) * gone / sum(gaps), (33 + rnd.uniform(-3, 4)) * u))
+    return out
 
 
 def _lattice(u: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -467,18 +498,15 @@ class _Mist:
 
     def __init__(self, width: float, height: float, gap: QRectF, u: float) -> None:
         s = self.SHRINK
-        self.size = QRectF(0, 0, width, height)
         self.w, self.h = max(2, math.ceil(width / s)), max(2, math.ceil(height / s))
         self.layers = [(_mist_band(self.w, self.h, u / s, seed), speed * u / s, strength) for seed, speed, strength in ((5, 46, 1.0), (9, 92, 0.75))]
         xs = ((np.arange(self.w, dtype=np.float32) + 0.5) * s)[None, :]
         ys = ((np.arange(self.h, dtype=np.float32) + 0.5) * s)[:, None]
-        side = np.minimum(xs, width - xs)
-        near = 1 - smooth(0, 300 * u, side) * smooth(0, 250 * u, ys) * smooth(0, 190 * u, height - ys)
-        where = (0.05 + 0.95 * near ** 1.2) * smooth(0, 46 * u, _rounded(xs, ys, gap, 14 * u)) * 0.5
+        where = _near(xs, ys, width, height, u, 0.95) ** 1.3 * smooth(0, 46 * u, _rounded(xs, ys, gap, 14 * u)) * 0.5
         self.where = _straight(np.ones((self.h, self.w, 3), dtype=np.float32), where)
         self.buffer = QImage(self.w, self.h, QImage.Format_ARGB32_Premultiplied)
 
-    def paint(self, p: QPainter, t: float, alpha: float) -> None:
+    def paint(self, p: QPainter, t: float, alpha: float, edges: list[QRectF]) -> None:
         if alpha <= 0.01:
             return
         self.buffer.fill(Qt.transparent)
@@ -495,7 +523,9 @@ class _Mist:
         q.end()
         p.save()
         p.setOpacity(p.opacity() * alpha)
-        p.drawImage(self.size, self.buffer)
+        s = self.SHRINK
+        for rect in edges:
+            p.drawImage(rect, self.buffer, QRectF(rect.x() / s, rect.y() / s, rect.width() / s, rect.height() / s))
         p.restore()
 
 
@@ -562,9 +592,10 @@ class _Leaves:
 
     def __init__(self, u: float) -> None:
         self.u = u
-        self.front = [_leaf(42 * u, 8.5 * u, tone, self.SCALE, bend=0.5) for tone in LEAVES]
-        self.back = [_leaf(42 * u, 8.5 * u, tone, self.SCALE, back=True, bend=0.5) for tone in LEAVES]
-        self.length = 42 * u
+        # Three shapes, each in every tone: the usual leaf, a short broad one and a long narrow one.
+        shapes = ((42, 8.5, 0.5), (32, 9.5, 0.25), (52, 7.0, 0.75))
+        self.front = [_leaf(length * u, wide * u, tone, self.SCALE, bend=bend) for length, wide, bend in shapes for tone in LEAVES]
+        self.back = [_leaf(length * u, wide * u, tone, self.SCALE, back=True, bend=bend) for length, wide, bend in shapes for tone in LEAVES]
         # A soft round mint light, laid under a leaf the wind carries.
         side = 48
         ys, xs = np.mgrid[0:side, 0:side].astype(np.float32) + 0.5
@@ -574,12 +605,12 @@ class _Leaves:
     def draw(self, p: QPainter, at: QPointF, angle: float, tone: int, size: float, turn: float = 1.0) -> None:
         """A leaf with its middle at at, pointing at angle degrees, size times its own length,
         turned on its midrib by turn (1 face on, 0 edge on, below 0 its back)."""
-        image, rect = (self.front if turn >= 0 else self.back)[tone % len(LEAVES)]
+        image, rect = (self.front if turn >= 0 else self.back)[tone % len(self.front)]
         p.save()
         p.translate(at)
         p.rotate(angle)
         p.scale(size, size * max(0.25, abs(turn)))
-        p.drawImage(rect.translated(-self.length / 2, 0), image)
+        p.drawImage(rect.translated(-(rect.left() + rect.right()) / 2, 0), image)
         p.restore()
 
 
@@ -593,7 +624,7 @@ class _Sprig:
         box = QRectF(-3 * u, -3 * u, twig + 6 * u, 6 * u)
         for along, angle, size, tone in fan:
             transform = QTransform().translate(twig * along, 0).rotate(angle).scale(size, size)
-            image, rect = leaves.front[tone % len(LEAVES)]
+            image, rect = leaves.front[tone % len(leaves.front)]
             parts.append((transform, image, rect))
             box = box.united(transform.mapRect(rect))
         self.rect = box.adjusted(-1, -1, 1, 1)
@@ -631,11 +662,10 @@ class _Sprig:
 
 
 def _fan(rnd: random.Random, count: int, spread: float, droop: float, size: float) -> list[tuple[float, float, float, int]]:
-    out = []
-    for k in range(count):
-        side = k / max(1, count - 1) - 0.5
-        out.append((rnd.uniform(0.55, 1.0), side * spread + droop + rnd.uniform(-6, 6), size * rnd.uniform(0.78, 1.1), rnd.randrange(len(LEAVES))))
-    return out
+    """Leaves fanned from a twig's end: (how far along the twig, angle, size, which leaf picture),
+    unevenly spread, sized and shaded, as no two sprigs of real bamboo are alike."""
+    angles = sorted(rnd.uniform(-0.5, 0.5) * spread for _ in range(count))
+    return [(rnd.uniform(0.45, 1.0), angle + droop, size * rnd.uniform(0.62, 1.2), rnd.randrange(3 * len(LEAVES))) for angle in angles]
 
 
 def _garland(width: float, u: float, rnd: random.Random, leaves: _Leaves) -> list[tuple[QPointF, float, _Sprig, int]]:
@@ -644,22 +674,28 @@ def _garland(width: float, u: float, rnd: random.Random, leaves: _Leaves) -> lis
     out = []
     for index, at in enumerate(_festoon_points(width, u)):
         middle = abs(at.x() - width / 2) / (width / 2)
-        size = 0.75 + 0.55 * clamp((middle - 0.2) / 0.4)
-        sprig = _Sprig(leaves, 12 * u, _fan(rnd, 5 + index % 2, 80, 0, size))
-        out.append((at, 90 + (14 if index % 2 else -14) + rnd.uniform(-8, 8), sprig, index))
+        size = (0.72 + 0.55 * clamp((middle - 0.2) / 0.4)) * rnd.uniform(0.8, 1.2)
+        fan = _fan(rnd, rnd.randint(3, 7), rnd.uniform(50, 115), rnd.uniform(-25, 25), size)
+        sprig = _Sprig(leaves, rnd.uniform(6, 18) * u, fan)
+        out.append((at, 90 + rnd.uniform(-32, 32), sprig, index))
     return out
 
 
 def _tufts(width: float, height: float, gap: QRectF, u: float, rnd: random.Random, leaves: _Leaves) -> list[tuple[QPointF, float, _Sprig, int]]:
     """Tufts of leaves standing up from the bottom of the frame, either side of the button."""
     out = []
-    left = [x * u for x in (150, 270, 385)]
-    right = [width - x * u for x in (150, 270, 385)]
-    for index, x in enumerate(left + right):
+    # Unevenly along each side of the button, kept off the pandas' places.
+    places = [140 + 70 * k + rnd.uniform(-22, 22) for k in range(5)]
+    taken = [(QPANDA - 70, QPANDA + 70)]
+    xs = [x * u for x in places if not any(a < x < b for a, b in taken)]
+    taken = [(MUNCH - 75, MUNCH + 75)]
+    xs += [width - x * u for x in places if not any(a < x < b for a, b in taken)]
+    for index, x in enumerate(xs):
         if gap.left() - 60 * u < x < gap.right() + 60 * u:
             continue
-        sprig = _Sprig(leaves, 4 * u, _fan(rnd, 7, 130, 0, rnd.uniform(1.0, 1.3)))
-        out.append((QPointF(x, height - 18 * u), -90 + rnd.uniform(-10, 10), sprig, index))
+        fan = _fan(rnd, rnd.randint(4, 9), rnd.uniform(80, 150), rnd.uniform(-12, 12), rnd.uniform(0.7, 1.35))
+        sprig = _Sprig(leaves, rnd.uniform(2, 7) * u, fan)
+        out.append((QPointF(x, height - rnd.uniform(15, 21) * u), -90 + rnd.uniform(-18, 18), sprig, index))
     return out
 
 
@@ -715,33 +751,51 @@ class _Stalk:
         self.pieces = [(*_internode(w, length, 1.6, STALKS[tone], seed + i), length) for i, (w, length) in enumerate(internodes)]
         self.total = sum(length for _w, length in internodes)
         self.sprigs = sprigs
+        # A panda hugging it, if one does.
+        self.rider: _Climber | None = None
 
     def paint(self, p: QPainter, t: float, gust: float) -> None:
-        rise = ease_out(win(t, self.delay, self.delay + 0.8))
+        rise = ease_out(win(t, self.delay, self.delay + 1.05))
         if rise <= 0:
             return
         bend = self.sway * (_gust(t - 0.12) + 0.14 * math.sin(t * 1.9 + self.seed))
         x, y = self.base.x(), self.base.y() + self.total * (1 - rise)
         n = len(self.pieces)
         joints = []
-        for i, (image, rect, length) in enumerate(self.pieces):
+        for i, (_image, _rect, length) in enumerate(self.pieces):
             angle = self.lean + bend * ((i + 0.5) / n) ** 1.6
-            p.save()
-            p.translate(x, y)
-            p.rotate(angle)
-            p.drawImage(rect, image)
-            p.restore()
-            joints.append((QPointF(x, y), angle))
+            joints.append((QPointF(x, y), angle, length))
             rad = math.radians(angle)
             x += length * math.sin(rad)
             y -= length * math.cos(rad)
             if y < -80:
                 break
+        held = self._along(joints, self.rider.climbed(t)) if self.rider is not None else None
+        if held is not None:
+            self.rider.back_paint(p, *held)
+        for (at, angle, _length), (image, rect, _) in zip(joints, self.pieces, strict=False):
+            p.save()
+            p.translate(at)
+            p.rotate(angle)
+            p.drawImage(rect, image)
+            p.restore()
+        if held is not None:
+            self.rider.front_paint(p, t, *held)
         for i, (turn, sprig) in self.sprigs.items():
             if i < len(joints):
-                at, angle = joints[i]
+                at, angle, _length = joints[i]
                 flutter = 6 * math.sin(t * 3.1 + i * 1.3 + self.seed) + 8 * gust
-                sprig.paint(p, at, angle - 90 + turn + flutter, ease_out(win(t, self.delay + 0.5, self.delay + 1.0)))
+                sprig.paint(p, at, angle - 90 + turn + flutter, ease_out(win(t, self.delay + 0.7, self.delay + 1.3)))
+
+    @staticmethod
+    def _along(joints: list[tuple[QPointF, float, float]], reach: float) -> tuple[QPointF, float] | None:
+        """Where on the stalk reach points up from its foot is, and which way it leans there."""
+        for at, angle, length in joints:
+            if reach <= length:
+                rad = math.radians(angle)
+                return QPointF(at.x() + reach * math.sin(rad), at.y() - reach * math.cos(rad)), angle
+            reach -= length
+        return None
 
 
 def _stalks(width: float, height: float, u: float, leaves: _Leaves) -> list[_Stalk]:
@@ -795,7 +849,7 @@ def _loop_points(width: float, height: float, u: float) -> list[QPointF]:
     """Up the left, round the fish ring, across the top over the title, round the heart and down the
     right, close to its edge where the names come near."""
     left = [(122, height / u + 40), (128, height / u - 130), (116, height / u - 280), (130, 470), (118, 330), (84, 250), (56, 160), (74, 76), (140, 40)]
-    top = [(270, 84), (430, 104), (600, 70), (800, 60), (1000, 66), (None, 104, 440), (None, 80, 290)]
+    top = [(270, 76), (430, 88), (600, 58), (800, 50), (1000, 54), (None, 86, 440), (None, 70, 290)]
     right = [(None, 40, 130), (None, 100, 60), (None, 230, 40), (None, 400, 36), (None, 560, 38), (None, 700, 34), (None, height / u - 60, 50), (None, height / u + 40, 30)]
     out = []
     for point in left + top + right:
@@ -813,16 +867,6 @@ def _room(at: QPointF, width: float, u: float) -> float:
     if at.x() > width / 2:
         return 7 * u if at.y() > 300 * u else 14 * u
     return 22 * u
-
-
-def _lane(stage: Stage, u: float) -> tuple[list[QPointF], list[float]]:
-    """Across the screen just under the first row's names."""
-    names = stage.names()
-    row = max(box.bottom() for box in names[:6]) if len(names) >= 6 else stage.height * 0.55
-    y = row + 38 * u
-    width = stage.width
-    points = [QPointF(-80 * u, y + 6 * u), QPointF(width * 0.3, y - 10 * u), QPointF(width * 0.62, y + 8 * u), QPointF(width + 80 * u, y - 4 * u)]
-    return _path(points, 14)
 
 
 def _curl(points: list[QPointF], radius: float, turn: int) -> list[QPointF]:
@@ -892,7 +936,8 @@ def _ribbon(p: QPainter, spine: list[tuple[QPointF, float]], thick: float, start
     p.drawPolygon(QPolygonF(left + right[::-1]))
 
 
-def _streaks(width: float, height: float, gap: QRectF, u: float, lane: tuple[list[QPointF], list[float]]) -> list[_Streak]:
+def _streaks(width: float, height: float, gap: QRectF, u: float) -> list[_Streak]:
+    """The wind's streaks, all round the frame and none across the middle."""
     def at(x: float, y: float) -> QPointF:
         return QPointF(x * u if x >= 0 else width + x * u, y * u if y >= 0 else height + y * u)
 
@@ -900,18 +945,18 @@ def _streaks(width: float, height: float, gap: QRectF, u: float, lane: tuple[lis
         return _curl(catmull([at(x, y) for x, y in points], 8), radius * u, turn)
 
     paths = (
-        (line([(140, 62), (420, 40), (760, 60)], 24, 1), 0.85, 2.6),
-        (line([(50, -80), (88, 520), (74, 330), (56, 215)], 22, 1), 1.0, 2.2),
-        (line([(-120, 44), (-44, 200), (-36, 420), (-40, 620), (-48, -100)], 18, 1), 1.2, 2.0),
-        (line([(600, 26), (900, 46), (1200, 28), (-330, 46)], 26, 1), 1.45, 2.4),
-        (line([(36, -40), (200, -60), (400, -46)], 18, -1), 1.6, 1.6),
-        (line([(-36, -40), (-200, -60), (-400, -46)], 18, 1), 1.9, 1.6),
-        (line([(40, 300), (36, 130), (110, 36), (270, 28)], 22, 1), 2.1, 2.2),
-        (line([(-330, 36), (-200, 22), (-80, 70), (-50, 210)], 20, 1), 2.35, 2.2),
-        (line([(200, 20), (700, 38), (1100, 22), (-180, 40)], 22, 1), 2.8, 2.0),
-        (line([(46, -60), (92, 560), (70, 380), (48, 250)], 20, 1), 3.05, 2.0),
+        (line([(140, 58), (400, 40), (640, 52)], 22, 1), 1.15, 2.6),
+        (line([(50, -80), (88, 520), (74, 330), (56, 215)], 22, 1), 1.3, 2.2),
+        (line([(-120, 44), (-44, 200), (-36, 420), (-40, 620), (-48, -100)], 18, 1), 1.5, 2.0),
+        (line([(600, 26), (900, 40), (1200, 26), (-330, 44)], 24, 1), 1.7, 2.4),
+        (line([(36, -40), (200, -60), (400, -46)], 18, -1), 1.85, 1.6),
+        (line([(-36, -40), (-200, -60), (-400, -46)], 18, 1), 2.1, 1.6),
+        (line([(40, 300), (36, 130), (110, 36), (270, 28)], 22, 1), 2.3, 2.2),
+        (line([(-330, 36), (-200, 22), (-80, 70), (-50, 210)], 20, 1), 2.5, 2.2),
+        (line([(200, 20), (700, 32), (1100, 20), (-180, 40)], 22, 1), 2.9, 2.0),
+        (line([(46, -60), (92, 560), (70, 380), (48, 250)], 20, 1), 3.1, 2.0),
         (line([(-60, 60), (-38, 300), (-40, 560), (-46, -110)], 16, 1), 3.3, 1.8),
-        (line([(300, 50), (650, 30), (1000, 50), (-500, 30)], 24, 1), 3.55, 2.2),
+        (line([(300, 46), (650, 28), (1000, 40), (-460, 26)], 22, 1), 3.5, 2.2),
     )
     out = []
     # Each blows twice, the second time a little in from the first.
@@ -922,8 +967,6 @@ def _streaks(width: float, height: float, gap: QRectF, u: float, lane: tuple[lis
         if start + 1.25 < 4.2:
             inward = [QPointF(point.x() + (10 * u if point.x() < width / 2 else -10 * u), point.y() + 12 * u) for point in points]
             out.append(_Streak(inward, start + 1.25, 820 * u, 280 * u, thick * 1.1 * u, 0.8))
-    crossing = list(lane[0])
-    out.append(_Streak(crossing, 2.05, 1500 * u, 380 * u, 1.6 * u, 0.55))
     return out
 
 
@@ -990,20 +1033,6 @@ def _flyers(p: QPainter, t: float, flyers: list[tuple], loop: tuple, travel: np.
     p.setOpacity(a)
 
 
-def _crossers(p: QPainter, t: float, crossers: list[tuple[float, float]], lane: tuple, leaves: _Leaves, u: float, a: float) -> None:
-    """A few leaves blown fast across the screen, under the first row's names."""
-    points, run = lane
-    for index, (start, size) in enumerate(crossers):
-        gone = (t - start) * 1150 * u
-        if gone <= 0 or gone >= run[-1]:
-            continue
-        at, angle = point_at(points, run, gone)
-        p.setOpacity(a * 0.9)
-        turn = math.cos(t * 9 + index)
-        leaves.draw(p, at, math.degrees(angle) + 30 * math.sin(t * 7 + index), index, 0.75 * size, turn)
-    p.setOpacity(a)
-
-
 def _motes(p: QPainter, t: float, motes: list[tuple], loop: tuple, travel: np.ndarray, stage: Stage, a: float) -> None:
     """Specks of mint light drifting round with the leaves."""
     if a <= 0.01:
@@ -1026,7 +1055,7 @@ def _motes(p: QPainter, t: float, motes: list[tuple], loop: tuple, travel: np.nd
 class _Heroes:
     def __init__(self, fish: QPointF, heart: QPointF, u: float, leaves: _Leaves) -> None:
         self.fish, self.heart, self.u, self.leaves = fish, heart, u, leaves
-        self.size = 165 * u
+        self.size = 196 * u
         self.rings: dict[int, QImage] = {}
         self.glows: dict[int, QImage] = {}
 
@@ -1054,22 +1083,22 @@ class _Heroes:
 
     def _fish(self, p: QPainter, t: float, a: float, image: QImage) -> None:
         u = self.u
-        come = ease_out(win(t, 0.3, 1.0))
+        come = ease_out(win(t, 0.5, 1.4))
         if come <= 0:
             return
         c = QPointF(self.fish.x(), self.fish.y() + 3 * u * math.sin(t * 1.6))
         a *= come
-        spin = 16 * t + 70 * ease_in_out(win(t, 0.8, 3.8))
-        whirl = t * 1.2 + 3.0 * ease_in_out(win(t, 0.8, 3.0))
-        halo = QRadialGradient(c, 120 * u)
+        spin = 16 * t + 70 * ease_in_out(win(t, 1.1, 3.9))
+        whirl = t * 1.2 + 3.0 * ease_in_out(win(t, 1.1, 3.2))
+        halo = QRadialGradient(c, 135 * u)
         halo.setColorAt(0, col("#d9f27c", 0.34 * a))
         halo.setColorAt(0.45, col("#3fb488", 0.2 * a))
         halo.setColorAt(1, col("#3fb488", 0))
         p.setPen(Qt.NoPen)
         p.setBrush(halo)
-        p.drawEllipse(c, 120 * u, 120 * u)
-        runs = _swirl(c, whirl, u)
-        _wheel(p, runs, u, a * ease_out(win(t, 0.6, 1.3)), front=False)
+        p.drawEllipse(c, 135 * u, 135 * u)
+        runs = _swirl(c, whirl, u * 1.15)
+        _wheel(p, runs, u, a * ease_out(win(t, 0.9, 1.6)), front=False)
         size = self.size * (0.7 + 0.3 * come)
         p.save()
         p.setOpacity(a)
@@ -1077,10 +1106,10 @@ class _Heroes:
         p.rotate(spin)
         p.drawImage(QRectF(-size / 2, -size / 2, size, size), image)
         p.restore()
-        _wheel(p, runs, u, a * ease_out(win(t, 0.6, 1.3)), front=True)
+        _wheel(p, runs, u, a * ease_out(win(t, 0.9, 1.6)), front=True)
         for k in range(6):
             angle = whirl * (1.1 + 0.1 * k) + k * 1.05
-            r = (78 + 16 * math.sin(k * 2.1)) * u
+            r = (92 + 18 * math.sin(k * 2.1)) * u
             x, y = c.x() + math.cos(angle) * r, c.y() + math.sin(angle) * r * 0.55
             twinkle = max(0.0, math.sin(t * 3.4 + k * 1.9))
             soft_dot(p, x, y, 10 * u, LIME, 0.45 * a * twinkle)
@@ -1088,10 +1117,10 @@ class _Heroes:
 
     def _heart(self, p: QPainter, t: float, a: float, gust: float, light: QImage) -> None:
         u = self.u
-        form = ease_out(win(t, 0.9, 1.9))
+        form = ease_out(win(t, 1.2, 2.2))
         if form <= 0:
             return
-        breathe = 1 + 0.045 * math.sin(2 * math.pi * (t - 1.9) / 1.5) * win(t, 1.6, 2.2)
+        breathe = 1 + 0.045 * math.sin(2 * math.pi * (t - 2.2) / 1.5) * win(t, 1.9, 2.5)
         c = self.heart
         size = 150 * u * breathe
         glow_size = size * 1.6
@@ -1116,7 +1145,7 @@ class _Heroes:
             on = _heart_at(c, size * 1.04, turn)
             ahead = _heart_at(c, size * 1.04, turn + 0.01)
             angle = math.degrees(math.atan2(ahead.y() - on.y(), ahead.x() - on.x()))
-            come = ease_in_out(win(t, 0.9 + 0.07 * k, 1.7 + 0.07 * k))
+            come = ease_in_out(win(t, 1.2 + 0.07 * k, 2.0 + 0.07 * k))
             if come <= 0:
                 continue
             start = QPointF(c.x() - (260 + 30 * k) * u, c.y() - (90 - 14 * k) * u)
@@ -1297,6 +1326,371 @@ def _fish_ring(px: int) -> QImage:
     total = cover + shadow * (1 - cover)
     pre = color * cover[..., None] + rgb("#03241a") * (shadow * (1 - cover))[..., None]
     return _picture(pre, total)
+
+
+# The pandas: one peeking over the bottom of the frame on the left, one munching a bamboo shoot in the
+# bottom right corner, one hugging a stalk on the left. Chibi and round, their fur shaded per pixel,
+# their faces drawn on as they move, so they blink, chew and smile at no cost.
+
+WHITE = "#fbfaf3"
+BLACK = "#2a2c31"
+PAD = "#cdb6b3"
+BLUSH = "#ffaabd"
+# Where the two at the bottom are, in points at full size: the peeking one's middle from the left
+# edge, the munching one's from the right.
+QPANDA, MUNCH = 330.0, 205.0
+# Pixels to the point their fur is worked out at.
+SPRITE = 2.0
+
+
+def _fur(box: QRectF, parts: list[tuple[QPainterPath, str, float]], soft: float, seed: int, outline: QPainterPath | None = None, line: float = 1.0, blush: QPainterPath | None = None) -> QImage:
+    """Shapes in box (points) as soft fur at SPRITE pixels to the point: each part (path, color, lift)
+    swelling from its edges, a part with lift swelling more, lit from the upper left; white fur
+    takes a little jade into its shade, black fur a soft sheen where the light lies along it; a fine
+    grain of hairs over all, a pink blush where blush is, and a soft dark line round outline."""
+    w, h = max(1, math.ceil(box.width() * SPRITE)), max(1, math.ceil(box.height() * SPRITE))
+    sx, sy = w / box.width(), h / box.height()
+
+    def filled(path: QPainterPath) -> np.ndarray:
+        def draw(q: QPainter) -> None:
+            q.scale(sx, sy)
+            q.translate(-box.left(), -box.top())
+            q.fillPath(path, QColor("#ffffff"))
+
+        return mask(w, h, draw)
+
+    color = np.zeros((h, w, 3), dtype=np.float32)
+    alpha = np.zeros((h, w), dtype=np.float32)
+    swell = np.zeros((h, w), dtype=np.float32)
+    for path, tint, lift in parts:
+        m = filled(path)
+        color += (rgb(tint) - color) * m[..., None]
+        alpha = np.maximum(alpha, m)
+        if lift:
+            swell += blur(m, max(1.0, soft * SPRITE * 0.45)) * m * lift
+    swell += blur(alpha, max(1.0, soft * SPRITE)) * alpha
+    gy, gx = np.gradient(swell)
+    nx, ny = -gx * soft * SPRITE * 5, -gy * soft * SPRITE * 5
+    nz = 1 / np.sqrt(1 + nx * nx + ny * ny)
+    nx, ny = nx * nz, ny * nz
+    lit = np.clip(nx * LIGHT[0] + ny * LIGHT[1] + nz * LIGHT[2], 0, 1)
+    half = (LIGHT + np.array([0, 0, 1], dtype=np.float32)) / np.linalg.norm(LIGHT + np.array([0, 0, 1], dtype=np.float32))
+    sheen = np.clip(nx * half[0] + ny * half[1] + nz * half[2], 0, 1) ** 8
+    dark = 1 - color.mean(axis=-1)
+    grain = blur(noise(w, h, 1.0 * SPRITE, 2, seed), 0.7) - 0.5
+    shade = np.clip(1 + 0.62 * (lit - LIGHT[2]), 0, 1)
+    lit_color = color * ((1 + 0.07 * grain) * shade)[..., None] + (1 - shade)[..., None] * 0.24 * rgb(JADE)
+    lit_color += rgb("#c2e2d8") * (sheen * (0.04 + 0.3 * dark))[..., None]
+    if blush is not None:
+        flush = blur(filled(blush), max(1.0, soft * SPRITE * 0.6)) * 0.7
+        lit_color += (rgb(BLUSH) * shade[..., None] - lit_color) * flush[..., None]
+    image = _straight(lit_color, alpha).convertToFormat(QImage.Format_ARGB32_Premultiplied)
+    if outline is not None:
+        q = QPainter(image)
+        q.setRenderHint(QPainter.Antialiasing)
+        q.scale(sx, sy)
+        q.translate(-box.left(), -box.top())
+        q.strokePath(outline, QPen(col("#1d2924", 0.8), line, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        q.end()
+    image.setDevicePixelRatio(sx)
+    return image
+
+
+def _oval(x: float, y: float, rx: float, ry: float, turn: float = 0.0) -> QPainterPath:
+    path = QPainterPath()
+    path.addEllipse(QPointF(0, 0), rx, ry)
+    return QTransform().translate(x, y).rotate(turn).map(path)
+
+
+def _limb(a: QPointF, b: QPointF, thick: float) -> QPainterPath:
+    """A plump limb from a to b, round at both ends."""
+    path = QPainterPath(a)
+    path.lineTo(b)
+    stroker = QPainterPathStroker()
+    stroker.setWidth(thick)
+    stroker.setCapStyle(Qt.RoundCap)
+    return stroker.createStroke(path).simplified()
+
+
+def _panda_head(s: float, seed: int) -> tuple[QImage, QRectF]:
+    """A chibi panda's head s wide round (0, 0), without its ears (they are behind it, to twitch):
+    round with chubby cheeks, a soft muzzle, black patches round its eyes drooping outward and a
+    blush. Its eyes, nose and mouth are drawn on as it moves (_face)."""
+    head = _oval(0, 0, 0.5 * s, 0.43 * s)
+    for side in (-1, 1):
+        head = head.united(_oval(side * 0.36 * s, 0.12 * s, 0.17 * s, 0.15 * s))
+    patches = QPainterPath()
+    for side in (-1, 1):
+        patches.addPath(_oval(side * 0.2 * s, 0.045 * s, 0.125 * s, 0.09 * s, side * 28))
+    muzzle = _oval(0, 0.17 * s, 0.15 * s, 0.1 * s)
+    blush = QPainterPath()
+    for side in (-1, 1):
+        blush.addPath(_oval(side * 0.33 * s, 0.2 * s, 0.075 * s, 0.045 * s))
+    box = head.boundingRect().adjusted(-0.04 * s, -0.04 * s, 0.04 * s, 0.04 * s)
+    parts = [(head, WHITE, 0), (muzzle, WHITE, 0.5), (patches, BLACK, 0.25)]
+    return _fur(box, parts, s * 0.14, seed, head, max(0.6, s * 0.02), blush), box
+
+
+def _panda_ear(s: float, seed: int) -> tuple[QImage, QRectF]:
+    """A panda's round black ear for a head s wide, round (0, 0)."""
+    ear = _oval(0, 0, 0.15 * s, 0.14 * s)
+    box = ear.boundingRect().adjusted(-0.03 * s, -0.03 * s, 0.03 * s, 0.03 * s)
+    return _fur(box, [(ear, BLACK, 0)], s * 0.05, seed, ear, max(0.5, s * 0.018)), box
+
+
+def _paws(s: float, places: list[tuple[float, float, float]], seed: int) -> tuple[QImage, QRectF]:
+    """Black paws for a head s wide at places (x, y, turn), each with a pink pad and three beans."""
+    paws, pads = QPainterPath(), QPainterPath()
+    for x, y, turn in places:
+        paws = paws.united(_oval(x, y, 0.13 * s, 0.1 * s, turn))
+        pads.addPath(_oval(x, y + 0.02 * s, 0.055 * s, 0.04 * s, turn))
+        for k in (-1, 0, 1):
+            pads.addPath(_oval(x + k * 0.05 * s, y - 0.045 * s + abs(k) * 0.012 * s, 0.022 * s, 0.02 * s))
+    box = paws.boundingRect().adjusted(-0.03 * s, -0.03 * s, 0.03 * s, 0.03 * s)
+    return _fur(box, [(paws, BLACK, 0), (pads, PAD, 0.6)], s * 0.05, seed, paws, max(0.5, s * 0.018)), box
+
+
+def _face(p: QPainter, s: float, mode: str, chew: float = 0.0) -> None:
+    """The face on a head s wide at (0, 0): eyes open with two glints, blinking, or shut in a happy
+    curve; a little black nose and a ω mouth, or chewing."""
+    ink = col(BLACK)
+    for side in (-1, 1):
+        eye = QPointF(side * 0.2 * s, 0.05 * s)
+        if mode == "open":
+            p.setPen(Qt.NoPen)
+            p.setBrush(col("#0a0b0e"))
+            p.drawEllipse(eye, 0.07 * s, 0.078 * s)
+            p.setBrush(col("#ffffff"))
+            p.drawEllipse(QPointF(eye.x() - side * 0.012 * s - 0.01 * s, eye.y() - 0.03 * s), 0.03 * s, 0.03 * s)
+            p.drawEllipse(QPointF(eye.x() + 0.025 * s, eye.y() + 0.028 * s), 0.013 * s, 0.013 * s)
+            continue
+        lid = QPainterPath(QPointF(eye.x() - 0.055 * s, eye.y()))
+        bend = 0.045 * s if mode == "blink" else -0.055 * s
+        lid.quadTo(QPointF(eye.x(), eye.y() + bend), QPointF(eye.x() + 0.055 * s, eye.y()))
+        p.strokePath(lid, QPen(col("#e4efe9"), max(0.7, s * 0.02), Qt.SolidLine, Qt.RoundCap))
+    nose = QPainterPath(QPointF(-0.045 * s, 0.125 * s))
+    nose.quadTo(QPointF(0, 0.11 * s), QPointF(0.045 * s, 0.125 * s))
+    nose.quadTo(QPointF(0.022 * s, 0.16 * s), QPointF(0, 0.165 * s))
+    nose.quadTo(QPointF(-0.022 * s, 0.16 * s), QPointF(-0.045 * s, 0.125 * s))
+    p.fillPath(nose, ink)
+    p.setPen(Qt.NoPen)
+    p.setBrush(col("#ffffff", 0.7))
+    p.drawEllipse(QPointF(-0.012 * s, 0.124 * s), 0.012 * s, 0.007 * s)
+    if chew > 0.5:
+        p.setBrush(col("#5a2c34"))
+        p.drawEllipse(QPointF(0, 0.205 * s), 0.032 * s, 0.026 * s)
+        return
+    mouth = QPainterPath()
+    for side in (-1, 1):
+        mouth.moveTo(0, 0.165 * s)
+        mouth.quadTo(QPointF(side * 0.005 * s, 0.205 * s), QPointF(side * 0.04 * s, 0.2 * s))
+        mouth.quadTo(QPointF(side * 0.065 * s, 0.195 * s), QPointF(side * 0.07 * s, 0.175 * s))
+    p.strokePath(mouth, QPen(ink, max(0.5, s * 0.016), Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+
+
+def _blinking(t: float, phase: float) -> bool:
+    return (t + phase) % 2.9 < 0.14
+
+
+def _twitch(t: float, phase: float) -> float:
+    """An ear's twitch, in degrees: now and then a quick flick out and back."""
+    k = ((t + phase) % 3.4) / 0.28
+    return 24 * math.sin(math.pi * k) if k < 1 else 0.0
+
+
+class _Head:
+    """A panda's head and ears, drawn with its face at (0, 0) of the painter."""
+
+    def __init__(self, s: float, seed: int) -> None:
+        self.s = s
+        self.head, self.box = _panda_head(s, seed)
+        self.ear, self.ear_box = _panda_ear(s, seed + 1)
+
+    def paint(self, p: QPainter, mode: str, twitch: float = 0.0, chew: float = 0.0) -> None:
+        s = self.s
+        for side in (-1, 1):
+            p.save()
+            p.translate(side * 0.355 * s, -0.315 * s)
+            p.rotate(side * (12 + (twitch if side > 0 else 0)))
+            p.drawImage(self.ear_box, self.ear)
+            p.restore()
+        p.drawImage(self.box, self.head)
+        _face(p, s, mode, chew)
+
+
+class _Muncher:
+    """A panda sitting in the bottom right corner on the frame, munching a bamboo shoot held in both
+    paws: it pops up, then chews, its shoot bobbing, now and then its eyes shut happily, a crumb
+    falls, an ear twitches, and it sways in the gusts."""
+
+    def __init__(self, at: QPointF, s: float, leaves: _Leaves) -> None:
+        self.at, self.s = at, s
+        self.head = _Head(s, 61)
+        body = _oval(0, 0.62 * s, 0.43 * s, 0.37 * s)
+        legs, pads = QPainterPath(), QPainterPath()
+        for side in (-1, 1):
+            legs = legs.united(_oval(side * 0.27 * s, 0.9 * s, 0.17 * s, 0.13 * s))
+            pads.addPath(_oval(side * 0.27 * s, 0.93 * s, 0.075 * s, 0.06 * s))
+            for k in (-1, 0, 1):
+                pads.addPath(_oval(side * 0.27 * s + k * 0.055 * s, 0.86 * s + abs(k) * 0.012 * s, 0.024 * s, 0.022 * s))
+        shape = body.united(legs)
+        self.body_box = shape.boundingRect().adjusted(-0.04 * s, -0.04 * s, 0.04 * s, 0.04 * s)
+        self.body = _fur(self.body_box, [(body, WHITE, 0), (legs, BLACK, 0.5), (pads, PAD, 0.8)], s * 0.12, 63, shape, max(0.6, s * 0.02))
+        self.front, self.front_box = self._front(s, leaves)
+
+    @staticmethod
+    def _front(s: float, leaves: _Leaves) -> tuple[QImage, QRectF]:
+        """The shoot held up to its mouth, its end bitten, two leaves at its foot, and the two black
+        arms holding it, as one picture."""
+        top, foot = QPointF(0.06 * s, 0.2 * s), QPointF(-0.2 * s, 0.7 * s)
+        length = math.dist((top.x(), top.y()), (foot.x(), foot.y()))
+        shoot, shoot_rect = _internode(0.11 * s, length, SPRITE, STALKS[1], 5)
+        arms = _limb(QPointF(-0.3 * s, 0.4 * s), QPointF(-0.1 * s, 0.5 * s), 0.19 * s).united(_limb(QPointF(0.3 * s, 0.38 * s), QPointF(0.06 * s, 0.38 * s), 0.18 * s))
+        arms_box = arms.boundingRect().adjusted(-0.03 * s, -0.03 * s, 0.03 * s, 0.03 * s)
+        arms_image = _fur(arms_box, [(arms, BLACK, 0)], s * 0.06, 65, arms, max(0.6, s * 0.02))
+        box = QRectF(-0.5 * s, 0.05 * s, 1.0 * s, 0.95 * s)
+        image = QImage(math.ceil(box.width() * SPRITE), math.ceil(box.height() * SPRITE), QImage.Format_ARGB32_Premultiplied)
+        image.fill(Qt.transparent)
+        q = QPainter(image)
+        q.setRenderHint(QPainter.Antialiasing)
+        q.setRenderHint(QPainter.SmoothPixmapTransform)
+        q.scale(SPRITE, SPRITE)
+        q.translate(-box.left(), -box.top())
+        for angle, tone in ((150, 2), (198, 5)):
+            leaves.draw(q, QPointF(foot.x() + math.cos(math.radians(angle)) * 0.2 * s, foot.y() + math.sin(math.radians(angle)) * 0.2 * s), angle, tone, 0.45 * s / (42 * leaves.u))
+        q.save()
+        q.translate(foot)
+        q.rotate(math.degrees(math.atan2(top.x() - foot.x(), foot.y() - top.y())))
+        q.drawImage(shoot_rect, shoot)
+        q.restore()
+        q.setPen(QPen(col("#7fa04a"), max(0.5, s * 0.012)))
+        q.setBrush(col("#eef6cf"))
+        q.drawEllipse(top, 0.05 * s, 0.03 * s)
+        q.drawImage(arms_box, arms_image)
+        q.end()
+        image.setDevicePixelRatio(SPRITE)
+        return image, box
+
+    def paint(self, p: QPainter, t: float, gust: float, a: float) -> None:
+        pop = win(t, 0.95, 1.45)
+        if pop <= 0 or a <= 0.01:
+            return
+        s = self.s
+        size = ease_back(pop, 2.2)
+        munching = t > 1.6
+        bite = max(0.0, math.sin(2 * math.pi * 2.4 * t)) if munching else 0.0
+        p.save()
+        p.setOpacity(a)
+        p.translate(self.at)
+        p.rotate(1.6 * gust * math.sin(t * 1.3 + 0.4) + 1.2 * gust)
+        p.scale(size, size)
+        p.translate(0, -1.03 * s)
+        p.drawImage(self.body_box, self.body)
+        p.save()
+        p.translate(0, 0.02 * s * bite)
+        p.rotate(3 * math.sin(t * 1.7))
+        happy = munching and (t % 2.2) < 0.6
+        mode = "happy" if happy else ("blink" if _blinking(t, 0.4) else "open")
+        self.head.paint(p, mode, _twitch(t, 1.1), bite)
+        p.restore()
+        p.save()
+        p.translate(0, -0.035 * s * bite)
+        p.drawImage(self.front_box, self.front)
+        p.restore()
+        # Crumbs of bamboo falling from its mouth as it chews.
+        for k in range(2):
+            age = (t - 1.7 - k * 1.1) % 2.2
+            if munching and age < 0.7:
+                p.setPen(Qt.NoPen)
+                p.setBrush(col(LIME, 1 - age / 0.7))
+                p.drawEllipse(QPointF((0.1 - 0.12 * k) * s + age * 0.08 * s, 0.24 * s + age * age * 0.9 * s), 0.018 * s, 0.014 * s)
+        p.restore()
+
+
+class _Peeker:
+    """A panda peeking up over the bottom of the frame, paws on its edge: it rises from behind, then
+    looks about, blinks, twitches an ear and waves now and then; at the end it ducks back down."""
+
+    def __init__(self, at: QPointF, s: float) -> None:
+        self.at, self.s = at, s
+        self.head = _Head(s, 71)
+        self.paw, self.paw_box = _paws(s, [(0, 0, 0)], 73)
+
+    def paint(self, p: QPainter, t: float, gust: float, a: float) -> None:
+        rise = ease_out(win(t, 1.15, 1.6)) * (1 - ease_in(win(t, 4.25, 4.7)))
+        if rise <= 0 or a <= 0.01:
+            return
+        s = self.s
+        p.save()
+        p.setOpacity(a)
+        p.translate(self.at)
+        p.save()
+        p.setClipRect(QRectF(-s, -2 * s, 2 * s, 2 * s))
+        p.translate(0, (1 - rise) * 0.95 * s - 0.3 * s)
+        p.rotate(5 * math.sin(t * 0.9 + 1) + 3 * gust)
+        mode = "blink" if _blinking(t, 1.3) else "open"
+        self.head.paint(p, mode, _twitch(t, 2.2))
+        p.restore()
+        hop = ease_back(win(t, 1.4, 1.62), 2.4) * (1 - win(t, 4.2, 4.3))
+        if hop > 0:
+            for side in (-1, 1):
+                wave = 0.0
+                if side > 0:
+                    for start in (2.4, 3.6):
+                        k = win(t, start, start + 0.75)
+                        wave = max(wave, math.sin(math.pi * k))
+                p.save()
+                p.translate(side * (0.36 + 0.2 * wave) * s, 0.02 * s + (1 - hop) * 0.2 * s - wave * 0.36 * s)
+                p.rotate(side * -8 + wave * 28 * math.sin(t * 18))
+                p.drawImage(self.paw_box, self.paw)
+                p.restore()
+        p.restore()
+
+
+class _Climber:
+    """A panda hugging a bamboo stalk on the left: it climbs up a little as the stalk grows, then
+    holds on, swaying with it, its head tilted, blinking and twitching an ear. The stalk draws it:
+    its body behind the stalk, its arms and legs round it in front, its head on top."""
+
+    def __init__(self, s: float, height: float) -> None:
+        self.s, self.height = s, height
+        self.head = _Head(s, 81)
+        body = _oval(0, 0.6 * s, 0.37 * s, 0.35 * s)
+        self.back_box = body.boundingRect().adjusted(-0.04 * s, -0.04 * s, 0.04 * s, 0.04 * s)
+        self.back = _fur(self.back_box, [(body, WHITE, 0)], s * 0.12, 83, body, max(0.6, s * 0.02))
+        hug = _limb(QPointF(-0.33 * s, 0.42 * s), QPointF(0.13 * s, 0.47 * s), 0.18 * s)
+        hug = hug.united(_limb(QPointF(0.33 * s, 0.56 * s), QPointF(-0.12 * s, 0.62 * s), 0.17 * s))
+        hug = hug.united(_limb(QPointF(-0.3 * s, 0.86 * s), QPointF(0.1 * s, 0.92 * s), 0.2 * s))
+        hug = hug.united(_limb(QPointF(0.3 * s, 0.92 * s), QPointF(-0.06 * s, 0.98 * s), 0.19 * s))
+        pads = QPainterPath()
+        for x, y in ((0.13, 0.47), (-0.12, 0.62), (0.1, 0.92), (-0.06, 0.98)):
+            pads.addPath(_oval(x * s, y * s, 0.05 * s, 0.04 * s))
+        self.front_box = hug.boundingRect().adjusted(-0.04 * s, -0.04 * s, 0.04 * s, 0.04 * s)
+        self.front = _fur(self.front_box, [(hug, BLACK, 0), (pads, PAD, 0.6)], s * 0.07, 85, hug, max(0.6, s * 0.02))
+
+    def climbed(self, t: float) -> float:
+        """How far up its stalk it is, in points: up in two hops as it starts."""
+        return self.height - 0.9 * self.s * (1 - 0.5 * ease_out(win(t, 1.0, 1.35)) - 0.5 * ease_out(win(t, 1.45, 1.8)))
+
+    def back_paint(self, p: QPainter, at: QPointF, angle: float) -> None:
+        p.save()
+        p.translate(at)
+        p.rotate(angle)
+        p.translate(0, -0.7 * self.s)
+        p.drawImage(self.back_box, self.back)
+        p.restore()
+
+    def front_paint(self, p: QPainter, t: float, at: QPointF, angle: float) -> None:
+        s = self.s
+        p.save()
+        p.translate(at)
+        p.rotate(angle)
+        p.translate(0, -0.7 * s)
+        p.drawImage(self.front_box, self.front)
+        p.translate(0.06 * s, 0.05 * s)
+        p.rotate(12 + 5 * math.sin(t * 1.4))
+        self.head.paint(p, "blink" if _blinking(t, 2.1) else "open", _twitch(t, 0.3))
+        p.restore()
 
 
 # The marks: a jade card framed in bamboo, a jade ring with leaves blown round it, the fish ring.
