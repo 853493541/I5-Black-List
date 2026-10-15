@@ -8,10 +8,12 @@ each corner and a pendant trefoil at each end, and under it over the title a fri
 pointed arches whose two halves meet in a quatrefoil above its middle with a burst of light. In the
 top left a great cusped arch sweeps from the top edge down to the side, holding a round window of
 quatrefoil tracery, trefoils and filigree scrolls that curl as they grow. In the top right a round
-window draws its gold ring, then its glass lights up from the middle: the game's 愚人 icon, a jester's
-hat, in raised gold, its seams engraved, on rays of deep garnet and amber glass, wavering like
-candlelight, a glint sweeping across the gold; it throws slow shafts of light down toward the lobby,
-dust turning in them. The gold is
+window draws its gold ring, then lights up from the middle on a smoky veil, and the game's 流浪汉 icon,
+a tied sack, slowly rises into it in plain, dull gold, a faint glint crossing it; it throws slow
+shafts of light down toward the lobby, dust turning in them. The light dims a moment, then in a burst
+the sack is gone and the game's 愚人 icon, a jester's hat, is there in bright polished gold, its seams
+engraved, the best glint sweeping across it, the window and its shafts shining harder to the end.
+The gold is
 shaded per pixel, raised and lit from the upper left; once it is all drawn, glints run along it.
 Gold-leaf feathers fall down the sides, flashing as they turn, and motes rise from the candlelight.
 At the end it all fades.
@@ -96,10 +98,17 @@ DRAW = 620.0
 # The round window's shafts of light are soft: worked out at this share of the size and laid on scaled up.
 SOFT = 0.25
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
-# The game's 愚人 icon (role_fool.png, from the 第五人格 BWIKI) fills this share of the round window's width.
-HAT = 0.7
-# Glints sweep across the hat's gold from its upper left: when each starts, how long it takes, how bright.
-SWEEPS = ((2.3, 0.7, 1.0), (3.4, 0.6, 0.6))
+# The game's 流浪汉 and 愚人 icons (role_vagrant.png and role_fool.png, from the 第五人格 BWIKI): the
+# picture, the share of the round window's width it fills, how wide a gap in it is a seam (up to about
+# twice this, in icon pixels) and how polished its gold is (0..1).
+SACK = ("role_vagrant", 0.74, 1.5, 0.35)
+HAT = ("role_fool", 0.7, 2.0, 1.0)
+# The 流浪汉 rises into the window over these seconds; at REVEAL it is the 愚人, in a burst of light.
+RISE = (1.35, 2.55)
+REVEAL = 3.6
+# Glints sweep across the gold from its upper left: when each starts, how long it takes, how bright. A
+# faint one over the sack, the best one over the hat.
+SWEEPS = ((2.7, 0.8, 0.45), (REVEAL + 0.3, 0.6, 1.4))
 
 
 @dataclass
@@ -167,8 +176,11 @@ def make(stage: Stage):  # noqa: ANN201
             jobs = [(need, f"area{k}", lambda k=k: gilding.build(k)) for k, need in enumerate(gilding.need)]
             jobs += [
                 (0.5, "feather", lambda: _feather(max(16, math.ceil(66 * u * scale / 8) * 8))),
-                (1.05, "glass", lambda: _rose_glass(center, radius, scale, u)),
+                (1.05, "halo", lambda: _halo(center, radius, scale)),
+                (1.05, "sack", lambda: _rose_glass(center, radius, scale, u, *SACK)),
                 (1.5, "shafts", lambda: _shafts(width, height, gap, rose, u)),
+                (2.4, "hat", lambda: _rose_glass(center, radius, scale, u, *HAT)),
+                (2.6, "rays", lambda: _rays(radius, scale)),
             ]
             baked[scale] = (gilding, {}, sorted(jobs, key=lambda job: job[0]))
         return baked[scale][:2]
@@ -186,7 +198,7 @@ def make(stage: Stage):  # noqa: ANN201
         gilding, art = bake(scale)
         prepare(scale, t)
         gilding.advance(t)
-        shafts, glass, feather = art.get("shafts"), art.get("glass"), art.get("feather")
+        shafts, feather = art.get("shafts"), art.get("feather")
         life = win(t, 0.0, 0.3)
         leave = ease_in(win(t, 4.3, 5.0))
         flicker = _flicker(t, 0)
@@ -195,11 +207,13 @@ def make(stage: Stage):  # noqa: ANN201
         warmth.paint(p, width, height, gap, ease_out(win(t, 0.0, 0.9)) * (1 - leave) * (0.86 + 0.14 * flicker))
         _candles(p, t, width, height, u, (1 - leave) * ease_out(win(t, 0.0, 1.2)))
         lit = ease_out(win(t, 1.15, 2.05))
+        hush, _flash, burst, after = _reveal(t)
         if shafts is not None:
-            _shaft_paint(p, t, shafts, width, height, (1 - leave) * ease_out(win(t, 1.6, 2.7)))
-        _dust(p, t, dust, center, radius, spark, u, (1 - leave) * lit)
-        if glass is not None:
-            _rose(p, t, glass, center, radius, lit, 1 - ease_in(win(t, 4.1, 4.85)), u, spark)
+            light = 1 - 0.35 * hush + 0.7 * after + 1.6 * burst
+            _shaft_paint(p, t, shafts, width, height, (1 - leave) * ease_out(win(t, 1.6, 2.7)) * light)
+        _dust(p, t, dust, center, radius, spark, u, (1 - leave) * lit * (1 + 0.6 * after))
+        if art.get("halo") is not None and art.get("sack") is not None:
+            _rose(p, t, art, center, radius, lit, 1 - ease_in(win(t, 4.55, 4.97)), u, spark)
         _tracery(p, t, gilding, ends, 1 - leave, flicker)
         _pens(p, t, lines, spark, u, 1 - leave)
         _flare(p, t, keystone, meet, spark, u)
@@ -358,8 +372,8 @@ def _spandrel(add, a: QPointF, c: QPointF, b: QPointF, u: float, origin: QPointF
 
 
 def _rose_lines(add, center: QPointF, radius: float, u: float) -> None:  # noqa: ANN001
-    """The round window's tracery: its ring, drawing round both ways. The 愚人 hat in it is gold of its
-    own, lit with the glass (_rose_glass)."""
+    """The round window's tracery: its ring, drawing round both ways. The 流浪汉 sack and the 愚人 hat in
+    it are gold of their own, lit with the glass (_rose_glass)."""
     add(_circle(center.x(), center.y(), radius, 96), 3.0, center, 0.5, closed=True)
 
 
@@ -455,9 +469,10 @@ def _ramp(tone: np.ndarray) -> np.ndarray:
     return out
 
 
-def _metal(height: np.ndarray, relief: float) -> np.ndarray:
+def _metal(height: np.ndarray, relief: float, polish: float = 1.0) -> np.ndarray:
     """Gold over a height field, lit from the upper left: its slopes catch the light or fall into
-    shade, and it mirrors a bright sky above and a dark floor below, as polished metal does."""
+    shade, and it mirrors a bright sky above and a dark floor below, as polished metal does. Less
+    polish (0..1) mirrors less and shines less: dull, deeper gold."""
     gy, gx = np.gradient(height)
     nx, ny = -gx * relief, -gy * relief
     norm = np.sqrt(nx * nx + ny * ny + 1)
@@ -466,9 +481,9 @@ def _metal(height: np.ndarray, relief: float) -> np.ndarray:
     diffuse = np.clip(nx * lx + ny * ly + nz * lz, 0, 1)
     rx, ry, rz = 2 * nz * nx, 2 * nz * ny, 2 * nz * nz - 1
     sky = smooth(-0.55, 0.65, -(ry * 0.85 + rx * 0.4))
-    spec = np.clip(rx * lx + ry * ly + rz * lz, 0, 1) ** 26
-    tone = np.clip(0.12 + 0.4 * sky + 0.42 * diffuse + 0.3 * spec, 0, 1)
-    return _ramp(tone) + (spec * 0.3)[..., None]
+    spec = np.clip(rx * lx + ry * ly + rz * lz, 0, 1) ** (8 + 18 * polish)
+    tone = (0.12 + 0.4 * sky * (0.45 + 0.55 * polish) + 0.42 * diffuse + 0.3 * spec * polish) * (0.8 + 0.2 * polish)
+    return _ramp(np.clip(tone, 0, 1)) + (spec * 0.3 * polish)[..., None]
 
 
 def _shift(a: np.ndarray, dy: int, dx: int) -> np.ndarray:
@@ -595,57 +610,80 @@ def _gilt(rect: QRectF, lines: list[_Line], scale: float, u: float) -> tuple[QIm
     return gold, glow(light * 0.85)
 
 
-def _rose_glass(center: QPointF, radius: float, scale: float, u: float) -> tuple[QRectF, QImage, QImage, QRectF, QImage]:
-    """The round window, per pixel, with the 愚人 hat in gold in its middle. Round it the lobby shows
-    through, as in the window on the left: only a light smoky veil, and pale gold light behind the hat;
-    a dark line round the hat and its shadow under it. The hat is raised, polished gold lit from the
-    upper left, its seams engraved. Also where the gold shines, for the glints that sweep across it,
-    and the light the window spills round itself."""
+def _rose_glass(center: QPointF, radius: float, scale: float, u: float, name: str, wide: float, seam: float, polish: float) -> tuple[QRectF, QImage, QImage, QImage]:
+    """The round window, per pixel, with a game icon (assets/<name>.png) in gold in its middle, wide
+    across. Round it the lobby shows through, as in the window on the left: only a light smoky veil,
+    and pale gold light behind the icon, brighter the more polished. On that the icon in a picture of
+    its own, to rise and go: a dark line round it and its shadow under it, and the icon in raised gold
+    lit from the upper left, its seams engraved, polish (0..1) from dull and deep to bright. Also
+    where the gold shines, for the glints that sweep across it."""
     rect = QRectF(center.x() - radius, center.y() - radius, 2 * radius, 2 * radius)
     n = max(8, math.ceil(2 * radius * scale))
     ys, xs = np.mgrid[0:n, 0:n].astype(np.float32) + 0.5
     x, y = (xs / n * 2 - 1), (ys / n * 2 - 1)
     rho = np.hypot(x, y)
     px = u * scale
-    hat, seams, deep = _fool(n, HAT)
-    # A light smoky veil, lighter toward the ring, and pale gold light behind the hat.
-    behind = np.clip(blur(hat, 14 * px) * 1.3, 0, 1)
+    cover, seams, deep = _icon(name, n, wide, seam)
+    # A light smoky veil, lighter toward the ring, and pale gold light behind the icon.
+    behind = np.clip(blur(cover, 14 * px) * (0.9 + 0.4 * polish), 0, 1)
     dark = rgb("#1c1308")
-    color = np.broadcast_to(dark + (rgb("#ffe7aa") - dark) * behind[..., None], (n, n, 3)).copy()
+    color = dark + (rgb("#ffe7aa") - dark) * behind[..., None]
     veil = 0.3 * (1 - 0.45 * smooth(0.35, 1.0, rho)) * (1 - behind) + 0.55 * behind
-    # A dark line round the hat, and its shadow down and to the right.
-    lead = np.clip(blur(hat, max(0.6, 1.1 * px)) * 2.4, 0, 1) * (1 - hat)
-    shadow = _shift(blur(hat, max(0.6, 2.2 * px)), max(1, round(1.8 * px)), max(1, round(1.2 * px))) * (1 - hat)
-    color = color * (1 - 0.85 * lead - 0.5 * shadow)[..., None]
-    veil = np.maximum(veil, np.maximum(0.7 * lead, 0.45 * shadow))
-    # The gold: each part of the hat rising to a rounded ridge along its middle (full height 9 icon
-    # pixels in), bevelled at its edges, its seams cut in and dark.
+    back = picture(color, (1 - smooth(0.985, 1.0, rho)) * veil)
+    # A dark line round the icon, and its shadow down and to the right.
+    lead = np.clip(blur(cover, max(0.6, 1.1 * px)) * 2.4, 0, 1) * (1 - cover)
+    shadow = _shift(blur(cover, max(0.6, 2.2 * px)), max(1, round(1.8 * px)), max(1, round(1.2 * px))) * (1 - cover)
+    # The gold: each part rising to a rounded ridge along its middle (full height 9 icon pixels in),
+    # bevelled at its edges, its seams cut in and dark; dull gold worn uneven.
     groove = blur(seams, max(0.5, 0.45 * px))
     rise = 1 - (1 - np.clip(deep / 9, 0, 1)) ** 2
-    height = blur(0.75 * rise + 0.25 * hat, max(0.6, 0.8 * px)) - 0.25 * groove
-    gold = _metal(height, 9 * px) * (1 - 0.75 * np.clip(groove * 2, 0, 1))[..., None]
-    color = color * (1 - hat[..., None]) + gold * hat[..., None]
-    edge = 1 - smooth(0.985, 1.0, rho)
-    alpha = edge * veil * (1 - hat) + hat
-    glass = picture(color, alpha)
-    shine = picture(np.ones((n, n, 3), dtype=np.float32) * rgb("#fff3cc"), hat * (0.6 + 0.4 * smooth(0.3, 0.9, gold.mean(axis=-1))))
-    # Its light, spilled round it: worked out at a quarter of the size, three radii across.
+    worn = (noise(n, n, 5 * px, 3, 7) - 0.5) * 0.12 * (1 - polish)
+    height = blur(0.75 * rise + 0.25 * cover, max(0.6, 0.8 * px)) - 0.25 * groove + worn
+    gold = _metal(height, 9 * px, polish) * (1 - 0.75 * np.clip(groove * 2, 0, 1))[..., None]
+    color = rgb("#120b03") + (gold - rgb("#120b03")) * cover[..., None]
+    figure = picture(color, cover + (1 - cover) * np.clip(0.8 * lead + 0.45 * shadow, 0, 0.9))
+    shine = picture(np.ones((n, n, 3), dtype=np.float32) * rgb("#fff3cc"), cover * (0.6 + 0.4 * smooth(0.3, 0.9, gold.mean(axis=-1))))
+    return rect, back, figure, shine
+
+
+def _halo(center: QPointF, radius: float, scale: float) -> tuple[QRectF, QImage]:
+    """The light the round window spills round itself: worked out at a quarter of the size, three
+    radii across."""
     m = max(8, math.ceil(6 * radius * scale * 0.25))
     ys, xs = np.mgrid[0:m, 0:m].astype(np.float32) + 0.5
     d = np.hypot(xs / m * 2 - 1, ys / m * 2 - 1) * 3
     spill = np.exp(-((np.maximum(d - 0.85, 0)) / 0.4) ** 2) * 0.6 + np.exp(-((np.maximum(d - 0.9, 0)) / 0.8) ** 2) * 0.25
     spill = spill * smooth(0.5, 1.0, d) * 0.75
-    halo = glow(rgb(HONEY)[None, None, :] * spill[..., None])
-    return rect, glass, shine, QRectF(center.x() - 3 * radius, center.y() - 3 * radius, 6 * radius, 6 * radius), halo
+    return QRectF(center.x() - 3 * radius, center.y() - 3 * radius, 6 * radius, 6 * radius), glow(rgb(HONEY)[None, None, :] * spill[..., None])
 
 
-def _fool(n: int, wide: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """The game's 愚人 icon over the round window's n by n pixels, centred and wide (a share of the
-    window's width) across: how much of each pixel the hat covers, its seams filled in; where its
-    seams are; and how deep inside its part each pixel is, in icon pixels. Its shape is the icon's
-    own: its alpha scaled up smoothly to these pixels and cut at half, the faint haze round it
-    dropped, with a crisp edge a pixel wide."""
-    image = QImage(str(ASSETS / "role_fool.png")).convertToFormat(QImage.Format_Alpha8)
+def _rays(radius: float, scale: float) -> QImage:
+    """The burst of light out of the round window at the reveal, per pixel, worked out at a third of
+    the size, eight radii across: rays of uneven length and strength fanning out all round from its
+    ring, white near it and honey further out, under a soft glow."""
+    m = max(8, math.ceil(8 * radius * scale / 3))
+    ys, xs = np.mgrid[0:m, 0:m].astype(np.float32) + 0.5
+    x, y = xs / m * 2 - 1, ys / m * 2 - 1
+    d, a = np.hypot(x, y) * 4, np.arctan2(y, x)
+    # Rays as whole waves round the circle, so they meet without a seam: eight long ones, and finer
+    # ones of all lengths between.
+    long = (0.5 + 0.5 * np.cos(8 * a + 0.4)) ** 10
+    fine = (0.5 + 0.5 * np.cos(29 * a + 1.3)) ** 6 * (0.55 + 0.45 * np.cos(11 * a + 2.0)) + (0.5 + 0.5 * np.cos(47 * a)) ** 8 * 0.6
+    reach = 1.0 + 1.9 * long + 0.8 * (0.5 + 0.5 * np.cos(5 * a + 0.7))
+    rays = (long + 0.7 * fine) * np.exp(-np.maximum(d - 0.9, 0) / (0.55 * reach)) * smooth(0.75, 1.05, d) * (1 - smooth(3.4, 4.0, d))
+    soft = np.exp(-((np.maximum(d - 0.95, 0)) / 0.7) ** 2) * smooth(0.6, 1.0, d) * 0.45
+    hot = np.exp(-np.maximum(d - 1.0, 0) / 0.6)
+    tint = rgb(HONEY) + (rgb("#fffaf0") - rgb(HONEY)) * hot[..., None]
+    return glow(tint * (rays * 1.1 + soft)[..., None])
+
+
+def _icon(name: str, n: int, wide: float, seam: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """The game's icon assets/<name>.png over the round window's n by n pixels, centred and wide (a
+    share of the window's width) across: how much of each pixel it covers, its seams (gaps up to
+    about 2 seam icon pixels wide) filled in; where its seams are; and how deep inside its part each
+    pixel is, in icon pixels. Its shape is the icon's own: its alpha scaled up smoothly to these
+    pixels and cut at half, the faint haze round it dropped, with a crisp edge a pixel wide."""
+    image = QImage(str(ASSETS / f"{name}.png")).convertToFormat(QImage.Format_Alpha8)
     stride = image.bytesPerLine()
     rows = np.frombuffer(image.constBits(), dtype=np.uint8, count=stride * image.height()).reshape(image.height(), stride)
     alpha = rows[:, : image.width()].astype(np.float32) / 255.0
@@ -656,9 +694,9 @@ def _fool(n: int, wide: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     across = _cubic(at + (xs.min() + xs.max() + 1) / 2, alpha.shape[1])
     down = _cubic(at + (ys.min() + ys.max() + 1) / 2, alpha.shape[0])
     # Its seams, the deep narrow gaps between its parts, filled; not the soft rim round its outline.
-    fill = _close(alpha, 2.0) - alpha
+    fill = _close(alpha, seam) - alpha
     whole = alpha + fill * smooth(0.2, 0.4, fill)
-    hat = _edge(down @ whole @ across.T)
+    cover = _edge(down @ whole @ across.T)
     cut = _edge(down @ alpha @ across.T)
     # How far in from the edge of its part each pixel is, in icon pixels: worn away a pixel at a time,
     # by a cross and a square in turn so that it wears about round.
@@ -668,7 +706,7 @@ def _fool(n: int, wide: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     for k in range(16):
         worn = np.min([_shift(worn, dy, dx) for dy, dx in (square if k % 2 else cross)], axis=0)
         deep += smooth(0.3, 0.7, worn)
-    return hat, hat * (1 - cut), np.maximum(down @ blur(deep, 1.2) @ across.T, 0) * hat
+    return cover, cover * (1 - cut), np.maximum(down @ blur(deep, 1.2) @ across.T, 0) * cover
 
 
 def _cubic(at: np.ndarray, size: int) -> np.ndarray:
@@ -848,7 +886,7 @@ def _candles(p: QPainter, t: float, width: float, height: float, u: float, a: fl
 
 def _shaft_paint(p: QPainter, t: float, shafts: tuple[QImage, list[QImage]], width: float, height: float, a: float) -> None:
     """The round window's shafts, each set breathing in turn, cut to where they may show on a small
-    picture and laid on scaled up."""
+    picture and laid on scaled up; a over 1 lays more light on top."""
     if a <= 0.01:
         return
     keep, layers = shafts
@@ -857,7 +895,7 @@ def _shaft_paint(p: QPainter, t: float, shafts: tuple[QImage, list[QImage]], wid
     q = QPainter(small)
     q.setCompositionMode(QPainter.CompositionMode_Plus)
     for index, layer in enumerate(layers):
-        q.setOpacity(clamp(a * (0.55 + 0.45 * math.sin(t * (0.9 + 0.35 * index) + index * 2.4))))
+        q.setOpacity(clamp(min(a, 1.0) * (0.55 + 0.45 * math.sin(t * (0.9 + 0.35 * index) + index * 2.4))))
         q.drawImage(0, 0, layer)
     q.setCompositionMode(QPainter.CompositionMode_DestinationIn)
     q.setOpacity(1.0)
@@ -865,8 +903,21 @@ def _shaft_paint(p: QPainter, t: float, shafts: tuple[QImage, list[QImage]], wid
     q.end()
     p.save()
     p.setRenderHint(QPainter.SmoothPixmapTransform)
-    p.drawImage(QRectF(0, 0, width, height), small)
+    _brighter(p, QRectF(0, 0, width, height), small, a)
     p.restore()
+
+
+def _brighter(p: QPainter, rect: QRectF, image: QImage, a: float) -> None:
+    """A picture of light laid on at a, which may run up to 2: over 1, laid on again, added."""
+    base = p.opacity()
+    p.setOpacity(base * clamp(a))
+    p.drawImage(rect, image)
+    if a > 1.01:
+        p.setCompositionMode(QPainter.CompositionMode_Plus)
+        p.setOpacity(base * clamp(a - 1))
+        p.drawImage(rect, image)
+        p.setCompositionMode(QPainter.CompositionMode_SourceOver)
+    p.setOpacity(base)
 
 
 def _dust(p: QPainter, t: float, dust: list[tuple], center: QPointF, radius: float, spark: QImage, u: float, a: float) -> None:
@@ -886,42 +937,71 @@ def _dust(p: QPainter, t: float, dust: list[tuple], center: QPointF, radius: flo
     p.restore()
 
 
-def _rose(p: QPainter, t: float, art: tuple, center: QPointF, radius: float, lit: float, a: float, u: float, spark: QImage) -> None:
-    """The round window's glass lights from the middle out with the hat's gold in it, flaring as it
-    fills, and its light spills round it; glints sweep across the gold; the glass is laid on under its
-    tracery."""
-    rect, glass, shine, halo_rect, halo = art
+def _reveal(t: float) -> tuple[float, float, float, float]:
+    """The window's light about the reveal (0..1 each): how far it has dimmed just before; the flash
+    at it, white over the window and soon gone; the burst of light out of it, dying slower; and how
+    far it has risen to shine harder after it."""
+    hush = ease_in_out(win(t, REVEAL - 0.45, REVEAL)) * (t < REVEAL)
+    come = ease_out(win(t, REVEAL - 0.03, REVEAL + 0.03))
+    flash = come * (1 - ease_out(win(t, REVEAL + 0.03, REVEAL + 0.4)))
+    burst = come * (1 - ease_out(win(t, REVEAL + 0.03, REVEAL + 1.1)))
+    return hush, flash, burst, ease_out(win(t, REVEAL, REVEAL + 0.35))
+
+
+def _rose(p: QPainter, t: float, art: dict, center: QPointF, radius: float, lit: float, a: float, u: float, spark: QImage) -> None:
+    """The round window's glass lights from the middle out and its light spills round it, swelling
+    softly as the 流浪汉 rises into it in dull gold and a faint glint crosses it; the light dims, and in
+    a burst the sack is gone and the 愚人 hat is there in bright gold, the best glint across it, the
+    window shining harder from then on. The glass is laid on under its tracery."""
+    halo_rect, halo = art["halo"]
     if lit <= 0 or a <= 0.01:
         return
+    hat = art.get("hat") if t >= REVEAL else None
+    rect, back, figure, shine = hat or art["sack"]
     base = p.opacity()
-    flare = ease_out(win(t, 1.8, 2.05)) * (1 - ease_in_out(win(t, 2.05, 2.9)))
+    hush, flash, burst, after = _reveal(t)
+    swell = ease_out(win(t, 2.0, 2.5)) * (1 - ease_in_out(win(t, 2.5, 3.2)))
     p.save()
     p.setRenderHint(QPainter.SmoothPixmapTransform)
-    p.setOpacity(base * a * lit * (0.8 + 0.12 * _flicker(t, 4) + 0.5 * flare))
-    p.drawImage(halo_rect, halo)
+    _brighter(p, halo_rect, halo, a * lit * ((0.8 + 0.12 * _flicker(t, 4) + 0.25 * swell) * (1 - 0.35 * hush) + 0.5 * after + 1.2 * burst))
     p.setOpacity(base * a)
     if lit >= 1:
-        p.drawImage(rect, glass)
-        # The light behind the glass wavers like candlelight.
-        p.setCompositionMode(QPainter.CompositionMode_Plus)
-        p.setOpacity(base * a * 0.22 * _flicker(t, 5))
-        p.drawImage(rect, glass)
+        p.drawImage(rect, back)
     else:
-        brush = QBrush(glass)
-        brush.setTransform(QTransform(rect.width() / glass.width(), 0, 0, rect.height() / glass.height(), rect.left(), rect.top()))
+        brush = QBrush(back)
+        brush.setTransform(QTransform(rect.width() / back.width(), 0, 0, rect.height() / back.height(), rect.left(), rect.top()))
         p.setPen(Qt.NoPen)
         p.setBrush(brush)
         reach = radius * lit
         p.drawEllipse(center, reach, reach)
-    _sweep(p, t, shine, rect, base * a)
-    if flare > 0.01:
+    # The sack fades in, rising into place; the hat is there at once.
+    come = 1.0 if hat else ease_in_out(win(t, *RISE))
+    if come > 0.01:
+        rise = rect.translated(0, 12 * u * (1 - ease_out(win(t, *RISE)))) if not hat else rect
+        p.setOpacity(base * a * come)
+        p.drawImage(rise, figure)
+        # The light behind the glass wavers like candlelight, harder once the hat is there.
         p.setCompositionMode(QPainter.CompositionMode_Plus)
-        _lay(p, spark, center.x(), center.y(), radius * 1.1, base * a * flare * 0.7)
+        p.setOpacity(base * a * come * clamp(((0.12 + 0.1 * after) * _flicker(t, 5) + 0.04 * swell) * (1 - 0.5 * hush) + 0.08 * after + 0.5 * flash))
+        p.drawImage(rect, back)
+        p.drawImage(rise, figure)
+        p.setCompositionMode(QPainter.CompositionMode_SourceOver)
+        _sweep(p, t, shine, rise, base * a * come)
+    if swell > 0.01:
+        p.setCompositionMode(QPainter.CompositionMode_Plus)
+        _lay(p, spark, center.x(), center.y(), radius * 0.9, base * a * swell * 0.25)
+    rays = art.get("rays")
+    if burst > 0.01 and rays is not None:
+        p.setCompositionMode(QPainter.CompositionMode_Plus)
+        _lay(p, spark, center.x(), center.y(), radius * (1.2 + 0.4 * flash), base * a * flash)
+        p.setCompositionMode(QPainter.CompositionMode_SourceOver)
+        reach = radius * 4 * (0.75 + 0.35 * ease_out(win(t, REVEAL, REVEAL + 0.8)))
+        _brighter(p, QRectF(center.x() - reach, center.y() - reach, 2 * reach, 2 * reach), rays, a * burst * 1.6)
     p.restore()
 
 
 def _sweep(p: QPainter, t: float, shine: QImage, rect: QRectF, a: float) -> None:
-    """Glints sweeping across the hat's gold from its upper left to its lower right: a soft band of
+    """Glints sweeping across the window's gold from its upper left to its lower right: a soft band of
     light let through only where the gold shines."""
     for when, span, strength in SWEEPS:
         k = win(t, when, when + span)
