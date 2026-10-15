@@ -4,8 +4,8 @@ Every scene in love_scenes.SCENES is listed by name with its dot, as in 选择�
 the one picked plays beside them over the fake-name sample lobby, as big as the page allows, and ▶ plays
 it from its start with its music. Under it, the hotkey, set the way 检查's is (the window's hotkey box),
 and 播放, which does what the hotkey does: the 特效 at once over the game, with no check
-(MainWindow.play_quick_scene). The preview plays only while it can be seen and the app is in front:
-behind the game it would paint 30 times a second for nothing.
+(MainWindow.play_quick_scene). The preview plays only while it can be seen, its window not minimized,
+and the app is in front: behind the game it would paint 30 times a second for nothing.
 """
 
 from __future__ import annotations
@@ -151,10 +151,15 @@ class EffectsPage(QWidget):
         self.stage.below.layout().activate()
         self.stage.place()
 
+    def _seen(self) -> bool:
+        """On screen: this page the one shown, in a window that is not minimized."""
+        return self.isVisible() and not self.window().isMinimized()
+
     def _show(self) -> None:
-        """The picked scene from its start; made again only when it changed (演说家遇袭 takes over a second)."""
+        """The picked scene from its start; made again only when it changed (演说家遇袭 takes over a second).
+        While ▶'s music plays on, it goes on where the music is instead."""
         if self.preview.scene == self.scenes.key:
-            self.preview.resume()
+            self.preview.resume(from_start=not self.sounding)
         else:
             self.preview.show_scene(self.scenes.key)
 
@@ -162,12 +167,13 @@ class EffectsPage(QWidget):
         """With the game in front, the preview rests; it plays again as the app comes back."""
         if state != Qt.ApplicationState.ApplicationActive:
             self.preview.pause()
-        elif self.isVisible():
+        elif self._seen():
             self._show()
 
     def showEvent(self, event) -> None:  # noqa: ANN001
         super().showEvent(event)
-        self._show()
+        if self._seen():
+            self._show()
 
     def hideEvent(self, event) -> None:  # noqa: ANN001
         self.preview.pause()

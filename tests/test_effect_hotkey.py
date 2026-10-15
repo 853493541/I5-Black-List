@@ -2,9 +2,12 @@
 the game with no check, on the screen and in 直播画面."""
 
 import json
+import os
 import time
 
 import pytest
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 pytest.importorskip("PySide6")
 
@@ -713,6 +716,35 @@ def test_coming_back_to_the_page_does_not_make_the_scene_again(window):
     assert not page.preview._tick.isActive()
     page._app_state(Qt.ApplicationState.ApplicationActive)
     assert page.preview._tick.isActive() and page.preview._paint is made
+    window.hide()
+
+
+def test_the_preview_keeps_in_step_with_its_music_and_rests_while_minimized(window):
+    page = window.effects_page
+    window.tabs.setCurrentIndex(window.effects_tab)
+    window.show()
+    QApplication.processEvents()
+    page.preview.play_button.click()
+    _wait(120)
+    # Another app in front and back: ▶'s music played on, and the scene goes on with it.
+    page._app_state(Qt.ApplicationState.ApplicationInactive)
+    page._app_state(Qt.ApplicationState.ApplicationActive)
+    assert page.preview._tick.isActive() and page.preview._clock.elapsed() >= 100
+    # With no music, from its start.
+    page.scenes.buttons["fluffy"].click()
+    _wait(120)
+    page._app_state(Qt.ApplicationState.ApplicationInactive)
+    page._app_state(Qt.ApplicationState.ApplicationActive)
+    assert page.preview._clock.elapsed() < 100
+    # Minimized, it rests, the app in front or not; restored, it plays.
+    window.showMinimized()
+    QApplication.processEvents()
+    page._app_state(Qt.ApplicationState.ApplicationActive)
+    assert window.isMinimized() and not page.preview._tick.isActive()
+    window.showNormal()
+    QApplication.processEvents()
+    page._app_state(Qt.ApplicationState.ApplicationActive)
+    assert page.preview._tick.isActive()
     window.hide()
 
 

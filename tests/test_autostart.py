@@ -1,5 +1,6 @@
 """开机自动启动 writes one Run entry for the current user, pointing at this copy, and removes it."""
 
+import os
 import sys
 import types
 from pathlib import Path
@@ -7,6 +8,8 @@ from pathlib import Path
 import pytest
 
 from blacklist_detect import autostart
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 
 class FakeRegistry:
