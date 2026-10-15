@@ -81,7 +81,8 @@ def bloom(core: np.ndarray, tint: str, spread: tuple[tuple[float, float], ...], 
 
 
 def noise(width: int, height: int, scale: float, octaves: int, seed: int) -> np.ndarray:
-    """Smooth value noise, 0..1, octaves of it each half the size of the last."""
+    """Smooth value noise, 0..1, octaves of it each half the size of the last. Each grid is smoothed
+    across first, once per grid row, then down: the same numbers as per pixel, several times faster."""
     rnd = np.random.default_rng(seed)
     out = np.zeros((height, width), dtype=np.float32)
     total = 0.0
@@ -90,14 +91,13 @@ def noise(width: int, height: int, scale: float, octaves: int, seed: int) -> np.
         cell = max(2.0, scale / (2 ** octave))
         gw, gh = int(width / cell) + 3, int(height / cell) + 3
         grid = rnd.random((gh, gw), dtype=np.float32)
-        ys, xs = np.mgrid[0:height, 0:width].astype(np.float32)
-        fx, fy = xs / cell, ys / cell
-        x0, y0 = fx.astype(int), fy.astype(int)
-        sx, sy = fx - x0, fy - y0
+        fx = np.arange(width, dtype=np.float32) / cell
+        fy = (np.arange(height, dtype=np.float32) / cell)[:, None]
+        x0, y0 = fx.astype(int), fy[:, 0].astype(int)
+        sx, sy = fx - x0, fy - y0[:, None]
         sx, sy = sx * sx * (3 - 2 * sx), sy * sy * (3 - 2 * sy)
-        top = grid[y0, x0] * (1 - sx) + grid[y0, x0 + 1] * sx
-        bottom = grid[y0 + 1, x0] * (1 - sx) + grid[y0 + 1, x0 + 1] * sx
-        out += (top * (1 - sy) + bottom * sy) * amp
+        across = grid[:, x0] * (1 - sx) + grid[:, x0 + 1] * sx
+        out += (across[y0] * (1 - sy) + across[y0 + 1] * sy) * amp
         total += amp
         amp *= 0.5
     return out / total

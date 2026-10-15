@@ -73,7 +73,9 @@ class LoveBorder(QWidget):
         origin = QPointF(area.topLeft())
         self._badge = QPointF(badge) - origin if badge is not None else None
         self._seats = tuple(seat.translated(-origin) for seat in seats)
-        self._made = {}
+        # The same scene again (the 特效 hotkey pressed again) keeps the last two made for it, on the
+        # screen and in 直播画面: over the same place it starts at once. 演说家遇袭 takes a second to make.
+        self._made = dict([(key, made) for key, made in self._made.items() if key[0] == scene][-2:])
         self._clock.start()
         self._tick.start()
         self.show()
@@ -142,7 +144,8 @@ class LoveBorder(QWidget):
     def _made_for(self, stage: Stage):  # noqa: ANN202
         gap = stage.gap
         badge = (stage.badge.x(), stage.badge.y()) if stage.badge is not None else None
-        key = (self.scene, round(stage.width), round(stage.height), gap.x(), gap.y(), gap.width(), gap.height(), badge)
+        seats = tuple((seat.x(), seat.y(), seat.width(), seat.height()) for seat in stage.seats)
+        key = (self.scene, round(stage.width), round(stage.height), gap.x(), gap.y(), gap.width(), gap.height(), badge, seats)
         if key not in self._made:
             module = love_scenes.load(self.scene)
             self._made[key] = (module.make(stage), getattr(module, "MAX_RATIO", None))

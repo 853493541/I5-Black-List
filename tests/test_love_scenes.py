@@ -115,6 +115,76 @@ def test_the_border_plays_the_choice_and_nothing_when_off(qapp):
     border.stop()
 
 
+def test_the_same_scene_played_again_is_not_made_again(qapp, monkeypatch):
+    from blacklist_detect.ui_love import LoveBorder
+
+    border = LoveBorder(random.Random(3))
+    area = QApplication.primaryScreen().geometry()
+    keep = QRect(area.center().x() - 150, area.bottom() - 120, 300, 80)
+    module = love_scenes.load("stars")
+    made: list[str] = []
+    real = module.make
+    monkeypatch.setattr(module, "make", lambda stage: made.append("stars") or real(stage))
+    image = QImage(64, 36, QImage.Format_ARGB32_Premultiplied)
+
+    def play() -> None:
+        border.choice = "stars"
+        border.play(area, keep, keep.center())
+        painter = QPainter(image)
+        border.paint_at(painter, 1.0, area.width(), area.height())
+        painter.end()
+        border.stop()
+
+    # The 特效 hotkey pressed again: the same scene over the same place starts at once.
+    play()
+    play()
+    assert made == ["stars"]
+    # Elsewhere, or after another scene, it is made again; never more than two are kept.
+    border.choice = "ice"
+    border.play(area, keep)
+    border.stop()
+    assert border._made == {}
+    play()
+    assert made == ["stars", "stars"]
+    for width in (800, 900, 1000):
+        painter = QPainter(image)
+        border.paint_at(painter, 1.0, width, 450)
+        painter.end()
+    border.choice = "stars"
+    border.play(area, keep)
+    border.stop()
+    assert len(border._made) == 2
+
+
+def test_noise_is_the_same_as_worked_out_per_pixel():
+    import numpy as np
+
+    from blacklist_detect.love_scenes.light import noise
+
+    def per_pixel(width, height, scale, octaves, seed):  # noqa: ANN001, ANN202
+        rnd = np.random.default_rng(seed)
+        out = np.zeros((height, width), dtype=np.float32)
+        total, amp = 0.0, 1.0
+        for octave in range(octaves):
+            cell = max(2.0, scale / (2 ** octave))
+            grid = rnd.random((int(height / cell) + 3, int(width / cell) + 3), dtype=np.float32)
+            ys, xs = np.mgrid[0:height, 0:width].astype(np.float32)
+            fx, fy = xs / cell, ys / cell
+            x0, y0 = fx.astype(int), fy.astype(int)
+            sx, sy = fx - x0, fy - y0
+            sx, sy = sx * sx * (3 - 2 * sx), sy * sy * (3 - 2 * sy)
+            top = grid[y0, x0] * (1 - sx) + grid[y0, x0 + 1] * sx
+            bottom = grid[y0 + 1, x0] * (1 - sx) + grid[y0 + 1, x0 + 1] * sx
+            out += (top * (1 - sy) + bottom * sy) * amp
+            total += amp
+            amp *= 0.5
+        return out / total
+
+    # Every scene's fog, smoke and grain looks exactly as it did.
+    for args in ((311, 177, 60.0, 4, 11), (90, 40, 34.0, 2, 101), (7, 3, 2.0, 2, 1), (200, 1, 3.0, 2, 4), (64, 64, 1.6, 3, 5)):
+        assert np.array_equal(noise(*args), per_pixel(*args)), args
+
+
 def test_every_scene_has_its_picture(qapp):
     from pathlib import Path
 
