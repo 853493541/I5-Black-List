@@ -470,7 +470,6 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     window._paint_history_hover(0, 0, True)
     assert action.isHidden() is False
     assert window.history_table.cellWidget(0, 0).styleSheet() == window._history_wrap_style(THEME["gray_wash"])
-    assert window.record_summary.text().startswith("未发现黑名单")
     window._paint_history_hover(0, 0, False)
     assert action.isHidden() is True
     window.player_edit.setText("纪戴宁")
@@ -1653,9 +1652,9 @@ def test_settings_are_grouped_into_titled_cards(qapp, tmp_path, monkeypatch):
     settings_page = window.tabs.widget(window.settings_tab)
     sections = settings_page.findChildren(SettingsSection)
     titles = [section.findChild(QLabel, "sectionTitle").text() for section in sections]
-    # 检查 opens from the header's pill; 嘉宾 holds one row, 嘉宾特效 with its 音乐.
+    # 检查 opens from the header's pill; 嘉宾 holds one row, 特效 with its 音乐.
     assert titles == ["常规", "嘉宾", "外观", "帮助"]
-    assert [label.text() for label in sections[1].findChildren(QLabel, "rowLabel")] == ["嘉宾特效", "音乐"]
+    assert [label.text() for label in sections[1].findChildren(QLabel, "rowLabel")] == ["特效", "音乐"]
     # 角色名称 and 标签 moved to 黑名单.
     shown = [label.text() for label in settings_page.findChildren(QLabel)]
     assert "角色名称" not in shown and "标签" not in shown
@@ -2926,8 +2925,6 @@ def test_a_record_says_what_it_found_and_a_picture_marks_me(qapp, tmp_path, monk
     names = ["坏人", "小红", "", "我自己"]
     window.store.add_scan([{"seat": i + 1, "name": n, "unclear": not n} for i, n in enumerate(names)], 1.0)
     window._reload_history()
-    # The header says what the lobby had; the time is in the list on the left.
-    assert window.record_summary.text() == "1 名黑名单 · 1 名嘉宾 · 1 人未识别"
     slots = [NameSlot(i, (0, 0, 1, 1), n, n, False, 0.9, not n) for i, n in enumerate(names)]
     dialog = PictureResultDialog("截图检查", result=CheckResult(True, "", names=slots, hits=[]), me="我自己", parent=window)
     assert [label.text() for label in dialog.findChildren(QLabel, "seatMe")] == ["我"]

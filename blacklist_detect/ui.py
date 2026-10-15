@@ -399,18 +399,6 @@ class CheckWorker(QThread):
 
 
 
-def _lobby_summary(kinds: list[str]) -> str:
-    """A checked lobby in a few words, from each seat's kind (hit, like, unclear or ""):
-    「2 名黑名单 · 1 名嘉宾 · 1 人未识别」, or 「未发现黑名单」."""
-    hits, likes, unclear = kinds.count("hit"), kinds.count("like"), kinds.count("unclear")
-    parts = [f"{hits} 名黑名单"] if hits else ["未发现黑名单"]
-    if likes:
-        parts.append(f"{likes} 名嘉宾")
-    if unclear:
-        parts.append(f"{unclear} 人未识别")
-    return " · ".join(parts)
-
-
 def _show_tick(button: QPushButton) -> None:
     """A choice that goes with the others beside it shows a ✓ while it is on."""
     button.setIcon(line_icon("check", 14, THEME["on_accent"]) if button.isChecked() else QIcon())
@@ -713,7 +701,7 @@ class MainWindow(QMainWindow):
         toolbar = QHBoxLayout()
         toolbar.setSpacing(8)
         self.list_search = QLineEdit()
-        self.list_search.setPlaceholderText("搜索名字、标签或原因")
+        self.list_search.setPlaceholderText("搜索")
         self.list_search.setClearButtonEnabled(True)
         self.list_search.setMaximumWidth(360)
         self.list_search.setAccessibleName("搜索名字、标签或原因")
@@ -926,10 +914,6 @@ class MainWindow(QMainWindow):
         catalog.setFont(record_font())
         head.addWidget(catalog)
         head.addStretch(1)
-        # What this lobby had. The time is in the list on the left already.
-        self.record_summary = QLabel("")
-        self.record_summary.setObjectName("sub")
-        head.addWidget(self.record_summary)
         self.record_more = IconButton("more", "更多")
         self.record_menu = QMenu(self)
         self.delete_record_action = self.record_menu.addAction("删除", self._delete_history)
@@ -1036,7 +1020,7 @@ class MainWindow(QMainWindow):
         # 2 方式: 手动检查 waits for the hotkey; 自动检查 watches for the lobby, in 完整模式 only.
         # 手动检查 comes second, right beside its hotkey.
         self.auto_mode = SegmentedControl(
-            [("auto", "自动检查"), ("manual", "手动检查")], "auto" if self.store.auto_capture else "manual"
+            [("auto", "自动"), ("manual", "手动")], "auto" if self.store.auto_capture else "manual"
         )
         self.auto_on = self.auto_mode.buttons["auto"]
         self.auto_off = self.auto_mode.buttons["manual"]
@@ -1149,7 +1133,7 @@ class MainWindow(QMainWindow):
         self.love_music_choice.changed.connect(self._set_love_music)
         for widget in (self.love_music_label, self.love_music_choice):
             widget.setVisible(on)
-        guests.add_row("嘉宾特效", self.love_switch, self.love_music_label, self.love_music_choice)
+        guests.add_row("特效", self.love_switch, self.love_music_label, self.love_music_choice)
 
         # 外观: how the window looks.
         look = section("外观")
@@ -2329,7 +2313,6 @@ class MainWindow(QMainWindow):
         self.record_column.setVisible(count > 0)
         self.history_table.setVisible(count > 0)
         self.history_empty.setVisible(count == 0)
-        self._set_tab_count(self.history_tab, count)
         chosen = -1
         if count:
             chosen = max(0, min(select, count - 1))
@@ -2531,15 +2514,12 @@ class MainWindow(QMainWindow):
         self._mark_selected_record()
         self.history_table.setRowCount(0)
         if row < 0 or row >= len(self.store.scans):
-            self.record_summary.setText("")
             return
         names = self.store.scans[row].get("names", [])
         self.history_table.setRowCount((len(names) + 1) // 2)
-        kinds = []
         for index, seat in enumerate(names):
-            kinds.append(self._set_history_seat(index // 2, index % 2, seat))
+            self._set_history_seat(index // 2, index % 2, seat)
             self.history_table.setRowHeight(index // 2, ROW_H + 4)
-        self.record_summary.setText(_lobby_summary(kinds))
         self._fit_record_card()
 
     def _fit_record_card(self) -> None:
@@ -4363,9 +4343,6 @@ class MainWindow(QMainWindow):
         self.update_title.setObjectName("sectionTitle")
         self.update_title.setFont(chinese_font(SECTION_PT))
         column.addWidget(self.update_title)
-        current = QLabel(f"当前版本 {__version__}")
-        current.setObjectName("rowHint")
-        column.addWidget(current)
         self.update_notes = QLabel("")
         self.update_notes.setWordWrap(True)
         column.addSpacing(4)

@@ -102,7 +102,7 @@ class LikeDialog(Modal):
         self.detail = reason
         self.theme = theme
         self.deleted = False
-        layout = _frame(self, f"编辑嘉宾 · {name}" if allow_delete else "添加嘉宾")
+        layout = _frame(self, "编辑嘉宾" if allow_delete else "添加嘉宾")
         self.card.setFixedWidth(520)
         self.name_edit = QLineEdit(name)
         self.name_error = _field(layout, "名字", self.name_edit)
@@ -180,7 +180,7 @@ class LikesPage(QWidget):
         toolbar = QHBoxLayout()
         toolbar.setSpacing(8)
         self.search = QLineEdit()
-        self.search.setPlaceholderText("搜索名字、昵称或原因")
+        self.search.setPlaceholderText("搜索")
         self.search.setAccessibleName("搜索名字、昵称或原因")
         self.search.setClearButtonEnabled(True)
         self.search.setMaximumWidth(360)
@@ -238,7 +238,7 @@ class LikesPage(QWidget):
         self.table.customContextMenuRequested.connect(self._row_menu)
         self.table.installEventFilter(self)
         outer.addWidget(self.table, 1)
-        self.empty = EmptyState("heart", "嘉宾列表还是空的", "把想再一起玩的人加到这里")
+        self.empty = EmptyState("heart", "嘉宾列表还是空的")
         self.empty_batch_button = self.empty.add_action(QPushButton("批量导入"))
         self.empty_batch_button.clicked.connect(self.import_many)
         self.empty_add_button = self.empty.add_action(QPushButton("添加"))
@@ -278,7 +278,7 @@ class LikesPage(QWidget):
         table.setRowCount(len(rows))
         for row, index in enumerate(rows):
             like = self.store.likes[index]
-            cells = (like.name, like.nickname, scene_name(like.theme), like.reason, _zh_ago(met[index]) if index in met else NEVER_MET)
+            cells = (like.name, like.nickname, scene_name(like.theme) if like.theme else "", like.reason, _zh_ago(met[index]) if index in met else NEVER_MET)
             for column, text in enumerate(cells):
                 item = QTableWidgetItem(" ".join(text.split()) if column == REASON else text)
                 item.setData(Qt.UserRole, index)
@@ -296,7 +296,7 @@ class LikesPage(QWidget):
             self.empty.set_text(f"没有找到「{self.search.text().strip()}」")
         else:
             self.empty.set_icon("heart")
-            self.empty.set_text("嘉宾列表还是空的", "把想再一起玩的人加到这里")
+            self.empty.set_text("嘉宾列表还是空的")
         self.empty_batch_button.setVisible(not has_any)
         self.empty_add_button.setVisible(not has_any)
         table.setVisible(bool(rows))

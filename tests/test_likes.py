@@ -87,8 +87,9 @@ def test_the_page_lists_names_with_their_nicknames(window):
     window._show_list()
     assert window._tab_buttons[window.likes_tab].count() == 2
     rows = [[page.table.item(r, c).text() for c in range(5)] for r in range(page.table.rowCount())]
-    # Newest first; 昵称 beside the name; 经典 for no 特效 of their own; a dash for 最近遇到 until they are met.
-    assert rows == [["小红", "", "经典", "", "—"], ["救人很稳的小明", "明哥", "经典", "上把救了我", "—"]]
+    # Newest first; 昵称 beside the name; nothing under 特效 for no 特效 of their own (经典); a dash for
+    # 最近遇到 until they are met.
+    assert rows == [["小红", "", "", "", "—"], ["救人很稳的小明", "明哥", "", "上把救了我", "—"]]
     page.search.setText("明哥")
     assert page.table.rowCount() == 1
     page.search.setText("没有这个")
@@ -404,14 +405,14 @@ def test_a_guest_picks_a_theme_and_the_page_shows_and_orders_them(window):
     assert field.name.text() == "赛博朋克·一" and dialog.has_changes()
     dialog._accept()
     assert dialog.theme == "cyber"
-    assert LikeDialog("小明", allow_delete=True, theme="cyber", parent=window).windowTitle() == "编辑嘉宾 · 小明"
+    assert LikeDialog("小明", allow_delete=True, theme="cyber", parent=window).windowTitle() == "编辑嘉宾"
     page = window.likes_page
     window.store.add_like(dialog.name, theme=dialog.theme)
     window.store.add_like("小红")
     window.store.add_like("阿星", theme="angel")
     page.refresh()
     shown = lambda: [(page.table.item(r, 0).text(), page.table.item(r, 2).text()) for r in range(page.table.rowCount())]  # noqa: E731
-    assert shown() == [("阿星", "金色传说"), ("小红", "经典"), ("小明", "赛博朋克·一")]
+    assert shown() == [("阿星", "金色传说"), ("小红", ""), ("小明", "赛博朋克·一")]
     assert page.table.dragEnabled()
     # A row dragged to the top decides first.
     page.table.moved.emit(2, 0)

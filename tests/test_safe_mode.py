@@ -60,17 +60,17 @@ def _marks(window) -> list[str]:  # noqa: ANN001
 def test_the_words_for_each_result():
     """黑名单 and 嘉宾 are two messages: what was found at the bottom, 嘉宾 on its own card above."""
     assert result_messages([("坏人", ("炸房", "挂机")), ("乙", ())], ["小红"], 1) == [
-        Message("hit", "发现 2 名黑名单玩家", "1 人未识别", (("坏人", ("炸房", "挂机")), ("乙", ()))),
-        Message("liked", "发现 1 名嘉宾", "", (("小红", ()),)),
+        Message("hit", "2 名黑名单", "1 人未识别", (("坏人", ("炸房", "挂机")), ("乙", ()))),
+        Message("liked", "嘉宾", "", (("小红", ()),)),
     ]
     assert result_messages([], [], 0) == [Message("clear", "未发现黑名单")]
     assert result_messages([], ["小红", "小明"], 0) == [
         Message("clear", "未发现黑名单"),
-        Message("liked", "发现 2 名嘉宾", "", (("小红", ()), ("小明", ()))),
+        Message("liked", "嘉宾", "", (("小红", ()), ("小明", ()))),
     ]
     many = [(f"玩家{n}", ()) for n in range(7)]
     (first,) = result_messages(many, [], 0)
-    assert first.title == "发现 7 名黑名单玩家"
+    assert first.title == "7 名黑名单"
     assert [name for name, _tags in first.people] == ["玩家0", "玩家1", "玩家2", "玩家3"]
     assert first.more == 3
 
@@ -97,13 +97,13 @@ def test_a_hit_shows_in_the_corner_with_nothing_over_the_game(window):
     assert notice.kind == "hit"
     # The 黑名单 players on one card, in the colors of the card beside the button ...
     assert notice.main.kind == "hit"
-    assert notice.main.title.text() == "发现 1 名黑名单玩家"
+    assert notice.main.title.text() == "1 名黑名单"
     assert notice.main.note.text() == "1 人未识别"
     assert notice.main.names() == ["坏人"]
     # ... and 嘉宾 on a card of its own, which comes a moment later, above it.
     _arrive(notice)
     assert notice.likes.isVisible() and notice.likes.kind == "liked"
-    assert notice.likes.title.text() == "发现 1 名嘉宾"
+    assert notice.likes.title.text() == "嘉宾"
     assert notice.likes.names() == ["小红"]
     # At the bottom right of the screen, above the taskbar; 嘉宾 just above the other.
     area = QApplication.primaryScreen().availableGeometry()

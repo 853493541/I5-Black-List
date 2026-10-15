@@ -94,13 +94,13 @@ def result_messages(
     missed = f"{unclear} 人未识别" if unclear else ""
     if hits:
         shown, more = _listed(hits)
-        first = Message("hit", f"发现 {len(hits)} 名黑名单玩家", missed, shown, more)
+        first = Message("hit", f"{len(hits)} 名黑名单", missed, shown, more)
     else:
         first = Message("clear", "未发现黑名单" if blacklist else "检查完成", missed)
     if not likes:
         return [first]
     shown, more = _listed([(name, ()) for name in likes])
-    return [first, Message("liked", f"发现 {len(likes)} 名嘉宾", "", shown, more)]
+    return [first, Message("liked", "嘉宾", "", shown, more)]
 
 
 def _round_corners(widget: QWidget, edge: str) -> None:
