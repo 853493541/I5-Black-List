@@ -4089,7 +4089,7 @@ class MainWindow(QMainWindow):
         self._glance_pause_until = 0.0
         log.info("测试效果: done.")
 
-    def play_quick_scene(self) -> bool:
+    def play_quick_scene(self, under_pointer: bool = True) -> bool:
         """The 特效 hotkey, and 播放 on 特效: the 特效 picked there, at once, with no check (no screen
         copy, no recognition), as a 嘉宾 lobby would get it: the rose ring and the badge on 准备案件还原,
         the scene over the game and its music (设置 › 音乐), on the screen, or only in 直播画面 when
@@ -4100,7 +4100,9 @@ class MainWindow(QMainWindow):
 
         Where: the last lobby's game, as a check found it; with none yet, in the window 直播姬 shows
         the game with (直播模式), else in the window under the pointer, else on its screen as a
-        full-screen game. The button sits where the lobby puts it on a 16:9 game screen there."""
+        full-screen game. The button sits where the lobby puts it on a 16:9 game screen there.
+        under_pointer=False (播放, clicked on this window): no window under the pointer is looked for,
+        since the one behind this window is not the game; this window's screen it is."""
         why = self._quick_refusal()
         if why:
             log.info("特效 hotkey: nothing played (%s).", why)
@@ -4116,7 +4118,7 @@ class MainWindow(QMainWindow):
         if self._game_box is not None:
             where = "the last lobby's game"
         else:
-            picture, window, where = self._quick_place()
+            picture, window, where = self._quick_place(under_pointer)
             self._quick_area = picture
             self._game_box, self._game_screen = self._demo_boxes(picture)
             self._game_windows = ()
@@ -4170,15 +4172,19 @@ class MainWindow(QMainWindow):
         why = self._quick_refusal()
         self.effects_page.say(why)
         if not why:
-            self.play_quick_scene()
+            self.play_quick_scene(under_pointer=False)
 
-    def _quick_place(self) -> tuple[QRect, QRect, str]:
+    def _quick_place(self, under_pointer: bool = True) -> tuple[QRect, QRect, str]:
         """Where the 特效 hotkey plays when no lobby was checked yet: the game's screen, the window it
-        is in (what a 窗口捕捉 captures), and what that is, for the log."""
+        is in (what a 窗口捕捉 captures), and what that is, for the log. under_pointer=False: 播放's
+        pointer is on this window, so this window's screen, not whatever is behind it."""
         found = self._livehime_game() if self.store.stream_mode else None
         if found is not None:
             # MuMu's own bar is in the window 直播姬 captures: the game is its window drawing in its middle.
             window, game, where = found
+        elif not under_pointer:
+            window = (self.screen() or QApplication.primaryScreen()).geometry()
+            game, where = window, "this window's screen"
         else:
             screen = QApplication.screenAt(QCursor.pos()) or QApplication.primaryScreen()
             window = screen.geometry()

@@ -529,6 +529,32 @@ def test_with_no_lobby_yet_it_plays_on_the_window_under_the_pointer(window, monk
     assert window.love.geometry().width() > 640
 
 
+def test_play_on_the_page_plays_on_the_game_not_on_the_window_behind_the_app(window, monkeypatch):
+    from blacklist_detect import ui
+
+    screen = window.screen().geometry()
+    # The pointer is on 播放; behind the app, a browser, not the game.
+    behind = QRect(screen.x() + 40, screen.y() + 30, 640, 360)
+    monkeypatch.setattr(ui, "window_rect_at", lambda _x, _y, _order=(), innermost=True: _native(window, behind))
+    window.effects_page.play_button.click()
+    assert window._quick_scene == "classic"
+    assert window.love.geometry() == window._sixteen_nine(screen) and window.love.geometry() != behind
+    window._end_quick_play()
+    # In 直播模式, MuMu's game, found as the hotkey finds it.
+    window._set_stream_mode(True)
+    game_window = livehime.Capture("MuMu安卓设备", "Qt5QWindowIcon", "MuMuNxDevice.exe", True)
+    whole = QRect(screen.x() + 100, screen.y() + 80, 800, 499)
+    game = QRect(screen.x() + 100, screen.y() + 129, 800, 450)
+    monkeypatch.setattr(livehime, "game_capture", lambda scene, title: game_window)
+    monkeypatch.setattr(livehime, "client_rect", lambda capture: _native(window, whole))
+    monkeypatch.setattr(livehime, "window_of", lambda capture: 77)
+    monkeypatch.setattr(ui, "inner_rect_of", lambda hwnd, _x, _y: _native(window, game))
+    window.effects_page.play_button.click()
+    assert window.love.geometry() == game and window.stream._frame == whole
+    window._end_quick_play()
+    window._set_stream_mode(False)
+
+
 def test_each_hotkey_runs_only_its_own_action(window):
     import ctypes
 
