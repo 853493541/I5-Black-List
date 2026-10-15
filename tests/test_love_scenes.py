@@ -118,19 +118,19 @@ def test_the_border_plays_the_choice_and_nothing_when_off(qapp):
 def test_the_picker_saves_each_choice_and_previews_it(qapp, tmp_path, monkeypatch):
     from blacklist_detect.storage import Store
     from blacklist_detect.ui_love_pick import LoveEffectsDialog
-    from blacklist_detect.ui_music import KEYS as TUNE_KEYS
-    from blacklist_detect.ui_music import TUNES, WeddingMusic
+    from blacklist_detect.ui_music import TUNES, ThemeMusic
 
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     store = Store()
     played: list = []
-    dialog = LoveEffectsDialog(store, WeddingMusic(play=played.append, rng=random.Random(1)))
+    dialog = LoveEffectsDialog(store, ThemeMusic(play=played.append))
     # The default first, then the others, 随机, and 无 last and in red.
     assert list(dialog.scene_buttons) == [*KEYS, "random", "off"] and KEYS[0] == "classic"
-    assert list(dialog.music_buttons) == [*TUNE_KEYS, "random", "off"] and TUNE_KEYS[0] == "organ"
+    # 音乐 follows the theme or is off.
+    assert list(dialog.music_buttons) == ["theme", "off"] and dialog.music_buttons["theme"].text() == "跟随特效"
     assert dialog.scene_buttons["off"].text() == dialog.music_buttons["off"].text() == "无"
-    assert dialog.scene_buttons["classic"].isChecked() and dialog.music_buttons["organ"].isChecked()
+    assert dialog.scene_buttons["classic"].isChecked() and dialog.music_buttons["theme"].isChecked()
     assert dialog.scene_buttons["off"].property("off") is True and dialog.scene_buttons["random"].property("off") is False
     assert dialog.preview.scene == "classic"
     # ▶ on the preview plays the scene with its music.
@@ -138,10 +138,12 @@ def test_the_picker_saves_each_choice_and_previews_it(qapp, tmp_path, monkeypatc
     dialog.scene_buttons["stars"].click()
     assert store.love_scene == "stars" and dialog.preview.scene == "stars"
     assert Store(store.root).love_scene == "stars"
-    dialog.music_buttons["canon"].click()
-    assert store.love_music == "canon" and played == [TUNES["canon"]]
+    dialog.music_buttons["off"].click()
+    assert store.love_music == "off" and played == [None]
+    dialog.music_buttons["theme"].click()
+    assert store.love_music == "theme" and played[-1] == TUNES["stars"]
     dialog.play_button.click()
-    assert played[-1] == TUNES["canon"] and dialog.preview.scene == "stars"
+    assert played[-1] == TUNES["stars"] and dialog.preview.scene == "stars"
     dialog.scene_buttons["off"].click()
     assert dialog.preview.scene == "" and store.love_scene == "off"
     # The preview draws the lobby whatever the choice.
@@ -151,7 +153,7 @@ def test_the_picker_saves_each_choice_and_previews_it(qapp, tmp_path, monkeypatc
     # A scene that is gone shows what plays for it: 天使 for 香槟, 经典花边 for the others.
     for saved, shown in (("champagne", "angel"), ("ribbon", "classic")):
         store.love_scene = saved
-        dialog = LoveEffectsDialog(store, WeddingMusic(play=played.append, rng=random.Random(1)))
+        dialog = LoveEffectsDialog(store, ThemeMusic(play=played.append))
         assert dialog.scene_buttons[shown].isChecked() and dialog.preview.scene == shown
         dialog.reject()
 

@@ -123,7 +123,7 @@ from blacklist_detect.ui_kit import (
 from blacklist_detect.ui_likes import LikesPage
 from blacklist_detect.ui_love import LoveBorder
 from blacklist_detect.ui_love_pick import LoveEffectsDialog
-from blacklist_detect.ui_music import WeddingMusic
+from blacklist_detect.ui_music import ThemeMusic
 from blacklist_detect.ui_notice import CornerNotice
 from blacklist_detect.ui_overlay import (
     _COVER_OUTSET,
@@ -473,7 +473,7 @@ class MainWindow(QMainWindow):
         self._lobby_seats: tuple[QRectF, ...] = ()
 
         # 嘉宾音乐: the same lobby, in either 显示, also gets a few seconds of wedding music.
-        self.music = WeddingMusic()
+        self.music = ThemeMusic()
         # Which scene and which music: 嘉宾 › 嘉宾特效.
         self.love.choice = self.store.love_scene
         # 黑名单 players in the lobby: a red glow at the screen's edges while the result is up.
@@ -3805,14 +3805,12 @@ class MainWindow(QMainWindow):
         return lobby_choice(self.store.likes, self.store.combos, likes, self.store.love_scene, known=_known_scene)
 
     def _tune_for(self, choice: str) -> str:
-        """The music for a lobby with this 嘉宾特效 choice: a scene that brings its own (遇袭's)
-        plays that, unless 音乐 is 无; else 音乐's choice."""
+        """The music for a lobby with this 嘉宾特效 choice: the sound of the scene that plays (随机
+        settled now), none for 无 or when 音乐 is 无."""
         if self.store.love_music == "off":
-            return "off"
+            return ""
         self.love.choice = choice
-        scene = self.love.pick()
-        own = getattr(love_scenes.load(scene), "MUSIC", "") if scene else ""
-        return own or self.store.love_music
+        return self.love.pick()
 
     @staticmethod
     def _seats_of(result: CheckResult) -> tuple[QRectF, ...]:

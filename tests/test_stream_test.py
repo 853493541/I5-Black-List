@@ -65,7 +65,7 @@ def test_the_sample_lobby_shows_with_the_love_effects_and_everything_goes_back(w
     # 嘉宾 only: the rose ring and the heart on 准备案件还原, the card, the border, the music. No 黑名单.
     assert window.panel.isVisible() and window.panel.mode == "liked" and window.clear_mark.isVisible()
     assert window.like_card.isVisible() and not window.hit_card.isVisible() and not window.alert.isVisible()
-    assert window.love.playing() and window.played == [window.store.love_music]
+    assert window.love.playing() and window.played == [window.store.love_scene]
     assert picture.contains(window.panel.cover_geometry().center())
     # Pressed again while it runs: once is enough.
     assert not window.start_stream_test()

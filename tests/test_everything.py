@@ -11,7 +11,6 @@ local PaddleOCR model, like test_reference_screenshot.py; CI skips it.
 """
 
 import os
-import random
 import time
 
 import pytest
@@ -60,7 +59,7 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     from blacklist_detect.ui_dialogs import BatchAddDialog, DisclaimerDialog, GuideDialog
     from blacklist_detect.ui_likes import LikeDialog
     from blacklist_detect.ui_love_pick import LoveEffectsDialog
-    from blacklist_detect.ui_music import TUNES, WeddingMusic
+    from blacklist_detect.ui_music import TUNES, ThemeMusic
 
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
@@ -71,7 +70,7 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     # --- 1. First open: 使用声明, then the first 检查 on the sample, then the welcome. ----------
     window = MainWindow()
     window._watch_timer.stop()
-    window.music = WeddingMusic(play=lambda _tune: None, rng=random.Random(1))
+    window.music = ThemeMusic(play=lambda _tune: None)
     monkeypatch.setattr(window, "_say", lambda text, undo=None: said.append(text))
     window.resize(1100, 700)
     window.show()
@@ -173,14 +172,14 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
 
     # --- 9. Two 嘉宾 players and no 黑名单: the 嘉宾 scene and the music. -------------------------
     played: list = []
-    window.music = WeddingMusic(play=played.append, rng=random.Random(2))
-    window.store.love_scene, window.store.love_music = "classic", "organ"
+    window.music = ThemeMusic(play=played.append)
+    window.store.love_scene, window.store.love_music = "classic", "theme"
     window.store.remove_at(0)
     window._love_played = False
     window.check_now()
     _wait(qapp, lambda: window.love.playing() or window.panel.mode == "liked")
     assert window.panel.mode == "liked" and window.love.playing() and window.love.scene == "classic"
-    assert played == [TUNES["organ"]]
+    assert played == [TUNES["classic"]]
     window.love.stop()
     window._hide_panel_after_title()
 
@@ -248,7 +247,7 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     window._ask_reset()
     fresh = Store(window.store.root)
     assert fresh.entries == [] and fresh.likes == [] and fresh.scans == [] and fresh.player_name == ""
-    assert (fresh.love_scene, fresh.love_music) == ("classic", "organ")
+    assert (fresh.love_scene, fresh.love_music) == ("classic", "theme")
     assert fresh.safe_mode is True and fresh.consented == []
     window._watch_timer.stop()
     window.close()

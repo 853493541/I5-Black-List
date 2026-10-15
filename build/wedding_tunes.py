@@ -1,10 +1,11 @@
-"""Play the 心动音乐 tunes into blacklist_detect/assets, so no recording is used.
+"""Play the wedding tunes three 嘉宾特效 themes keep into blacklist_detect/assets, so no recording is
+used; build/theme_tunes.py plays the others' and uses these instruments.
 
     python build/wedding_tunes.py
 
-Wagner's Bridal Chorus (Lohengrin, 1850), "Here comes the bride, all dressed in white", as
-church organ, music box and 8-bit; Pachelbel's Canon (about 1690) on harp; and church bells ringing
-rounds. All public domain; the performance is this script's own, so a stream can carry it. Each is
+Wagner's Bridal Chorus (Lohengrin, 1850), "Here comes the bride, all dressed in white", on church
+organ for 玫瑰花边; Pachelbel's Canon (about 1690) on harp for 数学; and church bells ringing rounds for
+天使. All public domain; the performance is this script's own, so a stream can carry it. Each is
 mono 16-bit 44.1 kHz, about five seconds, at about -19 dBFS with peaks under -3 dBFS.
 """
 
@@ -65,28 +66,6 @@ def music_box(midi: float, dur: float, vel: float = 1.0) -> np.ndarray:
             out += amp * np.sin(2 * np.pi * f * ratio * t) * np.exp(-t / tau)
     click = RNG.normal(0, 1, len(t)) * np.exp(-t / 0.002) * 0.15
     return (out + click) * np.minimum(1, t / 0.002) * vel * 0.3
-
-
-def square(midi: float, dur: float, vel: float = 1.0) -> np.ndarray:
-    """An 8-bit pulse lead, a little vibrato once the note has sounded a moment."""
-    t = times(dur + 0.03)
-    vib = 1 + 0.006 * np.sin(2 * np.pi * 6 * t) * np.clip((t - 0.15) / 0.1, 0, 1)
-    phase = np.cumsum(hz(midi) * vib / SR)
-    out = np.where(phase % 1 < 0.25, 1.0, -1.0)
-    env = np.minimum(1, t / 0.004) * (0.75 + 0.25 * np.exp(-t / 0.08))
-    env = np.where(t > dur, np.exp(-(t - dur) / 0.01), env)
-    return out * env * vel * 0.16
-
-
-def triangle(midi: float, dur: float, vel: float = 1.0) -> np.ndarray:
-    t = times(dur + 0.02)
-    out = 4 * np.abs(hz(midi) * t % 1 - 0.5) - 1
-    return out * np.where(t > dur, np.exp(-(t - dur) / 0.008), 1.0) * vel * 0.3
-
-
-def hat(dur: float, vel: float = 1.0) -> np.ndarray:
-    t = times(dur)
-    return (RNG.integers(0, 2, len(t)) * 2.0 - 1.0) * np.exp(-t / 0.012) * vel * 0.08
 
 
 def harp(midi: float, dur: float, vel: float = 1.0) -> np.ndarray:
@@ -180,31 +159,6 @@ def organ_take() -> np.ndarray:
     return finish(reverb(render(ev, 6), 2.6, 0.38, 4500), 5.0, 0.7)
 
 
-def music_box_take() -> np.ndarray:
-    beat = 60 / 100
-    ev = [(at * beat, music_box, note + 12, length * beat, 1.0) for at, length, note in BRIDE]
-    for at, note in ((0, C4), (1, G4), (2, E4), (3, G4), (4, G3), (5, D4), (6, C4), (6.5, E4), (7, G4)):
-        ev.append((at * beat, music_box, note + 12, 1.0, 0.45))
-    ev.append((8.0 * beat, music_box, C6 + 12, 1.0, 0.25))
-    return finish(reverb(render(ev, 6), 2.0, 0.3, 7000), 5.0, 0.6)
-
-
-def chip_take() -> np.ndarray:
-    """As a game would play it, a little faster, ending on a level-clear run."""
-    beat = 60 / 132
-    ev = [(at * beat, square, note + 12, length * beat * 0.9, 1.0) for at, length, note in BRIDE[:-1]]
-    ev.append((6 * beat, square, C6, beat * 0.9, 1.0))
-    for k, note in enumerate((C5, E5, G5, C6)):
-        ev.append(((7 + k * 0.25) * beat, square, note + 12, 0.25 * beat * 0.9, 0.8))
-    ev.append((8 * beat, square, C6 + 12, 1.4 * beat, 0.9))
-    roots = [C2] * 4 + [G2] * 2 + [C2] * 3
-    for i in range(18):
-        root = roots[min(i // 2, len(roots) - 1)]
-        ev.append((i * 0.5 * beat, triangle, root + (12 if i % 2 else 0), 0.45 * beat, 0.9))
-        ev.append(((i * 0.5 + 0.25) * beat, hat, 0.04, 0.7 if i % 2 else 0.4))
-    return finish(reverb(render(ev, 6), 0.8, 0.08, 9000), 4.6, 0.35)
-
-
 def canon_take() -> np.ndarray:
     """Pachelbel's Canon: its opening line over the eight chords, then home to D."""
     half = 0.52
@@ -249,8 +203,6 @@ def write(name: str, sig: np.ndarray) -> None:
 
 def main() -> None:
     write("wedding-organ.wav", organ_take())
-    write("wedding-music-box.wav", music_box_take())
-    write("wedding-8bit.wav", chip_take())
     write("wedding-canon.wav", canon_take())
     write("wedding-bells.wav", bells_take())
 

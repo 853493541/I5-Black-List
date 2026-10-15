@@ -1,12 +1,12 @@
-"""嘉宾音乐: wedding music whenever a 嘉宾 is in the lobby, the tune chosen in 嘉宾特效 or a random one,
-once per lobby."""
+"""嘉宾音乐: each 嘉宾特效 theme's own sound whenever a 嘉宾 is in the lobby, once per lobby; 音乐 only
+turns it on (跟随特效) or off (无)."""
 
-import random
 import wave
 
 import pytest
 
-from blacklist_detect.ui_music import KEYS, SAME_LOBBY_S, TUNES, WeddingMusic
+from blacklist_detect import love_scenes
+from blacklist_detect.ui_music import MUSIC_CHOICES, SAME_LOBBY_S, TUNES, ThemeMusic
 
 
 class Clock:
@@ -20,58 +20,48 @@ class Clock:
 def _music():  # noqa: ANN202
     played: list = []
     clock = Clock()
-    return WeddingMusic(play=played.append, rng=random.Random(1), clock=clock), played, clock
+    return ThemeMusic(play=played.append, clock=clock), played, clock
 
 
-def test_the_tunes_are_short():
-    """Five tunes, each about five seconds, mono 16-bit 44.1 kHz."""
-    assert KEYS == ("organ", "music-box", "8bit", "canon", "bells")
+def test_every_theme_has_its_own_sound_as_long_as_it():
+    """One sound for each scene, mono 16-bit 44.1 kHz, no longer than the scene (遇袭's runs its 6.6 s)."""
+    assert set(TUNES) == set(love_scenes.KEYS)
     for key, tune in TUNES.items():
         assert tune.is_file(), key
         with wave.open(str(tune)) as w:
             assert (w.getnchannels(), w.getsampwidth(), w.getframerate()) == (1, 2, 44100)
-            assert w.getnframes() / w.getframerate() <= 5.25
+            assert 4.0 <= w.getnframes() / w.getframerate() <= love_scenes.load(key).DURATION + 0.6, key
+    # Each its own: no two themes share a sound.
+    assert len(set(TUNES.values())) == len(TUNES)
+    assert MUSIC_CHOICES == (("theme", "跟随特效"), ("off", "无"))
 
 
 def test_hearts_get_music_once_per_lobby():
-    """The window asks for a lobby with any 嘉宾 player in it."""
+    """The window asks for a lobby with any 嘉宾 player in it, greeted by its scene."""
     music, played, clock = _music()
-    assert music.lobby([], "random") == ""
+    assert music.lobby([], "stars") == ""
     assert played == []
-    first = music.lobby(["小红", "小明"], "random")
-    assert first in KEYS and played == [TUNES[first]]
+    assert music.lobby(["小红", "小明"], "stars") == "stars" and played == [TUNES["stars"]]
     # The same lobby checked again: the same players a moment later, in any order.
     clock.now += 5
-    assert music.lobby(["小明", "小红"], "random") == ""
+    assert music.lobby(["小明", "小红"], "stars") == ""
     # The next lobby: other players, or the same two a minute later.
-    assert music.lobby(["小红", "阿强"], "random")
+    assert music.lobby(["小红", "阿强"], "cyber")
     clock.now += SAME_LOBBY_S + 1
-    assert music.lobby(["小红", "阿强"], "random")
+    assert music.lobby(["小红", "阿强"], "cyber")
     # One player is a lobby too.
-    assert music.lobby(["小红"], "random")
-    assert len(played) == 4
+    assert music.lobby(["小红"], "claw")
+    assert played == [TUNES["stars"], TUNES["cyber"], TUNES["cyber"], TUNES["claw"]]
 
 
-def test_a_chosen_tune_plays_every_time_and_off_plays_none():
+def test_no_scene_plays_no_sound():
     music, played, clock = _music()
-    assert music.lobby(["小红", "小明"], "off") == ""
+    # 无, or a scene from a newer or older version this one does not have.
+    assert music.lobby(["小红", "小明"], "") == "" and music.pick("ribbon") == ""
     assert played == []
-    for _ in range(3):
-        clock.now += SAME_LOBBY_S + 1
-        assert music.lobby(["小红", "小明"], "canon") == "canon"
-    assert played == [TUNES["canon"]] * 3
-    # Something it does not know, from a newer or older version: no music.
-    assert music.pick("harpsichord") == ""
-
-
-def test_random_is_never_the_same_tune_twice_running():
-    music, played, _clock = _music()
-    for _ in range(60):
-        music.preview("random")
-    assert set(played) == set(TUNES.values())
-    assert all(a != b for a, b in zip(played, played[1:], strict=False))
+    music.preview("")
     music.stop()
-    assert played[-1] is None
+    assert played == [None, None]
 
 
 @pytest.fixture
@@ -88,7 +78,7 @@ def window(tmp_path, monkeypatch):  # noqa: ANN001, ANN201
     made._watch_timer.stop()
     made.store.disclaimer_accepted = True
     tunes: list = []
-    made.music = WeddingMusic(play=tunes.append, rng=random.Random(2))
+    made.music = ThemeMusic(play=tunes.append)
     made.tunes = tunes
     made.store.add_like("小红")
     made.store.add_like("小明")
@@ -116,38 +106,52 @@ def _lobby(hit: bool = False):  # noqa: ANN202
     return CheckResult(True, "", names=names, hits=hits, button_box=button)
 
 
-def test_the_organ_plays_until_another_is_chosen(window):
+def test_the_theme_brings_its_sound_until_music_is_off(window):
     from blacklist_detect.storage import Store
 
-    assert window.store.love_music == "organ"
+    assert window.store.love_music == "theme" and window.store.love_scene == "classic"
     window._show_panel(_lobby())
-    assert window.tunes == [TUNES["organ"]]
+    assert window.tunes == [TUNES["classic"]]
     window.store.love_music = "off"
     window.store.save_settings()
     assert Store(window.store.root).love_music == "off"
+
+
+def test_an_old_tune_choice_follows_the_theme(tmp_path):
+    """The five wedding tunes and 随机 were 音乐's choices once: they follow the theme now; 无 stays off."""
+    import json
+
+    from blacklist_detect.storage import Store
+
+    Store(tmp_path).save_settings()
+    path = tmp_path / "settings.json"
+    for saved, now in (("organ", "theme"), ("8bit", "theme"), ("random", "theme"), ("off", "off"), (None, "theme")):
+        settings = json.loads(path.read_text(encoding="utf-8"))
+        settings["love_music"] = saved
+        path.write_text(json.dumps(settings), encoding="utf-8")
+        assert Store(tmp_path).love_music == now, saved
 
 
 @pytest.mark.parametrize("safe", [True, False])
 def test_music_plays_in_either_display_mode(window, safe):
     """安全模式 draws nothing over the game, but the music is only sound: it plays there too."""
     window.store.safe_mode = safe
-    window.store.love_music = "bells"
+    window.store.love_scene = "angel"
     window._show_panel(_lobby())
-    assert window.tunes == [TUNES["bells"]]
+    assert window.tunes == [TUNES["angel"]]
 
 
 def test_a_blacklist_player_means_no_music(window):
-    window.store.love_music = "random"
     window._show_panel(_lobby(hit=True))
     assert window.tunes == []
 
 
 def test_clearing_the_data_puts_the_effects_back_to_their_defaults(window, monkeypatch):
-    window.store.love_music = "canon"
+    window.store.love_music = "off"
     window.store.love_scene = "ice"
     monkeypatch.setattr("blacklist_detect.ui._confirm", lambda *_args: True)
     window._ask_reset()
-    assert (window.store.love_music, window.store.love_scene) == ("organ", "classic")
+    assert (window.store.love_music, window.store.love_scene) == ("theme", "classic")
     assert window.love.choice == "classic"
 
 
@@ -177,20 +181,16 @@ def test_the_effect_plays_for_one_guest_or_more(window):
         window._love_played = False
         window._show_panel(_likes(likes))
         assert window.love.playing(), likes
-        assert window.tunes == [TUNES["organ"]], likes
+        assert window.tunes == [TUNES["classic"]], likes
         assert window.panel.mode == "liked" and window.like_card.isVisible()
         window._hide_panel_after_title()
 
 
-def test_a_scene_brings_its_own_tune_but_never_by_chance():
-    """遇袭 plays its own tune (the 指挥家's music and the notice) in place of the chosen one; 随机 never
-    picks it."""
-    from blacklist_detect.ui_music import SCENE_TUNES
-
-    tune = SCENE_TUNES["ambush"]
-    with wave.open(str(tune)) as w:
-        assert (w.getnchannels(), w.getsampwidth(), w.getframerate()) == (1, 2, 44100)
+def test_a_guest_with_a_theme_brings_its_sound(window):
+    """A 嘉宾's own 特效 brings its own sound: 遇袭 the 指挥家's music with the notice in it."""
+    with wave.open(str(TUNES["claw"])) as w:
         assert 6.0 <= w.getnframes() / w.getframerate() <= 7.0
-    music, played, _clock = _music()
-    assert music.preview("ambush") == "ambush" and played == [tune]
-    assert all(music.pick("random") in KEYS for _ in range(30))
+    # 阿强, added last, tops the list: his 遇袭 greets the lobby, and its sound with it.
+    window.store.add_like("阿强", theme="claw")
+    window._show_panel(_likes(3))
+    assert window.tunes == [TUNES["claw"]]

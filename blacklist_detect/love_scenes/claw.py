@@ -7,7 +7,7 @@ game's own kill mark made bigger than the screen's middle: three tapered slashes
 white-hot at their cores and purple at their edges, a lilac flash, a jolt, a puff of pink smoke; and
 at that moment 演说家遇袭 slides up into the top right as the game shows it, its own art: the BIG NEWS
 newspaper tossed up into place, the words coming into focus over a dark band. The slashes fray away,
-the fog clears and the names come back. Its tune (MUSIC) is the 指挥家's music, with the notice's
+the fog clears and the names come back. Its sound (ui_music) is the 指挥家's music, with the notice's
 own sound in it at the strike (build/ambush_tune.py).
 
 The 嘉宾 marks wear it: a misty glass card scored by three claw marks, a lilac rim round the button
@@ -33,8 +33,6 @@ if TYPE_CHECKING:
     from blacklist_detect.love_scenes import Stage
 
 DURATION = 6.6
-# The tune it brings (ui_music.SCENE_TUNES), played instead of 音乐's choice unless that is 无.
-MUSIC = "ambush"
 # The fog rolls in and clears; the names go and come back with it.
 FOG_IN = (0.35, 1.4)
 FOG_OUT = (4.75, 5.9)

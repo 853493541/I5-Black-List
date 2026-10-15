@@ -428,7 +428,7 @@ def test_a_guest_picks_a_theme_and_the_page_shows_and_orders_them(window):
 def test_a_combination_needs_two_guests_and_greets_them_with_its_theme(window):
     from blacklist_detect.model import Combo
     from blacklist_detect.ui_guests import ComboDialog, CombosDialog
-    from blacklist_detect.ui_music import WeddingMusic
+    from blacklist_detect.ui_music import ThemeMusic
     from blacklist_detect.ui_overlay import love_look
 
     store = window.store
@@ -458,7 +458,7 @@ def test_a_combination_needs_two_guests_and_greets_them_with_its_theme(window):
     window._live_check = True
     window._on_lobby_placed(button)
     # Quiet: the music a lobby gets plays nowhere here.
-    window.music = WeddingMusic(play=lambda _tune: None)
+    window.music = ThemeMusic(play=lambda _tune: None)
     window._show_panel(CheckResult(True, "", names=names, button_box=button))
     assert window._lobby_choice == "equation" and window.like_card.look == love_look("equation")
     window.love.stop()
@@ -496,8 +496,8 @@ def test_picking_a_theme_plays_it_above_the_choices(window):
 
 
 def test_a_theme_with_its_own_music_plays_it_unless_music_is_off(window):
-    window.store.love_music = "organ"
-    assert window._tune_for("claw") == "ambush"
-    assert window._tune_for("stars") == "organ"
+    window.store.love_music = "theme"
+    assert window._tune_for("claw") == "claw"
+    assert window._tune_for("stars") == "stars"
     window.store.love_music = "off"
-    assert window._tune_for("claw") == "off"
+    assert window._tune_for("claw") == ""

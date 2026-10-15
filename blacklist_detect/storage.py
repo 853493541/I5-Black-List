@@ -415,10 +415,11 @@ class Store:
         # 显示: 安全模式 marks nothing on the game, the result comes as messages at the bottom right
         # of the screen; 完整模式 (False) draws the marks over it. On unless turned off, also for old settings.
         self.safe_mode = True
-        # 嘉宾特效: the scene over the game and the wedding music. Each is a key (love_scenes.SCENES,
-        # ui_music.TUNE_LIST), "random" or "off". 经典 with 婚礼进行曲 · 管风琴 until another is chosen.
+        # 嘉宾特效: the scene over the game, a key of love_scenes.SCENES, "random" or "off" (经典 until
+        # another is chosen); and its music, which follows the scene ("theme") or is "off"
+        # (ui_music.MUSIC_CHOICES).
         self.love_scene = "classic"
-        self.love_music = "organ"
+        self.love_music = "theme"
         # 直播模式: a window for a streaming app with the 嘉宾 marks only, clear behind them. "" off, "on" on.
         self.stream_mode = ""
         # 直播模式's 测试框: the red frame round the game in that window while no mark shows.
@@ -876,7 +877,8 @@ class Store:
             self.close_to_tray = bool(settings.get("close_to_tray", True))
             self.safe_mode = bool(settings.get("safe_mode", True))
             self.love_scene = _choice(settings.get("love_scene"), "classic")
-            self.love_music = _choice(settings.get("love_music"), "organ")
+            # The five wedding tunes and 随机 that came before follow the theme now; 无 stays off.
+            self.love_music = "off" if settings.get("love_music") == "off" else "theme"
             # v0.6.0 saved "key" (green) or "alpha" (clear), v0.6.1 "key": each is on, and clear now.
             self.stream_mode = "on" if settings.get("stream_mode") in ("on", "key", "alpha") else ""
             self.stream_test_frame = settings.get("stream_test_frame") is not False
@@ -1101,7 +1103,7 @@ class Store:
         self.close_to_tray = True
         self.safe_mode = True
         self.love_scene = "classic"
-        self.love_music = "organ"
+        self.love_music = "theme"
         self.stream_mode = ""
         self.stream_test_frame = True
         self.check_blacklist = True

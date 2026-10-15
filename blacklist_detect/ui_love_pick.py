@@ -1,8 +1,8 @@
-"""嘉宾 › 嘉宾特效: the scene that plays over the game when 嘉宾 are in a lobby, and the wedding music.
+"""嘉宾 › 嘉宾特效: the scene that plays over the game when 嘉宾 are in a lobby, and its music.
 It plays whenever one is there: a 组合 all there gets its own scene, else the top 嘉宾 with one of
-their own, else the one chosen here (guests.lobby_choice). The scene and the music can each be one of
-them, 随机 or 无; every choice is saved as it is made. The default comes first (经典, 婚礼进行曲 ·
-管风琴), then the others, then 随机, and 无 last, in red.
+their own, else the one chosen here (guests.lobby_choice). The scene is one of them (经典 first, the
+default), 随机 or 无, in red, last; the music is the scene's own sound (跟随特效) or none (无). Every
+choice is saved as it is made.
 
 A preview plays the chosen scene over the fake-name sample lobby, with the app's own marks on it.
 """
@@ -19,7 +19,7 @@ from blacklist_detect import love_scenes
 from blacklist_detect.love_scenes import DESIGN, sample_stage
 from blacklist_detect.ui_dialogs import _primary
 from blacklist_detect.ui_kit import Modal
-from blacklist_detect.ui_music import TUNE_LIST, WeddingMusic
+from blacklist_detect.ui_music import MUSIC_CHOICES, ThemeMusic
 from blacklist_detect.ui_theme import SMALL_PT, THEME, _pointing, chinese_font, is_dark
 from blacklist_detect.ui_theme_cards import CONTENT_W, PREVIEW_W, ThemeGallery, section, showcase
 from blacklist_detect.ui_widgets import _FlowHost
@@ -248,9 +248,8 @@ class ScenePreview(QWidget):
 
 
 def tune_for(scene: str, music_choice: str) -> str:
-    """The music a scene plays with: its own (遇袭's 指挥家) unless 音乐 is 无, else 音乐's choice."""
-    own = getattr(love_scenes.load(scene), "MUSIC", "") if scene else ""
-    return own if own and music_choice != "off" else music_choice
+    """The music a scene plays with: its own sound, unless 音乐 is 无."""
+    return scene if music_choice != "off" else ""
 
 
 class LoveEffectsDialog(Modal):
@@ -258,7 +257,7 @@ class LoveEffectsDialog(Modal):
     music), 音乐 and when it all plays on its right, and the scenes as picture cards under both, 随机
     and 无 last."""
 
-    def __init__(self, store, music: WeddingMusic, parent: QWidget | None = None) -> None:  # noqa: ANN001
+    def __init__(self, store, music: ThemeMusic, parent: QWidget | None = None) -> None:  # noqa: ANN001
         super().__init__(parent)
         self.store = store
         self.music = music
@@ -267,8 +266,7 @@ class LoveEffectsDialog(Modal):
         self.preview = ScenePreview(self, play=self.play_both)
         self.play_button = self.preview.play_button
         side = showcase(self, layout, self.preview)
-        tunes = [*((key, name) for key, name, _file in TUNE_LIST), ("random", "随机"), ("off", "无")]
-        self.music_buttons = self._choices(side, "音乐", tunes, store.love_music, self._pick_music)
+        self.music_buttons = self._choices(side, "音乐", list(MUSIC_CHOICES), store.love_music, self._pick_music)
         side.addStretch(1)
         when = QLabel("有嘉宾在大厅就放：组合都在时放组合的，嘉宾自己选了特效就放自己的，其余放这里选的。")
         when.setObjectName("sub")
@@ -332,13 +330,13 @@ class LoveEffectsDialog(Modal):
         self.preview.show_scene(key)
 
     def _pick_music(self, key: str) -> None:
+        """跟随特效 plays the previewed scene's sound at once; 无 stops it."""
         self.store.love_music = key
         self.store.save_settings()
-        self.music.preview(key)
+        self.music.preview(tune_for(self.preview.scene, key))
 
     def play_both(self) -> None:
-        """The scene from its start and the music with it, as a lobby would get them: a scene with its
-        own tune (遇袭's 指挥家) plays that, unless 音乐 is 无."""
+        """The scene from its start and its sound with it, as a lobby would get them, unless 音乐 is 无."""
         self.preview.show_scene(self._current(self.scene_buttons, love_scenes.shown(self.store.love_scene), "classic"))
         self.music.preview(tune_for(self.preview.scene, self.store.love_music))
 
