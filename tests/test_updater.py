@@ -185,6 +185,42 @@ def test_unpacking_keeps_to_the_app_files(tmp_path):
     assert not (tmp_path / "evil.txt").exists()
 
 
+QTMEDIA = ("Qt6Multimedia.dll", "QtMultimedia.pyd", "multimedia/windowsmediaplugin.dll")
+
+
+def test_the_update_brings_what_reading_a_players_sound_needs(tmp_path):
+    """特效管理's 上传 reads MP3 and the rest with QtMultimedia, which the runtime of an older install
+    lacks: it comes in the app's own folder, so the update zip brings it."""
+    zipped = _update_zip(tmp_path / "u.zip", {f"BlackListDetect/blacklist_detect/qtmedia/{name}": name.encode() for name in QTMEDIA})
+    root = tmp_path / "app"
+    root.mkdir()
+    staged = updater.stage(zipped, root, "v9.0.0")
+    for name in QTMEDIA:
+        assert (staged / "blacklist_detect" / "qtmedia" / name).read_bytes() == name.encode()
+
+
+def test_the_release_copies_qtmultimedia_into_the_app(tmp_path):
+    """make_release takes the three files from the runtime's PySide6 into blacklist_detect/qtmedia, and
+    stops when one is missing rather than ship an app that cannot read a player's sound."""
+    sys.path.insert(0, str(ROOT / "build"))
+    from make_release import QTMEDIA_FILES, _stage_qtmedia
+
+    site = tmp_path / "site-packages"
+    for rel in QTMEDIA_FILES:
+        (site / rel).parent.mkdir(parents=True, exist_ok=True)
+        (site / rel).write_bytes(rel.encode())
+    (site / "PySide6" / "plugins" / "multimedia" / "ffmpegmediaplugin.dll").write_bytes(b"not this one")
+    app = tmp_path / "stage" / "blacklist_detect"
+    app.mkdir(parents=True)
+    folder = _stage_qtmedia(site, app)
+    assert folder == app / "qtmedia"
+    assert sorted(path.relative_to(folder).as_posix() for path in folder.rglob("*") if path.is_file()) == sorted(QTMEDIA)
+    assert (folder / "multimedia" / "windowsmediaplugin.dll").read_bytes() == b"PySide6/plugins/multimedia/windowsmediaplugin.dll"
+    (site / "PySide6" / "QtMultimedia.pyd").unlink()
+    with pytest.raises(SystemExit, match="QtMultimedia.pyd"):
+        _stage_qtmedia(site, tmp_path / "other")
+
+
 @pytest.mark.skipif(sys.platform != "win32", reason="the launcher is a Windows program")
 def test_the_launcher_lays_the_update_over_and_puts_it_back_when_it_fails(tmp_path):
     sys.path.insert(0, str(ROOT / "build"))

@@ -141,6 +141,17 @@ DROP_SITE_FILES = {
 }
 
 
+# 特效管理's 上传 reads a player's MP3, M4A, video and the rest through QtMultimedia, left out of the
+# runtime above with the other unused Qt modules. These three, its Windows backend among them, go in the
+# app's own folder instead (blacklist_detect/qtmedia), so the update zip, which carries only the app,
+# brings them to players who installed an older version; sound_import loads them from there.
+QTMEDIA_FILES = {
+    "PySide6/Qt6Multimedia.dll": "Qt6Multimedia.dll",
+    "PySide6/QtMultimedia.pyd": "QtMultimedia.pyd",
+    "PySide6/plugins/multimedia/windowsmediaplugin.dll": "multimedia/windowsmediaplugin.dll",
+}
+
+
 class Pruner:
     def __init__(self, site: Path) -> None:
         self.site = site
@@ -272,6 +283,8 @@ def _verify(stage: Path) -> None:
         problems.append(f"hits differ: {data['hits']}")
     if not data.get("single_instance"):
         problems.append("a second copy could not reach the first (QtNetwork)")
+    if not data.get("sound_import"):
+        problems.append(f"上传 cannot read MP3 or MP4 (QtMultimedia from blacklist_detect/qtmedia): {data.get('sound_import_error')}")
     if not data.get("updates"):
         problems.append("updates cannot be checked (cryptography, requests or certifi missing)")
     if data["platform"] != "windows" or not data["icon"]:
@@ -284,6 +297,18 @@ def _verify(stage: Path) -> None:
     if problems:
         raise SystemExit("Release check failed:\n  " + "\n  ".join(problems))
     print(f"Verified: 12 names match, Qt style {data['style']}, all modules from the bundle.")
+
+
+def _stage_qtmedia(site_packages: Path, stage_app: Path) -> Path:
+    """Copy QTMEDIA_FILES from the runtime's site-packages into the staged app's qtmedia folder."""
+    missing = [rel for rel in QTMEDIA_FILES if not (site_packages / rel).is_file()]
+    if missing:
+        raise SystemExit("QtMultimedia files missing from the runtime:\n  " + "\n  ".join(missing))
+    target = stage_app / "qtmedia"
+    for rel, name in QTMEDIA_FILES.items():
+        (target / name).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(site_packages / rel, target / name)
+    return target
 
 
 def _zip(source: Path, target: Path, include) -> None:
@@ -322,8 +347,9 @@ def main() -> int:
     shutil.copytree(
         REPO / "blacklist_detect",
         stage / "blacklist_detect",
-        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "models"),
+        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "models", "qtmedia"),
     )
+    _stage_qtmedia(args.runtime / "Lib" / "site-packages", stage / "blacklist_detect")
     shutil.copytree(args.models, stage / "blacklist_detect" / "models")
     shutil.copy2(args.launcher, stage / EXE_NAME)
     # The app's own process name and icon: runtime\模仿者小工具.exe (see build/app_exe.py).

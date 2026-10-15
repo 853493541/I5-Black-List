@@ -12,6 +12,28 @@ import os
 import sys
 
 
+def _sound_import(sample: str) -> tuple[bool, str]:
+    """Whether QtMultimedia loads, decodes MP3 and MPEG-4, and reads sample; else what went wrong."""
+    try:
+        from pathlib import Path
+
+        from blacklist_detect import sound_import
+
+        media = sound_import._load_qtmultimedia()
+        if Path(media.__file__).resolve().parent != sound_import.QTMEDIA:
+            return False, f"QtMultimedia loaded from {media.__file__}, not {sound_import.QTMEDIA}"
+        formats = media.QMediaFormat().supportedFileFormats(media.QMediaFormat.ConversionMode.Decode)
+        names = sorted(item.name for item in formats)
+        if "MP3" not in names or "MPEG4" not in names:
+            return False, f"decodes only {names}"
+        decoded = sound_import.decode(Path(sample))
+        if not 1.0 < decoded.seconds < 2.0:
+            return False, f"{sample} read as {decoded.seconds:.2f} s"
+    except Exception as error:  # noqa: BLE001
+        return False, repr(error)
+    return True, ""
+
+
 def main() -> int:
     fixture, report = sys.argv[1], sys.argv[2]
     from blacklist_detect.ocr_engine import silence_console_children
@@ -66,6 +88,9 @@ def main() -> int:
     requests.Session().close()
     updates = signed and os.path.isfile(certifi.where())
 
+    # 特效管理's 上传: QtMultimedia from the app's qtmedia folder, loaded with the window open, reads a video's sound.
+    sound_import, sound_import_error = _sound_import(os.path.join(os.path.dirname(fixture), "sounds", "organ.mp4"))
+
     import psutil
 
     payload = {
@@ -79,6 +104,8 @@ def main() -> int:
         "glance": glanced,
         "single_instance": single_instance,
         "updates": updates,
+        "sound_import": sound_import,
+        "sound_import_error": sound_import_error,
         "modules": sorted({getattr(m, "__file__", None) or "" for m in list(sys.modules.values())} - {""}),
         "dlls": sorted({item.path for item in psutil.Process().memory_maps()}),
     }
