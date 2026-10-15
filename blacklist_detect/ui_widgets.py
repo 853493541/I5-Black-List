@@ -79,13 +79,6 @@ def _local_moment(stamp: str) -> datetime | None:
     return moment.astimezone(now.tzinfo)
 
 
-def _zh_date(stamp: str) -> str:
-    moment = _local_moment(stamp)
-    if moment is None:
-        return ""
-    return f"{moment.year}-{moment.month:02d}-{moment.day:02d}"
-
-
 # 最近遇到 for someone not met in any record yet.
 NEVER_MET = "—"
 

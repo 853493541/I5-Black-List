@@ -44,7 +44,6 @@ from blacklist_detect.ui_theme import (
 from blacklist_detect.ui_widgets import (
     TagPill,
     _FlowHost,
-    _zh_date,
     masked_name,
     paint_tag_row,
 )
@@ -130,7 +129,6 @@ class AddNameDialog(Modal):
         title: str = "添加",
         allow_delete: bool = False,
         catalog: tuple[str, ...] = (),
-        added_at: str = "",
         parent=None,
         taken: frozenset[str] | set[str] = frozenset(),
     ) -> None:
@@ -150,10 +148,6 @@ class AddNameDialog(Modal):
         self.deleted = False
         layout = _frame(self, title)
         self.name_edit = QLineEdit(name)
-        added_on = _zh_date(added_at)
-        self.added_on = QLabel(added_on)
-        self.added_on.setObjectName("sub")
-        self.added_on.setVisible(bool(added_on))
         self.name_error = _field(layout, "名字", self.name_edit)
         self.name_edit.textChanged.connect(self._clear_name_error)
         self.tag_host = _FlowHost(gap=8)

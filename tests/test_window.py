@@ -107,14 +107,11 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     assert [action.text() for action in window.more_menu.actions() if action.text()] == ["复制名单", "按原因补标签", "清空黑名单"]
     assert window.blacklist_table.columnCount() == 4
     assert window.blacklist_table.item(0, 3).text() == "—", "not met yet"
-    edited = AddNameDialog(
-        "罪玥吉尔曼",
-        window.store.entries[0].tags,
-        window.store.entries[0].reason,
-        added_at=window.store.entries[0].added_at,
-    )
-    added_on = edited.added_on.text()
-    assert len(added_on) == 10 and added_on[4] == "-" and ":" not in added_on
+    # 编辑 shows no date, and opens no window but its own.
+    before = {id(widget) for widget in QApplication.topLevelWidgets()}
+    edited = AddNameDialog("罪玥吉尔曼", window.store.entries[0].tags, window.store.entries[0].reason, allow_delete=True)
+    stray = [widget for widget in QApplication.topLevelWidgets() if id(widget) not in before and widget is not edited]
+    assert [widget for widget in stray if widget.isVisible()] == []
     edited.close()
     window.store.add_scan([{"seat": 1, "name": "罪玥吉尔曼", "unclear": False}])
     seen = datetime.now().astimezone().replace(microsecond=0) - timedelta(hours=3)

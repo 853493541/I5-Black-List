@@ -2298,7 +2298,6 @@ class MainWindow(QMainWindow):
             title="编辑",
             allow_delete=True,
             catalog=self.store.tag_catalog(),
-            added_at=entry.added_at,
             parent=self,
             taken=self._taken_names(skip=index),
         )
