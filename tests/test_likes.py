@@ -664,10 +664,33 @@ def test_a_combination_shows_when_its_guests_were_last_all_in_one_lobby(window):
         for at, names in zip(ats, lobbies, strict=True)
     ]
     # Records are newest first: 小明 + 小红 met in the second, 小红 + 阿星 in the oldest.
-    assert combos_met(store.combos, store.scans) == {0: ats[1], 1: ats[2]}
-    assert combos_met([Combo(("小明", "阿星"), "neon")], store.scans) == {}
+    assert combos_met(store.combos, store.likes, store.scans) == {0: ats[1], 1: ats[2]}
+    assert combos_met([Combo(("小明", "阿星"), "neon")], store.likes, store.scans) == {}
     page.refresh()
     assert all(row[4] != NEVER_MET for row in _rows(page)[:2])
+
+
+def test_a_combination_has_not_met_where_a_seat_was_another_guest_of_the_same_start(window):
+    from blacklist_detect.model import Combo
+    from blacklist_detect.ui_likes import combos_met
+    from blacklist_detect.ui_widgets import NEVER_MET
+
+    page, store = window.likes_page, window.store
+    for name in ("心动星星", "心动星星呀", "心动小鹿"):
+        store.add_like(name)
+    store.set_combos([Combo(("心动星星呀", "心动小鹿"), "angel")])
+    store.scans = [
+        {"at": "2026-10-14T20:00:00+08:00", "names": [{"seat": 1, "name": "心动星星", "unclear": False}, {"seat": 2, "name": "心动小鹿", "unclear": False}]}
+    ]
+    # The seat is 心动星星 itself, not 心动星星呀 cut short: that lobby never played the 组合's 特效.
+    assert combos_met(store.combos, store.likes, store.scans) == {}
+    page.refresh()
+    assert _rows(page)[0][4] == NEVER_MET
+    # A 嘉宾 since taken off the list still counts by name for the 组合 that keeps them.
+    store.remove_like(1)
+    assert combos_met(store.combos, store.likes, store.scans) == {}
+    store.scans[0]["names"][0]["name"] = "心动星星呀"
+    assert combos_met(store.combos, store.likes, store.scans) == {0: "2026-10-14T20:00:00+08:00"}
 
 
 def test_add_offers_a_guest_or_a_combination(window, monkeypatch):
@@ -723,6 +746,18 @@ def test_the_list_is_empty_only_with_no_guest_and_no_combination(window):
     # Its 嘉宾 gone, the 组合 waits for them, in the list.
     assert page.empty.isHidden() and not page.table.isHidden() and not page.add_button.isHidden()
     assert page.table.item(0, 0).text() == "小明 + 小红"
+    # 复制名单 and 清空嘉宾列表 have no 嘉宾 to work on, so 更多 is not offered.
+    assert page.more_button.isHidden()
+    store.add_like("阿星")
+    page.refresh()
+    assert not page.more_button.isHidden()
+    # A 组合's 嘉宾 run on across 昵称, which it has none of; a 嘉宾's row keeps its own 昵称.
+    assert (page.table.columnSpan(0, 0), page.table.columnSpan(1, 0)) == (2, 1)
+    store.set_combos([])
+    page.refresh()
+    assert page.table.columnSpan(0, 0) == 1
+    store.set_combos([Combo(("小明", "小红"), "angel")])
+    store.clear_likes()
     store.set_combos([])
     page.refresh()
     assert not page.empty.isHidden() and page.table.isHidden() and not page.empty_add_button.isHidden()

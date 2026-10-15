@@ -73,10 +73,14 @@ COMBO_TAG = "组合"
 TOO_FEW = "先添加至少两位嘉宾"
 
 
-def combos_met(combos: list[Combo], scans: list[dict]) -> dict[int, str]:
+def combos_met(combos: list[Combo], likes: list[Entry], scans: list[dict]) -> dict[int, str]:
     """When all of each 组合's 嘉宾 were last in one record, by its place in combos. Records are newest
-    first, so the first record that holds them all is the latest."""
-    people = list({fold(name): Entry(name) for combo in combos for name in combo.names}.values())
+    first, so the first record that holds them all is the latest. Seats are matched against every
+    嘉宾, as the lobby check does, so a seat that is another 嘉宾 is not taken for one of a 组合's;
+    a 嘉宾 since taken off the list is matched by name beside them."""
+    taken = {fold(like.name) for like in likes}
+    gone = {fold(name): Entry(name) for combo in combos for name in combo.names if fold(name) not in taken}
+    people = [*likes, *gone.values()]
     keys = [fold(person.name) for person in people]
     wanted = [{fold(name) for name in combo.names} for combo in combos]
     found: dict[int, str] = {}
@@ -366,7 +370,7 @@ class LikesPage(QWidget):
             id(scans),
         )
         if self._met_cache is None or self._met_cache[0] != key:
-            self._met_cache = (key, (last_seen(likes, scans)[0], combos_met(combos, scans)))
+            self._met_cache = (key, (last_seen(likes, scans)[0], combos_met(combos, likes, scans)))
         return self._met_cache[1]
 
     def _shown_rows(self) -> list[int]:
@@ -395,8 +399,10 @@ class LikesPage(QWidget):
         ]
 
     def _combo_row(self, row: int, number: int, met: dict[int, str]) -> None:
-        """A 组合's row: the 组合 tag and its 嘉宾 under 名字, its 特效, and when they were last all met."""
+        """A 组合's row: the 组合 tag and its 嘉宾 under 名字 and on across 昵称, which a 组合 has none of,
+        its 特效, and when they were last all met."""
         combo = self.store.combos[number]
+        self.table.setSpan(row, NAME, 1, 2)
         people = members(combo, self.store.likes)
         who = " + ".join(name for name, _present in people)
         cells = (who, "", scene_name(combo.theme), "", _zh_ago(met[number]) if number in met else NEVER_MET)
@@ -420,6 +426,7 @@ class LikesPage(QWidget):
         rows = self._shown_rows()
         met, combo_met = self._met()
         table = self.table
+        table.clearSpans()
         table.setRowCount(len(combos) + len(rows))
         table.fixed = len(combos)
         for row, number in enumerate(combos):
@@ -437,8 +444,10 @@ class LikesPage(QWidget):
                 table.setItem(row, column, item)
         has_any = count > 0 or bool(self.store.combos)
         shown = bool(combos or rows)
-        for widget in (*self.toolbar_buttons, self.more_button, self.search):
+        for widget in (*self.toolbar_buttons, self.search):
             widget.setVisible(has_any or (widget is self.search and bool(self.search.text())))
+        # 复制名单 and 清空嘉宾列表 are for 嘉宾: with 组合 alone they would have nothing to do.
+        self.more_button.setVisible(count > 0)
         if has_any and not shown:
             self.empty.set_icon("search")
             self.empty.set_text(f"没有找到「{self.search.text().strip()}」")
