@@ -2,7 +2,7 @@
 
 The scenes are listed by name, each with a dot in its colour (SceneList); the one highlighted plays on
 the right over the fake-name sample lobby, with the app's own marks on it (ScenePreview), and ▶ plays it
-from its start with its music (unless 设置 › 音乐 is 无). 用这个 gives its key; closing changes nothing.
+from its start with its music (as loud as 设置 › 声音 says). 用这个 gives its key; closing changes nothing.
 The 特效 page (ui_effects) is made of the same list and preview.
 """
 
@@ -223,7 +223,7 @@ class ScenePreview(QWidget):
 
 
 def tune_for(scene: str, music_choice: str) -> str:
-    """The music a scene plays with: its own sound, unless 音乐 is 无."""
+    """The music a scene plays with: its own sound, unless music_choice is "off"."""
     return scene if music_choice != "off" else ""
 
 

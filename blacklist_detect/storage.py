@@ -367,6 +367,13 @@ def _set_aside(path: Path) -> Path:
 
 
 
+def _volume(value: object) -> int:
+    """声音 as saved: a percent from 0 to 100 in steps of 5, else 100."""
+    if isinstance(value, bool) or not isinstance(value, int | float) or not 0 <= value <= 100:
+        return 100
+    return round(value / 5) * 5
+
+
 def _theme(value: object) -> str:
     """A 嘉宾's or a combination's theme as saved: a scene's key, or "" for none of their own (经典). Whether
     this version still has the scene is the player's business (guests.lobby_choice skips one it has not)."""
@@ -414,9 +421,11 @@ class Store:
         # of the screen; 完整模式 (False) draws the marks over it. On unless turned off, also for old settings.
         self.safe_mode = True
         # 设置 › 嘉宾特效: on ("classic", 经典 greeting 嘉宾 with no 特效 of their own) or "off" (no scene for
-        # anyone); and the music, which follows the scene ("theme") or is "off" (ui_music.MUSIC_CHOICES).
+        # anyone).
         self.love_scene = "classic"
-        self.love_music = "theme"
+        # 设置 › 声音: how loud every sound the app makes is, in percent (steps of 5, as 设置 sets it), and 静音.
+        self.sound_volume = 100
+        self.sound_muted = False
         # 特效: the scene the 特效 hotkey plays (a love_scenes key), and that hotkey; it never equals 检查's.
         self.quick_scene = "classic"
         self.effect_hotkey = DEFAULT_EFFECT_HOTKEY
@@ -833,7 +842,8 @@ class Store:
                 "close_to_tray": self.close_to_tray,
                 "safe_mode": self.safe_mode,
                 "love_scene": self.love_scene,
-                "love_music": self.love_music,
+                "sound_volume": self.sound_volume,
+                "sound_muted": self.sound_muted,
                 "quick_scene": self.quick_scene,
                 "effect_hotkey": self.effect_hotkey,
                 "stream_mode": self.stream_mode,
@@ -889,8 +899,10 @@ class Store:
             self.safe_mode = bool(settings.get("safe_mode", True))
             # A scene, 随机 or 无 was the one choice for every 嘉宾 once: any of them is on now; 无 stays off.
             self.love_scene = "off" if settings.get("love_scene") == "off" else "classic"
-            # The five wedding tunes and 随机 that came before follow the theme now; 无 stays off.
-            self.love_music = "off" if settings.get("love_music") == "off" else "theme"
+            self.sound_volume = _volume(settings.get("sound_volume"))
+            # Up to v0.9.12 设置 › 嘉宾特效 › 音乐 turned the sound on or off: its 无 is 静音 now.
+            muted = settings.get("sound_muted", settings.get("love_music") == "off")
+            self.sound_muted = muted is True
             # A scene this version has (one replaced is its replacement), else 经典.
             scene = love_scenes.shown(str(settings.get("quick_scene", "") or ""))
             self.quick_scene = scene if scene in love_scenes.KEYS else "classic"
@@ -1134,7 +1146,8 @@ class Store:
         self.close_to_tray = True
         self.safe_mode = True
         self.love_scene = "classic"
-        self.love_music = "theme"
+        self.sound_volume = 100
+        self.sound_muted = False
         self.quick_scene = "classic"
         self.effect_hotkey = DEFAULT_EFFECT_HOTKEY
         self.dropped_hotkey = ""

@@ -185,7 +185,7 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     window.love.stop()
     window._hide_panel_after_title()
 
-    # --- 10. 选择特效: every scene previews; 设置 › 嘉宾特效 and its 音乐 are kept. ------------------
+    # --- 10. 选择特效: every scene previews; 设置 › 嘉宾特效 and 声音 are kept. ----------------------
     picker = ScenePicker("lace", "心动小鹿", window.music, parent=window)
     for key in love_scenes.KEYS:
         picker.buttons[key].click()
@@ -194,10 +194,10 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     picker.buttons["stars"].click()
     picker.accept()
     assert picker.key == "stars"
-    window.love_music_choice.buttons["off"].click()
+    window.mute_box.click()
     window.love_switch.click()
     again = Store(window.store.root)
-    assert (again.love_scene, again.love_music) == ("off", "off")
+    assert (again.love_scene, again.sound_muted) == ("off", True)
     # Every scene plays through over a real-size screen, the button left bare.
     stage = love_scenes.sample_stage()
     for key in love_scenes.KEYS:
@@ -251,7 +251,7 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     window._ask_reset()
     fresh = Store(window.store.root)
     assert fresh.entries == [] and fresh.likes == [] and fresh.scans == [] and fresh.player_name == ""
-    assert (fresh.love_scene, fresh.love_music) == ("classic", "theme")
+    assert (fresh.love_scene, fresh.sound_volume, fresh.sound_muted) == ("classic", 100, False)
     assert fresh.safe_mode is True and fresh.consented == []
     window._watch_timer.stop()
     window.close()

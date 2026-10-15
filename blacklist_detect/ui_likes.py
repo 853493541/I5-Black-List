@@ -192,7 +192,6 @@ class LikeDialog(Modal):
         allow_delete: bool = False,
         theme: str = "",
         music=None,  # noqa: ANN001
-        music_choice: str = "theme",
         taken: frozenset[str] | set[str] = frozenset(),
         blacklisted: frozenset[str] | set[str] = frozenset(),
         parent=None,  # noqa: ANN001
@@ -220,7 +219,7 @@ class LikeDialog(Modal):
         self.detail_edit.setTabChangesFocus(True)
         self.detail_edit.setFixedHeight(self.fontMetrics().lineSpacing() * 2 + 18)
         _field(layout, "原因", self.detail_edit)
-        self.theme_field = ThemeField(theme, name, music, music_choice)
+        self.theme_field = ThemeField(theme, name, music)
         _field(layout, "特效", self.theme_field)
         remove = _danger("删除", self._delete) if allow_delete else None
         self.footer(_primary("保存" if allow_delete else "添加", self._accept), left=remove)
@@ -496,7 +495,6 @@ class LikesPage(QWidget):
         dialog = LikeDialog(
             name if isinstance(name, str) else "",
             music=self.music,
-            music_choice=self.store.love_music,
             taken=self._taken(),
             blacklisted=self._blacklisted(),
             parent=self.window(),
@@ -515,7 +513,7 @@ class LikesPage(QWidget):
         like = self.store.likes[index]
         dialog = LikeDialog(
             like.name, like.nickname, like.reason, allow_delete=True,
-            theme=like.theme, music=self.music, music_choice=self.store.love_music,
+            theme=like.theme, music=self.music,
             taken=self._taken(skip=index),
             blacklisted=self._blacklisted(), parent=self.window(),
         )
@@ -537,7 +535,7 @@ class LikesPage(QWidget):
             self.edit(self._index_at(row))
 
     def _combo_editor(self, combo: Combo | None = None) -> ComboDialog:
-        return ComboDialog(self.store.likes, combo, parent=self.window(), music=self.music, music_choice=self.store.love_music)
+        return ComboDialog(self.store.likes, combo, parent=self.window(), music=self.music)
 
     def add_combo(self, _checked: bool = False) -> None:
         """添加组合: two or more 嘉宾 and the 特效 that greets them all in one lobby."""

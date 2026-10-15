@@ -788,9 +788,9 @@ def test_the_list_is_empty_only_with_no_guest_and_no_combination(window):
     assert not page.empty.isHidden() and page.table.isHidden() and not page.empty_add_button.isHidden()
 
 
-def test_a_theme_with_its_own_music_plays_it_unless_music_is_off(window):
-    window.store.love_music = "theme"
+def test_a_theme_with_its_own_music_plays_it(window):
+    """Its own sound, whatever 声音 is: ThemeMusic decides how loud, or 静音 none."""
     assert window._tune_for("claw") == "claw"
     assert window._tune_for("stars") == "stars"
-    window.store.love_music = "off"
-    assert window._tune_for("claw") == ""
+    window.mute_box.click()
+    assert window._tune_for("claw") == "claw" and window.music.muted

@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSlider,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -123,7 +124,7 @@ from blacklist_detect.ui_kit import (
 )
 from blacklist_detect.ui_likes import LikesPage
 from blacklist_detect.ui_love import LoveBorder
-from blacklist_detect.ui_music import MUSIC_CHOICES, ThemeMusic
+from blacklist_detect.ui_music import VOLUME_STEP, ThemeMusic, sound_dir
 from blacklist_detect.ui_notice import CornerNotice
 from blacklist_detect.ui_overlay import (
     _COVER_OUTSET,
@@ -466,8 +467,10 @@ class MainWindow(QMainWindow):
         self._lobby_choice = ""
         self._lobby_seats: tuple[QRectF, ...] = ()
 
-        # 嘉宾音乐: the same lobby, in either 显示, also gets a few seconds of wedding music.
-        self.music = ThemeMusic()
+        # 嘉宾音乐: the same lobby, in either 显示, also gets a few seconds of wedding music, as loud as
+        # 设置 › 声音 says.
+        self.music = ThemeMusic(folder=sound_dir())
+        self.music.volume, self.music.muted = self.store.sound_volume, self.store.sound_muted
         # Whether a scene greets 嘉宾 at all: 设置 › 嘉宾特效. Each lobby's own is worked out as it shows.
         self.love.choice = self.store.love_scene
         # 黑名单 players in the lobby: a red glow at the screen's edges while the result is up.
@@ -1105,42 +1108,53 @@ class MainWindow(QMainWindow):
         # Put over the window under the pill once the header is built.
         self.check_panel = CheckPanel(check)
 
-        # 常规: how the app starts and closes.
+        # 常规: how the app starts and closes, on one row, and how loud it is.
         general = section("常规")
         self.autostart_switch = Switch(autostart.is_enabled())
         self.autostart_switch.setAccessibleName("开机启动")
         self.autostart_switch.setEnabled(autostart.available())
         self.autostart_switch.toggled.connect(self._set_autostart)
-        general.add_row("开机启动", self.autostart_switch)
         # Asked the way Chinese desktop apps ask it: what × does, with both answers in view.
+        close_label = QLabel("关闭窗口时")
+        close_label.setObjectName("rowLabel")
+        close_label.setContentsMargins(20, 0, 0, 0)
         self.close_mode = SegmentedControl(
             [("tray", "最小化"), ("quit", "退出")], "tray" if self.store.close_to_tray else "quit"
         )
+        self.close_mode.setAccessibleName("关闭窗口时")
         self.close_mode.changed.connect(self._on_close_mode)
-        general.add_row("关闭窗口时", self.close_mode)
+        general.add_row("开机启动", self.autostart_switch, close_label, self.close_mode)
+        # 声音: how loud every sound the app makes is, and 静音 for none. Let go, the slider plays a
+        # moment of sound at the new volume.
+        self.volume_slider = QSlider(Qt.Horizontal)
+        self.volume_slider.setRange(0, 100 // VOLUME_STEP)
+        self.volume_slider.setPageStep(2)
+        self.volume_slider.setFixedWidth(180)
+        self.volume_slider.setCursor(Qt.PointingHandCursor)
+        self.volume_slider.setAccessibleName("音量")
+        self.volume_slider.setValue(self.store.sound_volume // VOLUME_STEP)
+        self.volume_slider.valueChanged.connect(self._on_volume)
+        self.volume_slider.sliderReleased.connect(self._volume_set)
+        self.volume_label = QLabel(f"{self.store.sound_volume}%")
+        self.volume_label.setObjectName("rowLabel")
+        self.volume_label.setFixedWidth(metrics.horizontalAdvance("100%") + 4)
+        self.mute_box = QCheckBox("静音")
+        self.mute_box.setChecked(self.store.sound_muted)
+        self.mute_box.setCursor(Qt.PointingHandCursor)
+        self.mute_box.toggled.connect(self._on_mute)
+        general.add_row("声音", self.volume_slider, self.volume_label, self.mute_box)
         self.disclaimer_button = QPushButton("使用声明")
         self.disclaimer_button.setFont(ui_font())
         self.disclaimer_button.setAutoDefault(False)
         self.disclaimer_button.setCursor(Qt.PointingHandCursor)
         self.disclaimer_button.clicked.connect(self._show_disclaimer)
 
-        # 嘉宾: whether a scene greets 嘉宾 players in a lobby, and while it does, its music on the same row.
+        # 嘉宾: whether a scene greets 嘉宾 players in a lobby.
         guests = section("嘉宾")
-        on = self.store.love_scene != "off"
-        self.love_switch = Switch(on)
+        self.love_switch = Switch(self.store.love_scene != "off")
         self.love_switch.setAccessibleName("嘉宾特效")
         self.love_switch.toggled.connect(self._set_love_effects)
-        self.love_music_label = QLabel("音乐")
-        self.love_music_label.setObjectName("rowLabel")
-        self.love_music_label.setContentsMargins(20, 0, 0, 0)
-        self.love_music_choice = SegmentedControl(list(MUSIC_CHOICES), self.store.love_music)
-        self.love_music_choice.setAccessibleName("音乐")
-        # 无 in red: it turns the music off.
-        self.love_music_choice.buttons["off"].setProperty("off", True)
-        self.love_music_choice.changed.connect(self._set_love_music)
-        for widget in (self.love_music_label, self.love_music_choice):
-            widget.setVisible(on)
-        guests.add_row("特效", self.love_switch, self.love_music_label, self.love_music_choice)
+        guests.add_row("特效", self.love_switch)
 
         # 外观: how the window looks.
         look = section("外观")
@@ -1385,9 +1399,7 @@ class MainWindow(QMainWindow):
         self.close_mode.set_current("tray" if self.store.close_to_tray else "quit")
         self.love.choice = self.store.love_scene
         self._sync_switch(self.love_switch, self.store.love_scene != "off")
-        self.love_music_choice.set_current(self.store.love_music)
-        for widget in (self.love_music_label, self.love_music_choice):
-            widget.setVisible(self.store.love_scene != "off")
+        self._sync_sound()
         self.display_mode.set_current("safe")
         self.stream_choice.set_current("off")
         self.stream_frame_box.setChecked(self.store.stream_test_frame)
@@ -2893,17 +2905,49 @@ class MainWindow(QMainWindow):
                 mark.setAttribute(Qt.WA_DontShowOnScreen, hidden)
 
     def _set_love_effects(self, on: bool) -> None:
-        """嘉宾特效 on: each 嘉宾 and 组合 is greeted with its 特效, 经典 for none; off: no scene for anyone.
-        音乐 shows beside it only while it is on."""
+        """嘉宾特效 on: each 嘉宾 and 组合 is greeted with its 特效, 经典 for none; off: no scene for anyone."""
         self.store.love_scene = "classic" if on else "off"
         self.store.save_settings()
         self.love.choice = self.store.love_scene
-        self.love_music_label.setVisible(on)
-        self.love_music_choice.setVisible(on)
 
-    def _set_love_music(self, key: str) -> None:
-        self.store.love_music = key
+    def _on_volume(self, step: int) -> None:
+        """声音's slider moved: every sound from now on is this loud. Dragged, it is saved and heard once
+        let go (_volume_set); moved with the keys, the wheel or a click beside the handle, at once."""
+        self.store.sound_volume = step * VOLUME_STEP
+        self.music.volume = self.store.sound_volume
+        self.volume_label.setText(f"{self.store.sound_volume}%")
+        if not self.volume_slider.isSliderDown():
+            self._volume_set()
+
+    def _volume_set(self) -> None:
+        """The volume chosen: saved, and a moment of sound at it, unless 静音."""
         self.store.save_settings()
+        self.effects_page.sounding = False
+        self.music.sample()
+
+    def _on_mute(self, on: bool) -> None:
+        """静音: no sound at all, the one playing now stopped too."""
+        self.store.sound_muted = on
+        self.store.save_settings()
+        self.music.muted = on
+        if on:
+            self.music.stop()
+            self.effects_page.sounding = False
+
+    def _sync_sound(self) -> None:
+        """声音 as the store has it (after 清空数据), with nothing played for it."""
+        for control in (self.volume_slider, self.mute_box):
+            control.blockSignals(True)
+        self.volume_slider.setValue(self.store.sound_volume // VOLUME_STEP)
+        self.mute_box.setChecked(self.store.sound_muted)
+        for control in (self.volume_slider, self.mute_box):
+            control.blockSignals(False)
+        self.volume_label.setText(f"{self.store.sound_volume}%")
+        self.music.volume, self.music.muted = self.store.sound_volume, self.store.sound_muted
+
+    def _sound_said(self) -> str:
+        """声音 for the log."""
+        return "muted" if self.store.sound_muted else f"{self.store.sound_volume}%"
 
     def _set_stream_mode(self, on: bool | str) -> None:
         if bool(on) != bool(self.store.stream_mode):
@@ -3928,7 +3972,8 @@ class MainWindow(QMainWindow):
                 "方式 " + ("自动检查" if store.auto_capture else f"手动检查 ({store.hotkey or '无快捷键'})"),
                 "提醒 " + ("黑名单+嘉宾" if store.check_blacklist and store.check_likes else "只有黑名单" if store.check_blacklist else "只有嘉宾"),
                 "直播模式 " + ("开" if store.stream_mode else "关") + ("" if store.stream_test_frame else " (测试框 关)"),
-                "嘉宾特效 " + ("关" if store.love_scene == "off" else f"开 (音乐 {store.love_music})"),
+                "嘉宾特效 " + ("关" if store.love_scene == "off" else "开"),
+                f"声音 {store.sound_volume}%" + (" (静音)" if store.sound_muted else ""),
                 f"特效 {store.quick_scene} ({store.effect_hotkey or '无快捷键'})",
                 f"外观 {store.appearance}",
                 "关闭窗口时 " + ("最小化到托盘" if store.close_to_tray else "退出程序"),
@@ -3947,9 +3992,7 @@ class MainWindow(QMainWindow):
 
     def _tune_for(self, choice: str) -> str:
         """The music for a lobby with this 嘉宾特效 choice: the sound of the scene that plays, none when
-        嘉宾特效 or 音乐 is off."""
-        if self.store.love_music == "off":
-            return ""
+        嘉宾特效 is off. 声音 decides how loud (ThemeMusic)."""
         self.love.choice = choice
         return self.love.pick()
 
@@ -4122,7 +4165,7 @@ class MainWindow(QMainWindow):
     def play_quick_scene(self, under_pointer: bool = True) -> bool:
         """The 特效 hotkey, and 播放 on 特效: the 特效 picked there, at once, with no check (no screen
         copy, no recognition), as a 嘉宾 lobby would get it: the rose ring and the badge on 准备案件还原,
-        the scene over the game and its music (设置 › 音乐), on the screen, or only in 直播画面 when
+        the scene over the game and its music (设置 › 声音), on the screen, or only in 直播画面 when
         安全模式 puts the marks there. It plays with 嘉宾特效 off too, and pressed again it starts over.
         It plays nothing when _quick_refusal says why not: before 使用声明 is agreed to, in 安全模式
         without 直播模式 (nothing is drawn over the game there), and while a real lobby is checked or
@@ -4157,9 +4200,9 @@ class MainWindow(QMainWindow):
         self._quick_round += 1
         turn = self._quick_round
         log.info(
-            "特效 hotkey: %s over %s; 显示 %s, 直播模式 %s, music %s.",
+            "特效 hotkey: %s over %s; 显示 %s, 直播模式 %s, sound %s.",
             scene, where, "安全模式" if self.store.safe_mode else "完整模式", "on" if self.store.stream_mode else "off",
-            self.store.love_music,
+            self._sound_said(),
         )  # fmt: skip
         if self._quick_area is None:
             self._frame_stream()
@@ -4314,7 +4357,7 @@ class MainWindow(QMainWindow):
         self._love_played = True
         choice = self._lobby_choice or self.store.love_scene
         who = "特效 hotkey" if self._quick_scene else f"Check {self._check_number}"
-        log.info("%s shown: 嘉宾特效 (%s, music %s).", who, choice, self.store.love_music)
+        log.info("%s shown: 嘉宾特效 (%s, sound %s).", who, choice, self._sound_said())
         badge = self.clear_mark.geometry().center() if self.clear_mark.isVisible() else None
         self.love.choice = choice
         self.love.play(self._game_area(screen), keep, badge, self._lobby_seats)

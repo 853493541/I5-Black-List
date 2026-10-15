@@ -44,7 +44,7 @@ rerun alone before it counts as a failure.
   `tests/fixtures/reference-lobby.png` never appear in anything user-facing. Check a new asset before
   committing it.
 - Every choice in 设置 lists its default first. 设置 fits 900x760 without scrolling, so it gets no new rows
-  (its 嘉宾 card, one row of 嘉宾特效 and 音乐, was the last one let in).
+  (常规's 声音 row, volume slider and 静音 for every sound, came in by putting 开机启动 and 关闭窗口时 on one row).
   Every dialog fits 672 px of usable height (1080p at 150%) with its buttons in view;
   `tests/test_dialog_fit.py` guards this. 选择特效 is the tallest (a list of every scene), then 添加嘉宾 /
   编辑嘉宾, so a scene or a row added there is paid for elsewhere.
@@ -56,7 +56,7 @@ rerun alone before it counts as a failure.
   full size over the sample lobby and look at it (small tiles hide flaws); its median frame stays under
   20 ms at 1920x1080. 玫瑰花边 (lace, the app's first border, once 经典花边) stays exactly as it is. Shade per pixel: flat vector gradients
   read as cheap clip-art to the user.
-- Chosen on purpose, not defects: red tags everywhere, 无 in red in 设置 › 嘉宾特效 › 音乐, 检查失败 (not 无法检查).
+- Chosen on purpose, not defects: red tags everywhere, 静音 a checkbox beside the 声音 slider (the player asked for one), 检查失败 (not 无法检查).
 - The user's own list, settings and running copy of the app are never touched. Tests and tools run in a
   data folder of their own (`APPDATA` pointed elsewhere, as `ui_shots.py` does).
 - Update notes: at most 3 lines of about 15 字, saying what changed for the player. No how-to, no reasons.

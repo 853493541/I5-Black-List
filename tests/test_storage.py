@@ -497,3 +497,27 @@ def test_reminding_about_each_list_is_kept_and_one_stays_on(tmp_path):
     assert (Store(tmp_path).check_blacklist, Store(tmp_path).check_likes) == (True, True)
     store.reset()
     assert (store.check_blacklist, store.check_likes) == (True, True)
+
+
+def test_the_sound_volume_and_mute_are_kept_and_reset(tmp_path):
+    """设置 › 声音: 100% and not muted at first, kept as set, back to that after 清空数据. A volume that is
+    none (not a number, out of 0-100) is 100%; one between steps of 5 the nearest step."""
+    import json
+
+    store = Store(tmp_path)
+    assert (store.sound_volume, store.sound_muted) == (100, False)
+    store.sound_volume, store.sound_muted = 35, True
+    store.save_settings()
+    assert (Store(tmp_path).sound_volume, Store(tmp_path).sound_muted) == (35, True)
+    path = tmp_path / "settings.json"
+    for saved, now in ((0, 0), (72, 70), (73.4, 75), (-5, 100), (120, 100), ("50", 100), (True, 100), (None, 100)):
+        settings = json.loads(path.read_text(encoding="utf-8"))
+        settings["sound_volume"] = saved
+        path.write_text(json.dumps(settings), encoding="utf-8")
+        assert Store(tmp_path).sound_volume == now, saved
+    settings["sound_muted"] = "yes"
+    path.write_text(json.dumps(settings), encoding="utf-8")
+    assert Store(tmp_path).sound_muted is False
+    store.reset()
+    assert (store.sound_volume, store.sound_muted) == (100, False)
+    assert (Store(tmp_path).sound_volume, Store(tmp_path).sound_muted) == (100, False)

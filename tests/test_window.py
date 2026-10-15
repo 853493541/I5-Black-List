@@ -11,7 +11,7 @@ pytest.importorskip("PySide6")
 
 from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, Qt
 from PySide6.QtGui import QEnterEvent, QFocusEvent, QFontMetrics, QKeyEvent, QMouseEvent
-from PySide6.QtWidgets import QApplication, QDialog, QHBoxLayout, QLabel, QPushButton
+from PySide6.QtWidgets import QApplication, QDialog, QHBoxLayout, QLabel, QPushButton, QWidget
 
 from blacklist_detect import __version__
 from blacklist_detect.pipeline import CheckResult, Hit, NameSlot
@@ -1649,9 +1649,11 @@ def test_settings_are_grouped_into_titled_cards(qapp, tmp_path, monkeypatch):
     settings_page = window.tabs.widget(window.settings_tab)
     sections = settings_page.findChildren(SettingsSection)
     titles = [section.findChild(QLabel, "sectionTitle").text() for section in sections]
-    # 检查 opens from the header's pill; 嘉宾 holds one row, 特效 with its 音乐.
+    # 检查 opens from the header's pill. 常规 holds two rows, 开机启动 with 关闭窗口时 and 声音; 嘉宾 one, 特效.
     assert titles == ["常规", "嘉宾", "外观", "帮助"]
-    assert [label.text() for label in sections[1].findChildren(QLabel, "rowLabel")] == ["特效", "音乐"]
+    assert [len(section.findChildren(QWidget, "sectionRow")) for section in sections[:2]] == [2, 1]
+    assert [label.text() for label in sections[0].findChildren(QLabel, "rowLabel")] == ["开机启动", "关闭窗口时", "声音", "100%"]
+    assert [label.text() for label in sections[1].findChildren(QLabel, "rowLabel")] == ["特效"]
     # 角色名称 and 标签 moved to 黑名单.
     shown = [label.text() for label in settings_page.findChildren(QLabel)]
     assert "角色名称" not in shown and "标签" not in shown
@@ -2885,8 +2887,9 @@ def test_batch_import_offers_shared_phrases_as_tags_before_importing(qapp, tmp_p
 
 
 def test_settings_show_whole_swatches_and_the_effects_choice(qapp, tmp_path, monkeypatch):
-    """At the size 设置 just fits, each 主题色 swatch is drawn whole and 嘉宾特效 with its 音乐 is in
-    view, on one row; the 嘉宾 page has no 嘉宾特效 of its own."""
+    """At the size 设置 just fits, each 主题色 swatch is drawn whole, 开机启动 and 关闭窗口时 share a row,
+    声音's slider, its percent and 静音 the next, and 嘉宾特效 is in view; the 嘉宾 page has no 嘉宾特效
+    of its own."""
     monkeypatch.setattr("blacklist_detect.ui.THEME_PICKER", True)
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
@@ -2900,10 +2903,14 @@ def test_settings_show_whole_swatches_and_the_effects_choice(qapp, tmp_path, mon
     assert window.settings_scroll.verticalScrollBar().maximum() == 0, "设置 scrolls"
     for swatch in window.theme_buttons.values():
         assert swatch.visibleRegion().boundingRect().height() == swatch.height(), "a swatch is cut off"
-    switch, music = window.love_switch, window.love_music_choice
-    assert switch.isVisible() and music.isVisible()
+    assert window.love_switch.isVisible()
     middle = lambda widget: widget.mapTo(window, widget.rect().center()).y()  # noqa: E731
-    assert abs(middle(switch) - middle(music)) <= 2, "音乐 sits on 嘉宾特效's row"
+    assert abs(middle(window.autostart_switch) - middle(window.close_mode)) <= 2, "关闭窗口时 sits on 开机启动's row"
+    sound = (window.volume_slider, window.volume_label, window.mute_box)
+    assert all(widget.isVisible() for widget in sound)
+    assert all(abs(middle(widget) - middle(window.volume_slider)) <= 2 for widget in sound), "声音 is one row"
+    assert middle(window.volume_slider) > middle(window.close_mode) + 10, "声音 is the row under"
+    assert window.mute_box.visibleRegion().boundingRect().size() == window.mute_box.size(), "静音 is cut off"
     window.tabs.setCurrentIndex(window.likes_tab)
     qapp.processEvents()
     assert "嘉宾特效" not in [button.text() for button in window.likes_page.findChildren(QPushButton)]

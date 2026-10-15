@@ -927,6 +927,25 @@ def _window_style(family: str) -> str:
                 background: transparent;
             }}
             QCheckBox:hover {{ color: {t["accent_line"]}; }}
+            QSlider {{ background: transparent; min-height: 28px; }}
+            QSlider::groove:horizontal {{
+                height: 4px;
+                border-radius: 2px;
+                background: {t["border"]};
+            }}
+            QSlider::sub-page:horizontal {{
+                border-radius: 2px;
+                background: {t["accent"]};
+            }}
+            QSlider::handle:horizontal {{
+                width: 14px;
+                height: 14px;
+                margin: -6px 0;
+                border-radius: 8px;
+                background: {t["surface"]};
+                border: 1px solid {t["field_line"]};
+            }}
+            QSlider::handle:horizontal:hover {{ border-color: {t["accent_line"]}; }}
             QToolTip {{
                 font-family: "{family}";
                 font-size: {SMALL_PT}pt;

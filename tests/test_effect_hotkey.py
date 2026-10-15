@@ -350,10 +350,14 @@ def test_it_plays_with_the_love_effects_switched_off(window):
     assert window.love.playing() and window.love.scene == "claw"
     window._end_quick_play()
     assert window.love.choice == "off"
-    # 音乐 无: it plays with no music.
-    window.store.love_music = "off"
+    # 静音: it plays with no sound.
+    from blacklist_detect.ui_music import ThemeMusic
+
+    tunes: list = []
+    window.music = ThemeMusic(play=tunes.append)
+    window.mute_box.click()
     assert window.play_quick_scene()
-    assert window.played[-1] == "" and window.love.playing()
+    assert window.love.playing() and tunes and all(tune is None for tune in tunes)
 
 
 def test_it_plays_over_the_last_lobby_when_there_was_one(window):

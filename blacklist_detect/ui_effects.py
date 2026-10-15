@@ -15,7 +15,7 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
 from blacklist_detect.love_scenes import DESIGN
-from blacklist_detect.ui_love_pick import SceneList, ScenePreview, tune_for
+from blacklist_detect.ui_love_pick import SceneList, ScenePreview
 from blacklist_detect.ui_theme import GAP, _page
 
 
@@ -143,7 +143,7 @@ class EffectsPage(QWidget):
         over the game."""
         self.preview.show_scene(self.scenes.key)
         if self.music is not None:
-            self.music.preview(tune_for(self.scenes.key, self.store.love_music))
+            self.music.preview(self.scenes.key)
             self.sounding = True
 
     def say(self, text: str, held: bool = False) -> None:
