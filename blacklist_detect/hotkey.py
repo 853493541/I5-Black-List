@@ -90,6 +90,9 @@ def parse_hotkey(text: str) -> HotkeySpec | None:
     if key is None:
         return None
     ordered = tuple(name for name in _MODIFIER_ORDER if name in modifiers)
+    if key == "F12" and not ordered:
+        # Windows keeps F12 alone for its debugger: RegisterHotKey refuses it on every PC.
+        return None
     display = "+".join((*ordered, key))
     return HotkeySpec(display=display, modifiers=ordered, vk=_vk_code(key))
 

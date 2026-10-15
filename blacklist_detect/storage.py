@@ -885,12 +885,16 @@ class Store:
             # A scene this version has (one replaced is its replacement), else 经典.
             scene = love_scenes.shown(str(settings.get("quick_scene", "") or ""))
             self.quick_scene = scene if scene in love_scenes.KEYS else "classic"
-            # A key that is no hotkey is the default again; the same as 检查's is none.
+            # A key that is no hotkey is the default again; the same as 检查's is none. When 检查 had
+            # none, the 特效 hotkey may have taken the key 检查 comes back to: it keeps it, 检查 stays none.
             effect = parse_hotkey(two_keys(str(settings.get("effect_hotkey", "") or "")))
             self.effect_hotkey = effect.display if effect is not None else DEFAULT_EFFECT_HOTKEY
             check = parse_hotkey(self.hotkey)
             if check is not None and check.display == self.effect_hotkey:
-                self.effect_hotkey = ""
+                if settings.get("hotkey"):
+                    self.effect_hotkey = ""
+                else:
+                    self.hotkey = ""
             # v0.6.0 saved "key" (green) or "alpha" (clear), v0.6.1 "key": each is on, and clear now.
             self.stream_mode = "on" if settings.get("stream_mode") in ("on", "key", "alpha") else ""
             self.stream_test_frame = settings.get("stream_test_frame") is not False

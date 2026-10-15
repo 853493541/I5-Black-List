@@ -166,8 +166,16 @@ class ScenePreview(QWidget):
         self._tick.start()
 
     def pause(self) -> None:
-        """Stop playing until show_scene, while it is out of sight."""
+        """Stop playing until show_scene or resume, while it is out of sight."""
         self._tick.stop()
+
+    def resume(self) -> None:
+        """The scene shown before pause, from its start again, without making it again (演说家遇袭
+        takes over a second to make)."""
+        if self._paint is None:
+            return
+        self._clock.start()
+        self._tick.start()
 
     def stop(self) -> None:
         self._tick.stop()

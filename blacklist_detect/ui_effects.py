@@ -4,12 +4,14 @@ Every scene in love_scenes.SCENES is listed by name with its dot, as in 选择�
 the one picked plays beside them over the fake-name sample lobby, as big as the page allows, and ▶ plays
 it from its start with its music. Under it, the hotkey, set the way 检查's is (the window's hotkey box),
 and 播放, which does what the hotkey does: the 特效 at once over the game, with no check
-(MainWindow.play_quick_scene).
+(MainWindow.play_quick_scene). The preview plays only while it can be seen and the app is in front:
+behind the game it would paint 30 times a second for nothing.
 """
 
 from __future__ import annotations
 
-from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtCore import QEvent, QSize, Qt, Signal
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
 from blacklist_detect.love_scenes import DESIGN
@@ -19,7 +21,8 @@ from blacklist_detect.ui_theme import GAP, _page
 
 class _Fitted(QWidget):
     """The preview as big as it fits, the lobby's shape kept, at the top left, and what goes under it
-    (below) right under it."""
+    (below) right under it. The preview keeps the most room below has needed, so it does not jump
+    as a note under the hotkey comes and goes."""
 
     MIN_W = 320
 
@@ -29,6 +32,9 @@ class _Fitted(QWidget):
         self.below = below
         preview.setParent(self)
         below.setParent(self)
+        # Its box and 播放 grow once they are styled, after the first place: placed again then.
+        below.installEventFilter(self)
+        self._under = 0
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setMinimumSize(QSize(self.MIN_W, self._tall(self.MIN_W)))
 
@@ -40,7 +46,8 @@ class _Fitted(QWidget):
 
     def place(self) -> None:
         under = self.below.sizeHint().height()
-        room = max(1, self.height() - under - GAP)
+        self._under = max(self._under, under)
+        room = max(1, self.height() - self._under - GAP)
         self.preview.set_width(max(1, min(self.width(), int(room * DESIGN[0] / DESIGN[1]))))
         self.preview.move(0, 0)
         self.below.setGeometry(0, self.preview.height() + GAP, self.width(), under)
@@ -49,10 +56,20 @@ class _Fitted(QWidget):
         super().resizeEvent(event)
         self.place()
 
+    def showEvent(self, event) -> None:  # noqa: ANN001
+        super().showEvent(event)
+        self.place()
+
+    def eventFilter(self, watched, event) -> bool:  # noqa: ANN001
+        if watched is self.below and event.type() == QEvent.Type.LayoutRequest:
+            self.place()
+        return super().eventFilter(watched, event)
+
 
 class EffectsPage(QWidget):
     """The 特效 page. Picking a scene saves it as store.quick_scene and says so with picked(key);
-    hotkey_box is the window's box for the 特效 hotkey, and play what the hotkey does."""
+    hotkey_box is the window's box for the 特效 hotkey, and play what 播放 does. sounding: the music
+    playing is the one ▶ started, which stops as the page goes out of sight."""
 
     picked = Signal(str)
 
@@ -60,6 +77,7 @@ class EffectsPage(QWidget):
         super().__init__(parent)
         self.store = store
         self.music = music
+        self.sounding = False
         outer = QVBoxLayout(self)
         _page(outer)
         body = QHBoxLayout()
@@ -88,14 +106,19 @@ class EffectsPage(QWidget):
         row.addWidget(self.play_button)
         row.addStretch(1)
         under.addLayout(row)
-        # What is wrong with a key pressed for the hotkey, under it, as 检查 says it.
+        # What is wrong with a key pressed for the hotkey, as 检查 says it, or why 播放 played nothing,
+        # under them. Its room is kept while it is hidden.
         self.note = QLabel("")
         self.note.setObjectName("rowHint")
         self.note.setWordWrap(True)
+        policy = self.note.sizePolicy()
+        policy.setRetainSizeWhenHidden(True)
+        self.note.setSizePolicy(policy)
         self.note.hide()
         under.addWidget(self.note)
         self.stage = _Fitted(self.preview, below)
         body.addWidget(self.stage, 1)
+        QGuiApplication.instance().applicationStateChanged.connect(self._app_state)
 
     def select(self, key: str) -> None:
         """Show this scene as the one picked (after 清空数据), without saving."""
@@ -110,6 +133,7 @@ class EffectsPage(QWidget):
         self.preview.show_scene(self.scenes.key)
         if self.music is not None:
             self.music.stop()
+        self.sounding = False
         self.picked.emit(self.scenes.key)
 
     def play_preview(self) -> None:
@@ -117,6 +141,7 @@ class EffectsPage(QWidget):
         self.preview.show_scene(self.scenes.key)
         if self.music is not None:
             self.music.preview(tune_for(self.scenes.key, self.store.love_music))
+            self.sounding = True
 
     def say(self, text: str) -> None:
         self.note.setText(text)
@@ -124,10 +149,27 @@ class EffectsPage(QWidget):
         self.stage.below.layout().activate()
         self.stage.place()
 
+    def _show(self) -> None:
+        """The picked scene from its start; made again only when it changed (演说家遇袭 takes over a second)."""
+        if self.preview.scene == self.scenes.key:
+            self.preview.resume()
+        else:
+            self.preview.show_scene(self.scenes.key)
+
+    def _app_state(self, state) -> None:  # noqa: ANN001
+        """With the game in front, the preview rests; it plays again as the app comes back."""
+        if state != Qt.ApplicationState.ApplicationActive:
+            self.preview.pause()
+        elif self.isVisible():
+            self._show()
+
     def showEvent(self, event) -> None:  # noqa: ANN001
         super().showEvent(event)
-        self.preview.show_scene(self.scenes.key)
+        self._show()
 
     def hideEvent(self, event) -> None:  # noqa: ANN001
         self.preview.pause()
+        if self.sounding and self.music is not None:
+            self.music.stop()
+        self.sounding = False
         super().hideEvent(event)

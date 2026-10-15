@@ -88,6 +88,11 @@ def test_the_settings_save_and_load_and_bad_ones_fall_back(tmp_path):
     assert saved(effect_hotkey="ctrl+alt+f9").effect_hotkey == "Ctrl+F9"
     assert saved(hotkey="Alt+F12").effect_hotkey == ""
     assert saved(hotkey="Alt+1", effect_hotkey="alt+1").effect_hotkey == ""
+    # 检查 had no key and the 特效 hotkey took Alt+1, where 检查 would come back: the 特效 hotkey keeps it.
+    store = saved(hotkey="", effect_hotkey="Alt+1")
+    assert (store.hotkey, store.effect_hotkey) == ("", "Alt+1")
+    store = saved(hotkey="Ctrl+K", effect_hotkey="")
+    assert (store.hotkey, store.effect_hotkey) == ("Ctrl+K", "Alt+F12")
     store = saved(quick_scene="stars", effect_hotkey="F9")
     store.reset()
     assert store.quick_scene == "classic" and store.effect_hotkey == "Alt+F12"
@@ -263,12 +268,15 @@ def test_a_real_lobby_comes_first(window, monkeypatch):
     monkeypatch.setattr(window.worker, "request", lambda fn, kind="check": True)
     window._start(window._capture_job, live=True)
     assert window._quick_scene == "" and not window.love.playing() and window.played[-1] == "stop"
-    # A glance that finds no lobby leaves the play alone.
+    # A glance that finds no lobby leaves the play alone, its marks held after the scene too (while the
+    # scene is over the screen a glance does not count: it looks through it).
     window._check_started = None
     window._live_check = False
     assert window.play_quick_scene()
+    window.love.stop()
+    assert not window._border_on_screen()
     window._on_glanced("ok", False)
-    assert window.panel.isVisible() and window.love.playing()
+    assert window.panel.isVisible() and window.clear_mark.isVisible() and window._quick_scene
 
 
 def test_it_gives_way_to_nothing_but_takes_over_the_stream_test(window):
@@ -324,3 +332,219 @@ def test_the_play_is_logged(window, caplog):
     said = caplog.text
     assert "特效 hotkey: angel over the screen under the pointer" in said
     assert "特效 hotkey shown: 嘉宾特效 (angel" in said and "特效 hotkey: done." in said
+
+
+def test_in_safe_mode_without_stream_mode_nothing_is_drawn_over_the_game(window):
+    # 安全模式, as every player starts: nothing over the game, from the hotkey or from 播放.
+    window._on_display_mode("safe")
+    assert window._overlay_target() == "" and not window.store.stream_mode
+    assert not window.effect_hotkey.callback()
+    assert not window.panel.isVisible() and not window.clear_mark.isVisible() and not window.love.playing()
+    assert window._quick_scene == "" and window.played == []
+    window.tabs.setCurrentIndex(window.effects_tab)
+    window.effects_page.play_button.click()
+    assert window._quick_scene == "" and window.effects_page.note.text() == "安全模式下不显示特效"
+    assert not window.effects_page.note.isHidden()
+
+
+def test_nothing_plays_before_the_disclaimer_is_agreed_to(window):
+    window.store.disclaimer_accepted = False
+    assert not window.play_quick_scene() and not window.love.playing() and not window.panel.isVisible()
+
+
+def test_play_on_the_page_plays_it_or_says_why_not(window):
+    page = window.effects_page
+    page.play_button.click()
+    assert window._quick_scene == "classic" and window.love.playing() and page.note.isHidden()
+    window._end_quick_play()
+    # A check running: nothing plays, and the page says so.
+    window._check_started = time.perf_counter()
+    page.play_button.click()
+    assert window._quick_scene == "" and page.note.text() == "正在检查，稍后再试"
+    window._check_started = None
+    page.play_button.click()
+    assert window._quick_scene == "classic" and page.note.isHidden()
+
+
+def _native(window, rect: QRect) -> tuple[int, int, int, int]:  # noqa: ANN001
+    """A rect in Qt's units on the window's screen, in desktop pixels, as Windows gives them."""
+    screen = window.screen().geometry()
+    ratio = window.screen().devicePixelRatio()
+    left = screen.x() + round((rect.x() - screen.x()) * ratio)
+    top = screen.y() + round((rect.y() - screen.y()) * ratio)
+    return left, top, left + round(rect.width() * ratio), top + round(rect.height() * ratio)
+
+
+def test_with_stream_mode_it_plays_on_the_game_not_on_mumus_bar(window, monkeypatch):
+    from blacklist_detect import ui
+
+    window._on_display_mode("safe")
+    window._set_stream_mode(True)
+    screen = window.screen().geometry()
+    game_window = livehime.Capture("MuMu安卓设备", "Qt5QWindowIcon", "MuMuNxDevice.exe", True)
+    # MuMu's window: its own bar of 49 px over a 16:9 game.
+    whole = QRect(screen.x() + 100, screen.y() + 80, 800, 499)
+    game = QRect(screen.x() + 100, screen.y() + 129, 800, 450)
+    monkeypatch.setattr(livehime, "game_capture", lambda scene, title: game_window)
+    monkeypatch.setattr(livehime, "client_rect", lambda capture: _native(window, whole))
+    monkeypatch.setattr(ui, "window_rect_at", lambda _x, _y, _order=(), innermost=True: _native(window, game))
+    assert window.play_quick_scene()
+    assert window.love.geometry() == game and game.contains(window.panel.cover_geometry())
+    # 直播画面 is the whole window, bar and all, as 直播姬 captures it.
+    assert window.stream._frame == whole
+
+
+def test_with_no_lobby_yet_it_plays_on_the_window_under_the_pointer(window, monkeypatch):
+    from blacklist_detect import ui
+
+    screen = window.screen().geometry()
+    # An emulator in a window, not the whole screen.
+    game = QRect(screen.x() + 40, screen.y() + 30, 640, 360)
+    monkeypatch.setattr(ui, "window_rect_at", lambda _x, _y, _order=(), innermost=True: _native(window, game))
+    assert window.play_quick_scene()
+    assert window.love.geometry() == game and game.contains(window.panel.cover_geometry())
+    window._end_quick_play()
+    # A small one (a button, a tooltip) is not the game: the screen is.
+    tip = QRect(screen.x() + 40, screen.y() + 30, 60, 30)
+    monkeypatch.setattr(ui, "window_rect_at", lambda _x, _y, _order=(), innermost=True: _native(window, tip))
+    assert window.play_quick_scene()
+    assert window.love.geometry().width() > 640
+
+
+def test_each_hotkey_runs_only_its_own_action(window):
+    import ctypes
+
+    if not window.hotkey.supported:
+        pytest.skip("Windows' hotkeys only")
+    from ctypes import wintypes
+
+    calls: list[str] = []
+    window.hotkey.callback = lambda: calls.append("check")
+    window.effect_hotkey.callback = lambda: calls.append("effect")
+    for ident in (1, 2, 3):
+        msg = wintypes.MSG()
+        msg.message = 0x0312
+        msg.wParam = ident
+        for keeper in (window.hotkey, window.effect_hotkey):
+            keeper._filter.nativeEventFilter(b"windows_generic_MSG", ctypes.addressof(msg))
+    assert calls == ["check", "effect"]
+
+
+def test_the_window_shortcuts_are_keys_for_the_box_while_it_waits(window):
+    from PySide6.QtTest import QTest
+
+    window.show()
+    window.activateWindow()
+    window.check_panel.open_panel()
+    edit = window.hotkey_edit
+    edit.setFocus()
+    QApplication.processEvents()
+    assert window.hotkey.active == "" and window.effect_hotkey.active == ""
+    # Ctrl+3 is 嘉宾's shortcut elsewhere; here it is the key pressed for 检查.
+    QTest.keyClick(edit, Qt.Key_3, Qt.KeyboardModifier.ControlModifier)
+    assert window.store.hotkey == "Ctrl+3" and window.tabs.currentIndex() == window.history_tab
+    # Closed while it waits, the box lets go: both hotkeys work again.
+    edit.setFocus()
+    QApplication.processEvents()
+    assert window.hotkey.active == ""
+    window.check_panel.close_panel()
+    assert not edit.hasFocus() and window.hotkey.active == "Ctrl+3" and window.effect_hotkey.active == "Alt+F12"
+    window.hide()
+
+
+def test_a_key_another_program_holds_keeps_the_one_before(window, monkeypatch):
+    held = (0x31, 0x70)  # 1 and F1: another program has them.
+    monkeypatch.setattr(hotkey, "_register", lambda ident, modifiers, vk: vk not in held)
+    edit = window.effect_hotkey_edit
+    _press(edit, Qt.Key_F1, Qt.KeyboardModifier.AltModifier)
+    assert window.effects_page.note.text() == "这个键被别的程序占了，换一个"
+    assert window.store.effect_hotkey == "Alt+F12" and Store(window.store.root).effect_hotkey == "Alt+F12"
+    assert edit.text() == "Alt+F12" and window.effect_hotkey.active == "Alt+F12"
+    # F12 alone Windows keeps for itself: refused as no key, not blamed on another program.
+    _press(edit, Qt.Key_F12)
+    assert window.effects_page.note.text() == "这个键用不了，换一个" and window.store.effect_hotkey == "Alt+F12"
+    assert hotkey.parse_hotkey("F12") is None and hotkey.parse_hotkey("Alt+F12") is not None
+
+
+def test_a_hotkey_that_did_not_register_at_start_says_so(window, monkeypatch):
+    window.effect_hotkey.clear()
+    window.hotkey.clear()
+    monkeypatch.setattr(hotkey, "_register", lambda ident, modifiers, vk: False)
+    window._restore_hotkey()
+    assert window.effect_hotkey_edit.text() == "Alt+F12" and window.effect_hotkey.active == ""
+    assert window.effects_page.note.text() == "这个键被别的程序占了，换一个"
+    assert window.settings_label.text() == "这个键被别的程序占了，换一个"
+
+
+def test_starting_over_puts_the_effect_hotkey_and_page_back(window, monkeypatch):
+    page = window.effects_page
+    page.scenes.buttons["claw"].click()
+    _press(window.effect_hotkey_edit, Qt.Key_9, Qt.KeyboardModifier.ControlModifier)
+    QApplication.instance().sendEvent(window.effect_hotkey_edit, QFocusEvent(QEvent.Type.FocusOut))
+    page.say("最多两个键，比如 Alt+1")
+    assert window.play_quick_scene()
+    # Opened again, the app has them as they were saved.
+    again = type(window)()
+    assert again.store.effect_hotkey == "Ctrl+9" and again.effect_hotkey_edit.text() == "Ctrl+9"
+    assert again.effect_hotkey.active == "Ctrl+9" and again.effects_page.scenes.key == "claw"
+    again.close()
+    monkeypatch.setattr("blacklist_detect.ui._confirm", lambda *_args: True)
+    window._ask_reset()
+    assert window._quick_scene == "" and not window.love.playing()
+    assert window.store.quick_scene == "classic" and window.store.effect_hotkey == "Alt+F12"
+    assert window.effect_hotkey.active == "Alt+F12" and window.effect_hotkey_edit.text() == "Alt+F12"
+    assert page.scenes.key == "classic" and page.scenes.buttons["classic"].isChecked() and page.note.isHidden()
+
+
+def test_the_hotkey_row_is_whole_the_first_time_the_page_opens(window):
+    window.resize(900, 560)
+    window.tabs.setCurrentIndex(window.history_tab)
+    window.show()
+    QApplication.processEvents()
+    window.tabs.setCurrentIndex(window.effects_tab)
+    QApplication.processEvents()
+    page = window.effects_page
+    below = page.stage.below
+    for widget in (window.effect_hotkey_edit, page.play_button):
+        assert widget.mapTo(below, widget.rect().bottomLeft()).y() < below.height()
+    # A note under it comes and goes without moving the preview.
+    size = page.preview.size()
+    page.say("最多两个键，比如 Alt+1")
+    assert page.preview.size() == size
+    page.say("")
+    assert page.preview.size() == size
+    window.hide()
+
+
+def test_coming_back_to_the_page_does_not_make_the_scene_again(window):
+    page = window.effects_page
+    window.tabs.setCurrentIndex(window.effects_tab)
+    window.show()
+    QApplication.processEvents()
+    made = page.preview._paint
+    window.tabs.setCurrentIndex(window.settings_tab)
+    window.tabs.setCurrentIndex(window.effects_tab)
+    assert page.preview._paint is made and page.preview._tick.isActive()
+    # With another app in front, it rests; it plays again as the app comes back.
+    page._app_state(Qt.ApplicationState.ApplicationInactive)
+    assert not page.preview._tick.isActive()
+    page._app_state(Qt.ApplicationState.ApplicationActive)
+    assert page.preview._tick.isActive() and page.preview._paint is made
+    window.hide()
+
+
+def test_music_from_the_preview_stops_as_the_page_goes(window):
+    page = window.effects_page
+    window.tabs.setCurrentIndex(window.effects_tab)
+    window.show()
+    QApplication.processEvents()
+    page.preview.play_button.click()
+    assert window.played == ["classic"]
+    window.tabs.setCurrentIndex(window.history_tab)
+    assert window.played == ["classic", "stop"]
+    # The play's music, though, plays on.
+    window.tabs.setCurrentIndex(window.effects_tab)
+    page.play_button.click()
+    window.tabs.setCurrentIndex(window.history_tab)
+    assert window.played[-1] == "classic"
+    window.hide()

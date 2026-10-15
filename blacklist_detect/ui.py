@@ -612,7 +612,7 @@ class MainWindow(QMainWindow):
         self.likes_page.changed.connect(self._likes_changed)
         self.likes_tab = self.tabs.addTab(self.likes_page, "嘉宾")
         self.effect_hotkey_edit = self._hotkey_box("特效快捷键")
-        self.effects_page = EffectsPage(self.store, self.music, self.effect_hotkey_edit, self.play_quick_scene)
+        self.effects_page = EffectsPage(self.store, self.music, self.effect_hotkey_edit, self._play_from_page)
         self.effects_tab = self.tabs.addTab(self.effects_page, "特效")
         self.settings_tab = self.tabs.addTab(self._settings_page(), "设置")
         self.tabs.tabBar().hide()
@@ -1576,6 +1576,14 @@ class MainWindow(QMainWindow):
                 if takes:
                     self._begin_hotkey(watched)
             elif kind == QEvent.Type.FocusOut:
+                self._end_hotkey(watched)
+            elif kind == QEvent.Type.ShortcutOverride and takes and event.key() not in (Qt.Key_Tab, Qt.Key_Backtab):
+                # The key is the box's, not the window's: Ctrl+1 is a hotkey here, not 记录.
+                event.accept()
+                return True
+            elif kind == QEvent.Type.Hide and watched.hasFocus():
+                # Hidden while it waits (检查's card closed): it lets go, and the hotkeys work again.
+                watched.clearFocus()
                 self._end_hotkey(watched)
             elif kind == QEvent.Type.KeyPress and event.key() not in (Qt.Key_Tab, Qt.Key_Backtab):
                 if takes:
@@ -3016,12 +3024,17 @@ class MainWindow(QMainWindow):
         spec = parse_hotkey(self.store.hotkey)
         if spec is not None and self.hotkey.active != spec.display and not self.hotkey.apply(spec):
             log.warning("Hotkey %s did not register: another program holds it, or this PC has none.", spec.display)
+            if sys.platform == "win32":
+                # Shown, so the key in the box is not taken for one that works.
+                self._set_settings_note("这个键被别的程序占了，换一个")
 
     def _sync_effect_hotkey(self) -> None:
         """The 特效 hotkey works in either 方式."""
         spec = parse_hotkey(self.store.effect_hotkey)
         if spec is not None and self.effect_hotkey.active != spec.display and not self.effect_hotkey.apply(spec):
             log.warning("特效 hotkey %s did not register: another program holds it, or this PC has none.", spec.display)
+            if sys.platform == "win32":
+                self.effects_page.say("这个键被别的程序占了，换一个")
 
     def _take_hotkey(self, event, edit: QLineEdit | None = None) -> None:  # noqa: ANN001
         edit = self.hotkey_edit if edit is None else edit
@@ -3062,19 +3075,18 @@ class MainWindow(QMainWindow):
             return
         registered = keeper.apply(spec)
         what = "特效 hotkey" if field == "effect_hotkey" else "Hotkey"
+        if not registered and sys.platform == "win32":
+            # Refused: the key it had before is kept, and works again as the box lets go.
+            log.info("%s %s did not register; %s is kept.", what, spec.display, getattr(self.store, field) or "none")
+            self._hotkey_note(edit, "这个键被别的程序占了，换一个")
+            edit.clearFocus()
+            self._end_hotkey(edit)
+            return
         log.info("%s set to %s%s.", what, spec.display, "" if registered else ", which did not register")
         setattr(self.store, field, spec.display)
         self.store.save_settings()
         edit.setText(spec.display)
-        if registered:
-            self._hotkey_note(edit, "")
-        elif sys.platform != "win32":
-            self._hotkey_note(edit, "这台电脑用不了快捷键")
-        else:
-            setattr(self.store, field, "")
-            self.store.save_settings()
-            edit.clear()
-            self._hotkey_note(edit, "这个键被别的程序占了，换一个")
+        self._hotkey_note(edit, "" if registered else "这台电脑用不了快捷键")
         edit.clearFocus()
         if self._status_kind == "idle":
             self._sync_watch_idle()
@@ -4051,19 +4063,20 @@ class MainWindow(QMainWindow):
         copy, no recognition), as a 嘉宾 lobby would get it: the rose ring and the badge on 准备案件还原,
         the scene over the game and its music (设置 › 音乐), on the screen, or only in 直播画面 when
         安全模式 puts the marks there. It plays with 嘉宾特效 off too, and pressed again it starts over.
-        A real lobby comes first: while one is checked or its marks show, the press does nothing, and a
-        check takes the play down.
+        It plays nothing when _quick_refusal says why not: before 使用声明 is agreed to, in 安全模式
+        without 直播模式 (nothing is drawn over the game there), and while a real lobby is checked or
+        its marks show, since that comes first; a check takes the play down.
 
-        Where: the last lobby's game, as a check found it; with none yet, the window 直播姬 shows the
-        game with (直播模式), else the screen under the pointer, as a full-screen game. The button
-        sits where the lobby puts it on a 16:9 game screen there."""
-        if self._closing:
-            return False
-        real = self.panel.isVisible() and not self._quick_scene and self._demo_likes is None
-        if self._check_started is not None or real:
-            log.info("特效 hotkey: a lobby is being checked or shown, and comes first; nothing played.")
+        Where: the last lobby's game, as a check found it; with none yet, in the window 直播姬 shows
+        the game with (直播模式), else in the window under the pointer, else on its screen as a
+        full-screen game. The button sits where the lobby puts it on a 16:9 game screen there."""
+        why = self._quick_refusal()
+        if why:
+            log.info("特效 hotkey: nothing played (%s).", why)
             return False
         self._end_stream_test()
+        # The music is the play's now, not the 特效 page's preview's.
+        self.effects_page.sounding = False
         self._end_quick_play()
         scene = self.store.quick_scene
         self._quick_saved = (
@@ -4109,17 +4122,60 @@ class MainWindow(QMainWindow):
         QTimer.singleShot(shown + QUICK_HOLD_MS, lambda: self._end_quick_play(turn))
         return True
 
+    def _quick_refusal(self) -> str:
+        """Why the 特效 hotkey and 播放 would play nothing now, as 特效 says it; "" when they play."""
+        if self._closing:
+            return "正在退出"
+        if not self.store.disclaimer_accepted:
+            return "先同意使用声明"
+        if self._overlay_target() == "":
+            return "安全模式下不显示特效"
+        if self._check_started is not None or (self.panel.isVisible() and not self._quick_scene and self._demo_likes is None):
+            return "正在检查，稍后再试"
+        return ""
+
+    def _play_from_page(self) -> None:
+        """播放 on 特效: the play, or why there is none, under it."""
+        why = self._quick_refusal()
+        self.effects_page.say(why)
+        if not why:
+            self.play_quick_scene()
+
     def _quick_place(self) -> tuple[QRect, QRect, str]:
         """Where the 特效 hotkey plays when no lobby was checked yet: the game's screen, the window it
         is in (what a 窗口捕捉 captures), and what that is, for the log."""
         found = self._livehime_game() if self.store.stream_mode else None
         if found is not None:
             window, where = found
+            # MuMu's own bar is in the window 直播姬 captures: the game is the window drawing in its middle.
+            game = self._window_at(window.center(), window) or window
         else:
             screen = QApplication.screenAt(QCursor.pos()) or QApplication.primaryScreen()
             window = screen.geometry()
             where = "the screen under the pointer"
-        return self._sixteen_nine(window), window, where
+            game = self._window_at(QCursor.pos(), window)
+            if game is None:
+                game = window
+            else:
+                where = "the window under the pointer"
+        return self._sixteen_nine(game), window, where
+
+    @staticmethod
+    def _window_at(point: QPoint, within: QRect) -> QRect | None:
+        """The innermost window drawing at point, this app's passed over, in Qt's units and cut to
+        within; None when there is none, or it is too small a part of within to be the game."""
+        screen = QApplication.screenAt(point) or QApplication.primaryScreen()
+        area = screen.geometry()
+        ratio = screen.devicePixelRatio() or 1.0
+        found = window_rect_at(round(area.x() + (point.x() - area.x()) * ratio), round(area.y() + (point.y() - area.y()) * ratio))
+        if found is None:
+            return None
+        x, y, ratio = native_to_logical(found[0], found[1])
+        rect = QRect(round(x), round(y), round((found[2] - found[0]) / ratio), round((found[3] - found[1]) / ratio))
+        rect = rect.intersected(within)
+        if rect.width() < within.width() / 4 or rect.height() < within.height() / 4:
+            return None
+        return rect
 
     def _end_quick_play(self, turn: int | None = None) -> None:
         """Take the 特效 hotkey's marks down and put back what it set aside. turn: only that play's
