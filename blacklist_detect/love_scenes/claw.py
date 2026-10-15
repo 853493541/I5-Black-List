@@ -2,13 +2,13 @@
 
 For a moment nothing. Then the 指挥家's fog rolls in from the edges, heavy at the borders, blue-grey
 and drifting two ways at once, and as it comes every player's name is lost in it, a ??? in its place,
-as 迷离 scrambles them; white music notes swirl through the haze. Two seconds of that, then the
-strike, the game's own kill mark made bigger than the screen's middle: three tapered slashes rip up
-across it, white-hot at their cores and purple at their edges, a lilac flash, a jolt, a puff of pink
-smoke; and at that moment 演说家遇袭 comes up in the top right as the game shows it: a BIG NEWS
-newspaper tossed up into place, the words fading in over a dark band. The slashes fray away, the fog
-clears and the names come back. Its tune (MUSIC) is the 指挥家's music with the notice's sound in it
-at the strike.
+as 迷离 scrambles them; white music notes swirl through the haze. At three seconds the strike, the
+game's own kill mark made bigger than the screen's middle: three tapered slashes rip up across it,
+white-hot at their cores and purple at their edges, a lilac flash, a jolt, a puff of pink smoke; and
+at that moment 演说家遇袭 slides up into the top right as the game shows it, its own art: the BIG NEWS
+newspaper tossed up into place, the words coming into focus over a dark band. The slashes fray away,
+the fog clears and the names come back. Its tune (MUSIC) is the 指挥家's music, with the notice's
+sound in it at the strike once that sound is recorded (build/ambush_tune.py).
 
 The 嘉宾 marks wear it: a misty glass card scored by three claw marks, a lilac rim round the button
 with claw marks at two corners that now and then strike again, and a claw-mark X on a dark disc for a
@@ -26,7 +26,7 @@ import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QFont, QImage, QPainter, QPainterPath, QPen, QPixmap, QRadialGradient
 
-from blacklist_detect.love_scenes.draw import clamp, col, ease_in, ease_in_out, ease_out, soft_dot, win
+from blacklist_detect.love_scenes.draw import clamp, col, ease_back, ease_in, ease_in_out, ease_out, soft_dot, win
 from blacklist_detect.love_scenes.light import bloom, blur, mask, noise, picture, rgb, smooth
 
 if TYPE_CHECKING:
@@ -64,7 +64,7 @@ CARD_TOP = 6
 SOFT = 0.5
 # The strike: when it lands, the angle its slashes run at (degrees, screen y down), and the three
 # slashes' offsets across it and their delays.
-STRIKE = (3.6, -34.0)
+STRIKE = (3.0, -34.0)
 SLASHES = ((-1.0, 0.0), (0.0, 0.035), (1.0, 0.07))
 # A slash's length and its thickest, in points at the design size; how far apart the three are.
 LENGTH = 1000.0
@@ -81,6 +81,7 @@ FRAYS = 6
 # 演说家遇袭: shown from the strike for this long, then gone over NOTICE_OUT.
 NOTICE_HOLD = 2.35
 NOTICE_OUT = 0.45
+NOTICE_SLIDE = 0.32
 # The notice's art from the game (assets, cut by build/orator_notice_art.py), and where each piece sat
 # in the picture it was cut from, (left, top), (width, height) in its pixels; the words show this high.
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
@@ -505,17 +506,21 @@ def _blurred(image: QImage, sigma: float) -> QImage:
 
 
 def _notice(p: QPainter, age: float, art: tuple, right_middle: QPointF, u: float) -> None:
-    """演说家遇袭 in the top right, as the game shows it: the newspaper tossed up from below into place,
-    wobbling, a blur behind it; then the words coming into focus over the dark band; held; then gone."""
+    """演说家遇袭 in the top right, as the game shows it: the whole notice slides up from below into place,
+    the newspaper tossed up with it, wobbling, a blur behind it; then the words come into focus over the
+    dark band; held; then it rises a little and is gone."""
     if age < 0 or age > NOTICE_HOLD + NOTICE_OUT:
         return
     paper, words, soft, band, paper_box, words_box = art
     leave = ease_in(win(age, NOTICE_HOLD, NOTICE_HOLD + NOTICE_OUT))
+    # Up from below in a third of a second, a touch past its place and back.
+    slide = 70 * u * (1 - ease_back(clamp(age / NOTICE_SLIDE), 1.4))
     p.save()
-    p.translate(right_middle.x(), right_middle.y() - 10 * u * leave)
+    p.translate(right_middle.x(), right_middle.y() + slide - 10 * u * leave)
+    p.setOpacity(p.opacity() * clamp(age / 0.1))
     p.setRenderHint(QPainter.SmoothPixmapTransform)
     base = p.opacity()
-    focus = ease_out(win(age, 0.17, 0.29)) * (1 - leave)
+    focus = ease_out(win(age, 0.12, 0.34)) * (1 - leave)
     if focus > 0:
         bw, bh = band.width(), band.height()
         p.setOpacity(base * focus)
