@@ -33,7 +33,7 @@ POSTER_AT = {
     "stars": 2.75,
     "cyber": 2.82,
     "neon": 3.5,
-    "angel": 2.75,
+    "angel": 4.2,
     "equation": 3.5,
     "fluffy": 2.75,
     "claw": 3.4,
