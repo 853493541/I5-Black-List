@@ -619,3 +619,23 @@ def test_the_window_greets_with_classic_s_own_sound_once_given_one(window):
     window.music._last_lobby = frozenset()
     window._show_panel(_lobby())
     assert window.tunes == [own]
+
+
+def test_only_the_app_running_for_the_player_makes_a_sound(monkeypatch):
+    """Tests, tools/ui_shots.py and scripts that build the window stay silent: real sound is the app's alone."""
+    import sys
+    import types
+
+    from blacklist_detect import ui_music
+
+    calls = []
+    fake = types.SimpleNamespace(PlaySound=lambda *args: calls.append(args), SND_FILENAME=1, SND_ASYNC=2, SND_NODEFAULT=4)
+    monkeypatch.setitem(sys.modules, "winsound", fake)
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(ui_music, "AUDIBLE", False)
+    ui_music.play_tune(TUNES[SAMPLE_TUNE])
+    ui_music.play_tune(None)
+    assert calls == []
+    ui_music.allow_sound()
+    ui_music.play_tune(TUNES[SAMPLE_TUNE])
+    assert len(calls) == 1

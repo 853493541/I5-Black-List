@@ -124,7 +124,7 @@ from blacklist_detect.ui_kit import (
 )
 from blacklist_detect.ui_likes import LikesPage
 from blacklist_detect.ui_love import LoveBorder
-from blacklist_detect.ui_music import VOLUME_STEP, ThemeMusic, sound_dir
+from blacklist_detect.ui_music import VOLUME_STEP, ThemeMusic, allow_sound, sound_dir
 from blacklist_detect.ui_notice import CornerNotice
 from blacklist_detect.ui_overlay import (
     _COVER_OUTSET,
@@ -255,6 +255,7 @@ def run_app(background: bool = False) -> int:
     setup_logging()
     log.info("==== Start %s (Python %s, %s) ====", __version__, sys.version.split()[0], sys.platform)
     _claim_windows_app()
+    allow_sound()
     app = QApplication(sys.argv)
     app.setApplicationName(APP_NAME)
     app.setApplicationVersion(__version__)

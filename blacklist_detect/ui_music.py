@@ -16,6 +16,7 @@ of the app's own (paths.app_dir).
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import sys
@@ -113,9 +114,22 @@ def scaled_tune(path: Path, volume: int, folder: Path, seconds: float | None = N
         return None
 
 
+# Only the app as the player runs it makes a sound: run_app turns it on (allow_sound). Tests, tools/ui_shots.py,
+# the release check and any script that builds the window stay silent, unless BLACKLIST_DETECT_SOUND=1 asks for
+# real sound to hear one.
+AUDIBLE = os.environ.get("BLACKLIST_DETECT_SOUND") == "1"
+
+
+def allow_sound() -> None:
+    """The app is running for the player: its tunes play from now on."""
+    global AUDIBLE
+    AUDIBLE = True
+
+
 def play_tune(path: Path | None) -> None:
-    """Start a tune at the system volume without waiting for it, or with None stop whatever plays."""
-    if sys.platform != "win32":
+    """Start a tune at the system volume without waiting for it, or with None stop whatever plays. Silent
+    unless the app runs for the player (AUDIBLE)."""
+    if sys.platform != "win32" or not AUDIBLE:
         return
     try:
         import winsound

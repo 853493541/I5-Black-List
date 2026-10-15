@@ -57,6 +57,9 @@ rerun alone before it counts as a failure.
   20 ms at 1920x1080. 玫瑰花边 (lace, the app's first border, once 经典花边) stays exactly as it is. Shade per pixel: flat vector gradients
   read as cheap clip-art to the user.
 - Chosen on purpose, not defects: red tags everywhere, 静音 a checkbox beside the 声音 slider (the player asked for one), 检查失败 (not 无法检查).
+- Only the app as the player runs it makes a sound (`run_app` calls `ui_music.allow_sound`). Tests, `tools/ui_shots.py`,
+  the release check and agents' scripts stay silent; the user hears every sound played in the background. Set
+  `BLACKLIST_DETECT_SOUND=1` only when a sound itself is being checked by ear, and say so.
 - The user's own list, settings and running copy of the app are never touched. Tests and tools run in a
   data folder of their own (`APPDATA` pointed elsewhere, as `ui_shots.py` does).
 - Update notes: at most 3 lines of about 15 字, saying what changed for the player. No how-to, no reasons.
