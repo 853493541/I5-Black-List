@@ -1,5 +1,5 @@
-"""嘉宾音乐: wedding music for the 嘉宾人数 chosen (two or more until changed), the tune chosen in
-嘉宾特效 or a random one, once per lobby."""
+"""嘉宾音乐: wedding music whenever a 嘉宾 is in the lobby, the tune chosen in 嘉宾特效 or a random one,
+once per lobby."""
 
 import random
 import wave
@@ -34,7 +34,7 @@ def test_the_tunes_are_short():
 
 
 def test_hearts_get_music_once_per_lobby():
-    """The window asks only for a lobby with as many 嘉宾 players as 嘉宾人数 plays for."""
+    """The window asks for a lobby with any 嘉宾 player in it."""
     music, played, clock = _music()
     assert music.lobby([], "random") == ""
     assert played == []
@@ -47,7 +47,7 @@ def test_hearts_get_music_once_per_lobby():
     assert music.lobby(["小红", "阿强"], "random")
     clock.now += SAME_LOBBY_S + 1
     assert music.lobby(["小红", "阿强"], "random")
-    # One player is a lobby too, when 1人 is ticked.
+    # One player is a lobby too.
     assert music.lobby(["小红"], "random")
     assert len(played) == 4
 
@@ -145,11 +145,9 @@ def test_a_blacklist_player_means_no_music(window):
 def test_clearing_the_data_puts_the_effects_back_to_their_defaults(window, monkeypatch):
     window.store.love_music = "canon"
     window.store.love_scene = "ice"
-    window.store.love_counts = (1,)
     monkeypatch.setattr("blacklist_detect.ui._confirm", lambda *_args: True)
     window._ask_reset()
     assert (window.store.love_music, window.store.love_scene) == ("organ", "classic")
-    assert window.store.love_counts == (2, 3)
     assert window.love.choice == "classic"
 
 
@@ -167,22 +165,9 @@ def _likes(count: int):  # noqa: ANN202
     return CheckResult(True, "", names=names, button_box=button)
 
 
-@pytest.mark.parametrize(
-    ("counts", "played_for"),
-    [
-        ((2, 3), (2, 3)),  # the default: two or more
-        ((1,), (1,)),
-        ((1, 2, 3), (1, 2, 3)),  # every 嘉宾 player
-        ((3,), (3,)),  # 2人以上 only: three or more
-    ],
-)
-def test_the_effect_plays_for_the_numbers_ticked(window, counts, played_for):
-    """嘉宾人数: the border and the music both play for a lobby with as many 嘉宾 players as ticked."""
-    from blacklist_detect.storage import DEFAULT_LOVE_COUNTS
-
-    assert window.store.love_counts == DEFAULT_LOVE_COUNTS == (2, 3)
+def test_the_effect_plays_for_one_guest_or_more(window):
+    """嘉宾特效 plays whenever a 嘉宾 is in the lobby, one or more: each 嘉宾 and 组合 picks what greets them."""
     window.store.add_like("阿强")
-    window.store.love_counts = counts
     window.store.safe_mode = False
     window.store.consented = ["full"]
     window._on_display_mode("full")
@@ -191,10 +176,8 @@ def test_the_effect_plays_for_the_numbers_ticked(window, counts, played_for):
         window.music._last_lobby = None
         window._love_played = False
         window._show_panel(_likes(likes))
-        plays = likes in played_for
-        assert window.love.playing() is plays, likes
-        assert (window.tunes == [TUNES["organ"]]) is plays, likes
-        # The marks show whatever the count: the 嘉宾 card names them.
+        assert window.love.playing(), likes
+        assert window.tunes == [TUNES["organ"]], likes
         assert window.panel.mode == "liked" and window.like_card.isVisible()
         window._hide_panel_after_title()
 

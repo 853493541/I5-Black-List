@@ -1,4 +1,4 @@
-"""嘉宾音乐: a few seconds of wedding music for 嘉宾 players in one lobby (as many as 嘉宾人数 says).
+"""嘉宾音乐: a few seconds of wedding music for 嘉宾 players in one lobby.
 
 Five tunes, all public domain: Wagner's Bridal Chorus (1850) as church organ, music box and 8-bit,
 Pachelbel's Canon on harp, and church bells. build/wedding_tunes.py plays them into the WAV files,

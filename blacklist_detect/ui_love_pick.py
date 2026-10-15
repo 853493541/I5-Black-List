@@ -1,8 +1,8 @@
-"""嘉宾 › 嘉宾特效: for how many 嘉宾 players in a lobby, which scene plays over the game, and which
-wedding music. 嘉宾人数 is three choices that go together: 1人, 2人, 2人以上 (2人 and 2人以上
-until changed). The scene and the music can each be one of them, 随机 or 无; every choice is saved as it
-is made. The default comes first (经典花边, 婚礼进行曲 · 管风琴), then the others, then 随机, and 无
-last, in red. Each row's name is beside its choices, not over them: the dialog fits a 1366×768 screen.
+"""嘉宾 › 嘉宾特效: the scene that plays over the game when 嘉宾 are in a lobby, and the wedding music.
+It plays whenever one is there: a 组合 all there gets its own scene, else the top 嘉宾 with one of
+their own, else the one chosen here (guests.lobby_choice). The scene and the music can each be one of
+them, 随机 or 无; every choice is saved as it is made. The default comes first (经典花边, 婚礼进行曲 ·
+管风琴), then the others, then 随机, and 无 last, in red.
 
 A preview plays the chosen scene over the fake-name sample lobby, with the app's own marks on it.
 """
@@ -18,7 +18,6 @@ from PySide6.QtWidgets import QAbstractButton, QButtonGroup, QHBoxLayout, QLabel
 from blacklist_detect import love_scenes
 from blacklist_detect.love_scenes import DESIGN, sample_stage
 from blacklist_detect.ui_dialogs import _primary
-from blacklist_detect.ui_icons import icon as line_icon
 from blacklist_detect.ui_kit import Modal
 from blacklist_detect.ui_music import TUNE_LIST, WeddingMusic
 from blacklist_detect.ui_theme import SMALL_PT, THEME, _pointing, chinese_font, is_dark
@@ -30,8 +29,6 @@ SAMPLE_LOBBY = Path(__file__).resolve().parent / "assets" / "sample-lobby.jpg"
 
 # A moment of the bare lobby between one play of the scene and the next.
 PAUSE_S = 0.7
-# 嘉宾人数: the choices, by the count each stands for (storage.LOVE_COUNTS).
-COUNT_NAMES = ((1, "1人"), (2, "2人"), (3, "2人以上"))
 
 
 class SampleMarks:
@@ -258,7 +255,8 @@ def tune_for(scene: str, music_choice: str) -> str:
 
 class LoveEffectsDialog(Modal):
     """嘉宾特效, laid out as the 嘉宾 dialogs: the preview on the left (▶ plays the scene with its
-    music), 嘉宾人数 and 音乐 on its right, and the scenes as picture cards under both, 随机 and 无 last."""
+    music), 音乐 and when it all plays on its right, and the scenes as picture cards under both, 随机
+    and 无 last."""
 
     def __init__(self, store, music: WeddingMusic, parent: QWidget | None = None) -> None:  # noqa: ANN001
         super().__init__(parent)
@@ -269,10 +267,13 @@ class LoveEffectsDialog(Modal):
         self.preview = ScenePreview(self, play=self.play_both)
         self.play_button = self.preview.play_button
         side = showcase(self, layout, self.preview)
-        self.count_boxes = self._counts(side)
         tunes = [*((key, name) for key, name, _file in TUNE_LIST), ("random", "随机"), ("off", "无")]
         self.music_buttons = self._choices(side, "音乐", tunes, store.love_music, self._pick_music)
         side.addStretch(1)
+        when = QLabel("有嘉宾在大厅就放：组合都在时放组合的，嘉宾自己选了特效就放自己的，其余放这里选的。")
+        when.setObjectName("sub")
+        when.setWordWrap(True)
+        side.addWidget(when)
         block = section(layout, "特效", "点一张卡片，左边就放它")
         scenes = [*love_scenes.SCENES, ("random", "随机"), ("off", "无")]
         self.gallery = ThemeGallery(scenes, love_scenes.shown(store.love_scene), CONTENT_W)
@@ -320,41 +321,6 @@ class LoveEffectsDialog(Modal):
         column.addLayout(top)
         column.addWidget(host)
         layout.addLayout(column)
-
-    def _counts(self, layout) -> dict[int, QPushButton]:  # noqa: ANN001
-        """Like 音乐 under it, but any of them can be on together: a ticked one shows a ✓, and the row's
-        name has 可多选 beside it."""
-        host = _FlowHost(gap=8)
-        buttons: dict[int, QPushButton] = {}
-        for count, name in COUNT_NAMES:
-            button = QPushButton(name)
-            button.setObjectName("segment")
-            button.setProperty("place", "only")
-            button.setCheckable(True)
-            button.setAutoDefault(False)
-            button.setChecked(count in self.store.love_counts)
-            button.toggled.connect(lambda _on, button=button: self._tick(button))
-            button.clicked.connect(lambda _checked=False, count=count: self._pick_count(count))
-            self._tick(button)
-            host.addWidget(button)
-            buttons[count] = button
-        hint = QLabel("可多选")
-        hint.setObjectName("sub")
-        self._above(layout, "嘉宾人数", host, hint)
-        return buttons
-
-    @staticmethod
-    def _tick(button: QPushButton) -> None:
-        button.setIcon(line_icon("check", 14, THEME["on_accent"]) if button.isChecked() else QIcon())
-
-    def _pick_count(self, count: int) -> None:
-        ticked = tuple(each for each, box in self.count_boxes.items() if box.isChecked())
-        if not ticked:
-            # One stays on: 无 is how the effect is turned off.
-            self.count_boxes[count].setChecked(True)
-            return
-        self.store.love_counts = ticked
-        self.store.save_settings()
 
     @staticmethod
     def _current(buttons: dict[str, QAbstractButton], saved: str, default: str) -> str:

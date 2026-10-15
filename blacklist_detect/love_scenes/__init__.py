@@ -1,4 +1,4 @@
-"""The 嘉宾 scenes: what plays over the game for 嘉宾 players in one lobby (as many as 嘉宾人数 says).
+"""The 嘉宾 scenes: what plays over the game for 嘉宾 players in one lobby.
 
 Each scene is a module with DURATION (seconds) and make(stage) -> paint(painter, t), where paint
 draws the scene t seconds in, on stage.width by stage.height, and keeps stage.gap (the button and

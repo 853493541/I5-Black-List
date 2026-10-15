@@ -439,28 +439,20 @@ def test_a_snapshot_puts_the_list_back(tmp_path):
     assert [(e.name, e.tags, e.reason) for e in again.entries] == [("甲", ("炸房",), "说明")]
 
 
-def test_love_counts_are_kept_and_junk_is_the_default(tmp_path):
-    """嘉宾人数: which numbers of 嘉宾 players play 嘉宾特效. 3 stands for 2人以上."""
+def test_an_old_guest_count_setting_is_let_go(tmp_path):
+    """嘉宾人数 is gone (嘉宾特效 plays for any 嘉宾): an old settings file's is read past, not saved again."""
     import json
 
-    from blacklist_detect.storage import DEFAULT_LOVE_COUNTS
-
-    store = Store(tmp_path)
-    assert store.love_counts == DEFAULT_LOVE_COUNTS == (2, 3)
-    assert [store.love_for(n) for n in (0, 1, 2, 3, 7)] == [False, False, True, True, True]
-    store.love_counts = (1,)
-    store.save_settings()
+    Store(tmp_path).save_settings()
+    path = tmp_path / "settings.json"
+    settings = json.loads(path.read_text(encoding="utf-8"))
+    settings["love_counts"] = [2, 3]
+    settings["love_scene"] = "stars"
+    path.write_text(json.dumps(settings), encoding="utf-8")
     again = Store(tmp_path)
-    assert again.love_counts == (1,)
-    assert [again.love_for(n) for n in (0, 1, 2, 3)] == [False, True, False, False]
-    settings = json.loads((tmp_path / "settings.json").read_text(encoding="utf-8"))
-    for junk in ([], [0, 4], "1", [True], None, [2.0]):
-        settings["love_counts"] = junk
-        (tmp_path / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
-        assert Store(tmp_path).love_counts == DEFAULT_LOVE_COUNTS, junk
-    settings["love_counts"] = [3, 1, 3]
-    (tmp_path / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
-    assert Store(tmp_path).love_counts == (1, 3)
+    assert again.love_scene == "stars"
+    again.save_settings()
+    assert "love_counts" not in json.loads(path.read_text(encoding="utf-8"))
 
 
 def test_a_saved_hotkey_of_three_keys_keeps_two(tmp_path):

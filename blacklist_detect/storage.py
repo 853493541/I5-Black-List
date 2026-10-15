@@ -364,20 +364,6 @@ def _set_aside(path: Path) -> Path:
 
 
 
-# 嘉宾特效 plays for a lobby with this many 嘉宾 players: 1人, 2人, and 3 for 2人以上 (more than two).
-LOVE_COUNTS = (1, 2, 3)
-DEFAULT_LOVE_COUNTS = (2, 3)
-
-
-def _love_counts(value: object) -> tuple[int, ...]:
-    """The 嘉宾人数 ticked, as saved. None ticked, or nothing it knows, is the default."""
-    if isinstance(value, list):
-        counts = tuple(count for count in LOVE_COUNTS if any(type(v) is int and v == count for v in value))
-        if counts:
-            return counts
-    return DEFAULT_LOVE_COUNTS
-
-
 def _theme(value: object) -> str:
     """A 嘉宾's or a combination's theme as saved: a scene's key, or "" to follow 嘉宾特效. Whether this
     version still has the scene is the player's business (guests.lobby_choice skips one it has not)."""
@@ -433,8 +419,6 @@ class Store:
         # ui_music.TUNE_LIST), "random" or "off". 经典花边 with 婚礼进行曲 · 管风琴 until another is chosen.
         self.love_scene = "classic"
         self.love_music = "organ"
-        # For how many 嘉宾 players in a lobby they play (LOVE_COUNTS): two or more until changed.
-        self.love_counts = DEFAULT_LOVE_COUNTS
         # 直播模式: a window for a streaming app with the 嘉宾 marks only, clear behind them. "" off, "on" on.
         self.stream_mode = ""
         # 直播模式's 测试框: the red frame round the game in that window while no mark shows.
@@ -820,10 +804,6 @@ class Store:
             },
         )
 
-    def love_for(self, likes: int) -> bool:
-        """Whether 嘉宾特效 plays for a lobby with this many 嘉宾 players."""
-        return likes > 0 and min(likes, LOVE_COUNTS[-1]) in self.love_counts
-
     def save_settings(self) -> None:
         _atomic_write(
             self.settings_path,
@@ -849,7 +829,6 @@ class Store:
                 "safe_mode": self.safe_mode,
                 "love_scene": self.love_scene,
                 "love_music": self.love_music,
-                "love_counts": list(self.love_counts),
                 "stream_mode": self.stream_mode,
                 "stream_test_frame": self.stream_test_frame,
                 "check_blacklist": self.check_blacklist,
@@ -898,7 +877,6 @@ class Store:
             self.safe_mode = bool(settings.get("safe_mode", True))
             self.love_scene = _choice(settings.get("love_scene"), "classic")
             self.love_music = _choice(settings.get("love_music"), "organ")
-            self.love_counts = _love_counts(settings.get("love_counts"))
             # v0.6.0 saved "key" (green) or "alpha" (clear), v0.6.1 "key": each is on, and clear now.
             self.stream_mode = "on" if settings.get("stream_mode") in ("on", "key", "alpha") else ""
             self.stream_test_frame = settings.get("stream_test_frame") is not False
@@ -1124,7 +1102,6 @@ class Store:
         self.safe_mode = True
         self.love_scene = "classic"
         self.love_music = "organ"
-        self.love_counts = DEFAULT_LOVE_COUNTS
         self.stream_mode = ""
         self.stream_test_frame = True
         self.check_blacklist = True

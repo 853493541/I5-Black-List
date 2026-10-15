@@ -134,17 +134,6 @@ def test_the_picker_saves_each_choice_and_previews_it(qapp, tmp_path, monkeypatc
     assert dialog.preview.scene == "classic"
     # ▶ on the preview plays the scene with its music.
     assert dialog.play_button is dialog.preview.play_button and dialog.play_button.accessibleName() == "播放"
-    # 嘉宾人数: three choices that go together, 2人 and 2人以上 on to begin with.
-    assert [box.text() for box in dialog.count_boxes.values()] == ["1人", "2人", "2人以上"]
-    assert [box.isChecked() for box in dialog.count_boxes.values()] == [False, True, True]
-    dialog.count_boxes[1].click()
-    assert store.love_counts == (1, 2, 3) and Store(store.root).love_counts == (1, 2, 3)
-    dialog.count_boxes[2].click()
-    dialog.count_boxes[3].click()
-    assert store.love_counts == (1,) and Store(store.root).love_counts == (1,)
-    # The last one stays on: 无 turns the effect off.
-    dialog.count_boxes[1].click()
-    assert dialog.count_boxes[1].isChecked() and store.love_counts == (1,)
     dialog.scene_buttons["stars"].click()
     assert store.love_scene == "stars" and dialog.preview.scene == "stars"
     assert Store(store.root).love_scene == "stars"

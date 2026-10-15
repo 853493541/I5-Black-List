@@ -174,7 +174,7 @@ def test_a_live_check_rings_likes_in_rose_and_splits_the_ring_with_a_hit(window)
     window.hit_card.hide()
 
 
-def test_two_likes_and_no_hit_play_the_border_once_per_lobby(window):
+def test_likes_and_no_hit_play_the_border_once_per_lobby(window):
     window.store.add_like("小明")
     window.store.add_like("小红")
     names = [
@@ -187,9 +187,12 @@ def test_two_likes_and_no_hit_play_the_border_once_per_lobby(window):
     button = (left, screen.top() + 300, left + 180, screen.top() + 360)
     window._live_check = True
     window._on_lobby_placed(button)
-    # One 嘉宾 player: the marks, no border.
+    # One 嘉宾 player is enough: the marks and the border, as each 嘉宾 picks what greets them.
     window._show_panel(CheckResult(True, "", names=names[:1], button_box=button))
-    assert window.panel.mode == "liked" and not window.love.playing()
+    assert window.panel.mode == "liked" and window.love.playing()
+    window.love.stop()
+    window._hide_panel_after_title()
+    window._on_lobby_placed(button)
     # Two: the border, over the screen, parted around the button and its marks.
     window._show_panel(CheckResult(True, "", names=names, button_box=button))
     assert window.love.playing()
@@ -230,11 +233,12 @@ def test_the_marks_wear_the_look_of_the_scene_that_greets_them(window):
     names_ink = window.like_card.findChild(QLabel, "hitName").styleSheet()
     assert love_look(window.love.scene).ink in names_ink
     window._hide_panel_after_title()
-    # One 嘉宾 player, so no scene plays: the chosen one's look all the same.
+    # One 嘉宾 player: the chosen scene greets them too, and the marks wear its look.
     window.store.love_scene = "ice"
     window._on_lobby_placed(button)
     window._show_panel(CheckResult(True, "", names=names[:1], button_box=button))
-    assert not window.love.playing() and all(mark.look is love_look("ice") for mark in marks)
+    assert window.love.playing() and window.love.scene == "ice" and all(mark.look is love_look("ice") for mark in marks)
+    window.love.stop()
     # With a 黑名单 player too, the 嘉宾 half of the ring is the look's.
     hit = Hit(2, "坏人", "坏人", "", False, "", ())
     window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
@@ -406,6 +410,7 @@ def test_a_guest_picks_a_theme_and_the_page_shows_and_orders_them(window):
 def test_a_combination_needs_two_guests_and_greets_them_with_its_theme(window):
     from blacklist_detect.model import Combo
     from blacklist_detect.ui_guests import ComboDialog, CombosDialog
+    from blacklist_detect.ui_music import WeddingMusic
     from blacklist_detect.ui_overlay import love_look
 
     store = window.store
@@ -434,12 +439,17 @@ def test_a_combination_needs_two_guests_and_greets_them_with_its_theme(window):
     button = (left, screen.top() + 300, left + 180, screen.top() + 360)
     window._live_check = True
     window._on_lobby_placed(button)
-    window.store.love_counts = ()
+    # Quiet: the music a lobby gets plays nowhere here.
+    window.music = WeddingMusic(play=lambda _tune: None)
     window._show_panel(CheckResult(True, "", names=names, button_box=button))
     assert window._lobby_choice == "equation" and window.like_card.look == love_look("equation")
+    window.love.stop()
+    window._hide_panel_after_title()
+    window._on_lobby_placed(button)
     # 小明 alone: his own 赛博.
     window._show_panel(CheckResult(True, "", names=names[:1], button_box=button))
     assert window._lobby_choice == "cyber" and window.panel.look == love_look("cyber")
+    window.love.stop()
     window._hide_panel_after_title()
 
 

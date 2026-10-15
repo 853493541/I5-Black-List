@@ -1,4 +1,4 @@
-"""The scene that greets 嘉宾 players in a lobby (as many as 嘉宾人数 says), over the game.
+"""The scene that greets 嘉宾 players in a lobby, over the game.
 
 Which scene plays is the player's choice in 嘉宾 › 嘉宾特效: one of love_scenes.SCENES, 随机 (any
 but the one just played), or 关闭. It plays once, about five seconds, then goes. The bottom of the

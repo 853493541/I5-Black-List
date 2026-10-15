@@ -413,7 +413,7 @@ def _lobby_summary(kinds: list[str]) -> str:
 
 
 def _show_tick(button: QPushButton) -> None:
-    """A choice that goes with the others beside it shows a ✓ while it is on, as 嘉宾人数's do."""
+    """A choice that goes with the others beside it shows a ✓ while it is on."""
     button.setIcon(line_icon("check", 14, THEME["on_accent"]) if button.isChecked() else QIcon())
 
 
@@ -3784,14 +3784,13 @@ class MainWindow(QMainWindow):
     def settings_line(self) -> str:
         """The settings that change how checks behave and look, for the log at each start."""
         store = self.store
-        counts = "/".join({1: "1人", 2: "2人", 3: "2人以上"}.get(count, str(count)) for count in store.love_counts)
         return "; ".join(
             [
                 "显示 " + ("安全模式" if store.safe_mode else "完整模式"),
                 "方式 " + ("自动检查" if store.auto_capture else f"手动检查 ({store.hotkey or '无快捷键'})"),
                 "提醒 " + ("黑名单+嘉宾" if store.check_blacklist and store.check_likes else "只有黑名单" if store.check_blacklist else "只有嘉宾"),
                 "直播模式 " + ("开" if store.stream_mode else "关") + ("" if store.stream_test_frame else " (测试框 关)"),
-                f"嘉宾特效 {store.love_scene} + {store.love_music} for {counts or '无'}",
+                f"嘉宾特效 {store.love_scene} + {store.love_music}",
                 f"外观 {store.appearance}",
                 "关闭窗口时 " + ("最小化到托盘" if store.close_to_tray else "退出程序"),
                 f"黑名单 {len(store.entries)}, 嘉宾 {len(store.likes)}, 记录 {len(store.scans)}",
@@ -3846,8 +3845,9 @@ class MainWindow(QMainWindow):
         self.like_card.set_look(look)
 
     def _love_for(self, count: int) -> bool:
-        """Whether 嘉宾特效 plays for this many 嘉宾 players: as 嘉宾人数 says, and always in 测试效果."""
-        return self._demo_likes is not None or self.store.love_for(count)
+        """Whether 嘉宾特效 plays for this many 嘉宾 players: for any, one or more, since each 嘉宾 and
+        组合 picks what greets them; and always in 测试效果."""
+        return count > 0 or self._demo_likes is not None
 
     def start_stream_test(self) -> bool:
         """测试效果: the sample lobby (made-up names) shown as the game for a moment, framed by what

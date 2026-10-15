@@ -137,7 +137,7 @@ def test_list_changes_are_logged_as_counts(window, caplog):
 
 def test_the_settings_are_logged_at_start(window):
     line = window.settings_line()
-    for part in ("显示 ", "方式 手动检查 (", "直播模式 关", "嘉宾特效 classic + organ for 2人/2人以上", "黑名单 0, 嘉宾 0, 记录 0"):
+    for part in ("显示 ", "方式 手动检查 (", "直播模式 关", "嘉宾特效 classic + organ;", "黑名单 0, 嘉宾 0, 记录 0"):
         assert part in line, part
 
 
