@@ -205,7 +205,7 @@ def test_the_note_beside_volume_says_only_that_it_is_muted(window):
     assert page.level_note.text() == "" and not window.mute_box.isChecked()
 
 
-def test_a_short_sound_is_kept_whole_marked_and_played_once(window, pick, trim, tmp_path):
+def test_a_short_sound_is_kept_whole_and_marked_and_nothing_plays(window, pick, trim, tmp_path):
     page = _shown(window, "ice")
     page.volume_slider.setValue(14)
     window.played.clear()
@@ -221,12 +221,26 @@ def test_a_short_sound_is_kept_whole_marked_and_played_once(window, pick, trim, 
     assert entry["volume"] == 70 and entry["file"] == "ice.wav" and entry["name"] == "心动音乐.wav"
     assert entry["start"] == 0 and entry["length"] == pytest.approx(3.0)
     assert Store(window.store.root).scene_sounds["ice"] == entry
-    # ♪ on it, its rows its own, and a moment of it at its 音量.
+    # ♪ on it, its rows its own, and nothing plays by itself: whatever played stops for the new sound.
     assert page.scenes.buttons["ice"].own and not page.scenes.buttons["stars"].own
     assert page.sound_text.full == "自定义 · 心动音乐.wav · 3.0 秒"
     assert page.upload_button.text() == "替换" and not page.reset_button.isHidden()
-    assert window.played[-2] is None and window.played[-1].name.startswith("70-ice-")
+    assert window.played and all(tune is None for tune in window.played)
     assert window.music.pick("ice") == "ice" and page.note.isHidden()
+
+
+def test_ok_after_an_upload_plays_nothing_by_itself(window, pick, trim, tmp_path, monkeypatch):
+    """Once kept, the sound is not played on its own: neither a short file nor the part picked of a long one."""
+    tasted = []
+    monkeypatch.setattr(window.music, "taste", tasted.append)
+    page = _shown(window, "stars")
+    pick["chosen"] = _wav(tmp_path / "short.wav", 2.0)
+    page.upload_button.click()
+    pick["chosen"] = _wav(tmp_path / "long.wav", 9.0)
+    window.played.clear()
+    page.upload_button.click()
+    assert window.store.scene_sounds["stars"]["name"] == "long.wav"
+    assert tasted == [] and all(tune is None for tune in window.played)
 
 
 def test_a_long_sound_is_cut_to_the_part_picked(window, pick, trim, tmp_path):
@@ -271,6 +285,43 @@ def test_a_trial_plays_at_the_effect_s_level(window, pick, trim, tmp_path):
     trim["do"] = listen
     page.upload_button.click()
     assert trim["heard"].startswith("50-trial-")
+
+
+def test_the_part_picker_plays_the_song_from_the_playhead_at_the_effect_s_level(window, pick, trim, tmp_path):
+    page = _shown(window, "stars")
+    page.volume_slider.setValue(10)
+    pick["chosen"] = _wav(tmp_path / "long.wav", 8.0)
+    heard = []
+
+    def listen(dialog) -> bool:  # noqa: ANN001
+        window.played.clear()
+        dialog.show()
+        song = window.played[-1]
+        assert window.played[-2] is None and song.is_file() and song.parent != sound_dir()
+        assert custom_sound_dir(window.store.root) not in song.parents
+        heard.append(song)
+        # From where the playhead is pressed, a new file each time; the last one, no longer held, goes.
+        dialog._seek(3.0, True)
+        later = window.played[-1]
+        assert later != song and later.parent == song.parent and not song.exists()
+        heard.append(later)
+        # The rest of the song from there, at the 场景's 50%.
+        with wave.open(str(later)) as wav:
+            assert wav.getnframes() == round(5.0 * 44100)
+            frames = np.frombuffer(wav.readframes(wav.getnframes()), "<i2").astype(np.int32)
+        with wave.open(str(tmp_path / "long.wav")) as wav:
+            source = np.frombuffer(wav.readframes(wav.getnframes()), "<i2")[round(3.0 * 44100) :].astype(np.int32)
+        assert np.abs(frames - source / 2).max() <= 1
+        # 确定 stops it, and nothing plays after.
+        dialog.cut()
+        dialog.accept()
+        return True
+
+    trim["do"] = listen
+    page.upload_button.click()
+    assert not heard[-1].exists() and not heard[-1].parent.exists()
+    assert window.store.scene_sounds["stars"]["file"] == "stars.wav"
+    assert window.played[-1] is None
 
 
 def test_closing_the_part_picker_changes_nothing(window, pick, trim, tmp_path):
@@ -398,6 +449,8 @@ def test_restoring_the_default_drops_the_file_and_its_copies_and_keeps_the_volum
     page.volume_slider.setValue(12)
     pick["chosen"] = _wav(tmp_path / "a.wav", 2.0)
     page.upload_button.click()
+    # Heard at its 音量 (as the slider plays it), it has a copy too.
+    window.music.taste("ice")
     # Another 场景's copy, and this one's, are in sounds/.
     _shown(window, "stars")
     page.volume_slider.setValue(10)
@@ -416,6 +469,7 @@ def test_replacing_a_sound_drops_the_old_one_s_copies(window, pick, trim, tmp_pa
     page.volume_slider.setValue(12)
     pick["chosen"] = _wav(tmp_path / "a.wav", 2.0)
     page.upload_button.click()
+    window.music.taste("ice")
     first = _copies("ice")
     assert first
     pick["chosen"] = _wav(tmp_path / "b.wav", 2.5, pitch=660)

@@ -217,6 +217,13 @@ class ThemeMusic:
         self._play(tune)
         return tune is not None
 
+    def play_file(self, path: Path) -> bool:
+        """A file as it is, made as loud as it should be by the caller (选择片段's song from a moment on),
+        unless muted."""
+        tune = None if self.muted else path
+        self._play(tune)
+        return tune is not None
+
     def _start(self, tune: Path | None, volume: int, seconds: float | None = None) -> bool:
         if tune is not None and not self.muted and volume > 0:
             tune = scaled_tune(tune, volume, self._folder or sound_dir(), seconds)

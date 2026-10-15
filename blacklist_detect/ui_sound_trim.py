@@ -1,24 +1,31 @@
 """选择片段: which part of a sound the player uploaded for a 场景 plays, when the file is longer than a 场景's
 sound may be (5 s).
 
-The whole sound is drawn as a strip, its loudest moment per pixel in the accent colour, with a window over
-the part that plays: the first limit_s seconds at first. Dragging the window moves it, dragging either of its
-edges makes it shorter or longer (never longer than limit_s, shorter than MIN_S or past the file's ends), and
-← → move it by NUDGE_S. What lies outside it is drawn faint. 试听 plays the part picked, through the caller's
-preview(start, length), and turns into 停止 until it has played; under 静音 (muted) it cannot be pressed. 确定
-keeps it, × and Esc keep nothing. Why a part cannot be heard or kept (a silent one, say), as the caller's
-preview or check has it, shows beside 试听 in red until the window moves, and 确定 leaves the dialog open on it.
+A player for the whole sound, to capture from: it plays from its start as the dialog opens (unless 静音), a
+playhead running along the strip, and 截取 takes the limit_s seconds just heard. The sound is drawn as a
+strip, its loudest moment per pixel in the accent colour, with a window over the part that plays: the first
+limit_s seconds at first. A press or a drag on the strip moves the playhead there (the sound goes on from it
+once let go); dragging either of the window's edges makes it shorter or longer (never longer than limit_s,
+shorter than MIN_S or past the file's ends); ◀ ▶ and ← → move it by NUDGE_S. What lies outside it is drawn
+faint. 暂停 / 播放 pauses the sound and goes on with it, through the caller's play(at), which plays the
+sound from at to its end. 试听 pauses it and plays the part picked, through the caller's preview(start,
+length), and turns into 停止 until it has played. Under 静音 (muted) neither can be pressed, but the playhead
+still moves and 截取 still takes. 确定 keeps the part and plays nothing, × and Esc keep nothing. Why a part
+cannot be heard or kept (a silent one, say), as the caller's preview or check has it, shows beside 截取 in
+red until the window moves, and 确定 leaves the dialog open on it.
 
 The dialog is made from plain values (the samples, their rate and the file's name), so it knows nothing of
-how the file was read; the caller keeps only the part picked (selection()).
+how the file was read or played; the caller keeps only the part picked (selection()). Time is the caller's
+now(), so tests can run it.
 """
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 
 import numpy as np
-from PySide6.QtCore import QElapsedTimer, QEvent, QPointF, QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QEvent, QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPainterPath, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
@@ -66,7 +73,7 @@ def _grounds() -> tuple[QColor, QColor]:
 
 
 def _glyph(kind: str, side: int, color: str) -> QIcon:
-    """A solid ▶ (play) or ■ (stop), for 试听."""
+    """A solid ▶ (play), ◀ (back), ■ (stop) or ⏸ (pause), for the dialog's buttons."""
     ratio = 2.0
     image = QPixmap(round(side * ratio), round(side * ratio))
     image.fill(Qt.transparent)
@@ -77,6 +84,11 @@ def _glyph(kind: str, side: int, color: str) -> QIcon:
     p.setBrush(QColor(color))
     if kind == "play":
         p.drawPolygon(QPolygonF([QPointF(side * 0.2, side * 0.1), QPointF(side * 0.9, side * 0.5), QPointF(side * 0.2, side * 0.9)]))
+    elif kind == "back":
+        p.drawPolygon(QPolygonF([QPointF(side * 0.8, side * 0.1), QPointF(side * 0.1, side * 0.5), QPointF(side * 0.8, side * 0.9)]))
+    elif kind == "pause":
+        for left in (0.2, 0.58):
+            p.drawRoundedRect(QRectF(side * left, side * 0.12, side * 0.22, side * 0.76), 1.0, 1.0)
     else:
         p.drawRoundedRect(QRectF(side * 0.18, side * 0.18, side * 0.64, side * 0.64), 1.5, 1.5)
     p.end()
@@ -85,21 +97,21 @@ def _glyph(kind: str, side: int, color: str) -> QIcon:
 
 
 class Waveform(_KeyboardRing, QWidget):
-    """The whole sound as a strip, with the window over the part picked. start and length are in seconds;
-    changed(start, length) says the window moved or was resized, by the mouse or the arrow keys.
-    playhead, while 试听 plays, is how far into the window it is, in seconds."""
+    """The whole sound as a strip, with the window over the part picked and the playhead. start and length
+    are in seconds; changed(start, length) says the window moved or was resized, by the mouse or the arrow
+    keys. playhead is where the sound is, in seconds; seek(at, done) asks for it to go to at, done once the
+    mouse is let go. trial, while 试听 plays, is where in the sound it is."""
 
     changed = Signal(float, float)
+    seek = Signal(float, bool)
 
     W = 560
     H = 104
     RADIUS = 8
     # Room left and right of the sound, so the window's edges at its very start and end can be taken.
     INSET = 8
-    # How near an edge of the window a press takes that edge rather than the window, and how wide the middle
-    # that moves it stays however narrow the window is (5 s of a 10 minute song is under 5 pixels).
+    # How near an edge of the window a press takes that edge rather than the playhead.
     GRIP = 7
-    MIDDLE = 16
 
     def __init__(self, samples: np.ndarray, rate: int, limit_s: float = LIMIT_S, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -109,16 +121,16 @@ class Waveform(_KeyboardRing, QWidget):
         self.shortest = min(MIN_S, self.limit)
         self.start = 0.0
         self.length = self.limit
-        self.playhead: float | None = None
+        self.playhead = 0.0
+        self.trial: float | None = None
         self.setFixedSize(QSize(self.W, self.H))
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.setFocusPolicy(Qt.StrongFocus)
         self.setMouseTracking(True)
         self.setAccessibleName("选择片段")
         self._peaks: np.ndarray | None = None
-        # What a press took: "move" (the window, held offset seconds from its start), "left" or "right".
+        # What a press took: "left" or "right" (an edge of the window), or "seek" (the playhead).
         self._held = ""
-        self._offset = 0.0
 
     def selection(self) -> tuple[float, float]:
         return self.start, self.length
@@ -149,37 +161,29 @@ class Waveform(_KeyboardRing, QWidget):
         return min(max((x - left) / wide * self.duration, 0.0), self.duration)
 
     def _part(self, x: float) -> str:
-        """What a press at x takes: an edge of the window, the window, or the strip outside it."""
+        """What a press at x takes: an edge of the window, or else the playhead ("")."""
         left, right = self.x_of(self.start), self.x_of(self.start + self.length)
-        # Each edge reaches GRIP either side of it, but the window keeps a middle of at least MIDDLE that moves
-        # it: a narrow one moves wherever it and its grips are drawn, and its edges are taken just beyond.
+        # Each edge reaches GRIP either side of it, but no further in than the window's middle: a narrow
+        # window is all grips, its left half the left edge's.
         centre = (left + right) / 2
-        half = max(self.MIDDLE / 2, (right - left) / 2 - self.GRIP)
-        if abs(x - centre) < half:
-            return "move"
-        if min(left, centre - half) - self.GRIP <= x < centre:
+        if left - self.GRIP <= x <= min(left + self.GRIP, centre):
             return "left"
-        if centre < x <= max(right, centre + half) + self.GRIP:
+        if max(right - self.GRIP, centre) <= x <= right + self.GRIP:
             return "right"
         return ""
 
     def _grab(self, part: str) -> None:
-        cursors = {"left": Qt.SizeHorCursor, "right": Qt.SizeHorCursor, "move": Qt.OpenHandCursor, "": Qt.PointingHandCursor}
-        self.setCursor(Qt.ClosedHandCursor if self._held == "move" else cursors[part])
+        self.setCursor(Qt.SizeHorCursor if part in ("left", "right") else Qt.PointingHandCursor)
 
     def mousePressEvent(self, event) -> None:  # noqa: ANN001
         if event.button() != Qt.LeftButton or not self.duration:
             super().mousePressEvent(event)
             return
         x = event.position().x()
-        part = self._part(x)
-        if not part:
-            # A press beside the window brings it there, centred on the press, to be dragged on.
-            self.set_selection(self.time_at(x) - self.length / 2, self.length)
-            part = "move"
-        self._held = part
-        self._offset = self.time_at(x) - self.start
-        self._grab(part)
+        self._held = self._part(x) or "seek"
+        if self._held == "seek":
+            self.seek.emit(self.time_at(x), False)
+        self._grab(self._held)
         event.accept()
 
     def mouseMoveEvent(self, event) -> None:  # noqa: ANN001
@@ -189,8 +193,8 @@ class Waveform(_KeyboardRing, QWidget):
             return
         at = self.time_at(x)
         end = self.start + self.length
-        if self._held == "move":
-            self.set_selection(at - self._offset, self.length)
+        if self._held == "seek":
+            self.seek.emit(at, False)
         elif self._held == "left":
             start = min(max(at, end - self.limit, 0.0), end - self.shortest)
             self.set_selection(start, end - start)
@@ -201,8 +205,11 @@ class Waveform(_KeyboardRing, QWidget):
 
     def mouseReleaseEvent(self, event) -> None:  # noqa: ANN001
         if event.button() == Qt.LeftButton and self._held:
+            x = event.position().x()
+            if self._held == "seek":
+                self.seek.emit(self.time_at(x), True)
             self._held = ""
-            self._grab(self._part(event.position().x()))
+            self._grab(self._part(x))
             event.accept()
             return
         super().mouseReleaseEvent(event)
@@ -256,9 +263,12 @@ class Waveform(_KeyboardRing, QWidget):
         for x in (left, right):
             p.fillRect(QRectF(x - 1, box.top(), 2, box.height()), inside)
             p.drawRoundedRect(QRectF(x - 3.5, middle - 13, 7, 26), 3.5, 3.5)
-        if self.playhead is not None:
-            at = self.x_of(self.start + min(self.playhead, self.length))
-            p.fillRect(QRectF(at - 0.75, box.top(), 1.5, box.height()), QColor(THEME["text"]))
+        # Where 试听 is in the part, in the accent; where the sound is, a thin line in the text's colour.
+        if self.trial is not None:
+            at = self.x_of(min(self.trial, self.start + self.length))
+            p.fillRect(QRectF(at - 0.75, box.top(), 1.5, box.height()), inside)
+        at = self.x_of(min(max(self.playhead, 0.0), self.duration))
+        p.fillRect(QRectF(at - 0.75, box.top(), 1.5, box.height()), QColor(THEME["text"]))
         p.setClipping(False)
         if self.show_ring():
             p.setPen(QPen(QColor(THEME["accent_line"]), 1.5, Qt.DashLine))
@@ -269,9 +279,10 @@ class Waveform(_KeyboardRing, QWidget):
 
 class SoundTrimDialog(Modal):
     """选择片段: the part of a sound longer than limit_s that a 场景 plays. samples: the sound, mono int16
-    at rate; name: its file's name. preview(start, length) plays that part, or returns why it cannot;
-    stop() stops it; check(start, length) is why a part cannot be kept, or "". muted: nothing would be heard,
-    so 试听 is off. selection() is (start, length) in seconds; 确定 accepts it."""
+    at rate; name: its file's name. play(at) plays the sound from at to its end, or returns why it cannot;
+    preview(start, length) plays that part, or returns why it cannot; stop() stops either; check(start,
+    length) is why a part cannot be kept, or "". muted: nothing would be heard, so neither can be pressed.
+    now: the time in seconds (time.monotonic). selection() is (start, length) in seconds; 确定 accepts it."""
 
     def __init__(
         self,
@@ -284,15 +295,29 @@ class SoundTrimDialog(Modal):
         limit_s: float = LIMIT_S,
         muted: bool = False,
         check: Callable[[float, float], str] | None = None,
+        play: Callable[[float], str | None] | None = None,
+        now: Callable[[], float] = time.monotonic,
     ) -> None:
         super().__init__(parent)
         self.preview = preview
         self.stop = stop
         self.check = check
+        self.play = play
+        self.now = now
+        self.muted = muted
+        # 试听 plays (playing), or the sound does (running), from offset seconds in at now() began.
         self.playing = False
+        self.running = False
+        self.offset = 0.0
+        self._began = 0.0
+        self._tried = 0.0
+        # A drag of the playhead paused the sound, to go on where it is let go.
+        self._resume = False
+        self._opened = False
         layout = self.frame("选择片段")
         self.wave = Waveform(samples, rate, limit_s)
         self.wave.changed.connect(self._changed)
+        self.wave.seek.connect(self._seek)
         self._first = self.wave.selection()
         about = QVBoxLayout()
         about.setSpacing(2)
@@ -302,40 +327,68 @@ class SoundTrimDialog(Modal):
         self.name.setFont(title)
         self.name.setToolTip(name)
         about.addWidget(self.name)
-        self.hint = QLabel(f"共 {clock(self.wave.duration)} · 拖动选框选一段，最长 {limit_s:g} 秒")
+        self.hint = QLabel(f"共 {clock(self.wave.duration)} · 边听边按「截取」，取下刚听到的 {self.wave.limit:g} 秒")
         self.hint.setObjectName("sub")
         about.addWidget(self.hint)
         layout.addLayout(about)
         layout.addWidget(self.wave)
+        self.where = QLabel()
+        self.where.setObjectName("sub")
+        layout.addWidget(self.where)
         row = QHBoxLayout()
         row.setSpacing(12)
-        self.play_button = QPushButton("试听")
-        self.play_button.setAutoDefault(False)
-        self.play_button.setIconSize(QSize(12, 12))
-        self.play_button.clicked.connect(self.toggle_preview)
-        if muted:
-            self.play_button.setEnabled(False)
-            self.play_button.setToolTip("已静音")
-        row.addWidget(self.play_button)
+        self.pause_button = self._button("暂停", self.toggle_song)
+        row.addWidget(self.pause_button)
+        self.cut_button = self._button("截取", self.cut)
+        self.cut_button.setAccessibleName(f"截取刚听到的 {self.wave.limit:g} 秒")
+        row.addWidget(self.cut_button)
         self.times = QLabel()
         row.addWidget(self.times)
         row.addStretch(1)
-        keys = QLabel("← → 微调")
+        layout.addLayout(row)
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        self.back_button = self._button("", lambda: self.wave.nudge(-NUDGE_S), "back", "往前微调")
+        self.on_button = self._button("", lambda: self.wave.nudge(NUDGE_S), "play", "往后微调")
+        for button in (self.back_button, self.on_button):
+            button.setAutoRepeat(True)
+            row.addWidget(button)
+        keys = QLabel(f"微调 {NUDGE_S:g} 秒")
         keys.setObjectName("sub")
         row.addWidget(keys)
+        row.addStretch(1)
+        self.play_button = self._button("试听", self.toggle_preview)
+        row.addWidget(self.play_button)
         layout.addLayout(row)
+        if muted:
+            for button in (self.pause_button, self.play_button):
+                button.setEnabled(False)
+                button.setToolTip("已静音")
         self.ok_button = _primary("确定", self.accept)
         self.footer(self.ok_button)
         _pointing(self)
-        for button in (self.play_button, self.ok_button):
+        for button in (self.pause_button, self.cut_button, self.back_button, self.on_button, self.play_button, self.ok_button):
             button.installEventFilter(self)
         self._show_play(False)
+        self._show_song()
+        self._show_head()
         self._show_times()
-        self._clock = QElapsedTimer()
         self._tick = QTimer(self)
         self._tick.setInterval(33)
         self._tick.timeout.connect(self._advance)
         self.wave.setFocus()
+
+    def _button(self, text: str, action: Callable[[], None], glyph: str = "", name: str = "") -> QPushButton:
+        button = QPushButton(text)
+        button.setAutoDefault(False)
+        button.setIconSize(QSize(12, 12))
+        if glyph:
+            button.setIcon(_glyph(glyph, 12, THEME["text"]))
+        if name:
+            button.setAccessibleName(name)
+            button.setToolTip(name)
+        button.clicked.connect(action)
+        return button
 
     def selection(self) -> tuple[float, float]:
         """The part picked: where it starts and how long it is, in seconds, to the millisecond."""
@@ -345,78 +398,168 @@ class SoundTrimDialog(Modal):
     def has_changes(self) -> bool:
         return self.wave.selection() != self._first
 
+    def head(self) -> float:
+        """Where the sound is, in seconds: on with the clock while it plays."""
+        if not self.running:
+            return self.offset
+        return min(self.offset + self.now() - self._began, self.wave.duration)
+
     def _show_times(self, reason: str = "") -> None:
         """Where the part picked starts and ends, or, in red, why it cannot be heard or kept."""
         start, length = self.wave.selection()
         self.times.setObjectName("error" if reason else "")
         self.times.style().unpolish(self.times)
         self.times.style().polish(self.times)
-        self.times.setText(reason or f"{clock(start)} – {clock(start + length)} · {length:.1f} 秒")
+        self.times.setText(reason or f"选中 {clock(start)} – {clock(start + length)} · {length:.1f} 秒")
+
+    def _show_head(self) -> None:
+        at = self.head()
+        self.wave.playhead = at
+        self.wave.update()
+        self.where.setText(f"{clock(at)} / {clock(self.wave.duration)}")
 
     def _show_play(self, playing: bool) -> None:
         self.play_button.setText("停止" if playing else "试听")
         self.play_button.setIcon(_glyph("stop" if playing else "play", 12, THEME["text"]))
         self.play_button.setAccessibleName("停止试听" if playing else "试听这一段")
 
+    def _show_song(self) -> None:
+        self.pause_button.setText("暂停" if self.running else "播放")
+        self.pause_button.setIcon(_glyph("pause" if self.running else "play", 12, THEME["text"]))
+        self.pause_button.setAccessibleName("暂停" if self.running else "从这里播放")
+
+    def showEvent(self, event) -> None:  # noqa: ANN001
+        super().showEvent(event)
+        if not self._opened:
+            # The sound plays from its start as the dialog opens: the player listens for the part.
+            self._opened = True
+            self._start_song()
+
+    def _start_song(self) -> None:
+        """The sound on from the playhead (from its start once it has played to its end)."""
+        if self.running or not self.pause_button.isEnabled():
+            return
+        self._end(stop=False)
+        if self.offset >= self.wave.duration:
+            self.offset = 0.0
+        if self.play is not None and (reason := self.play(self.offset)):
+            self._show_times(reason)
+            return
+        self.running = True
+        self._began = self.now()
+        self._show_song()
+        self._tick.start()
+
+    def _halt(self) -> None:
+        """The sound paused where it is."""
+        if not self.running:
+            return
+        self.offset = self.head()
+        self.running = False
+        self.stop()
+        if not self.playing:
+            self._tick.stop()
+        self._show_song()
+        self._show_head()
+
+    def toggle_song(self) -> None:
+        """暂停 while the sound plays, else 播放 from the playhead."""
+        if self.running:
+            self._halt()
+        else:
+            self._start_song()
+
+    def cut(self) -> None:
+        """截取: the limit_s seconds just heard, up to the playhead (the first limit_s before it is that far in)."""
+        at = self.head()
+        self.wave.set_selection(at - self.wave.limit, self.wave.limit)
+
+    def _seek(self, at: float, done: bool) -> None:
+        """The playhead pressed or dragged to at: the sound waits while it is held, and goes on from there."""
+        if self.running:
+            self._halt()
+            self._resume = True
+        self.offset = at
+        self._show_head()
+        if done and self._resume:
+            self._resume = False
+            self._start_song()
+
     def toggle_preview(self) -> None:
-        """试听: the part picked, from its start; while it plays, 停止."""
+        """试听: the sound paused, and the part picked from its start; while it plays, 停止."""
         if self.playing:
             self._end(stop=True)
             return
         if not self.play_button.isEnabled():
             return
+        self._halt()
         start, length = self.selection()
         if reason := self.preview(start, length):
             self._show_times(reason)
             return
         self.playing = True
         self._show_play(True)
-        self._clock.start()
-        self.wave.playhead = 0.0
+        self._tried = self.now()
+        self.wave.trial = self.wave.start
+        self.wave.update()
         self._tick.start()
 
     def _advance(self) -> None:
-        """The playhead on with the sound; once the part has played, 试听 again."""
-        played = self._clock.elapsed() / 1000
-        if played >= self.wave.length:
-            self._end(stop=False)
-            return
-        self.wave.playhead = played
-        self.wave.update()
+        """The playhead on with the sound, and 试听's mark with the part; whichever has played to its end, done."""
+        if self.playing:
+            played = self.now() - self._tried
+            if played >= self.wave.length:
+                self._end(stop=False)
+            else:
+                self.wave.trial = self.wave.start + played
+        if self.running and self.head() >= self.wave.duration:
+            self.offset = self.wave.duration
+            self.running = False
+            self._show_song()
+        self._show_head()
+        if not (self.playing or self.running):
+            self._tick.stop()
 
     def _end(self, stop: bool) -> None:
-        """No longer playing; stop: cut the sound short too."""
+        """试听 no longer playing; stop: cut its sound short too."""
         if not self.playing:
             return
         if stop:
             self.stop()
         self.playing = False
-        self._tick.stop()
-        self.wave.playhead = None
+        if not self.running:
+            self._tick.stop()
+        self.wave.trial = None
         self.wave.update()
         self._show_play(False)
 
     def _changed(self, _start: float, _length: float) -> None:
-        """The window moved: what plays is no longer what is picked, so it stops."""
+        """The window moved: what 试听 plays is no longer what is picked, so it stops."""
         self._end(stop=True)
         self._show_times()
 
     def eventFilter(self, watched, event) -> bool:  # noqa: ANN001
-        # ← → move the window with 试听 or 确定 focused too: in a dialog a button would take them to move
-        # the focus to the next button.
+        # ← → move the window with a button focused too: in a dialog a button would take them to move the
+        # focus to the next button.
         if event.type() == QEvent.Type.KeyPress and (step := _arrow(event)) is not None:
             self.wave.nudge(step)
             return True
         return super().eventFilter(watched, event)
 
-    def accept(self) -> None:
-        """确定: the part picked, unless it cannot be kept; then why, and the dialog stays for another."""
+    def _quiet(self) -> None:
         self._end(stop=True)
+        self._halt()
+        self._resume = False
+
+    def accept(self) -> None:
+        """确定: the part picked, unless it cannot be kept; then why, and the dialog stays for another. Nothing
+        plays: the sound and 试听 stop, and the part is not played again."""
+        self._quiet()
         if self.check is not None and (reason := self.check(*self.selection())):
             self._show_times(reason)
             return
         super().accept()
 
     def done(self, result: int) -> None:  # noqa: A003
-        self._end(stop=True)
+        self._quiet()
         super().done(result)

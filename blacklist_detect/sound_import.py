@@ -4,6 +4,8 @@ Whatever the file (FILTER), decode reads it into mono 16-bit samples at 44.1 kHz
 built-in tunes (ui_music.TUNES), and save_clip keeps at most CLIP_S of it, about as loud as they are
 (TARGET_RMS_DBFS, peaks no higher than PEAK_DBFS), as <scene key>.wav in a folder of the app's own.
 From then on it plays like any tune: winsound, a quieter copy for its 音量 (ui_music.scaled_tune).
+While the part is picked (选择片段), save_rest writes the song from a moment on, for winsound to play there:
+it cannot start a file anywhere but at its start.
 
 WAV is read here with Python's wave. Everything else goes through Qt's QAudioDecoder, which hands the
 file to Windows' own decoders (Media Foundation): nothing is bundled for the formats themselves. The
@@ -20,6 +22,7 @@ import os
 import re
 import time
 import wave
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -337,17 +340,41 @@ def save_clip(decoded: Decoded, key: str, folder: Path, start_s: float = 0.0, le
     part = folder / f"{key}.wav.part"
     try:
         folder.mkdir(parents=True, exist_ok=True)
-        with wave.open(str(part), "wb") as wav:
-            wav.setnchannels(1)
-            wav.setsampwidth(2)
-            wav.setframerate(RATE)
-            wav.writeframes(np.clip(np.rint(clip * 32768), -32768, 32767).astype("<i2").tobytes())
+        _write(part, [clip])
         os.replace(part, target)
     except OSError as error:
         part.unlink(missing_ok=True)
         log.warning("Could not keep the sound for %s", key, exc_info=True)
         raise SoundImportError("声音存不下来，再试一次") from error
     return Imported(target, decoded.name, decoded.seconds, begin / RATE, (end - begin) / RATE)
+
+
+def save_rest(decoded: Decoded, start_s: float, path: Path, volume: int = 100) -> Path:
+    """The sound of decoded from start_s to its end as the WAV at path, at volume percent of its loudness as
+    read (no levelling, no fades): what 选择片段 plays as the song goes on from a moment. A minute at a time,
+    so a long song never sits in memory as floats whole."""
+    total = len(decoded.samples)
+    begin = min(max(0, round(start_s * RATE)), total)
+    step = 60 * RATE
+    gain = max(0, volume) / 100 / 32768
+    try:
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        _write(path, (decoded.samples[at : at + step].astype(np.float64) * gain for at in range(begin, total, step)))
+    except OSError as error:
+        Path(path).unlink(missing_ok=True)
+        log.warning("Could not write the song from %.1f s", start_s, exc_info=True)
+        raise SoundImportError("放不了，再试一次") from error
+    return Path(path)
+
+
+def _write(path: Path, parts: Iterable[np.ndarray]) -> None:
+    """Float samples (-1..1), part by part, as a mono 16-bit WAV at RATE."""
+    with wave.open(str(path), "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(RATE)
+        for part in parts:
+            wav.writeframes(np.clip(np.rint(part * 32768), -32768, 32767).astype("<i2").tobytes())
 
 
 def _level(clip: np.ndarray) -> np.ndarray:

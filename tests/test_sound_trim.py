@@ -35,17 +35,26 @@ def _sound(seconds: float) -> np.ndarray:
 
 
 class Player:
-    """What the dialog asks to hear, instead of any sound."""
+    """What the dialog asks to hear, instead of any sound, and the time it is told (moved on by hand)."""
 
     def __init__(self) -> None:
         self.played: list[tuple[float, float]] = []
+        self.songs: list[float] = []
         self.stopped = 0
+        self.time = 100.0
 
     def preview(self, start: float, length: float) -> None:
         self.played.append((start, length))
 
+    def play(self, at: float) -> str:
+        self.songs.append(at)
+        return ""
+
     def stop(self) -> None:
         self.stopped += 1
+
+    def now(self) -> float:
+        return self.time
 
 
 @pytest.fixture
@@ -54,7 +63,14 @@ def player():
 
 
 def _dialog(player: Player, seconds: float = 20.0, **kwargs) -> SoundTrimDialog:  # noqa: ANN003
-    return SoundTrimDialog(_sound(seconds), RATE, "心动音乐.mp3", player.preview, player.stop, **kwargs)
+    kwargs.setdefault("play", player.play)
+    return SoundTrimDialog(_sound(seconds), RATE, "心动音乐.mp3", player.preview, player.stop, now=player.now, **kwargs)
+
+
+def _later(dialog: SoundTrimDialog, player: Player, seconds: float) -> None:
+    """seconds go by, and the dialog's timer ticks once."""
+    player.time += seconds
+    dialog._advance()
 
 
 def _mouse(widget, kind, x: float, buttons=Qt.LeftButton) -> None:  # noqa: ANN001
@@ -98,89 +114,139 @@ def test_it_opens_on_the_first_five_seconds_with_the_name_and_length(qapp, playe
     assert dialog.windowTitle() == "选择片段"
     assert dialog.selection() == (0.0, LIMIT_S)
     assert dialog.name.text() == "心动音乐.mp3"
-    assert "0:20.0" in dialog.hint.text()
-    assert dialog.times.text() == "0:00.0 – 0:05.0 · 5.0 秒"
+    assert "0:20.0" in dialog.hint.text() and "截取" in dialog.hint.text()
+    assert dialog.times.text() == "选中 0:00.0 – 0:05.0 · 5.0 秒"
+    assert dialog.where.text() == "0:00.0 / 0:20.0" and dialog.wave.playhead == 0.0
     assert not dialog.has_changes()
 
 
-def test_dragging_the_window_moves_it_and_stops_at_the_ends(qapp, player):
+def test_the_song_plays_from_its_start_as_it_opens_and_the_playhead_follows_the_clock(qapp, player):
     dialog = _dialog(player)
-    wave = dialog.wave
-    middle = wave.x_of(2.5)
-    _drag(wave, middle, wave.x_of(10.0))
-    start, length = dialog.selection()
-    assert length == LIMIT_S and start == pytest.approx(7.5, abs=0.05)
-    assert dialog.times.text().endswith("· 5.0 秒") and dialog.has_changes()
-    # Past the end it stops there, and past the start at 0.
-    _drag(wave, wave.x_of(10.0), wave.width() + 200)
-    assert dialog.selection() == (15.0, LIMIT_S)
-    _drag(wave, wave.x_of(17.5), -200)
-    assert dialog.selection() == (0.0, LIMIT_S)
+    assert player.songs == [] and not dialog.running
+    dialog.show()
+    try:
+        assert player.songs == [0.0] and dialog.running and dialog._tick.isActive()
+        assert dialog.pause_button.text() == "暂停"
+        _later(dialog, player, 2.5)
+        assert dialog.head() == pytest.approx(2.5) and dialog.wave.playhead == pytest.approx(2.5)
+        assert dialog.where.text() == "0:02.5 / 0:20.0"
+        # Shown again, it does not start over.
+        dialog.hide()
+        dialog.show()
+        assert player.songs == [0.0]
+    finally:
+        dialog.reject()
 
 
-def test_a_press_beside_the_window_brings_it_there(qapp, player):
+def test_pause_and_play_go_on_from_the_playhead(qapp, player):
+    dialog = _dialog(player)
+    dialog._start_song()
+    _later(dialog, player, 3.0)
+    dialog.pause_button.click()
+    assert not dialog.running and player.stopped == 1 and dialog.pause_button.text() == "播放"
+    # Paused, the playhead stays.
+    _later(dialog, player, 4.0)
+    assert dialog.head() == pytest.approx(3.0)
+    dialog.pause_button.click()
+    assert player.songs == [0.0, pytest.approx(3.0)] and dialog.running
+    _later(dialog, player, 1.0)
+    assert dialog.head() == pytest.approx(4.0)
+
+
+def test_at_its_end_the_song_stops_and_play_starts_it_over(qapp, player):
+    dialog = _dialog(player)
+    dialog._start_song()
+    _later(dialog, player, 25.0)
+    assert not dialog.running and dialog.head() == 20.0 and dialog.pause_button.text() == "播放"
+    assert not dialog._tick.isActive() and dialog.where.text() == "0:20.0 / 0:20.0"
+    dialog.pause_button.click()
+    assert player.songs == [0.0, 0.0] and dialog.running
+
+
+def test_a_press_on_the_strip_moves_the_playhead_and_the_song_goes_on_from_there(qapp, player):
     dialog = _dialog(player)
     wave = dialog.wave
+    dialog._start_song()
+    _later(dialog, player, 1.0)
     _drag(wave, wave.x_of(12.0), wave.x_of(12.0))
-    start, length = dialog.selection()
-    assert length == LIMIT_S and start == pytest.approx(9.5, abs=0.05)
+    assert dialog.head() == pytest.approx(12.0, abs=0.05) and wave.playhead == pytest.approx(12.0, abs=0.05)
+    assert player.songs == [0.0, pytest.approx(12.0, abs=0.05)] and dialog.running
+    # The part picked stays where it was.
+    assert dialog.selection() == (0.0, LIMIT_S)
+    # Dragged, the song waits until it is let go, then goes on from there, once.
+    _drag(wave, wave.x_of(8.0), wave.x_of(16.0))
+    assert player.songs[-1] == pytest.approx(16.0, abs=0.05) and len(player.songs) == 3
+    # Past the ends the playhead stops at them.
+    _drag(wave, wave.x_of(8.0), -200)
+    assert dialog.head() == 0.0
+    # Paused, a press moves the playhead and nothing plays.
+    dialog.pause_button.click()
+    _drag(wave, wave.x_of(9.0), wave.x_of(9.0))
+    assert dialog.head() == pytest.approx(9.0, abs=0.05) and not dialog.running and len(player.songs) == 4
+    dialog.pause_button.click()
+    assert player.songs[-1] == pytest.approx(9.0, abs=0.05)
 
 
-@pytest.mark.parametrize("seconds", [180.0, 240.0, 600.0])
-def test_on_a_long_song_the_narrow_window_still_moves(qapp, player, seconds):
-    """5 s of a 3 to 10 minute song is a dozen pixels or less: its middle moves it, not an edge."""
-    dialog = _dialog(player, seconds=seconds)
-    wave = dialog.wave
-    _drag(wave, wave.x_of(2.5), wave.x_of(2.5) + 60)
+def test_cut_takes_the_five_seconds_just_heard(qapp, player):
+    dialog = _dialog(player)
+    dialog._start_song()
+    _later(dialog, player, 9.3)
+    dialog.cut_button.click()
     start, length = dialog.selection()
-    assert length == LIMIT_S and start > 15
-    # A press just beside its middle moves it too, and keeps its 5 s.
-    wave.set_selection(60.0, 5.0)
-    _drag(wave, wave.x_of(62.5) - 2, wave.x_of(62.5) + 58)
-    start, length = dialog.selection()
-    assert length == LIMIT_S and start > 75
+    assert start == pytest.approx(4.3) and length == LIMIT_S and dialog.has_changes()
+    # The song goes on.
+    assert dialog.running and player.songs == [0.0] and player.stopped == 0
+    # Before 5 s in, the first 5 s.
+    dialog = _dialog(player)
+    dialog._start_song()
+    _later(dialog, player, 2.0)
+    dialog.wave.set_selection(8.0, 2.0)
+    dialog.cut_button.click()
+    assert dialog.selection() == (0.0, LIMIT_S)
+    # At the very end, the last 5 s; a shortened window is 5 s again.
+    dialog = _dialog(player)
+    dialog.wave.set_selection(3.0, 1.0)
+    dialog._start_song()
+    _later(dialog, player, 30.0)
+    dialog.cut_button.click()
+    assert dialog.selection() == (15.0, LIMIT_S)
 
 
 @pytest.mark.parametrize("seconds", [180.0, 600.0])
-def test_a_press_anywhere_on_a_narrow_window_moves_it(qapp, player, seconds):
-    """5 s of a 3 minute song is 15 pixels, of a 10 minute one under 5, its two grips one blob: a press anywhere
-    on it, grips and all, and a drag moves it whole; just beyond, an edge is taken."""
+def test_on_a_narrow_window_each_half_takes_its_edge_and_beyond_moves_the_playhead(qapp, player, seconds):
+    """5 s of a 3 minute song is 15 pixels, of a 10 minute one under 5, its two grips one blob: its left half
+    takes the left edge, its right half the right one, and a press just beyond them moves the playhead."""
     dialog = _dialog(player, seconds=seconds)
     wave = dialog.wave
     middle = seconds / 2
     left, right = wave.x_of(middle), wave.x_of(middle + LIMIT_S)
     centre = (left + right) / 2
-    # The window, and its grips (7 pixels wide) once they run into one.
-    reach = (right - left) / 2 + (3.5 if right - left < 7 else 0.0)
-    for x in np.arange(centre - reach, centre + reach + 0.01, 0.5):
-        wave.set_selection(middle, LIMIT_S)
-        _drag(wave, x, x + 40)
-        start, length = dialog.selection()
-        assert length == LIMIT_S and start > middle + 1, x - left
     wave.set_selection(middle, LIMIT_S)
-    _drag(wave, centre - 11, wave.x_of(middle + 3.0))
+    _drag(wave, centre - 1, wave.x_of(middle + 3.0))
     start, length = dialog.selection()
     assert length < LIMIT_S and start + length == pytest.approx(middle + LIMIT_S)
     wave.set_selection(middle, LIMIT_S)
-    _drag(wave, centre + 11, wave.x_of(middle + 2.0))
+    _drag(wave, centre + 1, wave.x_of(middle + 2.0))
     start, length = dialog.selection()
     assert length < LIMIT_S and start == middle
+    wave.set_selection(middle, LIMIT_S)
+    _drag(wave, right + 9, right + 9)
+    assert dialog.selection() == (middle, LIMIT_S) and dialog.head() == pytest.approx(wave.time_at(right + 9))
 
 
-def test_a_short_window_moves_and_its_edges_are_still_taken(qapp, player):
+def test_inside_a_wide_window_a_press_moves_the_playhead_and_its_edges_are_still_taken(qapp, player):
     dialog = _dialog(player)
     wave = dialog.wave
-    wave.set_selection(10.0, MIN_S)
-    _drag(wave, wave.x_of(10.25), wave.x_of(14.25))
-    start, length = dialog.selection()
-    assert length == MIN_S and start == pytest.approx(14.0, abs=0.05)
+    wave.set_selection(10.0, LIMIT_S)
+    _drag(wave, wave.x_of(12.5), wave.x_of(16.0))
+    assert dialog.selection() == (10.0, LIMIT_S) and dialog.head() == pytest.approx(16.0, abs=0.05)
     # Just outside an edge takes that edge.
-    _drag(wave, wave.x_of(14.5) + 3, wave.x_of(17.0))
+    _drag(wave, wave.x_of(15.0) + 3, wave.x_of(14.0))
     start, length = dialog.selection()
-    assert start == pytest.approx(14.0, abs=0.05) and start + length == pytest.approx(17.0, abs=0.05)
-    _drag(wave, wave.x_of(14.0) - 3, wave.x_of(13.0))
+    assert start == 10.0 and start + length == pytest.approx(14.0, abs=0.05)
+    _drag(wave, wave.x_of(10.0) - 3, wave.x_of(11.0))
     start, length = dialog.selection()
-    assert start == pytest.approx(13.0, abs=0.05) and start + length == pytest.approx(17.0, abs=0.05)
+    assert start == pytest.approx(11.0, abs=0.05) and start + length == pytest.approx(14.0, abs=0.05)
 
 
 def test_the_right_edge_shortens_and_lengthens_within_the_limits(qapp, player):
@@ -246,6 +312,27 @@ def test_the_arrow_keys_move_the_window_by_a_tenth(qapp, player):
     assert dialog.selection() == (14.9, LIMIT_S)
     _key(dialog.ok_button, Qt.Key_Left)
     assert dialog.selection() == (14.8, LIMIT_S)
+    _key(dialog.cut_button, Qt.Key_Left)
+    assert dialog.selection() == (14.7, LIMIT_S)
+
+
+def test_the_nudge_buttons_move_the_window_by_a_tenth_and_repeat_while_held(qapp, player):
+    dialog = _dialog(player)
+    dialog._start_song()
+    assert dialog.back_button.autoRepeat() and dialog.on_button.autoRepeat()
+    dialog.on_button.click()
+    dialog.on_button.click()
+    assert dialog.selection() == (0.2, LIMIT_S)
+    dialog.back_button.click()
+    assert dialog.selection() == (0.1, LIMIT_S)
+    # Not before the start, nor past the end; the song plays on.
+    for _ in range(3):
+        dialog.back_button.click()
+    assert dialog.selection() == (0.0, LIMIT_S)
+    dialog.wave.set_selection(14.95, LIMIT_S)
+    dialog.on_button.click()
+    assert dialog.selection() == (15.0, LIMIT_S)
+    assert dialog.running and player.songs == [0.0]
 
 
 def test_play_previews_the_part_picked_and_turns_into_stop(qapp, player):
@@ -272,15 +359,45 @@ def test_moving_the_window_while_it_plays_stops_the_sound(qapp, player):
 
 def test_play_turns_back_once_the_part_has_played(qapp, player):
     dialog = _dialog(player)
+    dialog.wave.set_selection(2.0, MIN_S)
+    dialog.play_button.click()
+    assert dialog.wave.trial == 2.0 and dialog._tick.isActive()
+    _later(dialog, player, 0.3)
+    assert dialog.playing and dialog.wave.trial == pytest.approx(2.3)
+    _later(dialog, player, 0.3)
+    # It ended by itself: nothing is cut short.
+    assert not dialog.playing and dialog.play_button.text() == "试听" and player.stopped == 0
+    assert dialog.wave.trial is None and not dialog._tick.isActive()
+
+
+def test_the_timer_runs_the_trial_with_the_real_clock(qapp):
+    """Without a clock of the test's own, time.monotonic and the dialog's timer end 试听 by themselves."""
+    player = Player()
+    dialog = SoundTrimDialog(_sound(20), RATE, "心动音乐.mp3", player.preview, player.stop)
     dialog.wave.set_selection(0.0, MIN_S)
     dialog.play_button.click()
     end = time.monotonic() + 3
     while dialog.playing and time.monotonic() < end:
         qapp.processEvents()
         time.sleep(0.01)
-    # It ended by itself: nothing is cut short.
-    assert not dialog.playing and dialog.play_button.text() == "试听" and player.stopped == 0
-    assert dialog.wave.playhead is None
+    assert not dialog.playing and player.stopped == 0
+
+
+def test_trial_pauses_the_song_and_play_goes_on_from_the_playhead(qapp, player):
+    dialog = _dialog(player)
+    dialog._start_song()
+    _later(dialog, player, 7.0)
+    dialog.wave.set_selection(1.0, 3.0)
+    dialog.play_button.click()
+    assert not dialog.running and dialog.playing and player.stopped == 1 and player.played == [(1.0, 3.0)]
+    assert dialog.pause_button.text() == "播放" and dialog.head() == pytest.approx(7.0)
+    # The trial's mark moves through the part; the playhead stays.
+    _later(dialog, player, 1.0)
+    assert dialog.wave.trial == pytest.approx(2.0) and dialog.wave.playhead == pytest.approx(7.0)
+    # 播放 cuts the trial short (the song takes over the sound) and goes on from the playhead.
+    dialog.pause_button.click()
+    assert not dialog.playing and dialog.running and player.songs == [0.0, pytest.approx(7.0)]
+    assert dialog.play_button.text() == "试听"
 
 
 def test_ok_gives_the_part_picked(qapp, player):
@@ -292,8 +409,19 @@ def test_ok_gives_the_part_picked(qapp, player):
     ok.click()
     assert dialog.result() == QDialog.Accepted
     assert dialog.selection() == (3.3, 4.2)
-    # What played stops as it closes.
-    assert player.stopped == 1
+    # What played stops as it closes, and nothing plays after.
+    assert player.stopped == 1 and player.played == [(3.3, 4.2)] and player.songs == []
+
+
+def test_ok_stops_the_song_and_plays_nothing(qapp, player):
+    dialog = _dialog(player)
+    dialog._start_song()
+    _later(dialog, player, 8.0)
+    dialog.cut_button.click()
+    dialog.ok_button.click()
+    assert dialog.result() == QDialog.Accepted and dialog.selection() == (3.0, LIMIT_S)
+    assert not dialog.running and not dialog._tick.isActive() and player.stopped == 1
+    assert player.songs == [0.0] and player.played == []
 
 
 def test_the_cross_and_esc_cancel(qapp, player):
@@ -393,12 +521,32 @@ def test_outside_the_window_is_plainly_dimmer_in_every_accent(qapp, player, sche
         use_theme("蓝色", "light")
 
 
-def test_under_mute_the_trial_cannot_be_played(qapp, player):
+def test_under_mute_nothing_plays_but_the_playhead_moves_and_cut_takes(qapp, player):
     dialog = _dialog(player, muted=True)
-    assert not dialog.play_button.isEnabled() and dialog.play_button.toolTip() == "已静音"
-    dialog.toggle_preview()
-    assert player.played == [] and not dialog.playing
-    # 确定 still keeps the part picked.
-    dialog.wave.set_selection(3.0, 2.0)
-    dialog.ok_button.click()
-    assert dialog.result() == QDialog.Accepted and dialog.selection() == (3.0, 2.0)
+    for button in (dialog.play_button, dialog.pause_button):
+        assert not button.isEnabled() and button.toolTip() == "已静音"
+    dialog.show()
+    try:
+        assert player.songs == [] and not dialog.running
+        dialog.toggle_preview()
+        dialog.toggle_song()
+        assert player.played == [] and player.songs == [] and not dialog.playing and not dialog.running
+        # A press moves the playhead, and 截取 takes the 5 s up to it.
+        wave = dialog.wave
+        _drag(wave, wave.x_of(11.0), wave.x_of(11.0))
+        assert dialog.head() == pytest.approx(11.0, abs=0.05) and player.songs == []
+        dialog.cut_button.click()
+        start, length = dialog.selection()
+        assert start == pytest.approx(6.0, abs=0.05) and length == LIMIT_S
+        # 确定 still keeps the part picked.
+        dialog.wave.set_selection(3.0, 2.0)
+        dialog.ok_button.click()
+        assert dialog.result() == QDialog.Accepted and dialog.selection() == (3.0, 2.0)
+    finally:
+        dialog.reject()
+
+
+def test_a_reason_the_song_cannot_play_shows_in_red(qapp, player):
+    dialog = _dialog(player, play=lambda _at: "放不了，再试一次")
+    dialog.toggle_song()
+    assert not dialog.running and dialog.times.text() == "放不了，再试一次" and dialog.times.objectName() == "error"

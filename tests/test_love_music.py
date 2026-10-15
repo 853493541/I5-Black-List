@@ -10,6 +10,7 @@ import pytest
 
 from blacklist_detect import love_scenes
 from blacklist_detect.model import Scenes
+from blacklist_detect.sound_import import RATE, Decoded, save_rest
 from blacklist_detect.ui_music import SAME_LOBBY_S, SAMPLE_S, TUNES, ThemeMusic, scaled_tune
 
 
@@ -561,6 +562,25 @@ def test_dropping_one_tune_s_copies_keeps_every_other(tmp_path):
     # Nothing made yet, nothing to drop.
     bare, _played, _clock = _managed(tmp_path / "none", {})
     bare.drop(own / "ice.wav")
+
+
+def test_the_song_from_a_moment_is_the_rest_of_it_at_a_volume_and_plays_as_it_is(tmp_path):
+    """选择片段 plays the player's song from wherever its playhead is: winsound cannot start a file midway, so
+    the rest of the song is written as a file of its own, as loud as the 场景's 音量, and played as it is."""
+    song = np.rint(np.sin(np.arange(3 * RATE) / 7) * 20000).astype(np.int16)
+    decoded = Decoded(song, 3.0, "心动音乐")
+    rest = save_rest(decoded, 1.25, tmp_path / "trial" / "song-0.wav", 40)
+    params, samples = _samples(rest)
+    assert (params.nchannels, params.sampwidth, params.framerate) == (1, 2, RATE)
+    assert len(samples) == len(song) - round(1.25 * RATE)
+    assert np.abs(samples - np.rint(song[round(1.25 * RATE) :] * 0.4)).max() <= 1
+    # From its very end, nothing; from before its start, all of it.
+    assert len(_samples(save_rest(decoded, 9.0, tmp_path / "end.wav"))[1]) == 0
+    assert np.array_equal(_samples(save_rest(decoded, -1.0, tmp_path / "all.wav"))[1], song)
+    music, played, _clock = _managed(tmp_path, {})
+    assert music.play_file(rest) and played == [rest]
+    music.muted = True
+    assert not music.play_file(rest) and played == [rest, None]
 
 
 def test_a_taste_is_a_moment_of_the_effect_s_sound_as_loud_as_it_plays(tmp_path):

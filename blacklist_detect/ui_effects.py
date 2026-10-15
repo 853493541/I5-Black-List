@@ -16,6 +16,7 @@ game it would paint 30 times a second for nothing.
 
 from __future__ import annotations
 
+import itertools
 import shutil
 import tempfile
 from pathlib import Path
@@ -352,7 +353,7 @@ class EffectsPage(QWidget):
 
     def upload(self) -> None:
         """上传 (替换): a sound or video of the player's for the shown 场景. One longer than a 场景's sound
-        may be is cut to the part picked in 选择片段; either way it is kept as the app's own, played once."""
+        may be is cut to the part picked in 选择片段; either way it is kept as the app's own, and nothing plays."""
         key = self.scenes.key
         name = dict(love_scenes.SCENES).get(key, key)
         if sound_import.available():
@@ -388,10 +389,33 @@ class EffectsPage(QWidget):
         self._keep(decoded, key, source.name, start, length)
 
     def _trim(self, decoded, key: str, name: str) -> tuple[float, float] | None:  # noqa: ANN001
-        """选择片段 on a long sound: the part picked, or None when it is closed. Its 试听 plays the part as the
-        场景 will (made as save_clip makes it, at the 场景's level), from a folder of the page's own that goes
-        with the dialog. A part save_clip would refuse (a silent one) is told there, at 试听 and at 确定."""
+        """选择片段 on a long sound: the part picked, or None when it is closed. It plays the sound from a moment
+        to its end at the 场景's level (a new file each time: winsound may still hold the last), and its 试听
+        the part as the 场景 will (made as save_clip makes it, at the 场景's level), from a folder of the
+        page's own that goes with the dialog. A part save_clip would refuse (a silent one) is told there, at
+        试听 and at 确定."""
         folder = Path(tempfile.mkdtemp(prefix="blacklist_detect_trial_"))
+        songs = itertools.count()
+
+        def play(at: float) -> str:
+            if self.music is None:
+                return ""
+            self.music.stop()
+            self.sounding = False
+            for old in folder.glob("song-*.wav"):
+                try:
+                    old.unlink()
+                except OSError:
+                    pass  # Still held: it goes with the folder.
+            level = self.music.level(key)
+            if level <= 0:
+                return ""
+            try:
+                song = sound_import.save_rest(decoded, at, folder / f"song-{next(songs)}.wav", level)
+            except SoundImportError as error:
+                return str(error)
+            self.music.play_file(song)
+            return ""
 
         def check(start: float, length: float) -> str:
             try:
@@ -417,7 +441,9 @@ class EffectsPage(QWidget):
                 self.music.stop()
 
         muted = self.music is None or self.music.muted
-        dialog = SoundTrimDialog(decoded.samples, sound_import.RATE, name, preview, stop, self.window(), CLIP_S, muted=muted, check=check)
+        dialog = SoundTrimDialog(
+            decoded.samples, sound_import.RATE, name, preview, stop, self.window(), CLIP_S, muted=muted, check=check, play=play
+        )
         try:
             accepted = dialog.exec() == QDialog.Accepted
         finally:
@@ -426,7 +452,8 @@ class EffectsPage(QWidget):
         return dialog.selection() if accepted else None
 
     def _keep(self, decoded, key: str, name: str, start: float, length: float) -> None:  # noqa: ANN001
-        """The part picked kept as the 场景's sound, its 音量 as it was, and played once unless 静音."""
+        """The part picked kept as the 场景's sound, its 音量 as it was. Nothing plays by itself: 试听 in
+        选择片段, or 音量's slider, plays it when the player asks."""
         folder = custom_sound_dir(self.store.root)
         if self.music is not None:
             # Nothing playing holds the sound it replaces, and its quieter copies go with it.
@@ -446,8 +473,6 @@ class EffectsPage(QWidget):
         self.store.save_settings()
         self._sync_marks()
         self._sync_rows()
-        if self.music is not None and not self.music.muted:
-            self.music.taste(key)
 
     def restore(self) -> None:
         """恢复默认: the 场景's own sound again (经典's none), the player's file and its copies gone, its 音量 kept."""
