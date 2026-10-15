@@ -3830,7 +3830,7 @@ class MainWindow(QMainWindow):
     def _dress_love(self, playing: bool) -> None:
         """The 嘉宾 marks (the ring, the badge and the card) in the look of this lobby's scene: the one
         about to play, settled now if it is 随机, or the one that played for this lobby. With none
-        playing, the look of the lobby's choice; 经典花边's under 随机 or 无."""
+        playing, the look of the lobby's choice; 经典's under 随机 or 无."""
         choice = self._lobby_choice or self.store.love_scene
         if playing and self._love_played:
             scene = self.love.scene

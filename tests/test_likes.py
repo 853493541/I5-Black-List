@@ -144,8 +144,9 @@ def test_a_live_check_rings_likes_in_rose_and_splits_the_ring_with_a_hit(window)
     left = screen.left() + screen.width() // 2 - 90
     button = (left, screen.top() + 300, left + 180, screen.top() + 360)
     window._live_check = True
+    window.store.love_scene = "lace"
     window._on_lobby_placed(button)
-    # No 黑名单, 嘉宾 players: a rose ring, a heart badge on the right, their names on the left.
+    # No 黑名单, 嘉宾 players, in 玫瑰花边: a rose ring, a heart badge on the right, their names on the left.
     window._show_panel(CheckResult(True, "", names=names, button_box=button))
     card = window.like_card
     assert window.panel.mode == "liked" and window.panel.ring() == "#c2306b"
@@ -232,7 +233,7 @@ def test_the_guest_card_is_as_tall_as_the_cover_whatever_the_names(qapp):
 
 
 def test_the_marks_wear_the_look_of_the_scene_that_greets_them(window):
-    from blacklist_detect.ui_overlay import CLASSIC_LOOK, love_look
+    from blacklist_detect.ui_overlay import love_look
 
     window.store.add_like("小明")
     window.store.add_like("小红")
@@ -261,11 +262,11 @@ def test_the_marks_wear_the_look_of_the_scene_that_greets_them(window):
     window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
     assert window.panel.mode == "both" and window.panel.look is love_look("ice")
     window._hide_panel_after_title()
-    # 无: 经典花边's look.
+    # 无: 经典's look.
     window.store.love_scene = "off"
     window._on_lobby_placed(button)
     window._show_panel(CheckResult(True, "", names=names[:2], button_box=button))
-    assert not window.love.playing() and all(mark.look is CLASSIC_LOOK for mark in marks)
+    assert not window.love.playing() and all(mark.look is love_look("classic") for mark in marks)
     window._hide_panel_after_title()
 
 

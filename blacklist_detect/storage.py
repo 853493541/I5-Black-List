@@ -416,7 +416,7 @@ class Store:
         # of the screen; 完整模式 (False) draws the marks over it. On unless turned off, also for old settings.
         self.safe_mode = True
         # 嘉宾特效: the scene over the game and the wedding music. Each is a key (love_scenes.SCENES,
-        # ui_music.TUNE_LIST), "random" or "off". 经典花边 with 婚礼进行曲 · 管风琴 until another is chosen.
+        # ui_music.TUNE_LIST), "random" or "off". 经典 with 婚礼进行曲 · 管风琴 until another is chosen.
         self.love_scene = "classic"
         self.love_music = "organ"
         # 直播模式: a window for a streaming app with the 嘉宾 marks only, clear behind them. "" off, "on" on.

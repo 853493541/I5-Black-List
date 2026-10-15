@@ -145,9 +145,10 @@ class LoveLook:
     marks: str = ""
 
 
-# 经典花边, and wherever no scene says otherwise: pale pink and lavender edged in rose-gold, with
-# knots of small pink and blue flowers, like the silk and flowers of its border.
-CLASSIC_LOOK = LoveLook(
+# 玫瑰花边 (the app's first look, 经典花边 until 经典 became the gold welcome), and the marks before
+# a scene dresses them: pale pink and lavender edged in rose-gold, with knots of small pink and blue
+# flowers, like the silk and flowers of its border.
+ROSE_LOOK = LoveLook(
     glow=(255, 150, 200),
     rim="#f3c1d0",
     band=("#ff9cc4", "#d7c6ff"),
@@ -163,7 +164,7 @@ CLASSIC_LOOK = LoveLook(
 # The scenes that only color the marks. The others (赛博, 天使, 数学 and the rest) draw them as themes
 # of their own, in their own LOOK.
 LOOKS: dict[str, LoveLook] = {
-    "classic": CLASSIC_LOOK,
+    "lace": ROSE_LOOK,
     # 冰蓝极光: ice and sapphire, the heart blue.
     "ice": LoveLook(
         glow=(110, 190, 255),
@@ -196,7 +197,7 @@ LOOKS: dict[str, LoveLook] = {
 
 
 def love_look(scene: str) -> LoveLook:
-    """The look for a 嘉宾特效 scene, or the one that replaced it (香槟's is 天使's); 经典花边's for
+    """The look for a 嘉宾特效 scene, or the one that replaced it (香槟's is 天使's); 经典's for
     anything else (随机 not yet settled, 无, a scene that is gone). A scene not in LOOKS brings its own
     (LOOK), and one that draws its marks itself says so (marks)."""
     return _scene_look(love_scenes.shown(scene))
@@ -209,9 +210,12 @@ _HOOKS = ("ring", "badge", "card", "lead")
 @functools.cache
 def _scene_look(key: str) -> LoveLook:
     module = _scene(key)
+    if module is None and key != love_scenes.KEYS[0]:
+        # 随机 not yet settled, 无, or a scene that is gone: the marks as 经典, the default, has them.
+        return _scene_look(love_scenes.KEYS[0])
     look = LOOKS.get(key)
     if look is None:
-        look = LoveLook(**module.LOOK) if hasattr(module, "LOOK") else CLASSIC_LOOK
+        look = LoveLook(**module.LOOK) if hasattr(module, "LOOK") else ROSE_LOOK
     if any(hasattr(module, hook) for hook in _HOOKS):
         look = replace(look, marks=key)
     return look
@@ -382,9 +386,9 @@ def _flower(
     painter.restore()
 
 
-def _knot(painter: QPainter, x: float, y: float, size: float, halo: float = 2.2, look: LoveLook = CLASSIC_LOOK) -> None:
+def _knot(painter: QPainter, x: float, y: float, size: float, halo: float = 2.2, look: LoveLook = ROSE_LOOK) -> None:
     """A knot of flowers, overlapping: two of the look's first flower and two of its second (pink
-    and blue in 经典花边)."""
+    and blue in 玫瑰花边)."""
     for dx, dy, scale, which, turn in ((-0.55, 0.15, 0.62, 0, 12), (0.5, 0.05, 0.55, 1, 40), (0.0, -0.35, 0.75, 0, 64), (0.1, 0.55, 0.38, 1, 25)):
         _flower(painter, x + dx * size, y + dy * size, scale * size, look.flowers[which], turn, halo)
 
@@ -644,7 +648,7 @@ class HitCard(QWidget):
 
 
 class LikeCard(HitCard):
-    """嘉宾 players in this lobby: a card in the look of the 嘉宾特效 scene (经典花边's pale pink
+    """嘉宾 players in this lobby: a card in the look of the 嘉宾特效 scene (玫瑰花边's pale pink
     edged in rose-gold to begin with), a flower before each name and a knot of flowers on its top
     edge. A scene that draws the card itself (love_scenes: card, lead) puts its own under and before
     the names instead, and may give them its own face.
@@ -652,7 +656,7 @@ class LikeCard(HitCard):
     set_people gets each player as (what to show, ()): the 昵称, or the full name.
     """
 
-    look = CLASSIC_LOOK
+    look = ROSE_LOOK
     # Room above the card for the knot on its edge, or for the scene's own ornament (CARD_TOP).
     top = 12
 
@@ -733,7 +737,7 @@ class LikeCard(HitCard):
             mark.setPixmap(picture)
             mark.setStyleSheet("background: transparent;")
             return mark
-        # The look's two flowers in turn, "pink" and "blue" in 经典花边.
+        # The look's two flowers in turn, "pink" and "blue" in 玫瑰花边.
         which = index % 2
         bloom = QLabel()
         bloom.setObjectName("likeFlower")
@@ -801,14 +805,14 @@ class ClearMark(QWidget):
     """The check beside a clear accept button: emerald with a gold rim and a soft glow, like the ring.
 
     With 嘉宾 players in the lobby it is the same badge with a heart, in the look of the 嘉宾特效
-    scene (经典花边's pink to begin with), or the scene's own badge (love_scenes: badge).
+    scene (玫瑰花边's pink to begin with), or the scene's own badge (love_scenes: badge).
     """
 
     # The window reaches this far past the badge on each side, for the glow.
     margin = _GLOW
     # A heart instead of the check, for a lobby with 嘉宾 players.
     heart = False
-    look = CLASSIC_LOOK
+    look = ROSE_LOOK
 
     def __init__(self) -> None:
         super().__init__(
@@ -879,7 +883,7 @@ class ClearMark(QWidget):
         painter.end()
 
     def _paint_heart(self, painter: QPainter, box: QRectF) -> None:
-        """A disc in a fine rim, a heart on it, a glint at its shoulder: in 经典花边, a pale pink
+        """A disc in a fine rim, a heart on it, a glint at its shoulder: in 玫瑰花边, a pale pink
         disc in rose-gold and a deep pink heart."""
         look = self.look
         badge = _theme(look, "badge")
@@ -931,10 +935,10 @@ class LobbyPanel(QWidget):
     A clear lobby with 嘉宾 players is ringed in rose; with 黑名单 players too, the ring is rose on the
     left, where their card is, and crimson on the right.
     The window reaches _GLOW past the cover on each side, for that glow. The rose is the look of the
-    嘉宾特效 scene (look), 经典花边's to begin with; a scene can draw the 嘉宾 ring itself (love_scenes: ring).
+    嘉宾特效 scene (look), 玫瑰花边's to begin with; a scene can draw the 嘉宾 ring itself (love_scenes: ring).
     """
 
-    look = CLASSIC_LOOK
+    look = ROSE_LOOK
 
     def __init__(self) -> None:
         super().__init__(
@@ -1032,7 +1036,7 @@ class LobbyPanel(QWidget):
 
     def _paint_liked(self, painter: QPainter, cover: QRectF) -> None:
         """嘉宾 and no 黑名单: a glow, a fine rim, a band and flowers on two corners, in the look; in
-        经典花边, pink with a rose-gold rim and a pink-lavender band."""
+        玫瑰花边, pink with a rose-gold rim and a pink-lavender band."""
         look = self.look
         ring = _theme(look, "ring")
         if ring is not None:

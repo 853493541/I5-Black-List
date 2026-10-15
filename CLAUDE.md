@@ -52,7 +52,7 @@ rerun alone before it counts as a failure.
   3-14x slower.
 - A new 嘉宾 scene is a `love_scenes` module plus entries in `SCENES` and `ui_overlay.LOOKS`. Render it at
   full size over the sample lobby and look at it (small tiles hide flaws); its median frame stays under
-  20 ms at 1920x1080. 经典花边 (classic) stays exactly as it is. Shade per pixel: flat vector gradients
+  20 ms at 1920x1080. 玫瑰花边 (lace, the app's first border, once 经典花边) stays exactly as it is. Shade per pixel: flat vector gradients
   read as cheap clip-art to the user.
 - Chosen on purpose, not defects: red tags everywhere, 无 in red in 嘉宾特效, 检查失败 (not 无法检查).
 - The user's own list, settings and running copy of the app are never touched. Tests and tools run in a

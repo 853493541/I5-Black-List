@@ -27,7 +27,8 @@ OUT = ROOT / "blacklist_detect" / "assets" / "posters"
 WIDTH = 480
 # Each scene's best moment, in seconds: its lightning, its fireworks, its claw with the notice in place.
 POSTER_AT = {
-    "classic": 2.5,
+    "classic": 2.0,
+    "lace": 2.5,
     "ice": 2.75,
     "stars": 2.75,
     "cyber": 2.82,

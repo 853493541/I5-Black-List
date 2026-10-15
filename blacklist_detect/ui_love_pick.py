@@ -1,7 +1,7 @@
 """嘉宾 › 嘉宾特效: the scene that plays over the game when 嘉宾 are in a lobby, and the wedding music.
 It plays whenever one is there: a 组合 all there gets its own scene, else the top 嘉宾 with one of
 their own, else the one chosen here (guests.lobby_choice). The scene and the music can each be one of
-them, 随机 or 无; every choice is saved as it is made. The default comes first (经典花边, 婚礼进行曲 ·
+them, 随机 or 无; every choice is saved as it is made. The default comes first (经典, 婚礼进行曲 ·
 管风琴), then the others, then 随机, and 无 last, in red.
 
 A preview plays the chosen scene over the fake-name sample lobby, with the app's own marks on it.
@@ -187,7 +187,7 @@ class ScenePreview(QWidget):
         else:
             self.scene = self.choice
         self._paint = love_scenes.load(self.scene).make(self._stage) if self.scene else None
-        # With 无 the marks are as they are with no scene: 经典花边's.
+        # With 无 the marks are as they are with no scene: 经典's.
         self._marks = self._marks_for(self.scene or "classic")
         self._clock.start()
 

@@ -52,9 +52,11 @@ from types import ModuleType
 
 from PySide6.QtCore import QPointF, QRectF
 
-# (key, name in 设置), in the order 设置 lists them. 经典 is the border the app first had.
+# (key, name in 设置), in the order 设置 lists them. 经典 is the default, a gold welcome; 玫瑰花边 is the
+# border the app first had (经典花边 until then, key "classic"; a choice saved then is 经典 now).
 SCENES: tuple[tuple[str, str], ...] = (
-    ("classic", "经典花边"),
+    ("classic", "经典"),
+    ("lace", "玫瑰花边"),
     ("ice", "冰蓝极光"),
     ("stars", "星河许愿"),
     ("cyber", "赛博"),
@@ -118,7 +120,7 @@ def choose(choice: str, last: str, rng: random.Random) -> str:
     """The scene to play for a 嘉宾特效 choice: a key, "random" (any but the last one), or "off" ("").
     香槟 plays 天使, which replaced it. Any other key this version does not have (命运红线, gone in
     v0.8.2; 雪纺, gone in v0.9.0; 缎带, 花雨, 纸鹤晚霞 and 蝶梦, gone in the next version) plays
-    经典花边, the default."""
+    经典, the default."""
     choice = shown(choice)
     if choice == "off":
         return ""
