@@ -614,34 +614,35 @@ def _rose_glass(center: QPointF, radius: float, scale: float, u: float, name: st
     """The round window, per pixel, with a game icon (assets/<name>.png) in gold in its middle, wide
     across. Round it the lobby shows through, as in the window on the left: only a light smoky veil,
     and pale gold light behind the icon, brighter the more polished. On that the icon in a picture of
-    its own, to rise and go: a dark line round it and its shadow under it, and the icon in raised gold
-    lit from the upper left, its seams engraved, polish (0..1) from dull and deep to bright. Also
-    where the gold shines, for the glints that sweep across it."""
+    its own, to rise and go: flat gold, the icon's own shape in one even tone a little lighter toward
+    the top, its seams thin lines a shade deeper, a faint soft shadow under it; polish (0..1) from dull,
+    worn gold to bright. Also where the gold shines, for the glints that sweep across it."""
     rect = QRectF(center.x() - radius, center.y() - radius, 2 * radius, 2 * radius)
     n = max(8, math.ceil(2 * radius * scale))
     ys, xs = np.mgrid[0:n, 0:n].astype(np.float32) + 0.5
     x, y = (xs / n * 2 - 1), (ys / n * 2 - 1)
     rho = np.hypot(x, y)
     px = u * scale
-    cover, seams, deep = _icon(name, n, wide, seam)
+    cover, seams, _deep = _icon(name, n, wide, seam)
     # A light smoky veil, lighter toward the ring, and pale gold light behind the icon.
     behind = np.clip(blur(cover, 14 * px) * (0.9 + 0.4 * polish), 0, 1)
     dark = rgb("#1c1308")
     color = dark + (rgb("#ffe7aa") - dark) * behind[..., None]
     veil = 0.3 * (1 - 0.45 * smooth(0.35, 1.0, rho)) * (1 - behind) + 0.55 * behind
     back = picture(color, (1 - smooth(0.985, 1.0, rho)) * veil)
-    # A dark line round the icon, and its shadow down and to the right.
-    lead = np.clip(blur(cover, max(0.6, 1.1 * px)) * 2.4, 0, 1) * (1 - cover)
-    shadow = _shift(blur(cover, max(0.6, 2.2 * px)), max(1, round(1.8 * px)), max(1, round(1.2 * px))) * (1 - cover)
-    # The gold: each part rising to a rounded ridge along its middle (full height 9 icon pixels in),
-    # bevelled at its edges, its seams cut in and dark; dull gold worn uneven.
-    groove = blur(seams, max(0.5, 0.45 * px))
-    rise = 1 - (1 - np.clip(deep / 9, 0, 1)) ** 2
-    worn = (noise(n, n, 5 * px, 3, 7) - 0.5) * 0.12 * (1 - polish)
-    height = blur(0.75 * rise + 0.25 * cover, max(0.6, 0.8 * px)) - 0.25 * groove + worn
-    gold = _metal(height, 9 * px, polish) * (1 - 0.75 * np.clip(groove * 2, 0, 1))[..., None]
+    # A faint soft shadow under the icon, so the flat gold sits on the veil.
+    shadow = _shift(blur(cover, max(0.6, 2.4 * px)), max(1, round(1.2 * px)), max(1, round(0.8 * px))) * (1 - cover)
+    # The gold: flat, one even tone a little lighter toward the top, dull and worn a little uneven or
+    # bright; its seams thin lines a shade deeper.
+    dull, bright = (rgb("#d9b86e"), rgb("#b4893a")), (rgb("#ffd772"), rgb("#e3a42c"))
+    top = dull[0] + (bright[0] - dull[0]) * polish
+    low = dull[1] + (bright[1] - dull[1]) * polish
+    gold = top + (low - top) * smooth(-0.6, 0.7, y)[..., None]
+    grain = 1 + (noise(n, n, 5 * px, 3, 7) - 0.5) * (0.04 + 0.1 * (1 - polish))
+    groove = np.clip(blur(seams, max(0.5, 0.35 * px)) * 1.6, 0, 1)
+    gold = gold * (grain * (1 - 0.4 * groove))[..., None]
     color = rgb("#120b03") + (gold - rgb("#120b03")) * cover[..., None]
-    figure = picture(color, cover + (1 - cover) * np.clip(0.8 * lead + 0.45 * shadow, 0, 0.9))
+    figure = picture(color, cover + (1 - cover) * np.clip(0.34 * shadow, 0, 0.9))
     shine = picture(np.ones((n, n, 3), dtype=np.float32) * rgb("#fff3cc"), cover * (0.6 + 0.4 * smooth(0.3, 0.9, gold.mean(axis=-1))))
     return rect, back, figure, shine
 
