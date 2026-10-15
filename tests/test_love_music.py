@@ -25,7 +25,7 @@ def _music():  # noqa: ANN202
 
 def test_every_theme_has_its_own_sound_as_long_as_it():
     """One sound for each scene but 经典, which greets in silence: mono 16-bit 44.1 kHz, no longer than
-    the scene (遇袭's runs its 6.6 s)."""
+    the scene (演说家遇袭's runs its 6.6 s)."""
     assert set(TUNES) == set(love_scenes.KEYS) - {"classic"}
     for key, tune in TUNES.items():
         assert tune.is_file(), key
@@ -195,10 +195,10 @@ def test_the_effect_plays_for_one_guest_or_more(window):
 
 
 def test_a_guest_with_a_theme_brings_its_sound(window):
-    """A 嘉宾's own 特效 brings its own sound: 遇袭 the 指挥家's music with the notice in it."""
+    """A 嘉宾's own 特效 brings its own sound: 演说家遇袭 the 指挥家's music with the notice in it."""
     with wave.open(str(TUNES["claw"])) as w:
         assert 6.0 <= w.getnframes() / w.getframerate() <= 7.0
-    # 阿强, added last, tops the list: his 遇袭 greets the lobby, and its sound with it.
+    # 阿强, added last, tops the list: his 演说家遇袭 greets the lobby, and its sound with it.
     window.store.add_like("阿强", theme="claw")
     window._show_panel(_likes(3))
     assert window.tunes == [TUNES["claw"]]

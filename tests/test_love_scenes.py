@@ -387,3 +387,29 @@ def test_the_stage_knows_where_the_names_are(qapp):
     assert names[0].center().x() < names[5].center().x() and names[0].center().y() < names[6].center().y()
     seat = QRectF(10, 20, 30, 12)
     assert Stage(100, 60, QRectF(0, 50, 100, 10), seats=(seat,)).names() == (seat,)
+
+
+def test_the_claw_rips_down_from_the_top(qapp):
+    """演说家遇袭's slashes open from their top ends down: early in the strike only the top half shows."""
+    from blacklist_detect.love_scenes import claw
+
+    stage = sample_stage()
+    u = stage.unit()
+    centre = claw._landing(stage.width, stage.height, u)
+    sprite = claw._slash_sprite(claw.LENGTH * u, claw.THICK * u, u)
+    slashes = [claw._cleared(sprite, [sprite], claw._place(centre, offset, u), stage.gap, u) for offset, _delay in claw.SLASHES]
+
+    def lit(age: float) -> tuple[int, int]:
+        image = QImage(round(stage.width), round(stage.height), QImage.Format_ARGB32_Premultiplied)
+        image.fill(Qt.transparent)
+        painter = QPainter(image)
+        painter.setRenderHint(QPainter.Antialiasing)
+        claw._strike(painter, age, slashes, u)
+        painter.end()
+        shown = [y for x in range(0, image.width(), 5) for y in range(0, image.height(), 5) if image.pixelColor(x, y).alpha() > 100]
+        return sum(y < centre.y() for y in shown), sum(y > centre.y() for y in shown)
+
+    above, below = lit(claw.GROW * 0.1)
+    assert above > 0 and below == 0
+    above, below = lit(claw.SLASHES[-1][1] + claw.GROW)
+    assert above > 0 and below > 0

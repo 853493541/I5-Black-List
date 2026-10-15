@@ -1,4 +1,4 @@
-"""Cut the 演说家遇袭 notice's own sound out of two recordings of it, for 遇袭 (build/ambush_tune.py).
+"""Cut the 演说家遇袭 notice's own sound out of two recordings of it, for the 演说家遇袭 scene (build/ambush_tune.py).
 
     python build/orator_notice_sound.py <clean.wav> <noisy.wav>
 

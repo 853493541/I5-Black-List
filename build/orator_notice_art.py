@@ -1,4 +1,4 @@
-"""Cut the 演说家遇袭 notice's own art out of a picture of it, for 遇袭 (love_scenes.claw).
+"""Cut the 演说家遇袭 notice's own art out of a picture of it, for the 演说家遇袭 scene (love_scenes.claw).
 
     python build/orator_notice_art.py <cover.jpg>
 

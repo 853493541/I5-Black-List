@@ -1,18 +1,18 @@
-"""遇袭 Ambush: you are the one attacked, as in 模仿者狂欢's 迷离 and its kill.
+"""演说家遇袭 Ambush: you are the one attacked, as in 模仿者狂欢's 迷离 and its kill.
 
 For a moment nothing. Then the 指挥家's fog rolls in from the edges, heavy at the borders, blue-grey
 and drifting two ways at once, and as it comes every player's name is lost in it, a ??? in its place,
 as 迷离 scrambles them; white music notes swirl through the haze. At three seconds the strike, the
-game's own kill mark made bigger than the screen's middle: three tapered slashes rip up across it,
-white-hot at their cores and purple at their edges, a lilac flash, a jolt, a puff of pink smoke; and
-at that moment 演说家遇袭 slides up into the top right as the game shows it, its own art: the BIG NEWS
-newspaper tossed up into place, the words coming into focus over a dark band. The slashes fray away,
-the fog clears and the names come back. Its sound (ui_music) is the 指挥家's music, with the notice's
-own sound in it at the strike (build/ambush_tune.py).
+game's own kill mark made bigger than the screen's middle: three tapered slashes rip down across it,
+top one first, white-hot at their cores and purple at their edges, a lilac flash, a jolt, a puff of
+pink smoke; and at that moment the 演说家遇袭 notice slides up into the top right as the game shows
+it, its own art: the BIG NEWS newspaper tossed up into place, the words coming into focus over a dark
+band. The slashes fray away, the fog clears and the names come back. Its sound (ui_music) is the
+指挥家's music, with the notice's own sound in it at the strike (build/ambush_tune.py).
 
-The 嘉宾 marks wear it: a misty glass card scored by three claw marks, a lilac rim round the button
-with claw marks at two corners that now and then strike again, and a claw-mark X on a dark disc for a
-badge. No heart.
+The 嘉宾 marks wear it: a misty glass card with the 指挥家's glowing notes on its corner, a lilac rim
+round the button with claw marks at two corners that now and then strike again, and a claw-mark X on
+a dark disc for a badge. No heart.
 """
 
 from __future__ import annotations
@@ -56,8 +56,8 @@ LOOK = {
     "deep_glow": (150, 110, 255),
 }
 MARKS_ANIMATED = True
-# Room above the card body: the claw marks cut across its top edge.
-CARD_TOP = 6
+# Room above the card body: the notes on its corner rise above its top edge.
+CARD_TOP = 20
 # The soft layers (the fog, the flash) are worked out at this share of the stage's size.
 SOFT = 0.5
 # The strike: when it lands, the angle its slashes run at (degrees, screen y down), and the three
@@ -388,8 +388,8 @@ def _frayed(sprite: QImage, k: float, seed: int) -> QImage:
 
 
 def _strike(p: QPainter, age: float, slashes: list[tuple], u: float) -> None:
-    """One set of three slashes: each grows from its tail to its tip in GROW, a hot point leading it,
-    holds, then frays away."""
+    """One set of three slashes, the top one first: each rips down from its top end to its bottom end
+    in GROW, a hot point leading it, holds, then frays away."""
     if age < 0 or age > max(d for _o, d in SLASHES) + GROW + HOLD + FRAY:
         return
     length = LENGTH * u
@@ -404,11 +404,12 @@ def _strike(p: QPainter, age: float, slashes: list[tuple], u: float) -> None:
         p.setRenderHint(QPainter.SmoothPixmapTransform)
         box = QRectF(-sw / 2, -sh / 2, sw, sh)
         if a < GROW:
-            p.setClipRect(QRectF(-sw / 2, -sh / 2, sw / 2 - length / 2 + length * grown + 30 * u, sh))
+            # The strike runs up to the right (+x), so its top end is at +x: it opens from there down.
+            tip = length / 2 - length * grown
+            p.setClipRect(QRectF(tip - 30 * u, -sh / 2, sw / 2 - tip + 30 * u, sh))
             p.drawImage(box, sprite)
             p.setClipping(False)
-            tip = -length / 2 + length * grown
-            shown = float(np.interp(grown, np.linspace(0, 1, len(along)), along))
+            shown = float(np.interp(1 - grown, np.linspace(0, 1, len(along)), along))
             soft_dot(p, tip, -2 * u, 46 * u, LILAC, 0.75 * shown)
             soft_dot(p, tip, -2 * u, 14 * u, "#ffffff", shown)
         elif a < GROW + HOLD:
@@ -442,8 +443,8 @@ def _landing(width: float, height: float, u: float) -> QPointF:
 
 def _cleared(sprite: QImage, frayed: list[QImage], place: QTransform, gap: QRectF, u: float) -> tuple:
     """A slash as it lies at place, its pictures fading where they come near the button and its marks
-    (as the fog clears there) and staying gone from there to its tail, and how much of it shows along
-    its length, tail to tip."""
+    (as the fog clears there) and staying gone from there to its bottom end, and how much of it shows
+    along its length, bottom end to top."""
     line = np.linspace(-LENGTH * u / 2, LENGTH * u / 2, 65)
     near = _away(gap, place.m11() * line + place.dx(), place.m12() * line + place.dy(), u)
     along = np.minimum.accumulate(near[::-1])[::-1]
@@ -700,18 +701,82 @@ def _disc(side: float, scale: float) -> QImage:
 
 
 def card(p: QPainter, rect: QRectF, t: float) -> None:
-    """Misty slate glass: fog stirring in it, a lilac edge, and three claw marks torn across its top
-    right corner, glowing faintly."""
+    """Misty slate glass: fog stirring in it, a lilac edge, and the 指挥家's notes glowing on its top
+    right corner, swaying to his beat."""
     scale = _sharpness(p)
     glass = _kept(("card", round(rect.width(), 1), round(rect.height(), 1), scale), lambda: _glass(rect, scale))
     p.setRenderHint(QPainter.SmoothPixmapTransform)
     p.drawImage(rect, glass)
-    size = min(rect.height() * 0.62, 46.0)
-    marks = _kept(("card_marks", round(size, 1), scale), lambda: _claw_marks(size, max(1.5, size * 0.08), scale, -38))
-    side = marks.width() / scale
-    p.setOpacity(0.7 + 0.2 * math.sin(t * 1.8))
-    p.drawImage(QRectF(rect.right() - side * 0.62, rect.top() + CARD_TOP - side * 0.36, side, side), marks)
-    p.setOpacity(1.0)
+    high = min((rect.height() - CARD_TOP) * 0.35, 28.0)
+    note = _kept(("card_note", round(high, 1), scale), lambda: _note(high, scale))
+    w, h = note.width() / scale, note.height() / scale
+    beat = math.sin(t * 2.2)
+    p.translate(rect.right() - high * 0.75, rect.top() + CARD_TOP - 1.5 - 0.6 * beat)
+    soft_dot(p, 0, 0, high * 0.8, PURPLE, 0.22 + 0.1 * math.sin(t * 4.4))
+    p.rotate(-5 + 4 * beat)
+    p.drawImage(QRectF(-w / 2, -h / 2, w, h), note)
+
+
+def _beamed(high: float) -> QPainterPath:
+    """Two notes beamed together, ♫, high points tall and centred on 0: tilted heads, stems up their
+    right sides, and a thick beam climbing to the right."""
+    shape = QPainterPath()
+    shape.setFillRule(Qt.WindingFill)
+    rx, ry, stem, beam = 0.19 * high, 0.135 * high, 0.075 * high, 0.17 * high
+    heads = (QPointF(-0.3 * high, 0.36 * high), QPointF(0.3 * high, 0.26 * high))
+    for head in heads:
+        oval = QPainterPath()
+        oval.addEllipse(QPointF(0, 0), rx, ry)
+        shape.addPath(QTransform().translate(head.x(), head.y()).rotate(-22).map(oval))
+    tops = [QPointF(head.x() + rx * 0.86 - stem, head.y() - 0.66 * high) for head in heads]
+    for head, top in zip(heads, tops, strict=True):
+        shape.addRect(QRectF(top.x(), top.y(), stem, head.y() - ry * 0.2 - top.y()))
+    bar = QPainterPath(tops[0])
+    bar.lineTo(tops[1] + QPointF(stem, 0))
+    bar.lineTo(tops[1] + QPointF(stem, beam))
+    bar.lineTo(tops[0] + QPointF(0, beam))
+    bar.closeSubpath()
+    shape.addPath(bar)
+    return shape
+
+
+def _note(high: float, scale: float) -> QImage:
+    """The card's ♫ per pixel, at scale pixels to the point and centred in its picture: pale lilac at
+    its beam deepening to purple at its heads, lit from the top left and brightest along its middle,
+    in a purple glow."""
+    margin = high * 0.4
+    w = h = max(4, math.ceil((high + margin * 2) * scale))
+    shape = _beamed(high)
+
+    def draw(q: QPainter) -> None:
+        q.translate(w / 2, h / 2)
+        q.scale(scale, scale)
+        q.setPen(Qt.NoPen)
+        q.setBrush(Qt.white)
+        q.drawPath(shape)
+
+    core = mask(w, h, draw)
+    ys, _xs = np.mgrid[0:h, 0:w].astype(np.float32)
+    v = np.clip((ys / scale - margin) / high, 0, 1)[..., None]
+    body = rgb("#ece4ff") * (1 - smooth(0.0, 0.5, v)) + rgb("#b9a2ff") * smooth(0.0, 0.5, v)
+    body = body * (1 - smooth(0.45, 1.0, v)) + rgb(PURPLE) * smooth(0.45, 1.0, v)
+    # Lit from the top left: brighter where the soft shape rises that way, deeper where it falls away.
+    k = max(1, round(0.8 * scale))
+    height = blur(core, 0.9 * scale)
+    slope = np.clip((height - np.roll(np.roll(height, k, 0), k, 1)) * 2.2, -1, 1)[..., None]
+    lit, shade = np.maximum(slope, 0), np.maximum(-slope, 0) * 0.6
+    body = body * (1 - lit * 0.5) + rgb(CORE) * (lit * 0.5)
+    body = body * (1 - shade) + rgb("#4a2fa8") * shade
+    hot = smooth(0.8, 1.0, blur(core, 0.6 * scale))[..., None] * 0.35
+    body = body * (1 - hot) + rgb(CORE) * hot
+    halo = np.clip(blur(core, 1.2 * scale) * 0.9 + blur(core, 2.6 * scale) * 0.7, 0, 1)
+    tint = rgb(LILAC) * smooth(0.0, 0.7, halo)[..., None] + rgb(PURPLE) * (1 - smooth(0.0, 0.7, halo))[..., None]
+    glow_a = halo * 0.9 * (1 - core)
+    alpha = core + glow_a
+    color = (body * core[..., None] + tint * glow_a[..., None]) / np.maximum(alpha, 1e-4)[..., None]
+    image = picture(color, alpha)
+    image.setDevicePixelRatio(scale)
+    return image
 
 
 def _glass(rect: QRectF, scale: float) -> QImage:

@@ -1,4 +1,4 @@
-"""Mix 遇袭's tune into blacklist_detect/assets/ambush.wav.
+"""Mix 演说家遇袭's tune into blacklist_detect/assets/ambush.wav.
 
     python build/ambush_tune.py
 

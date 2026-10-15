@@ -57,5 +57,5 @@ def test_a_guests_default_card_shows_what_effects_plays(qapp, tmp_path, monkeypa
     assert card.text() == "默认" and card.label == "默认 · 随机" and card.isChecked()
     assert dialog.preview.choice == "random" and dialog.preview.caption().startswith("默认 · 随机 · ")
     dialog.theme_row.buttons["claw"].click()
-    assert dialog.preview.caption() == "遇袭"
+    assert dialog.preview.caption() == "演说家遇袭"
     dialog.reject()
