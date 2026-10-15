@@ -1,16 +1,19 @@
 """竹风: the lobby in a frame of jade and bamboo with a breeze blowing round it, for a player who plays
 吴邪 (小说家, the 盗墓笔记 costume).
 
-The whole lobby turns a soft jade green, deeper toward the edges, and luminous mint mist drifts along
-them from left to right. A carved jade frame with a fine pale-gold line inside it runs round the
-screen, lattice window corners (窗棂, as at 吴山居) in its four corners and a jade knob at each end by
-the button. Bamboo rises along the left and right edges as it starts and bends with each gust; sprigs
-of bamboo leaves hang along the top and rustle, and tufts of them grow from the bottom either side of
-the button. The wind goes round the frame, up the left, across the top and down the right, as
-curling streaks of mint light carrying leaves, and a few cross between the rows. In the top left the
-蛇眉铜鱼, three bronze fish nose to tail in a ring with a snake's brow over each eye, turns in a swirl
-of yellow-green wind with sparkles; in the top right the wind and its leaves gather into a heart that
-breathes. At the end it all fades.
+Over 1.3 s a band of soft jade breathes in along the edges, fading out well before the names and
+the title, which keep the game's own colors, and luminous mint mist drifts along it from left to
+right. A carved jade frame with a fine pale-gold line inside it runs round the screen, lattice
+window corners (窗棂, as at 吴山居) in its four corners and a jade knob at each end by the button.
+Bamboo grows up the left and right edges and bends with each gust; sprigs of bamboo leaves hang
+along the top and rustle, and tufts of them grow from the bottom either side of the button, no two
+alike. The wind goes round the frame, up the left, across the top and down the right, as curling
+streaks of mint light carrying leaves; none crosses the middle. In the top left the 蛇眉铜鱼, three
+bronze fish nose to tail in a ring with a snake's brow over each eye, turns in a swirl of
+yellow-green wind with sparkles; in the top right the wind and its leaves gather into a heart that
+breathes. Three chibi pandas live on the frame: one munches a bamboo shoot in the bottom right
+corner, one peeks over the bottom of the frame and waves, one hugs a stalk on the left and sways
+with it. At the end it all fades.
 
 Its marks: the card is pale jade framed in bamboo, a sprig over its corner and a bamboo leaf before
 each name; the ring is a jade band round the button with small leaves blown round it; the badge is
@@ -156,6 +159,13 @@ def make(stage: Stage):  # noqa: ANN201
         p.setOpacity(1.0)
         mist.paint(p, t, a * (0.85 + 0.15 * math.sin(t * 1.7 + 1)), edges)
         p.setOpacity(a)
+        # The wind blows behind the bamboo and the pandas.
+        blow = ease_out(win(t, 1.0, 1.7))
+        for streak in streaks:
+            streak.paint(p, t, a)
+        _motes(p, t, motes, loop, travel, stage, a * blow)
+        _flyers(p, t, flyers, loop, travel, leaves, stage, blow * (1 - leave))
+        p.setOpacity(a)
         for stalk in stalks:
             stalk.paint(p, t, gust)
         for at, angle, sprig, phase in tufts:
@@ -170,12 +180,7 @@ def make(stage: Stage):  # noqa: ANN201
             if drop > 0:
                 rustle = 4 * math.sin(t * 2.6 + phase * 0.9) - 10 * _gust(t - 0.04 * phase) + 2 * math.sin(t * 7.1 + phase)
                 sprig.paint(p, at, angle + rustle, drop)
-        blow = ease_out(win(t, 1.0, 1.7))
-        for streak in streaks:
-            streak.paint(p, t, a)
         _shine(p, t, shine, u, a * blow)
-        _motes(p, t, motes, loop, travel, stage, a * blow)
-        _flyers(p, t, flyers, loop, travel, leaves, stage, blow * (1 - leave))
         p.restore()
         if sharp:
             heroes.paint(p, t, gust)
