@@ -4117,7 +4117,8 @@ class MainWindow(QMainWindow):
         return found
 
     def _show_like_card(self, likes: list[Entry]) -> None:
-        """The 嘉宾 card on the left of the cover, centered on it, inside the screen."""
+        """The 嘉宾 card on the left of the cover, as tall as it and level with it (its knot or the
+        scene's ornament above), inside the screen."""
         card = self.like_card
         if not likes:
             card.hide()
@@ -4125,7 +4126,7 @@ class MainWindow(QMainWindow):
         card.set_people([(like.shown(), ()) for like in likes], self.panel.cover_geometry().height())
         cover = self.panel.cover_geometry()
         x = cover.x() - 16 - card.width()
-        y = cover.y() + (cover.height() - card.height()) // 2
+        y = cover.y() - card.top
         screen = QApplication.screenAt(cover.topLeft()) or QApplication.primaryScreen()
         if screen is not None:
             area = screen.availableGeometry()

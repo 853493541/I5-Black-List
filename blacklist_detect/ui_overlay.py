@@ -510,13 +510,15 @@ class HitCard(QWidget):
         self.scroll.verticalScrollBar().rangeChanged.connect(self._sync_fade)
         self._apply_style()
 
-    def set_people(self, people: list[tuple[str, tuple[str, ...]]], height: int) -> None:
-        """height: the cover's round the button the card is beside; the names are sized to it."""
+    def set_people(self, people: list[tuple[str, tuple[str, ...]]], height: int, point: float | None = None) -> None:
+        """height: the cover's round the button the card is beside; the names are sized to it, or
+        set at point."""
         self.rows.setAlignment(Qt.AlignLeft | Qt.AlignTop)
         _clear_layout(self.rows)
         family = chinese_family()
         face = self._face()
-        point = round(max(CARD_MIN_PT, OVERLAY_PT * min(1.0, height / FULL_COVER)), 1)
+        if point is None:
+            point = round(max(CARD_MIN_PT, OVERLAY_PT * min(1.0, height / FULL_COVER)), 1)
         self.scale = point / OVERLAY_PT
         left, top, right, bottom = (round(each * self.scale) for each in self._pad())
         self.body.layout().setContentsMargins(left, top, right, bottom)
@@ -671,13 +673,30 @@ class LikeCard(HitCard):
         self._clock = _MarkClock(self)
         self._apply_style()
 
-    def set_people(self, people: list[tuple[str, tuple[str, ...]]], height: int) -> None:
-        self._leads = 0
-        super().set_people(people, height)
-        body = self.body.layout().sizeHint()
-        self.setFixedSize(body.width(), body.height() + self.top)
+    def set_people(self, people: list[tuple[str, tuple[str, ...]]], height: int, point: float | None = None) -> None:
+        """The card as tall as the cover round the button (height), its names in the middle of it: as
+        many as three show, smaller when three would not fit at full size; more scroll."""
+        point = point or round(max(CARD_MIN_PT, OVERLAY_PT * min(1.0, height / FULL_COVER)), 1)
+        while True:
+            self._leads = 0
+            super().set_people(people, height, point)
+            if self.body.layout().sizeHint().height() <= height or point <= CARD_MIN_PT:
+                break
+            point = max(CARD_MIN_PT, round(point - 0.5, 1))
+        layout = self.body.layout()
+        margins = layout.contentsMargins()
+        room = max(1, height - margins.top() - margins.bottom())
+        if self.scroll.height() > room:
+            # Even at the smallest size the names are taller than the cover: they scroll.
+            self.scroll.setFixedHeight(room)
+            self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+            self.fade.setGeometry(0, room - 16, self.fade.width(), 16)
+        layout.setAlignment(self.scroll, Qt.AlignLeft | Qt.AlignVCenter)
+        self.body.setFixedHeight(height)
+        self.setFixedSize(layout.sizeHint().width(), height + self.top)
         self.knot.move((self.width() - self.knot.width()) // 2, 0)
         self.knot.raise_()
+        self._sync_fade()
 
     def set_look(self, look: LoveLook) -> None:
         """Dress the card for a 嘉宾特效 scene. Before set_people: the names take its ink then."""

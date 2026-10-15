@@ -199,6 +199,9 @@ def test_likes_and_no_hit_play_the_border_once_per_lobby(window):
     assert window.love.geometry() == (QApplication.screenAt(window.panel.cover_geometry().center()) or QApplication.primaryScreen()).geometry()
     gap = window.love._gap.translated(window.love.x(), window.love.y())
     assert gap.contains(window.like_card.geometry().toRectF()) and gap.contains(window.panel.cover_geometry().toRectF())
+    # The 嘉宾 card is level with the cover round the button and as tall, its knot above.
+    cover, card = window.panel.cover_geometry(), window.like_card
+    assert card.y() + card.top == cover.y() and card.height() == cover.height() + card.top
     # The same lobby checked again does not play it again.
     window.love.stop()
     window._show_panel(CheckResult(True, "", names=names, button_box=button))
@@ -212,6 +215,20 @@ def test_likes_and_no_hit_play_the_border_once_per_lobby(window):
     window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
     assert not window.love.playing()
     window._hide_panel_after_title()
+
+
+def test_the_guest_card_is_as_tall_as_the_cover_whatever_the_names(qapp):
+    from blacklist_detect.ui_overlay import LikeCard
+
+    card = LikeCard()
+    # One name, two, or three (which get a size smaller to fit), the card is the cover's height.
+    for names in (["小明"], ["小明", "小红"], ["小明", "小红", "一起开黑的朋友"]):
+        card.set_people([(name, ()) for name in names], 82)
+        assert card.body.maximumHeight() == 82 and card.height() == 82 + card.top, names
+    # More than three scroll.
+    card.set_people([(f"嘉宾{n}", ()) for n in range(6)], 82)
+    assert card.body.maximumHeight() == 82 and card.scroll.verticalScrollBarPolicy() == Qt.ScrollBarAsNeeded
+    card.deleteLater()
 
 
 def test_the_marks_wear_the_look_of_the_scene_that_greets_them(window):

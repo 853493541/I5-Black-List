@@ -63,7 +63,7 @@ class SampleMarks:
         self.places = (
             cover.topLeft() - QPoint(_GLOW, _GLOW),
             QPoint(cover.right() + 17 - heart.margin, cover.center().y() - heart.height() // 2 + 1),
-            QPoint(cover.x() - 16 - card.width(), cover.center().y() - card.height() // 2 + 1),
+            QPoint(cover.x() - 16 - card.width(), cover.y() - card.top),
         )
         self._shots: list[tuple[QPixmap, QPoint]] = []
 
