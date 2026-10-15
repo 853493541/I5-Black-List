@@ -8,7 +8,7 @@ white-hot at their cores and purple at their edges, a lilac flash, a jolt, a puf
 at that moment 演说家遇袭 slides up into the top right as the game shows it, its own art: the BIG NEWS
 newspaper tossed up into place, the words coming into focus over a dark band. The slashes fray away,
 the fog clears and the names come back. Its tune (MUSIC) is the 指挥家's music, with the notice's
-sound in it at the strike once that sound is recorded (build/ambush_tune.py).
+own sound in it at the strike (build/ambush_tune.py).
 
 The 嘉宾 marks wear it: a misty glass card scored by three claw marks, a lilac rim round the button
 with claw marks at two corners that now and then strike again, and a claw-mark X on a dark disc for a

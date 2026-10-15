@@ -4,9 +4,10 @@
 
 The 指挥家's music from 模仿者狂欢 (build/sounds/conductor.wav: the game's own recording, cut from its
 start; the user chose it knowing NetEase owns it) with the 演说家遇袭 notice's sound laid in at the
-moment the claw strikes (love_scenes.claw.STRIKE). The notice's real sound has not been recorded yet,
-and a made-up one sounded wrong to the user: until build/sounds/orator_notice.wav holds a recording of
-the real one, the notice is silent. Put it there and run this again.
+moment the claw strikes (love_scenes.claw.STRIKE). build/sounds/orator_notice.wav is the game's own
+sound, cut from Bilibili video BV1pPx6zAEez at 0:40.92-0:41.70, between the hit and the dying sound
+the user heard there; its background bass taken out, its clicks brought down. Without it the notice
+is silent: a made-up one sounded wrong to the user.
 
 Mono 16-bit 44.1 kHz, as long as the scene, at about -19 dBFS with peaks under -3 dBFS like the others.
 """
