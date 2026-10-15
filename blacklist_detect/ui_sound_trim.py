@@ -5,7 +5,8 @@ The whole sound is drawn as a strip, its loudest moment per pixel in the accent 
 the part that plays: the first limit_s seconds at first. Dragging the window moves it, dragging either of its
 edges makes it shorter or longer (never longer than limit_s, shorter than MIN_S or past the file's ends), and
 ← → move it by NUDGE_S. What lies outside it is drawn faint. 试听 plays the part picked, through the caller's
-preview(start, length), and turns into 停止 until it has played; 确定 keeps it, × and Esc keep nothing.
+preview(start, length), and turns into 停止 until it has played; under 静音 (muted) it cannot be pressed. 确定
+keeps it, × and Esc keep nothing.
 
 The dialog is made from plain values (the samples, their rate and the file's name), so it knows nothing of
 how the file was read; the caller keeps only the part picked (selection()).
@@ -22,7 +23,7 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSizePolicy, QVB
 
 from blacklist_detect.ui_dialogs import _primary
 from blacklist_detect.ui_kit import Modal, _KeyboardRing
-from blacklist_detect.ui_theme import THEME, _mix, _pointing, chinese_font
+from blacklist_detect.ui_theme import THEME, _mix, _pointing, chinese_font, is_dark
 
 # The longest part a 特效's sound keeps, the shortest the window can be made, and an arrow key's step.
 LIMIT_S = 5.0
@@ -53,6 +54,14 @@ def _arrow(event) -> float | None:  # noqa: ANN001
     if event.modifiers() & ~Qt.KeypadModifier:
         return None
     return {Qt.Key_Left: -NUDGE_S, Qt.Key_Right: NUDGE_S}.get(event.key())
+
+
+def _grounds() -> tuple[QColor, QColor]:
+    """The strip's ground inside the window and outside it, the outside plainly dimmer in either scheme (in
+    the light one the accent's wash and the card's alt are all but the same, so both are its own)."""
+    if is_dark():
+        return QColor(THEME["accent_wash"]), QColor(THEME["surface_alt"])
+    return _mix(THEME["surface"], THEME["accent_line"], 0.08), _mix(THEME["surface_alt"], THEME["muted"], 0.14)
 
 
 def _glyph(kind: str, side: int, color: str) -> QIcon:
@@ -215,14 +224,15 @@ class Waveform(_KeyboardRing, QWidget):
         box = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
         strip = QPainterPath()
         strip.addRoundedRect(box, self.RADIUS, self.RADIUS)
+        within, beyond = _grounds()
         p.setPen(QPen(QColor(THEME["border"]), 1))
-        p.setBrush(QColor(THEME["surface_alt"]))
+        p.setBrush(beyond)
         p.drawPath(strip)
         p.setClipPath(strip)
         left, right = self.x_of(self.start), self.x_of(self.start + self.length)
         band = QRectF(left, box.top(), right - left, box.height())
         p.setPen(Qt.NoPen)
-        p.setBrush(QColor(THEME["accent_wash"]))
+        p.setBrush(within)
         p.drawRect(band)
         # The sound, one bar per pixel as tall as its loudest sample there: the accent in the window,
         # faint outside it. A quiet file is drawn as big as a loud one.
@@ -234,7 +244,7 @@ class Waveform(_KeyboardRing, QWidget):
         middle = self.height() / 2
         reach = middle - 10
         inside = QColor(THEME["accent_line"])
-        outside = _mix(THEME["surface_alt"], THEME["muted"], 0.5)
+        outside = _mix(beyond.name(), THEME["muted"], 0.5)
         for column, loud in enumerate(self._peaks):
             x = first + column
             half = max(0.5, loud * reach)
@@ -258,8 +268,8 @@ class Waveform(_KeyboardRing, QWidget):
 
 class SoundTrimDialog(Modal):
     """选择片段: the part of a sound longer than limit_s that a 特效 plays. samples: the sound, mono int16
-    at rate; name: its file's name. preview(start, length) plays that part, stop() stops it. selection()
-    is (start, length) in seconds; 确定 accepts it."""
+    at rate; name: its file's name. preview(start, length) plays that part, stop() stops it; muted: nothing
+    would be heard, so 试听 is off. selection() is (start, length) in seconds; 确定 accepts it."""
 
     def __init__(
         self,
@@ -270,6 +280,7 @@ class SoundTrimDialog(Modal):
         stop: Callable[[], None],
         parent: QWidget | None = None,
         limit_s: float = LIMIT_S,
+        muted: bool = False,
     ) -> None:
         super().__init__(parent)
         self.preview = preview
@@ -298,6 +309,9 @@ class SoundTrimDialog(Modal):
         self.play_button.setAutoDefault(False)
         self.play_button.setIconSize(QSize(12, 12))
         self.play_button.clicked.connect(self.toggle_preview)
+        if muted:
+            self.play_button.setEnabled(False)
+            self.play_button.setToolTip("已静音")
         row.addWidget(self.play_button)
         self.times = QLabel()
         row.addWidget(self.times)
@@ -340,6 +354,8 @@ class SoundTrimDialog(Modal):
         """试听: the part picked, from its start; while it plays, 停止."""
         if self.playing:
             self._end(stop=True)
+            return
+        if not self.play_button.isEnabled():
             return
         start, length = self.selection()
         self.preview(start, length)

@@ -17,7 +17,7 @@ from test_theme import contrast  # noqa: E402
 
 from blacklist_detect.ui_kit import _height_for  # noqa: E402
 from blacklist_detect.ui_sound_trim import LIMIT_S, MIN_S, SoundTrimDialog, clock, peaks  # noqa: E402
-from blacklist_detect.ui_theme import THEME, use_theme  # noqa: E402
+from blacklist_detect.ui_theme import THEME, THEMES, use_theme  # noqa: E402
 
 RATE = 8000
 SHORT = 672
@@ -371,3 +371,34 @@ def test_the_sound_is_drawn_in_the_accent_and_reads_in_both_schemes(qapp, player
         assert inside == accent and outside != accent
     finally:
         use_theme("蓝色", "light")
+
+
+@pytest.mark.parametrize("scheme", ["light", "dark"])
+def test_outside_the_window_is_plainly_dimmer_in_every_accent(qapp, player, scheme):
+    """What does not play is drawn on a darker ground than the window, as plainly in the light scheme as in the
+    dark one (the light one's accent wash and alt once matched, about 1.02:1)."""
+    try:
+        for name in THEMES:
+            use_theme(name, scheme)
+            dialog = _dialog(player)
+            wave = dialog.wave
+            image = wave.grab().toImage()
+            # A row above the sound's bars.
+            ratio, row = image.devicePixelRatio(), round(5 * image.devicePixelRatio())
+            inside = image.pixelColor(round(wave.x_of(2.0) * ratio), row).name()
+            outside = image.pixelColor(round(wave.x_of(12.0) * ratio), row).name()
+            assert contrast(inside, outside) >= 1.2, (name, inside, outside)
+            assert contrast(inside, THEME["accent_line"]) >= 3, name
+    finally:
+        use_theme("蓝色", "light")
+
+
+def test_under_mute_the_trial_cannot_be_played(qapp, player):
+    dialog = _dialog(player, muted=True)
+    assert not dialog.play_button.isEnabled() and dialog.play_button.toolTip() == "已静音"
+    dialog.toggle_preview()
+    assert player.played == [] and not dialog.playing
+    # 确定 still keeps the part picked.
+    dialog.wave.set_selection(3.0, 2.0)
+    dialog.ok_button.click()
+    assert dialog.result() == QDialog.Accepted and dialog.selection() == (3.0, 2.0)

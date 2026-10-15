@@ -156,8 +156,11 @@ class ThemeMusic:
         return scene if self._tune(scene) is not None else ""
 
     def level(self, scene: str) -> int:
-        """How loud a scene's sound plays, in percent of its loudness: 声音 times the 特效's own 音量."""
-        return round(self.volume * self._own(scene)[1] / 100)
+        """How loud a scene's sound plays, in percent of its loudness: 声音 times the 特效's own 音量. Two that
+        are both heard are never 0 together: 5% of 5% plays at 1%."""
+        own = self._own(scene)[1]
+        level = round(self.volume * own / 100)
+        return max(level, 1) if self.volume > 0 and own > 0 else level
 
     def _own(self, scene: str) -> tuple[Path | None, int]:
         if self._sounds is None or not scene:
@@ -193,6 +196,15 @@ class ThemeMusic:
         """A moment of a 特效's sound as loud as it plays, for its 音量 in 特效管理."""
         return self._start(self._tune(scene), self.level(scene), SAMPLE_S)
 
+    def trial(self, path: Path, scene: str) -> bool:
+        """A sound not yet a 特效's (选择片段's 试听), as loud as that 特效 plays: its quieter copy is made
+        in a folder beside it, the caller's own, not with the tunes' (making one drops whatever else is
+        in its folder)."""
+        level = self.level(scene)
+        tune = scaled_tune(path, level, path.parent / "copies") if not self.muted and level > 0 else None
+        self._play(tune)
+        return tune is not None
+
     def sample(self) -> bool:
         """A moment of 玫瑰花边's sound at this volume, for 声音's slider let go."""
         return self._start(TUNES[SAMPLE_TUNE], self.volume, SAMPLE_S)
@@ -207,6 +219,22 @@ class ThemeMusic:
 
     def stop(self) -> None:
         self._play(None)
+
+    def drop(self, tune: Path) -> None:
+        """Drop the quieter copies made of this tune, those of every other kept (forget drops them all): a
+        player's own sound replaced or put back to the 特效's own leaves none of it behind. One still playing
+        goes with the next copy made."""
+        try:
+            copies = list((self._folder or sound_dir()).iterdir())
+        except OSError:
+            return
+        for old in copies:
+            copy = _COPY.fullmatch(old.name)
+            if copy is not None and copy[2] == tune.stem:
+                try:
+                    old.unlink()
+                except OSError:
+                    pass
 
     def forget(self) -> None:
         """Stop, and drop every quieter copy made: 清空数据 leaves none of the player's own sounds behind.

@@ -523,6 +523,53 @@ def test_an_effect_plays_the_player_s_own_sound_classic_too(tmp_path):
     assert music.preview("stars") == "stars" and played[-1].name.startswith(f"50-{TUNES['stars'].stem}-")
 
 
+def test_two_volumes_both_heard_never_round_to_silence(tmp_path):
+    """5% of 声音 times 5% of a 特效 plays at 1%, not at 0%; either at 0% is silence."""
+    music, played, _clock = _managed(tmp_path, {"stars": (None, 5), "ice": (None, 0)})
+    music.volume = 5
+    assert (music.level("stars"), music.level("ice"), music.level("cyber")) == (1, 0, 5)
+    assert music.preview("stars") == "stars" and played[-1].name.startswith("1-")
+    music.volume = 0
+    assert music.level("stars") == 0 and music.preview("stars") == ""
+
+
+def test_a_trial_plays_at_the_effect_s_level_from_the_caller_s_folder(tmp_path):
+    """选择片段's 试听: a sound not yet the 特效's, as loud as that 特效 plays, its copy made beside it and the
+    sound itself left alone; nothing in sounds/, nothing under 静音."""
+    music, played, _clock = _managed(tmp_path, {"ice": (None, 50)})
+    music.volume = 80
+    folder = tmp_path / "trial"
+    folder.mkdir()
+    trial = folder / "trial.wav"
+    shutil.copyfile(TUNES["fluffy"], trial)
+    assert music.trial(trial, "ice")
+    assert played[-1].parent == folder / "copies" and played[-1].name.startswith("40-trial-") and trial.is_file()
+    assert np.abs(_samples(played[-1])[1] - np.rint(_samples(TUNES["fluffy"])[1] * 0.4)).max() <= 1
+    assert not (tmp_path / "sounds").exists()
+    # At 100% the sound itself.
+    music.volume = 100
+    assert music.trial(trial, "cyber") and played[-1] == trial
+    music.muted = True
+    assert not music.trial(trial, "ice") and played[-1] is None
+
+
+def test_dropping_one_tune_s_copies_keeps_every_other(tmp_path):
+    """A player's own sound replaced or put back: its quieter copies go, the other tunes' stay."""
+    own = tmp_path / "custom_sounds"
+    own.mkdir()
+    shutil.copyfile(TUNES["ice"], own / "ice.wav")
+    music, played, _clock = _managed(tmp_path, {"ice": (own / "ice.wav", 50), "stars": (None, 50)})
+    music.preview("ice")
+    music.taste("ice")
+    music.preview("stars")
+    assert len(list((tmp_path / "sounds").iterdir())) == 3
+    music.drop(own / "ice.wav")
+    assert [copy.name for copy in (tmp_path / "sounds").iterdir()] == [played[-1].name]
+    # Nothing made yet, nothing to drop.
+    bare, _played, _clock = _managed(tmp_path / "none", {})
+    bare.drop(own / "ice.wav")
+
+
 def test_a_taste_is_a_moment_of_the_effect_s_sound_as_loud_as_it_plays(tmp_path):
     """What a 特效's 音量 in 特效管理 plays as it is set: a moment of that 特效's sound, the player's own if
     it has one, at 声音 times its 音量. 声音's own moment stays 玫瑰花边's organ at 声音's volume."""
