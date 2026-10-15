@@ -7,11 +7,11 @@ accents on the scene's moments. build/theme_tunes.py plays 冰蓝极光's, 星�
 模仿者狂欢 with the 演说家遇袭 notice's sound in it at its strike (build/ambush_tune.py): the game's own
 recording, the user's choice made knowing NetEase owns it.
 
-The sound follows the theme. 设置 › 常规 › 声音 sets how loud every sound is, or 静音 none; 场景管理 gives each
-场景 its own 音量 on top of that, and may give it the player's own sound instead (经典 too), converted once
-as it was added into a tune like these (paths.custom_sound_dir). winsound plays at the system volume only,
-from a file, so a quieter one is a copy of the tune with its samples scaled (scaled_tune), kept in a folder
-of the app's own (paths.app_dir).
+The sound follows the theme. 场景管理 gives each 场景 its own 音量, and may give it the player's own sound
+instead (经典 too), converted once as it was added into a tune like these (paths.custom_sound_dir);
+设置 › 常规 › 声音 › 静音 silences every sound. winsound plays at the system volume only, from a file, so a
+quieter one is a copy of the tune with its samples scaled (scaled_tune), kept in a folder of the app's own
+(paths.app_dir).
 """
 
 from __future__ import annotations
@@ -42,10 +42,9 @@ TUNES: dict[str, Path] = {
     "fluffy": ASSETS / "theme-fluffy.wav",
     "claw": ASSETS / "ambush.wav",
 }
-# 声音 in 设置 › 常规: how loud, in steps of this many percent, 100 (each tune as made) by default.
+# A 场景's 音量 in 场景管理: how loud, in steps of this many percent, 100 (each tune as made) by default.
 VOLUME_STEP = 5
-# What 声音's slider plays as it is let go: 玫瑰花边's organ (经典 has no sound), this long, fading out.
-SAMPLE_TUNE = "lace"
+# What 音量's slider plays as it is let go: a moment of the 场景's sound, this long, fading out.
 SAMPLE_S = 1.5
 SAMPLE_FADE_S = 0.25
 # The same 嘉宾 players found again this soon are the same lobby, checked again: no second tune.
@@ -143,10 +142,10 @@ def play_tune(path: Path | None) -> None:
 
 
 class ThemeMusic:
-    """Plays a theme's sound, once per lobby, at 设置's 声音 times the 场景's own 音量 (level), or nothing
-    while muted. folder: where the quieter copies go (sound_dir when None). sounds: each 场景's own sound by
-    its key, the player's file (None for the scene's own) and 音量 in percent (Store.scene_sound); with
-    none, every scene plays its own at 声音's volume."""
+    """Plays a theme's sound, once per lobby, at the 场景's own 音量 (level), or nothing while muted. folder:
+    where the quieter copies go (sound_dir when None). sounds: each 场景's own sound by its key, the player's
+    file (None for the scene's own) and 音量 in percent (Store.scene_sound); with none, every scene plays its
+    own as made."""
 
     def __init__(
         self,
@@ -161,7 +160,6 @@ class ThemeMusic:
         self._sounds = sounds
         self._last_lobby: frozenset[str] = frozenset()
         self._last_at = float("-inf")
-        self.volume = 100
         self.muted = False
 
     def pick(self, scene: str) -> str:
@@ -170,11 +168,8 @@ class ThemeMusic:
         return scene if self._tune(scene) is not None else ""
 
     def level(self, scene: str) -> int:
-        """How loud a scene's sound plays, in percent of its loudness: 声音 times the 场景's own 音量. Two that
-        are both heard are never 0 together: 5% of 5% plays at 1%."""
-        own = self._own(scene)[1]
-        level = round(self.volume * own / 100)
-        return max(level, 1) if self.volume > 0 and own > 0 else level
+        """How loud a scene's sound plays, in percent of its loudness: the 场景's own 音量."""
+        return self._own(scene)[1]
 
     def _own(self, scene: str) -> tuple[Path | None, int]:
         if self._sounds is None or not scene:
@@ -187,7 +182,7 @@ class ThemeMusic:
         return own if own is not None and own.is_file() else TUNES.get(scene)
 
     def audible(self) -> bool:
-        return not self.muted and self.volume > 0
+        return not self.muted
 
     def lobby(self, likes: list[str], scene: str) -> str:
         """A lobby with these 嘉宾 players, greeted by this scene: play its sound, unless one just
@@ -221,10 +216,6 @@ class ThemeMusic:
         tune = scaled_tune(path, level, path.parent / "copies") if not self.muted and level > 0 else None
         self._play(tune)
         return tune is not None
-
-    def sample(self) -> bool:
-        """A moment of 玫瑰花边's sound at this volume, for 声音's slider let go."""
-        return self._start(TUNES[SAMPLE_TUNE], self.volume, SAMPLE_S)
 
     def _start(self, tune: Path | None, volume: int, seconds: float | None = None) -> bool:
         if tune is not None and not self.muted and volume > 0:

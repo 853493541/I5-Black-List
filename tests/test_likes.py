@@ -272,8 +272,9 @@ def test_the_marks_wear_the_look_of_the_scene_that_greets_them(window):
     window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
     assert window.panel.mode == "both" and window.panel.look is love_look("ice")
     window._hide_panel_after_title()
-    # 嘉宾场景 off in 设置: no scene, 小明's own neither, and 经典's look.
-    window._set_love_effects(False)
+    # Both on 不放: no scene, 小明's own neither, and 经典's look.
+    for index, like in enumerate(window.store.likes):
+        window.store.update_like(index, like.name, scenes=Scenes(like.scenes.keys, True))
     window._on_lobby_placed(button)
     window._show_panel(CheckResult(True, "", names=names[:2], button_box=button))
     assert not window.love.playing() and all(mark.look is love_look("classic") for mark in marks)

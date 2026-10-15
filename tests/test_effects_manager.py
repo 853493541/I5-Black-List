@@ -175,24 +175,25 @@ def test_volume_is_saved_per_effect_and_heard_as_it_is_let_go(window):
     assert window.played == [] and store.scene_sounds["stars"] == {"volume": 60}
 
 
-def test_the_note_beside_volume_follows_the_sound_setting(window):
+def test_the_note_beside_volume_says_only_that_it_is_muted(window):
+    """音量 is how loud a 场景 is heard, so beside it is only 已静音, under 设置's 静音."""
     page = _shown(window, "ice")
     page.volume_slider.setValue(16)
     assert page.level_note.text() == ""
-    window.volume_slider.setValue(12)
-    assert page.level_note.text() == "实际 48%"
     window.mute_box.click()
     assert page.level_note.text() == "已静音"
-    window.mute_box.click()
-    assert page.level_note.text() == "实际 48%"
     # 经典 with none of the player's has no 音量 to speak of.
     _shown(window, "classic")
     assert page.level_note.text() == ""
-    # 清空数据's 声音 back to 100%.
-    window.store.sound_volume = 100
-    window._sync_sound()
     _shown(window, "ice")
+    assert page.level_note.text() == "已静音"
+    window.mute_box.click()
     assert page.level_note.text() == ""
+    # 清空数据's 静音 off again.
+    window.mute_box.click()
+    window.store.sound_muted = False
+    window._sync_sound()
+    assert page.level_note.text() == "" and not window.mute_box.isChecked()
 
 
 def test_a_short_sound_is_kept_whole_marked_and_played_once(window, pick, trim, tmp_path):
@@ -251,7 +252,6 @@ def test_a_long_sound_is_cut_to_the_part_picked(window, pick, trim, tmp_path):
 def test_a_trial_plays_at_the_effect_s_level(window, pick, trim, tmp_path):
     page = _shown(window, "stars")
     page.volume_slider.setValue(10)
-    window.volume_slider.setValue(16)
     pick["chosen"] = _wav(tmp_path / "long.wav", 8.0)
 
     def listen(dialog) -> bool:  # noqa: ANN001
@@ -261,7 +261,7 @@ def test_a_trial_plays_at_the_effect_s_level(window, pick, trim, tmp_path):
 
     trim["do"] = listen
     page.upload_button.click()
-    assert trim["heard"].startswith("40-trial-")
+    assert trim["heard"].startswith("50-trial-")
 
 
 def test_closing_the_part_picker_changes_nothing(window, pick, trim, tmp_path):
@@ -455,7 +455,8 @@ def test_the_page_with_its_own_sound_fits_the_smallest_window(window, pick, trim
     page = _shown(window, "fluffy")
     pick["chosen"] = _wav(tmp_path / "一个名字很长很长很长很长很长很长很长的心动音乐.wav", 2.0)
     page.upload_button.click()
-    window.volume_slider.setValue(12)
+    # 已静音 beside 音量 too.
+    window.mute_box.click()
     _wait(30)
 
     def placed(widget):  # noqa: ANN001, ANN202

@@ -32,7 +32,6 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
-    QSlider,
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
@@ -124,7 +123,7 @@ from blacklist_detect.ui_kit import (
 )
 from blacklist_detect.ui_likes import LikesPage
 from blacklist_detect.ui_love import LoveBorder
-from blacklist_detect.ui_music import VOLUME_STEP, ThemeMusic, allow_sound, sound_dir
+from blacklist_detect.ui_music import ThemeMusic, allow_sound, sound_dir
 from blacklist_detect.ui_notice import CornerNotice
 from blacklist_detect.ui_overlay import (
     _COVER_OUTSET,
@@ -469,12 +468,12 @@ class MainWindow(QMainWindow):
         self._lobby_choice: str | tuple[str, ...] = ""
         self._lobby_seats: tuple[QRectF, ...] = ()
 
-        # 嘉宾音乐: the same lobby, in either 显示, also gets a few seconds of wedding music, as loud as
-        # 设置 › 声音 and the 场景's own 音量 say, or the player's own sound for it (场景管理).
+        # 嘉宾音乐: the same lobby, in either 显示, also gets a few seconds of wedding music, as loud as the
+        # 场景's own 音量 says, or the player's own sound for it (场景管理), and none with 设置 › 声音 › 静音.
         self.music = ThemeMusic(folder=sound_dir(), sounds=self.store.scene_sound)
-        self.music.volume, self.music.muted = self.store.sound_volume, self.store.sound_muted
-        # Whether a scene greets 嘉宾 at all: 设置 › 嘉宾场景. Each lobby's own is worked out as it shows.
-        self.love.choice = self.store.love_scene
+        self.music.muted = self.store.sound_muted
+        # Each lobby's 嘉宾场景 is worked out as it shows; 经典 until then.
+        self.love.choice = "classic"
         # 黑名单 players in the lobby: a red glow at the screen's edges while the result is up.
         self.alert = AlertGlow()
         # 安全模式: the result in messages at the bottom right of the screen instead of over the game.
@@ -1110,7 +1109,7 @@ class MainWindow(QMainWindow):
         # Put over the window under the pill once the header is built.
         self.check_panel = CheckPanel(check)
 
-        # 常规: how the app starts and closes, on one row, and how loud it is.
+        # 常规: how the app starts and closes, on one row, and 静音.
         general = section("常规")
         self.autostart_switch = Switch(autostart.is_enabled())
         self.autostart_switch.setAccessibleName("开机启动")
@@ -1126,37 +1125,17 @@ class MainWindow(QMainWindow):
         self.close_mode.setAccessibleName("关闭窗口时")
         self.close_mode.changed.connect(self._on_close_mode)
         general.add_row("开机启动", self.autostart_switch, close_label, self.close_mode)
-        # 声音: how loud every sound the app makes is, and 静音 for none. Let go, the slider plays a
-        # moment of sound at the new volume.
-        self.volume_slider = QSlider(Qt.Horizontal)
-        self.volume_slider.setRange(0, 100 // VOLUME_STEP)
-        self.volume_slider.setPageStep(2)
-        self.volume_slider.setFixedWidth(180)
-        self.volume_slider.setCursor(Qt.PointingHandCursor)
-        self.volume_slider.setAccessibleName("音量")
-        self.volume_slider.setValue(self.store.sound_volume // VOLUME_STEP)
-        self.volume_slider.valueChanged.connect(self._on_volume)
-        self.volume_slider.sliderReleased.connect(self._volume_set)
-        self.volume_label = QLabel(f"{self.store.sound_volume}%")
-        self.volume_label.setObjectName("rowLabel")
-        self.volume_label.setFixedWidth(metrics.horizontalAdvance("100%") + 4)
+        # 声音: 静音 for none at all. How loud each 场景 is, is its own 音量 in 场景管理.
         self.mute_box = QCheckBox("静音")
         self.mute_box.setChecked(self.store.sound_muted)
         self.mute_box.setCursor(Qt.PointingHandCursor)
         self.mute_box.toggled.connect(self._on_mute)
-        general.add_row("声音", self.volume_slider, self.volume_label, self.mute_box)
+        general.add_row("声音", self.mute_box)
         self.disclaimer_button = QPushButton("使用声明")
         self.disclaimer_button.setFont(ui_font())
         self.disclaimer_button.setAutoDefault(False)
         self.disclaimer_button.setCursor(Qt.PointingHandCursor)
         self.disclaimer_button.clicked.connect(self._show_disclaimer)
-
-        # 嘉宾: whether a scene greets 嘉宾 players in a lobby.
-        guests = section("嘉宾")
-        self.love_switch = Switch(self.store.love_scene != "off")
-        self.love_switch.setAccessibleName("嘉宾场景")
-        self.love_switch.toggled.connect(self._set_love_effects)
-        guests.add_row("场景", self.love_switch)
 
         # 外观: how the window looks.
         look = section("外观")
@@ -1401,8 +1380,7 @@ class MainWindow(QMainWindow):
             autostart.set_enabled(False)
         self._sync_switch(self.autostart_switch, autostart.is_enabled())
         self.close_mode.set_current("tray" if self.store.close_to_tray else "quit")
-        self.love.choice = self.store.love_scene
-        self._sync_switch(self.love_switch, self.store.love_scene != "off")
+        self.love.choice = "classic"
         self._sync_sound()
         self.display_mode.set_current("safe")
         self.stream_choice.set_current("off")
@@ -2908,29 +2886,6 @@ class MainWindow(QMainWindow):
             for mark in marks:
                 mark.setAttribute(Qt.WA_DontShowOnScreen, hidden)
 
-    def _set_love_effects(self, on: bool) -> None:
-        """嘉宾场景 on: each 嘉宾 and 组合 is greeted with one of its 场景 (any for none ticked, none on 不放);
-        off: no scene for anyone."""
-        self.store.love_scene = "classic" if on else "off"
-        self.store.save_settings()
-        self.love.choice = self.store.love_scene
-
-    def _on_volume(self, step: int) -> None:
-        """声音's slider moved: every sound from now on is this loud. Dragged, it is saved and heard once
-        let go (_volume_set); moved with the keys, the wheel or a click beside the handle, at once."""
-        self.store.sound_volume = step * VOLUME_STEP
-        self.music.volume = self.store.sound_volume
-        self.volume_label.setText(f"{self.store.sound_volume}%")
-        self.effects_page.sync_sound()
-        if not self.volume_slider.isSliderDown():
-            self._volume_set()
-
-    def _volume_set(self) -> None:
-        """The volume chosen: saved, and a moment of sound at it, unless 静音."""
-        self.store.save_settings()
-        self.effects_page.sounding = False
-        self.music.sample()
-
     def _on_mute(self, on: bool) -> None:
         """静音: no sound at all, the one playing now stopped too."""
         self.store.sound_muted = on
@@ -2942,20 +2897,16 @@ class MainWindow(QMainWindow):
             self.effects_page.sounding = False
 
     def _sync_sound(self) -> None:
-        """声音 as the store has it (after 清空数据), with nothing played for it."""
-        for control in (self.volume_slider, self.mute_box):
-            control.blockSignals(True)
-        self.volume_slider.setValue(self.store.sound_volume // VOLUME_STEP)
+        """静音 as the store has it (after 清空数据)."""
+        self.mute_box.blockSignals(True)
         self.mute_box.setChecked(self.store.sound_muted)
-        for control in (self.volume_slider, self.mute_box):
-            control.blockSignals(False)
-        self.volume_label.setText(f"{self.store.sound_volume}%")
-        self.music.volume, self.music.muted = self.store.sound_volume, self.store.sound_muted
+        self.mute_box.blockSignals(False)
+        self.music.muted = self.store.sound_muted
         self.effects_page.sync_sound()
 
     def _sound_said(self) -> str:
-        """声音 for the log."""
-        return "muted" if self.store.sound_muted else f"{self.store.sound_volume}%"
+        """声音 for the log: 静音 or not."""
+        return "muted" if self.store.sound_muted else "on"
 
     def _set_stream_mode(self, on: bool | str) -> None:
         if bool(on) != bool(self.store.stream_mode):
@@ -3985,8 +3936,7 @@ class MainWindow(QMainWindow):
                 "方式 " + ("自动检查" if store.auto_capture else f"手动检查 ({store.hotkey or '无快捷键'})"),
                 "提醒 " + ("黑名单+嘉宾" if store.check_blacklist and store.check_likes else "只有黑名单" if store.check_blacklist else "只有嘉宾"),
                 "直播模式 " + ("开" if store.stream_mode else "关") + ("" if store.stream_test_frame else " (测试框 关)"),
-                "嘉宾场景 " + ("关" if store.love_scene == "off" else "开"),
-                f"声音 {store.sound_volume}%" + (" (静音)" if store.sound_muted else ""),
+                "声音 " + ("静音" if store.sound_muted else "开"),
                 f"场景 {store.quick_scene} ({store.effect_hotkey or '无快捷键'})",
                 f"外观 {store.appearance}",
                 "关闭窗口时 " + ("最小化到托盘" if store.close_to_tray else "退出程序"),
@@ -3995,17 +3945,15 @@ class MainWindow(QMainWindow):
         )
 
     def _choice_for(self, likes: list[Entry]) -> str | tuple[str, ...]:
-        """The 嘉宾场景 choice for a lobby with these 嘉宾 (guests.lobby_choice), "off" while 嘉宾场景 is
-        off in 设置. 测试效果's sample 嘉宾 are on no list: 经典."""
-        if self.store.love_scene == "off":
-            return "off"
+        """The 嘉宾场景 choice for a lobby with these 嘉宾 (guests.lobby_choice). 测试效果's sample 嘉宾 are on
+        no list: 经典."""
         if self._demo_likes is not None:
             return "classic"
         return lobby_choice(self.store.likes, self.store.combos, likes, "classic", known=_known_scene)
 
     def _tune_for(self, choice: str | tuple[str, ...]) -> str:
         """The music for a lobby with this 嘉宾场景 choice: the sound of the scene that plays, none when
-        none does. 声音 decides how loud (ThemeMusic)."""
+        none does. Its 音量 decides how loud (ThemeMusic)."""
         self.love.choice = choice
         return self.love.pick()
 
@@ -4025,8 +3973,8 @@ class MainWindow(QMainWindow):
     def _dress_love(self, playing: bool) -> None:
         """The 嘉宾 marks (the ring, the badge and the card) in the look of this lobby's scene: the one
         about to play, or the one that played for this lobby. With none playing, the look of the
-        lobby's choice, 经典's for several to pick from or while 嘉宾场景 is off."""
-        choice = self._lobby_choice or self.store.love_scene
+        lobby's choice, 经典's for several to pick from or for 不放."""
+        choice = self._lobby_choice or "classic"
         if playing and self._love_played:
             # What played for this lobby ("" for 不放).
             scene = self.love.pick()
@@ -4179,9 +4127,9 @@ class MainWindow(QMainWindow):
     def play_quick_scene(self, under_pointer: bool = True, scene: str = "") -> bool:
         """The 场景 hotkey, and 播放 on 场景管理: the hotkey's 场景 (store.quick_scene), or for 播放 the one shown
         there (scene), at once, with no check (no screen copy, no recognition), as a 嘉宾 lobby would get
-        it: the rose ring and the badge on 准备案件还原, the scene over the game and its music (设置 › 声音,
-        and the 场景's own 音量), on the screen, or only in 直播画面 when 安全模式 puts the marks there. It
-        plays with 嘉宾场景 off too, and pressed again it starts over. It plays nothing when _quick_refusal
+        it: the rose ring and the badge on 准备案件还原, the scene over the game and its music (the 场景's own
+        音量, none with 静音), on the screen, or only in 直播画面 when 安全模式 puts the marks there. It
+        plays with every 嘉宾 on 不放 too, and pressed again it starts over. It plays nothing when _quick_refusal
         says why not: before 使用声明 is agreed to, in 安全模式 without 直播模式 (nothing is drawn over the
         game there), and while a real lobby is checked or its marks show, since that comes first; a check
         takes the play down.
@@ -4323,7 +4271,7 @@ class MainWindow(QMainWindow):
             self._game_box, self._game_screen, self._game_windows, frame, self._lobby_choice, self._lobby_seats = saved
             self.stream.set_frame(frame)
             self._quick_saved = None
-        self.love.choice = self.store.love_scene
+        self.love.choice = "classic"
         log.info("场景 hotkey: done.")
 
     def _hits_in(self, result: CheckResult) -> list[Hit]:
@@ -4370,7 +4318,7 @@ class MainWindow(QMainWindow):
         if screen is None:
             return
         self._love_played = True
-        choice = self._lobby_choice or self.store.love_scene
+        choice = self._lobby_choice or "classic"
         who = "场景 hotkey" if self._quick_scene else f"Check {self._check_number}"
         said = choice if isinstance(choice, str) else "one of " + "/".join(choice)
         log.info("%s shown: 嘉宾场景 (%s, sound %s).", who, said, self._sound_said())

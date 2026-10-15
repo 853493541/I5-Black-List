@@ -453,22 +453,128 @@ def test_an_old_guest_count_setting_is_let_go(tmp_path):
     assert "love_counts" not in json.loads(path.read_text(encoding="utf-8"))
 
 
-def test_an_old_effects_choice_is_on_and_an_old_off_stays_off(tmp_path):
-    """嘉宾场景 was one scene for every 嘉宾, 随机 or 无 once; it is on or off in 设置 now. A scene or
-    随机 is on (经典 for 嘉宾 with no 场景 of their own); 无 stays off."""
+def _with_settings(root, **saved) -> None:  # noqa: ANN001
+    """The settings file as an earlier version left it: these saved over the default ones."""
     import json
 
-    Store(tmp_path).save_settings()
-    path = tmp_path / "settings.json"
-    for saved, now in (("stars", "classic"), ("random", "classic"), ("ribbon", "classic"), ("off", "off"), (None, "classic")):
-        settings = json.loads(path.read_text(encoding="utf-8"))
-        settings["love_scene"] = saved
-        path.write_text(json.dumps(settings), encoding="utf-8")
-        assert Store(tmp_path).love_scene == now, saved
-    store = Store(tmp_path)
-    store.love_scene = "off"
+    store = Store(root)
     store.save_settings()
-    assert Store(tmp_path).love_scene == "off"
+    settings = json.loads(store.settings_path.read_text(encoding="utf-8"))
+    settings.update(saved)
+    store.settings_path.write_text(json.dumps(settings), encoding="utf-8")
+
+
+def _files(root) -> dict:  # noqa: ANN001
+    return {path.name: path.read_bytes() for path in sorted(root.glob("*.json"))}
+
+
+def test_an_old_scene_switch_turned_off_puts_every_guest_and_combo_on_no_scene(tmp_path):
+    """设置 › 嘉宾 › 场景 is gone (v0.9.14 and before). Left off, every 嘉宾 and 组合 is on 不放 instead, their
+    场景 kept ticked for 放场景, once: the switch is not saved again, the next open changes nothing, and a 嘉宾
+    added later starts on as ever."""
+    import json
+
+    from blacklist_detect.model import ANY_SCENE, Combo, Scenes
+
+    store = Store(tmp_path)
+    store.add_like("心动小鹿", scenes=Scenes(("ice", "stars")))
+    store.add_like("心动星星")
+    store.add_like("示例朋友", scenes=Scenes(("cyber",), off=True))
+    store.set_combos([Combo(("心动小鹿", "心动星星"), Scenes(("angel",))), Combo(("心动星星", "示例朋友"))])
+    _with_settings(tmp_path, love_scene="off", theme="紫色")
+    loaded = Store(tmp_path)
+    assert [like.scenes for like in loaded.likes] == [Scenes(("ice", "stars"), True), Scenes((), True), Scenes(("cyber",), True)]
+    assert [combo.scenes for combo in loaded.combos] == [Scenes(("angel",), True), Scenes((), True)]
+    assert loaded.theme == "紫色" and loaded.load_warning == ""
+    assert "love_scene" not in json.loads(loaded.settings_path.read_text(encoding="utf-8"))
+    saved = _files(tmp_path)
+    again = Store(tmp_path)
+    assert _files(tmp_path) == saved and [like.scenes for like in again.likes] == [like.scenes for like in loaded.likes]
+    assert again.add_like("新来的嘉宾").scenes == ANY_SCENE
+    # Left on, or anything else, nobody's 场景 change; neither does a settings file with no 嘉宾 at all.
+    for index, kept in enumerate(("classic", "stars", "random", None, 3, ["off"], "OFF", {"off": True})):
+        other = tmp_path / f"kept-{index}"
+        Store(other).add_like("心动小鹿", scenes=Scenes(("ice",)))
+        _with_settings(other, love_scene=kept)
+        assert Store(other).likes[0].scenes == Scenes(("ice",)), kept
+    _with_settings(tmp_path / "none", love_scene="off")
+    assert Store(tmp_path / "none").likes == [] and not (tmp_path / "none" / "likes.json").exists()
+
+
+def test_the_old_sound_volume_is_folded_into_every_scene_s_own_once(tmp_path):
+    """设置 › 声音's slider is gone (v0.9.14 and before): below 100 it is taken into every 场景's own 音量 once, down to
+    a step of 5 so nothing is louder, never 0 when both were above 0, and is not saved again."""
+    import json
+
+    from blacklist_detect import love_scenes
+    from blacklist_detect.paths import custom_sound_dir
+
+    own = _own_sound(Store(tmp_path), "neon")
+    sounds = {
+        "ice": {"volume": 100},
+        "stars": {"volume": 50},
+        "neon": {"volume": 100, "file": own, "name": "我的声音.mp3"},
+        "future": {"volume": 40},
+    }
+    _with_settings(tmp_path, sound_volume=60, scene_sounds=sounds, theme="紫色")
+    loaded = Store(tmp_path)
+    assert loaded.load_warning == "" and loaded.theme == "紫色"
+    expected = {key: {"volume": 60} for key in love_scenes.KEYS}
+    expected.update(stars={"volume": 30}, neon={"volume": 60, "file": own, "name": "我的声音.mp3"}, future={"volume": 20})
+    assert loaded.scene_sounds == expected
+    assert loaded.scene_sound("neon") == (custom_sound_dir(tmp_path) / own, 60) and loaded.scene_sound("cyber") == (None, 60)
+    settings = json.loads(loaded.settings_path.read_text(encoding="utf-8"))
+    assert "sound_volume" not in settings and settings["scene_sounds"] == expected
+    saved = _files(tmp_path)
+    assert Store(tmp_path).scene_sounds == expected and _files(tmp_path) == saved
+    # Down to a step of 5, at least 5; 0 for every 场景 at 声音 0, and for a 场景 at 0.
+    for volume, own_volume, now, rest in ((55, 50, 25, 55), (95, 5, 5, 95), (5, 5, 5, 5), (0, 100, 0, 0), (60, 0, 0, 60), (73.4, 100, 75, 75)):
+        other = tmp_path / f"{volume}-{own_volume}"
+        _with_settings(other, sound_volume=volume, scene_sounds={"ice": {"volume": own_volume}})
+        folded = Store(other).scene_sounds
+        assert (folded["ice"], folded["stars"]) == ({"volume": now}, {"volume": rest}), (volume, own_volume)
+    # At 100, none saved, or none at all (not a number, out of 0-100): as it was, the file not even written again.
+    for index, kept in enumerate((100, None, "50", True, -5, 120, [60], {"x": 1})):
+        other = tmp_path / f"kept-{index}"
+        _with_settings(other, sound_volume=kept, scene_sounds={"stars": {"volume": 50}})
+        saved = _files(other)
+        assert Store(other).scene_sounds == {"stars": {"volume": 50}} and _files(other) == saved, kept
+
+
+def test_old_settings_that_cannot_be_saved_are_folded_again_the_next_open(tmp_path, monkeypatch):
+    """A settings file that cannot be written: 声音 and 嘉宾 › 场景 are folded in for this open all the same,
+    and again the next, the same."""
+    from blacklist_detect import storage
+    from blacklist_detect.model import Scenes
+
+    Store(tmp_path).add_like("心动小鹿", scenes=Scenes(("ice",)))
+    _with_settings(tmp_path, sound_volume=50, love_scene="off")
+    saved = _files(tmp_path)
+
+    def refuse(path, payload) -> None:  # noqa: ANN001
+        raise OSError("read-only")
+
+    monkeypatch.setattr(storage, "_atomic_write", refuse)
+    loaded = Store(tmp_path)
+    assert loaded.scene_sound("ice")[1] == 50 and loaded.likes[0].scenes == Scenes(("ice",), True)
+    assert _files(tmp_path) == saved
+    monkeypatch.undo()
+    again = Store(tmp_path)
+    assert again.scene_sound("ice")[1] == 50 and again.likes[0].scenes == Scenes(("ice",), True)
+    assert Store(tmp_path).scene_sound("ice")[1] == 50
+
+
+def test_a_broken_settings_file_folds_nothing_in(tmp_path):
+    """A settings file that cannot be read whole is not written over for the old 声音 or 嘉宾 › 场景."""
+    from blacklist_detect.model import Scenes
+
+    Store(tmp_path).add_like("心动小鹿", scenes=Scenes(("ice",)))
+    store = Store(tmp_path)
+    store.settings_path.write_text('{"sound_volume": 50, "love_scene": "off", "custom_tags": 5}', encoding="utf-8")
+    saved = _files(tmp_path)
+    loaded = Store(tmp_path)
+    assert loaded.load_warning and loaded.likes[0].scenes == Scenes(("ice",)) and loaded.scene_sound("ice")[1] == 100
+    assert _files(tmp_path) == saved
 
 
 def test_a_saved_hotkey_of_three_keys_keeps_two(tmp_path):
@@ -499,28 +605,23 @@ def test_reminding_about_each_list_is_kept_and_one_stays_on(tmp_path):
     assert (store.check_blacklist, store.check_likes) == (True, True)
 
 
-def test_the_sound_volume_and_mute_are_kept_and_reset(tmp_path):
-    """设置 › 声音: 100% and not muted at first, kept as set, back to that after 清空数据. A volume that is
-    none (not a number, out of 0-100) is 100%; one between steps of 5 the nearest step."""
+def test_mute_is_kept_and_reset(tmp_path):
+    """设置 › 声音 › 静音: off at first, kept as set, off again after 清空数据; only true is on."""
     import json
 
     store = Store(tmp_path)
-    assert (store.sound_volume, store.sound_muted) == (100, False)
-    store.sound_volume, store.sound_muted = 35, True
+    assert store.sound_muted is False
+    store.sound_muted = True
     store.save_settings()
-    assert (Store(tmp_path).sound_volume, Store(tmp_path).sound_muted) == (35, True)
+    assert Store(tmp_path).sound_muted is True
     path = tmp_path / "settings.json"
-    for saved, now in ((0, 0), (72, 70), (73.4, 75), (-5, 100), (120, 100), ("50", 100), (True, 100), (None, 100)):
-        settings = json.loads(path.read_text(encoding="utf-8"))
-        settings["sound_volume"] = saved
-        path.write_text(json.dumps(settings), encoding="utf-8")
-        assert Store(tmp_path).sound_volume == now, saved
+    settings = json.loads(path.read_text(encoding="utf-8"))
+    assert "sound_volume" not in settings and "love_scene" not in settings
     settings["sound_muted"] = "yes"
     path.write_text(json.dumps(settings), encoding="utf-8")
     assert Store(tmp_path).sound_muted is False
     store.reset()
-    assert (store.sound_volume, store.sound_muted) == (100, False)
-    assert (Store(tmp_path).sound_volume, Store(tmp_path).sound_muted) == (100, False)
+    assert store.sound_muted is False and Store(tmp_path).sound_muted is False
 
 
 def _own_sound(store: Store, key: str) -> str:
@@ -574,7 +675,7 @@ def test_bad_effect_sounds_are_dropped_and_the_other_settings_kept(tmp_path):
     import json
 
     store = Store(tmp_path)
-    store.sound_volume, store.theme = 35, "紫色"
+    store.theme = "紫色"
     own = _own_sound(store, "neon")
     store.save_settings()
     elsewhere = tmp_path / "elsewhere.wav"
@@ -584,7 +685,7 @@ def test_bad_effect_sounds_are_dropped_and_the_other_settings_kept(tmp_path):
         settings["scene_sounds"] = garbage
         store.settings_path.write_text(json.dumps(settings), encoding="utf-8")
         loaded = Store(tmp_path)
-        assert (loaded.scene_sounds, loaded.load_warning, loaded.sound_volume, loaded.theme) == ({}, "", 35, "紫色"), garbage
+        assert (loaded.scene_sounds, loaded.load_warning, loaded.theme) == ({}, "", "紫色"), garbage
     settings["scene_sounds"] = {
         "ice": "loud",
         "stars": {"volume": "x"},
@@ -600,7 +701,7 @@ def test_bad_effect_sounds_are_dropped_and_the_other_settings_kept(tmp_path):
     }
     store.settings_path.write_text(json.dumps(settings), encoding="utf-8")
     loaded = Store(tmp_path)
-    assert (loaded.load_warning, loaded.sound_volume, loaded.theme) == ("", 35, "紫色")
+    assert (loaded.load_warning, loaded.theme) == ("", "紫色")
     assert loaded.scene_sounds == {
         "cyber": {"volume": 55},
         "neon": {"volume": 100, "file": own, "name": ""},

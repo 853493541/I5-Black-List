@@ -6,9 +6,9 @@ A click shows one: it plays beside the list over the fake-name sample lobby, as 
 the one shown; a ♪ is a 场景 with the player's own sound.
 
 Under the preview, the shown 场景's 声音 (its own, or the player's: 上传 a file, a part of it picked in
-选择片段 when it is longer than a 场景's sound may be, and 恢复默认 to go back), its 音量 on top of 设置's
-声音, and the hotkey, set the way 检查's is (the window's hotkey box), with 播放, which plays the shown 场景
-the way the hotkey plays its own: at once over the game, with no check (MainWindow.play_quick_scene).
+选择片段 when it is longer than a 场景's sound may be, and 恢复默认 to go back), its 音量, and the hotkey,
+set the way 检查's is (the window's hotkey box), with 播放, which plays the shown 场景 the way the hotkey
+plays its own: at once over the game, with no check (MainWindow.play_quick_scene).
 
 The preview plays only while it can be seen, its window not minimized, and the app is in front: behind the
 game it would paint 30 times a second for nothing.
@@ -182,7 +182,7 @@ class EffectsPage(QWidget):
         sound.addWidget(self.reset_button)
         sound.addStretch(1)
         rows.addLayout(sound, 0, 1)
-        # 音量: how loud this 场景 is of 设置's 声音, in its steps; let go, a moment of it at that.
+        # 音量: how loud this 场景 is, in its steps; let go, a moment of it at that.
         volume = QHBoxLayout()
         volume.setSpacing(10)
         self.volume_slider = QSlider(Qt.Horizontal)
@@ -198,7 +198,7 @@ class EffectsPage(QWidget):
         self.volume_label.setObjectName("rowLabel")
         self.volume_label.setFixedWidth(QFontMetrics(chinese_font()).horizontalAdvance("100%") + 4)
         volume.addWidget(self.volume_label)
-        # How loud it is heard, 设置's 声音 taken in, or that nothing is.
+        # That nothing is heard, under 设置's 静音.
         self.level_note = QLabel("")
         self.level_note.setObjectName("rowHint")
         volume.addWidget(self.level_note)
@@ -325,14 +325,9 @@ class EffectsPage(QWidget):
         self.sync_sound()
 
     def sync_sound(self) -> None:
-        """The note beside 音量 as 设置's 声音 and 静音 are now: how loud it is heard, or that nothing is."""
-        text = ""
-        if self.music is not None and self.volume_slider.isEnabled():
-            if self.music.muted:
-                text = "已静音"
-            elif self.music.volume < 100:
-                text = f"实际 {self.music.level(self.scenes.key)}%"
-        self.level_note.setText(text)
+        """The note beside 音量 as 设置's 静音 is now: that nothing is heard."""
+        muted = self.music is not None and self.music.muted and self.volume_slider.isEnabled()
+        self.level_note.setText("已静音" if muted else "")
 
     def _on_volume(self, step: int) -> None:
         """音量 moved: the shown 场景 plays this loud from now on. Dragged, it is saved and heard once let go

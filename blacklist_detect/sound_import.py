@@ -3,7 +3,7 @@
 Whatever the file (FILTER), decode reads it into mono 16-bit samples at 44.1 kHz, the format of the
 built-in tunes (ui_music.TUNES), and save_clip keeps at most CLIP_S of it, about as loud as they are
 (TARGET_RMS_DBFS, peaks no higher than PEAK_DBFS), as <scene key>.wav in a folder of the app's own.
-From then on it plays like any tune: winsound, a quieter copy for 设置's 声音 (ui_music.scaled_tune).
+From then on it plays like any tune: winsound, a quieter copy for its 音量 (ui_music.scaled_tune).
 
 WAV is read here with Python's wave. Everything else goes through Qt's QAudioDecoder, which hands the
 file to Windows' own decoders (Media Foundation): nothing is bundled for the formats themselves. The

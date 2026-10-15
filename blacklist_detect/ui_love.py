@@ -2,10 +2,9 @@
 
 Which scene plays is the lobby's (guests.lobby_choice): one of love_scenes.SCENES, ticked by its 组合
 or its 嘉宾, one of several at random but never the one just played twice in a row, any for none ticked;
-none for 不放, or while 设置 › 嘉宾场景 is off. The 场景 hotkey plays the one picked on 场景管理, with no
-lobby, that switch on or off. It plays once, about five seconds, then goes. The bottom of the
-scene parts around the accept button and its marks, and clicks pass through the whole window to
-the game.
+none for 不放. The 场景 hotkey plays the one picked on 场景管理, with no lobby, 不放 or not. It plays
+once, about five seconds, then goes. The bottom of the scene parts around the accept button and its
+marks, and clicks pass through the whole window to the game.
 """
 
 from __future__ import annotations
@@ -60,7 +59,7 @@ class LoveBorder(QWidget):
         """Cover area (the game's screen) and play, leaving keep_clear (the button and its marks) bare.
 
         badge is the 嘉宾 heart and seats the players' names, on the screen. Returns False when
-        the choice plays none (不放, or 嘉宾场景 off).
+        the choice plays none (不放).
         """
         scene = self.pick()
         if not scene:

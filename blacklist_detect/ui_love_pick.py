@@ -4,7 +4,7 @@ On top, 放场景 or 不放 (none for them). The scenes are listed by name, each
 box to tick (SceneList): several ticked, one of them plays each time, never the one just played twice in a
 row; none ticked, any scene. A click on a name highlights it, and it plays on the right over the fake-name
 sample lobby, with the app's own marks on it (ScenePreview); ▶ plays it from its start with its music (as
-loud as 设置 › 声音 says). 确定 gives them; 取消 or closing changes nothing.
+loud as its 音量 in 场景管理 says). 确定 gives them; 取消 or closing changes nothing.
 The 场景管理 page (ui_effects) is made of the same list, with no boxes, and preview, its list marking the
 场景 the hotkey plays with ✓ apart from the one shown, and with ♪ each 场景 given the player's own sound.
 """

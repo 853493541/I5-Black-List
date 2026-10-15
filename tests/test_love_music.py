@@ -1,5 +1,5 @@
 """嘉宾音乐: each 嘉宾场景 theme's own sound whenever a 嘉宾 is in the lobby, once per lobby, as loud as
-设置 › 常规 › 声音 says, or not at all with 静音."""
+its 场景's own 音量 in 场景管理 says, or not at all with 设置 › 常规 › 声音 › 静音."""
 
 import os
 import shutil
@@ -10,7 +10,7 @@ import pytest
 
 from blacklist_detect import love_scenes
 from blacklist_detect.model import Scenes
-from blacklist_detect.ui_music import SAME_LOBBY_S, SAMPLE_S, SAMPLE_TUNE, TUNES, ThemeMusic, scaled_tune
+from blacklist_detect.ui_music import SAME_LOBBY_S, SAMPLE_S, TUNES, ThemeMusic, scaled_tune
 
 
 class Clock:
@@ -114,7 +114,7 @@ def _lobby(hit: bool = False):  # noqa: ANN202
 def test_the_theme_brings_its_sound_until_muted(window):
     from blacklist_detect.storage import Store
 
-    assert window.store.love_scene == "classic" and not window.store.sound_muted
+    assert not window.store.sound_muted
     # 经典 greets in silence.
     window._show_panel(_lobby())
     assert window.tunes == []
@@ -148,7 +148,7 @@ def test_music_off_before_is_mute_now(tmp_path):
         settings["love_music"] = saved
         path.write_text(json.dumps(settings), encoding="utf-8")
         store = Store(tmp_path)
-        assert (store.sound_muted, store.sound_volume) == (muted, 100), saved
+        assert store.sound_muted is muted and store.scene_sounds == {}, saved
         store.save_settings()
         settings = json.loads(path.read_text(encoding="utf-8"))
         assert "love_music" not in settings and settings["sound_muted"] is muted
@@ -186,14 +186,12 @@ def _own_sound(store, key: str, like: str = "ice", volume: int = 100):  # noqa: 
 def test_clearing_the_data_puts_the_effects_and_the_sound_back_to_their_defaults(window, monkeypatch):
     from blacklist_detect.ui_music import sound_dir
 
-    own = _own_sound(window.store, "classic")
-    window.volume_slider.setValue(6)
+    own = _own_sound(window.store, "classic", volume=30)
     # Heard below 100%, the player's own sound has quieter copies too.
     assert window.music.preview("classic") == "classic" and window.music.taste("classic")
     assert len([tune for tune in sound_dir().iterdir() if tune.name.startswith("30-classic-")]) == 2
     window.mute_box.click()
-    window.love_switch.click()
-    assert (window.store.sound_volume, window.store.sound_muted, window.store.love_scene) == (30, True, "off")
+    assert window.store.sound_muted
     window.store.scene_sounds["ice"] = {"volume": 40}
     window.store.save_settings()
     window.tunes.clear()
@@ -203,38 +201,38 @@ def test_clearing_the_data_puts_the_effects_and_the_sound_back_to_their_defaults
     assert window.tunes[0] is None and window.store.scene_sounds == {} and not own.parent.exists()
     assert not sound_dir().exists()
     assert window.music.pick("classic") == "" and window.music.level("ice") == 100
-    assert (window.store.sound_volume, window.store.sound_muted, window.store.love_scene) == (100, False, "classic")
-    assert window.love.choice == "classic" and window.love_switch.isChecked()
-    assert window.volume_slider.value() == 20 and window.volume_label.text() == "100%" and not window.mute_box.isChecked()
-    assert (window.music.volume, window.music.muted) == (100, False)
+    assert window.store.sound_muted is False and not window.mute_box.isChecked() and not window.music.muted
+    assert window.love.choice == "classic"
     assert all(tune is None for tune in window.tunes), "清空数据 plays no sample"
 
 
-def test_the_settings_switch_turns_guest_effects_off(window):
-    """设置 › 嘉宾 › 场景: on, each 嘉宾 and 组合 is greeted with its 场景 (经典 for none); off, no scene greets
-    anyone, nor its sound."""
-    from blacklist_detect.storage import Store
+def test_settings_has_no_scene_switch_and_no_place_turns_scenes_off(window):
+    """设置 › 嘉宾 › 场景 is gone, and its section with it: each 嘉宾 and 组合 is greeted with its 场景 (经典 for
+    none), none on 不放, which turns a scene and its sound off now."""
+    from PySide6.QtWidgets import QLabel
 
     window.store.update_like(1, "小明", "", "", Scenes(("angel",)))
-    assert window.love_switch.isChecked() and window.love_switch.accessibleName() == "嘉宾场景"
+    assert not hasattr(window, "love_switch") and not hasattr(window, "_set_love_effects")
+    titles = [label.text() for label in window.settings_scroll.widget().findChildren(QLabel)]
+    assert "常规" in titles and "嘉宾" not in titles
     assert window._choice_for(window.store.likes) == "angel"
-    window.love_switch.click()
-    assert window.store.love_scene == "off" and Store(window.store.root).love_scene == "off"
+    for index, like in enumerate(window.store.likes):
+        window.store.update_like(index, like.name, "", "", Scenes(like.scenes.keys, True))
     assert window._choice_for(window.store.likes) == "off"
     window._show_panel(_lobby())
     assert not window.love.playing() and window.tunes == []
-    window._hide_panel_after_title()
-    window.love_switch.click()
-    assert window.store.love_scene == "classic" and Store(window.store.root).love_scene == "classic"
+    assert "嘉宾场景" not in window.settings_line()
 
 
-def test_an_old_saved_off_stays_off(tmp_path, monkeypatch):
-    """嘉宾场景 set to 无 before 设置 had the switch: it opens off."""
+def test_an_old_saved_off_puts_every_guest_on_no_scene(tmp_path, monkeypatch):
+    """嘉宾场景 left off in 设置 (up to v0.9.14): the window opens with every 嘉宾 and 组合 on 不放, so no scene
+    greets them, nor its sound."""
     import json
 
     pytest.importorskip("PySide6")
     from PySide6.QtWidgets import QApplication
 
+    from blacklist_detect.model import Combo
     from blacklist_detect.storage import Store
     from blacklist_detect.ui import MainWindow
 
@@ -242,14 +240,25 @@ def test_an_old_saved_off_stays_off(tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     store = Store()
+    store.add_like("小红", scenes=Scenes(("lace",)))
+    store.add_like("小明", scenes=Scenes(("angel", "stars")))
+    store.set_combos([Combo(("小红", "小明"), Scenes(("cyber",)))])
     store.save_settings()
     settings = json.loads(store.settings_path.read_text(encoding="utf-8"))
     settings["love_scene"] = "off"
     store.settings_path.write_text(json.dumps(settings), encoding="utf-8")
     window = MainWindow()
     window._watch_timer.stop()
-    assert window.store.love_scene == "off" and not window.love_switch.isChecked()
-    assert window.love.choice == "off"
+    tunes: list = []
+    window.music = ThemeMusic(play=tunes.append, sounds=window.store.scene_sound)
+    assert [like.scenes for like in window.store.likes] == [Scenes(("lace",), True), Scenes(("angel", "stars"), True)]
+    assert window.store.combos[0].scenes == Scenes(("cyber",), True)
+    assert window._choice_for(window.store.likes) == "off" and window.love.choice == "classic"
+    window._live_check = True
+    window._show_panel(_lobby())
+    assert not window.love.playing() and tunes == []
+    window._hide_panel_after_title()
+    window.notice.hide()
     window.close()
 
 
@@ -345,76 +354,61 @@ def test_an_updated_tune_leaves_no_old_copies_behind(tmp_path):
     assert sorted(folder.iterdir()) == sorted([*new, kept])
 
 
-def test_the_sample_is_the_organ_s_start_fading_out(tmp_path):
-    """What 声音's slider plays as it is let go: 玫瑰花边's organ, a moment of it, at the volume, ending
+def test_a_moment_is_the_tune_s_start_fading_out(tmp_path):
+    """What 音量's slider in 场景管理 plays as it is let go: a moment of the 场景's tune, at the volume, ending
     softly; at 100% a moment too."""
-    clip = scaled_tune(TUNES[SAMPLE_TUNE], 60, tmp_path, SAMPLE_S)
+    tune = TUNES["lace"]
+    clip = scaled_tune(tune, 60, tmp_path, SAMPLE_S)
     params, samples = _samples(clip)
-    _, original = _samples(TUNES[SAMPLE_TUNE])
+    _, original = _samples(tune)
     assert len(samples) == round(SAMPLE_S * params.framerate)
     head = len(samples) // 2
     assert np.abs(samples[:head] - np.rint(original[:head] * 0.6)).max() <= 1
     assert np.abs(samples[:head]).max() > 5000, "it is heard"
     assert np.abs(samples[-200:]).max() < np.abs(samples[:head]).max() / 20
-    whole = scaled_tune(TUNES[SAMPLE_TUNE], 100, tmp_path, SAMPLE_S)
-    assert whole != TUNES[SAMPLE_TUNE] and len(_samples(whole)[1]) == len(samples)
+    whole = scaled_tune(tune, 100, tmp_path, SAMPLE_S)
+    assert whole != tune and len(_samples(whole)[1]) == len(samples)
 
 
 def test_music_plays_at_its_volume_and_not_at_all_muted(tmp_path):
-    _, played, clock = _music()
-    music = ThemeMusic(play=played.append, clock=clock, folder=tmp_path)
-    music.volume = 50
+    music, played, clock = _managed(tmp_path, {"stars": (None, 50), "cyber": (None, 50)})
     assert music.lobby(["小红"], "stars") == "stars"
-    assert played[-1].parent == tmp_path
+    assert played[-1].parent == tmp_path / "sounds"
     assert np.abs(_samples(played[-1])[1] - np.rint(_samples(TUNES["stars"])[1] * 0.5)).max() <= 1
-    assert music.preview("cyber") == "cyber" and played[-1].parent == tmp_path
-    assert music.sample() and len(_samples(played[-1])[1]) == round(SAMPLE_S * 44100)
-    # 静音, or 0%: no sound, and the one playing stops.
-    for muted, volume in ((True, 50), (False, 0)):
-        music.muted, music.volume = muted, volume
-        played.clear()
-        clock.now += SAME_LOBBY_S + 1
-        assert music.lobby(["小明"], "stars") == ""
-        assert music.preview("stars") == "" and not music.sample()
-        assert played == [None, None]
+    assert music.preview("cyber") == "cyber" and played[-1].parent == tmp_path / "sounds"
+    assert music.taste("stars") and len(_samples(played[-1])[1]) == round(SAMPLE_S * 44100)
+    # 静音: no sound, and the one playing stops.
+    music.muted = True
+    played.clear()
+    clock.now += SAME_LOBBY_S + 1
+    assert music.lobby(["小明"], "stars") == ""
+    assert music.preview("stars") == "" and not music.taste("stars")
+    assert played == [None, None]
     # Heard again, the lobby that had none a moment ago gets its sound.
-    music.muted, music.volume = False, 100
-    assert music.lobby(["小明"], "stars") == "stars" and played[-1] == TUNES["stars"]
+    music.muted = False
+    assert music.lobby(["小明"], "stars") == "stars" and played[-1].name.startswith("50-")
 
 
-def test_the_sound_row_sets_how_loud_and_plays_a_moment_once_let_go(window):
-    """设置 › 常规 › 声音: the slider in steps of 5%, its percent beside it, then 静音. Dragged, a moment of
-    sound at the new volume once let go; moved by the keys, at once; muted, none. Kept for the next start."""
-    from PySide6.QtWidgets import QAbstractSlider
+def test_the_sound_row_is_mute_alone(window):
+    """设置 › 常规 › 声音: 静音 alone, no slider (each 场景 has its own 音量). Ticked, nothing is heard and
+    nothing plays for it; kept for the next start."""
+    from PySide6.QtWidgets import QSlider
 
     from blacklist_detect.storage import Store
     from blacklist_detect.ui import MainWindow
-    from blacklist_detect.ui_music import sound_dir
 
-    slider, label, box = window.volume_slider, window.volume_label, window.mute_box
-    assert (slider.minimum(), slider.maximum(), slider.value(), label.text()) == (0, 20, 20, "100%")
-    assert box.text() == "静音" and not box.isChecked()
-    slider.setSliderDown(True)
-    slider.setValue(14)
-    assert label.text() == "70%" and window.music.volume == 70 and window.tunes == []
-    slider.setSliderDown(False)
-    assert len(window.tunes) == 1 and window.tunes[0].parent == sound_dir()
-    _, organ = _samples(TUNES[SAMPLE_TUNE])
-    heard = _samples(window.tunes[0])[1]
-    assert len(heard) == round(SAMPLE_S * 44100) and np.abs(heard[:1000] - np.rint(organ[:1000] * 0.7)).max() <= 1
-    assert Store(window.store.root).sound_volume == 70
-    slider.triggerAction(QAbstractSlider.SliderSingleStepSub)
-    assert label.text() == "65%" and len(window.tunes) == 2 and window.tunes[1].name.startswith("65-")
-    assert Store(window.store.root).sound_volume == 65
+    box = window.mute_box
+    assert not hasattr(window, "volume_slider") and not hasattr(window, "volume_label")
+    assert window.settings_scroll.widget().findChildren(QSlider) == []
+    assert box.text() == "静音" and not box.isChecked() and not window.music.muted
+    assert not hasattr(window.music, "volume") and not hasattr(window.music, "sample")
+    assert "声音 开" in window.settings_line()
     box.click()
-    window.tunes.clear()
-    slider.setValue(10)
-    assert label.text() == "50%" and all(tune is None for tune in window.tunes)
-    assert "声音 50% (静音)" in window.settings_line()
+    assert all(tune is None for tune in window.tunes) and window.music.muted
+    assert Store(window.store.root).sound_muted is True and "声音 静音" in window.settings_line()
     again = MainWindow()
     again._watch_timer.stop()
-    assert (again.volume_slider.value(), again.volume_label.text(), again.mute_box.isChecked()) == (10, "50%", True)
-    assert (again.music.volume, again.music.muted) == (50, True)
+    assert again.mute_box.isChecked() and again.music.muted
     again.close()
 
 
@@ -430,8 +424,8 @@ def test_ticking_mute_stops_the_sound_playing(window):
 
 
 def test_every_sound_goes_through_the_sound_control(window):
-    """A lobby's, ▶ on 场景, ▶ in 选择场景 (the 嘉宾 and 组合 dialogs'), the 场景 hotkey and 播放: each at
-    声音's volume times the 场景's own 音量, the player's own sound for it if any, none with 静音."""
+    """A lobby's, ▶ on 场景, ▶ in 选择场景 (the 嘉宾 and 组合 dialogs'), the 场景 hotkey and 播放: each at the
+    场景's own 音量, the player's own sound for it if any, none with 静音."""
     from blacklist_detect.ui_likes import LikeDialog
     from blacklist_detect.ui_love_pick import ScenePicker
     from blacklist_detect.ui_music import sound_dir
@@ -456,7 +450,9 @@ def test_every_sound_goes_through_the_sound_control(window):
         window._hide_panel_after_title()
         return [tune for tune in window.tunes if tune is not None]
 
-    window.volume_slider.setValue(10)
+    # At 100% each 场景's tune itself.
+    assert every_path() == [TUNES["stars"], TUNES["stars"], TUNES["fluffy"], TUNES["angel"]]
+    window.store.scene_sounds = {key: {"volume": 50} for key in ("stars", "fluffy", "angel")}
     heard = every_path()
     assert [tune.parent for tune in heard] == [sound_dir()] * 4
     assert all(tune.name.startswith("50-") for tune in heard)
@@ -464,13 +460,13 @@ def test_every_sound_goes_through_the_sound_control(window):
     # 场景管理: 星河许愿 the player's own sound at 60%, 毛茸茸 its own at 40%, 天使 the player's at 100%.
     _own_sound(window.store, "stars", like="ice", volume=60)
     window.store.scene_sounds["fluffy"] = {"volume": 40}
-    _own_sound(window.store, "angel", like="cyber")
+    angel = _own_sound(window.store, "angel", like="cyber")
     heard = every_path()
-    assert [tune.parent for tune in heard] == [sound_dir()] * 4
-    starts = ("30-stars-", "30-stars-", f"20-{TUNES['fluffy'].stem}-", "50-angel-")
-    assert [tune.name.startswith(start) for start, tune in zip(starts, heard, strict=True)] == [True] * 4
+    assert [tune.parent for tune in heard[:3]] == [sound_dir()] * 3 and heard[3] == angel
+    starts = ("60-stars-", "60-stars-", f"40-{TUNES['fluffy'].stem}-")
+    assert [tune.name.startswith(start) for start, tune in zip(starts, heard, strict=False)] == [True] * 3
     _, ice = _samples(TUNES["ice"])
-    assert np.abs(_samples(heard[0])[1] - np.rint(ice * 0.3)).max() <= 1
+    assert np.abs(_samples(heard[0])[1] - np.rint(ice * 0.6)).max() <= 1
     window.mute_box.click()
     assert every_path() == []
     picker.close()
@@ -484,15 +480,15 @@ def _managed(tmp_path, sounds: dict):  # noqa: ANN001, ANN202
     return music, played, clock
 
 
-def test_an_effect_plays_at_its_own_volume_times_the_sound_s(tmp_path):
-    """场景管理's 音量 on top of 声音's: 80% of 60% is 48%. 静音 silences every 场景, and one at 0% plays
+def test_an_effect_plays_at_its_own_volume(tmp_path):
+    """场景管理's 音量 is how loud a 场景 plays: 60% is 60%. 静音 silences every 场景, and one at 0% plays
     nothing, so its lobby is greeted again once it is heard."""
     music, played, clock = _managed(tmp_path, {"stars": (None, 60), "ice": (None, 0)})
-    music.volume = 80
-    assert (music.level("stars"), music.level("ice"), music.level("cyber")) == (48, 0, 80)
-    assert music.lobby(["小红"], "stars") == "stars" and played[-1].name.startswith(f"48-{TUNES['stars'].stem}-")
-    assert np.abs(_samples(played[-1])[1] - np.rint(_samples(TUNES["stars"])[1] * 0.48)).max() <= 1
-    assert music.preview("cyber") == "cyber" and played[-1].name.startswith("80-")
+    assert (music.level("stars"), music.level("ice"), music.level("cyber")) == (60, 0, 100)
+    assert music.lobby(["小红"], "stars") == "stars" and played[-1].name.startswith(f"60-{TUNES['stars'].stem}-")
+    assert np.abs(_samples(played[-1])[1] - np.rint(_samples(TUNES["stars"])[1] * 0.6)).max() <= 1
+    # At 100% the tune itself.
+    assert music.preview("cyber") == "cyber" and played[-1] == TUNES["cyber"]
     played.clear()
     assert music.lobby(["小明"], "ice") == "" and music.preview("ice") == "" and not music.taste("ice")
     assert played == [None, None]
@@ -501,8 +497,7 @@ def test_an_effect_plays_at_its_own_volume_times_the_sound_s(tmp_path):
     clock.now += SAME_LOBBY_S + 1
     assert music.lobby(["小红"], "stars") == "" and music.preview("stars") == "" and not music.taste("stars")
     assert played == [None, None]
-    # At 100% of 100% the tune itself.
-    music.muted, music.volume = False, 100
+    music.muted = False
     assert music.preview("cyber") == "cyber" and played[-1] == TUNES["cyber"]
 
 
@@ -525,21 +520,18 @@ def test_an_effect_plays_the_player_s_own_sound_classic_too(tmp_path):
     assert music.preview("stars") == "stars" and played[-1].name.startswith(f"50-{TUNES['stars'].stem}-")
 
 
-def test_two_volumes_both_heard_never_round_to_silence(tmp_path):
-    """5% of 声音 times 5% of a 场景 plays at 1%, not at 0%; either at 0% is silence."""
+def test_the_quietest_step_is_heard_and_zero_is_silence(tmp_path):
+    """A 场景 at 5% plays at 5%; at 0% it is silence."""
     music, played, _clock = _managed(tmp_path, {"stars": (None, 5), "ice": (None, 0)})
-    music.volume = 5
-    assert (music.level("stars"), music.level("ice"), music.level("cyber")) == (1, 0, 5)
-    assert music.preview("stars") == "stars" and played[-1].name.startswith("1-")
-    music.volume = 0
-    assert music.level("stars") == 0 and music.preview("stars") == ""
+    assert (music.level("stars"), music.level("ice")) == (5, 0)
+    assert music.preview("stars") == "stars" and played[-1].name.startswith("5-")
+    assert music.preview("ice") == "" and played[-1] is None
 
 
 def test_a_trial_plays_at_the_effect_s_level_from_the_caller_s_folder(tmp_path):
     """选择片段's 试听: a sound not yet the 场景's, as loud as that 场景 plays, its copy made beside it and the
     sound itself left alone; nothing in sounds/, nothing under 静音."""
-    music, played, _clock = _managed(tmp_path, {"ice": (None, 50)})
-    music.volume = 80
+    music, played, _clock = _managed(tmp_path, {"ice": (None, 40)})
     folder = tmp_path / "trial"
     folder.mkdir()
     trial = folder / "trial.wav"
@@ -549,7 +541,6 @@ def test_a_trial_plays_at_the_effect_s_level_from_the_caller_s_folder(tmp_path):
     assert np.abs(_samples(played[-1])[1] - np.rint(_samples(TUNES["fluffy"])[1] * 0.4)).max() <= 1
     assert not (tmp_path / "sounds").exists()
     # At 100% the sound itself.
-    music.volume = 100
     assert music.trial(trial, "cyber") and played[-1] == trial
     music.muted = True
     assert not music.trial(trial, "ice") and played[-1] is None
@@ -574,20 +565,18 @@ def test_dropping_one_tune_s_copies_keeps_every_other(tmp_path):
 
 def test_a_taste_is_a_moment_of_the_effect_s_sound_as_loud_as_it_plays(tmp_path):
     """What a 场景's 音量 in 场景管理 plays as it is set: a moment of that 场景's sound, the player's own if
-    it has one, at 声音 times its 音量. 声音's own moment stays 玫瑰花边's organ at 声音's volume."""
+    it has one, at its 音量."""
     own = tmp_path / "custom_sounds"
     own.mkdir()
     shutil.copyfile(TUNES["fluffy"], own / "classic.wav")
-    music, played, _clock = _managed(tmp_path, {"ice": (None, 50), "classic": (own / "classic.wav", 40)})
-    music.volume = 60
+    music, played, _clock = _managed(tmp_path, {"ice": (None, 30), "classic": (own / "classic.wav", 40)})
     assert music.taste("ice")
     params, samples = _samples(played[-1])
     assert played[-1].name.startswith(f"30-{TUNES['ice'].stem}-") and len(samples) == round(SAMPLE_S * params.framerate)
     _, ice = _samples(TUNES["ice"])
     head = len(samples) // 2
     assert np.abs(samples[:head] - np.rint(ice[:head] * 0.3)).max() <= 1
-    assert music.taste("classic") and played[-1].name.startswith("24-classic-")
-    assert music.sample() and played[-1].name.startswith(f"60-{TUNES[SAMPLE_TUNE].stem}-")
+    assert music.taste("classic") and played[-1].name.startswith("40-classic-")
     # 经典 with none of the player's has nothing to taste.
     bare, played, _clock = _managed(tmp_path, {})
     assert not bare.taste("classic") and played == [None]

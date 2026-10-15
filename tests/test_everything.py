@@ -4,7 +4,7 @@ It opens fresh, agrees to 使用声明 and runs the first 检查; fills 黑名�
 and 嘉宾; checks the bundled sample lobby (made-up names) with the real recognition on the real
 worker thread, the way the hotkey does; sees the result in 安全模式, in 完整模式 and in 直播模式;
 gets their 组合's scene and music when the lobby has two 嘉宾 players and no 黑名单; reads 记录;
-uses the 检查 panel, 选择场景, 设置 › 嘉宾场景, 设置 › 检查 and 导出日志; and ends with 清空数据.
+uses the 检查 panel, 选择场景, 设置 › 静音, 设置 › 检查 and 导出日志; and ends with 清空数据.
 
 Each step's own details are tested elsewhere. This one shows they work together. It needs the
 local PaddleOCR model, like test_reference_screenshot.py; CI skips it.
@@ -185,7 +185,7 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     window.love.stop()
     window._hide_panel_after_title()
 
-    # --- 10. 选择场景: every scene previews; 设置 › 嘉宾场景 and 声音 are kept. ----------------------
+    # --- 10. 选择场景: every scene previews; 设置 › 声音 › 静音 is kept. ---------------------------
     picker = ScenePicker("lace", "心动小鹿", window.music, parent=window)
     for key in love_scenes.KEYS:
         picker.buttons[key].click()
@@ -195,9 +195,7 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     picker.accept()
     assert picker.key == "stars"
     window.mute_box.click()
-    window.love_switch.click()
-    again = Store(window.store.root)
-    assert (again.love_scene, again.sound_muted) == ("off", True)
+    assert Store(window.store.root).sound_muted is True
     # Every scene plays through over a real-size screen, the button left bare.
     stage = love_scenes.sample_stage()
     for key in love_scenes.KEYS:
@@ -251,7 +249,7 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     window._ask_reset()
     fresh = Store(window.store.root)
     assert fresh.entries == [] and fresh.likes == [] and fresh.scans == [] and fresh.player_name == ""
-    assert (fresh.love_scene, fresh.sound_volume, fresh.sound_muted) == ("classic", 100, False)
+    assert fresh.sound_muted is False and fresh.scene_sounds == {}
     assert fresh.safe_mode is True and fresh.consented == []
     window._watch_timer.stop()
     window.close()

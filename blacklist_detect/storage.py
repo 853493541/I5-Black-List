@@ -371,10 +371,17 @@ def _set_aside(path: Path) -> Path:
 
 
 def _volume(value: object) -> int:
-    """声音 as saved: a percent from 0 to 100 in steps of 5, else 100."""
+    """A 音量 as saved: a percent from 0 to 100 in steps of 5, else 100."""
     if isinstance(value, bool) or not isinstance(value, int | float) or not 0 <= value <= 100:
         return 100
     return round(value / 5) * 5
+
+
+def _folded(own: int, sound: int) -> int:
+    """A 场景's 音量 with the 声音 设置 had up to v0.9.14 taken in: the one times the other, down to a step of 5
+    so it is never louder than it was, and never 0 when both were above 0."""
+    level = own * sound // 500 * 5
+    return max(level, 5) if own > 0 and sound > 0 else 0
 
 
 def _scenes(keys: object, off: object = False) -> Scenes:
@@ -484,13 +491,13 @@ class Store:
         # 显示: 安全模式 marks nothing on the game, the result comes as messages at the bottom right
         # of the screen; 完整模式 (False) draws the marks over it. On unless turned off, also for old settings.
         self.safe_mode = True
-        # 设置 › 嘉宾场景: on ("classic": each 嘉宾 and 组合 greeted with their own, guests.lobby_choice) or
-        # "off" (no scene for anyone).
-        self.love_scene = "classic"
-        # 设置 › 声音: how loud every sound the app makes is, in percent (steps of 5, as 设置 sets it), and 静音.
-        self.sound_volume = 100
+        # 设置 › 声音 › 静音: no sound at all.
         self.sound_muted = False
-        # 场景管理: by scene key, a 场景's own 音量 (percent of 声音's, steps of 5) and the player's own sound for
+        # Up to v0.9.14 设置 had 声音, how loud every sound was, and a 嘉宾 › 场景 switch to turn every scene
+        # off, as saved: folded into what took their place as this version first opens (_fold_old_settings).
+        self._old_volume = 100
+        self._old_scenes_off = False
+        # 场景管理: by scene key, a 场景's own 音量 (percent of its loudness, steps of 5) and the player's own sound for
         # it, if any: {"volume": 100, "file": "<key>.wav" in custom_sounds, "name": the file it came from,
         # "start" and "length": the part of it kept, in seconds}. A 场景 with neither has no entry.
         self.scene_sounds: dict[str, dict] = {}
@@ -637,6 +644,7 @@ class Store:
         self.column_order = [0, 1, 2, 3]
         self.column_widths = list(DEFAULT_COLUMN_WIDTHS)
         self.load_warning = ""
+        self._old_volume, self._old_scenes_off = 100, False
         self._load_settings()
         # 完整模式 only once agreed to; settings from before the question fall back.
         if "full" not in self.consented:
@@ -670,6 +678,7 @@ class Store:
                 _log_set_aside(exc, backup)
                 self.load_warning = "黑名单文件坏了，已备份，先用空名单"
         self._load_likes()
+        self._fold_old_settings()
         discovered = False
         stripped = False
         for entry in self.entries:
@@ -745,6 +754,31 @@ class Store:
             backup = _set_aside(self.likes_path)
             _log_set_aside(exc, backup)
             self.load_warning = "嘉宾文件坏了，已备份，先用空列表"
+
+    def _fold_old_settings(self) -> None:
+        """Settings saved up to v0.9.14, once, into what took their place: 声音 below 100 into every 场景's own
+        音量 (nothing is heard louder than it was), and 嘉宾 › 场景 off into 不放 for every 嘉宾 and 组合 (their
+        scenes kept ticked, so 放场景 brings them back). Saved, the old ones are gone: the next open changes
+        nothing. Not saved (a file that cannot be written), it is done again from them the next open."""
+        folding = self._old_volume < 100
+        if folding:
+            for key in dict.fromkeys([*love_scenes.KEYS, *self.scene_sounds]):
+                entry = dict(self.scene_sounds.get(key) or {})
+                entry["volume"] = _folded(_volume(entry.get("volume", 100)), self._old_volume)
+                self.scene_sounds[key] = entry
+            _log.info("声音 %d%% folded into every 场景's own 音量.", self._old_volume)
+        try:
+            if self._old_scenes_off:
+                self.likes = [replace(like, scenes=Scenes(like.scenes.keys, True)) for like in self.likes]
+                self.combos = [Combo(combo.names, Scenes(combo.scenes.keys, True)) for combo in self.combos]
+                if self.likes or self.combos:
+                    self.save_likes()
+                _log.info("嘉宾 › 场景 was off: every 嘉宾 and 组合 on 不放.")
+            if folding or self._old_scenes_off:
+                self.save_settings()
+        except OSError as exc:
+            _log.info("The old settings, folded in, could not be saved (%s): again the next open.", exc)
+        self._old_volume, self._old_scenes_off = 100, False
 
     def save_likes(self) -> None:
         _daily_backup(self.likes_path)
@@ -917,8 +951,6 @@ class Store:
                 "welcomed": self.welcomed,
                 "close_to_tray": self.close_to_tray,
                 "safe_mode": self.safe_mode,
-                "love_scene": self.love_scene,
-                "sound_volume": self.sound_volume,
                 "sound_muted": self.sound_muted,
                 "scene_sounds": {
                     key: dict(entry) for key, entry in self.scene_sounds.items() if entry.get("file") or entry.get("volume", 100) != 100
@@ -976,9 +1008,6 @@ class Store:
             self.welcomed = bool(settings.get("welcomed", True))
             self.close_to_tray = bool(settings.get("close_to_tray", True))
             self.safe_mode = bool(settings.get("safe_mode", True))
-            # A scene, 随机 or 无 was the one choice for every 嘉宾 once: any of them is on now; 无 stays off.
-            self.love_scene = "off" if settings.get("love_scene") == "off" else "classic"
-            self.sound_volume = _volume(settings.get("sound_volume"))
             # Up to v0.9.12 设置 › 嘉宾特效 › 音乐 turned the sound on or off: its 无 is 静音 now.
             muted = settings.get("sound_muted", settings.get("love_music") == "off")
             self.sound_muted = muted is True
@@ -1019,6 +1048,10 @@ class Store:
                     self.hidden_tags.append(tag)
             for raw in settings.get("custom_tags") or []:
                 self.add_custom_tag(str(raw))
+            # Up to v0.9.14: 声音 (none saved is 100) and 嘉宾 › 场景 ("off" when off, as 无 was before it). Taken
+            # from a file read whole only, for _fold_old_settings.
+            self._old_volume = _volume(settings.get("sound_volume"))
+            self._old_scenes_off = settings.get("love_scene") == "off"
         except (OSError, ValueError, AttributeError, TypeError):
             self.load_warning = "；".join(part for part in (self.load_warning, "设置文件坏了，已恢复默认") if part)
 
@@ -1225,8 +1258,6 @@ class Store:
         self.welcomed = False
         self.close_to_tray = True
         self.safe_mode = True
-        self.love_scene = "classic"
-        self.sound_volume = 100
         self.sound_muted = False
         # The player's own sounds go with the rest.
         self.scene_sounds = {}

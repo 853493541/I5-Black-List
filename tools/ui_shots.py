@@ -148,7 +148,7 @@ def shoot(args) -> None:  # noqa: ANN001
     step("page_场景_同一个键", same_key)
 
     def own_sound() -> None:
-        # 毛茸茸保护协会 shown, with the player's own sound (seeded as 心动音乐.mp3), 声音 below 100%.
+        # 毛茸茸保护协会 shown, with the player's own sound (seeded as 心动音乐.mp3), its 音量 below 100%.
         window.tabs.setCurrentIndex(window.effects_tab)
         window.effects_page.scenes.buttons["fluffy"].click()
         save(window, "page_场景_自定义声音")
@@ -373,7 +373,6 @@ def _seed(root: Path, args, version: str) -> None:  # noqa: ANN001
 
         kept = sound_import.save_clip(sound_import.Decoded(_music(4), 4.0, "心动音乐"), "fluffy", custom_sound_dir(root))
         store.scene_sounds["fluffy"] = {"volume": 80, "file": kept.path.name, "name": "心动音乐.mp3", "start": 0.0, "length": kept.length_s}
-        store.sound_volume = 60
     if args.data == "stress":
         store.add_custom_tag("不尊重底牌还骂人")
         for number in range(1, 124):

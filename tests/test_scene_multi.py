@@ -258,13 +258,10 @@ def test_a_lobby_with_everyone_on_no_scene_shows_the_marks_and_plays_nothing(win
     assert window._lobby_choice == "off" and not window.love.playing()
     assert window.panel.mode == "liked" and window.like_card.isVisible()
     assert not any(window.tunes), "no scene, no sound"
-    # 设置's switch turns every scene off, a 嘉宾's own too.
+    # Back on 放场景, its own again.
     window.store.update_like(0, "小明", scenes=Scenes(("ice",)))
     _check(window, "小明")
     assert window.love.scene == "ice"
-    window._set_love_effects(False)
-    _check(window, "小明")
-    assert window._lobby_choice == "off" and not window.love.playing()
 
 
 def _sounds(window) -> list[str]:  # noqa: ANN001
@@ -477,7 +474,6 @@ def test_the_player_reads_scene_never_effect(window):
     window.store.add_like("小明")
     window.store.add_like("小红")
     assert window._tab_buttons[window.effects_tab].name() == "场景管理"
-    assert window.love_switch.accessibleName() == "嘉宾场景"
     for root in (window, LikeDialog(parent=window), ComboDialog(window.store.likes, parent=window), ScenePicker(parent=window)):
         assert not [words for words in _words(root) if "特效" in words], root
     # 直播姬's own scenes are said to be 直播姬's.

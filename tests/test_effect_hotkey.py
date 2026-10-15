@@ -345,7 +345,7 @@ def test_it_goes_by_itself_and_puts_everything_back(window, monkeypatch):
     _wait(400)
     assert not window.panel.isVisible() and not window.clear_mark.isVisible() and not window.love.playing()
     assert window._quick_scene == "" and window._game_box is None and window._quick_area is None
-    assert window.love.choice == window.store.love_scene
+    assert window.love.choice == "classic"
 
 
 def test_pressed_again_it_starts_over(window):
@@ -358,14 +358,16 @@ def test_pressed_again_it_starts_over(window):
     assert window.played[-2:] == ["stop", "lace"]
 
 
-def test_it_plays_with_the_love_effects_switched_off(window):
-    window._set_love_effects(False)
-    assert window.store.love_scene == "off"
+def test_it_plays_with_every_guest_on_no_scene(window):
+    from blacklist_detect.model import Scenes
+
+    window.store.add_like("心动小鹿", scenes=Scenes(("ice",), off=True))
+    assert window._choice_for(window.store.likes) == "off"
     window.store.quick_scene = "claw"
     assert window.play_quick_scene()
     assert window.love.playing() and window.love.scene == "claw"
     window._end_quick_play()
-    assert window.love.choice == "off"
+    assert window.love.choice == "classic"
     # 静音: it plays with no sound.
     from blacklist_detect.ui_music import ThemeMusic
 
