@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QFont, QImage, QPainter, QPainterPath, QPen, QPixmap, QRadialGradient
+from PySide6.QtGui import QFont, QImage, QPainter, QPainterPath, QPen, QPixmap, QRadialGradient, QTransform
 
 from blacklist_detect.love_scenes.draw import clamp, col, ease_back, ease_in, ease_in_out, ease_out, soft_dot, win
 from blacklist_detect.love_scenes.light import bloom, blur, mask, noise, picture, rgb, smooth
@@ -66,10 +66,12 @@ SOFT = 0.5
 # slashes' offsets across it and their delays.
 STRIKE = (3.0, -34.0)
 SLASHES = ((-1.0, 0.0), (0.0, 0.035), (1.0, 0.07))
-# A slash's length and its thickest, in points at the design size; how far apart the three are.
-LENGTH = 1000.0
-THICK = 32.0
-SPACING = 96.0
+# A slash's length and its thickest, in points at the design size; how far apart the three are, and
+# how far back along the strike the outer two start.
+LENGTH = 1100.0
+THICK = 35.0
+SPACING = 106.0
+STAGGER = 29.0
 # When the strike has all landed: the flash, the jolt and the smoke start then.
 LANDED = STRIKE[0] + SLASHES[-1][1] + 0.075
 # It grows over this long; then it holds, and frays away over FRAY.
@@ -94,12 +96,10 @@ def make(stage: Stage):  # noqa: ANN201
     width, height, gap = stage.width, stage.height, stage.gap
     u = stage.unit()
     rnd = random.Random(19)
-    # Where the strike lands: the middle of the screen, high enough that no slash or its glow
-    # reaches the button below.
-    reach = LENGTH * 0.5 * math.sin(math.radians(abs(STRIKE[1]))) + SPACING * math.cos(math.radians(STRIKE[1])) + 80
-    centre = QPointF(width * 0.5, min(height * 0.43, gap.top() - reach * u))
+    centre = _landing(width, height, u)
     sprite = _slash_sprite(LENGTH * u, THICK * u, u)
     frayed = [_frayed(sprite, k / FRAYS, seed) for seed, k in enumerate(range(1, FRAYS + 1))]
+    slashes = [_cleared(sprite, frayed, _place(centre, offset, u), gap, u) for offset, _delay in SLASHES]
     fog = (_fog_layer(width, height, u, 11, 1.0), _fog_layer(width, height, u, 23, 0.85))
     keep = _keep(width, height, gap, u)
     veil = QImage(max(1, round(width * SOFT)), max(1, round(height * SOFT)), QImage.Format_ARGB32_Premultiplied)
@@ -121,7 +121,7 @@ def make(stage: Stage):  # noqa: ANN201
         _veil(p, t, veil, fog, keep, width, height, u)
         _lost_names(p, t, seats, cloud, unknown, u)
         _notes_paint(p, t, notes, u)
-        _strike(p, t - STRIKE[0], STRIKE[1], centre, sprite, frayed, u)
+        _strike(p, t - STRIKE[0], slashes, u)
         _impact(p, t - LANDED, centre, u)
         _puff(p, t - LANDED, centre, puff, u)
         p.restore()
@@ -157,13 +157,15 @@ def _keep(width: float, height: float, gap: QRectF, u: float) -> QImage:
     around the gap, so nothing laid through it reaches the button."""
     w, h = max(1, round(width * SOFT)), max(1, round(height * SOFT))
     ys, xs = np.mgrid[0:h, 0:w].astype(np.float32)
-    x, y = (xs + 0.5) / SOFT, (ys + 0.5) / SOFT
-    feather = 95 * u
+    alpha = _away(gap, (xs + 0.5) / SOFT, (ys + 0.5) / SOFT, u)
+    return picture(np.ones((h, w, 3), dtype=np.float32), alpha)
+
+
+def _away(gap: QRectF, x: np.ndarray, y: np.ndarray, u: float) -> np.ndarray:
+    """How much may show at these points: none in the gap, easing to all over a soft edge round it."""
     dx = np.maximum(np.maximum(gap.left() - x, x - gap.right()), 0)
     dy = np.maximum(np.maximum(gap.top() - y, y - gap.bottom()), 0)
-    away = np.sqrt(dx * dx + dy * dy)
-    alpha = smooth(0, feather, away) ** 0.8
-    return picture(np.ones((h, w, 3), dtype=np.float32), alpha)
+    return smooth(0, 95 * u, np.sqrt(dx * dx + dy * dy)) ** 0.8
 
 
 def _veil(p: QPainter, t: float, veil: QImage, fog: tuple, keep: QImage, width: float, height: float, u: float) -> None:
@@ -387,24 +389,20 @@ def _frayed(sprite: QImage, k: float, seed: int) -> QImage:
     return picture(out[..., :3] / np.maximum(alpha, 1e-4)[..., None], alpha)
 
 
-def _strike(p: QPainter, age: float, angle: float, centre: QPointF, sprite: QImage, frayed: list[QImage], u: float) -> None:
+def _strike(p: QPainter, age: float, slashes: list[tuple], u: float) -> None:
     """One set of three slashes: each grows from its tail to its tip in GROW, a hot point leading it,
     holds, then frays away."""
     if age < 0 or age > max(d for _o, d in SLASHES) + GROW + HOLD + FRAY:
         return
-    sw, sh = sprite.width(), sprite.height()
     length = LENGTH * u
-    for offset, delay in SLASHES:
+    for (offset, delay), (place, sprite, frayed, along) in zip(SLASHES, slashes, strict=True):
         a = age - delay
         if a < 0:
             continue
+        sw, sh = sprite.width(), sprite.height()
         grown = ease_out(clamp(a / GROW))
         p.save()
-        p.translate(centre)
-        p.rotate(angle)
-        # Each slash a little shorter and later the further it is from the middle one.
-        p.translate(-offset * 26 * u, offset * SPACING * u)
-        p.scale(1 - 0.08 * abs(offset), 1)
+        p.setTransform(place, True)
         p.setRenderHint(QPainter.SmoothPixmapTransform)
         box = QRectF(-sw / 2, -sh / 2, sw, sh)
         if a < GROW:
@@ -412,8 +410,9 @@ def _strike(p: QPainter, age: float, angle: float, centre: QPointF, sprite: QIma
             p.drawImage(box, sprite)
             p.setClipping(False)
             tip = -length / 2 + length * grown
-            soft_dot(p, tip, -2 * u, 46 * u, LILAC, 0.75)
-            soft_dot(p, tip, -2 * u, 14 * u, "#ffffff", 1.0)
+            shown = float(np.interp(grown, np.linspace(0, 1, len(along)), along))
+            soft_dot(p, tip, -2 * u, 46 * u, LILAC, 0.75 * shown)
+            soft_dot(p, tip, -2 * u, 14 * u, "#ffffff", shown)
         elif a < GROW + HOLD:
             shimmer = 0.9 + 0.1 * math.sin(a * 40 + offset)
             p.setOpacity(p.opacity() * shimmer)
@@ -424,6 +423,46 @@ def _strike(p: QPainter, age: float, angle: float, centre: QPointF, sprite: QIma
             p.setOpacity(p.opacity() * (1 - ease_in(k) * 0.6))
             p.drawImage(box, frayed[step])
         p.restore()
+
+
+def _place(centre: QPointF, offset: float, u: float) -> QTransform:
+    """Where a slash lies, from the middle of its picture: along the strike through centre, each a little
+    shorter and further back the further it is from the middle one."""
+    place = QTransform().translate(centre.x(), centre.y()).rotate(STRIKE[1])
+    return place.translate(-offset * STAGGER * u, offset * SPACING * u).scale(1 - 0.08 * abs(offset), 1)
+
+
+def _landing(width: float, height: float, u: float) -> QPointF:
+    """Where the strike lands: so that the claw's middle is the screen's middle."""
+    shape = _crescent(LENGTH * u, THICK * u)
+    claw = QPainterPath()
+    for offset, _delay in SLASHES:
+        claw.addPath(_place(QPointF(0, 0), offset, u).map(shape))
+    middle = claw.boundingRect().center()
+    return QPointF(width * 0.5 - middle.x(), height * 0.5 - middle.y())
+
+
+def _cleared(sprite: QImage, frayed: list[QImage], place: QTransform, gap: QRectF, u: float) -> tuple:
+    """A slash as it lies at place, its pictures fading where they come near the button and its marks
+    (as the fog clears there) and staying gone from there to its tail, and how much of it shows along
+    its length, tail to tip."""
+    line = np.linspace(-LENGTH * u / 2, LENGTH * u / 2, 65)
+    near = _away(gap, place.m11() * line + place.dx(), place.m12() * line + place.dy(), u)
+    along = np.minimum.accumulate(near[::-1])[::-1]
+    sw, sh = sprite.width(), sprite.height()
+    ys, xs = np.mgrid[0:sh, 0:sw].astype(np.float32)
+    x, y = xs + 0.5 - sw / 2, ys + 0.5 - sh / 2
+    keep = _away(gap, place.m11() * x + place.m21() * y + place.dx(), place.m12() * x + place.m22() * y + place.dy(), u)
+    keep = np.minimum(keep, np.interp(x[0], line, along)[None, :])
+    if keep.min() > 0.995:
+        return place, sprite, frayed, along
+
+    def fade(image: QImage) -> QImage:
+        pixels = _rgba(image).astype(np.float32) / 255.0
+        alpha = pixels[..., 3]
+        return picture(pixels[..., :3] / np.maximum(alpha, 1e-4)[..., None], alpha * keep)
+
+    return place, fade(sprite), [fade(image) for image in frayed], along
 
 
 def _flash_level(age: float) -> float:
