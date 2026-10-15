@@ -129,6 +129,25 @@ def test_the_combo_dialogs_fit_a_short_screen_however_many_guests(window, count)
         assert people.heightForWidth(width) == min(_height_for(dialog.people, width), people.maximumHeight())
 
 
+def test_the_combo_dialog_opens_on_its_own_guests_however_far_down_the_list_they_are(window):
+    """The 组合's 嘉宾 come first, the oldest and one taken off the list too, so none is scrolled out of sight."""
+    from blacklist_detect.ui_guests import ComboDialog
+
+    likes = _guests(60)
+    combo = Combo((likes[0].name, likes[1].name, "已删掉的嘉宾"), "angel")
+    dialog = ComboDialog(likes, combo, parent=window)
+    ticked = [button.isChecked() for button in dialog.people_buttons.values()]
+    assert ticked == [True] * 3 + [False] * 58
+    # Placed as in the dialog, beside its scroll bar, they sit within the rows it shows.
+    people = dialog.people_scroll
+    width = dialog.card.minimumWidth() - 2 * DIALOG_PAD - people.verticalScrollBar().sizeHint().width()
+    dialog.people._arrange(width, place=True)
+    for name in combo.names:
+        assert dialog.people_buttons[name].geometry().bottom() < people.maximumHeight(), name
+    dialog._accept()
+    assert dialog.result() == QDialog.Accepted and set(dialog.combo.names) == set(combo.names)
+
+
 def test_a_guest_far_down_the_combo_list_is_picked_as_any_other(window):
     from blacklist_detect.ui_guests import ComboDialog
 

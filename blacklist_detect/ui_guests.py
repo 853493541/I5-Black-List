@@ -201,8 +201,12 @@ class ComboDialog(Modal):
         on_list = {fold(like.name) for like in likes}
         # Its 嘉宾 since taken off the list stay in it, struck out as the list shows them, until unticked.
         self.gone = [name for name in combo.names if fold(name) not in on_list] if combo else []
-        # The list's own order, its top first, then those gone.
-        for like in [*reversed(likes), *(Entry(name) for name in self.gone)]:
+        # Its own 嘉宾 first, so the list opens on them however far it scrolls: in the list's order, its top
+        # first, then those gone; then the others in the list's order.
+        listed = list(reversed(likes))
+        mine = [like for like in listed if fold(like.name) in chosen]
+        others = [like for like in listed if fold(like.name) not in chosen]
+        for like in [*mine, *(Entry(name) for name in self.gone), *others]:
             button = QPushButton(like.shown())
             if like.name in self.gone:
                 face = button.font()

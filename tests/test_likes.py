@@ -503,11 +503,11 @@ def test_editing_a_combination_keeps_a_guest_since_taken_off_the_list(window):
     store.add_like("小明")
     store.add_like("小红")
     editor = ComboDialog(store.likes, Combo(("小明", "已删掉"), "angel"), parent=window)
-    # The one taken off shows, struck out and still ticked, after those on the list.
+    # The one taken off shows, struck out and still ticked, after the 组合's own on the list and before the rest.
     editor.ensurePolished()
     gone = editor.people_buttons["已删掉"]
     assert gone.font().pointSizeF() == editor.people_buttons["小明"].font().pointSizeF()
-    assert list(editor.people_buttons) == ["小红", "小明", "已删掉"]
+    assert list(editor.people_buttons) == ["小明", "已删掉", "小红"]
     assert gone.isChecked() and gone.font().strikeOut() and not editor.people_buttons["小明"].font().strikeOut()
     # 保存 keeps them.
     editor._accept()
