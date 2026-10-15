@@ -44,7 +44,8 @@ rerun alone before it counts as a failure.
   `tests/fixtures/reference-lobby.png` never appear in anything user-facing. Check a new asset before
   committing it.
 - Every choice in 设置 lists its default first. 设置 fits 900x760 without scrolling, so it gets no new rows
-  (常规's 声音 row, volume slider and 静音 for every sound, came in by putting 开机启动 and 关闭窗口时 on one row).
+  (常规's 声音 row, now only 静音 for every sound, came in by putting 开机启动 and 关闭窗口时 on one row; each 场景's
+  音量 is set in 场景管理).
   Every dialog fits 672 px of usable height (1080p at 150%) with its buttons in view;
   `tests/test_dialog_fit.py` guards this. 选择场景 is the tallest (a list of every scene), then 添加嘉宾 /
   编辑嘉宾, so a scene or a row added there is paid for elsewhere.
@@ -56,7 +57,7 @@ rerun alone before it counts as a failure.
   full size over the sample lobby and look at it (small tiles hide flaws); its median frame stays under
   20 ms at 1920x1080. 玫瑰花边 (lace, the app's first border, once 经典花边) stays exactly as it is. Shade per pixel: flat vector gradients
   read as cheap clip-art to the user.
-- Chosen on purpose, not defects: red tags everywhere, 静音 a checkbox beside the 声音 slider (the player asked for one), 检查失败 (not 无法检查).
+- Chosen on purpose, not defects: red tags everywhere, 静音 a checkbox in 常规's 声音 row (the player asked for one), 检查失败 (not 无法检查).
 - Only the app as the player runs it makes a sound (`run_app` calls `ui_music.allow_sound`). Tests, `tools/ui_shots.py`,
   the release check and agents' scripts stay silent; the user hears every sound played in the background. Set
   `BLACKLIST_DETECT_SOUND=1` only when a sound itself is being checked by ear, and say so.
