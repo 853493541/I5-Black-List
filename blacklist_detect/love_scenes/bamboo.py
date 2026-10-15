@@ -130,10 +130,11 @@ def make(stage: Stage):  # noqa: ANN201
     ]
     motes = [(rnd.random() * loop[1][-1], rnd.uniform(-1, 1), rnd.uniform(0.5, 1.6), rnd.uniform(1.6, 3.4) * u, rnd.uniform(0, 6.3)) for _ in range(22)]
     streaks = _streaks(width, height, gap, u)
-    climber = _Climber(58 * u, 300 * u)
+    climber = _Climber(72 * u, 300 * u)
     stalks[1].rider = climber
-    muncher = _Muncher(QPointF(width - MUNCH * u, height - 15 * u), 76 * u, leaves)
-    peeker = _Peeker(QPointF(QPANDA * u, height - (EDGE + BAR) * u), 70 * u)
+    # As big as they can be with the munching one's ears still clear of the last name in the row above.
+    muncher = _Muncher(QPointF(width - MUNCH * u, height - 8 * u), 86 * u, leaves)
+    peeker = _Peeker(QPointF(QPANDA * u, height - (EDGE + BAR) * u), 84 * u)
     edges = _edges(width, height, u)
     shine = _shine_route(width, height, gap, u)
     heroes = _Heroes(QPointF(205 * u, 162 * u), QPointF(width - 190 * u, 150 * u), u, leaves)
@@ -288,15 +289,16 @@ CORNER = 128.0
 
 
 def _near(xs: np.ndarray, ys: np.ndarray, width: float, height: float, u: float, wide: float = 1.0) -> np.ndarray:
-    """How near the screen's edges each point is: 1 at them, 0 well before the names and the title."""
+    """How near the screen's edges each point is: 1 at them, 0 well before the names and the title (the
+    names at the ends of the rows come within 150 points of the sides)."""
     side = np.minimum(xs, width - xs)
-    return 1 - smooth(0, 230 * u * wide, side) * smooth(0, 150 * u * wide, ys) * smooth(0, 150 * u * wide, height - ys)
+    return 1 - smooth(0, 140 * u * wide, side) * smooth(0, 150 * u * wide, ys) * smooth(0, 150 * u * wide, height - ys)
 
 
 def _edges(width: float, height: float, u: float) -> list[QRectF]:
     """The four strips along the edges that hold all of the jade, the frame and the mist; the middle,
     where the names and the title are, is bare."""
-    side, top = min(250 * u, width / 2), min(165 * u, height / 2)
+    side, top = min(160 * u, width / 2), min(165 * u, height / 2)
     return [
         QRectF(0, 0, width, top), QRectF(0, height - top, width, top),
         QRectF(0, top, side, height - 2 * top), QRectF(width - side, top, side, height - 2 * top),
@@ -1298,9 +1300,12 @@ def _fish_ring(px: int) -> QImage:
             ang = start + (0.2 + 0.8 * ubq) * span
             rad = radius + vq * float(_fish_w(np.float32(ubq), hw))
             bx, by = c + rad * math.cos(ang), c + rad * math.sin(ang)
-            d = np.hypot(xx - bx, yy - by)
-            brow = np.maximum(brow, np.sqrt(np.clip(1 - (d / wq) ** 2, 0, 1)) * wq * 2.2)
-            brows = np.maximum(brows, np.clip(wq - d + 0.5, 0, 1))
+            # Only the few pixels round each point of it.
+            y0, y1 = max(0, int(by - wq - 2)), min(px, int(by + wq + 3))
+            x0, x1 = max(0, int(bx - wq - 2)), min(px, int(bx + wq + 3))
+            d = np.hypot(xx[y0:y1, x0:x1] - bx, yy[y0:y1, x0:x1] - by)
+            brow[y0:y1, x0:x1] = np.maximum(brow[y0:y1, x0:x1], np.sqrt(np.clip(1 - (d / wq) ** 2, 0, 1)) * wq * 2.2)
+            brows[y0:y1, x0:x1] = np.maximum(brows[y0:y1, x0:x1], np.clip(wq - d + 0.5, 0, 1))
         lift = np.maximum(lift, (lift + brow * 0.8) * (brow > 0))
         parts = np.stack([body, tail, dorsal, np.clip(brow * 3, 0, 1) * on])
         fish = parts.max(axis=0)

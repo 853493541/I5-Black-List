@@ -481,9 +481,9 @@ def test_the_conductors_badge_holds_his_role_icon(qapp, scale):
     assert tip.x() < 0 and tip.y() < 0 and alpha[y - 1 : y + 2, x - 1 : x + 2].max() > 100
 
 
-def test_the_bamboo_frames_the_whole_lobby_in_jade_and_leaves_the_names_readable(qapp):
-    """竹风 is a frame: in the middle of the wind every edge has its jade frame, the whole lobby is
-    tinted green, and over the names the tint stays light."""
+def test_the_bamboo_frames_the_lobby_in_jade_and_leaves_its_middle_bare(qapp):
+    """竹风 is a frame: in the middle of the wind every edge has its jade frame, and the names, the
+    title and the middle of the lobby keep the game's own colors."""
     stage = sample_stage()
     shot = _frames(stage, "bamboo")[4]
     assert love_scenes.load("bamboo").DURATION == 5.0
@@ -492,5 +492,5 @@ def test_the_bamboo_frames_the_whole_lobby_in_jade_and_leaves_the_names_readable
         color = shot.pixelColor(round(x), round(y))
         assert color.alpha() > 180 and color.green() > color.red() and color.green() > color.blue(), (x, y)
     for name in stage.names():
-        color = shot.pixelColor(name.center().toPoint())
-        assert 30 < color.alpha() < 110 and color.green() > color.red(), name
+        assert all(shot.pixelColor(round(name.left() + name.width() * k / 4), round(name.center().y())).alpha() < 12 for k in range(1, 4)), name
+    assert shot.pixelColor(round(stage.width / 2), round(stage.height * 0.15)).alpha() < 12, "the title is bare"
