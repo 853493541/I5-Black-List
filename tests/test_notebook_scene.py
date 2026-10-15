@@ -82,7 +82,7 @@ def test_the_pencil_work_is_drawn_sharp_on_its_own(scene):
     lines = _shot(stage, paint, 2.8, sharp=True)
     assert whole != washes and whole != lines
     assert _most(lines, QRectF(lines.rect()), 5) > 200, "the leaves are solid paper"
-    assert _most(_shot(stage, paint, 0.3, sharp=False), QRectF(washes.rect()), 9) == 0, "the breeze is pencil only"
+    assert _most(_shot(stage, paint, 0.3, sharp=False), QRectF(washes.rect()), 9) > 60, "the breeze brings watercolour ribbons"
 
 
 def test_it_fits_another_window_shape(qapp):

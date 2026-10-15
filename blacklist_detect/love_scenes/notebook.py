@@ -36,7 +36,18 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QBrush, QColor, QImage, QPainter, QPainterPath, QPainterPathStroker, QPixmap, QPolygonF, QTransform
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QImage,
+    QPainter,
+    QPainterPath,
+    QPainterPathStroker,
+    QPen,
+    QPixmap,
+    QPolygonF,
+    QTransform,
+)
 
 from blacklist_detect.love_scenes.draw import clamp, ease_in, ease_in_out, ease_out, mix, win
 from blacklist_detect.love_scenes.light import blur, mask, noise, picture, rgb, smooth
@@ -105,7 +116,9 @@ CREEP = 80.0
 # The ribbon's gust: its head goes round the loop over GUST; its tail follows TAIL seconds behind.
 GUST = (3.2, 4.35)
 TAIL = 0.34
-# The notebook snaps shut at SHUT, carried on by the gust.
+# The notebook tumbles in along the lane over TUMBLE and opens; it snaps shut at SHUT, carried on by
+# the gust.
+TUMBLE = (0.25, 0.55)
 SHUT = 4.3
 
 
@@ -113,44 +126,46 @@ def make(stage: Stage):  # noqa: ANN201
     plan = _Plan(stage)
     u = plan.u
     tooth = _Tooth(u)
-    near, thin, bare = _cut(plan)
+    near, rest = _cut(plan)
     sheet = _Sheet(plan)
     fold = _Fold(plan)
     sketches = _sketches(plan, tooth)
     speed = _speed_lines(plan, random.Random(3))
     book = _Book(plan, tooth)
     leaves = _leaves(plan, book, tooth)
-    trails = _Trails(plan, leaves, fold)
-    ribbon = _Ribbon(plan)
+    trails = _Trails(plan, leaves)
+    ribbon = _gust(plan)
+    breezes = _breezes(plan)
     curls = _curls(plan, ribbon, random.Random(17))
+    for line in (*speed, *curls):
+        line.warm()
     stars = _stars(plan, leaves, tooth)
     bamboo = _bamboo(plan, tooth)
     layer = QImage(plan.pw, plan.ph, QImage.Format_ARGB32_Premultiplied)
 
     def washes(p: QPainter, t: float) -> None:
         """The soft parts in one layer, rubbed off the names and the gap, then laid on."""
-        if not (SWEEP[0] <= t < DURATION):
+        if not (0 < t < DURATION):
             return
         layer.fill(Qt.transparent)
         q = QPainter(layer)
         q.setRenderHint(QPainter.Antialiasing)
         q.setRenderHint(QPainter.SmoothPixmapTransform)
-        drawn = fold.paint(q, t)
-        drawn |= trails.paint(q, t)
-        drawn |= ribbon.paint(q, t)
-        if drawn:
+        # Only the part drawn on is rubbed and laid on.
+        strong = _union(fold.paint(q, t), trails.paint(q, t), ribbon.paint(q, t), *(breeze.paint(q, t) for breeze in breezes))
+        strong = _pixels(strong, plan)
+        if not strong.isEmpty():
             q.setCompositionMode(QPainter.CompositionMode_DestinationOut)
-            q.drawImage(0, 0, near)
+            q.drawImage(strong, near, strong)
         # The sheet, under them: it is no more than about 12% anywhere, names or not.
         q.setCompositionMode(QPainter.CompositionMode_DestinationOver)
-        drawn |= sheet.paint(q, t, fold)
-        if drawn:
+        drawn = _pixels(_union(strong, sheet.paint(q, t, fold)), plan)
+        if not drawn.isEmpty():
             q.setCompositionMode(QPainter.CompositionMode_DestinationOut)
-            q.drawImage(0, 0, thin)
-            q.drawImage(0, 0, bare)
+            q.drawImage(drawn, rest, drawn)
         q.end()
-        if drawn:
-            p.drawImage(QRectF(0, 0, plan.pw, plan.ph), layer)
+        if not drawn.isEmpty():
+            p.drawImage(drawn, layer, drawn)
 
     def lines(p: QPainter, t: float) -> None:
         """The pencil work, sharp."""
@@ -255,6 +270,23 @@ class _Plan:
         return self.gap.adjusted(-pad, -pad, pad, pad).contains(QPointF(x, y))
 
 
+def _union(*rects: QRectF) -> QRectF:
+    """The box round all of rects that are not empty."""
+    out = QRectF()
+    for rect in rects:
+        if not rect.isEmpty():
+            out = rect if out.isEmpty() else out.united(rect)
+    return out
+
+
+def _pixels(rect: QRectF, plan: _Plan) -> QRectF:
+    """rect grown to whole pixels, a little round, and kept on the stage."""
+    if rect.isEmpty():
+        return QRectF()
+    out = QRectF(math.floor(rect.left()) - 2, math.floor(rect.top()) - 2, math.ceil(rect.width()) + 5, math.ceil(rect.height()) + 5)
+    return out.intersected(QRectF(0, 0, plan.pw, plan.ph))
+
+
 def _creep(u: float, t: float) -> QPointF:
     """Where the sheet has crept to t seconds in: on with the wind, sagging and lifting a little."""
     k = t - SWEEP[0]
@@ -262,19 +294,23 @@ def _creep(u: float, t: float) -> QPointF:
     return QPointF(CREEP * u * k, 14 * u - 16 * u * k + 5 * u * math.sin(k * 4.4) + 2.5 * u * math.sin(k * 9.3))
 
 
-def _cut(plan: _Plan) -> tuple[QImage, QImage, QImage]:
+def _cut(plan: _Plan) -> tuple[QImage, QImage]:
     """What is rubbed off the washes: over the names, most of the strong ones, thinning irregularly as
     a wash does near them, never in a rectangle; then about half of everything, the faint sheet too, so
     nothing translucent keeps more than about 12% there; and in the gap all of everything, easing in
     over a ragged edge round it."""
     u = plan.u
     keep = plan.keep_map()
-    jag = noise(plan.pw, plan.ph, 9 * u, 3, 5)
-    grain = noise(plan.pw, plan.ph, 1.6 * u, 2, 6)
-    patches = noise(plan.pw, plan.ph, 24 * u, 3, 7)
+    def coarse(scale: float, seed: int) -> np.ndarray:
+        # Soft noise, worked out at half size and doubled up: it only shapes a ragged edge.
+        half = noise((plan.pw + 1) // 2, (plan.ph + 1) // 2, scale / 2, 3, seed)
+        return np.repeat(np.repeat(half, 2, axis=0), 2, axis=1)[: plan.ph, : plan.pw]
+
+    jag = coarse(9 * u, 5)
+    patches = coarse(24 * u, 7)
     spread = np.maximum(keep, blur(keep, 16 * u) * 1.7)
     # Irregular round a name, in ragged patches as a wash thins, but all of it over the name itself.
-    near = np.maximum(smooth(0.15, 0.95, spread + 1.1 * (patches - 0.5) + 0.35 * (jag - 0.5) + 0.12 * (grain - 0.5)), smooth(0.6, 1.0, keep)) * 0.9
+    near = np.maximum(smooth(0.15, 0.95, spread + 1.1 * (patches - 0.5) + 0.35 * (jag - 0.5)), smooth(0.6, 1.0, keep)) * 0.9
     black = np.zeros((plan.ph, plan.pw, 3), dtype=np.float32)
     gap = plan.gap
     xs = np.arange(plan.pw, dtype=np.float32)[None, :] + 0.5
@@ -283,7 +319,8 @@ def _cut(plan: _Plan) -> tuple[QImage, QImage, QImage]:
     dy = np.maximum(np.maximum(gap.top() - ys, ys - gap.bottom()), 0)
     d = np.sqrt(dx * dx + dy * dy) + 8 * u * (jag - 0.5)
     bare = smooth(26 * u, 4 * u, d)
-    return picture(black, near), picture(black, near * 0.55), picture(black, bare)
+    # The sheet's thinning and the gap rubbed off in one go.
+    return picture(black, near), picture(black, 1 - (1 - near * 0.66) * (1 - bare))
 
 
 # Pencil ---------------------------------------------------------------------------------------
@@ -379,11 +416,12 @@ def _ribbon(points: np.ndarray, widths: np.ndarray) -> QPainterPath:
 
 
 def _band(points: np.ndarray, half: float | np.ndarray) -> QPainterPath:
-    """The area within half of a line, as a clip."""
+    """The area within half of a line, as a clip: every few points of it, a clip need not be fine."""
     if len(points) < 2:
         return QPainterPath()
     half = np.broadcast_to(np.asarray(half, dtype=np.float64), (len(points),))
-    return _ribbon(points, half * 2)
+    keep = np.unique(np.append(np.arange(0, len(points), 4), len(points) - 1))
+    return _ribbon(points[keep], half[keep] * 2)
 
 
 class _Stroke:
@@ -601,7 +639,7 @@ class _Sheet:
         rim = np.clip(patch - blur(patch, 3.5 * u * r), 0, 1) * 3.0 + np.clip(blur(patch, 3.5 * u * r) - patch, 0, 1) * 1.2
         rim = np.clip(rim, 0, 1)
         pigment = (0.4 + 0.3 * flow + 0.25 * patch) * (0.72 + 0.56 * gran)
-        alpha = 0.085 * pigment + 0.06 * rim * (0.7 + 0.6 * gran)
+        alpha = 0.15 * pigment + 0.1 * rim * (0.7 + 0.6 * gran)
         # Over the dark game the pale celadon alone reads as grey haze: its pigment is mint, more of it
         # in the patches and pooled at their rims.
         color = _mix(np.broadcast_to(rgb(SHEET) * 0.4 + rgb(WET_LIGHT) * 0.6, (h, w, 3)), rgb(WET), np.clip(0.45 * patch + 0.8 * rim, 0, 1))
@@ -610,13 +648,13 @@ class _Sheet:
         pooled = np.exp(-np.maximum(de, 0) / (2.2 * u)) * inside
         color = _mix(color, rgb(WET), np.clip(edge * 1.2, 0, 1))
         color = _mix(color, rgb(WET_TEAL), np.clip(pooled * 0.9, 0, 1))
-        alpha = alpha + 0.2 * edge * (0.75 + 0.5 * gran) + 0.2 * pooled
+        alpha = alpha + 0.32 * edge * (0.75 + 0.5 * gran) + 0.3 * pooled
         # Soft teal ruled lines, only in the free bands, lifting before the title.
         rules = mask(w, h, lambda q: self._rules(q, plan, r))
         tooth = noise(w, h, 0.9, 2, 37)
         rules = rules * (0.55 + 0.6 * tooth)
         color = _mix(color, rgb(TEAL), np.clip(rules * 1.4, 0, 1))
-        alpha = alpha + 0.26 * rules
+        alpha = alpha + 0.4 * rules
         self.image = picture(color, alpha * inside)
         self.size = QRectF(self.x0, 0, w / r, h / r)
 
@@ -648,94 +686,125 @@ class _Sheet:
                         q.drawPath(path)
                 y += step
 
-    def paint(self, q: QPainter, t: float, fold: _Fold) -> bool:
+    def paint(self, q: QPainter, t: float, fold: _Fold) -> QRectF:
         if not (SWEEP[0] < t < LIFT[1]):
-            return False
+            return QRectF()
         plan = self.plan
         # Behind the fold, and right of the trailing edge as the sheet lifts.
         lift = ease_in(win(t, LIFT[0], LIFT[1]))
         trailing = -60 * plan.u + (plan.w + 160 * plan.u) * lift
         region = fold.behind(t, trailing)
         if region is None:
-            return False
+            return QRectF()
         q.save()
         q.setClipPath(region)
         q.setOpacity(1 - 0.6 * lift)
         q.drawImage(self.size.translated(_creep(plan.u, t)), self.image)
         q.restore()
-        return True
+        return region.boundingRect()
 
 
 class _Fold:
-    """The sheet's fold as the wind lays it: a band of bright paper curling over, its edge drawn in
-    pencil, sagging and wobbling as a hand draws a curve, tilted with its top corner leading, a soft
-    uneven shadow ahead of it. It is three drawings, boiling."""
+    """The sheet's leading corner curling over as the wind lays it: a flap showing the paper's back,
+    widest at the top corner that leads and narrowing to the foot, celadon with its deckle washed mint
+    and teal, shaded in pencil toward the fold, its fold and its free edge drawn in pencil, a shadow
+    cast from it onto the sheet and a soft uneven one ahead of it onto the game. It is three drawings,
+    boiling."""
 
     def __init__(self, plan: _Plan) -> None:
         self.plan = plan
         u = plan.u
         h = plan.h
         rnd = random.Random(53)
-        self.wide = 92 * u
-        self.shade = 46 * u
+        self.wide = 180 * u
+        self.shade = 60 * u
         ys = np.arange(0, h + 12 * u, 6 * u, dtype=np.float64)
         mid = h / 2
-        # The fold's leading edge across the screen: tilted (the top ahead), sagging in the middle.
+        # The fold across the screen: tilted, its top leading and bowing forward into the corner, a
+        # little sag in the middle and a hand's wobble.
         self.curve_y = ys
-        self.curve_x = 0.1 * (mid - ys) - 22 * u * (1 - ((ys - mid) / mid) ** 2) + _tremor(ys, rnd, 3 * u, 260 * u)
+        self.curve_x = (0.1 * (mid - ys) - 16 * u * (1 - ((ys - mid) / mid) ** 2) + 34 * u * np.clip(1 - ys / h, 0, 1) ** 3
+                        + _tremor(ys, rnd, 3 * u, 260 * u))  # fmt: skip
         lo, hi = self.curve_x.min(), self.curve_x.max()
-        self.ox = lo - self.wide - 6 * u
+        self.ox = lo - self.wide - 30 * u
         bw = hi + self.shade + 6 * u - self.ox
         self.start = -(hi + self.shade + 10 * u)
-        self.end = plan.w - lo + self.wide + 10 * u
-        self.images = [self._band(bw, h, v, rnd) for v in range(3)]
+        self.end = plan.w - lo + self.wide + 30 * u
+        self.images = [self._band(bw, h, v) for v in range(3)]
 
-    def _band(self, bw: float, h: float, v: int, rnd: random.Random) -> QImage:
+    def width(self, ys: np.ndarray) -> np.ndarray:
+        """How far back the flap reaches from the fold, down the screen: most at the top corner."""
+        return 20 * self.plan.u + (self.wide - 20 * self.plan.u) * np.clip(1 - ys / self.plan.h, 0, 1) ** 1.7
+
+    def _band(self, bw: float, h: float, v: int) -> QImage:
         u = self.plan.u
         w, hh = max(4, math.ceil(bw)), max(4, math.ceil(h))
         xs = self.ox + np.arange(w, dtype=np.float32) + 0.5
         ys = np.arange(hh, dtype=np.float32) + 0.5
         c = np.interp(ys, self.curve_y, self.curve_x).astype(np.float32)
         d = c[:, None] - xs[None, :]
-        # Wider toward its leading top corner, which curls over most.
-        q = d / self.width(ys)[:, None]
+        reach = self.width(ys)[:, None]
+        q = d / reach
         flow = noise(w, hh, 18 * u, 3, 60 + v)
         grain = noise(w, hh, 1.2, 2, 63 + v)
-        # The curl: bright paper, turning away into soft shade near its crest, a mint wash where it
-        # lies back into the sheet.
-        paper = rgb("#eef6f1") * (0.95 + 0.06 * grain + 0.03 * (flow - 0.5))[..., None]
-        crest = np.exp(-np.maximum(q, 0) / 0.14)
-        color = _mix(paper, rgb("#cfe2da"), crest * 0.55)
-        color = _mix(color, rgb(MINT), smooth(0.25, 0.75, q) * (0.6 + 0.4 * flow))
-        color = _mix(color, rgb(TEAL), smooth(0.6, 0.95, q) * (0.3 + 0.4 * flow))
-        body = smooth(-0.004, 0.01, q) * (1 - smooth(0.4 + 0.25 * flow, 1.0, q))
-        alpha = body * (0.8 + 0.1 * grain) * (1 - 0.35 * smooth(0.2, 0.7, q))
-        # Shading in soft graphite hatching near the crest, as a pencil shades a curve.
-        hatch = mask(w, hh, lambda p: self._hatching(p, v, w, hh))
-        color = _mix(color, rgb(SOFT), np.clip(hatch * smooth(0.5, 0.0, q) * 0.8, 0, 1))
-        # The shadow ahead: soft, uneven.
+        fibre = noise(w, hh, 1.0, 2, 66 + v)
+        # The flap: the paper's back, celadon, rounding into shade toward the fold.
+        flap = smooth(-0.6, 0.6, d) * smooth(0.6, -0.6, d - reach + 1.6 * u * (fibre - 0.5))
+        paper = rgb("#e2f2e9") * (0.95 + 0.06 * grain + 0.04 * (flow - 0.5))[..., None]
+        color = _mix(paper, rgb("#b9d4c9"), np.exp(-np.clip(q, 0, None) / 0.18) * 0.65)
+        color = _mix(color, rgb("#f4fbf7"), np.exp(-(((q - 0.42) / 0.16) ** 2)) * 0.5)
+        # Its deckle, the sheet's edge, washed mint and teal, pooled darker at the very edge.
+        edge = np.exp(-np.clip(reach - d, 0, None) / (9 * u)) * flap
+        color = _mix(color, rgb(WET), np.clip(edge * (0.8 + 0.5 * flow), 0, 1))
+        color = _mix(color, rgb(WET_TEAL), np.clip(np.exp(-np.clip(reach - d, 0, None) / (2.2 * u)) * flap, 0, 1) * 0.8)
+        alpha = flap * (0.92 + 0.06 * grain)
+        # Pencil shading toward the fold, as a curve is shaded.
+        hatch = mask(w, hh, lambda p: self._hatching(p, v, hh))
+        color = _mix(color, rgb(SOFT), np.clip(hatch * smooth(0.55, 0.0, q) * 0.85, 0, 1) * flap)
+        # The notebook's ruled lines on it, slanting as the paper turns over.
+        rules = mask(w, hh, lambda p: self._rules(p, w, hh))
+        color = _mix(color, rgb(TEAL), np.clip(rules * (0.5 + 0.4 * grain), 0, 1) * flap * smooth(0.05, 0.3, q))
+        # Shadows: cast by the flap's free edge onto the sheet behind, and ahead onto the game.
+        behind = np.clip(d - reach, 0, None)
+        cast = (d > reach) * np.exp(-behind / (7 * u)) * 0.32 * (0.75 + 0.5 * flow)
         ahead = np.clip(-d, 0, None)
-        shadow = (d < 0) * np.exp(-ahead / (0.32 * self.shade)) * 0.3 * (0.7 + 0.6 * flow)
-        out_c = color * alpha[..., None] + rgb("#0c1618") * (shadow * (1 - alpha))[..., None]
-        out_a = alpha + shadow * (1 - alpha)
+        shadow = (d < 0) * np.exp(-ahead / (0.35 * self.shade)) * 0.4 * (0.7 + 0.6 * flow)
+        dark = np.maximum(cast, shadow)
+        out_c = color * alpha[..., None] + rgb("#0b1517") * (dark * (1 - alpha))[..., None]
+        out_a = alpha + dark * (1 - alpha)
         image = picture(out_c / np.maximum(out_a, 1e-4)[..., None], out_a)
-        # The fold's edge in graphite, with a lighter line inside it where it curls under.
+        # The fold and the free edge in graphite, a line of the curl beside the fold.
         p = QPainter(image)
         p.setRenderHint(QPainter.Antialiasing)
         p.translate(-self.ox, 0)
-        edge = np.column_stack([self.curve_x, self.curve_y])
-        line = _Stroke(edge, 1.7 * u, random.Random(70 + v), u, wobble=0.6, ends=(20, 20))
-        line.fill(p, v, QBrush(QColor(GRAPHITE)))
-        inner = edge - np.column_stack([0.45 * self.width(self.curve_y), np.zeros(len(edge))])
-        k = len(inner)
-        for a, b in ((0.04, 0.38), (0.45, 0.74), (0.8, 0.97)):
-            part = inner[int(a * k) : int(b * k)]
+        fold = np.column_stack([self.curve_x, self.curve_y])
+        rim = fold - np.column_stack([self.width(self.curve_y), np.zeros(len(fold))])
+        graphite = QBrush(QColor(GRAPHITE))
+        _Stroke(fold, 2.2 * u, random.Random(70 + v), u, wobble=0.6, ends=(20, 20)).fill(p, v, graphite)
+        _Stroke(rim, 1.9 * u, random.Random(75 + v), u, wobble=0.7, ends=(20, 6)).fill(p, v, graphite)
+        curl = fold - np.column_stack([0.16 * self.width(self.curve_y), np.zeros(len(fold))])
+        k = len(curl)
+        for a, b in ((0.0, 0.3), (0.36, 0.62)):
+            part = curl[int(a * k) : int(b * k)]
             if len(part) > 2:
-                _Stroke(part, 1.0 * u, random.Random(80 + v), u, wobble=0.8).fill(p, v, QBrush(QColor(SOFT)))
+                _Stroke(part, 1.2 * u, random.Random(80 + v), u, wobble=0.8).fill(p, v, QBrush(QColor(SOFT)))
         p.end()
         return image
 
-    def _hatching(self, p: QPainter, v: int, w: int, hh: int) -> None:
+    def _rules(self, p: QPainter, w: int, hh: int) -> None:
+        u = self.plan.u
+        rnd = random.Random(99)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor("#ffffff"))
+        y = -0.3 * w
+        while y < hh:
+            pts = np.array([[0.0, y], [w * 0.5, y + 0.14 * w * 0.5 + rnd.uniform(-1, 1) * u], [float(w), y + 0.3 * w]])
+            path = _Stroke(pts, 1.3 * u, rnd, u, wobble=0.3, ends=(4, 4)).path(0)
+            if path is not None:
+                p.drawPath(path)
+            y += 26 * u
+
+    def _hatching(self, p: QPainter, v: int, hh: int) -> None:
         u = self.plan.u
         rnd = random.Random(90 + v)
         p.translate(-self.ox, 0)
@@ -744,17 +813,12 @@ class _Fold:
         y = 0.0
         while y < hh:
             c = float(np.interp(y, self.curve_y, self.curve_x))
-            length = rnd.uniform(0.18, 0.36) * float(self.width(np.array([y]))[0])
-            pts = np.array([[c - 1 * u, y], [c - length, y + length * 0.55 + rnd.uniform(-1, 1) * u]])
-            line = _Stroke(pts, 0.9 * u, rnd, u, wobble=0.2, ends=(2, 6))
-            path = line.path(0)
+            length = rnd.uniform(0.25, 0.5) * float(self.width(np.array([y]))[0])
+            pts = np.array([[c - 1.5 * u, y], [c - length, y + length * 0.45 + rnd.uniform(-1, 1) * u]])
+            path = _Stroke(pts, 1.1 * u, rnd, u, wobble=0.2, ends=(2, 6)).path(0)
             if path is not None:
                 p.drawPath(path)
-            y += rnd.uniform(3.2, 6.5) * u
-
-    def width(self, ys: np.ndarray) -> np.ndarray:
-        """How wide the curl is down the screen: widest at its leading top corner."""
-        return self.wide * (0.45 + 0.55 * np.clip(1 - ys / self.plan.h, 0, 1)) ** 1.0
+            y += rnd.uniform(3.5, 7.0) * u
 
     def at(self, t: float) -> float:
         k = win(t, SWEEP[0], SWEEP[1])
@@ -778,16 +842,14 @@ class _Fold:
         path.closeSubpath()
         return path
 
-    def paint(self, q: QPainter, t: float) -> bool:
+    def paint(self, q: QPainter, t: float) -> QRectF:
         if not (SWEEP[0] <= t <= SWEEP[1] + 0.05):
-            return False
+            return QRectF()
         image = self.images[int(t * BOIL) % 3]
-        q.drawImage(QPointF(self.at(t) + self.ox, 0), image)
-        return True
+        at = QPointF(self.at(t) + self.ox, 0)
+        q.drawImage(at, image)
+        return QRectF(at.x(), 0, image.width(), image.height())
 
-    def bottom(self, t: float) -> float:
-        """Where the fold's lower end is across the screen."""
-        return self.at(t) + float(self.curve_x[-1])
 
 
 # Sketches on the sheet ------------------------------------------------------------------------
@@ -823,6 +885,16 @@ class _Sketch:
                 q.end()
                 images.append(image)
             self.groups.append(images)
+        # The whole drawing, for once it is all drawn on: one picture to lay instead of each group.
+        self.whole = []
+        for v in range(3):
+            image = _sprite(self.box.width(), self.box.height(), self.SCALE)
+            q = QPainter(image)
+            q.setRenderHint(QPainter.SmoothPixmapTransform)
+            for images in self.groups:
+                q.drawImage(QRectF(0, 0, self.box.width(), self.box.height()), images[v])
+            q.end()
+            self.whole.append(image)
 
     def _blot(self, seed: int) -> QImage:
         """A mint watercolour blot behind the sketch: ragged, granulated, its rim dried darker."""
@@ -847,6 +919,15 @@ class _Sketch:
         n = len(self.groups)
         gone = win(age, self.draw_on + self.hold, end)
         p.save()
+        if age >= self.draw_on:
+            # Smeared away with the wind: the drawing slides on and thins, two ghosts trailing it.
+            image = self.whole[v]
+            push = ease_in(gone) * 26 * self.plan.u
+            for shift, alpha in ((push * 1.9, 0.18), (push * 1.3, 0.3), (push, 1.0)) if gone > 0 else ((0.0, 1.0),):
+                p.setOpacity(alpha * (1 - gone) ** 1.3)
+                p.drawImage(box.translated(shift, -shift * 0.12), image)
+            p.restore()
+            return
         for index, images in enumerate(self.groups):
             # Each group starts as the one before it is half drawn; it is revealed left to right on
             # a slant, as the hand sweeps.
@@ -903,53 +984,6 @@ def _straight(a: tuple[float, float], b: tuple[float, float], rnd: random.Random
     return np.array([pa, (pa + pb) / 2 + np.array([-d[1], d[0]]) * rnd.uniform(-0.8, 0.8) * u, pb])
 
 
-def _colors(on_paper: bool) -> tuple[str, str]:
-    """The line and the hatching: graphite and teal on paper, chalk and mint on the game."""
-    return (GRAPHITE, TEAL) if on_paper else (CHALK, MINT)
-
-
-def _lattice(c: QPointF, u: float, rnd: random.Random, on_paper: bool, size: float = 1.0) -> tuple[list, QRectF]:
-    """A 吴山居 lattice window (窗棂): a frame drawn twice, its panes each holding a small lantern of
-    lattice tied to its sides, a few panes hatched mint where the light comes through."""
-    line, tint = _colors(on_paper)
-    W, H = 200 * u * size, 150 * u * size
-    x0, y0 = c.x() - W / 2, c.y() - H / 2
-    width = (1.5 if not on_paper else 1.2) * u
-    frame, lattice, hatching = [], [], []
-    for inset in (0.0, 9 * u * size):
-        a, b = (x0 + inset, y0 + inset), (x0 + W - inset, y0 + H - inset)
-        for p0, p1 in (((a[0], a[1]), (b[0], a[1])), ((b[0], a[1]), (b[0], b[1])), ((b[0], b[1]), (a[0], b[1])), ((a[0], b[1]), (a[0], a[1]))):
-            frame.append(_Stroke(_straight(p0, p1, rnd, u, 4.5), width, rnd, u, 0.3))
-    ix0, iy0, iw, ih = x0 + 9 * u * size, y0 + 9 * u * size, W - 18 * u * size, H - 18 * u * size
-    cols, rows = 3, 2
-    for k in range(1, cols):
-        x = ix0 + iw * k / cols
-        lattice.append(_Stroke(_straight((x, iy0), (x, iy0 + ih), rnd, u, 1.5), width * 0.9, rnd, u, 0.3))
-    for k in range(1, rows):
-        y = iy0 + ih * k / rows
-        lattice.append(_Stroke(_straight((ix0, y), (ix0 + iw, y), rnd, u, 1.5), width * 0.9, rnd, u, 0.3))
-    lit = rnd.sample(range(cols * rows), 3)
-    for i in range(cols):
-        for j in range(rows):
-            px, py, pw, ph = ix0 + iw * i / cols, iy0 + ih * j / rows, iw / cols, ih / rows
-            cx, cy = px + pw / 2, py + ph / 2
-            hw, hh = pw * 0.22, ph * 0.24
-            corners = [(cx - hw, cy - hh), (cx + hw, cy - hh), (cx + hw, cy + hh), (cx - hw, cy + hh)]
-            loop = [corners[k % 4] for k in range(5)]
-            loop = np.array(loop, dtype=np.float64)
-            loop[-1] += (rnd.uniform(1, 3) * u, rnd.uniform(-1, 1) * u)
-            lattice.append(_Stroke(loop, width * 0.85, rnd, u, 0.25, ends=(3, 3)))
-            for p0, p1 in (((cx, cy - hh), (cx, py)), ((cx, cy + hh), (cx, py + ph)), ((cx - hw, cy), (px, cy)), ((cx + hw, cy), (px + pw, cy))):
-                lattice.append(_Stroke(_straight(p0, p1, rnd, u, 0.8), width * 0.75, rnd, u, 0.2, ends=(2, 3)))
-            if i * rows + j in lit:
-                box = np.array(corners)
-                hatching += [_Stroke(seg, 1.0 * u, rnd, u, 0.1, ends=(1.5, 2.5)) for seg in _hatch(box, 38, 3.2 * u, rnd, u)]
-    # A sill under it.
-    sill = [_Stroke(_straight((x0 - 12 * u, y0 + H + 6 * u), (x0 + W + 14 * u, y0 + H + 5 * u), rnd, u, 3), width, rnd, u, 0.4)]
-    groups = [(frame, line), (lattice[: len(lattice) // 2], line), (lattice[len(lattice) // 2 :] + sill, line), (hatching, tint)]
-    return groups, QRectF(x0 - 16 * u, y0 - 8 * u, W + 34 * u, H + 22 * u)
-
-
 def _leaf_shape(base: np.ndarray, tip: np.ndarray, wide: float, bend: float) -> np.ndarray:
     """A bamboo leaf's outline from base to tip and back: long, narrow, its widest a third along."""
     d = tip - base
@@ -979,33 +1013,6 @@ def _bamboo_leaf(base: tuple[float, float], angle: float, length: float, u: floa
     lines.append(_Stroke(mid, width * 0.6, rnd, u, 0.15, ends=(2, 5)))
     hatching = [_Stroke(seg, 0.9 * u, rnd, u, 0.1, ends=(1.5, 2.5)) for seg in _hatch(shape, angle + 55, 2.6 * u, rnd, u, over=0.6, skip=0.15)]
     return lines, hatching, shape
-
-
-def _bamboo_sprig(c: QPointF, u: float, rnd: random.Random, on_paper: bool, size: float = 1.0) -> tuple[list, QRectF]:
-    """Bamboo: two culms leaning with the wind, drawn as double lines broken at their nodes, twigs and
-    sprays of leaves streaming right."""
-    line, tint = _colors(on_paper)
-    width = (1.5 if not on_paper else 1.2) * u
-    culms, nodes, leaves, hatching = [], [], [], []
-    for bx, lean, tall in ((-60, 0.32, 150), (10, 0.22, 130)):
-        x, y = c.x() + bx * u * size, c.y() + 75 * u * size
-        segs = 3
-        for k in range(segs):
-            l0 = tall * u * size * k / segs
-            l1 = tall * u * size * (k + 1) / segs - 4 * u
-            a, b = np.array([x + l0 * lean, y - l0]), np.array([x + l1 * lean, y - l1])
-            for off in (-3.2 * u * size, 3.2 * u * size):
-                culms.append(_Stroke(_straight(tuple(a + (off, 0)), tuple(b + (off, 0)), rnd, u, 0.5), width, rnd, u, 0.3))
-            n0 = b + np.array([lean * 3 * u, -3 * u])
-            nodes.append(_Stroke(np.array([n0 + (-5 * u, 1 * u), n0 + (0, -1 * u), n0 + (5 * u, 0.5 * u)]), width * 0.9, rnd, u, 0.2, ends=(2, 2)))
-            if k >= 1:
-                for angle in (rnd.uniform(-30, -5), rnd.uniform(5, 35)):
-                    base = (n0[0] + 2 * u, n0[1])
-                    lines, hatch, _shape = _bamboo_leaf(base, angle, rnd.uniform(34, 48) * u * size, u, rnd, line, tint, width * 0.9)
-                    leaves += lines
-                    hatching += hatch
-    groups = [(culms, line), (nodes + leaves[: len(leaves) // 2], line), (leaves[len(leaves) // 2 :], line), (hatching, tint)]
-    return groups, QRectF(c.x() - 110 * u * size, c.y() - 95 * u * size, 230 * u * size, 190 * u * size)
 
 
 def _fish(c: QPointF, r: float, a0: float, span: float, u: float, rnd: random.Random, width: float) -> tuple[list[_Stroke], np.ndarray]:
@@ -1046,47 +1053,151 @@ def _fish(c: QPointF, r: float, a0: float, span: float, u: float, rnd: random.Ra
     return strokes, body
 
 
+class _Patch:
+    """A shape washed in colour under the pencil (a leaf, a fish's body), drawn as a stroke is: its
+    brush's grain makes the wash uneven."""
+
+    def __init__(self, points: np.ndarray) -> None:
+        self.poly = _poly(np.asarray(points, dtype=np.float64))
+
+    def fill(self, p: QPainter, _v: int, brush: QBrush, _a: float = 0.0, _b: float = 1.0) -> None:
+        p.setPen(Qt.NoPen)
+        p.setBrush(brush)
+        p.drawPolygon(self.poly)
+
+
+def _colors(on_paper: bool) -> tuple[str, str, str, float]:
+    """The line, the hatching, the wash and the line's weight: graphite, teal and pale mint on paper;
+    on the game chalk, mint and mint wash, bolder so they read on the dark."""
+    return (GRAPHITE, TEAL, "#cdeedd", 1.15) if on_paper else (CHALK, WET_TEAL, WET, 2.4)
+
+
+def _circle(c: QPointF, r: float, rnd: random.Random, turns: float = 1.06, step: int = 120) -> np.ndarray:
+    """A circle drawn in one go, round a little more than once."""
+    a0 = rnd.uniform(0, math.tau)
+    q = np.linspace(a0, a0 + math.tau * turns, step)
+    return np.column_stack([c.x() + r * np.cos(q), c.y() + r * np.sin(q)])
+
+
+def _lattice(c: QPointF, u: float, rnd: random.Random, on_paper: bool, size: float = 1.0) -> tuple[list, QRectF]:
+    """A 吴山居 window: a round moon window in a double frame with diamond lattice across it, bamboo
+    standing behind it, its leaves washed mint and showing round the frame, a few panes hatched."""
+    line, tint, wash, weight = _colors(on_paper)
+    width = weight * u
+    R = 72 * u * size
+    inner = R - 9 * u * size
+    frame = [_Stroke(_circle(c, R, rnd), width, rnd, u, 0.3, ends=(3, 3)), _Stroke(_circle(c, inner, rnd, 1.03), width * 0.85, rnd, u, 0.3, ends=(3, 3))]
+    # Diamond lattice across the opening.
+    lattice, hatching = [], []
+    spacing = 21 * u * size
+    for sign in (1, -1):
+        d = np.array([1, sign]) / math.sqrt(2)
+        n = np.array([-d[1], d[0]])
+        k = -int(inner / spacing)
+        while k * spacing < inner:
+            off = k * spacing
+            half = math.sqrt(max(0.0, (inner - 2 * u) ** 2 - off * off))
+            if half > 6 * u:
+                mid = np.array([c.x(), c.y()]) + n * off
+                lattice.append(_Stroke(_straight(tuple(mid - d * half), tuple(mid + d * half), rnd, u, 0.6), width * 0.75, rnd, u, 0.2, ends=(2, 2)))
+            k += 1
+    for i in range(-4, 4):
+        for j in range(-4, 4):
+            cx, cy = (i + 0.5) * spacing / math.sqrt(2) - (j + 0.5) * spacing / math.sqrt(2), (i + 0.5) * spacing / math.sqrt(2) + (j + 0.5) * spacing / math.sqrt(2)
+            if math.hypot(cx, cy) > inner - spacing * 0.8 or rnd.random() > 0.3:
+                continue
+            r = spacing / math.sqrt(2) * 0.85
+            cell = np.array([(c.x() + cx, c.y() + cy - r), (c.x() + cx + r, c.y() + cy), (c.x() + cx, c.y() + cy + r), (c.x() + cx - r, c.y() + cy)])
+            hatching += [_Stroke(seg, 0.9 * width * 0.5, rnd, u, 0.1, ends=(1.5, 2)) for seg in _hatch(cell, 40, 2.8 * u * size, rnd, u, over=0.3)]
+    # Bamboo behind: two culms rising through the window, leaves round its frame.
+    bamboo, patches = [], []
+    for bx, lean in ((-0.55, 0.18), (0.35, 0.28)):
+        x0, y0 = c.x() + bx * R, c.y() + R * 1.05
+        top = (x0 + lean * R * 2.2, c.y() - R * 1.1)
+        bamboo.append(_Stroke(_straight((x0, y0), top, rnd, u, 1), width * 0.9, rnd, u, 0.3))
+        bamboo.append(_Stroke(_straight((x0 + 5 * u * size, y0), (top[0] + 5 * u * size, top[1]), rnd, u, 1), width * 0.8, rnd, u, 0.3))
+    for base, angle, length in (((c.x() + R * 0.75, c.y() - R * 0.85), -20, 42), ((c.x() + R * 0.8, c.y() - R * 0.8), 18, 36), ((c.x() - R * 0.95, c.y() + R * 0.55), 200, 38),
+                                ((c.x() - R * 0.9, c.y() + R * 0.6), 160, 32), ((c.x() + R * 0.5, c.y() - R * 1.0), -55, 34)):  # fmt: skip
+        lines, hatch, shape = _bamboo_leaf(base, angle, length * u * size, u, rnd, line, tint, width * 0.85)
+        bamboo += lines
+        hatching += hatch
+        patches.append(_Patch(shape))
+    groups = [(patches, wash), (bamboo, line), (frame, line), (lattice, line), (hatching, tint)]
+    side = R * 2 + 70 * u * size
+    return groups, QRectF(c.x() - side / 2, c.y() - side / 2, side, side)
+
+
+def _bamboo_sprig(c: QPointF, u: float, rnd: random.Random, on_paper: bool, size: float = 1.0) -> tuple[list, QRectF]:
+    """Bamboo: two culms leaning with the wind, drawn as double lines broken at their nodes, and sprays
+    of leaves washed mint, streaming right."""
+    line, tint, wash, weight = _colors(on_paper)
+    width = weight * u
+    culms, nodes, leaves, hatching, patches = [], [], [], [], []
+    for bx, lean, tall in ((-60, 0.32, 150), (10, 0.22, 130)):
+        x, y = c.x() + bx * u * size, c.y() + 75 * u * size
+        segs = 3
+        for k in range(segs):
+            l0 = tall * u * size * k / segs
+            l1 = tall * u * size * (k + 1) / segs - 4 * u
+            a, b = np.array([x + l0 * lean, y - l0]), np.array([x + l1 * lean, y - l1])
+            for off in (-3.6 * u * size, 3.6 * u * size):
+                culms.append(_Stroke(_straight(tuple(a + (off, 0)), tuple(b + (off, 0)), rnd, u, 0.5), width * 0.9, rnd, u, 0.3))
+            n0 = b + np.array([lean * 3 * u, -3 * u])
+            nodes.append(_Stroke(np.array([n0 + (-6 * u, 1 * u), n0 + (0, -1 * u), n0 + (6 * u, 0.5 * u)]), width * 0.9, rnd, u, 0.2, ends=(2, 2)))
+            if k >= 1:
+                for angle in (rnd.uniform(-30, -5), rnd.uniform(5, 35)):
+                    base = (n0[0] + 2 * u, n0[1])
+                    lines, hatch, shape = _bamboo_leaf(base, angle, rnd.uniform(40, 54) * u * size, u, rnd, line, tint, width * 0.85)
+                    leaves += lines
+                    hatching += hatch
+                    patches.append(_Patch(shape))
+    groups = [(patches, wash), (culms, line), (nodes + leaves, line), (hatching, tint)]
+    return groups, QRectF(c.x() - 115 * u * size, c.y() - 100 * u * size, 245 * u * size, 200 * u * size)
+
+
 def _fish_ring(c: QPointF, u: float, rnd: random.Random, on_paper: bool, size: float = 1.0) -> tuple[list, QRectF]:
-    """The 蛇眉铜鱼: three fish curled nose to tail into a ring, hatched teal or mint."""
-    line, tint = _colors(on_paper)
+    """The 蛇眉铜鱼: three fish curled nose to tail into a ring, their bodies washed, hatched under."""
+    line, tint, wash, weight = _colors(on_paper)
     r = 28 * u * size
-    width = (1.4 if not on_paper else 1.1) * u
-    bodies, details, hatching = [], [], []
+    width = weight * u * (0.9 if not on_paper else 1.0)
+    bodies, details, hatching, patches = [], [], [], []
     for k in range(3):
         strokes, body = _fish(c, r, math.radians(-90 + 120 * k), math.radians(112), u, rnd, width)
         bodies.append(strokes[0])
         details += strokes[1:]
+        patches.append(_Patch(body))
         inner = body[np.hypot(body[:, 0] - c.x(), body[:, 1] - c.y()) <= r + 0.5 * u]
         if len(inner) > 3:
-            hatching += [_Stroke(seg, 0.85 * u, rnd, u, 0.1, ends=(1.2, 2)) for seg in _hatch(inner, 35 + 40 * k, 2.4 * u, rnd, u, over=0.4, skip=0.2)]
-    groups = [(bodies, line), (details, line), (hatching, tint)]
-    side = r * 2 + 30 * u * size
+            hatching += [_Stroke(seg, max(0.85 * u, width * 0.45), rnd, u, 0.1, ends=(1.2, 2)) for seg in _hatch(inner, 35 + 40 * k, 2.6 * u, rnd, u, over=0.4, skip=0.2)]
+    groups = [(patches, wash), (bodies, line), (details, line), (hatching, tint)]
+    side = r * 2 + 34 * u * size
     return groups, QRectF(c.x() - side / 2, c.y() - side / 2, side, side)
 
 
 def _ripples(c: QPointF, u: float, rnd: random.Random, on_paper: bool, size: float = 1.0) -> tuple[list, QRectF]:
-    """西湖's ripples: a few wavy lines lying across the water, broken where the hand lifted, and
-    rings spreading round where a fish rose."""
-    line, tint = _colors(on_paper)
-    width = (1.4 if not on_paper else 1.1) * u
-    waves, rings, hatching = [], [], []
+    """西湖's ripples: a few wavy lines across the water, broken where the hand lifted, washed mint
+    between, and rings spreading round where a fish rose."""
+    line, tint, wash, weight = _colors(on_paper)
+    width = weight * u
+    waves, rings, hatching, patches = [], [], [], []
     for dy, x0, x1 in ((-26, -150, 40), (-6, -110, 150), (14, -150, 90), (32, -60, 150)):
         xs = np.linspace(x0, x1, 60) * u * size
-        ys = (dy + 2.2 * np.sin(xs / (13 * u * size) + rnd.uniform(0, 6))) * u * size
+        ys = (dy + 2.6 * np.sin(xs / (13 * u * size) + rnd.uniform(0, 6))) * u * size
         pts = np.column_stack([c.x() + xs, c.y() + ys])
         cut = rnd.randrange(18, 42)
         for part in (pts[:cut], pts[cut + 4 :]):
             if len(part) > 4:
                 waves.append(_Stroke(part, width, rnd, u, 0.2, ends=(4, 6)))
-        if dy > 0:
-            band = np.vstack([pts[10:40], (pts[10:40] + (0, 7 * u * size))[::-1]])
-            hatching += [_Stroke(seg, 0.85 * u, rnd, u, 0.1, ends=(1.2, 2)) for seg in _hatch(band, 60, 3.0 * u, rnd, u, over=0.5)]
+        if dy > -20:
+            band = np.vstack([pts[8:44], (pts[8:44] + (0, 9 * u * size))[::-1]])
+            patches.append(_Patch(band))
+            hatching += [_Stroke(seg, max(0.85 * u, width * 0.45), rnd, u, 0.1, ends=(1.2, 2)) for seg in _hatch(band, 60, 3.0 * u, rnd, u, over=0.5)]
     for rx, ry in ((14, 4), (26, 8), (38, 12)):
         q = np.linspace(rnd.uniform(0.3, 0.8), rnd.uniform(5.0, 5.8), 40)
         ring = np.column_stack([c.x() + 60 * u * size + rx * u * size * np.cos(q), c.y() - 8 * u * size + ry * u * size * np.sin(q)])
         rings.append(_Stroke(ring, width * 0.9, rnd, u, 0.1, ends=(3, 3)))
-    groups = [(waves[: len(waves) // 2], line), (waves[len(waves) // 2 :], line), (rings, line), (hatching, tint)]
-    return groups, QRectF(c.x() - 160 * u * size, c.y() - 45 * u * size, 320 * u * size, 90 * u * size)
+    groups = [(patches, wash), (waves, line), (rings, line), (hatching, tint)]
+    return groups, QRectF(c.x() - 165 * u * size, c.y() - 48 * u * size, 330 * u * size, 96 * u * size)
 
 
 # Speed lines and wind curls --------------------------------------------------------------------
@@ -1101,6 +1212,20 @@ class _Line:
         self.stroke, self.color = stroke, color
         self.start, self.draw, self.gone = start, draw, gone
         self.smudge = smudge
+
+    def warm(self) -> None:
+        """Make each stretch of it it will show, in each drawing, before it plays (on twos there are
+        few), so no frame stops to make one."""
+        tq = math.floor(self.start * TWOS) / TWOS
+        while tq <= self.gone[1] + 0.5:
+            b = ease_out(win(tq, self.start, self.start + self.draw))
+            a = ease_in_out(win(tq, *self.gone))
+            for v in range(3):
+                if 0 < b and a < 1:
+                    self.stroke.path(v, a, b)
+                if self.smudge:
+                    self.stroke.path((v + 1) % 3, 0.0, min(a, 1.0))
+            tq += 1 / TWOS
 
     def paint(self, p: QPainter, tq: float, v: int, tooth: _Tooth) -> None:
         b = ease_out(win(tq, self.start, self.start + self.draw))
@@ -1171,7 +1296,7 @@ def _speed_lines(plan: _Plan, rnd: random.Random) -> list[_Line]:
     )
     for points, curl, color, start, twin in plans:
         path = _curled(points, curl * u, u)
-        stroke = _Stroke(path, (3.3 if color == CHALK else 2.9) * u, rnd, u, wobble=0.8, ends=(10, 3))
+        stroke = _Stroke(path, (3.9 if color == CHALK else 3.5) * u, rnd, u, wobble=0.8, ends=(10, 3))
         lines.append(_Line(stroke, color, start, 0.25, (start + 0.22, start + 0.58)))
         if twin:
             # A thinner line beside it, starting later and stopping sooner, in the other color.
@@ -1179,11 +1304,11 @@ def _speed_lines(plan: _Plan, rnd: random.Random) -> list[_Line]:
             part = body[int(len(body) * 0.2) : int(len(body) * 0.8)]
             side = part + _normals(part) * 9 * u
             other = MINT if color == CHALK else CHALK
-            lines.append(_Line(_Stroke(side, 1.7 * u, rnd, u, wobble=0.6, ends=(8, 6)), other, start + 0.05, 0.2, (start + 0.24, start + 0.55)))
+            lines.append(_Line(_Stroke(side, 2.3 * u, rnd, u, wobble=0.6, ends=(8, 6)), other, start + 0.05, 0.2, (start + 0.24, start + 0.55)))
     return lines
 
 
-def _curls(plan: _Plan, ribbon: _Ribbon, rnd: random.Random) -> list[_Line]:
+def _curls(plan: _Plan, ribbon: _WindRibbon, rnd: random.Random) -> list[_Line]:
     """Pencil wind curls running along the ribbon's outer edge as the gust draws it, rubbed out after."""
     u = plan.u
     out = []
@@ -1214,15 +1339,16 @@ class _Book:
     def __init__(self, plan: _Plan, tooth: _Tooth) -> None:
         self.plan = plan
         u = plan.u
-        self.cw, self.ch = 140 * u, 100 * u
+        # Closed it is 165 by 110 points: no taller than the lane between the name rows.
+        self.cw, self.ch = 165 * u, 110 * u
         self.covers = [self._cover(v, tooth) for v in range(3)]
         self.spreads = [self._spread(v, tooth) for v in range(3)]
         self.tooth = tooth
         lane = plan.lane
         w = plan.w
         # (time, x, y) on its way: in along the lane, open over the left margin, drifting on, whisked off.
-        self.out_path = [(0.5, -120 * u, lane - 10 * u), (0.72, max(self.cw * 0.95, plan.x(220)), lane), (1.02, plan.x(270), lane + 2 * u),
-                         (1.35, plan.x(820), lane - 4 * u), (1.6, w + 200 * u, lane - 10 * u)]  # fmt: skip
+        self.out_path = [(TUMBLE[0], -110 * u, lane - 10 * u), (TUMBLE[1], max(self.cw * 1.05, plan.x(200)), lane), (1.02, plan.x(290), lane + 2 * u),
+                         (1.38, plan.x(900), lane - 4 * u), (1.75, w + 260 * u, lane - 10 * u)]  # fmt: skip
         title = plan.title
         # Back in along the top band, over the title, shut right of it and away off the top right.
         self.home_path = [(3.45, -160 * u, plan.y(170)), (3.75, plan.x(330), plan.y(130)), (4.0, title.center().x(), max(55 * u, title.top() - 14 * u)),
@@ -1384,17 +1510,17 @@ class _Book:
 
     def _paint_out(self, p: QPainter, t: float, v: int) -> None:
         x, y, heading = self._follow(self.out_path, t)
-        if t < 0.72:
+        if t < TUMBLE[1]:
             # Tumbling in: flipping over and over end on, on twos.
             # Its middle is half a cover right of the spine it opens about.
-            flip = math.cos((t - 0.5) * 26)
+            flip = math.cos((t - TUMBLE[0]) * 24)
             _put(p, self.covers[v], x + self.cw / 2, y, 8 * math.sin(t * 17), 1.0, max(0.12, abs(flip)) * (1 if flip >= 0 else -1))
             return
-        opening = win(t, 0.72, 0.84)
+        opening = win(t, TUMBLE[1], TUMBLE[1] + 0.12)
         if opening < 1:
             self._open(p, x, y, opening, v)
             return
-        self._riffle(p, x, y, t - 0.84, v, 4 * math.sin(t * 9) + 0.15 * heading)
+        self._riffle(p, x, y, t - TUMBLE[1] - 0.12, v, 2 * math.sin(t * 9) + 0.08 * heading)
 
     def _open(self, p: QPainter, x: float, y: float, k: float, v: int) -> None:
         """The cover swinging open about the spine (k 0 shut .. 1 open), the spread's right page under it."""
@@ -1436,7 +1562,7 @@ class _Book:
             # Caught mid-turn more than lying flat, as a riffled page is.
             turn = 0.12 + 0.76 * f
             c = math.cos(math.pi * turn)
-            brush = QBrush(mix(PAPER, "#dfe7e1", 0.5 * math.sin(math.pi * turn)))
+            brush = QBrush(mix("#f3f8f3", "#d3e6dc", 0.6 * math.sin(math.pi * turn)))
             lift = math.sin(math.pi * turn) * 9 * u
             reach = wide * c
             path = QPainterPath(QPointF(0, top))
@@ -1445,12 +1571,14 @@ class _Book:
             path.quadTo(QPointF(reach * 0.5, bottom - lift), QPointF(0, bottom))
             path.closeSubpath()
             p.fillPath(path, brush)
+            # Its rules and its edge in pencil, drawn straight off with plain pens (it turns too fast to boil).
+            rules = QPainterPath()
             for share in (0.25, 0.42, 0.59, 0.76):
                 y0 = top + (bottom - top) * share
-                rule = np.array([(2 * u, y0), (reach * 0.5, y0 - lift * (0.9 - 0.1 * share)), (reach * 0.95, y0 - lift * 0.4)])
-                _Stroke(rule, 0.7 * u, random.Random(k), u, 0.1, ends=(4, 4)).fill(p, v, self.tooth.brush(TEAL, 0.5))
-            outline = np.array([(0, top), (reach * 0.5, top - lift), (reach, top - lift * 0.4), (reach, bottom - lift * 0.4), (reach * 0.5, bottom - lift), (0, bottom)])
-            _Stroke(_spline(outline, 2 * u), 1.0 * u, random.Random(k * 7 + v), u, 0.2, ends=(3, 3)).fill(p, v, edge)
+                rules.moveTo(2 * u, y0)
+                rules.quadTo(QPointF(reach * 0.5, y0 - lift * (0.9 - 0.1 * share)), QPointF(reach * 0.95, y0 - lift * 0.4))
+            p.strokePath(rules, QPen(self.tooth.brush(TEAL, 0.6), 0.8 * u))
+            p.strokePath(path, QPen(edge, 1.3 * u))
         p.restore()
 
     def _paint_home(self, p: QPainter, t: float, v: int) -> None:
@@ -1571,19 +1699,19 @@ def _leaf_sprites(plan: _Plan, doodle: str, size: float, seed: int, tooth: _Toot
     alpha = smooth(0.3 + 0.25 * fibre, 0.75 + 0.15 * fibre, blur(m, 0.9 * s)) * (1 - punched)
     flow = noise(w, h, 10 * u * s, 3, seed + 1)
     gran = noise(w, h, 1.2 * s, 2, seed + 2)
-    color = _paper(w, h, s, seed + 3)
+    color = _paper(w, h, s, seed + 3, "#eef6f0")
     # Mint and teal washed into the deckle, pooled darker at the very edge.
-    edge = np.clip(1 - blur(m, 5 * u * s) * 1.3, 0, 1) * alpha
-    color = _mix(color, rgb(MINT), np.clip(edge * (0.8 + 0.7 * flow) * (0.8 + 0.4 * gran), 0, 1))
+    edge = np.clip(1 - blur(m, 8 * u * s) * 1.3, 0, 1) * alpha
+    color = _mix(color, rgb(WET), np.clip(edge * (0.9 + 0.7 * flow) * (0.8 + 0.4 * gran), 0, 1))
     color = _mix(color, rgb(TEAL), np.clip((edge - blur(edge, 1.0 * s)) * 4 + smooth(0.8, 1.0, edge) * 0.5, 0, 1) * 0.75)
     # A mint wash behind the doodle, granulated, its rim dried darker.
     ys, xs = np.mgrid[0:h, 0:w].astype(np.float32)
-    blob_r = min(wide, tall) * 0.36 * s
+    blob_r = min(wide, tall) * 0.44 * s
     ragged = noise(w, h, 6 * u * s, 3, seed + 4)
     d = np.hypot((xs - W * 0.54 * s) / 1.15, ys - H * 0.5 * s) - blob_r * (1 + 0.4 * (ragged - 0.5))
     blot = smooth(1.5, -1.5, d) * (1 - punched)
     blot_rim = np.clip((blot - blur(blot, 1.4 * s)) * 3, 0, 1)
-    color = _mix(color, rgb("#cdeedd"), blot * (0.55 + 0.35 * flow) * (0.8 + 0.4 * gran))
+    color = _mix(color, rgb("#bfe9d4"), blot * (0.7 + 0.3 * flow) * (0.8 + 0.4 * gran))
     color = _mix(color, rgb(MINT) * 0.85 + rgb(TEAL) * 0.15, blot_rim * 0.9)
     back_color = _mix(_paper(w, h, s, seed + 5, "#eef1ec"), color, 0.25)
     fronts = []
@@ -1674,7 +1802,7 @@ def _leaves(plan: _Plan, book: _Book, tooth: _Tooth) -> list[_Leaf]:
                 home = [(plan.title.center().x() - 60 * u, plan.y(260)), (bx, by)]
             route = _Route(lead + ride + home, 2 * u)
             lane_route = _Route(lead, 2 * u)
-            size = rnd.uniform(78, 100) if name != "lane" else rnd.uniform(70, 82)
+            size = rnd.uniform(100, 116) if name != "lane" else rnd.uniform(92, 100)
             sprites = _leaf_sprites(plan, doodles[name][k], size, seed, tooth)
             seed += 17
             b = born[name] + 0.05 * k
@@ -1683,237 +1811,287 @@ def _leaves(plan: _Plan, book: _Book, tooth: _Tooth) -> list[_Leaf]:
     return out
 
 
-class _Trails:
-    """Wide mint trails of watercolour and hatching behind the leaves along their lanes, and off the
-    fold's lower edge: each lane's trail baked once along its way and shown through a window that
-    follows what makes it, fading toward its tail."""
-
-    def __init__(self, plan: _Plan, leaves: list[_Leaf], fold: _Fold) -> None:
-        self.plan = plan
-        u = plan.u
-        self.leaves = leaves
-        self.fold = fold
-        self.parts: list[tuple[QRectF, QImage, _Route, float]] = []
-        # Leaves on the same lane share its trail.
-        self.lane_of: list[int] = []
-        for leaf in leaves:
-            match = None
-            for index, (_rect, _image, route, _half) in enumerate(self.parts):
-                if np.hypot(*(route.pts[-1] - leaf.lane.pts[-1])) < 60 * u and np.hypot(*(route.pts[0] - leaf.lane.pts[0])) < 80 * u:
-                    match = index
-            if match is None:
-                self.parts.append(self._bake(leaf.lane, 13 * u, 400 + len(self.parts)))
-                match = len(self.parts) - 1
-            self.lane_of.append(match)
-        g = plan.gap
-        self.fold_parts = []
-        for x0, x1 in ((-30 * u, g.left() - 20 * u), (g.right() + 20 * u, plan.w + 30 * u)):
-            if x1 - x0 < 60 * u:
-                continue
-            route = _Route([(x0, plan.low + 6 * u), ((x0 + x1) / 2, plan.low - 6 * u), (x1, plan.low + 4 * u)], 2 * u)
-            self.fold_parts.append(self._bake(route, 14 * u, 450 + len(self.fold_parts)))
-
-    def _bake(self, route: _Route, half: float, seed: int) -> tuple[QRectF, QImage, _Route, float]:
-        """A trail along route, about 2 half wide: a mint watercolour stroke with quick mint hatching
-        over it."""
-        u = self.plan.u
-        rnd = random.Random(seed)
-        pts = route.pts
-        x0, y0 = pts[:, 0].min() - half * 2, pts[:, 1].min() - half * 2
-        x1, y1 = pts[:, 0].max() + half * 2, pts[:, 1].max() + half * 2
-        w, h = max(4, math.ceil(x1 - x0)), max(4, math.ceil(y1 - y0))
-        widths = 2 * half * (0.85 + _tremor(route.s, rnd, 0.2, 140 * u))
-        color, alpha, _dried = _brush_wash(pts, widths, (x0, y0), (w, h), 1.0, u, seed, 1.1)
-        hatch = mask(w, h, lambda q: self._hatching(q, route, half, x0, y0, rnd))
-        hatch = hatch * (0.55 + 0.6 * noise(w, h, 0.9, 2, seed + 3))
-        color = _mix(color, rgb("#e2f6ec"), np.clip(hatch * 1.6, 0, 1))
-        alpha = alpha * (1 - hatch * 0.4) + 0.75 * hatch
-        return QRectF(x0, y0, w, h), picture(color, alpha), route, half
-
-    def _hatching(self, q: QPainter, route: _Route, half: float, x0: float, y0: float, rnd: random.Random) -> None:
-        u = self.plan.u
-        q.translate(-x0, -y0)
-        q.setPen(Qt.NoPen)
-        q.setBrush(QColor("#ffffff"))
-        d = rnd.uniform(0, 4) * u
-        while d < route.length:
-            x, y, heading = route.at(d)
-            a = heading + math.radians(rnd.uniform(50, 72))
-            off = rnd.uniform(-0.45, 0.45) * half
-            r = half * rnd.uniform(0.35, 0.8)
-            cx, cy = x - off * math.sin(heading), y + off * math.cos(heading)
-            pts = np.array([[cx - r * math.cos(a), cy - r * math.sin(a)], [cx + r * math.cos(a), cy + r * math.sin(a)]])
-            path = _Stroke(pts, 1.0 * u, rnd, u, 0.1, ends=(2, 3)).path(0)
-            if path is not None:
-                q.drawPath(path)
-            d += rnd.uniform(2.5, 7.0) * u
-
-    def _show(self, q: QPainter, part: tuple[QRectF, QImage, _Route, float], head: float, length: float) -> None:
-        rect, image, route, half = part
-        tail = head - length
-        if head <= 0 or tail >= route.length:
-            return
-        for a, b, alpha in ((tail + length * 0.6, head, 1.0), (tail + length * 0.25, tail + length * 0.6, 0.6), (tail, tail + length * 0.25, 0.28)):
-            pts = route.slice(a, b)
-            if len(pts) < 2:
-                continue
-            q.save()
-            q.setClipPath(_band(pts, half * 1.6))
-            q.setOpacity(alpha)
-            q.drawImage(rect.topLeft(), image)
-            q.restore()
-
-    def paint(self, q: QPainter, t: float) -> bool:
-        u = self.plan.u
-        drawn = False
-        tq = math.floor(t * TWOS) / TWOS
-        for leaf, index in zip(self.leaves, self.lane_of, strict=True):
-            if leaf.start < tq < leaf.end:
-                head = leaf.distance(tq)
-                if head - 240 * u < leaf.lane.length:
-                    self._show(q, self.parts[index], min(head, leaf.lane.length + 240 * u), 240 * u)
-                    drawn = True
-        if SWEEP[0] < t < SWEEP[1] + 0.45:
-            x = self.fold.bottom(t)
-            for part in self.fold_parts:
-                route = part[2]
-                head = x - route.pts[0][0] - 20 * u
-                if head > 0 and head - 320 * u < route.length:
-                    self._show(q, part, head, 320 * u)
-                    drawn = True
-        return drawn
+# Watercolour wind ribbons --------------------------------------------------------------------
 
 
-# The ribbon -----------------------------------------------------------------------------------
-
-
-class _Ribbon:
-    """The gust: a broad watercolour ribbon, mint into teal, drawing itself once round the cards
-    (down the right margin, low right of the gap, up over the row-2 avatars and down again, low left
-    of the gap, up the left margin, along the top and off the top right), wet and darker at its
-    edges, granulated, blooming where it turns, a few yellow-green touches. Its tail follows its head;
-    behind the tail it dries to its darker edges, which drift off with the wind and fade."""
+class _Wash:
+    """A watercolour wind ribbon along a way: a broad mint-to-teal brush stroke, baked once (at half
+    the screen's pixels in the box round it: a wash is soft), with quick mint hatching over it if
+    hatched; and what is left of it when it dries, its darker edge. Shown a stretch at a time: its head
+    rounded as a brush tip, its tail thinning as the wash dries."""
 
     RATIO = 0.5
 
-    def __init__(self, plan: _Plan) -> None:
+    def __init__(self, plan: _Plan, route: _Route, widths: np.ndarray, seed: int, strength: float = 1.6, hatch: bool = False) -> None:
         self.plan = plan
+        self.route = route
+        self.widths = widths
         u, r = plan.u, self.RATIO
-        g, low, lane = plan.gap, plan.low, plan.lane
-        L, R = plan.left_x, plan.right_x
-        points = [
-            (R - 30 * u, -60 * u), (R, plan.y(160)), (R, plan.keep1[1]), (R - 4 * u, plan.keep2[1]), (R - 70 * u, low),
-            ((g.right() + R) / 2, low + 8 * u), (g.right() + 40 * u, low - 4 * u), (g.right() - 20 * u, lane + 14 * u),
-            (g.center().x(), lane - 4 * u), (g.left() + 20 * u, lane + 14 * u), (g.left() - 40 * u, low - 4 * u),
-            (g.left() / 2, low + 8 * u), (L + 40 * u, low), (L, plan.keep2[0]), (L - 4 * u, plan.y(250)), (L + 60 * u, plan.y(70)),
-            (plan.x(500), plan.y(36)), (plan.x(1100), plan.y(30)), (plan.w + 100 * u, -60 * u),
-        ]  # fmt: skip
-        self.route = _Route(points, 3 * u)
-        rnd = random.Random(71)
-        s = self.route.s
-        # How wide it is: narrower where it squeezes between the rows and in the low band.
-        widths = []
-        for _x, y in self.route.pts:
-            room = 100 * u
-            if plan.keep1[1] < y < plan.keep2[0]:
-                room = min(room, plan.lane_room * 0.62)
-            if y > plan.keep2[1]:
-                room = min(room, (plan.h - plan.keep2[1]) * 0.66)
-            widths.append(max(56 * u, room))
-        widths = np.array(widths) * (0.8 + _tremor(s, rnd, 0.22, 420 * u))
-        smoothed = np.convolve(np.pad(widths, 40, mode="edge"), np.ones(81) / 81, mode="valid")
-        self.widths = smoothed
-        w, h = max(4, math.ceil(plan.w * r)), max(4, math.ceil(plan.h * r))
-        color, alpha, dried = _brush_wash(self.route.pts, self.widths, (0.0, 0.0), (w, h), r, u, 72)
-        # Blooms where it turns and slowed: ragged pale blots, their rims darker.
-        ragged = noise(w, h, 4 * u * r, 3, 74)
-        bloom = np.zeros((h, w), dtype=np.float32)
-        ys, xs = np.mgrid[0:h, 0:w].astype(np.float32)
-        for bx, by, br in self._turns():
-            rad = br * r * (1 + 0.8 * (ragged - 0.5))
-            bloom = np.maximum(bloom, smooth(1.0, -1.0, np.hypot(xs - bx * r, ys - by * r) - rad))
-        bloom = bloom * (alpha > 0.02)
-        bloom_rim = np.clip((bloom - blur(bloom, 1.5 * u * r)) * 3, 0, 1)
-        color = _mix(color, rgb(WET_LIGHT), bloom * 0.6)
-        color = _mix(color, rgb(WET), bloom_rim * 0.6)
-        alpha = alpha * (1 - 0.1 * bloom) + 0.12 * bloom_rim
-        # A few touches of the swirl's yellow-green inside it.
-        touches = smooth(0.8, 0.9, noise(w, h, 9 * u * r, 2, 75)) * smooth(0.1, 0.2, alpha)
-        color = _mix(color, rgb(SWIRL), touches * 0.75)
-        self.image = picture(color, alpha)
-        self.dried = picture(_mix(color, rgb(TEAL), 0.5), np.clip(dried + 0.25 * bloom_rim, 0, 1))
-        self.rect = QRectF(0, 0, w / r, h / r)
+        pts = route.pts
+        pad = float(widths.max()) * 0.8 + 6 * u
+        x0, y0 = pts[:, 0].min() - pad, pts[:, 1].min() - pad
+        x1, y1 = pts[:, 0].max() + pad, pts[:, 1].max() + pad
+        w, h = max(4, math.ceil((x1 - x0) * r)), max(4, math.ceil((y1 - y0) * r))
+        color, alpha, dried = _brush_wash(pts, widths, (x0, y0), (w, h), r, u, seed, strength)
+        if hatch:
+            rnd = random.Random(seed)
+            lines = mask(w, h, lambda q: self._hatching(q, x0, y0, r, rnd))
+            lines = lines * (0.6 + 0.5 * noise(w, h, 0.8, 2, seed + 5))
+            color = _mix(color, rgb("#e6f8ef"), np.clip(lines * 1.5, 0, 1))
+            alpha = alpha * (1 - lines * 0.3) + 0.6 * lines
+        self.image = picture(color, np.clip(alpha, 0, 1))
+        self.dried = picture(_mix(color, rgb(WET_TEAL), 0.5), np.clip(dried, 0, 1))
+        self.rect = QRectF(x0, y0, w / r, h / r)
 
-    def _turns(self) -> list[tuple[float, float, float]]:
-        """Where the ribbon turns hardest (and slows, so a wash blooms): a few places and sizes."""
-        pts = self.route.pts
-        d = np.gradient(pts, axis=0)
-        heading = np.unwrap(np.arctan2(d[:, 1], d[:, 0]))
-        bend = np.abs(np.gradient(heading))
-        out = []
-        order = np.argsort(-bend)
-        for i in order:
-            if len(out) >= 6:
-                break
-            x, y = pts[i]
-            if all(math.hypot(x - ox, y - oy) > 200 * self.plan.u for ox, oy, _r in out):
-                out.append((x, y, self.widths[i] * 0.3))
-        return out
+    def _hatching(self, q: QPainter, x0: float, y0: float, r: float, rnd: random.Random) -> None:
+        """Quick mint pencil hatching across the ribbon, slanting, uneven."""
+        u = self.plan.u
+        q.scale(r, r)
+        q.translate(-x0, -y0)
+        q.setPen(Qt.NoPen)
+        q.setBrush(QColor("#ffffff"))
+        route = self.route
+        d = rnd.uniform(0, 4) * u
+        while d < route.length:
+            x, y, heading = route.at(d)
+            half = float(np.interp(d, route.s, self.widths)) / 2
+            a = heading + math.radians(rnd.uniform(50, 72))
+            off = rnd.uniform(-0.4, 0.4) * half
+            length = half * rnd.uniform(0.35, 0.75)
+            cx, cy = x - off * math.sin(heading), y + off * math.cos(heading)
+            pts = np.array([[cx - length * math.cos(a), cy - length * math.sin(a)], [cx + length * math.cos(a), cy + length * math.sin(a)]])
+            path = _Stroke(pts, 1.6 * u, rnd, u, 0.1, ends=(2, 3)).path(0)
+            if path is not None:
+                q.drawPath(path)
+            d += rnd.uniform(4.0, 9.0) * u
 
     def half(self, d: float) -> float:
         return float(np.interp(d, self.route.s, self.widths)) / 2
 
+    def show(self, q: QPainter, tail: float, head: float, alpha: float = 1.0) -> QRectF:
+        """The stretch from tail to head along the way (in points), its head a round brush tip, its
+        tail thinning in steps the eye reads as a fade."""
+        tail, head = max(0.0, tail), min(self.route.length, head)
+        if head - tail < 2:
+            return QRectF()
+        pts = self.route.slice(tail, head)
+        if len(pts) < 2:
+            return QRectF()
+        along = _along(pts) + tail
+        half = np.interp(along, self.route.s, self.widths) / 2 + 6 * self.plan.u
+        if head < self.route.length - 1:
+            tip = np.clip((head - along) / np.maximum(half, 1e-3), 0, 1)
+            half = half * np.sqrt(np.clip(1 - (1 - tip) ** 2, 0.05, 1))
+        # Laid over itself from further and further along, so it thickens from its tail in steps.
+        span = head - tail
+        box = QRectF()
+        r = self.RATIO
+        for a, share in ((0.0, 0.36), (0.16, 0.36), (0.36, 0.55)):
+            keep = along >= tail + a * span - 2
+            if keep.sum() < 2:
+                continue
+            band = _band(pts[keep], half[keep])
+            area = band.boundingRect().intersected(self.rect)
+            if area.isEmpty():
+                continue
+            box = _union(box, area)
+            source = QRectF((area.left() - self.rect.left()) * r, (area.top() - self.rect.top()) * r, area.width() * r, area.height() * r)
+            q.save()
+            q.setClipPath(band)
+            q.setOpacity(alpha * share)
+            q.drawImage(area, self.image, source)
+            q.restore()
+        return box
+
+    def show_dried(self, q: QPainter, tail: float, head: float, alpha: float, drift: QPointF) -> QRectF:
+        """Its dried edge over a stretch, drifting off with the wind."""
+        pts = self.route.slice(max(0.0, tail), min(self.route.length, head))
+        if len(pts) < 2 or alpha <= 0.01:
+            return QRectF()
+        band = _band(pts, float(self.widths.max()) * 0.6 + 8 * self.plan.u).translated(drift)
+        q.save()
+        q.setClipPath(band)
+        q.setOpacity(alpha)
+        q.drawImage(self.rect.translated(drift), self.dried)
+        q.restore()
+        return band.boundingRect()
+
+
+class _WindRibbon:
+    """A wind ribbon the breeze or the gust draws: its head running along its way over `run`, its
+    tail `lag` seconds behind, the dried edge left behind the tail drifting off and fading."""
+
+    def __init__(self, wash: _Wash, run: tuple[float, float], lag: float, dry: float = 0.35) -> None:
+        self.wash, self.run, self.lag, self.dry = wash, run, lag, dry
+        self.route = wash.route
+
     def head(self, t: float) -> float:
-        k = win(t, *GUST)
+        k = win(t, *self.run)
         return self.route.length * (0.6 * k + 0.4 * k * k * (3 - 2 * k))
+
+    def half(self, d: float) -> float:
+        return self.wash.half(d)
 
     def time_at(self, d: float) -> float:
         ks = np.linspace(0, 1, 200)
-        heads = [self.head(GUST[0] + k * (GUST[1] - GUST[0])) for k in ks]
-        return GUST[0] + float(np.interp(d, heads, ks)) * (GUST[1] - GUST[0])
+        heads = [self.head(self.run[0] + k * (self.run[1] - self.run[0])) for k in ks]
+        return self.run[0] + float(np.interp(d, heads, ks)) * (self.run[1] - self.run[0])
 
-    def paint(self, q: QPainter, t: float) -> bool:
-        if not (GUST[0] < t < DURATION):
-            return False
-        head = self.head(t)
-        tail = self.head(t - TAIL) if t - TAIL > GUST[0] else 0.0
-        if t - TAIL >= GUST[1]:
-            tail = self.route.length
-        drawn = False
-        if head - tail > 1:
-            pts = self.route.slice(tail, head)
-            if len(pts) > 1:
-                along = _along(pts) + tail
-                half = np.interp(along, self.route.s, self.widths) / 2 + 6 * self.plan.u
-                # The brush's round tip at its head.
-                tip = np.clip((head - along) / np.maximum(half, 1e-3), 0, 1)
-                half = half * np.sqrt(np.clip(1 - (1 - tip) ** 2, 0.05, 1))
-                # Thinning toward its tail as the wash dries, in steps the eye reads as a fade.
-                span = head - tail
-                for a, b, alpha in ((0.4, 1.01, 1.0), (0.18, 0.4, 0.62), (0.0, 0.18, 0.3)):
-                    keep = (along >= tail + a * span - 2) & (along <= tail + b * span + 2)
-                    if keep.sum() < 2:
-                        continue
-                    q.save()
-                    q.setClipPath(_band(pts[keep], half[keep]))
-                    q.setOpacity(alpha)
-                    q.drawImage(self.rect, self.image)
-                    q.restore()
-                drawn = True
-        # Dried behind the tail: its edges, drifting off with the wind and fading.
+    def paint(self, q: QPainter, t: float) -> QRectF:
+        if t <= self.run[0] or t > self.run[1] + self.lag + self.dry:
+            return QRectF()
+        head, tail = self.head(t), self.head(t - self.lag)
+        drawn = self.wash.show(q, tail, head)
+        # Behind the tail, its dried edge for a moment, drifting on with the wind.
         if tail > 0:
-            age_len = 900 * self.plan.u
-            pts = self.route.slice(max(0.0, tail - age_len), tail)
-            if len(pts) > 1:
-                fade = 1 - win(t, 4.5, DURATION - 0.05)
-                drift = QPointF(70 * self.plan.u * max(0.0, t - GUST[0] - TAIL), -10 * self.plan.u * max(0.0, t - GUST[0] - TAIL))
-                q.save()
-                q.setClipPath(_band(pts, 90 * self.plan.u).translated(drift))
-                q.setOpacity(fade)
-                q.drawImage(self.rect.translated(drift), self.dried)
-                q.restore()
-                drawn = True
+            dried_from = self.head(t - self.lag - self.dry)
+            since = max(0.0, t - self.run[0] - self.lag)
+            fade = 1 - win(t, self.run[1] + self.lag, self.run[1] + self.lag + self.dry)
+            drift = QPointF(60 * self.wash.plan.u * since, -8 * self.wash.plan.u * since)
+            drawn = _union(drawn, self.wash.show_dried(q, dried_from, tail, fade, drift))
         return drawn
+
+
+def _width(base: float, route: _Route, rnd: random.Random, u: float) -> np.ndarray:
+    """A brush's width along a way: landing thin, pressed full, lifting to a point, and swelling and
+    thinning as the hand goes."""
+    k = route.s / max(route.length, 1e-6)
+    shape = np.clip(k / 0.12, 0, 1) ** 0.6 * np.clip((1 - k) / 0.25, 0, 1) ** 0.8
+    return base * (0.82 + _tremor(route.s, rnd, 0.2, 260 * u)) * np.maximum(shape, 0.08)
+
+
+def _breezes(plan: _Plan) -> list[_WindRibbon]:
+    """The breeze's watercolour ribbons, wide and mint, sweeping in from the left as the speed lines
+    do: across the top band above the title, along the lane under the notebook, down the left margin
+    and low either side of the gap; then, as the sheet is laid, two low ones streaming off the fold's
+    foot and one along the lane after the notebook."""
+    u = plan.u
+    g = plan.gap
+    lane, low = plan.lane, plan.low
+    rnd = random.Random(901)
+    plans = (
+        (_swoop((-60 * u, plan.y(36)), (plan.w + 60 * u, plan.y(30)), 9 * u, 1.3, 0.5), 56, (0.02, 0.75), 0.4),
+        (_swoop((-60 * u, lane + 6 * u), (plan.x(1400), lane), 16 * u, 1.8, 1.2), 66, (0.18, 1.05), 0.42),
+        (_swoop((plan.left_x - 4 * u, -40 * u), (plan.left_x + 6 * u, plan.h + 40 * u), 14 * u, 1.1, 0.0), 54, (0.06, 0.7), 0.35),
+        (_swoop((-60 * u, low + 10 * u), (g.left() - 30 * u, low - 2 * u), 12 * u, 0.9, 2.0), 58, (0.12, 0.62), 0.3),
+        (_swoop((g.right() + 30 * u, low + 6 * u), (plan.w + 60 * u, low - 4 * u), 12 * u, 0.9, 0.8), 58, (0.2, 0.68), 0.3),
+        (_swoop((-60 * u, low), (g.left() - 30 * u, low + 4 * u), 12 * u, 1.0, 3.0), 52, (1.02, 1.42), 0.28),
+        (_swoop((g.right() + 30 * u, low - 2 * u), (plan.w + 60 * u, low + 6 * u), 12 * u, 1.0, 1.5), 52, (1.55, 1.95), 0.28),
+        (_swoop((plan.x(250), lane + 4 * u), (plan.w + 80 * u, lane), 16 * u, 1.6, 2.4), 60, (1.05, 1.75), 0.35),
+    )
+    out = []
+    for index, (points, width, run, lag) in enumerate(plans):
+        route = _Route(points, 3 * u)
+        wash = _Wash(plan, route, _width(width * u, route, rnd, u), 910 + index, 1.75, hatch=index % 2 == 1)
+        out.append(_WindRibbon(wash, run, lag))
+    return out
+
+
+class _Trails:
+    """Wide mint ribbons of watercolour and hatching behind the leaves along their lanes: each lane's
+    baked once along its way and shown through a window that follows the leaf, fading toward its tail."""
+
+    def __init__(self, plan: _Plan, leaves: list[_Leaf]) -> None:
+        self.plan = plan
+        u = plan.u
+        self.leaves = leaves
+        self.washes: list[_Wash] = []
+        # Leaves on the same lane share its trail.
+        self.lane_of: list[int] = []
+        rnd = random.Random(400)
+        for leaf in leaves:
+            match = None
+            for index, wash in enumerate(self.washes):
+                route = wash.route
+                if np.hypot(*(route.pts[-1] - leaf.lane.pts[-1])) < 60 * u and np.hypot(*(route.pts[0] - leaf.lane.pts[0])) < 80 * u:
+                    match = index
+            if match is None:
+                self.washes.append(_Wash(plan, leaf.lane, _width(44 * u, leaf.lane, rnd, u), 400 + len(self.washes), 1.7, hatch=True))
+                match = len(self.washes) - 1
+            self.lane_of.append(match)
+
+    def paint(self, q: QPainter, t: float) -> QRectF:
+        u = self.plan.u
+        drawn = QRectF()
+        tq = math.floor(t * TWOS) / TWOS
+        for leaf, index in zip(self.leaves, self.lane_of, strict=True):
+            if leaf.start < tq < leaf.end:
+                head = leaf.distance(tq)
+                length = 300 * u
+                if head - length < leaf.lane.length:
+                    drawn = _union(drawn, self.washes[index].show(q, head - length, min(head, leaf.lane.length)))
+        return drawn
+
+
+def _gust(plan: _Plan) -> _WindRibbon:
+    """The gust: a broad watercolour ribbon, mint into teal, drawing itself once round the cards
+    (down the right margin, low right of the gap, up over the row-2 avatars and down again, low left
+    of the gap, up the left margin, along the top and off the top right), blooming where it turns, a
+    few yellow-green touches; its tail follows its head and dries to its darker edge, drifting off."""
+    u, r = plan.u, _Wash.RATIO
+    g, low, lane = plan.gap, plan.low, plan.lane
+    L, R = plan.left_x, plan.right_x
+    points = [
+        (R - 30 * u, -60 * u), (R, plan.y(160)), (R, plan.keep1[1]), (R - 4 * u, plan.keep2[1]), (R - 70 * u, low),
+        ((g.right() + R) / 2, low + 8 * u), (g.right() + 40 * u, low - 4 * u), (g.right() - 20 * u, lane + 14 * u),
+        (g.center().x(), lane - 4 * u), (g.left() + 20 * u, lane + 14 * u), (g.left() - 40 * u, low - 4 * u),
+        (g.left() / 2, low + 8 * u), (L + 40 * u, low), (L, plan.keep2[0]), (L - 4 * u, plan.y(250)), (L + 60 * u, plan.y(70)),
+        (plan.x(500), plan.y(36)), (plan.x(1100), plan.y(30)), (plan.w + 100 * u, -60 * u),
+    ]  # fmt: skip
+    route = _Route(points, 3 * u)
+    rnd = random.Random(71)
+    # As wide as there is room: narrower between the rows and in the low band.
+    widths = []
+    for _x, y in route.pts:
+        room = 100 * u
+        if plan.keep1[1] < y < plan.keep2[0]:
+            room = min(room, plan.lane_room * 0.62)
+        if y > plan.keep2[1]:
+            room = min(room, (plan.h - plan.keep2[1]) * 0.66)
+        widths.append(max(56 * u, room))
+    widths = np.array(widths) * (0.8 + _tremor(route.s, rnd, 0.22, 420 * u))
+    widths = np.convolve(np.pad(widths, 40, mode="edge"), np.ones(81) / 81, mode="valid")
+    wash = _Wash(plan, route, widths, 72, 1.7)
+    _bloom(wash, plan, r)
+    return _WindRibbon(wash, GUST, TAIL, dry=0.6)
+
+
+def _bloom(wash: _Wash, plan: _Plan, r: float) -> None:
+    """Blooms where the gust turns hardest and slowed, ragged pale blots, and a few touches of the
+    swirl's yellow-green, worked into its baked wash."""
+    u = plan.u
+    pts = wash.route.pts
+    d = np.gradient(pts, axis=0)
+    bend = np.abs(np.gradient(np.unwrap(np.arctan2(d[:, 1], d[:, 0]))))
+    turns: list[tuple[float, float, float]] = []
+    for i in np.argsort(-bend):
+        if len(turns) >= 6:
+            break
+        x, y = pts[i]
+        if all(math.hypot(x - ox, y - oy) > 200 * u for ox, oy, _r in turns):
+            turns.append((x, y, wash.widths[i] * 0.3))
+    image = wash.image
+    w, h = image.width(), image.height()
+    rows = np.frombuffer(image.constBits(), dtype=np.uint8, count=image.bytesPerLine() * h).reshape(h, image.bytesPerLine())[:, : w * 4]
+    premul = rows.reshape(h, w, 4).astype(np.float32) / 255
+    # light.picture makes RGBA, premultiplied.
+    alpha = premul[..., 3]
+    color = premul[..., :3] / np.maximum(alpha, 1e-4)[..., None]
+    ragged = noise(w, h, 4 * u * r, 3, 74)
+    ys, xs = np.mgrid[0:h, 0:w].astype(np.float32)
+    x0, y0 = wash.rect.left(), wash.rect.top()
+    bloom = np.zeros((h, w), dtype=np.float32)
+    for bx, by, br in turns:
+        rad = br * r * (1 + 0.8 * (ragged - 0.5))
+        bloom = np.maximum(bloom, smooth(1.0, -1.0, np.hypot(xs - (bx - x0) * r, ys - (by - y0) * r) - rad))
+    bloom = bloom * (alpha > 0.02)
+    rim = np.clip((bloom - blur(bloom, 1.5 * u * r)) * 3, 0, 1)
+    color = _mix(color, rgb(WET_LIGHT), bloom * 0.6)
+    color = _mix(color, rgb(WET), rim * 0.6)
+    alpha = alpha * (1 - 0.1 * bloom) + 0.12 * rim
+    touches = smooth(0.8, 0.9, noise(w, h, 9 * u * r, 2, 75)) * smooth(0.1, 0.2, alpha)
+    color = _mix(color, rgb(SWIRL), touches * 0.75)
+    wash.image = picture(color, np.clip(alpha, 0, 1))
 
 
 # Stars and bamboo leaves -----------------------------------------------------------------------
@@ -2008,46 +2186,67 @@ class _Drift:
         flip = math.cos(self.phase + tq * self.spin)
         p.save()
         p.setOpacity(min(1.0, (tq - a) / 0.1, (b - tq) / 0.15))
-        _put(p, self.images[v], x, y, math.degrees(heading) + 40 * math.sin(tq * 5 + self.phase), 1.0, max(0.15, abs(flip)))
+        _put(p, self.images[v], x, y, math.degrees(heading) + 40 * math.sin(tq * 5 + self.phase), 1.0, 0.35 + 0.65 * abs(flip))
         p.restore()
 
 
 def _bamboo(plan: _Plan, tooth: _Tooth) -> list[_Drift]:
-    """Three bamboo leaves tumbling in on the breeze, three drifting off at the end."""
+    """Bamboo leaves on the wind all through: washed solid mint, pale mint or sage, hatched teal,
+    edged in chalk; tumbling along the title band, the lane, the low band and the left margin."""
     u = plan.u
     images = []
-    for k in range(2):
+    for k, (length, wash) in enumerate(((72, WET), (62, WET_LIGHT), (54, "#a7b993"))):
         variants = []
         for v in range(3):
             rnd = random.Random(600 + k)
-            length = (54 if k == 0 else 44) * u
-            image = _sprite(length + 10 * u, length * 0.5 + 10 * u, 2.0)
+            size = length * u
+            image = _sprite(size + 10 * u, size * 0.5 + 10 * u, 2.0)
             q = QPainter(image)
             q.setRenderHint(QPainter.Antialiasing)
-            lines, hatch, shape = _bamboo_leaf((5 * u, length * 0.25 + 5 * u), 0, length, u, rnd, CHALK, MINT, 1.6 * u)
+            lines, hatch, shape = _bamboo_leaf((5 * u, size * 0.25 + 5 * u), 0, size, u, rnd, CHALK, MINT, 1.8 * u)
             q.setPen(Qt.NoPen)
-            q.setBrush(QColor(WET))
-            q.setOpacity(0.55)
+            q.setBrush(tooth.brush(wash, 1.25))
             q.drawPolygon(_poly(shape))
-            q.setOpacity(1.0)
             for stroke in hatch:
-                stroke.fill(q, v, tooth.brush(MINT))
+                stroke.fill(q, v, tooth.brush("#3d8f8a"))
             for stroke in lines:
                 stroke.fill(q, v, tooth.brush(CHALK))
             q.end()
             variants.append(image)
         images.append(variants)
-    w, lane, low = plan.w, plan.lane, plan.low
+    w, h, lane, low = plan.w, plan.h, plan.lane, plan.low
+    L, T = plan.left_x, plan.title
+    g = plan.gap
+    top = plan.y(150)
     paths = (
-        ([(-40 * u, plan.y(200)), (plan.x(300), plan.y(150)), (plan.title.left() - 30 * u, plan.y(40)), (plan.x(1300), plan.y(60)), (w + 40 * u, plan.y(20))], (0.05, 1.7)),
-        ([(-40 * u, lane + 10 * u), (plan.x(400), lane - 10 * u), (plan.x(900), lane + 14 * u), (w + 40 * u, lane - 4 * u)], (0.18, 1.5)),
-        ([(-40 * u, low + 20 * u), (plan.gap.left() * 0.5, low - 6 * u), (plan.left_x + 10 * u, plan.y(560)), (plan.left_x - 20 * u, plan.y(300)), (-40 * u, plan.y(120))], (0.25, 1.6)),
-        ([(plan.x(300), plan.y(90)), (plan.x(900), plan.y(20)), (w + 40 * u, -30 * u)], (4.25, 5.0)),
-        ([(plan.x(200), lane + 8 * u), (plan.x(800), lane - 6 * u), (w + 40 * u, lane - 20 * u)], (4.3, 5.0)),
-        ([(plan.left_x, plan.y(300)), (plan.left_x - 20 * u, plan.y(100)), (-40 * u, -30 * u)], (4.35, 4.95)),
+        # In on the breeze.
+        ([(-50 * u, top + 40 * u), (plan.x(300), top - 20 * u), (T.left() - 40 * u, plan.y(40)), (plan.x(1250), plan.y(80)), (w + 50 * u, plan.y(30))], (0.04, 1.6)),
+        ([(-50 * u, plan.y(60)), (plan.x(450), plan.y(110)), (plan.x(900), plan.y(30)), (w + 50 * u, plan.y(120))], (0.3, 1.9)),
+        ([(-50 * u, lane + 20 * u), (plan.x(400), lane - 20 * u), (plan.x(900), lane + 24 * u), (w + 50 * u, lane - 10 * u)], (0.12, 1.45)),
+        ([(-50 * u, lane - 10 * u), (plan.x(600), lane + 20 * u), (w + 50 * u, lane - 20 * u)], (0.45, 1.85)),
+        ([(-50 * u, low + 20 * u), (g.left() * 0.5, low - 16 * u), (g.left() - 30 * u, low + 10 * u), (g.left() - 10 * u, h + 50 * u)], (0.2, 1.3)),
+        ([(L - 30 * u, -40 * u), (L + 20 * u, plan.y(300)), (L - 20 * u, plan.y(600)), (L + 10 * u, h + 50 * u)], (0.1, 1.4)),
+        ([(g.right() + 10 * u, h + 40 * u), ((g.right() + w) / 2, low - 14 * u), (w + 50 * u, low + 10 * u)], (0.35, 1.3)),
+        ([(-50 * u, plan.y(220)), (plan.x(350), plan.y(180)), (T.left() - 60 * u, plan.y(220)), (T.left() + 40 * u, -40 * u)], (0.5, 1.5)),
+        ([(-50 * u, lane + 30 * u), (plan.x(500), lane - 10 * u), (plan.x(1100), lane + 30 * u), (w + 50 * u, lane)], (0.7, 2.0)),
+        ([(T.right() + 20 * u, -40 * u), (plan.x(1300), plan.y(120)), (w + 50 * u, plan.y(200))], (0.8, 1.7)),
+        ([(-50 * u, low - 10 * u), (g.left() * 0.6, low + 20 * u), (g.left() - 40 * u, low - 16 * u), (g.left() * 0.8, h + 50 * u)], (0.9, 1.9)),
+        # With the leaves, in the free bands.
+        ([(-50 * u, plan.y(200)), (plan.x(500), plan.y(150)), (T.right() + 60 * u, plan.y(60)), (w + 50 * u, plan.y(180))], (2.05, 3.3)),
+        ([(w + 50 * u, lane - 14 * u), (plan.x(900), lane + 20 * u), (-50 * u, lane - 6 * u)], (2.2, 3.6)),
+        ([(w + 50 * u, low + 10 * u), ((g.right() + w) / 2, low - 20 * u), (g.right() + 20 * u, h + 50 * u)], (2.3, 3.1)),
+        ([(L + 20 * u, h + 40 * u), (L - 20 * u, plan.y(500)), (L + 10 * u, -40 * u)], (2.5, 3.6)),
+        ([(-50 * u, plan.y(100)), (T.left() - 20 * u, plan.y(30)), (T.right() + 40 * u, plan.y(40)), (w + 50 * u, plan.y(110))], (2.8, 3.9)),
+        ([(w + 50 * u, lane + 20 * u), (plan.x(1000), lane - 20 * u), (plan.x(400), lane + 16 * u), (-50 * u, lane)], (3.0, 4.2)),
+        # Off with the gust.
+        ([(plan.x(300), plan.y(90)), (plan.x(900), plan.y(20)), (w + 50 * u, -40 * u)], (4.2, 5.0)),
+        ([(plan.x(200), lane + 8 * u), (plan.x(800), lane - 10 * u), (w + 50 * u, lane - 20 * u)], (4.25, 5.0)),
+        ([(L, plan.y(300)), (L - 20 * u, plan.y(100)), (-50 * u, -40 * u)], (4.3, 4.95)),
+        ([(g.left() * 0.4, low), (g.left() - 40 * u, low - 20 * u), (g.left() * 0.2, h + 50 * u)], (4.2, 4.9)),
+        ([((g.right() + w) / 2, low + 10 * u), (w + 50 * u, low - 30 * u)], (4.35, 5.0)),
     )
     rnd = random.Random(631)
-    return [_Drift(images[k % 2], _Route(points, 2 * u), times, rnd.uniform(6, 10), rnd.uniform(0, 6)) for k, (points, times) in enumerate(paths)]
+    return [_Drift(images[k % 3], _Route(points, 2 * u), times, rnd.uniform(6, 10), rnd.uniform(0, 6)) for k, (points, times) in enumerate(paths)]
 
 
 # The 嘉宾 marks -------------------------------------------------------------------------------
@@ -2238,7 +2437,7 @@ def _medal(side: float, scale: float, v: int) -> QImage:
                     halo.setWidth(1.1)
                     q.fillPath(halo.createStroke(path).united(path), tooth.brush(CHALK, 0.75))
                     q.fillPath(path, tooth.brush("#3a2f22"))
-            else:
+            elif tint == TEAL:
                 stroke.fill(q, v, tooth.brush("#2f6f6c", 0.8))
     q.end()
     return image
