@@ -903,11 +903,11 @@ def _sketches(plan: _Plan, tooth: _Tooth) -> list[_Sketch]:
     u = plan.u
     out = []
     for build, (x, y), start in (
-        (_lattice, plan.p(510, 140), 1.58),
+        (_lattice, plan.p(510, 140), 1.42),
         # Between two row-2 avatars, where the chalk reads.
-        (_fish_ring, (plan.x(612), plan.lane + 6 * plan.u), 1.62),
-        (_bamboo_sprig, plan.p(1230, 140), 1.9),
-        (_ripples, (plan.x(1300), plan.lane), 1.95),
+        (_fish_ring, (plan.x(612), plan.lane + 6 * plan.u), 1.5),
+        (_bamboo_sprig, plan.p(1230, 140), 1.72),
+        (_ripples, (plan.x(1300), plan.lane), 1.78),
     ):
         groups, box = build(QPointF(x, y), u, random.Random(int(x) + 7), on_paper=False)
         out.append(_Sketch(plan, box, groups, start, tooth))
