@@ -96,6 +96,18 @@ def test_the_page_lists_names_with_their_nicknames(window):
     assert page.table.isHidden() and "没有找到" in page.empty.title.text()
 
 
+def test_the_effect_column_shows_every_scene_name_whole(window):
+    from PySide6.QtGui import QFontMetrics
+
+    from blacklist_detect import love_scenes
+    from blacklist_detect.ui_likes import THEME_COLUMN
+    from blacklist_detect.ui_theme import chinese_font
+
+    # 毛茸茸保护协会, the longest, with the cell's padding on both sides.
+    longest = max(QFontMetrics(chinese_font()).horizontalAdvance(name) for _key, name in love_scenes.SCENES)
+    assert window.likes_page.table.columnWidth(THEME_COLUMN) >= longest + 2 * 12
+
+
 def test_a_blacklisted_name_is_refused_not_moved(window, monkeypatch):
     from blacklist_detect import ui_likes
 

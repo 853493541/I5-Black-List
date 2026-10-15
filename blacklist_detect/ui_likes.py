@@ -15,7 +15,7 @@ off, and its music are in 设置.
 from __future__ import annotations
 
 from PySide6.QtCore import QEvent, QPoint, Qt, Signal
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QFontMetrics
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from blacklist_detect import love_scenes
 from blacklist_detect.match import clean_stored_name, fold, last_seen
 from blacklist_detect.model import Entry
 from blacklist_detect.ui_dialogs import (
@@ -45,7 +46,7 @@ from blacklist_detect.ui_dialogs import (
 from blacklist_detect.ui_guests import ComboStrip, ThemeField, scene_name
 from blacklist_detect.ui_icons import icon as line_icon
 from blacklist_detect.ui_kit import ConfirmDialog, EmptyState, IconButton, Modal
-from blacklist_detect.ui_theme import ROW_H, THEME, _page, _pointing
+from blacklist_detect.ui_theme import ROW_H, THEME, _page, _pointing, chinese_font
 from blacklist_detect.ui_widgets import NEVER_MET, _mark_menu_item, _PlainItemDelegate, _zh_ago
 
 # Columns of the list.
@@ -218,7 +219,10 @@ class LikesPage(QWidget):
         head = self.table.horizontalHeader()
         head.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         head.setHighlightSections(False)
-        for column, width in ((NAME, 200), (NICKNAME, 140), (THEME_COLUMN, 110), (MET, 120)):
+        # 特效 as wide as the longest scene name and the cell's padding: 毛茸茸保护协会 is never cut.
+        metrics = QFontMetrics(chinese_font())
+        theme_width = max(110, max(metrics.horizontalAdvance(name) for _key, name in love_scenes.SCENES) + 2 * 12 + 16)
+        for column, width in ((NAME, 200), (NICKNAME, 140), (THEME_COLUMN, theme_width), (MET, 120)):
             head.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
             self.table.setColumnWidth(column, width)
         head.setSectionResizeMode(REASON, QHeaderView.ResizeMode.Stretch)
