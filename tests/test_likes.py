@@ -543,30 +543,43 @@ def test_the_picker_returns_the_scene_used_and_closing_changes_nothing(window, m
     assert seen == [("angel", "选择特效 · 小明")] and played[-1] == TUNES["angel"]
 
 
-def test_the_strip_shows_each_combination_and_opens_it(window, monkeypatch):
+def _rows(page) -> list[list[str]]:  # noqa: ANN001
+    return [[page.table.item(r, c).text() for c in range(5)] for r in range(page.table.rowCount())]
+
+
+def test_combinations_head_the_list_tagged_and_open_to_edit(window, monkeypatch):
+    from PySide6.QtCore import QEvent
+    from PySide6.QtGui import QKeyEvent
+    from PySide6.QtWidgets import QMenu
+
     from blacklist_detect.model import Combo
     from blacklist_detect.ui_guests import ComboDialog
+    from blacklist_detect.ui_likes import COMBO_ROLE, PEOPLE_ROLE
 
     page, store = window.likes_page, window.store
-    strip = page.combo_strip
-    # Fewer than two 嘉宾: nothing to combine, no strip.
     store.add_like("小明", "明哥")
-    page.refresh()
-    assert strip.isHidden()
     store.add_like("小红")
     store.add_like("阿星", theme="cyber")
-    page.refresh()
-    assert not strip.isHidden()
-    chips = strip.chips.widgets()
-    assert len(chips) == 1 and chips[0].text() == "+ 新组合" and chips[0].isEnabled()
     store.set_combos([Combo(("小明", "小红"), "angel"), Combo(("小红", "阿星"), "fluffy")])
     page.refresh()
-    chips = strip.chips.widgets()
-    # Each 组合 as its 嘉宾 (昵称 if set) and its 特效, + 新组合 last.
-    assert [(chip.text(), chip.theme_name) for chip in chips] == [("明哥 + 小红", "金色传说"), ("小红 + 阿星", "毛茸茸保护协会"), ("+ 新组合", "")]
-    assert all(not chip.grab().isNull() for chip in chips)
-    changed = []
+    window._show_list()
+    # The tab counts 嘉宾, not 组合.
+    assert window._tab_buttons[window.likes_tab].count() == 3
+    # Each 组合 on top in its order, its 嘉宾 by 昵称 or name, its 特效; nothing under 昵称 or 原因.
+    assert _rows(page) == [
+        ["明哥 + 小红", "", "金色传说", "", "—"],
+        ["小红 + 阿星", "", "毛茸茸保护协会", "", "—"],
+        ["阿星", "", "赛博朋克·一", "", "—"],
+        ["小红", "", "", "", "—"],
+        ["小明", "明哥", "", "", "—"],
+    ]
+    assert page.table.item(0, 0).data(PEOPLE_ROLE) == [("明哥", True), ("小红", True)]
+    assert [page._combo_at(r) for r in range(5)] == [0, 1, -1, -1, -1]
+    assert [page._index_at(r) for r in range(5)] == [-1, -1, 2, 1, 0]
+    assert page.table.item(1, 3).data(COMBO_ROLE) == 1 and not page.table.grab().isNull()
+    changed, said = [], []
     page.changed.connect(lambda: changed.append(1))
+    monkeypatch.setattr(page, "_say", lambda text, undo=None: said.append((text, undo)))
     opened = []
 
     def edit(dialog) -> int:  # noqa: ANN001
@@ -576,34 +589,143 @@ def test_the_strip_shows_each_combination_and_opens_it(window, monkeypatch):
         return dialog.result()
 
     monkeypatch.setattr(ComboDialog, "exec", edit)
-    chips[1].click()
-    # A click opens that 组合 to edit.
+    # A click on a 组合 opens it to edit.
+    page.table.cellClicked.emit(1, 2)
     assert opened[0].windowTitle() == "编辑组合" and opened[0].theme.name.text() == "冰蓝极光"
     assert {name for name, button in opened[0].people_buttons.items() if button.isChecked()} == {"小红", "阿星"}
     assert store.combos[1] == Combo(("小红", "阿星"), "ice") and changed
-    assert strip.chips.widgets()[1].theme_name == "冰蓝极光"
+    assert _rows(page)[1][2] == "冰蓝极光"
+    # Enter on one does the same.
+    page.table.setCurrentCell(0, 0)
+    QApplication.sendEvent(page.table, QKeyEvent(QEvent.Type.KeyPress, Qt.Key_Return, Qt.NoModifier))
+    assert len(opened) == 2 and opened[1].combo == Combo(("小明", "小红"), "ice")
+    # Its menu has 编辑 and 删除; 删除 offers 撤销.
+    menus = []
+    monkeypatch.setattr(QMenu, "popup", lambda menu, *_args: menus.append(menu))
+    page._row_menu(page.table.visualItemRect(page.table.item(1, 0)).center())
+    actions = menus[0].actions()
+    assert [action.text() for action in actions] == ["编辑", "", "删除"]
+    actions[-1].trigger()
+    assert store.combos == [Combo(("小明", "小红"), "ice")] and said[-1][0] == "已删除组合「小红 + 阿星」"
+    said[-1][1]()
+    assert store.combos[1] == Combo(("小红", "阿星"), "ice") and _rows(page)[1][0] == "小红 + 阿星"
+    # A 嘉宾's row keeps its own menu.
+    page._row_menu(page.table.visualItemRect(page.table.item(3, 0)).center())
+    assert [action.text() for action in menus[-1].actions()] == ["编辑", "复制名字", "置顶", "", "删除"]
+    # A 嘉宾 since taken off the list shows struck out, and the 组合 stays to edit or delete.
+    page.delete(store.like_index("阿星"))
+    assert page.table.item(1, 0).data(PEOPLE_ROLE) == [("小红", True), ("阿星", False)] and not page.table.grab().isNull()
+    assert window._tab_buttons[window.likes_tab].count() == 2
+
+
+def test_a_combination_is_searched_by_its_guests_and_never_dragged(window):
+    from blacklist_detect.model import Combo
+
+    page, store = window.likes_page, window.store
+    store.add_like("小明", "明哥")
+    store.add_like("小红")
+    store.add_like("阿星", theme="cyber")
+    store.set_combos([Combo(("小明", "小红"), "angel"), Combo(("小红", "阿星"), "fluffy")])
+    page.refresh()
+    # By a 嘉宾's 昵称 or name.
+    page.search.setText("明哥")
+    assert [row[0] for row in _rows(page)] == ["明哥 + 小红", "小明"]
+    page.search.setText("阿星")
+    assert [row[0] for row in _rows(page)] == ["小红 + 阿星", "阿星"] and page.table.fixed == 1
+    page.search.setText("")
+    # A 组合 neither drags nor takes a drop: rows that aim at one move nothing.
+    table = page.table
+    assert table.fixed == 2 and table.dragEnabled()
+    assert not table.item(0, 0).flags() & Qt.ItemIsDragEnabled and table.item(2, 0).flags() & Qt.ItemIsDragEnabled
+    order = [like.name for like in store.likes]
+    table.moved.emit(0, 3)
+    table.moved.emit(4, 1)
+    assert [like.name for like in store.likes] == order
+    # 嘉宾 rows still drag among themselves, mapped past the 组合 above them.
+    table.moved.emit(4, 2)
+    assert [row[0] for row in _rows(page)] == ["明哥 + 小红", "小红 + 阿星", "小明", "阿星", "小红"]
+    assert store.likes[-1].name == "小明"
+
+
+def test_a_combination_shows_when_its_guests_were_last_all_in_one_lobby(window):
+    from blacklist_detect.model import Combo
+    from blacklist_detect.ui_likes import combos_met
+    from blacklist_detect.ui_widgets import NEVER_MET
+
+    page, store = window.likes_page, window.store
+    store.add_like("小明")
+    store.add_like("小红")
+    store.add_like("阿星")
+    store.set_combos([Combo(("小明", "小红"), "angel"), Combo(("小红", "阿星"), "fluffy")])
+    lobbies = (("小明", "路人"), ("小明", "小红"), ("小红", "阿星", "路人"))
+    ats = [f"2026-10-1{day}T20:00:00+08:00" for day in (4, 3, 2)]
+    store.scans = [
+        {"at": at, "names": [{"seat": i + 1, "name": name, "unclear": False} for i, name in enumerate(names)]}
+        for at, names in zip(ats, lobbies, strict=True)
+    ]
+    # Records are newest first: 小明 + 小红 met in the second, 小红 + 阿星 in the oldest.
+    assert combos_met(store.combos, store.scans) == {0: ats[1], 1: ats[2]}
+    assert combos_met([Combo(("小明", "阿星"), "neon")], store.scans) == {}
+    page.refresh()
+    assert all(row[4] != NEVER_MET for row in _rows(page)[:2])
+
+
+def test_add_offers_a_guest_or_a_combination(window, monkeypatch):
+    from PySide6.QtWidgets import QMenu
+
+    from blacklist_detect.model import Combo
+    from blacklist_detect.ui_guests import ComboDialog
+    from blacklist_detect.ui_likes import TOO_FEW, LikeDialog
+
+    page, store = window.likes_page, window.store
+    menus, said, dialogs = [], [], []
+    monkeypatch.setattr(QMenu, "popup", lambda menu, *_args: menus.append(menu))
+    monkeypatch.setattr(page, "_say", lambda text, undo=None: said.append(text))
+    # The empty list's 添加 opens the menu too; with fewer than two 嘉宾 a 组合 waits, and says why.
+    assert page.add_button.isHidden() and not page.empty_add_button.isHidden()
+    page.empty_add_button.click()
+    assert menus == [page.add_menu]
+    assert [action.text() for action in page.add_menu.actions()] == ["添加嘉宾", "添加组合"]
+    assert not page.add_combo_action.isEnabled() and page.add_combo_action.toolTip() == TOO_FEW
+    page.add_combo()
+    assert said == [TOO_FEW] and store.combos == []
+    monkeypatch.setattr(LikeDialog, "exec", lambda dialog: dialogs.append(dialog) or QDialog.Rejected)
+    page.add_like_action.trigger()
+    assert dialogs[0].windowTitle() == "添加嘉宾"
+    store.add_like("小明")
+    store.add_like("小红")
+    page.refresh()
+    page.add_button.click()
+    assert menus[-1] is page.add_menu and page.add_combo_action.isEnabled() and page.add_combo_action.toolTip() != TOO_FEW
 
     def add(dialog) -> int:  # noqa: ANN001
-        dialog.people_buttons["阿星"].click()
+        dialogs.append(dialog)
         dialog.people_buttons["小明"].click()
+        dialog.people_buttons["小红"].click()
         dialog._accept()
         return dialog.result()
 
     monkeypatch.setattr(ComboDialog, "exec", add)
-    strip.chips.widgets()[-1].click()
-    assert store.combos[-1] == Combo(("小明", "阿星"), "classic") and len(strip.chips.widgets()) == 4
-    # A 嘉宾 taken off the list shows struck out, and the 组合 stays to edit or delete.
-    page.delete(store.like_index("阿星"))
-    chip = strip.chips.widgets()[1]
-    assert chip.people == [("小红", True), ("阿星", False)] and not chip.grab().isNull()
+    page.add_combo_action.trigger()
+    assert dialogs[-1].windowTitle() == "添加组合" and store.combos == [Combo(("小明", "小红"), "classic")]
+    assert _rows(page)[0][:3] == ["小明 + 小红", "", "经典"]
 
-    def delete(dialog) -> int:  # noqa: ANN001
-        dialog._delete()
-        return dialog.result()
 
-    monkeypatch.setattr(ComboDialog, "exec", delete)
-    chip.click()
-    assert store.combos == [Combo(("小明", "小红"), "angel"), Combo(("小明", "阿星"), "classic")]
+def test_the_list_is_empty_only_with_no_guest_and_no_combination(window):
+    from blacklist_detect.model import Combo
+
+    page, store = window.likes_page, window.store
+    store.add_like("小明")
+    store.add_like("小红")
+    store.set_combos([Combo(("小明", "小红"), "angel")])
+    store.clear_likes()
+    page.refresh()
+    # Its 嘉宾 gone, the 组合 waits for them, in the list.
+    assert page.empty.isHidden() and not page.table.isHidden() and not page.add_button.isHidden()
+    assert page.table.item(0, 0).text() == "小明 + 小红"
+    store.set_combos([])
+    page.refresh()
+    assert not page.empty.isHidden() and page.table.isHidden() and not page.empty_add_button.isHidden()
 
 
 def test_a_theme_with_its_own_music_plays_it_unless_music_is_off(window):

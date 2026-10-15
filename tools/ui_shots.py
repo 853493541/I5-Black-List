@@ -177,9 +177,26 @@ def shoot(args) -> None:  # noqa: ANN001
     if window.store.likes:
         step("dlg_编辑嘉宾", lambda: likes.edit(0))
     if len(window.store.likes) >= 2:
-        step("dlg_添加组合", likes.combo_strip.add)
+        step("dlg_添加组合", likes.add_combo)
     if window.store.combos:
-        step("dlg_编辑组合", lambda: likes.combo_strip.edit(0))
+        step("dlg_编辑组合", lambda: likes.edit_combo(0))
+
+    def add_menu() -> None:
+        from PySide6.QtGui import QPainter
+
+        # The page with its 添加 menu open: the menu is a window of its own, laid over the page's picture.
+        likes._open_add()
+        settle(0.3)
+        shot = window.grab()
+        painter = QPainter(shot)
+        painter.drawPixmap(window.mapFromGlobal(likes.add_menu.pos()), likes.add_menu.grab())
+        painter.end()
+        path = out / f"{len(shots):02d}_menu_添加嘉宾.png"
+        shot.save(str(path))
+        shots.append(path.name)
+        likes.add_menu.hide()
+
+    step("menu_添加嘉宾", add_menu)
     step("dlg_选择特效", lambda: ScenePicker("fluffy", "心动小鹿", parent=window).exec())
     window.tabs.setCurrentIndex(window.settings_tab)
     step("dlg_显示说明", window._show_display_guide)

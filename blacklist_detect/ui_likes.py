@@ -7,15 +7,16 @@ when 嘉宾 with different 特效 meet in a lobby the higher one decides, unless
 there. A player is on one list at a time: a 黑名单 name is refused here, and putting a 嘉宾 name on
 黑名单 asks to move it.
 
-The page is laid out like 黑名单 with a 特效 column for 标签: search, 批量导入, 添加, and under 更多,
-复制名单 and 清空嘉宾列表; then the 组合 (ui_guests.ComboStrip) over the list. 嘉宾特效 itself, on or
+The page is laid out like 黑名单 with a 特效 column for 标签: search, 批量导入, 添加 (添加嘉宾 or
+添加组合), and under 更多, 复制名单 and 清空嘉宾列表. The 组合 head the list, each a row tagged 组合 with
+its 嘉宾 and its 特效; under them the 嘉宾, whose rows drag into another order. 嘉宾特效 itself, on or
 off, and its music are in 设置.
 """
 
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, QPoint, Qt, Signal
-from PySide6.QtGui import QColor, QFontMetrics
+from PySide6.QtCore import QEvent, QPoint, QRect, Qt, Signal
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -26,6 +27,8 @@ from PySide6.QtWidgets import (
     QMenu,
     QPlainTextEdit,
     QPushButton,
+    QStyle,
+    QStyleOptionViewItem,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -33,8 +36,9 @@ from PySide6.QtWidgets import (
 )
 
 from blacklist_detect import love_scenes
+from blacklist_detect.guests import members
 from blacklist_detect.match import clean_stored_name, fold, last_seen
-from blacklist_detect.model import Entry
+from blacklist_detect.model import Combo, Entry
 from blacklist_detect.ui_dialogs import (
     BatchAddDialog,
     _danger,
@@ -43,37 +47,133 @@ from blacklist_detect.ui_dialogs import (
     _primary,
     _say_error,
 )
-from blacklist_detect.ui_guests import ComboStrip, ThemeField, scene_name
+from blacklist_detect.ui_guests import ComboDialog, ThemeField, scene_name
 from blacklist_detect.ui_icons import icon as line_icon
 from blacklist_detect.ui_kit import ConfirmDialog, EmptyState, IconButton, Modal
 from blacklist_detect.ui_theme import ROW_H, THEME, _page, _pointing, chinese_font
-from blacklist_detect.ui_widgets import NEVER_MET, _mark_menu_item, _PlainItemDelegate, _zh_ago
+from blacklist_detect.ui_widgets import (
+    NEVER_MET,
+    TagPill,
+    _draw_pill,
+    _mark_menu_item,
+    _pill_face,
+    _pill_size,
+    _PlainItemDelegate,
+    _row_divider,
+    _zh_ago,
+)
 
 # Columns of the list.
 NAME, NICKNAME, THEME_COLUMN, REASON, MET = range(5)
+# On a 组合 row's cells: its place in store.combos; on its 名字, its 嘉宾 as members() gives them.
+COMBO_ROLE = Qt.UserRole + 1
+PEOPLE_ROLE = Qt.UserRole + 2
+# The tag before a 组合's 嘉宾, and why 添加组合 cannot be picked yet.
+COMBO_TAG = "组合"
+TOO_FEW = "先添加至少两位嘉宾"
+
+
+def combos_met(combos: list[Combo], scans: list[dict]) -> dict[int, str]:
+    """When all of each 组合's 嘉宾 were last in one record, by its place in combos. Records are newest
+    first, so the first record that holds them all is the latest."""
+    people = list({fold(name): Entry(name) for combo in combos for name in combo.names}.values())
+    keys = [fold(person.name) for person in people]
+    wanted = [{fold(name) for name in combo.names} for combo in combos]
+    found: dict[int, str] = {}
+    for scan in scans:
+        if len(found) == len(combos):
+            break
+        here = {keys[index] for index in last_seen(people, [scan])[0]}
+        for number, names in enumerate(wanted):
+            if number not in found and names <= here:
+                found[number] = str(scan.get("at", ""))
+    return found
+
+
+def _paint_combo_name(painter: QPainter, rect: QRect, font: QFont, people: list[tuple[str, bool]]) -> None:
+    """A 组合's 名字: the 组合 tag, drawn as 黑名单 draws its tags, then its 嘉宾 joined by +, one since
+    taken off the list struck out in gray; cut with … where they run past the cell."""
+    painter.save()
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    face = _pill_face()
+    painter.setFont(face)
+    size = _pill_size(COMBO_TAG, QFontMetrics(face))
+    tag = QRect(rect.left(), rect.top() + (rect.height() - size.height()) // 2, size.width(), size.height())
+    _draw_pill(painter, tag, COMBO_TAG, True, TagPill._pad)
+    x, limit = tag.right() + 1 + 6, rect.right()
+    parts: list[tuple[str, bool]] = []
+    for index, (name, present) in enumerate(people):
+        if index:
+            parts.append((" + ", True))
+        parts.append((name, present))
+    for text, present in parts:
+        face = QFont(font)
+        face.setStrikeOut(not present)
+        metrics = QFontMetrics(face)
+        painter.setFont(face)
+        painter.setPen(QColor(THEME["text" if present else "muted"]))
+        wide = metrics.horizontalAdvance(text)
+        if x + wide > limit:
+            room = max(0, limit - x)
+            painter.drawText(QRect(x, rect.top(), room, rect.height()), Qt.AlignLeft | Qt.AlignVCenter, metrics.elidedText(text, Qt.ElideRight, room))
+            break
+        painter.drawText(QRect(x, rect.top(), wide + 1, rect.height()), Qt.AlignLeft | Qt.AlignVCenter, text)
+        x += wide
+    painter.restore()
+
+
+class _GuestDelegate(_PlainItemDelegate):
+    """The list's cells, a 组合 row's 名字 painted with its tag and its 嘉宾."""
+
+    def paint(self, painter, option, index) -> None:  # noqa: ANN001
+        people = index.data(PEOPLE_ROLE)
+        if not people:
+            super().paint(painter, option, index)
+            return
+        view = self.parent()
+        drawn = QStyleOptionViewItem(option)
+        self.initStyleOption(drawn, index)
+        drawn.state = drawn.state & ~QStyle.State_HasFocus
+        drawn.text = ""
+        view.style().drawControl(QStyle.CE_ItemViewItem, drawn, painter, view)
+        # Where the cell's words would start, so the tag lines up with the 嘉宾 names under it.
+        words = view.style().subElementRect(QStyle.SE_ItemViewItemText, drawn, view)
+        _paint_combo_name(painter, words, drawn.font, people)
+        _row_divider(painter, option.rect)
 
 
 class _GuestTable(QTableWidget):
-    """The 嘉宾 list, whose rows can be dragged into another order. moved(row, to) says which row
-    went where, as shown; the page moves the 嘉宾 and redraws, so the table moves nothing itself."""
+    """The 嘉宾 list, whose 嘉宾 rows can be dragged into another order. moved(row, to) says which row
+    went where, as shown; the page moves the 嘉宾 and redraws, so the table moves nothing itself.
+    The first `fixed` rows are the 组合: they don't drag, and nothing is dropped among them."""
 
     moved = Signal(int, int)
 
     def __init__(self) -> None:
         super().__init__(0, 5)
+        self.fixed = 0
         self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.setDefaultDropAction(Qt.MoveAction)
         self.setDragDropOverwriteMode(False)
         self.setDropIndicatorShown(True)
 
+    def _drop_row(self, event) -> int:  # noqa: ANN001
+        under = self.indexAt(event.position().toPoint())
+        return under.row() if under.isValid() else self.rowCount() - 1
+
+    def dragMoveEvent(self, event) -> None:  # noqa: ANN001
+        if self._drop_row(event) < self.fixed:
+            event.ignore()
+            return
+        super().dragMoveEvent(event)
+
     def dropEvent(self, event) -> None:  # noqa: ANN001
         row = self.currentRow()
-        under = self.indexAt(event.position().toPoint())
-        to = under.row() if under.isValid() else self.rowCount() - 1
+        to = self._drop_row(event)
         # The table keeps its rows; the page redraws them in the new order.
         event.setDropAction(Qt.IgnoreAction)
         event.accept()
-        if row >= 0 and to >= 0 and row != to:
+        if row >= self.fixed and to >= self.fixed and row != to:
             self.moved.emit(row, to)
 
 
@@ -191,12 +291,19 @@ class LikesPage(QWidget):
         toolbar.addStretch(1)
         batch = QPushButton("批量导入")
         batch.clicked.connect(self.import_many)
-        add = QPushButton("添加")
-        add.setObjectName("primary")
-        add.clicked.connect(self.add_one)
-        self.toolbar_buttons = (batch, add)
+        self.add_button = QPushButton("添加")
+        self.add_button.setObjectName("primary")
+        self.add_button.clicked.connect(self._open_add)
+        self.toolbar_buttons = (batch, self.add_button)
         toolbar.addWidget(batch)
-        toolbar.addWidget(add)
+        toolbar.addWidget(self.add_button)
+        # 添加: a 嘉宾, or a 组合 of them, who all in one lobby get a 特效 of their own.
+        self.add_menu = QMenu(self)
+        self.add_menu.setToolTipsVisible(True)
+        self.add_like_action = self.add_menu.addAction("添加嘉宾", self.add_one)
+        _mark_menu_item(self.add_like_action, "heart")
+        self.add_combo_action = self.add_menu.addAction("添加组合", self.add_combo)
+        _mark_menu_item(self.add_combo_action, "users")
         self.more_button = IconButton("more", "更多")
         self.more_menu = QMenu(self)
         self.copy_action = self.more_menu.addAction("复制名单", self.copy_list)
@@ -207,10 +314,6 @@ class LikesPage(QWidget):
         self.more_button.clicked.connect(self._open_more)
         toolbar.addWidget(self.more_button)
         outer.addLayout(toolbar)
-        # 组合: 嘉宾 who, all in one lobby, get a 特效 of their own, in view over the list.
-        self.combo_strip = ComboStrip(store, music)
-        self.combo_strip.changed.connect(self.changed)
-        outer.addWidget(self.combo_strip)
         self.table = _GuestTable()
         self.table.moved.connect(self._moved)
         self.table.setObjectName("likes")
@@ -235,7 +338,7 @@ class LikesPage(QWidget):
         self.table.setWordWrap(False)
         self.table.setTextElideMode(Qt.TextElideMode.ElideRight)
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.table.setItemDelegate(_PlainItemDelegate(self.table))
+        self.table.setItemDelegate(_GuestDelegate(self.table))
         self.table.setCursor(Qt.PointingHandCursor)
         self.table.cellClicked.connect(self._edit_row)
         self.table.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -247,17 +350,23 @@ class LikesPage(QWidget):
         self.empty_batch_button.clicked.connect(self.import_many)
         self.empty_add_button = self.empty.add_action(QPushButton("添加"))
         self.empty_add_button.setObjectName("primary")
-        self.empty_add_button.clicked.connect(self.add_one)
+        self.empty_add_button.clicked.connect(self._open_add)
         outer.addWidget(self.empty, 1)
         self.refresh()
 
     # The list -----------------------------------------------------------------------------
 
-    def _met(self) -> dict[int, str]:
-        likes, scans = self.store.likes, self.store.scans
-        key = (tuple(like.name for like in likes), tuple((str(s.get("at", "")), len(s.get("names", []))) for s in scans), id(scans))
+    def _met(self) -> tuple[dict[int, str], dict[int, str]]:
+        """最近遇到 of each 嘉宾 and of each 组合, by their places in the store."""
+        likes, combos, scans = self.store.likes, self.store.combos, self.store.scans
+        key = (
+            tuple(like.name for like in likes),
+            tuple(combos),
+            tuple((str(s.get("at", "")), len(s.get("names", []))) for s in scans),
+            id(scans),
+        )
         if self._met_cache is None or self._met_cache[0] != key:
-            self._met_cache = (key, last_seen(likes, scans)[0])
+            self._met_cache = (key, (last_seen(likes, scans)[0], combos_met(combos, scans)))
         return self._met_cache[1]
 
     def _shown_rows(self) -> list[int]:
@@ -272,15 +381,50 @@ class LikesPage(QWidget):
             rows.append(index)
         return rows
 
+    def _shown_combos(self) -> list[int]:
+        """The 组合 in their order, filtered by the search: any of their 嘉宾's name or 昵称."""
+        query = self.search.text().strip()
+        if not query:
+            return list(range(len(self.store.combos)))
+        folded = fold(query)
+        nicknames = {fold(like.name): like.nickname for like in self.store.likes}
+        return [
+            number
+            for number, combo in enumerate(self.store.combos)
+            if any(folded in fold(name) or query in nicknames.get(fold(name), "") for name in combo.names)
+        ]
+
+    def _combo_row(self, row: int, number: int, met: dict[int, str]) -> None:
+        """A 组合's row: the 组合 tag and its 嘉宾 under 名字, its 特效, and when they were last all met."""
+        combo = self.store.combos[number]
+        people = members(combo, self.store.likes)
+        who = " + ".join(name for name, _present in people)
+        cells = (who, "", scene_name(combo.theme), "", _zh_ago(met[number]) if number in met else NEVER_MET)
+        for column, text in enumerate(cells):
+            item = QTableWidgetItem(text)
+            item.setData(COMBO_ROLE, number)
+            # A 组合 keeps its place at the top: it neither drags nor takes a drop.
+            item.setFlags(item.flags() & ~Qt.ItemIsDragEnabled & ~Qt.ItemIsDropEnabled)
+            if column == NAME:
+                item.setData(PEOPLE_ROLE, people)
+                item.setToolTip(f"{COMBO_TAG}：{who}")
+            if column == MET:
+                item.setForeground(QColor(THEME["muted"]))
+            self.table.setItem(row, column, item)
+
     def refresh(self) -> None:
-        """Redraw from the store: in the list's order (the last saved on top), filtered by the search.
-        Rows drag into another order while nothing is searched for."""
+        """Redraw from the store: the 组合 on top, then the 嘉宾 in the list's order (the last saved on
+        top), filtered by the search. 嘉宾 rows drag into another order while nothing is searched for."""
         count = len(self.store.likes)
+        combos = self._shown_combos()
         rows = self._shown_rows()
-        met = self._met()
+        met, combo_met = self._met()
         table = self.table
-        table.setRowCount(len(rows))
-        for row, index in enumerate(rows):
+        table.setRowCount(len(combos) + len(rows))
+        table.fixed = len(combos)
+        for row, number in enumerate(combos):
+            self._combo_row(row, number, combo_met)
+        for row, index in enumerate(rows, len(combos)):
             like = self.store.likes[index]
             cells = (like.name, like.nickname, scene_name(like.theme) if like.theme else "", like.reason, _zh_ago(met[index]) if index in met else NEVER_MET)
             for column, text in enumerate(cells):
@@ -291,11 +435,11 @@ class LikesPage(QWidget):
                 if column in (NICKNAME, MET):
                     item.setForeground(QColor(THEME["rose"] if column == NICKNAME else THEME["muted"]))
                 table.setItem(row, column, item)
-        has_any = count > 0
+        has_any = count > 0 or bool(self.store.combos)
+        shown = bool(combos or rows)
         for widget in (*self.toolbar_buttons, self.more_button, self.search):
             widget.setVisible(has_any or (widget is self.search and bool(self.search.text())))
-        self.combo_strip.refresh()
-        if has_any and not rows:
+        if has_any and not shown:
             self.empty.set_icon("search")
             self.empty.set_text(f"没有找到「{self.search.text().strip()}」")
         else:
@@ -303,23 +447,31 @@ class LikesPage(QWidget):
             self.empty.set_text("嘉宾列表还是空的")
         self.empty_batch_button.setVisible(not has_any)
         self.empty_add_button.setVisible(not has_any)
-        table.setVisible(bool(rows))
-        self.empty.setVisible(not rows)
+        table.setVisible(shown)
+        self.empty.setVisible(not shown)
         # Only the whole list has an order to change.
         table.setDragEnabled(not self.search.text().strip() and len(rows) > 1)
 
     def _index_at(self, row: int) -> int:
+        """The 嘉宾 a row shows, by its place in the store; -1 for a 组合's row or none."""
         item = self.table.item(row, NAME)
         return int(item.data(Qt.UserRole)) if item is not None and item.data(Qt.UserRole) is not None else -1
 
+    def _combo_at(self, row: int) -> int:
+        """The 组合 a row shows, by its place in the store; -1 for a 嘉宾's row or none."""
+        item = self.table.item(row, NAME)
+        return int(item.data(COMBO_ROLE)) if item is not None and item.data(COMBO_ROLE) is not None else -1
+
     def eventFilter(self, watched, event) -> bool:  # noqa: ANN001
         if watched is self.table and event.type() == QEvent.Type.KeyPress:
-            index = self._index_at(self.table.currentRow())
-            if index >= 0 and event.key() in (Qt.Key_Return, Qt.Key_Enter):
-                self.edit(index)
+            row = self.table.currentRow()
+            index, number = self._index_at(row), self._combo_at(row)
+            edit, delete = (self.edit, self.delete) if index >= 0 else (self.edit_combo, self.delete_combo)
+            if max(index, number) >= 0 and event.key() in (Qt.Key_Return, Qt.Key_Enter):
+                edit(max(index, number))
                 return True
-            if index >= 0 and event.key() == Qt.Key_Delete:
-                self.delete(index)
+            if max(index, number) >= 0 and event.key() == Qt.Key_Delete:
+                delete(max(index, number))
                 return True
         return super().eventFilter(watched, event)
 
@@ -369,7 +521,57 @@ class LikesPage(QWidget):
         self.changed.emit()
 
     def _edit_row(self, row: int, _column: int = 0) -> None:
-        self.edit(self._index_at(row))
+        number = self._combo_at(row)
+        if number >= 0:
+            self.edit_combo(number)
+        else:
+            self.edit(self._index_at(row))
+
+    def _combo_editor(self, combo: Combo | None = None) -> ComboDialog:
+        return ComboDialog(self.store.likes, combo, parent=self.window(), music=self.music, music_choice=self.store.love_music)
+
+    def add_combo(self, _checked: bool = False) -> None:
+        """添加组合: two or more 嘉宾 and the 特效 that greets them all in one lobby."""
+        if len(self.store.likes) < 2:
+            self._say(TOO_FEW)
+            return
+        dialog = self._combo_editor()
+        if dialog.exec() != QDialog.Accepted or dialog.combo is None:
+            return
+        self.store.set_combos([*self.store.combos, dialog.combo])
+        self.refresh()
+        self.changed.emit()
+
+    def edit_combo(self, number: int) -> None:
+        if not 0 <= number < len(self.store.combos):
+            return
+        dialog = self._combo_editor(self.store.combos[number])
+        if dialog.exec() != QDialog.Accepted:
+            return
+        if dialog.deleted:
+            self.delete_combo(number)
+            return
+        combos = list(self.store.combos)
+        combos[number] = dialog.combo
+        self.store.set_combos(combos)
+        self.refresh()
+        self.changed.emit()
+
+    def delete_combo(self, number: int) -> None:
+        if not 0 <= number < len(self.store.combos):
+            return
+        before = list(self.store.combos)
+        who = " + ".join(name for name, _present in members(before[number], self.store.likes))
+        self.store.set_combos(before[:number] + before[number + 1 :])
+        self.refresh()
+        self.changed.emit()
+        self._say(f"已删除组合「{who}」", undo=lambda: self._combos_back(before))
+
+    def _combos_back(self, before: list[Combo]) -> None:
+        self.store.set_combos(before)
+        self.refresh()
+        self.changed.emit()
+        self._say("已撤销")
 
     def _moved(self, row: int, to: int) -> None:
         """A row dragged to another place: the 嘉宾 there now decides before the ones below it."""
@@ -441,19 +643,41 @@ class LikesPage(QWidget):
         button = self.more_button
         self.more_menu.popup(button.mapToGlobal(button.rect().bottomRight()) - QPoint(self.more_menu.sizeHint().width(), -4))
 
+    def _ready_add_menu(self) -> None:
+        """添加组合 waits for two 嘉宾 to pick from, and says so."""
+        enough = len(self.store.likes) >= 2
+        self.add_combo_action.setEnabled(enough)
+        self.add_combo_action.setToolTip("" if enough else TOO_FEW)
+
+    def _open_add(self) -> None:
+        """添加, in the toolbar or on the empty list: 添加嘉宾 or 添加组合, under the button."""
+        button = self.empty_add_button if self.add_button.isHidden() else self.add_button
+        self._ready_add_menu()
+        self.add_menu.popup(button.mapToGlobal(button.rect().bottomLeft()) + QPoint(0, 4))
+
     def _row_menu(self, pos) -> None:  # noqa: ANN001
-        index = self._index_at(self.table.rowAt(pos.y()))
-        if index < 0:
+        row = self.table.rowAt(pos.y())
+        index, number = self._index_at(row), self._combo_at(row)
+        if number >= 0:
+            items = (("编辑", "combo_edit", number), (None, None, -1), ("删除", "combo_delete", number))
+        elif index >= 0:
+            top = index == len(self.store.likes) - 1
+            items = (
+                ("编辑", "edit", index),
+                ("复制名字", "copy", index),
+                *(() if top else (("置顶", "top", index),)),
+                (None, None, -1),
+                ("删除", "delete", index),
+            )
+        else:
             return
         menu = QMenu(self)
-        top = index == len(self.store.likes) - 1
-        items = (("编辑", "edit"), ("复制名字", "copy"), *(() if top else (("置顶", "top"),)), (None, None), ("删除", "delete"))
-        for text, kind in items:
+        for text, kind, place in items:
             if text is None:
                 menu.addSeparator()
                 continue
             action = menu.addAction(text)
-            action.setData((kind, index))
+            action.setData((kind, place))
             _mark_menu_item(action)
         menu.triggered.connect(self._on_menu)
         menu.aboutToHide.connect(menu.deleteLater)
@@ -461,7 +685,14 @@ class LikesPage(QWidget):
 
     def _on_menu(self, action) -> None:  # noqa: ANN001
         kind, index = action.data()
-        {"edit": self.edit, "copy": self._copy, "top": self.to_top, "delete": self.delete}[kind](index)
+        {
+            "edit": self.edit,
+            "copy": self._copy,
+            "top": self.to_top,
+            "delete": self.delete,
+            "combo_edit": self.edit_combo,
+            "combo_delete": self.delete_combo,
+        }[kind](index)
 
     def _copy(self, index: int) -> None:
         if 0 <= index < len(self.store.likes):
@@ -473,9 +704,8 @@ class LikesPage(QWidget):
         self.more_button.refresh()
         self.empty.refresh()
         self.search_icon.setIcon(line_icon("search", 16, THEME["muted"]))
-        for action in (self.copy_action, self.clear_action):
+        for action in (self.copy_action, self.clear_action, self.add_like_action, self.add_combo_action):
             _mark_menu_item(action, str(action.property("icon_name") or ""))
-        self.combo_strip.refresh(force=True)
         self.refresh()
 
 

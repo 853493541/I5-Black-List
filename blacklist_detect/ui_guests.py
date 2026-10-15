@@ -3,28 +3,27 @@ lobby, get a scene of their own (guests.lobby_choice).
 
 The 特效 row shows the scene as a small picture and its name; ▶ and 更换 › open 选择特效
 (ui_love_pick). A 嘉宾 with no 特效 of their own is greeted with 经典, and the row and the list say so.
-The 组合 show on the 嘉宾 page as a strip of chips over the list, each its scene's picture, its 嘉宾
-and the scene's name; a click edits one, and + 新组合 adds one.
+The 组合 head the 嘉宾 page's list (ui_likes), each a row tagged 组合 that opens ComboDialog; 添加 ›
+添加组合 adds one.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QRectF, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPainterPath, QPen, QPixmap
-from PySide6.QtWidgets import QAbstractButton, QDialog, QHBoxLayout, QLabel, QPushButton, QWidget
+from PySide6.QtCore import QRectF, QSize, Qt
+from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QWidget
 
 from blacklist_detect import love_scenes
-from blacklist_detect.guests import members
 from blacklist_detect.love_scenes import DESIGN
 from blacklist_detect.match import fold
 from blacklist_detect.model import Combo, Entry
 from blacklist_detect.ui_dialogs import _danger, _field, _primary, _say_error
 from blacklist_detect.ui_icons import icon as line_icon
-from blacklist_detect.ui_kit import Modal, _KeyboardRing
+from blacklist_detect.ui_kit import Modal
 from blacklist_detect.ui_love_pick import ScenePicker, _triangle
-from blacklist_detect.ui_theme import SMALL_PT, THEME, _pointing, chinese_font
+from blacklist_detect.ui_theme import THEME, _pointing
 from blacklist_detect.ui_widgets import _FlowHost
 
 # Each scene at its best moment over the fake-name sample lobby, with the 嘉宾 marks in its look,
@@ -217,187 +216,4 @@ class ComboDialog(Modal):
         self.accept()
 
 
-class ComboChip(_KeyboardRing, QAbstractButton):
-    """One 组合 on the strip: its scene's picture, its 嘉宾 joined by +, and the scene's name under them.
-    A 嘉宾 since taken off the list shows struck out: the combination waits until they are back, or is
-    deleted. With no combination it is + 新组合, in a dashed outline."""
-
-    THUMB_W = 56
-    H = 46
-    PAD = 8
-    RADIUS = 8
-    # The names cut off past this, with the whole of them in the tooltip.
-    WORDS_MAX = 240
-
-    def __init__(self, combo: Combo | None = None, likes: list[Entry] | None = None, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.combo = combo
-        self.people = members(combo, likes or []) if combo else []
-        self.picture = thumbnail(combo.theme, self.THUMB_W, 4) if combo else None
-        self.theme_name = scene_name(combo.theme) if combo else ""
-        who = " + ".join(name for name, _present in self.people)
-        self.setText(who or "+ 新组合")
-        self.setAccessibleName(f"{who} · {self.theme_name}" if combo else "新组合")
-        if combo:
-            self.setToolTip(f"{who}\n{self.theme_name}")
-        self.setCursor(Qt.PointingHandCursor)
-        self.setFocusPolicy(Qt.StrongFocus)
-        self._hover = False
-
-    @staticmethod
-    def _fonts() -> tuple[QFont, QFont]:
-        names = chinese_font(SMALL_PT)
-        names.setWeight(QFont.DemiBold)
-        return names, chinese_font(SMALL_PT)
-
-    def _words_w(self) -> int:
-        names, theme = self._fonts()
-        wide = max(QFontMetrics(names).horizontalAdvance(self.text()), QFontMetrics(theme).horizontalAdvance(self.theme_name))
-        return min(self.WORDS_MAX, wide)
-
-    def sizeHint(self) -> QSize:
-        if self.combo is None:
-            return QSize(QFontMetrics(self._fonts()[0]).horizontalAdvance(self.text()) + 36, self.H)
-        return QSize(self.PAD + self.THUMB_W + 10 + self._words_w() + 14, self.H)
-
-    def enterEvent(self, event) -> None:  # noqa: ANN001
-        self._hover = True
-        self.update()
-        super().enterEvent(event)
-
-    def leaveEvent(self, event) -> None:  # noqa: ANN001
-        self._hover = False
-        self.update()
-        super().leaveEvent(event)
-
-    def paintEvent(self, _event) -> None:  # noqa: ANN001
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-        p.setRenderHint(QPainter.SmoothPixmapTransform)
-        box = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
-        enabled = self.isEnabled()
-        line = QColor(THEME["field_line" if self._hover and enabled else "border"])
-        names, theme = self._fonts()
-        if self.combo is None:
-            p.setPen(QPen(line, 1.2, Qt.DashLine))
-            p.setBrush(QColor(THEME["hover"] if self._hover and enabled else THEME["surface"]))
-            p.drawRoundedRect(box, self.RADIUS, self.RADIUS)
-            p.setFont(names)
-            p.setPen(QColor(THEME["text"] if enabled else THEME["muted"]))
-            p.drawText(box, Qt.AlignCenter, self.text())
-        else:
-            p.setPen(QPen(line, 1))
-            p.setBrush(QColor(THEME["hover"] if self._hover else THEME["surface"]))
-            p.drawRoundedRect(box, self.RADIUS, self.RADIUS)
-            top = (self.height() - self.picture.height() / self.picture.devicePixelRatio()) / 2
-            p.drawPixmap(round(self.PAD), round(top), self.picture)
-            left = self.PAD + self.THUMB_W + 10
-            limit = left + self._words_w()
-            line_h = QFontMetrics(names).height()
-            y = (self.height() - 2 * line_h - 1) / 2
-            self._draw_names(p, names, left, y, limit, line_h)
-            p.setFont(theme)
-            p.setPen(QColor(THEME["muted"]))
-            words = QFontMetrics(theme).elidedText(self.theme_name, Qt.ElideRight, limit - left)
-            p.drawText(QRectF(left, y + line_h + 1, limit - left, line_h), Qt.AlignLeft | Qt.AlignVCenter, words)
-        if self.show_ring():
-            p.setPen(QPen(QColor(THEME["accent_line"]), 1.5, Qt.DashLine))
-            p.setBrush(Qt.NoBrush)
-            p.drawRoundedRect(QRectF(self.rect()).adjusted(1.5, 1.5, -1.5, -1.5), self.RADIUS, self.RADIUS)
-        p.end()
-
-    def _draw_names(self, p: QPainter, font: QFont, x: float, y: float, limit: float, line_h: int) -> None:
-        """The 嘉宾 one after another, + between them, one gone from the list struck out in gray; cut with …
-        where they run past limit."""
-        parts: list[tuple[str, bool]] = []
-        for index, (name, present) in enumerate(self.people):
-            if index:
-                parts.append((" + ", True))
-            parts.append((name, present))
-        for text, present in parts:
-            face = QFont(font)
-            face.setStrikeOut(not present)
-            p.setPen(QColor(THEME["text" if present else "muted"]))
-            metrics = QFontMetrics(face)
-            wide = metrics.horizontalAdvance(text)
-            if x + wide > limit:
-                p.setFont(face)
-                p.drawText(QRectF(x, y, limit - x, line_h), Qt.AlignLeft | Qt.AlignVCenter, metrics.elidedText(text, Qt.ElideRight, round(limit - x)))
-                return
-            p.setFont(face)
-            p.drawText(QRectF(x, y, wide + 1, line_h), Qt.AlignLeft | Qt.AlignVCenter, text)
-            x += wide
-
-
-class ComboStrip(QWidget):
-    """组合 on the 嘉宾 page, between its toolbar and the list: the label, a chip for each combination,
-    and + 新组合 at the end, wrapping onto more lines when there are many. It changes only the store;
-    changed() tells the page. Hidden while there is nothing to combine and nothing combined."""
-
-    changed = Signal()
-
-    def __init__(self, store, music=None, parent: QWidget | None = None) -> None:  # noqa: ANN001
-        super().__init__(parent)
-        self.store = store
-        self.music = music
-        row = QHBoxLayout(self)
-        row.setContentsMargins(0, 0, 0, 0)
-        row.setSpacing(12)
-        label = QLabel("组合")
-        label.setFixedHeight(ComboChip.H)
-        row.addWidget(label, 0, Qt.AlignTop)
-        self.chips = _FlowHost(gap=8)
-        row.addWidget(self.chips, 1)
-        self.add_chip: ComboChip | None = None
-        self._drawn: tuple | None = None
-        self.refresh()
-
-    def refresh(self, force: bool = False) -> None:
-        """Redraw from the store, when the combinations or the 嘉宾 they show changed."""
-        likes = self.store.likes
-        drawn = (tuple(self.store.combos), tuple((like.name, like.shown()) for like in likes))
-        if drawn == self._drawn and not force:
-            return
-        self._drawn = drawn
-        self.chips.clear()
-        for index, combo in enumerate(self.store.combos):
-            chip = ComboChip(combo, likes)
-            chip.clicked.connect(lambda _checked=False, index=index: self.edit(index))
-            self.chips.addWidget(chip)
-        self.add_chip = ComboChip()
-        # A combination needs two 嘉宾 to pick from.
-        enough = len(likes) >= 2
-        self.add_chip.setEnabled(enough)
-        self.add_chip.setToolTip("" if enough else "先添加至少两位嘉宾")
-        self.add_chip.clicked.connect(self.add)
-        self.chips.addWidget(self.add_chip)
-        self.setVisible(enough or bool(self.store.combos))
-
-    def _editor(self, combo: Combo | None = None) -> ComboDialog:
-        return ComboDialog(self.store.likes, combo, parent=self.window(), music=self.music, music_choice=self.store.love_music)
-
-    def add(self) -> None:
-        dialog = self._editor()
-        if dialog.exec() != QDialog.Accepted or dialog.combo is None:
-            return
-        self.store.set_combos([*self.store.combos, dialog.combo])
-        self.refresh()
-        self.changed.emit()
-
-    def edit(self, index: int) -> None:
-        if not 0 <= index < len(self.store.combos):
-            return
-        dialog = self._editor(self.store.combos[index])
-        if dialog.exec() != QDialog.Accepted:
-            return
-        combos = list(self.store.combos)
-        if dialog.deleted:
-            del combos[index]
-        else:
-            combos[index] = dialog.combo
-        self.store.set_combos(combos)
-        self.refresh()
-        self.changed.emit()
-
-
-__all__ = ["ComboChip", "ComboDialog", "ComboStrip", "ThemeField", "poster", "scene_name", "thumbnail"]
+__all__ = ["ComboDialog", "ThemeField", "poster", "scene_name", "thumbnail"]
