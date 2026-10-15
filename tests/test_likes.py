@@ -443,6 +443,30 @@ def test_a_combination_needs_two_guests_and_greets_them_with_its_theme(window):
     window._hide_panel_after_title()
 
 
+def test_picking_a_theme_plays_it_above_the_choices(window):
+    from blacklist_detect.ui_guests import ComboDialog
+    from blacklist_detect.ui_likes import LikeDialog
+
+    # 默认 plays what 嘉宾特效 has, a 嘉宾's own 特效 plays itself, and a click plays the one clicked.
+    window.store.love_scene = "stars"
+    dialog = LikeDialog(default_scene=window.store.love_scene, parent=window)
+    assert dialog.preview.scene == "stars" and dialog.preview._tick.isActive()
+    dialog.theme_row.buttons["cyber"].click()
+    assert dialog.preview.scene == "cyber"
+    dialog.theme_row.buttons[""].click()
+    assert dialog.preview.scene == "stars"
+    dialog.reject()
+    assert not dialog.preview._tick.isActive()
+    assert LikeDialog(theme="angel", parent=window).preview.scene == "angel"
+    window.store.add_like("小明")
+    window.store.add_like("小红")
+    editor = ComboDialog(window.store.likes, parent=window)
+    assert editor.preview.scene == "classic"
+    editor.theme.buttons["claw"].click()
+    assert editor.preview.scene == "claw"
+    editor.reject()
+
+
 def test_a_theme_with_its_own_music_plays_it_unless_music_is_off(window):
     window.store.love_music = "organ"
     assert window._tune_for("claw") == "ambush"

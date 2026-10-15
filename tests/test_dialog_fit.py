@@ -99,6 +99,13 @@ def test_love_effects_fits_a_laptop_without_scrolling(window, monkeypatch):
     assert not effects.scroll.isAncestorOf(effects.play_button)
 
 
+def test_a_guest_with_the_theme_preview_fits_a_laptop_without_scrolling(window, monkeypatch):
+    dialogs = _dialogs(window, monkeypatch)
+    for title in ("添加嘉宾", "编辑嘉宾"):
+        dialogs[title].fit_height(LAPTOP)
+        assert dialogs[title].scroll is None and _card_height(dialogs[title]) <= LAPTOP - 8, title
+
+
 def test_love_counts_say_they_can_be_ticked_together(window, monkeypatch):
     effects = _dialogs(window, monkeypatch)["嘉宾特效"]
     ticked = {count: not box.icon().isNull() for count, box in effects.count_boxes.items()}

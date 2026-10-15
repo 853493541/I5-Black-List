@@ -2,7 +2,8 @@
 lobby, get a scene of their own (guests.lobby_choice).
 
 A 嘉宾's row starts with 默认 (嘉宾特效's own choice), as every choice lists its default first; a
-combination's has only the scenes, since it exists to pick one.
+combination's has only the scenes, since it exists to pick one. Above the row, the picked scene plays
+over the sample lobby, as in 嘉宾特效: 默认 plays what 嘉宾特效 has.
 """
 
 from __future__ import annotations
@@ -24,7 +25,8 @@ from blacklist_detect.match import fold
 from blacklist_detect.model import Combo, Entry
 from blacklist_detect.ui_dialogs import _danger, _field, _footer, _frame, _primary, _say_error
 from blacklist_detect.ui_kit import IconButton, Modal
-from blacklist_detect.ui_theme import _pointing
+from blacklist_detect.ui_love_pick import ScenePreview
+from blacklist_detect.ui_theme import DIALOG_PAD, _pointing
 from blacklist_detect.ui_widgets import _FlowHost
 
 # What a 嘉宾 with no theme of their own gets, as the row and the list say it.
@@ -39,9 +41,21 @@ def scene_name(key: str) -> str:
 
 
 class ThemeRow:
-    """A row of scene buttons, one checked at a time, under a label like the dialog's other fields."""
+    """A row of scene buttons, one checked at a time, under a label like the dialog's other fields; the
+    preview, when there is one, plays the one checked (默认: default, 嘉宾特效's choice)."""
 
-    def __init__(self, layout: QVBoxLayout, label: str, current: str, with_default: bool, parent: QWidget) -> None:
+    def __init__(
+        self,
+        layout: QVBoxLayout,
+        label: str,
+        current: str,
+        with_default: bool,
+        parent: QWidget,
+        preview: ScenePreview | None = None,
+        default: str = "classic",
+    ) -> None:
+        self.preview = preview
+        self.default = default
         self.host = _FlowHost(gap=8)
         self.group = QButtonGroup(parent)
         self.group.setExclusive(True)
@@ -60,13 +74,29 @@ class ThemeRow:
             button.setChecked(key == current)
             if not key:
                 button.setToolTip("跟随嘉宾特效里选的特效")
+            button.clicked.connect(lambda _checked=False, key=key: self.show(key))
             self.group.addButton(button)
             self.host.addWidget(button)
             self.buttons[key] = button
         self.error = _field(layout, label, self.host)
+        self.show(current)
 
     def value(self) -> str:
         return next((key for key, button in self.buttons.items() if button.isChecked()), "")
+
+    def show(self, key: str) -> None:
+        if self.preview is not None:
+            self.preview.show_scene(key or self.default)
+
+
+def preview_on_top(dialog: Modal, layout: QVBoxLayout) -> ScenePreview:
+    """The scene preview at the top of a dialog, the card as wide as it, as 嘉宾特效 is; it stops when the
+    dialog closes."""
+    preview = ScenePreview(dialog)
+    layout.addWidget(preview, 0, Qt.AlignHCenter)
+    dialog.card.setFixedWidth(ScenePreview.WIDTH + 2 * DIALOG_PAD)
+    dialog.finished.connect(preview.stop)
+    return preview
 
 
 class ComboDialog(Modal):
@@ -78,6 +108,7 @@ class ComboDialog(Modal):
         self.deleted = False
         self.combo = combo
         layout = _frame(self, "编辑组合" if combo else "添加组合")
+        self.preview = preview_on_top(self, layout)
         chosen = {fold(name) for name in combo.names} if combo else set()
         self.people = _FlowHost(gap=8)
         self.people_buttons: dict[str, QPushButton] = {}
@@ -93,10 +124,10 @@ class ComboDialog(Modal):
             self.people.addWidget(button)
             self.people_buttons[like.name] = button
         self.people_error = _field(layout, "嘉宾（选两位或更多）", self.people)
-        self.theme = ThemeRow(layout, "特效", combo.theme if combo else "", with_default=False, parent=self)
+        theme = combo.theme if combo else ""
+        self.theme = ThemeRow(layout, "特效", theme, with_default=False, parent=self, preview=self.preview)
         remove = _danger("删除", self._delete) if combo else None
         _footer(self, _primary("保存" if combo else "添加", self._accept), left=remove)
-        self.card.setMinimumWidth(480)
         _pointing(self)
 
     def _clear_error(self, _on: bool = False) -> None:
@@ -199,4 +230,4 @@ class CombosDialog(Modal):
         self.refresh()
 
 
-__all__ = ["DEFAULT_NAME", "ComboDialog", "CombosDialog", "ThemeRow", "scene_name"]
+__all__ = ["DEFAULT_NAME", "ComboDialog", "CombosDialog", "ThemeRow", "preview_on_top", "scene_name"]
