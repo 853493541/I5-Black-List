@@ -86,7 +86,8 @@ class Waveform(_KeyboardRing, QWidget):
     RADIUS = 8
     # Room left and right of the sound, so the window's edges at its very start and end can be taken.
     INSET = 8
-    # How near an edge of the window a press takes that edge rather than the window.
+    # How near an edge of the window a press takes that edge rather than the window (inside it, at most a
+    # quarter of the window).
     GRIP = 7
 
     def __init__(self, samples: np.ndarray, rate: int, limit_s: float = LIMIT_S, parent: QWidget | None = None) -> None:
@@ -139,14 +140,19 @@ class Waveform(_KeyboardRing, QWidget):
     def _part(self, x: float) -> str:
         """What a press at x takes: an edge of the window, the window, or the strip outside it."""
         left, right = self.x_of(self.start), self.x_of(self.start + self.length)
-        near_left, near_right = abs(x - left) <= self.GRIP, abs(x - right) <= self.GRIP
+        # Inside the window an edge reaches a quarter of it at most, so the middle half of a narrow one (5 s of
+        # a long song is a dozen pixels) still moves it; outside, each edge reaches GRIP.
+        reach = min(self.GRIP, (right - left) / 4)
+        if left + reach < x < right - reach:
+            return "move"
+        near_left, near_right = left - self.GRIP <= x <= left + reach, right - reach <= x <= right + self.GRIP
         if near_left and near_right:
             return "left" if x < (left + right) / 2 else "right"
         if near_left:
             return "left"
         if near_right:
             return "right"
-        return "move" if left < x < right else ""
+        return ""
 
     def _grab(self, part: str) -> None:
         cursors = {"left": Qt.SizeHorCursor, "right": Qt.SizeHorCursor, "move": Qt.OpenHandCursor, "": Qt.PointingHandCursor}

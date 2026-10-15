@@ -126,6 +126,37 @@ def test_a_press_beside_the_window_brings_it_there(qapp, player):
     assert length == LIMIT_S and start == pytest.approx(9.5, abs=0.05)
 
 
+@pytest.mark.parametrize("seconds", [180.0, 240.0])
+def test_on_a_long_song_the_narrow_window_still_moves(qapp, player, seconds):
+    """5 s of a 3 or 4 minute song is a dozen pixels: its middle moves it, not an edge."""
+    dialog = _dialog(player, seconds=seconds)
+    wave = dialog.wave
+    _drag(wave, wave.x_of(2.5), wave.x_of(2.5) + 60)
+    start, length = dialog.selection()
+    assert length == LIMIT_S and start > 15
+    # A press just beside its middle moves it too, and keeps its 5 s.
+    wave.set_selection(60.0, 5.0)
+    _drag(wave, wave.x_of(62.5) - 2, wave.x_of(62.5) + 58)
+    start, length = dialog.selection()
+    assert length == LIMIT_S and start > 75
+
+
+def test_a_short_window_moves_and_its_edges_are_still_taken(qapp, player):
+    dialog = _dialog(player)
+    wave = dialog.wave
+    wave.set_selection(10.0, MIN_S)
+    _drag(wave, wave.x_of(10.25), wave.x_of(14.25))
+    start, length = dialog.selection()
+    assert length == MIN_S and start == pytest.approx(14.0, abs=0.05)
+    # Just outside an edge takes that edge.
+    _drag(wave, wave.x_of(14.5) + 3, wave.x_of(17.0))
+    start, length = dialog.selection()
+    assert start == pytest.approx(14.0, abs=0.05) and start + length == pytest.approx(17.0, abs=0.05)
+    _drag(wave, wave.x_of(14.0) - 3, wave.x_of(13.0))
+    start, length = dialog.selection()
+    assert start == pytest.approx(13.0, abs=0.05) and start + length == pytest.approx(17.0, abs=0.05)
+
+
 def test_the_right_edge_shortens_and_lengthens_within_the_limits(qapp, player):
     dialog = _dialog(player)
     wave = dialog.wave
