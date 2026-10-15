@@ -89,6 +89,11 @@ agent needs. Agent worktrees are under `.claude/worktrees/`; a worktree with com
   merges or pushes.
 - `tester`: tests one branch in its worktree and tries to break it. Never edits code.
 
+Every agent, the four above and any workflow or one-off agent, runs on Opus at effort high (the user's rule,
+2026-10-15; the same in ZPS `AGENTS.md`). Extra high only when really needed, such as an implementer stuck on a hard
+bug. Never Fable and never max for an agent, whatever the master runs on: an agent call without a model inherits
+the master's, so name it every time.
+
 The master's rules:
 
 1. Small or back-and-forth changes (UI polish, wording) the master makes itself. The team is for work
