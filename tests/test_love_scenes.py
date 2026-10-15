@@ -459,6 +459,31 @@ def test_the_claw_rips_down_from_the_top(qapp):
     assert above > 0 and below > 0
 
 
+@pytest.mark.parametrize("stage", [sample_stage(), Stage(900, 640, QRectF(300, 540, 330, 100), badge=QPointF(600, 580))])
+def test_the_sheep_cast_never_covers_a_name(qapp, stage):
+    """喜羊羊's cast, the pan, the 咣 and his words keep off the twelve names all the way through, on the
+    lobby and on a narrower window; 喜羊羊 stands over a quarter of the lobby tall beside them."""
+    from blacklist_detect.love_scenes import sheep
+
+    paint = sheep.make(stage)
+    names = stage.names()
+    t = 0.0
+    while t <= sheep.DURATION:
+        image = QImage(round(stage.width), round(stage.height), QImage.Format_ARGB32_Premultiplied)
+        image.fill(Qt.transparent)
+        painter = QPainter(image)
+        painter.setRenderHint(QPainter.Antialiasing)
+        paint(painter, t)
+        painter.end()
+        for name in names:
+            box = name.toRect()
+            covered = [image.pixelColor(x, y).alpha() for x in range(box.left(), box.right(), 3) for y in range(box.top(), box.bottom(), 3)]
+            assert max(covered) < 40, (round(t, 2), box)
+        t += 0.05
+    image, box = sheep._sprite(QImage(str(sheep.CAST_PICTURES / "xiyangyang.png")), 0.27 * 848, 1.0)
+    assert not image.isNull() and box.height() == 0.27 * 848
+
+
 @pytest.mark.parametrize("scale", [1.0, 2.0])
 def test_the_conductors_badge_holds_his_role_icon(qapp, scale):
     """演说家遇袭's badge is the 指挥家's role icon from the game, centred inside the disc's rim, his

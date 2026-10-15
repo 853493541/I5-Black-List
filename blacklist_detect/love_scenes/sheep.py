@@ -2,31 +2,62 @@
 
 A rolling meadow rises along the bottom, its grass grained per pixel and its blades swaying, a few
 little flowers in it and a wooden signpost reading 青青草原; a soft sky haze and puffy clouds drift in
-along the top, and a warm sun glows in the top left corner. A little white lamb, round cloud-puff wool,
-big shining eyes, curled horns and a golden bell on a red collar, bounces in from the left in three
-hops, lands and waves. A grey wolf in a patched yellow hat, a scar on his cheek, tiptoes in on the
-right half behind a bush, rubbing his paws and grinning, until a frying pan flies in from the top
-right: 咣! He spins up and away into the sky, 我一定会回来的！ trailing him, and twinkles out as a star.
-The lamb jumps for joy, the meadow sways, and it all sinks back and fades. Both are drawn here, in
-code, in the spirit of 喜羊羊与灰太狼; nothing is traced from the show.
+along the top, and a warm sun glows in the top left corner. 喜羊羊 hops in from the left to the corner
+beside the names, a quarter of the screen tall, and 美羊羊, 懒羊羊 and 沸羊羊 hop in behind him along the
+bottom. Nearer, in the long grass on the right, 灰太狼 tiptoes in, rocking on his toes, and 红太狼 after
+him, her frying pan standing up at her side. She swings it down through the grass and up onto the side
+of his head: 咣! between them. He is squashed flat, then spins out and up past the names, back in high up
+with 我一定会回来的！ trailing him, and twinkles out as a star. The lambs jump for joy, the meadow sways,
+and it all sinks back and fades.
+
+The cast are the show's own pictures (assets/sheep), each scaled once to its size on the stage and only
+moved, turned and squashed per frame; their shadows on the grass, the pan and all the rest are drawn
+here. Nothing covers a name: 喜羊羊 stands in the room left of the names, the lambs under them as tall as
+the room there lets them be, and the wolves, taller than 喜羊羊, stand down past the bottom edge with
+only their heads and shoulders up in that room.
 
 Its marks: the card a sunny meadow card, cream paper with shaded grass along its bottom and a little
 cloud on its corner, the names in a rounded hand (幼圆 where it is installed), each after a golden
-bell; the ring a garland of wool puffs round the button, bobbing; the badge the golden bell on its red
-collar, swinging and glinting now and then.
+bell; the ring a garland of wool puffs round the button, bobbing; the badge 喜羊羊's golden bell on its
+blue ribbon, swinging and glinting now and then.
 """
 
 from __future__ import annotations
 
 import math
 import random
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QFont, QFontMetricsF, QImage, QPainter, QPainterPath, QPainterPathStroker, QPen, QPixmap, QRadialGradient, QTransform
+from PySide6.QtGui import (
+    QColor,
+    QFont,
+    QFontMetricsF,
+    QImage,
+    QPainter,
+    QPainterPath,
+    QPainterPathStroker,
+    QPen,
+    QPixmap,
+    QRadialGradient,
+    QTransform,
+)
 
-from blacklist_detect.love_scenes.draw import clamp, col, ease_back, ease_in, ease_in_out, ease_out, glint, soft_dot, spring, star, win
+from blacklist_detect.love_scenes.draw import (
+    clamp,
+    col,
+    ease_back,
+    ease_in,
+    ease_in_out,
+    ease_out,
+    glint,
+    soft_dot,
+    spring,
+    star,
+    win,
+)
 from blacklist_detect.love_scenes.light import bloom, blur, glow, mask, noise, picture, rgb, smooth
 
 if TYPE_CHECKING:
@@ -35,27 +66,17 @@ if TYPE_CHECKING:
     from blacklist_detect.love_scenes import Stage
 
 DURATION = 5.0
-# 青青草原's colors: its grass, sky and sun; the lamb's wool, face, horns, hooves, bell and collar; the
-# wolf's greys, hat and its patch; the pan's iron, the signpost's wood, and the ink of every outline.
+# 青青草原's colors: its grass, sky and sun; the wool, the bell and its ribbon; the pan's iron, and the
+# ink of every outline.
 GRASS = "#7ccf4a"
 GRASS_LIGHT = "#b8e86e"
 GRASS_DEEP = "#3f8f2e"
 SKY = "#8fd3ff"
 SUN = "#ffd36b"
 WOOL = "#f2f4f9"
-CREAM = "#fde6c4"
-PINK = "#f7a3b2"
-HORN = "#f0d29a"
-HOOF = "#6b4a35"
 BELL = "#f5c542"
-COLLAR = "#e0393e"
-GREY = "#8d929c"
-GREY_LIGHT = "#d6d9df"
-GREY_DEEP = "#666b77"
-HAT = "#f6c838"
-PATCH = "#d8742c"
+RIBBON = "#2c7be5"
 IRON = "#34363d"
-WOOD = "#c98d52"
 INK = "#2f2622"
 PAPER = "#fffaee"
 LOOK = {
@@ -67,7 +88,7 @@ LOOK = {
     "ink": "#4a3420",
     "flowers": (("#fffbe8", BELL, "#c9922a"), ("#f4ffe8", "#a6dc72", GRASS_DEEP)),
     "disc": (PAPER, "#ffe9a8"),
-    "heart": ("#ff7f86", COLLAR),
+    "heart": ("#7fb4ff", RIBBON),
     "deep": "#d9a520",
     "deep_glow": (245, 197, 66),
 }
@@ -83,20 +104,40 @@ ROUNDED = ["YouYuan", "Microsoft YaHei", "Microsoft YaHei UI"]
 # Light from the upper left, and halfway between it and the eye, for gloss.
 LIGHT = np.array([-0.5, -0.62, 0.6]) / np.linalg.norm([-0.5, -0.62, 0.6])
 HALF = (LIGHT + [0, 0, 1]) / np.linalg.norm(LIGHT + [0, 0, 1])
-# The lamb's three hops in from the left: (takes off, lands, from x, to x, how high), x from the
-# screen's left edge and heights in points at full size.
-HOPS = ((0.5, 0.84, -80.0, 22.0, 58.0), (0.84, 1.18, 22.0, 88.0, 46.0), (1.18, 1.52, 88.0, 150.0, 36.0))
-# It waves, and later jumps for joy: (takes off, lands, how high).
-WAVE = (1.58, 2.62)
-JUMPS = ((3.45, 3.85, 52.0), (3.92, 4.32, 42.0))
-# The wolf tiptoes in; the pan flies in and hits; he flies off and becomes a star; his words trail him.
-SNEAK = (1.5, 2.35)
-PAN = (2.52, 2.75)
-FLIGHT = (2.82, 3.6)
-BUBBLE_AT = 3.2
-# The lamb and the wolf, how tall, in points at full size.
-LAMB = 126.0
-WOLF = 128.0
+
+# The cast, as the show draws them, front on and standing.
+CAST_PICTURES = Path(__file__).resolve().parent.parent / "assets" / "sheep"
+CAST = {"xi": "xiyangyang", "mei": "meiyangyang", "lan": "lanyangyang", "fei": "feiyangyang", "hui": "huitailang", "hong": "hongtailang"}
+# How tall each stands, as a share of the stage's height: 喜羊羊 over a quarter; the other lambs at most a
+# little smaller, as tall as the room under the names lets them be; the wolves taller than 喜羊羊.
+TALL = {"xi": 0.27, "mei": 0.23, "lan": 0.23, "fei": 0.23, "hui": 0.275, "hong": 0.275}
+# Points at full size kept free over the lambs under the names, for their hops and jumps, and over the
+# wolves, for their tiptoes.
+JUMP_ROOM = 14.0
+WOLF_ROOM = 10.0
+# 喜羊羊 beside the names: how much wider he may squash as he lands, how far he may lean (degrees) once
+# there, and the share of him that may stand past the screen's left edge (a horn's tip).
+XI_SQUASH = 0.06
+XI_LEAN = 2.5
+CUT = 0.04
+# 红太狼's paw, as a share of her picture's width and height; the pan's bowl, as a share of her height.
+PAW = (0.373, 0.797)
+BOWL = 0.16
+# The lambs hop in from the left: (who, sets off, lands, hops). The ones along the bottom first, the one
+# going furthest leading, behind 喜羊羊 as he hops into his corner.
+ENTRANCES = (("fei", 0.2, 1.2, 5), ("lan", 0.3, 1.3, 4), ("mei", 0.4, 1.4, 4), ("xi", 0.5, 1.2, 3))
+# They jump for joy twice: (takes off, lands).
+JUMPS = ((3.42, 3.8), (3.88, 4.26))
+# 灰太狼 tiptoes in; 红太狼 walks in after him; the pan swings down through the grass and up onto his
+# head, bounces off it and goes back the way it came; he is squashed, then flies off and becomes a
+# star, his words trailing him.
+SNEAK = (1.3, 2.3)
+WALK = (1.7, 2.3)
+SWING = 2.4
+HIT = 2.68
+LOWER = (3.05, 3.6)
+FLIGHT = (2.82, 3.66)
+BUBBLE_AT = 3.08
 # The grass blades sway through these pictures, one after another.
 SWAYS = 10
 
@@ -104,49 +145,97 @@ SWAYS = 10
 def make(stage: Stage):  # noqa: ANN201
     width, height, gap = stage.width, stage.height, stage.gap
     u = stage.unit()
-    lamb_s, wolf_s = LAMB * u, WOLF * u
-    ground_l, ground_r = height - 30 * u, height - 24 * u
-    wolf_x = width - 108 * u
-    bush_at = QPointF(wolf_x - 22 * u, height - 8 * u)
-    sign_at = QPointF(max(gap.left() - 92 * u, 250 * u), height - 34 * u)
+    ground = height - 6 * u
+    names = stage.names()
     sun = QPointF(30 * u, 22 * u)
-    # Where the pan hits his hat, and the flight from there up the right edge to where he twinkles out.
-    hit = QPointF(wolf_x, ground_r - 0.9 * wolf_s)
-    twinkle = QPointF(width - 238 * u, 92 * u)
-    flight = (QPointF(wolf_x, ground_r - 0.5 * wolf_s), QPointF(width - 18 * u, height * 0.5), QPointF(width - 40 * u, 120 * u), twinkle)
+    pictures = {who: QImage(str(CAST_PICTURES / f"{name}.png")) for who, name in CAST.items()}
+    aspect = {who: image.width() / max(1, image.height()) for who, image in pictures.items()}
+    # Under the names: from the lowest name's bottom to the ground.
+    ceiling = max((name.bottom() for name in names), default=height * 0.82) + 4 * u
+    band = max(24 * u, ground - ceiling)
+    tall = {who: min(TALL[who] * height, band - JUMP_ROOM * u) for who in ("mei", "lan", "fei")}
+    # 喜羊羊 in the corner left of the names, as tall as he may be there, landing and leaning included.
+    xi = TALL["xi"] * height
+    for _ in range(3):
+        beside = [name.left() for name in names if name.bottom() > ground - xi - 60 * u]
+        room = min(beside, default=width) - 4 * u
+        xi = max(tall["mei"], min(xi, room / (aspect["xi"] * (1 + XI_SQUASH / 2 - CUT) + 0.75 * math.sin(math.radians(XI_LEAN)))))
+    tall["xi"] = xi
+    # The wolves nearer than the lambs: taller than 喜羊羊, their heads under the names and the rest of
+    # them down past the bottom edge, in the long grass there.
+    tall.update({who: max(TALL[who] * height, band - WOLF_ROOM * u) for who in ("hui", "hong")})
+    feet = {who: max(ground, ceiling + WOLF_ROOM * u + tall[who]) for who in ("hui", "hong")}
+    wide = {who: tall[who] * aspect[who] for who in CAST}
+    # Where each stands: 喜羊羊 in the corner, a sliver of him past the edge; the others along the bottom
+    # up to the gap.
+    rest = {"xi": min(4 * u + wide["xi"] / 2, room - wide["xi"] * (1 + XI_SQUASH) / 2 - 0.75 * xi * math.sin(math.radians(XI_LEAN)))}
+    start, end = rest["xi"] + wide["xi"] / 2 + 6 * u, gap.left() - 8 * u
+    row = ("mei", "lan", "fei")
+    spare = (end - start) - sum(wide[who] for who in row)
+    x = start + max(0.0, spare) / (len(row) + 1)
+    step = max(0.0, spare) / (len(row) + 1) if spare > 0 else spare / (len(row) - 1)
+    for who in row:
+        rest[who] = x + wide[who] / 2
+        x += wide[who] + step
+    # 灰太狼 just right of the gap; 红太狼 further right, room between them for the signpost and the 咣.
+    burst_r = clamp(band / 2.7, 12 * u, 54 * u)
+    rest["hui"] = gap.right() + wide["hui"] / 2 + 24 * u
+    between = clamp(width - 4 * u - (rest["hui"] + wide["hui"] / 2) - wide["hong"], 0.0, 2.4 * burst_r)
+    rest["hong"] = rest["hui"] + wide["hui"] / 2 + between + wide["hong"] / 2
+    middle = rest["hui"] + wide["hui"] / 2 + between / 2
+    sign_at = QPointF(middle, ground + 2 * u)
+    bang = QPointF(middle, max(feet["hui"] - 0.66 * tall["hui"], ceiling + 1.35 * burst_r))
+    # The pan: held down in the grass at her side, swung up from below onto the side of his head.
+    head = QPointF(rest["hui"] + 0.46 * wide["hui"], feet["hui"] - 0.66 * tall["hui"])
+    grip = QPointF(rest["hong"] - 0.3 * wide["hong"], min(feet["hong"] - (1 - PAW[1]) * tall["hong"], height + 10 * u))
+    reach = math.hypot(head.x() - grip.x(), head.y() - grip.y())
+    bowl = BOWL * tall["hong"]
+    swing_to = math.degrees(math.atan2(head.y() - grip.y(), head.x() - grip.x())) % 360
+    # At rest it stands up by her right side, as high as the names let it.
+    rest_angle = -math.degrees(math.asin(clamp((grip.y() - ceiling - 2 * u - bowl) / reach, 0.17, 0.98)))
+    # He flies from the blow out right along the bottom, up past the names beyond them, and back in
+    # high up to where he twinkles out.
+    top_names = min((name.top() for name in names), default=height * 0.48)
+    names_right = max((name.right() for name in names), default=width)
+    beyond = names_right + 0.3 * tall["hui"]
+    launch = QPointF(rest["hui"], feet["hui"] - 0.4 * tall["hui"])
+    twinkle = QPointF(width - 0.12 * width, max(60 * u, 0.14 * height))
+    flight = (launch, QPointF(beyond, launch.y()), QPointF(beyond, (ceiling + top_names) / 2), QPointF(beyond, top_names - 0.25 * tall["hui"] - 4 * u), twinkle)
     # (x, y, how wide, which way it drifts in from)
     clouds = [(255 * u, 82 * u, 140 * u, -1), (585 * u, 58 * u, 96 * u, -1), (width - 118 * u, 70 * u, 128 * u, 1)]
     makers = [
         ("sky", lambda _scale: _sky(width, u)),
         ("sun", lambda _scale: _sun(sun, u)),
         ("rays", lambda _scale: _rays(u)),
-        *((("cloud", index), lambda scale, wide=wide, index=index: _cloud(wide, scale, 5 + index)) for index, (_x, _y, wide, _from) in enumerate(clouds)),
+        ("shadow", lambda _scale: _shadow_picture()),
+        ("star-glow", lambda _scale: _star_glow(20 * u)),
+        *((("cast", who), lambda scale, who=who: _sprite(pictures[who], tall[who], scale)) for who in CAST),
+        *((("cloud", index), lambda scale, wide=wide_, index=index: _cloud(wide, scale, 5 + index)) for index, (_x, _y, wide_, _from) in enumerate(clouds)),
         *((("meadow", side), lambda scale, side=side: _meadow(width, height, gap, u, scale, side)) for side in (-1, 1)),
         *((("blades", side, phase), lambda scale, side=side, phase=phase: _blades(width, height, gap, u, scale, side, phase)) for phase in range(SWAYS) for side in (-1, 1)),
+        *((("long grass", phase), lambda scale, phase=phase: _blades(width, height, gap, u, scale, 1, phase, front=True)) for phase in range(SWAYS)),
         ("sign", lambda scale: _sign(u, scale)),
-        ("bush", lambda scale: _bush(132 * u, scale)),
-        *((("lamb", face), lambda scale, face=face: _lamb(lamb_s, scale, face)) for face in ("open", "happy")),
-        ("arm", lambda scale: _arm(lamb_s, scale)),
-        ("bell", lambda scale: _bell(0.062 * lamb_s, scale)),
-        ("wolf", lambda scale: _wolf(wolf_s, scale, "sneak")),
-        ("paw", lambda scale: _paw(wolf_s, scale)),
-        ("pan", lambda scale: _pan(34 * u, scale)),
-        ("hit", lambda scale: _wolf(wolf_s, scale, "hit")),
-        ("burst", lambda scale: _burst(54 * u, scale)),
+        ("pan", lambda scale: _pan(reach, bowl, scale)),
+        ("burst", lambda scale: _burst(burst_r, scale)),
         ("bubble", lambda scale: _bubble(u, scale)),
         ("star", lambda scale: _star(20 * u, scale)),
-        ("star-glow", lambda _scale: _star_glow(20 * u)),
     ]
     how = dict(makers)
     baked: dict[tuple, object] = {}
+    soft_light = ("sky", "sun", "rays", "shadow", "star-glow")
 
     def picture_of(name: object, scale: float) -> object:
         # The soft light is the same at every sharpness.
-        if name in ("sky", "sun", "rays", "star-glow"):
+        if name in soft_light:
             scale = 0.0
         if (name, scale) not in baked:
             baked[name, scale] = how[name](scale)
         return baked[name, scale]
+
+    for name, _how in makers:
+        picture_of(name, 1.0)
+    layout = {"u": u, "ground": ground, "feet": feet, "tall": tall, "wide": wide, "rest": rest, "bang": bang, "ceiling": ceiling}
+    layout.update({"grip": grip, "rest_angle": rest_angle, "swing_to": swing_to, "flight": flight, "top_names": top_names, "width": width, "height": height})
 
     def paint(p: QPainter, t: float) -> None:
         # Up from below as it comes in, down again at the end.
@@ -155,57 +244,61 @@ def make(stage: Stage):  # noqa: ANN201
         if up <= 0 or life <= 0:
             return
         scale = _sharpness(p)
+
+        def get(name: object) -> object:
+            return picture_of(name, scale)
+
         drop = (1 - up) * 150 * u
         p.save()
         p.setRenderHint(QPainter.SmoothPixmapTransform)
         p.setOpacity(life * up)
-        rect, image = picture_of("sun", scale)
+        rect, image = get("sun")
         p.drawImage(rect, image)
         p.save()
         p.translate(sun)
         p.rotate(t * 7)
         p.setOpacity(life * up * (0.8 + 0.2 * math.sin(t * 2.3)))
-        rect, image = picture_of("rays", scale)
+        rect, image = get("rays")
         p.drawImage(rect, image)
         p.restore()
         p.setOpacity(life * ease_out(win(t, 0.05, 0.75)))
-        rect, image = picture_of("sky", scale)
+        rect, image = get("sky")
         p.drawImage(rect.translated(0, -(1 - up) * 50 * u), image)
-        for index, (x, y, wide, side) in enumerate(clouds):
+        for index, (x, y, wide_, side) in enumerate(clouds):
             come = ease_out(win(t, 0.05 + 0.12 * index, 0.85 + 0.12 * index))
             if come <= 0:
                 continue
-            image, box = picture_of(("cloud", index), scale)
-            drift = side * (1 - come) * (wide + 160 * u) - side * 6 * u * t
+            image, box = get(("cloud", index))
+            drift = side * (1 - come) * (wide_ + 160 * u) - side * 6 * u * t
             bob = 2.5 * u * math.sin(t * 1.4 + index * 2)
             p.setOpacity(life * come * (1 - ease_in(win(t, 4.4, 4.9))))
             p.drawImage(box.translated(x + drift, y + bob - (1 - up) * 40 * u), image)
         p.setOpacity(life)
         for side in (-1, 1):
-            rect, image = picture_of(("meadow", side), scale)
+            rect, image = get(("meadow", side))
             p.drawImage(rect.translated(0, drop), image)
-        image, box = picture_of("sign", scale)
-        p.drawImage(box.translated(sign_at.x(), sign_at.y() + drop), image)
-        # The blades sway in a breeze that gusts as the lamb jumps for joy.
+        # The blades sway in a breeze that gusts as the lambs jump for joy.
         breeze = t * 0.65 + 1.6 * ease_in_out(win(t, 3.35, 4.45))
-        step = (breeze * SWAYS) % SWAYS
-        first, mix_in = int(step), step - int(step)
+        step_ = (breeze * SWAYS) % SWAYS
+        first, mix_in = int(step_), step_ - int(step_)
         for side in (-1, 1):
             for phase, alpha in ((first, 1.0), ((first + 1) % SWAYS, mix_in)):
-                rect, image = picture_of(("blades", side, phase), scale)
+                rect, image = get(("blades", side, phase))
                 p.setOpacity(life * alpha)
                 p.drawImage(rect.translated(0, drop), image)
         p.setOpacity(life)
-        _paint_lamb(p, t, lambda name: picture_of(name, scale), u, lamb_s, ground_l + drop)
-        _paint_wolf(p, t, lambda name: picture_of(name, scale), u, wolf_s, wolf_x, width, ground_r + drop, bush_at + QPointF(0, drop))
-        _paint_gag(p, t, lambda name: picture_of(name, scale), u, wolf_s, hit, flight, width, height)
+        image, box = get("sign")
+        p.drawImage(box.translated(sign_at.x(), sign_at.y() + drop), image)
+        _paint_lambs(p, t, get, layout, drop)
+        _paint_bang(p, t, get, layout)
+        _paint_wolves(p, t, get, layout, drop)
+        for phase, alpha in ((first, 1.0), ((first + 1) % SWAYS, mix_in)):
+            rect, image = get(("long grass", phase))
+            p.setOpacity(life * alpha)
+            p.drawImage(rect.translated(0, drop), image)
+        p.setOpacity(life)
+        _paint_gag(p, t, get, layout)
         p.restore()
-        # One picture worked out ahead each frame, so no frame waits long for it.
-        for name, _how in makers:
-            key = (name, 0.0 if name in ("sky", "sun", "rays", "star-glow") else scale)
-            if key not in baked:
-                picture_of(name, scale)
-                break
 
     return paint
 
@@ -217,132 +310,166 @@ def _sharpness(p: QPainter) -> float:
     return round(ratio * math.hypot(p.transform().m11(), p.transform().m12()), 2)
 
 
-# The lamb.
+# The cast.
 
 
-def _lamb_pose(t: float) -> tuple[float, float, float, str, float, float, float] | None:
-    """Where the lamb is at t, or None before it comes: x from the left edge and how high off the
-    ground (points at full size), how squashed (wider and shorter; less than 0 stretched), its face,
-    its left and right arms' turn from hanging down (degrees) and its bell's swing."""
-    if t < HOPS[0][0]:
-        return None
-    x, lift, squash, swing = HOPS[-1][3], 0.0, 0.0, 0.0
-    arms = [16.0, -16.0]
-    landed = None
-    for start, land, x0, x1, high in HOPS:
-        if start <= t < land:
-            k = (t - start) / (land - start)
-            x = x0 + (x1 - x0) * k
-            lift = high * 4 * k * (1 - k)
-            squash = -0.13 * math.sin(math.pi * k)
-            fling = 36 + 46 * math.sin(math.pi * k)
-            arms = [fling, -fling]
-            swing = -24 * math.cos(math.pi * k)
-            break
-        if t >= land:
-            landed = land
-    face = "happy" if 3.38 <= t < 4.75 else "open"
-    for start, land, high in JUMPS:
-        if start <= t < land:
-            k = (t - start) / (land - start)
-            lift = high * 4 * k * (1 - k)
-            squash = -0.11 * math.sin(math.pi * k)
-            swing = -20 * math.cos(math.pi * k)
-        if t >= land:
-            landed = land
-    if lift == 0 and landed is not None:
-        squash += 0.17 * spring(t - landed, 2.4, 7.0)
-        swing = 26 * spring(t - landed, 1.9, 3.5)
-    squash += 0.012 * math.sin(t * 6.0)
-    # It waves with its right arm, and throws both up for joy.
-    wave = ease_out(win(t, WAVE[0], WAVE[0] + 0.18)) * (1 - ease_in_out(win(t, WAVE[1] - 0.15, WAVE[1])))
-    if wave > 0:
-        arms[1] += (-150 + 22 * math.sin(2 * math.pi * 2.6 * (t - WAVE[0])) - arms[1]) * wave
-    joy = ease_out(win(t, 3.38, 3.5)) * (1 - ease_in_out(win(t, 4.4, 4.6)))
-    if joy > 0:
-        cheer = 10 * math.sin(2 * math.pi * 3.0 * t)
-        arms = [arms[0] + (150 + cheer - arms[0]) * joy, arms[1] + (-150 + cheer - arms[1]) * joy]
-    return x, lift, squash, face, arms[0], arms[1], swing
+def _sprite(image: QImage, tall: float, scale: float) -> tuple[QImage, QRectF]:
+    """One of the cast's pictures scaled smoothly, once, to tall points at scale pixels to the point,
+    and its box standing on (0, 0)."""
+    wide = tall * image.width() / max(1, image.height())
+    pixels = image.scaled(max(1, round(wide * scale)), max(1, round(tall * scale)), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+    return pixels.convertToFormat(QImage.Format_ARGB32_Premultiplied), QRectF(-wide / 2, -tall, wide, tall)
 
 
-def _paint_lamb(p: QPainter, t: float, picture_of: Callable, u: float, s: float, ground: float) -> None:
-    """The lamb hopping in, waving and jumping for joy, its shadow on the grass under it."""
-    pose = _lamb_pose(t)
-    if pose is None:
-        return
-    x, lift, squash, face, left, right, swing = pose
-    at = QPointF(x * u, ground - lift * u)
-    _shadow(p, QPointF(at.x(), ground), 0.26 * s, 0.05 * s, 1 / (1 + lift / 50))
-    body, box = picture_of(("lamb", face))
-    arm, arm_box = picture_of("arm")
-    bell, bell_box = picture_of("bell")
+def _stand(p: QPainter, picture: tuple[QImage, QRectF], at: QPointF, lift: float = 0.0, squash: float = 0.0, tilt: float = 0.0) -> None:
+    """A character standing on at, lift points up off it, squash wider and shorter (less than 0
+    stretched taller), tilt degrees about its feet."""
+    image, box = picture
     p.save()
-    p.translate(at)
+    p.translate(at.x(), at.y() - lift)
+    p.rotate(tilt)
     p.scale(1 + squash, 1 - squash)
-    p.drawImage(box, body)
-    for side, turn in ((-1, left), (1, right)):
-        p.save()
-        p.translate(side * 0.15 * s, -0.43 * s)
-        p.rotate(turn)
-        p.drawImage(arm_box, arm)
-        p.restore()
-    p.translate(0, -0.415 * s)
-    p.rotate(swing)
-    p.drawImage(bell_box, bell)
+    p.drawImage(box, image)
     p.restore()
 
 
-def _shadow(p: QPainter, at: QPointF, rx: float, ry: float, strength: float) -> None:
-    """A soft shadow on the grass."""
+def _shadow_picture() -> tuple[QImage, QRectF]:
+    """A soft round shadow on the grass, per pixel, a unit across, to be stretched under each one."""
+    n = 96
+    xs = (np.arange(n, dtype=np.float32) + 0.5) / n * 2 - 1
+    d = np.hypot(xs[None, :], xs[:, None])
+    alpha = np.exp(-((d / 0.55) ** 2) * 1.6) * smooth(1.0, 0.75, d)
+    color = np.broadcast_to(rgb("#1d4a14"), (n, n, 3))
+    return picture(color, alpha), QRectF(-0.5, -0.5, 1, 1)
+
+
+def _shadow(p: QPainter, get: Callable, at: QPointF, wide: float, lift: float, u: float) -> None:
+    """A character's shadow on the grass, wide across, smaller and fainter the higher it is."""
+    image, box = get("shadow")
+    away = 1 / (1 + lift / (40 * u))
     p.save()
+    p.setOpacity(p.opacity() * 0.55 * away)
     p.translate(at)
-    p.scale(1, ry / rx)
-    shade = QRadialGradient(QPointF(0, 0), rx)
-    shade.setColorAt(0, col("#1d4a14", 0.45 * strength))
-    shade.setColorAt(0.6, col("#1d4a14", 0.22 * strength))
-    shade.setColorAt(1, col("#1d4a14", 0))
-    p.setPen(Qt.NoPen)
-    p.setBrush(shade)
-    p.drawEllipse(QPointF(0, 0), rx, rx)
+    p.scale(wide * (0.55 + 0.45 * away), wide * 0.16 * (0.55 + 0.45 * away))
+    p.drawImage(box, image)
     p.restore()
 
 
-# The wolf and the pan.
+def _hop(t: float, start: float, land: float, hops: int, x0: float, x1: float, high: float) -> tuple[float, float, float, float]:
+    """Hopping from x0 to x1 in hops hops between start and land: x, how high, how squashed (stretched
+    in the air, squashed as it lands) and its lean into the hop."""
+    k = clamp((t - start) / (land - start))
+    x = x0 + (x1 - x0) * k
+    if k >= 1:
+        return x1, 0.0, 0.0, 0.0
+    hop = min(hops - 1, int(k * hops))
+    kk = k * hops - hop
+    lift = high * 4 * kk * (1 - kk)
+    squash = -0.07 * math.sin(math.pi * kk) + (0.1 * (1 - kk * 6) if hop and kk < 1 / 6 else 0.0)
+    return x, lift, squash, 7 * math.sin(math.pi * kk) * (1 if x1 >= x0 else -1)
 
 
-def _paint_wolf(
-    p: QPainter, t: float, picture_of: Callable, u: float, s: float, rest: float, width: float, ground: float, bush_at: QPointF
-) -> None:
-    """The wolf tiptoeing in on the right and rubbing his paws, then hit, half behind the bush, which
-    is always there."""
+def _paint_lambs(p: QPainter, t: float, get: Callable, at: dict, drop: float) -> None:
+    """The lambs hopping in from the left, bobbing where they stand, jumping for joy; the ones along the
+    bottom first, 喜羊羊 in front. None of them reaches a name: the ones under the names hop and stretch
+    within the room over them, 喜羊羊 squashes and leans no further than he has room for."""
+    u, ground = at["u"], at["ground"] + drop
+    for who, start, land, hops in sorted(ENTRANCES, key=lambda entrance: entrance[0] == "xi"):
+        if t < start:
+            continue
+        tall, wide = at["tall"][who], at["wide"][who]
+        room = 60 * u if who == "xi" else JUMP_ROOM * u
+        high = 0.7 * room if who == "xi" else 0.45 * room
+        x, lift, squash, tilt = _hop(t, start, land, hops, -wide * 0.7, at["rest"][who], high)
+        index = "xfml".index(who[0])
+        if t >= land:
+            squash = 0.14 * spring(t - land, 2.4, 7.0) + 0.012 * math.sin(t * 5.0 + index)
+            tilt = 2.0 * math.sin(t * 2.2 + index * 1.7)
+            for up, down in JUMPS:
+                if up <= t < down:
+                    k = (t - up) / (down - up)
+                    lift = high * 4 * k * (1 - k)
+                    squash = -0.07 * math.sin(math.pi * k)
+                    tilt = 5 * math.sin(2 * math.pi * k) * (1 if index % 2 else -1)
+                elif t >= down:
+                    squash += 0.12 * spring(t - down, 2.4, 7.0)
+        if who == "xi":
+            if x > at["rest"]["xi"] - 0.2 * wide:
+                tilt = clamp(tilt, -XI_LEAN, XI_LEAN)
+            squash = min(squash, XI_SQUASH)
+        else:
+            squash = max(squash, -0.2 * room / tall)
+            tilt = clamp(tilt, -3.0, 3.0)
+        foot = QPointF(x, ground)
+        _shadow(p, get, foot, wide * 0.9, lift, u)
+        _stand(p, get(("cast", who)), foot, lift, squash, tilt)
+
+
+def _paint_wolves(p: QPainter, t: float, get: Callable, at: dict, drop: float) -> None:
+    """灰太狼 tiptoeing in on the right, rocking on his toes, squashed down into the grass by the pan;
+    红太狼 walking in after him with it, and swinging it. Both stand in the long grass, their feet past
+    the bottom edge, and stay within the room under the names."""
+    u, width = at["u"], at["width"]
+    room = WOLF_ROOM * u
+    if t >= WALK[0]:
+        k = ease_out(win(t, *WALK))
+        shift = (width + at["wide"]["hong"] - at["rest"]["hong"]) * (1 - k)
+        walking = 1 - win(t, WALK[1] - 0.1, WALK[1] + 0.05)
+        steps = (t - WALK[0]) / 0.18
+        lift = 0.5 * room * abs(math.sin(math.pi * steps)) * walking
+        tilt = 2 * math.sin(math.pi * steps) * walking
+        # A little hop of glee after the blow.
+        glee = win(t, HIT + 0.08, HIT + 0.42)
+        if 0 < glee < 1:
+            lift = 0.5 * room * 4 * glee * (1 - glee)
+        foot = QPointF(at["rest"]["hong"] + shift, at["feet"]["hong"] + drop)
+        _stand(p, get(("cast", "hong")), foot, lift, 0.006 * math.sin(t * 4.0), tilt)
+        if t < SWING:
+            _paint_pan(p, t, get, at, QPointF(shift, drop - lift))
     if SNEAK[0] <= t < FLIGHT[0]:
         k = win(t, *SNEAK)
-        x = rest + (width + 90 * u - rest) * (1 - k) ** 1.2
-        # Tiptoe: up on each step, leaning into it, until he is there.
-        walking = 1 - ease_in(win(t, SNEAK[1] - 0.15, SNEAK[1] + 0.05))
-        steps = (t - SNEAK[0]) / 0.21
-        bob = -abs(math.sin(math.pi * steps)) * 5 * u * walking
-        lean = 3.5 * math.sin(math.pi * steps) * walking
-        _shadow(p, QPointF(x, ground), 0.24 * s, 0.045 * s, 1.0)
+        x = at["rest"]["hui"] + (width + at["wide"]["hui"] - at["rest"]["hui"]) * (1 - k) ** 1.3
+        # On tiptoe: up on each step and leaning into it; then rocking on his toes, scheming.
+        steps = (t - SNEAK[0]) / 0.24
+        lift = 0.5 * room * abs(math.sin(math.pi * steps))
+        tilt = -1 + 1.5 * math.sin(math.pi * steps)
+        squash = 0.0
+        if t >= HIT:
+            # Hit: squashed flat from below, his face where it was, shaking, then springing back.
+            squash = 0.14 * (1 - ease_out(win(t, HIT, FLIGHT[0]))) + 0.03 * spring(t - HIT, 6.0, 9.0)
+            lift, tilt = squash * at["tall"]["hui"], 2.0 * math.sin((t - HIT) * 70) * (1 - win(t, HIT, FLIGHT[0]))
+        _stand(p, get(("cast", "hui")), QPointF(x, at["feet"]["hui"] + drop), lift, squash, tilt)
+    if t >= max(WALK[0], SWING):
+        _paint_pan(p, t, get, at, QPointF(0, drop))
+
+
+def _pan_angle(t: float, rest: float, hit: float) -> float:
+    """The pan's angle at t (degrees, 0 pointing right, 90 down): standing up by her side, swung down
+    through the grass and up onto his head, bouncing off it, and lowered back the way it came."""
+    if t < SWING:
+        return rest + 3 * math.sin(t * 3.0)
+    if t < HIT:
+        return rest + (hit - rest) * ease_in(win(t, SWING, HIT))
+    bounce = hit - 14 * (1 - spring(t - HIT, 2.2, 5.0))
+    return bounce + (rest - bounce) * ease_in_out(win(t, *LOWER))
+
+
+def _paint_pan(p: QPainter, t: float, get: Callable, at: dict, shift: QPointF) -> None:
+    """The pan in 红太狼's grip down in the grass, smeared through the air as it swings."""
+    rest, hit = at["rest_angle"], at["swing_to"]
+    hit += 360 if hit < rest else 0
+    grip = at["grip"] + shift
+    image, box = get("pan")
+    swinging = win(t, SWING + 0.1, HIT) * (1 - win(t, HIT, HIT + 0.05))
+    for back, alpha in ((0.04, 0.3), (0.02, 0.5), (0.0, 1.0)):
+        if back and swinging <= 0:
+            continue
         p.save()
-        p.translate(x, ground + bob)
-        p.rotate(lean)
-        if t < PAN[1]:
-            image, box = picture_of("wolf")
-            p.drawImage(box, image)
-            paw, paw_box = picture_of("paw")
-            rub = math.sin(t * 26) * 0.014 * s * win(t, SNEAK[1] - 0.2, SNEAK[1])
-            for dx, dy in ((0.03 * s + rub, -0.008 * s), (-rub, 0.004 * s)):
-                p.drawImage(paw_box.translated(-0.105 * s + dx, -0.47 * s + dy), paw)
-        else:
-            # Hit: squashed flat for a moment.
-            flat = 0.22 * (1 - ease_out(win(t, PAN[1], FLIGHT[0])))
-            p.scale(1 + flat, 1 - flat)
-            image, box = picture_of("hit")
-            p.drawImage(box, image)
+        p.setOpacity(p.opacity() * alpha * (swinging if back else 1.0))
+        p.translate(grip)
+        p.rotate(_pan_angle(t - back, rest, hit))
+        p.drawImage(box, image)
         p.restore()
-    image, box = picture_of("bush")
-    p.drawImage(box.translated(bush_at), image)
 
 
 def _bezier(points: tuple[QPointF, ...], k: float) -> QPointF:
@@ -352,79 +479,76 @@ def _bezier(points: tuple[QPointF, ...], k: float) -> QPointF:
 
 
 def _flight(flight: tuple[QPointF, ...], t: float) -> tuple[QPointF, float]:
-    """Where the wolf is as he flies off, and how far along (0..1)."""
+    """Where 灰太狼 is as he flies off, and how far along (0..1): out right along the bottom, turning up
+    beyond the names, and up and back in to where he twinkles out."""
     k = win(t, *FLIGHT)
-    return _bezier(flight, 1 - (1 - k) ** 1.6), k
+    e = 1 - (1 - k) ** 1.6
+    launch, corner, middle, high, end = flight
+    if e < 0.5:
+        return _bezier((launch, corner, corner, middle), e * 2), k
+    return _bezier((middle, high, high, end), e * 2 - 1), k
 
 
-def _paint_gag(
-    p: QPainter, t: float, picture_of: Callable, u: float, s: float, hit: QPointF, flight: tuple[QPointF, ...], width: float, height: float
-) -> None:
-    """The pan flying in and back out, 咣!, the wolf spinning up and away with his words trailing him,
-    and the star he becomes."""
-    if PAN[0] <= t < PAN[1] + 0.4:
-        pan = picture_of("pan")
-        if t < PAN[1]:
-            k = ease_in(win(t, *PAN))
-            start = QPointF(width + 90 * u, height * 0.42)
-            bend = QPointF(width - 10 * u, height * 0.55)
-            at = start * (1 - k) ** 2 + bend * 2 * (1 - k) * k + hit * k * k
-            angle, size, alpha = 160 - 520 * k, 1.0, 1.0
-        else:
-            k = ease_out(win(t, PAN[1], PAN[1] + 0.4))
-            at = hit + (QPointF(width + 70 * u, height * 0.5) - hit) * k
-            angle, size, alpha = -360 - 400 * k, 1.0, 1 - k
-        # A soft light behind it, so the black pan shows on the dark game.
-        soft_dot(p, at.x(), at.y(), 60 * u, "#ffffff", 0.3 * alpha)
-        _place(p, pan, at, angle, size, alpha)
+def _paint_bang(p: QPainter, t: float, get: Callable, at: dict) -> None:
+    """咣! as the pan lands: a flash and a burst behind the wolves, between them, lines flying out of it."""
+    if not HIT <= t < HIT + 0.42:
+        return
+    u, bang, ceiling = at["u"], at["bang"], at["ceiling"]
+    k = t - HIT
+    room = bang.y() - ceiling
+    soft_dot(p, bang.x(), bang.y(), min(room, 90 * u) * (0.7 + k), "#fff8d0", 0.8 * (1 - win(k, 0.0, 0.2)))
+    pop = ease_back(win(k, 0.0, 0.1), 2.4) * (1 - ease_in(win(k, 0.28, 0.42)))
+    # Lines fly out of the blow, sideways and down, away from the names.
+    p.setPen(QPen(col("#ffffff", 0.9 * (1 - win(k, 0.1, 0.3))), 3.2 * u, Qt.SolidLine, Qt.RoundCap))
+    for index in range(7):
+        angle = math.radians(-5 + index * 31.5)
+        inner, outer = 0.9 * room + 70 * u * k, 1.1 * room + 110 * u * k
+        p.drawLine(bang + QPointF(math.cos(angle), math.sin(angle)) * inner, bang + QPointF(math.cos(angle), math.sin(angle)) * outer)
+    _place(p, get("burst"), bang, 6 * math.sin(k * 40) * (1 - k * 2.4), pop, 1.0)
+
+
+def _paint_gag(p: QPainter, t: float, get: Callable, at: dict) -> None:
+    """灰太狼 spinning up and away with his words trailing him, and the star he becomes."""
+    u, flight = at["u"], at["flight"]
     if FLIGHT[0] <= t < FLIGHT[1] + 0.05:
-        at, k = _flight(flight, t)
-        image, box = picture_of("hit")
-        fade = 1 - win(t, FLIGHT[1] - 0.12, FLIGHT[1] + 0.02)
+        middle, k = _flight(flight, t)
+        image, box = get(("cast", "hui"))
         p.save()
-        p.setOpacity(p.opacity() * fade)
-        p.translate(at)
+        p.setOpacity(p.opacity() * (1 - win(t, FLIGHT[1] - 0.12, FLIGHT[1] + 0.02)))
+        p.translate(middle)
         p.rotate(-760 * ease_out(k))
-        size = 1 - 0.8 * k
+        size = 1 - 0.78 * ease_out(k)
         p.scale(size, size)
-        p.drawImage(box.translated(0, 0.5 * s), image)
+        p.drawImage(box.translated(0, box.height() / 2), image)
         p.restore()
-    if PAN[1] <= t < PAN[1] + 0.4:
-        k = t - PAN[1]
-        middle = hit + QPointF(32 * u, -6 * u)
-        soft_dot(p, middle.x(), middle.y(), 90 * u * (0.6 + k), "#fff8d0", 0.8 * (1 - win(k, 0.0, 0.18)))
-        pop = ease_back(win(k, 0.0, 0.1), 2.4) * (1 - ease_in(win(k, 0.26, 0.4)))
-        # Lines fly out of the blow.
-        p.setPen(QPen(col("#ffffff", 0.9 * (1 - win(k, 0.1, 0.3))), 3.2 * u, Qt.SolidLine, Qt.RoundCap))
-        for index in range(7):
-            # Out to the right and down, away from the names.
-            angle = math.radians(-80 + index * 30)
-            inner, outer = 58 * u + 90 * u * k, 74 * u + 130 * u * k
-            p.drawLine(middle + QPointF(math.cos(angle), math.sin(angle)) * inner, middle + QPointF(math.cos(angle), math.sin(angle)) * outer)
-        _place(p, picture_of("burst"), middle, 6 * math.sin(k * 40) * (1 - k * 2.5), pop, 1.0)
-    star_k = win(t, FLIGHT[1] - 0.03, FLIGHT[1] + 0.15)
-    end = flight[-1]
     if t >= BUBBLE_AT:
-        trail, _k = _flight(flight, t - 0.08)
-        image, box, tip = picture_of("bubble")
+        trail, _k = _flight(flight, t - 0.1)
+        image, box, tip = get("bubble")
         pop = ease_back(win(t, BUBBLE_AT, BUBBLE_AT + 0.2), 2.0)
+        # Up and to his left, its tail toward him, never down over the names.
+        where = trail + QPointF(-34 * u, -6 * u) - tip
+        where.setY(min(where.y(), at["top_names"] - 6 * u - box.bottom()))
+        where.setX(min(where.x(), at["width"] - 6 * u - box.right()))
         p.save()
-        p.translate(trail + QPointF(-34 * u, 6 * u))
+        p.translate(where + tip)
         p.scale(pop, pop)
         p.translate(-tip)
+        p.setOpacity(p.opacity() * (1 - win(t, 4.3, 4.6)))
         p.drawImage(box, image)
         p.restore()
+    star_k = win(t, FLIGHT[1] - 0.03, FLIGHT[1] + 0.15)
+    end = flight[-1]
     if star_k > 0:
         flash = 1 - win(t, FLIGHT[1], FLIGHT[1] + 0.3)
         soft_dot(p, end.x(), end.y(), 70 * u, "#fff6c8", 0.9 * flash)
-        rect, light = picture_of("star-glow")
+        rect, light = get("star-glow")
         twinkle = 0.5 + 0.5 * math.sin((t - FLIGHT[1]) * 9)
         p.save()
         p.setOpacity(p.opacity() * (0.55 + 0.45 * twinkle) * ease_out(star_k))
         p.drawImage(rect.translated(end), light)
         p.restore()
         size = ease_back(star_k, 2.6) * (1 + 0.1 * math.sin((t - FLIGHT[1]) * 9))
-        _place(p, picture_of("star"), end, 12 * math.sin((t - FLIGHT[1]) * 3), size, 1.0)
+        _place(p, get("star"), end, 12 * math.sin((t - FLIGHT[1]) * 3), size, 1.0)
         star(p, end.x() + 13 * u, end.y() - 14 * u, 13 * u * twinkle, "#ffffff", 0.9 * twinkle, 0.12)
         star(p, end.x() - 15 * u, end.y() + 9 * u, 9 * u * (1 - twinkle), "#ffffff", 0.8 * (1 - twinkle), 0.12)
         if flash > 0:
@@ -634,17 +758,6 @@ def _polygon(points: list[tuple[float, float]], round_by: float = 0.0) -> QPaint
     return path
 
 
-def _ring_of(x: float, y: float, rx: float, ry: float, count: int, r: float, rnd: random.Random) -> list[tuple[float, float, float]]:
-    """Wool puffs round an ellipse, each about r, and one filling its middle."""
-    out = []
-    start = rnd.random()
-    for i in range(count):
-        a = 2 * math.pi * (i / count + start)
-        out.append((x + rx * math.cos(a), y + ry * math.sin(a), r * rnd.uniform(0.86, 1.14)))
-    out.append((x, y, min(rx, ry) + r * 0.6))
-    return out
-
-
 def _font(families: list[str], size: float, weight: QFont.Weight = QFont.Weight.Bold) -> QFont:
     font = QFont()
     font.setFamilies(families)
@@ -658,100 +771,6 @@ def _text_path(text: str, font: QFont, middle: QPointF) -> QPainterPath:
     path.addText(QPointF(0, 0), font, text)
     box = path.boundingRect()
     return QTransform().translate(middle.x() - box.center().x(), middle.y() - box.center().y()).map(path)
-
-
-def _lamb(s: float, scale: float, face: str) -> tuple[QImage, QRectF]:
-    """The lamb, s tall, standing on (0, 0) and facing us, without its arms and bell, which move: round
-    cloud-puff wool on its body and all round its head, a cream face with big shining eyes, floppy ears,
-    little curled horns, a red collar; face "open" or "happy" (eyes shut in smiles, mouth wide)."""
-    box = QRectF(-0.44 * s, -1.04 * s, 0.88 * s, 1.08 * s)
-    art = _Art(box, scale, seed=31)
-    rnd = random.Random(12)
-    line, thin = max(0.8, 0.022 * s), max(0.6, 0.014 * s)
-    for side in (-1, 1):
-        art.fill(_limb([(side * 0.075 * s, -0.28 * s), (side * 0.082 * s, -0.06 * s)], 0.095 * s), CREAM, 0.04 * s, line=line)
-        art.fill(_ellipse(side * 0.085 * s, -0.04 * s, 0.062 * s, 0.04 * s), HOOF, 0.025 * s, gloss=0.3, line=line)
-    art.puffs(_ring_of(0, -0.32 * s, 0.15 * s, 0.1 * s, 10, 0.072 * s, rnd), WOOL, line=line)
-    art.fill(_limb([(-0.125 * s, -0.455 * s), (0, -0.405 * s), (0.125 * s, -0.455 * s)], 0.05 * s), COLLAR, 0.02 * s, gloss=0.35, line=thin)
-    for side in (-1, 1):
-        ear = _ellipse(side * 0.27 * s, -0.6 * s, 0.095 * s, 0.045 * s, side * 14)
-        art.fill(ear, CREAM, 0.03 * s, line=line)
-        art.fill(_ellipse(side * 0.285 * s, -0.598 * s, 0.06 * s, 0.022 * s, side * 14), PINK, 0.015 * s, rest=0.8)
-    head = _ring_of(0, -0.69 * s, 0.235 * s, 0.195 * s, 13, 0.085 * s, rnd)
-    head += [(0.03 * s, -0.93 * s, 0.072 * s), (-0.05 * s, -0.94 * s, 0.06 * s)]
-    art.puffs(head, WOOL, line=line)
-    for side in (-1, 1):
-        curl = QPainterPath(QPointF(side * 0.11 * s, -0.87 * s))
-        curl.cubicTo(QPointF(side * 0.12 * s, -0.94 * s), QPointF(side * 0.2 * s, -0.96 * s), QPointF(side * 0.215 * s, -0.91 * s))
-        curl.quadTo(QPointF(side * 0.22 * s, -0.865 * s), QPointF(side * 0.18 * s, -0.875 * s))
-        stroker = QPainterPathStroker()
-        stroker.setWidth(0.046 * s)
-        stroker.setCapStyle(Qt.RoundCap)
-        horn = stroker.createStroke(curl).simplified()
-        art.fill(horn, HORN, 0.022 * s, gloss=0.25, grain=0.08, line=thin)
-    cheeks = QPainterPath(QPointF(-0.2 * s, -0.6 * s))
-    cheeks.cubicTo(QPointF(-0.21 * s, -0.81 * s), QPointF(0.21 * s, -0.81 * s), QPointF(0.2 * s, -0.6 * s))
-    cheeks.cubicTo(QPointF(0.2 * s, -0.42 * s), QPointF(-0.2 * s, -0.42 * s), QPointF(-0.2 * s, -0.6 * s))
-    art.fill(cheeks, CREAM, 0.045 * s, swell=0.5, rest=0.85, line=thin)
-    blush = QPainterPath()
-    for side in (-1, 1):
-        blush.addEllipse(QPointF(side * 0.135 * s, -0.535 * s), 0.04 * s, 0.022 * s)
-    art.blush(blush, PINK, 0.02 * s, 0.75)
-
-    def features(q: QPainter) -> None:
-        ink = col(INK)
-        for side in (-1, 1):
-            eye = QPointF(side * 0.08 * s, -0.63 * s)
-            if face == "happy":
-                smile = QPainterPath(QPointF(eye.x() - 0.048 * s, eye.y() + 0.012 * s))
-                smile.quadTo(QPointF(eye.x(), eye.y() - 0.055 * s), QPointF(eye.x() + 0.048 * s, eye.y() + 0.012 * s))
-                q.strokePath(smile, QPen(ink, 0.02 * s, Qt.SolidLine, Qt.RoundCap))
-                continue
-            white = QPainterPath()
-            white.addEllipse(eye, 0.064 * s, 0.08 * s)
-            q.fillPath(white, QColor("#ffffff"))
-            iris = QRadialGradient(QPointF(eye.x(), eye.y() + 0.03 * s), 0.06 * s)
-            iris.setColorAt(0, QColor("#7a4a2e"))
-            iris.setColorAt(0.6, QColor("#3a2318"))
-            iris.setColorAt(1, QColor("#1a110d"))
-            q.setPen(Qt.NoPen)
-            q.setBrush(iris)
-            q.drawEllipse(QPointF(eye.x() - side * 0.008 * s, eye.y() + 0.01 * s), 0.05 * s, 0.064 * s)
-            q.setBrush(QColor("#140c09"))
-            q.drawEllipse(QPointF(eye.x() - side * 0.008 * s, eye.y() + 0.012 * s), 0.028 * s, 0.036 * s)
-            q.setBrush(QColor("#ffffff"))
-            q.drawEllipse(QPointF(eye.x() - 0.02 * s, eye.y() - 0.022 * s), 0.021 * s, 0.021 * s)
-            q.drawEllipse(QPointF(eye.x() + 0.017 * s, eye.y() + 0.03 * s), 0.009 * s, 0.009 * s)
-            q.strokePath(white, QPen(ink, 0.011 * s))
-            lash = QPainterPath(QPointF(eye.x() + side * 0.045 * s, eye.y() - 0.058 * s))
-            lash.quadTo(QPointF(eye.x() + side * 0.068 * s, eye.y() - 0.072 * s), QPointF(eye.x() + side * 0.08 * s, eye.y() - 0.088 * s))
-            q.strokePath(lash, QPen(ink, 0.012 * s, Qt.SolidLine, Qt.RoundCap))
-        q.setPen(Qt.NoPen)
-        q.setBrush(QColor("#d08a7c"))
-        q.drawEllipse(QPointF(0, -0.567 * s), 0.014 * s, 0.009 * s)
-        wide, deep = (0.068, 0.445) if face == "happy" else (0.045, 0.478)
-        mouth = QPainterPath(QPointF(-wide * s, -0.535 * s))
-        mouth.quadTo(QPointF(0, -0.525 * s), QPointF(wide * s, -0.535 * s))
-        mouth.quadTo(QPointF(0, -deep * s), QPointF(-wide * s, -0.535 * s))
-        q.fillPath(mouth, QColor("#a8333d"))
-        q.save()
-        q.setClipPath(mouth)
-        q.setBrush(QColor(PINK))
-        q.drawEllipse(QPointF(0, (-0.5 if face == "open" else -0.47) * s), wide * 0.6 * s, 0.022 * s)
-        q.restore()
-        q.strokePath(mouth, QPen(ink, 0.011 * s, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-
-    return art.render(features, ao=0.4, rim=0.35), box
-
-
-def _arm(s: float, scale: float) -> tuple[QImage, QRectF]:
-    """One of the lamb's arms, hanging from its shoulder at (0, 0): cream, a little dark hoof at its end."""
-    box = QRectF(-0.07 * s, -0.06 * s, 0.14 * s, 0.28 * s)
-    art = _Art(box, scale, seed=33)
-    line = max(0.8, 0.02 * s)
-    art.fill(_limb([(0, 0), (0, 0.15 * s)], 0.072 * s), CREAM, 0.03 * s, line=line)
-    art.fill(_ellipse(0, 0.17 * s, 0.045 * s, 0.035 * s), HOOF, 0.02 * s, gloss=0.3, line=line)
-    return art.render(), box
 
 
 def _bell_path(r: float) -> tuple[QPainterPath, QPainterPath, QPainterPath, QPainterPath]:
@@ -788,189 +807,33 @@ def _bell(r: float, scale: float) -> tuple[QImage, QRectF]:
     return art.render(slit, ao=0.2, rim=0.4), box
 
 
-def _wolf(s: float, scale: float, pose: str) -> tuple[QImage, QRectF]:
-    """The wolf, s tall, on (0, 0) and facing left: grey, a light belly and muzzle, a bushy tail, pointed
-    ears through a yellow hat with a darker patch stitched on, a scar on his cheek. Pose "sneak": on
-    tiptoe, hunched, sly half-shut eyes and a toothy grin, his arm out to his paws (drawn apart, to rub);
-    "hit": arms and legs flung out, hat knocked askew, eyes spinning and mouth an O."""
-    hit = pose == "hit"
-    box = QRectF(-0.48 * s, -1.12 * s, 0.98 * s, 1.18 * s)
-    art = _Art(box, scale, cool="#3d4670", seed=41)
-    rnd = random.Random(19)
-    line, thin = max(0.8, 0.02 * s), max(0.6, 0.012 * s)
-    bend = QPointF(0.1, -0.34), QPointF(0.36, -0.36), QPointF(0.4, -0.6), QPointF(0.28, -0.72)
-    tail, tip = [], []
-    for i in range(11):
-        k = i / 10
-        at = _bezier(bend, k)
-        r = (0.045 + 0.06 * math.sin(math.pi * min(1, k * 1.1))) * rnd.uniform(0.9, 1.1)
-        (tip if k > 0.75 else tail).append((at.x() * s, at.y() * s, r * s))
-    art.puffs(tail, GREY, flat=0.7, grain=0.1, line=line, curl=0.4)
-    art.puffs(tip, "#b4b8c1", flat=0.7, grain=0.1, line=line, curl=0.4)
-    if hit:
-        legs = (([(0.06, -0.3), (0.14, -0.18), (0.18, -0.07)], (0.2, -0.05, 25), GREY_DEEP), ([(-0.03, -0.3), (-0.12, -0.22), (-0.18, -0.1)], (-0.21, -0.08, -40), GREY))
-    else:
-        legs = (([(0.07, -0.3), (0.13, -0.17), (0.08, -0.06)], (0.055, -0.03, 32), GREY_DEEP), ([(-0.02, -0.3), (-0.09, -0.16), (-0.05, -0.06)], (-0.075, -0.028, 30), GREY))
-    for points, (fx, fy, angle), tint in legs:
-        art.fill(_limb([(x * s, y * s) for x, y in points], 0.072 * s), tint, 0.03 * s, line=line)
-        art.fill(_ellipse(fx * s, fy * s, 0.06 * s, 0.03 * s, angle), "#4a4e58", 0.02 * s, line=line)
-    art.fill(_ellipse(0.02 * s, -0.43 * s, 0.14 * s, 0.17 * s, -12), GREY, 0.08 * s, grain=0.08, line=line)
-    art.fill(_ellipse(-0.035 * s, -0.41 * s, 0.085 * s, 0.12 * s, -12), GREY_LIGHT, 0.05 * s, rest=0.6, grain=0.08)
-    arms = (
-        [[(-0.02, -0.55), (-0.13, -0.68), (-0.17, -0.83)], [(0.06, -0.54), (0.18, -0.6), (0.24, -0.75)]]
-        if hit
-        else [[(0.02, -0.55), (0.07, -0.44), (-0.09, -0.47)]]
-    )
-    for points in arms:
-        art.fill(_limb([(x * s, y * s) for x, y in points], 0.064 * s), GREY, 0.03 * s, grain=0.08, line=line)
-        if hit:
-            x, y = points[-1]
-            art.fill(_ellipse(x * s, y * s, 0.045 * s, 0.04 * s), GREY, 0.025 * s, line=line)
-    # His head, with the hat and its ears knocked askew when he is hit.
-    tilt = QTransform().translate(0, -0.86 * s).rotate(24).translate(0.03 * s, -0.9 * s) if hit else QTransform()
-    for points in (((-0.11, -0.84), (-0.085, -1.01), (-0.01, -0.86)), ((0.05, -0.85), (0.13, -1.0), (0.14, -0.81))):
-        ear = tilt.map(_polygon([(x * s, y * s) for x, y in points], 0.25))
-        art.fill(ear, GREY, 0.025 * s, line=line)
-        inner = [(x * s, y * s) for x, y in points]
-        middle = QPointF(sum(x for x, _y in inner) / 3, sum(y for _x, y in inner) / 3)
-        art.fill(tilt.map(QTransform().translate(middle.x(), middle.y()).scale(0.5, 0.5).translate(-middle.x(), -middle.y()).map(_polygon(inner, 0.25))), "#b79d9f", 0.015 * s, rest=0.8)
-    head = _ellipse(-0.02 * s, -0.7 * s, 0.17 * s, 0.15 * s)
-    tufts = [(0.1, -0.78), (0.215, -0.69), (0.13, -0.67), (0.2, -0.58), (0.11, -0.6), (0.13, -0.51), (0.03, -0.58)]
-    head = head.united(_polygon([(x * s, y * s) for x, y in tufts], 0.12)).simplified()
-    art.fill(head, GREY, 0.09 * s, grain=0.08, line=line)
-    snout = _ellipse(-0.215 * s, -0.66 * s, 0.145 * s, 0.068 * s, -6)
-    art.fill(snout, GREY, 0.045 * s, rest=0.5, grain=0.06, line=line)
-    muzzle = _ellipse(-0.2 * s, -0.625 * s, 0.135 * s, 0.04 * s, -6).intersected(snout)
-    art.fill(muzzle, GREY_LIGHT, 0.03 * s, rest=0.85, grain=0.05)
-    art.fill(_ellipse(-0.355 * s, -0.692 * s, 0.035 * s, 0.028 * s), "#232327", 0.02 * s, gloss=0.9, rest=0.4, line=thin)
-    crown = _ellipse(-0.01 * s, -0.86 * s, 0.16 * s, 0.085 * s, -8).united(_ellipse(-0.015 * s, -0.835 * s, 0.17 * s, 0.035 * s, -6))
-    brim = _ellipse(-0.15 * s, -0.825 * s, 0.11 * s, 0.03 * s, -10)
-    art.fill(tilt.map(brim), "#e2b22a", 0.02 * s, gloss=0.15, line=line)
-    art.fill(tilt.map(crown), HAT, 0.07 * s, gloss=0.15, grain=0.1, line=line)
-    patch = QTransform().translate(0.035 * s, -0.885 * s).rotate(14).map(_polygon([(-0.04 * s, -0.03 * s), (0.04 * s, -0.032 * s), (0.042 * s, 0.03 * s), (-0.038 * s, 0.032 * s)], 0.2))
-    art.fill(tilt.map(patch), PATCH, 0.02 * s, rest=0.9, grain=0.12, line=thin)
-
-    def features(q: QPainter) -> None:
-        ink = col(INK)
-        q.save()
-        q.setTransform(tilt, True)
-        stitch = QPen(col("#7a3f10"), max(0.4, 0.007 * s), Qt.SolidLine, Qt.RoundCap)
-        q.setPen(stitch)
-        corners = [QPointF(-0.04 * s, -0.03 * s), QPointF(0.04 * s, -0.032 * s), QPointF(0.042 * s, 0.03 * s), QPointF(-0.038 * s, 0.032 * s)]
-        place = QTransform().translate(0.035 * s, -0.885 * s).rotate(14)
-        for a, b in zip(corners, corners[1:] + corners[:1], strict=True):
-            for k in (0.25, 0.5, 0.75):
-                at = place.map(a + (b - a) * k)
-                q.drawLine(at + QPointF(-0.008 * s, -0.008 * s), at + QPointF(0.008 * s, 0.008 * s))
-        band = QPainterPath(QPointF(-0.17 * s, -0.83 * s))
-        band.quadTo(QPointF(-0.01 * s, -0.8 * s), QPointF(0.15 * s, -0.86 * s))
-        q.strokePath(band, QPen(col("#c48f1e"), max(0.5, 0.012 * s), Qt.SolidLine, Qt.RoundCap))
-        q.restore()
-        eyes = ((QPointF(-0.1 * s, -0.745 * s), 0.036 * s, 0.043 * s), (QPointF(-0.178 * s, -0.752 * s), 0.03 * s, 0.037 * s))
-        for at, rx, ry in eyes:
-            white = QPainterPath()
-            white.addEllipse(at, rx, ry)
-            q.fillPath(white, QColor("#fffbe6"))
-            if hit:
-                spiral = QPainterPath(at)
-                for k in range(1, 40):
-                    a = k * 0.5
-                    reach = rx * 0.95 * k / 40
-                    spiral.lineTo(at + QPointF(math.cos(a) * reach, math.sin(a) * reach * ry / rx))
-                q.strokePath(spiral, QPen(ink, max(0.4, 0.008 * s), Qt.SolidLine, Qt.RoundCap))
-            else:
-                q.setPen(Qt.NoPen)
-                q.setBrush(QColor("#1e1a18"))
-                q.drawEllipse(at + QPointF(-rx * 0.35, ry * 0.25), rx * 0.48, ry * 0.5)
-                q.setBrush(QColor("#ffffff"))
-                q.drawEllipse(at + QPointF(-rx * 0.5, ry * 0.05), rx * 0.14, rx * 0.14)
-                # Sly: the lids half down.
-                q.save()
-                q.setClipPath(white)
-                q.fillRect(QRectF(at.x() - rx, at.y() - ry, 2 * rx, ry * 0.95), QColor(GREY_DEEP))
-                q.restore()
-                q.drawLine(at + QPointF(-rx, -0.05 * ry), at + QPointF(rx, -0.05 * ry))
-                q.setPen(QPen(ink, max(0.5, 0.012 * s), Qt.SolidLine, Qt.RoundCap))
-                q.drawLine(at + QPointF(-rx * 1.05, -0.05 * ry), at + QPointF(rx * 1.05, -0.05 * ry))
-            q.strokePath(white, QPen(ink, max(0.4, 0.009 * s)))
-        brows = ((-0.218, -0.808, -0.158, -0.79), (-0.135, -0.792, -0.065, -0.816)) if not hit else ((-0.215, -0.83, -0.155, -0.825), (-0.135, -0.825, -0.07, -0.835))
-        q.setPen(QPen(ink, max(0.6, 0.016 * s), Qt.SolidLine, Qt.RoundCap))
-        for x0, y0, x1, y1 in brows:
-            q.drawLine(QPointF(x0 * s, y0 * s), QPointF(x1 * s, y1 * s))
-        scar = QPainterPath(QPointF(-0.005 * s, -0.79 * s))
-        scar.quadTo(QPointF(0.04 * s, -0.73 * s), QPointF(0.045 * s, -0.66 * s))
-        q.strokePath(scar, QPen(col("#7a3b3b"), max(0.5, 0.012 * s), Qt.SolidLine, Qt.RoundCap))
-        q.setPen(QPen(col("#7a3b3b"), max(0.4, 0.008 * s), Qt.SolidLine, Qt.RoundCap))
-        for k in (0.25, 0.5, 0.75):
-            at = scar.pointAtPercent(k)
-            q.drawLine(at + QPointF(-0.018 * s, -0.004 * s), at + QPointF(0.018 * s, 0.004 * s))
-        if hit:
-            mouth = _ellipse(-0.245 * s, -0.618 * s, 0.038 * s, 0.032 * s)
-            q.fillPath(mouth, QColor("#6e1f2b"))
-            q.save()
-            q.setClipPath(mouth)
-            q.setPen(Qt.NoPen)
-            q.setBrush(QColor(PINK))
-            q.drawEllipse(QPointF(-0.245 * s, -0.592 * s), 0.028 * s, 0.016 * s)
-            q.restore()
-            q.strokePath(mouth, QPen(ink, max(0.5, 0.01 * s)))
-            return
-        mouth = QPainterPath(QPointF(-0.325 * s, -0.636 * s))
-        mouth.quadTo(QPointF(-0.22 * s, -0.572 * s), QPointF(-0.122 * s, -0.622 * s))
-        mouth.quadTo(QPointF(-0.23 * s, -0.622 * s), QPointF(-0.325 * s, -0.636 * s))
-        q.fillPath(mouth, QColor("#6e1f2b"))
-        q.save()
-        q.setClipPath(mouth)
-        q.setPen(Qt.NoPen)
-        q.setBrush(QColor("#fffdf2"))
-        x = -0.31
-        while x < -0.135:
-            # Fangs at the ends, a row of little teeth between.
-            long = 0.03 if x < -0.29 or x > -0.165 else 0.017
-            y = -0.632 + (x + 0.325) * 0.06
-            q.drawPolygon([QPointF((x - 0.012) * s, (y - 0.01) * s), QPointF((x + 0.012) * s, (y - 0.01) * s), QPointF(x * s, (y + long) * s)])
-            x += 0.026
-        q.restore()
-        q.strokePath(mouth, QPen(ink, max(0.5, 0.01 * s), Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-        smirk = QPainterPath(QPointF(-0.128 * s, -0.622 * s))
-        smirk.quadTo(QPointF(-0.1 * s, -0.63 * s), QPointF(-0.095 * s, -0.655 * s))
-        q.strokePath(smirk, QPen(ink, max(0.5, 0.012 * s), Qt.SolidLine, Qt.RoundCap))
-
-    return art.render(features, ao=0.4, rim=0.3), box
-
-
-def _paw(s: float, scale: float) -> tuple[QImage, QRectF]:
-    """One of the wolf's paws, about its middle."""
-    box = QRectF(-0.07 * s, -0.06 * s, 0.14 * s, 0.12 * s)
-    art = _Art(box, scale, cool="#3d4670", seed=43)
-    art.fill(_ellipse(0, 0, 0.05 * s, 0.04 * s, -15), GREY, 0.025 * s, grain=0.08, line=max(0.8, 0.02 * s))
-
-    def toes(q: QPainter) -> None:
-        q.setPen(QPen(col(INK), max(0.4, 0.008 * s), Qt.SolidLine, Qt.RoundCap))
-        for dx in (-0.018, 0.0):
-            q.drawLine(QPointF(-0.045 * s, (dx + 0.004) * s), QPointF(-0.025 * s, (dx + 0.008) * s))
-
-    return art.render(toes), box
-
-
-def _pan(r: float, scale: float) -> tuple[QImage, QRectF]:
-    """A black frying pan, r its rim's radius, about its middle, its handle out to the right: cast iron
-    with a dished bowl and a hard shine."""
-    box = QRectF(-1.15 * r, -1.15 * r, 3.55 * r, 2.3 * r)
+def _pan(reach: float, r: float, scale: float) -> tuple[QImage, QRectF]:
+    """红太狼's frying pan, held by its handle's end at (0, 0) and pointing right, reach from there to
+    the middle of its bowl, r the bowl's radius: black cast iron, a dished bowl with a hard shine, a
+    light caught along its rim, the handle wrapped where she holds it."""
+    box = QRectF(-0.12 * r, -1.2 * r, reach + 2.3 * r, 2.4 * r)
     art = _Art(box, scale, cool="#4b5878", seed=47)
     line = max(0.8, 0.07 * r)
     handle = QPainterPath()
-    handle.addRoundedRect(QRectF(0.9 * r, -0.14 * r, 1.45 * r, 0.28 * r), 0.14 * r, 0.14 * r)
-    art.fill(handle, "#24252a", 0.1 * r, gloss=0.6, line=line)
-    art.fill(_ellipse(0, 0, r, r), IRON, 0.22 * r, gloss=0.9, line=line)
-    art.fill(_ellipse(0, 0, 0.8 * r, 0.8 * r), "#26282e", 0.5 * r, swell=-0.45, rest=1.0, gloss=0.8, grain=0.03, line=line * 0.5)
+    handle.addRoundedRect(QRectF(-0.06 * r, -0.15 * r, reach - 0.7 * r, 0.3 * r), 0.15 * r, 0.15 * r)
+    art.fill(handle, "#24252a", 0.12 * r, gloss=0.6, line=line)
+    grip = QPainterPath()
+    grip.addRoundedRect(QRectF(-0.08 * r, -0.19 * r, 0.75 * r, 0.38 * r), 0.17 * r, 0.17 * r)
+    art.fill(grip, "#6b3b22", 0.12 * r, grain=0.2, line=line)
+    art.fill(_ellipse(reach, 0, r, r), IRON, 0.22 * r, gloss=0.9, line=line)
+    art.fill(_ellipse(reach, 0, 0.8 * r, 0.8 * r), "#26282e", 0.5 * r, swell=-0.45, rest=1.0, gloss=0.8, grain=0.03, line=line * 0.5)
 
-    def hole(q: QPainter) -> None:
-        q.setPen(QPen(col("#0f1013"), line * 0.6))
+    def rim(q: QPainter) -> None:
+        q.setPen(QPen(col("#c9d2e6", 0.75), max(0.6, 0.07 * r), Qt.SolidLine, Qt.RoundCap))
+        q.drawArc(QRectF(reach - 0.9 * r, -0.9 * r, 1.8 * r, 1.8 * r), 100 * 16, 75 * 16)
+        q.setPen(QPen(col("#8a5a3a", 0.8), max(0.5, 0.04 * r), Qt.SolidLine, Qt.RoundCap))
+        for x in (0.15, 0.32, 0.49):
+            q.drawLine(QPointF(x * r, -0.18 * r), QPointF((x + 0.08) * r, 0.18 * r))
+        q.setPen(Qt.NoPen)
         q.setBrush(col("#0f1013"))
-        q.drawEllipse(QPointF(2.15 * r, 0), 0.06 * r, 0.06 * r)
+        q.drawEllipse(QPointF(reach - 1.08 * r, 0), 0.06 * r, 0.06 * r)
 
-    return art.render(hole, ao=0.2, rim=0.5), box
+    return art.render(rim, ao=0.2, rim=0.5), box
 
 
 def _burst(r: float, scale: float) -> tuple[QImage, QRectF]:
@@ -991,7 +854,7 @@ def _burst(r: float, scale: float) -> tuple[QImage, QRectF]:
     stroker.setWidth(0.2 * r)
     stroker.setJoinStyle(Qt.RoundJoin)
     art.fill(stroker.createStroke(word).united(word), "#ffffff", 0.05 * r, swell=0.6, rest=0.5, line=max(0.7, 0.035 * r))
-    art.fill(word, COLLAR, 0.06 * r, swell=0.9, rest=0.5, gloss=0.4, line=max(0.6, 0.025 * r))
+    art.fill(word, "#e0393e", 0.06 * r, swell=0.9, rest=0.5, gloss=0.4, line=max(0.6, 0.025 * r))
     return art.render(ao=0.3, rim=0.4), box
 
 
@@ -1072,25 +935,6 @@ def _cloud(wide: float, scale: float, seed: int) -> tuple[QImage, QRectF]:
     under.addRect(QRectF(box.left(), box.top(), box.width(), base - box.top()))
     art.puffs(puffs, "#f4f8ff", flat=0.6, grain=0.06, line=max(0.6, 0.012 * wide), curl=0.12, clip=under)
     return art.render(ao=0.5, rim=0.5), box.translated(0, -base * 0.4)
-
-
-def _bush(wide: float, scale: float) -> tuple[QImage, QRectF]:
-    """A round leafy bush wide across, standing on (0, 0) by its middle, a few little flowers on it."""
-    rnd = random.Random(29)
-    box = QRectF(-0.6 * wide, -0.46 * wide, 1.2 * wide, 0.5 * wide)
-    art = _Art(box, scale, cool="#1f4a3a", seed=29)
-    puffs = [(-0.38, -0.08, 0.13), (-0.2, -0.18, 0.17), (0.04, -0.22, 0.18), (0.26, -0.17, 0.16), (0.4, -0.07, 0.12), (-0.1, -0.06, 0.17), (0.15, -0.06, 0.17)]
-    puffs = [(x * wide, y * wide, r * wide * rnd.uniform(0.92, 1.08)) for x, y, r in puffs]
-    ground = QPainterPath()
-    ground.addRect(QRectF(box.left(), box.top(), box.width(), -box.top()))
-    art.puffs(puffs, "#5cb33c", flat=0.7, grain=0.16, line=max(0.8, 0.018 * wide), curl=0.7, clip=ground)
-    spots = [(rnd.uniform(-0.4, 0.4) * wide, rnd.uniform(-0.32, -0.08) * wide) for _ in range(7)]
-
-    def flowers(q: QPainter) -> None:
-        for index, (x, y) in enumerate(spots):
-            _flower(q, x, y, 0.035 * wide, ("#ffffff", "#ffd2dc", "#fff2a0")[index % 3])
-
-    return art.render(flowers, ao=0.5, rim=0.3), box
 
 
 def _flower(q: QPainter, x: float, y: float, r: float, tint: str) -> None:
@@ -1227,10 +1071,13 @@ def _meadow(width: float, height: float, gap: QRectF, u: float, scale: float, si
     return rect, image
 
 
-def _blades(width: float, height: float, gap: QRectF, u: float, scale: float, side: int, phase: int) -> tuple[QRectF, QImage]:
+def _blades(width: float, height: float, gap: QRectF, u: float, scale: float, side: int, phase: int, front: bool = False) -> tuple[QRectF, QImage]:
     """The blades along the top of one side's near hill, swayed phase of SWAYS along a wave passing
-    through them: each a curved blade darker at its root, the whole grained per pixel."""
+    through them: each a curved blade darker at its root, the whole grained per pixel. front: instead
+    the long grass along the bottom edge right of the gap, which the wolves stand in."""
     rect = _meadow_rect(width, height, gap, u, side)
+    if front:
+        rect = QRectF(gap.right(), height - 44 * u, max(1.0, width - gap.right()), 44 * u)
     w, h = max(1, math.ceil(rect.width() * scale)), max(1, math.ceil(rect.height() * scale))
     image = QImage(w, h, QImage.Format_ARGB32_Premultiplied)
     image.fill(Qt.transparent)
@@ -1239,11 +1086,14 @@ def _blades(width: float, height: float, gap: QRectF, u: float, scale: float, si
     q.scale(scale, scale)
     q.translate(-rect.left(), -rect.top())
     q.setPen(Qt.NoPen)
-    rnd = random.Random(90 + side)
+    rnd = random.Random(90 + side + 7 * front)
     x = rect.left() + rnd.uniform(0, 2) * u
     while x < rect.right():
-        top = float(height - _hills(_out(np.array([x]), gap, side), u)[0][0])
-        stand = clamp((height - top) / (45 * u), 0.25, 1.0)
+        if front:
+            top, stand = height + 2 * u, rnd.uniform(0.9, 1.7)
+        else:
+            top = float(height - _hills(_out(np.array([x]), gap, side), u)[0][0])
+            stand = clamp((height - top) / (45 * u), 0.25, 1.0)
         tall, wide = rnd.uniform(8, 18) * u * stand, rnd.uniform(2.6, 3.8) * u
         lean = rnd.uniform(-0.3, 0.3) + 0.22 * math.sin(2 * math.pi * (phase / SWAYS - x / (230 * u)))
         root = QPointF(x, top + 3 * u)
@@ -1258,7 +1108,7 @@ def _blades(width: float, height: float, gap: QRectF, u: float, scale: float, si
         fill.setColorAt(1, QColor(GRASS_LIGHT).lighter(round(100 + 20 * shade)))
         q.setBrush(fill)
         q.drawPath(blade)
-        x += rnd.uniform(2.4, 4.2) * u
+        x += (rnd.uniform(1.6, 2.8) if front else rnd.uniform(2.4, 4.2)) * u
     q.end()
     # Grain per pixel: the blades' color breaks up as real grass does.
     stride = image.bytesPerLine()
@@ -1393,14 +1243,14 @@ def ring(p: QPainter, cover: QRectF, t: float) -> None:
 
 
 def _collar(side: float, scale: float) -> tuple[QImage, QRectF]:
-    """The badge's red collar strip, side wide, about the badge's middle, sagging a little."""
+    """The badge's blue ribbon, side wide, about the badge's middle, sagging a little."""
     box = QRectF(-side / 2 - 2, -side / 2, side + 4, side)
     art = _Art(box, scale, seed=73)
     strip = _limb([(-side * 0.44, -side * 0.26), (0, -side * 0.06), (side * 0.44, -side * 0.26)], side * 0.2)
-    art.fill(strip, COLLAR, side * 0.05, gloss=0.4, line=max(0.7, side * 0.025))
+    art.fill(strip, RIBBON, side * 0.05, gloss=0.4, line=max(0.7, side * 0.025))
 
     def stitches(q: QPainter) -> None:
-        pen = QPen(col("#ffd6d0", 0.75), max(0.4, side * 0.012), Qt.DashLine, Qt.RoundCap)
+        pen = QPen(col("#d6e8ff", 0.75), max(0.4, side * 0.012), Qt.DashLine, Qt.RoundCap)
         q.setPen(pen)
         q.setBrush(Qt.NoBrush)
         seam = QPainterPath(QPointF(-side * 0.4, -side * 0.28))
@@ -1426,7 +1276,7 @@ def _badge_glow(side: float, scale: float) -> tuple[QRectF, QImage]:
 
 
 def badge(p: QPainter, box: QRectF, t: float) -> None:
-    """The golden bell on its red collar strip in a warm glow, swinging; now and then it jingles and a
+    """喜羊羊's golden bell on its blue ribbon in a warm glow, swinging; now and then it jingles and a
     glint catches it."""
     scale = _sharpness(p)
     side = box.width()
