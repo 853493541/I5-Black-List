@@ -122,8 +122,8 @@ def make(stage: Stage):  # noqa: ANN201
     loop = _path(_loop_points(width, height, u))
     lane = _lane(stage, u)
     flyers = [
-        (rnd.random() * loop[1][-1], rnd.uniform(-1, 1), rnd.uniform(0.8, 1.15), rnd.randrange(len(LEAVES)), rnd.uniform(0, 6.3), rnd.uniform(0.7, 1.3), 0.75 + rnd.uniform(0, 0.55))
-        for _ in range(26)
+        (rnd.random() * loop[1][-1], rnd.uniform(-1, 1), rnd.uniform(0.8, 1.15), rnd.randrange(len(LEAVES)), rnd.uniform(0, 6.3), rnd.uniform(0.9, 1.4), 0.75 + rnd.uniform(0, 0.55))
+        for _ in range(36)
     ]
     crossers = [(1.45, 0.95), (2.55, 1.1), (3.3, 0.85)]
     motes = [(rnd.random() * loop[1][-1], rnd.uniform(-1, 1), rnd.uniform(0.5, 1.6), rnd.uniform(1.6, 3.4) * u, rnd.uniform(0, 6.3)) for _ in range(22)]
@@ -565,6 +565,11 @@ class _Leaves:
         self.front = [_leaf(42 * u, 8.5 * u, tone, self.SCALE, bend=0.5) for tone in LEAVES]
         self.back = [_leaf(42 * u, 8.5 * u, tone, self.SCALE, back=True, bend=0.5) for tone in LEAVES]
         self.length = 42 * u
+        # A soft round mint light, laid under a leaf the wind carries.
+        side = 48
+        ys, xs = np.mgrid[0:side, 0:side].astype(np.float32) + 0.5
+        fall = np.exp(-(((xs - side / 2) ** 2 + (ys - side / 2) ** 2) / (side * 0.2) ** 2))
+        self.light = glow(fall[..., None] * rgb(MINT) * 0.7)
 
     def draw(self, p: QPainter, at: QPointF, angle: float, tone: int, size: float, turn: float = 1.0) -> None:
         """A leaf with its middle at at, pointing at angle degrees, size times its own length,
@@ -573,7 +578,7 @@ class _Leaves:
         p.save()
         p.translate(at)
         p.rotate(angle)
-        p.scale(size, size * max(0.12, abs(turn)))
+        p.scale(size, size * max(0.25, abs(turn)))
         p.drawImage(rect.translated(-self.length / 2, 0), image)
         p.restore()
 
@@ -789,8 +794,8 @@ def _path(points: list[QPointF], per: int = 10) -> tuple[list[QPointF], list[flo
 def _loop_points(width: float, height: float, u: float) -> list[QPointF]:
     """Up the left, round the fish ring, across the top over the title, round the heart and down the
     right, close to its edge where the names come near."""
-    left = [(100, height / u + 40), (92, height / u - 130), (80, height / u - 280), (98, 470), (84, 330), (64, 245), (50, 150), (70, 68), (132, 28)]
-    top = [(260, 36), (420, 54), (600, 36), (800, 52), (1000, 34), (None, 52, 430), (None, 32, 280)]
+    left = [(122, height / u + 40), (128, height / u - 130), (116, height / u - 280), (130, 470), (118, 330), (84, 250), (56, 160), (74, 76), (140, 40)]
+    top = [(270, 84), (430, 104), (600, 70), (800, 60), (1000, 66), (None, 104, 440), (None, 80, 290)]
     right = [(None, 40, 130), (None, 100, 60), (None, 230, 40), (None, 400, 36), (None, 560, 38), (None, 700, 34), (None, height / u - 60, 50), (None, height / u + 40, 30)]
     out = []
     for point in left + top + right:
@@ -862,7 +867,7 @@ class _Streak:
             at, angle = point_at(self.points, self.run, tail + (head - tail) * k / count)
             spine.append((at, angle))
         fade = clamp((total - tail) / (self.length * 0.6)) * a * self.strength
-        _ribbon(p, spine, self.thick * 3.6, col(MINT, 0), col(MINT, 0.26 * fade))
+        _ribbon(p, spine, self.thick * 4.5, col(MINT, 0), col(MINT, 0.34 * fade))
         _ribbon(p, spine, self.thick, col(MIST, 0), col("#ffffff", 0.8 * fade))
 
 
@@ -909,10 +914,14 @@ def _streaks(width: float, height: float, gap: QRectF, u: float, lane: tuple[lis
         (line([(300, 50), (650, 30), (1000, 50), (-500, 30)], 24, 1), 3.55, 2.2),
     )
     out = []
+    # Each blows twice, the second time a little in from the first.
     for points, start, thick in paths:
         if any(gap.adjusted(-20 * u, -20 * u, 20 * u, 0).contains(point) for point in points):
             continue
         out.append(_Streak(points, start, 760 * u, 320 * u, thick * 1.4 * u, 1.0))
+        if start + 1.25 < 4.2:
+            inward = [QPointF(point.x() + (10 * u if point.x() < width / 2 else -10 * u), point.y() + 12 * u) for point in points]
+            out.append(_Streak(inward, start + 1.25, 820 * u, 280 * u, thick * 1.1 * u, 0.8))
     crossing = list(lane[0])
     out.append(_Streak(crossing, 2.05, 1500 * u, 380 * u, 1.6 * u, 0.55))
     return out
@@ -974,7 +983,10 @@ def _flyers(p: QPainter, t: float, flyers: list[tuple], loop: tuple, travel: np.
         flutter = 40 * math.sin(t * 5.2 * speed + phase) + 20 * math.sin(t * 2.3 + phase * 2)
         turn = math.cos(t * 6.4 * speed + phase)
         p.setOpacity(a * ease_out(k) * ends)
-        leaves.draw(p, at, math.degrees(angle) + flutter, tone, 0.85 * size * (0.6 + 0.4 * ease_out(k)), turn)
+        # Lit by the wind that carries it: a soft mint light under it, so it reads apart from the bamboo.
+        r = 34 * u * size
+        p.drawImage(QRectF(at.x() - r, at.y() - r, 2 * r, 2 * r), leaves.light)
+        leaves.draw(p, at, math.degrees(angle) + flutter, (1, 2)[tone % 2], size * (0.6 + 0.4 * ease_out(k)), turn)
     p.setOpacity(a)
 
 
@@ -1056,7 +1068,8 @@ class _Heroes:
         p.setPen(Qt.NoPen)
         p.setBrush(halo)
         p.drawEllipse(c, 120 * u, 120 * u)
-        _swirl(p, c, whirl, u, a * ease_out(win(t, 0.6, 1.3)), front=False)
+        runs = _swirl(c, whirl, u)
+        _wheel(p, runs, u, a * ease_out(win(t, 0.6, 1.3)), front=False)
         size = self.size * (0.7 + 0.3 * come)
         p.save()
         p.setOpacity(a)
@@ -1064,7 +1077,7 @@ class _Heroes:
         p.rotate(spin)
         p.drawImage(QRectF(-size / 2, -size / 2, size, size), image)
         p.restore()
-        _swirl(p, c, whirl, u, a * ease_out(win(t, 0.6, 1.3)), front=True)
+        _wheel(p, runs, u, a * ease_out(win(t, 0.6, 1.3)), front=True)
         for k in range(6):
             angle = whirl * (1.1 + 0.1 * k) + k * 1.05
             r = (78 + 16 * math.sin(k * 2.1)) * u
@@ -1089,7 +1102,7 @@ class _Heroes:
         for scale, phase, speed, thick, tone in ((1.0, 0.0, 0.32, 3.2, MIST), (0.86, 0.33, 0.27, 2.4, LIME), (1.1, 0.62, 0.36, 2.0, MINT), (0.72, 0.15, 0.3, 1.8, MIST)):
             reach = 0.62 * form
             head = phase + speed * t
-            count = 36
+            count = 22
             spine = []
             for k in range(count + 1):
                 turn = head - reach + reach * k / count
@@ -1142,45 +1155,43 @@ def _heart_glow(px: int) -> QImage:
     return glow(light[..., None] * rgb("#5fdca6") * 0.9 + (light ** 3)[..., None] * rgb("#d9f27c") * 0.5)
 
 
-def _swirl(p: QPainter, c: QPointF, whirl: float, u: float, a: float, front: bool) -> None:
-    """Ribbons of yellow-green and jade wind wheeling round the fish ring on tilted rings: the half
-    behind it, or the half before it."""
-    if a <= 0.01:
-        return
-    for index, (tilt, ra, rb, speed, phase, thick, tone) in enumerate((
+def _swirl(c: QPointF, whirl: float, u: float) -> list[tuple[bool, list, float, float, float, str]]:
+    """Ribbons of yellow-green and jade wind wheeling round the fish ring on tilted rings, in runs:
+    (before the ring or behind it, the run's points and headings, how far along the ribbon it starts
+    and ends, its thickness, its color)."""
+    out = []
+    count, sweep = 26, 3.4
+    for tilt, ra, rb, speed, phase, thick, tone in (
         (-24, 108, 42, 1.0, 0.0, 4.6, LIME),
         (32, 100, 36, 1.25, 2.1, 3.6, MINT),
         (82, 94, 32, 0.9, 4.0, 3.0, "#8fe8a0"),
-    )):
+    ):
         start = phase + whirl * speed
-        sweep = 3.4
         cos_t, sin_t = math.cos(math.radians(tilt)), math.sin(math.radians(tilt))
-        spine = []
-        count = 34
-        for k in range(count + 1):
-            phi = start + sweep * k / count
+        phis = [start + sweep * k / count for k in range(count + 1)]
+        pts = []
+        for phi in phis:
             ex, ey = ra * u * math.cos(phi), rb * u * math.sin(phi)
-            at = QPointF(c.x() + ex * cos_t - ey * sin_t, c.y() + ex * sin_t + ey * cos_t)
-            spine.append((at, phi))
-        # Headings from the points themselves.
-        pts = [at for at, _ in spine]
+            pts.append(QPointF(c.x() + ex * cos_t - ey * sin_t, c.y() + ex * sin_t + ey * cos_t))
         spine = [(pts[k], math.atan2(pts[min(k + 1, count)].y() - pts[max(k - 1, 0)].y(), pts[min(k + 1, count)].x() - pts[max(k - 1, 0)].x())) for k in range(count + 1)]
         # Before the ring where the orbit comes toward the eye.
-        runs: list[list] = []
-        for k in range(count + 1):
-            phi = start + sweep * k / count
-            near = math.sin(phi) > 0
-            if not runs or runs[-1][0] != near:
-                runs.append([near, k, k])
-            runs[-1][2] = k
-        for near, k0, k1 in runs:
-            if near != front or k1 - k0 < 2:
-                continue
-            part = spine[k0 : k1 + 1]
-            s0, s1 = k0 / count, k1 / count
+        k0 = 0
+        for k in range(1, count + 2):
+            if k == count + 1 or (math.sin(phis[k]) > 0) != (math.sin(phis[k0]) > 0):
+                if k - 1 - k0 >= 2:
+                    out.append((math.sin(phis[k0]) > 0, spine[k0:k], k0 / count, (k - 1) / count, thick, tone))
+                k0 = k
+    return out
+
+
+def _wheel(p: QPainter, runs: list[tuple], u: float, a: float, front: bool) -> None:
+    """The swirl's runs behind the ring, or before it."""
+    if a <= 0.01:
+        return
+    for near, part, s0, s1, thick, tone in runs:
+        if near == front:
             _ribbon(p, part, thick * 3.4 * u, col(tone, 0.3 * a * s0), col(tone, 0.32 * a * s1))
             _ribbon(p, part, thick * u, col(tone, 0.9 * a * s0), mix(tone, "#ffffff", 0.35, 0.95 * a * s1))
-        del index
 
 
 def _sharpness(p: QPainter) -> float:
