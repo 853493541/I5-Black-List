@@ -3050,7 +3050,9 @@ class MainWindow(QMainWindow):
         if self.effect_hotkey.active != spec.display and not self.effect_hotkey.apply(spec):
             log.warning("特效 hotkey %s did not register: another program holds it, or this PC has none.", spec.display)
             if sys.platform == "win32":
-                self.effects_page.say("这个键被别的程序占了，换一个")
+                self.effects_page.say("这个键被别的程序占了，换一个", held=True)
+        elif self.effects_page.held:
+            self.effects_page.say("")
 
     def _take_hotkey(self, event, edit: QLineEdit | None = None) -> None:  # noqa: ANN001
         edit = self.hotkey_edit if edit is None else edit
@@ -3120,6 +3122,10 @@ class MainWindow(QMainWindow):
         self.store.save_settings()
         edit.setText(spec.display)
         self._hotkey_note(edit, "" if registered else "这台电脑用不了快捷键")
+        if field == "hotkey" and spec.display != DEFAULT_EFFECT_HOTKEY and not self.store.effect_hotkey:
+            # 检查 is off the key 特效 says it has: that note goes.
+            if self.effects_page.held:
+                self.effects_page.say("")
         edit.clearFocus()
         if self._status_kind == "idle":
             self._sync_watch_idle()
@@ -3137,10 +3143,20 @@ class MainWindow(QMainWindow):
         self._sync_hotkey_mode()
         self._show_hotkey(self.effect_hotkey_edit)
         self._sync_effect_hotkey()
-        check = parse_hotkey(self.store.hotkey)
-        if not self.store.effect_hotkey and check is not None and check.display == DEFAULT_EFFECT_HOTKEY:
-            # 检查 had the 特效 hotkey's key before there was one: say why it has none.
-            self.effects_page.say(f"检查已在用 {DEFAULT_EFFECT_HOTKEY}，特效快捷键未设置")
+        # A key an earlier version took that is no hotkey now (Shift+Q, Ctrl+S): say it was replaced, and by
+        # what, unless the one in its place did not register, which is said instead.
+        if self.store.dropped_hotkey and not self._held_note:
+            self._set_settings_note(self._dropped_note("快捷键", self.store.dropped_hotkey, self.store.hotkey))
+        if self.store.dropped_effect_hotkey and not self.effects_page.held:
+            self.effects_page.say(self._dropped_note("特效快捷键", self.store.dropped_effect_hotkey, self.store.effect_hotkey))
+        elif not self.store.effect_hotkey and self.store.hotkey == DEFAULT_EFFECT_HOTKEY:
+            # 检查 had the 特效 hotkey's key before there was one: say why it has none, until 检查 moves.
+            self.effects_page.say(f"检查已在用 {DEFAULT_EFFECT_HOTKEY}，特效快捷键未设置", held=True)
+
+    @staticmethod
+    def _dropped_note(what: str, dropped: str, now: str) -> str:
+        """A key an earlier version took that is no hotkey now, and the one in its place, if any."""
+        return f"{what} {dropped} 已不能用，" + (f"换成了 {now}" if now else "换一个")
 
     def check_now(self) -> None:
         log.info("Hotkey: checking.")
@@ -4132,7 +4148,8 @@ class MainWindow(QMainWindow):
         self._end_quick_play()
         scene = self.store.quick_scene
         self._quick_saved = (
-            self._game_box, self._game_screen, self._game_windows, QRect(self.stream._frame), self._lobby_choice, self._lobby_seats,
+            self._game_box, self._game_screen, self._game_windows,
+            QRect(self.stream._frame), self._lobby_choice, self._lobby_seats,
         )  # fmt: skip
         if self._game_box is not None:
             where = "the last lobby's game"
@@ -4249,7 +4266,8 @@ class MainWindow(QMainWindow):
         self._quick_scene = ""
         self._quick_area = None
         if self._quick_saved is not None:
-            self._game_box, self._game_screen, self._game_windows, frame, self._lobby_choice, self._lobby_seats = self._quick_saved
+            saved = self._quick_saved
+            self._game_box, self._game_screen, self._game_windows, frame, self._lobby_choice, self._lobby_seats = saved
             self.stream.set_frame(frame)
             self._quick_saved = None
         self.love.choice = self.store.love_scene
@@ -4493,8 +4511,9 @@ class MainWindow(QMainWindow):
         self._watch_tone = tone
         self._watch_full = text
         self._watch_tip = tip
-        # 手动检查 shows the hotkey that starts a check.
-        self.status_chip.set_state(text, tone, self.store.hotkey if kind == "idle" else "")
+        # 手动检查 shows the hotkey that starts a check, never one that is none.
+        spec = parse_hotkey(self.store.hotkey)
+        self.status_chip.set_state(text, tone, spec.display if kind == "idle" and spec is not None else "")
         self._sync_status_tip()
         self._set_tray(text)
 

@@ -78,6 +78,7 @@ class EffectsPage(QWidget):
         self.store = store
         self.music = music
         self.sounding = False
+        self.held = False
         outer = QVBoxLayout(self)
         _page(outer)
         body = QHBoxLayout()
@@ -145,7 +146,10 @@ class EffectsPage(QWidget):
             self.music.preview(tune_for(self.scenes.key, self.store.love_music))
             self.sounding = True
 
-    def say(self, text: str) -> None:
+    def say(self, text: str, held: bool = False) -> None:
+        """held: the note is about the hotkey as it stands (another program has its key, 检查 the one it
+        would have), and goes once that is no longer so; one about a key just pressed, or 播放's, stays."""
+        self.held = held
         self.note.setText(text)
         self.note.setVisible(bool(text))
         self.stage.below.layout().activate()

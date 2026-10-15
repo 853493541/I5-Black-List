@@ -61,6 +61,20 @@ def _wait(ms: int) -> None:
         time.sleep(0.01)
 
 
+def _opened_with(tmp_path, monkeypatch, **settings):  # noqa: ANN001, ANN003, ANN202
+    from blacklist_detect.ui import MainWindow
+
+    QApplication.instance() or QApplication([])
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    root = Store().root
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
+    window = MainWindow()
+    window._watch_timer.stop()
+    return window
+
+
 def _press(edit, key, modifiers=Qt.KeyboardModifier.NoModifier) -> None:  # noqa: ANN001
     app = QApplication.instance()
     app.sendEvent(edit, QFocusEvent(QEvent.Type.FocusIn))
@@ -93,9 +107,18 @@ def test_the_settings_save_and_load_and_bad_ones_fall_back(tmp_path):
     for key in ("Q", "Shift+Q", "Shift+7", "Ctrl+C", "Ctrl+Shift+V", "Alt+F4", "Win+D"):
         assert saved(effect_hotkey=key).effect_hotkey == "Alt+F12", key
     assert saved(hotkey="Alt+F12", effect_hotkey="Ctrl+V").effect_hotkey == ""
-    # 检查's is none then, as for a key that is no hotkey: nothing taken from typing.
-    store = saved(hotkey="Shift+A")
-    assert hotkey.parse_hotkey(store.hotkey) is None and store.effect_hotkey == "Alt+F12"
+    # 检查's, which v0.9.11 took, is its default again: nothing taken from typing, and 手动检查 still has a key.
+    for key in ("Q", "Shift+A", "Ctrl+S", "ctrl+v", "Alt+F4", "Win+D", "Shift+F10", "F12", "Ctrl+Shift+C"):
+        store = saved(hotkey=key)
+        assert (store.hotkey, store.dropped_hotkey, store.effect_hotkey) == ("Alt+1", key, "Alt+F12"), key
+    assert saved(hotkey="alt+q").hotkey == "Alt+Q" and saved(hotkey="alt+q").dropped_hotkey == ""
+    # Alt+1 is the 特效 hotkey's by then: it keeps it, and 检查 is none.
+    store = saved(hotkey="Shift+A", effect_hotkey="Alt+1")
+    assert (store.hotkey, store.effect_hotkey) == ("", "Alt+1")
+    store = saved(effect_hotkey="Shift+A")
+    assert (store.effect_hotkey, store.dropped_effect_hotkey, store.dropped_hotkey) == ("Alt+F12", "Shift+A", "")
+    store.save_settings()
+    assert (Store(root).hotkey, Store(root).effect_hotkey, Store(root).dropped_effect_hotkey) == ("Alt+1", "Alt+F12", "")
     assert saved(hotkey="Alt+F12").effect_hotkey == ""
     assert saved(hotkey="Alt+1", effect_hotkey="alt+1").effect_hotkey == ""
     # 检查 had no key and the 特效 hotkey took Alt+1, where 检查 would come back: the 特效 hotkey keeps it.
@@ -115,9 +138,10 @@ def test_the_settings_save_and_load_and_bad_ones_fall_back(tmp_path):
     assert (Store(root).hotkey, Store(root).effect_hotkey) == ("Alt+2", "")
     # None saved for 特效 at all (v0.9.11): the default.
     assert saved(hotkey="Ctrl+K").effect_hotkey == "Alt+F12"
-    store = saved(quick_scene="stars", effect_hotkey="F9")
+    store = saved(quick_scene="stars", hotkey="Q", effect_hotkey="F9")
     store.reset()
     assert store.quick_scene == "classic" and store.effect_hotkey == "Alt+F12"
+    assert store.dropped_hotkey == store.dropped_effect_hotkey == ""
 
 
 def test_the_page_lists_every_scene_and_saves_the_one_picked(window):
@@ -235,22 +259,22 @@ def test_a_letter_or_number_alone_is_no_hotkey(window, monkeypatch):
 
 
 def test_a_player_whose_check_key_was_alt_f12_is_told_the_effect_hotkey_is_not_set(tmp_path, monkeypatch):
-    from blacklist_detect.ui import MainWindow
-
-    QApplication.instance() or QApplication([])
-    monkeypatch.setenv("APPDATA", str(tmp_path))
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
-    root = Store().root
-    root.mkdir(parents=True, exist_ok=True)
-    (root / "settings.json").write_text(json.dumps({"hotkey": "Alt+F12"}), encoding="utf-8")
-    window = MainWindow()
-    window._watch_timer.stop()
+    window = _opened_with(tmp_path, monkeypatch, hotkey="Alt+F12")
     edit = window.effect_hotkey_edit
     assert window.store.effect_hotkey == "" and window.effect_hotkey.active == ""
     assert edit.text() == "" and edit.placeholderText() == "未设置"
     assert window.effects_page.note.text() == "检查已在用 Alt+F12，特效快捷键未设置"
     # 检查's own box still says 无 when it has none.
     assert window.hotkey_edit.placeholderText() == "无"
+    # The same key pressed again in 检查's box: still so, still said.
+    _press(window.hotkey_edit, Qt.Key_F12, Qt.KeyboardModifier.AltModifier)
+    assert window.effects_page.note.text() == "检查已在用 Alt+F12，特效快捷键未设置"
+    # 检查 moves off it: no longer so, so no longer said; a note about a key pressed for 特效 stays.
+    _press(window.hotkey_edit, Qt.Key_2, Qt.KeyboardModifier.AltModifier)
+    assert window.store.hotkey == "Alt+2" and window.effects_page.note.isHidden()
+    window.effects_page.say("最多两个键，比如 Alt+1")
+    _press(window.hotkey_edit, Qt.Key_3, Qt.KeyboardModifier.AltModifier)
+    assert window.store.hotkey == "Alt+3" and window.effects_page.note.text() == "最多两个键，比如 Alt+1"
     window.close()
 
 
@@ -398,7 +422,8 @@ def test_in_stream_mode_it_reaches_the_stream_window(window, monkeypatch):
     screen = window.screen().geometry()
     ratio = window.screen().devicePixelRatio()
     game_window = livehime.Capture("MuMu安卓设备", "Qt5QWindowIcon", "MuMuNxDevice.exe", True)
-    native = (screen.x() + round(100 * ratio), screen.y() + round(80 * ratio), screen.x() + round(900 * ratio), screen.y() + round(580 * ratio))
+    left, top = screen.x(), screen.y()
+    native = (left + round(100 * ratio), top + round(80 * ratio), left + round(900 * ratio), top + round(580 * ratio))
     monkeypatch.setattr(livehime, "game_capture", lambda scene, title: game_window)
     monkeypatch.setattr(livehime, "client_rect", lambda capture: native)
     monkeypatch.setattr(ui, "inner_rect_of", lambda _hwnd, _x, _y: None)
@@ -635,6 +660,48 @@ def test_the_window_shortcuts_are_keys_for_the_box_while_it_waits(window):
     window.hide()
 
 
+@pytest.mark.parametrize("key", ["Q", "Shift+Q", "Ctrl+S", "ctrl+v", "Alt+F4", "Win+D", "Shift+F10", "F12", "Ctrl+Shift+C"])
+def test_a_check_key_from_before_that_is_no_hotkey_now_is_alt_1_and_the_player_is_told(tmp_path, monkeypatch, key):
+    window = _opened_with(tmp_path, monkeypatch, hotkey=key)
+    assert window.store.hotkey == "Alt+1" and window.hotkey.active == "Alt+1" and window.hotkey_edit.text() == "Alt+1"
+    # The header shows the key that checks, never the one that no longer does.
+    assert window.status_chip.text() == "手动检查" and window.status_chip.key_text() == "Alt+1"
+    assert window.settings_label.text() == f"快捷键 {key} 已不能用，换成了 Alt+1" and not window.settings_label.isHidden()
+    assert window._how_to_check() == "在「推演成功」大厅按 Alt+1 检查"
+    assert "手动检查 (Alt+1)" in window.settings_line()
+    # Saved as Alt+1: the next start says nothing.
+    window.store.save_settings()
+    window.close()
+    again = type(window)()
+    again._watch_timer.stop()
+    assert again.store.hotkey == "Alt+1" and again.settings_label.text() == ""
+    again.close()
+
+
+def test_a_dropped_check_key_whose_default_the_effect_hotkey_has_asks_for_another(tmp_path, monkeypatch):
+    window = _opened_with(tmp_path, monkeypatch, hotkey="Shift+A", effect_hotkey="Alt+1")
+    assert window.store.hotkey == "" and window.hotkey.active == "" and window.effect_hotkey.active == "Alt+1"
+    assert window.status_chip.key_text() == "" and window.settings_label.text() == "快捷键 Shift+A 已不能用，换一个"
+    window.close()
+
+
+def test_a_dropped_effect_key_is_alt_f12_and_the_page_says_so(tmp_path, monkeypatch):
+    window = _opened_with(tmp_path, monkeypatch, effect_hotkey="Ctrl+C")
+    assert window.effect_hotkey.active == "Alt+F12" and window.effect_hotkey_edit.text() == "Alt+F12"
+    assert window.effects_page.note.text() == "特效快捷键 Ctrl+C 已不能用，换成了 Alt+F12"
+    assert window.settings_label.text() == ""
+    window.close()
+
+
+def test_the_header_never_shows_a_check_key_that_is_none(window):
+    window.store.hotkey = "Shift+Q"
+    window._sync_watch_idle()
+    assert window.status_chip.text() == "手动检查" and window.status_chip.key_text() == ""
+    window.store.hotkey = "alt+q"
+    window._sync_watch_idle()
+    assert window.status_chip.key_text() == "Alt+Q"
+
+
 def test_a_key_another_program_holds_keeps_the_one_before(window, monkeypatch):
     held = (0x31, 0x70)  # 1 and F1: another program has them.
     monkeypatch.setattr(hotkey, "_register", lambda ident, modifiers, vk: vk not in held)
@@ -657,6 +724,30 @@ def test_a_hotkey_that_did_not_register_at_start_says_so(window, monkeypatch):
     assert window.effect_hotkey_edit.text() == "Alt+F12" and window.effect_hotkey.active == ""
     assert window.effects_page.note.text() == "这个键被别的程序占了，换一个"
     assert window.settings_label.text() == "这个键被别的程序占了，换一个"
+    # So it does for a key in place of one dropped: that it does not work is what the player needs to know.
+    window.store.dropped_hotkey = "Shift+Q"
+    window.store.dropped_effect_hotkey = "Ctrl+C"
+    window._restore_hotkey()
+    assert window.effects_page.note.text() == "这个键被别的程序占了，换一个"
+    assert window.settings_label.text() == "这个键被别的程序占了，换一个"
+
+
+def test_the_note_that_the_effect_key_did_not_register_goes_once_it_does(window, monkeypatch):
+    window.effect_hotkey.clear()
+    monkeypatch.setattr(hotkey, "_register", lambda ident, modifiers, vk: False)
+    window._sync_effect_hotkey()
+    assert window.effects_page.note.text() == "这个键被别的程序占了，换一个" and not window.effects_page.note.isHidden()
+    # The other program let go of it: taken as 检查's box lets go of both, the note goes.
+    monkeypatch.setattr(hotkey, "_register", lambda ident, modifiers, vk: True)
+    window._end_hotkey(window.hotkey_edit)
+    assert window.effect_hotkey.active == "Alt+F12" and window.effects_page.note.isHidden()
+    # A note about a key pressed in the box stays, the key before it taken back; so does 播放's.
+    monkeypatch.setattr(hotkey, "_register", lambda ident, modifiers, vk: vk != 0x70)
+    _press(window.effect_hotkey_edit, Qt.Key_F1, Qt.KeyboardModifier.AltModifier)
+    assert window.effect_hotkey.active == "Alt+F12" and window.effects_page.note.text() == "这个键被别的程序占了，换一个"
+    window.effects_page.say("正在检查，稍后再试")
+    window._end_hotkey(window.hotkey_edit)
+    assert window.effects_page.note.text() == "正在检查，稍后再试"
 
 
 def test_the_note_that_checks_key_did_not_register_goes_once_it_does(window, monkeypatch):

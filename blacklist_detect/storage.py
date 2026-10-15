@@ -420,6 +420,10 @@ class Store:
         # 特效: the scene the 特效 hotkey plays (a love_scenes key), and that hotkey; it never equals 检查's.
         self.quick_scene = "classic"
         self.effect_hotkey = DEFAULT_EFFECT_HOTKEY
+        # A hotkey saved by an earlier version that is none now (Shift+Q, Ctrl+S: parse_hotkey), as it was
+        # saved, so the player is told it was replaced. Never saved.
+        self.dropped_hotkey = ""
+        self.dropped_effect_hotkey = ""
         # 直播模式: a window for a streaming app with the 嘉宾 marks only, clear behind them. "" off, "on" on.
         self.stream_mode = ""
         # 直播模式's 测试框: the red frame round the game in that window while no mark shows.
@@ -852,6 +856,11 @@ class Store:
             self.hotkey = two_keys(saved)
             if self.hotkey != saved:
                 _log.info("Hotkey %s cut to %s: two keys at most.", saved, self.hotkey)
+            # Up to v0.9.11 检查 took any key, Q, Shift+A or Ctrl+S too: one that is no hotkey now is the
+            # default again (or none, below, when the 特效 hotkey has that).
+            check = parse_hotkey(self.hotkey)
+            self.dropped_hotkey = saved if check is None else ""
+            self.hotkey = check.display if check is not None else DEFAULT_HOTKEY
             self.auto_capture = bool(settings.get("auto_capture", False))
             self.auto_resume = bool(settings.get("auto_resume", False))
             self.save_debug_frames = bool(settings.get("save_debug_frames", False))
@@ -886,17 +895,21 @@ class Store:
             scene = love_scenes.shown(str(settings.get("quick_scene", "") or ""))
             self.quick_scene = scene if scene in love_scenes.KEYS else "classic"
             # None saved stays none (turned off, or it was 检查's); a key that is no hotkey (one in everyday
-            # use too, Shift+A or Ctrl+C: parse_hotkey) is the default again; the same as 检查's is none. When 检查 had none, the 特效 hotkey may have taken the
-            # key 检查 comes back to: it keeps it, 检查 stays none.
+            # use too, Shift+A or Ctrl+C: parse_hotkey) is the default again; the same as 检查's is none. When 检查 had none,
+            # or one that is none now, the 特效 hotkey may have taken the key 检查 comes back to: it keeps it, 检查 stays none.
             saved_effect = settings.get("effect_hotkey", DEFAULT_EFFECT_HOTKEY)
             effect = parse_hotkey(two_keys(str(saved_effect or "")))
             self.effect_hotkey = "" if saved_effect == "" else effect.display if effect is not None else DEFAULT_EFFECT_HOTKEY
-            check = parse_hotkey(self.hotkey)
-            if check is not None and check.display == self.effect_hotkey:
-                if settings.get("hotkey"):
+            self.dropped_effect_hotkey = str(saved_effect or "") if effect is None else ""
+            if self.hotkey == self.effect_hotkey:
+                if settings.get("hotkey") and not self.dropped_hotkey:
                     self.effect_hotkey = ""
                 else:
                     self.hotkey = ""
+            if self.dropped_hotkey:
+                _log.info("Hotkey %s is no hotkey now: %s instead.", self.dropped_hotkey, self.hotkey or "none")
+            if self.dropped_effect_hotkey:
+                _log.info("特效 hotkey %s is no hotkey now: %s instead.", self.dropped_effect_hotkey, self.effect_hotkey or "none")
             # v0.6.0 saved "key" (green) or "alpha" (clear), v0.6.1 "key": each is on, and clear now.
             self.stream_mode = "on" if settings.get("stream_mode") in ("on", "key", "alpha") else ""
             self.stream_test_frame = settings.get("stream_test_frame") is not False
@@ -1124,6 +1137,8 @@ class Store:
         self.love_music = "theme"
         self.quick_scene = "classic"
         self.effect_hotkey = DEFAULT_EFFECT_HOTKEY
+        self.dropped_hotkey = ""
+        self.dropped_effect_hotkey = ""
         self.stream_mode = ""
         self.stream_test_frame = True
         self.check_blacklist = True
