@@ -20,9 +20,14 @@ v0.9.15 holds, on top of v0.9.14:
 
 - **P1b-i guest-list merged** (`482c80e`, after the release): the green 我 row on top of the 嘉宾 list (`ME_ROLE`; `store.player_name` or muted 「点右上角填写游戏名」; the 我 tag is green ink on a `surface` chip; no drag/edit/delete/menu; not in the count, 复制名单 or 清空; search shows it when empty or matching; 场景 cell = `scenes_said(store.me)`; `LikesPage.edit_me()` is a stub for P1b-ii; no 我 row while the list is empty); the 组合 pill in blue (`_draw_pill(..., ink)`; THEME `blue`/`blue_wash` in both palettes, contrast-tested); 批量导入 gone from the 嘉宾 page (`Store.import_likes` and `BatchAddDialog`'s `likes` are gone; 黑名单's stays); `ui.py` refreshes `likes_page` after the name is saved; `tools/ui_shots.py` fixed (it used `Scenes(off=True)`) and seeds `store.set_me(Scenes(("lace",)))`.
 
-## Running
+## Running (workflows of this session; a new session restarts them from `~/.claude/projects/…/workflows/scripts/` or finishes by hand)
 
-- Nothing, unless the next master started P1b-ii (see "Next steps").
+- **E / P1b-ii `feature/guest-scene-editor`** (wf_f69c699a-ff0, base `482c80e`): implementer → tester (desktop) → one fix round.
+- **B / P4 `feature/scene-songs`** (wf_d2abc0c1-a08, base `b0bbdf7`): implementer → tester (no desktop) → one fix round.
+- **F / P2 `feature/lobby-priority`** (wf_1fdc12dd-f72, base `b0bbdf7`): implementer → tester (no desktop) → one fix round; the master takes the on-game shots (mixed lobby, 我 lobby) at merge time.
+- **Green + wind concepts** (wf_1f423b6f-a13): 7 designers, one still each, under this session's scratchpad `concepts/<n>_<slug>/concept.png`; the user picks one, then one concept frame, then a build. The user: "show me pictures, not text"; no name until they choose.
+
+The user, 2026-10-15 night: v0.9.15 was released with a third of the plan (their words: "ten percent… you call it done"). The real release is when A–F are all merged; report against A–F, not packages; release only on their word. Merge order as they land: E, B, F each rebased onto `improve/quality` (E and F both touch tests/test_likes.py and tests/test_scene_multi.py — expect small conflicts), then A / P5 last (it touches ui_effects.py, ui.py and ui_likes.py, so it waits for all three).
 
 ## Branches not merged
 
