@@ -256,7 +256,7 @@ def test_a_lobby_with_everyone_on_no_scene_shows_the_marks_and_plays_nothing(win
     assert window._lobby_choice == "off" and not window.love.playing()
     assert window.panel.mode == "liked" and window.like_card.isVisible()
     assert not any(window.tunes), "no scene, no sound"
-    # Back on 放场景, its own again.
+    # Back on 播放场景, its own again.
     window.store.update_like(0, "小明", scenes=Scenes(("ice",)))
     _check(window, "小明")
     assert window.love.scene == "ice"
@@ -365,9 +365,9 @@ def test_a_new_guest_starts_on_no_scene_and_saves_the_scenes_ticked(window, monk
 
     monkeypatch.setattr(LikeDialog, "exec", add("小明", on=False))
     window.likes_page.add_one()
-    # 放场景 off, untouched: 不放.
+    # 播放场景 off, untouched: 不放.
     assert opened == [(False, ())] and window.store.likes[0].scenes == Scenes()
-    # 放场景 ticked, nothing else: 随机.
+    # 播放场景 ticked, nothing else: 随机.
     monkeypatch.setattr(LikeDialog, "exec", add("小刚"))
     window.likes_page.add_one()
     assert window.store.likes[1].scenes == ANY_SCENE

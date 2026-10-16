@@ -188,7 +188,7 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     like = window.store.likes[window.store.like_index("心动小鹿")]
     picker = LikeDialog(like.name, like.nickname, like.reason, allow_delete=True, parent=window, scenes=like.scenes)
     pane, heard = picker.pane, len(played)
-    # On 随机 the boxes take ticks; 放场景 off greys them, and the names still play.
+    # On 随机 the boxes take ticks; 播放场景 off greys them, and the names still play.
     assert pane.play_box.isChecked() and pane.buttons["ice"].box_enabled
     pane.play_box.click()
     assert not pane.buttons["ice"].box_enabled and pane.buttons["ice"].isEnabled()

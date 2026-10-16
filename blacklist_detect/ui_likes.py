@@ -674,8 +674,11 @@ class LikesPage(QWidget):
         else:
             self.edit(index)
 
-    def _combo_editor(self, combo: Combo | None = None) -> ComboDialog:
-        return ComboDialog(self.store.likes, combo, parent=self.window())
+    def _combo_editor(self, number: int = -1) -> ComboDialog:
+        """添加组合, or 编辑组合 on the number-th; the others saved are there to refuse a second of one."""
+        combos = list(self.store.combos)
+        combo = combos.pop(number) if number >= 0 else None
+        return ComboDialog(self.store.likes, combo, parent=self.window(), others=combos)
 
     def add_combo(self, _checked: bool = False) -> None:
         """添加组合: two or more 嘉宾 and the 场景 that greet them all in one lobby."""
@@ -692,7 +695,7 @@ class LikesPage(QWidget):
     def edit_combo(self, number: int) -> None:
         if not 0 <= number < len(self.store.combos):
             return
-        dialog = self._combo_editor(self.store.combos[number])
+        dialog = self._combo_editor(number)
         if dialog.exec() != QDialog.Accepted:
             return
         if dialog.deleted:

@@ -428,6 +428,40 @@ def test_under_mute_a_trial_cannot_be_played_and_nothing_is(window, pick, trim, 
     assert all(tune is None for tune in window.played)
 
 
+def test_at_volume_0_a_trial_cannot_be_played_either(window, pick, trim, tmp_path):
+    page = _shown(window, "stars")
+    page.volume_slider.setValue(0)
+    pick["chosen"] = _wav(tmp_path / "long.wav", 8.0)
+
+    def quiet(dialog) -> bool:  # noqa: ANN001
+        assert not dialog.play_button.isEnabled() and not dialog.pause_button.isEnabled()
+        assert dialog.play_button.toolTip() == "音量为 0%"
+        dialog.toggle_preview()
+        assert not dialog.playing
+        return True
+
+    trim["do"] = quiet
+    window.played.clear()
+    page.upload_button.click()
+    assert window.store.scene_sounds["stars"]["chosen"] == "stars-1.wav"
+    assert all(tune is None for tune in window.played)
+
+
+def test_the_notes_that_are_warnings_are_underlined(window, pick, trim, tmp_path):
+    """As 检查's: what went wrong with a 配乐 or a key pressed for the hotkey is underlined; 正在读取… is not."""
+    page = _shown(window, "stars")
+    empty = tmp_path / "empty.mp3"
+    empty.write_bytes(b"")
+    pick["chosen"] = empty
+    page.upload_button.click()
+    assert page.sound_note.property("tone") == "warn" and page.sound_note.font().underline()
+    page._tell("正在读取…")
+    assert page.sound_note.property("tone") == "" and not page.sound_note.font().underline()
+    page.say("这个键被别的程序占了，换一个", held=True)
+    page.note.ensurePolished()
+    assert page.note.font().underline()
+
+
 def test_a_file_that_cannot_be_used_says_why_until_another_is_shown(window, pick, trim, tmp_path):
     page = _shown(window, "stars")
     empty = tmp_path / "empty.mp3"
@@ -1014,3 +1048,25 @@ def test_the_tab_row_keeps_clear_of_the_chips_in_the_smallest_window(window):
     assert [tab.name() for tab in window._tab_buttons] == ["记录", "黑名单", "嘉宾", "设置"]
     assert last.mapTo(window, last.rect().topRight()).x() < window.update_pill.mapTo(window, window.update_pill.rect().topLeft()).x()
     window.hide()
+
+
+def test_open_it_follows_the_theme_as_windows_turns_light_or_dark(window):
+    """跟随系统 can switch 浅色 / 深色 while 场景管理 is open: it, 上传 and ▶ 播放 too, follow at once."""
+    from blacklist_detect.ui_theme import THEME
+
+    window._set_appearance("light")
+    window.scenes_dialog.show()
+    page = _shown(window, "stars")
+
+    def upload_face() -> str:
+        QApplication.processEvents()
+        return page.upload_button.grab().toImage().pixelColor(page.upload_button.width() // 2, 3).name()
+
+    light = upload_face()
+    try:
+        window._set_appearance("dark")
+        assert upload_face() != light and upload_face() == THEME["surface"]
+        window._set_appearance("light")
+        assert upload_face() == light
+    finally:
+        window.scenes_dialog.hide()

@@ -56,7 +56,8 @@ class _PeopleScroll(_CardScroll):
 class ComboDialog(Modal):
     """One combination: on the left 已添加的嘉宾, every 嘉宾 in a box, those in it (two or more) ticked, with
     its 场景 playing at the column's foot; on the right the 场景 that greet them (ScenePane). A new one is
-    on 不放. 编辑组合 is laid out as 添加组合 is.
+    on 不放. 编辑组合 is laid out as 添加组合 is. others: the other 组合 saved; the same 嘉宾 as one of them
+    cannot be saved again.
 
     The box takes the height the 场景 beside it leave, and its 嘉宾 scroll in it past that, so the dialog
     keeps its height however many 嘉宾 there are."""
@@ -66,9 +67,10 @@ class ComboDialog(Modal):
     PREVIEW_W = 424
     PAD = 4
 
-    def __init__(self, likes: list[Entry], combo: Combo | None = None, parent=None) -> None:  # noqa: ANN001
+    def __init__(self, likes: list[Entry], combo: Combo | None = None, parent=None, others: list[Combo] | None = None) -> None:  # noqa: ANN001
         super().__init__(parent)
         self.likes = likes
+        self.taken = [{fold(name) for name in other.names} for other in others or []]
         self.deleted = False
         self.combo = combo
         layout = self.frame("编辑组合" if combo else "添加组合")
@@ -135,6 +137,9 @@ class ComboDialog(Modal):
     def _accept(self) -> None:
         if len(self.picked()) < 2:
             _say_error(self.people_error, "至少选两位嘉宾")
+            return
+        if {fold(name) for name in self.picked()} in self.taken:
+            _say_error(self.people_error, "已有这几位嘉宾的组合")
             return
         self.combo = Combo(self.picked(), self.pane.value())
         self.accept()

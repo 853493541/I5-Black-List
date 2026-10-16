@@ -420,7 +420,7 @@ def test_a_guest_picks_a_theme_and_the_page_shows_and_orders_them(window, monkey
     assert dialog.windowTitle() == "添加嘉宾" and dialog.has_changes()
     assert LikeDialog("小明", allow_delete=True, parent=window).windowTitle() == "编辑嘉宾"
     page = window.likes_page
-    # A new 嘉宾 starts on 不放 (放场景 off); 编辑嘉宾 ticks theirs beside the name.
+    # A new 嘉宾 starts on 不放 (播放场景 off); 编辑嘉宾 ticks theirs beside the name.
     monkeypatch.setattr(LikeDialog, "exec", lambda dialog: dialog.name_edit.setText("小明") or dialog._accept() or dialog.result())
     page.add_one()
     assert window.store.likes[0].name == "小明" and window.store.likes[0].scenes == Scenes()
@@ -451,7 +451,7 @@ def test_a_guest_picks_a_theme_and_the_page_shows_and_orders_them(window, monkey
 
 
 def _tick(seen: list, *keys: str):  # noqa: ANN202
-    """The exec of a dialog with its 场景 beside it (编辑嘉宾, 编辑组合, 我的场景): 放场景 on with these scenes
+    """The exec of a dialog with its 场景 beside it (编辑嘉宾, 编辑组合, 我的场景): 播放场景 on with these scenes
     alone ticked, then 保存."""
 
     def answer(dialog) -> int:  # noqa: ANN001
@@ -481,7 +481,7 @@ def test_a_combination_needs_two_guests_and_greets_them_with_its_theme(window):
     assert editor.combo is None and editor.people_error.text() == "至少选两位嘉宾"
     editor.people_buttons["小红"].click()
     editor._accept()
-    # A new combination starts as a new 嘉宾 does: no scene; 放场景 ticks it on.
+    # A new combination starts as a new 嘉宾 does: no scene; 播放场景 ticks it on.
     assert editor.combo == Combo(("小明", "小红"), Scenes())
     store.set_combos([Combo(editor.combo.names, Scenes(("equation",)))])
     # Both in the lobby: the combination's 数学 dresses the marks, not 小明's own 赛博.
@@ -902,3 +902,39 @@ def test_batch_import_is_on_the_blacklist_page_only(window):
     assert window.toolbar_buttons[0].text() == "批量导入" and window.empty_batch_button.text() == "批量导入"
     with pytest.raises(TypeError):
         BatchAddDialog(likes=True)
+
+
+def test_a_combination_with_the_same_guests_as_another_cannot_be_saved(window, monkeypatch):
+    from blacklist_detect.model import Combo
+    from blacklist_detect.ui_guests import ComboDialog
+
+    page, store = window.likes_page, window.store
+    store.add_like("小明")
+    store.add_like("小红")
+    store.add_like("阿星")
+    store.set_combos([Combo(("小明", "小红"), Scenes(("angel",)))])
+    page.refresh()
+    opened, members = [], {"names": ("小红", "小明")}
+
+    def pick(dialog) -> int:  # noqa: ANN001
+        opened.append(dialog)
+        for name, button in dialog.people_buttons.items():
+            button.setChecked(name in members["names"])
+        dialog._accept()
+        return dialog.result()
+
+    monkeypatch.setattr(ComboDialog, "exec", pick)
+    # 小红 + 小明 is 小明 + 小红 already: refused, with why.
+    page.add_combo()
+    assert opened[-1].combo is None and opened[-1].people_error.text() == "已有这几位嘉宾的组合"
+    assert store.combos == [Combo(("小明", "小红"), Scenes(("angel",)))]
+    # Another three are fine.
+    members["names"] = ("小红", "阿星")
+    page.add_combo()
+    assert len(store.combos) == 2
+    # Edited, a 组合 keeps its own 嘉宾; it cannot take the other's.
+    members["names"] = ("小明", "小红")
+    page.edit_combo(0)
+    assert opened[-1].result() == QDialog.Accepted and store.combos[0].names == ("小明", "小红")
+    page.edit_combo(1)
+    assert opened[-1].people_error.text() == "已有这几位嘉宾的组合" and store.combos[1].names == ("小红", "阿星")

@@ -1478,6 +1478,9 @@ class MainWindow(QMainWindow):
             self.history_empty.refresh()
         if hasattr(self, "likes_page"):
             self.likes_page.restyle()
+        if hasattr(self, "scenes_dialog") and self.scenes_dialog.isVisible():
+            # 场景管理 open as Windows turns light or dark (跟随系统).
+            self.scenes_dialog.restyle()
 
     def _theme(self) -> str:
         """The accent the windows wear: the one chosen in 主题色, or the default while it is hidden."""

@@ -99,7 +99,7 @@ SCENE_DIALOGS = ("添加嘉宾", "编辑嘉宾", "添加组合", "编辑组合",
 
 
 def test_the_guest_dialogs_fit_a_short_screen_without_scrolling(window, monkeypatch):
-    """Each with its 场景 beside it shows 放场景, the scenes, the preview and its button at once on 1080p at 150%;
+    """Each with its 场景 beside it shows 播放场景, the scenes, the preview and its button at once on 1080p at 150%;
     past ten scenes the list scrolls in its column."""
     dialogs = _dialogs(window, monkeypatch)
     for title in SCENE_DIALOGS:

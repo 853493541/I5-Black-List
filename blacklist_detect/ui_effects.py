@@ -173,9 +173,10 @@ class _HotkeySide(QWidget):
         self.hint.setWordWrap(True)
         self.hint.setFixedWidth(scroll.width())
         rows.addWidget(self.hint)
-        # What is wrong with a key pressed for the hotkey, as 检查 says it.
+        # What is wrong with a key pressed for the hotkey, as 检查 says it: underlined, a warning.
         self.note = QLabel("")
         self.note.setObjectName("rowHint")
+        self.note.setProperty("tone", "warn")
         self.note.setWordWrap(True)
         self.note.setFixedWidth(scroll.width())
         self.note.hide()
@@ -668,11 +669,14 @@ class EffectsPage(QWidget):
         self.note.setText(text)
         self.note.setVisible(bool(text))
 
-    def _tell(self, text: str) -> None:
-        """A note about the shown 场景's 配乐: it goes as another 场景 is shown."""
+    def _tell(self, text: str, warn: bool = False) -> None:  # noqa: FBT001, FBT002
+        """A note about the shown 场景's 配乐, underlined when it is a warning: it goes as another 场景 is shown."""
         self._told = self.scenes.key if text else ""
         # Hidden, a line's room is kept, so the dialog keeps its height as a note comes and goes.
         self.sound_note.setText(text or " ")
+        self.sound_note.setProperty("tone", "warn" if warn else "")
+        self.sound_note.style().unpolish(self.sound_note)
+        self.sound_note.style().polish(self.sound_note)
         self.sound_note.setVisible(bool(text))
 
     def forget_said(self) -> None:
@@ -817,7 +821,7 @@ class EffectsPage(QWidget):
         try:
             decoded = sound_import.decode(source)
         except SoundImportError as error:
-            self._tell(str(error))
+            self._tell(str(error), warn=True)
             return
         finally:
             QApplication.restoreOverrideCursor()
@@ -883,9 +887,12 @@ class EffectsPage(QWidget):
             if self.music is not None:
                 self.music.stop()
 
-        muted = self.music is None or self.music.muted
+        # 静音, or the 场景's 音量 at 0%: nothing would be heard, so nothing plays.
+        muted = self.music is None or self.music.muted or self.music.level(key) <= 0
+        quiet = "已静音" if self.music is None or self.music.muted else "音量为 0%"
         dialog = SoundTrimDialog(
-            decoded.samples, sound_import.RATE, name, preview, stop, self.window(), CLIP_S, muted=muted, check=check, play=play
+            decoded.samples, sound_import.RATE, name, preview, stop, self.window(), CLIP_S, muted=muted, check=check, play=play,
+            muted_tip=quiet,
         )
         try:
             accepted = dialog.exec() == QDialog.Accepted
@@ -905,7 +912,7 @@ class EffectsPage(QWidget):
         try:
             kept = sound_import.save_clip(decoded, sound_import.song_name(key, folder), folder, start, length)
         except SoundImportError as error:
-            self._tell(str(error))
+            self._tell(str(error), warn=True)
             return
         self.store.add_scene_song(
             key, {"file": kept.path.name, "name": name, "start": round(kept.start_s, 3), "length": round(kept.length_s, 3)}
@@ -980,13 +987,17 @@ class EffectsDialog(Modal):
                 self.page._show()
         return super().eventFilter(watched, event)
 
+    def restyle(self) -> None:
+        """In the theme as it is now: 浅色 or 深色 may have changed since it was made, or while it is open (跟随系统).
+        The same one is not set again, which would style every widget in it anew."""
+        style = _dialog_style(chinese_family())
+        if style != self.styleSheet():
+            self.setStyleSheet(style)
+            self.page._paint_play()
+
     def setVisible(self, visible: bool) -> None:  # noqa: FBT001
         if visible and not self.isVisible():
-            # In the theme as it is now: 浅色 or 深色 may have changed since it was made. The same one is not
-            # set again, which would style every widget in it anew.
-            style = _dialog_style(chinese_family())
-            if style != self.styleSheet():
-                self.setStyleSheet(style)
+            self.restyle()
             self.page.forget_said()
             # Room for every scene in the theme's fonts, before the card is measured to fit the screen.
             self.page.left.keep_room()

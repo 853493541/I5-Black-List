@@ -282,7 +282,8 @@ class SoundTrimDialog(Modal):
     """选择片段: the part of a sound longer than limit_s that a 场景 plays. samples: the sound, mono int16
     at rate; name: its file's name. play(at) plays the sound from at to its end, or returns why it cannot;
     preview(start, length) plays that part, or returns why it cannot; stop() stops either; check(start,
-    length) is why a part cannot be kept, or "". muted: nothing would be heard, so neither can be pressed.
+    length) is why a part cannot be kept, or "". muted: nothing would be heard (muted_tip, their tooltip, says why), so
+    neither can be pressed.
     now: the time in seconds (time.monotonic). selection() is (start, length) in seconds; 确定 accepts it."""
 
     def __init__(
@@ -295,6 +296,7 @@ class SoundTrimDialog(Modal):
         parent: QWidget | None = None,
         limit_s: float = LIMIT_S,
         muted: bool = False,
+        muted_tip: str = "已静音",
         check: Callable[[float, float], str] | None = None,
         play: Callable[[float], str | None] | None = None,
         now: Callable[[], float] = time.monotonic,
@@ -360,7 +362,7 @@ class SoundTrimDialog(Modal):
         if muted:
             for button in (self.pause_button, self.play_button):
                 button.setEnabled(False)
-                button.setToolTip("已静音")
+                button.setToolTip(muted_tip)
         self.ok_button = _primary("确定", self.accept)
         self.footer(self.ok_button)
         _pointing(self)
