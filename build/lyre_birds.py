@@ -153,33 +153,6 @@ BIRDS = {
         # Its base, where it turns, and its tip.
         "points": {"root": (962, 1166), "tip": (1058, 930)},
     },
-    # A folded wing, alone: the cecilias' bird's own (at its right), held flat on its side as the picture's birds that
-    # face us hold theirs. The flyer folds its wings to it. Its bottom, past the picture's edge, is drawn on as that
-    # bird's is.
-    "fold": {
-        "box": (300, 1310, 480, 1640),
-        "outline": [(320, 1400), (335, 1365), (365, 1338), (400, 1328), (440, 1336), (462, 1352), (472, 1380), (474, 1420),
-                    (474, 1460), (474, 1500), (470, 1530), (458, 1565), (440, 1598), (415, 1624), (390, 1627), (365, 1612),
-                    (345, 1587), (332, 1550), (322, 1500), (316, 1450)],
-        "seeds": [(380, 1450), (400, 1380)],
-        "repair": [
-            ("line", [(347, 1516), (350, 1550), (360, 1580), (378, 1602), (400, 1612)]),
-            ("line", [(458, 1516), (448, 1550), (433, 1584), (416, 1605), (398, 1613)]),
-            # Alone, it is closed where it meets the body: at its top, thinly behind the dashes down its inner edge,
-            # and below its scallops, where the body's teal shows, by one more scallop.
-            ("fill", "white", [(392, 1352), (446, 1350), (452, 1374), (428, 1366), (398, 1364)], ["teal"]),
-            ("line", [(432, 1342), (446, 1352), (452, 1366), (452, 1382)]),
-            ("line", [(343, 1418), (337, 1445), (334, 1470), (335, 1497)], 4.5),
-            ("fill", "white", [(424, 1494), (463, 1486), (463, 1528), (428, 1530)], ["teal"]),
-            ("line", [(428, 1490), (446, 1490), (456, 1500), (459, 1518)]),
-        ],
-        "eyes": [],
-        # The flyer wears it at 0.42 of its size: its line all round, the inner edge too where it lies over the white
-        # body, thick enough to be the flyer's line there.
-        "rim": 15,
-        # Where it hangs from the bird's shoulder, and opens out about: under its top, its outer third past the side.
-        "points": {"root": (402, 1415)},
-    },
 }
 
 
@@ -330,10 +303,6 @@ def cut(picture: Image.Image, spec: dict) -> tuple[dict[str, Image.Image], tuple
     _draw(labels, spec["repair"], (x0, y0))
     labels = _even(labels)
     mask = _bird_mask(labels, spec, (x0, y0))
-    if "rim" in spec:
-        # The line round it all, as thick as asked, inward from its edge.
-        inward = cv2.distanceTransform(mask.astype(np.uint8), cv2.DIST_L2, 5)
-        labels[(inward > 0) & (inward < spec["rim"] * SCALE)] = LINE
     pictures = {"": render(labels, mask)}
     if spec["eyes"]:
         pictures["_blink"] = render(_shut(labels, spec["eyes"], (x0, y0)), mask)
