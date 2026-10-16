@@ -490,13 +490,13 @@ def test_a_silent_part_says_so_in_the_part_picker_and_is_not_kept(window, pick, 
         window.played.clear()
         dialog.toggle_preview()
         assert not dialog.playing and dialog.play_button.text() == "试听"
-        assert dialog.times.text() == "选的这段没有声音" and dialog.times.objectName() == "error"
+        assert dialog.why.text() == "选的这段没有声音" and dialog.why.objectName() == "error"
         assert all(tune is None for tune in window.played)
         # 确定 keeps the dialog open on it, so another part can be picked.
         dialog.accept()
-        assert dialog.result() != QDialog.Accepted and dialog.times.text() == "选的这段没有声音"
+        assert dialog.result() != QDialog.Accepted and dialog.why.text() == "选的这段没有声音"
         dialog.wave.set_selection(6.0, 3.0)
-        assert dialog.times.text().endswith("3.0 秒") and dialog.times.objectName() == ""
+        assert dialog.why.text() == ""
         dialog.toggle_preview()
         assert dialog.playing and window.played[-1] is not None
         dialog.accept()

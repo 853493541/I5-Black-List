@@ -12,7 +12,8 @@ sound from at to its end. 试听 pauses it and plays the part picked, through th
 length), and turns into 停止 until it has played. Under 静音 (muted) neither can be pressed, but the playhead
 still moves and 截取 still takes. 确定 keeps the part and plays nothing, × and Esc keep nothing. Why a part
 cannot be heard or kept (a silent one, say), as the caller's preview or check has it, shows beside 截取 in
-red until the window moves, and 确定 leaves the dialog open on it.
+red until the window moves, and 确定 leaves the dialog open on it. Where the sound is, and how long it is,
+shows at the end of 截取's row.
 
 The dialog is made from plain values (the samples, their rate and the file's name), so it knows nothing of
 how the file was read or played; the caller keeps only the part picked (selection()). Time is the caller's
@@ -27,7 +28,7 @@ from collections.abc import Callable
 import numpy as np
 from PySide6.QtCore import QEvent, QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPainterPath, QPen, QPixmap, QPolygonF
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSizePolicy, QWidget
 
 from blacklist_detect.ui_dialogs import _primary
 from blacklist_detect.ui_kit import Modal, _KeyboardRing
@@ -319,32 +320,28 @@ class SoundTrimDialog(Modal):
         self.wave.changed.connect(self._changed)
         self.wave.seek.connect(self._seek)
         self._first = self.wave.selection()
-        about = QVBoxLayout()
-        about.setSpacing(2)
         title = chinese_font()
         title.setWeight(QFont.DemiBold)
         self.name = QLabel(QFontMetrics(title).elidedText(name, Qt.ElideMiddle, Waveform.W))
         self.name.setFont(title)
         self.name.setToolTip(name)
-        about.addWidget(self.name)
-        self.hint = QLabel(f"共 {clock(self.wave.duration)} · 边听边按「截取」，取下刚听到的 {self.wave.limit:g} 秒")
-        self.hint.setObjectName("sub")
-        about.addWidget(self.hint)
-        layout.addLayout(about)
+        layout.addWidget(self.name)
         layout.addWidget(self.wave)
-        self.where = QLabel()
-        self.where.setObjectName("sub")
-        layout.addWidget(self.where)
+        # 暂停 / 播放 and 截取, which says what it takes; why a part cannot be heard or kept, in red, beside
+        # them; at the end, where the sound is and how long it is.
         row = QHBoxLayout()
         row.setSpacing(12)
         self.pause_button = self._button("暂停", self.toggle_song)
         row.addWidget(self.pause_button)
-        self.cut_button = self._button("截取", self.cut)
-        self.cut_button.setAccessibleName(f"截取刚听到的 {self.wave.limit:g} 秒")
+        self.cut_button = self._button(f"截取刚听到的 {self.wave.limit:g} 秒", self.cut)
         row.addWidget(self.cut_button)
-        self.times = QLabel()
-        row.addWidget(self.times)
+        self.why = QLabel()
+        self.why.setObjectName("error")
+        row.addWidget(self.why)
         row.addStretch(1)
+        self.where = QLabel()
+        self.where.setObjectName("sub")
+        row.addWidget(self.where)
         layout.addLayout(row)
         row = QHBoxLayout()
         row.setSpacing(8)
@@ -372,7 +369,6 @@ class SoundTrimDialog(Modal):
         self._show_play(False)
         self._show_song()
         self._show_head()
-        self._show_times()
         self._tick = QTimer(self)
         self._tick.setInterval(33)
         self._tick.timeout.connect(self._advance)
@@ -404,13 +400,9 @@ class SoundTrimDialog(Modal):
             return self.offset
         return min(self.offset + self.now() - self._began, self.wave.duration)
 
-    def _show_times(self, reason: str = "") -> None:
-        """Where the part picked starts and ends, or, in red, why it cannot be heard or kept."""
-        start, length = self.wave.selection()
-        self.times.setObjectName("error" if reason else "")
-        self.times.style().unpolish(self.times)
-        self.times.style().polish(self.times)
-        self.times.setText(reason or f"选中 {clock(start)} – {clock(start + length)} · {length:.1f} 秒")
+    def _say(self, reason: str = "") -> None:
+        """Why the part picked cannot be heard or kept, in red; "" once it may be."""
+        self.why.setText(reason)
 
     def _show_head(self) -> None:
         at = self.head()
@@ -443,7 +435,7 @@ class SoundTrimDialog(Modal):
         if self.offset >= self.wave.duration:
             self.offset = 0.0
         if self.play is not None and (reason := self.play(self.offset)):
-            self._show_times(reason)
+            self._say(reason)
             return
         self.running = True
         self._began = self.now()
@@ -495,7 +487,7 @@ class SoundTrimDialog(Modal):
         self._halt()
         start, length = self.selection()
         if reason := self.preview(start, length):
-            self._show_times(reason)
+            self._say(reason)
             return
         self.playing = True
         self._show_play(True)
@@ -534,9 +526,10 @@ class SoundTrimDialog(Modal):
         self._show_play(False)
 
     def _changed(self, _start: float, _length: float) -> None:
-        """The window moved: what 试听 plays is no longer what is picked, so it stops."""
+        """The window moved: what 试听 plays is no longer what is picked, so it stops, and why the last could not
+        be heard or kept goes."""
         self._end(stop=True)
-        self._show_times()
+        self._say()
 
     def eventFilter(self, watched, event) -> bool:  # noqa: ANN001
         # ← → move the window with a button focused too: in a dialog a button would take them to move the
@@ -556,7 +549,7 @@ class SoundTrimDialog(Modal):
         plays: the sound and 试听 stop, and the part is not played again."""
         self._quiet()
         if self.check is not None and (reason := self.check(*self.selection())):
-            self._show_times(reason)
+            self._say(reason)
             return
         super().accept()
 

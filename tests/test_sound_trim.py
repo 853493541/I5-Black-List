@@ -114,10 +114,24 @@ def test_it_opens_on_the_first_five_seconds_with_the_name_and_length(qapp, playe
     assert dialog.windowTitle() == "选择片段"
     assert dialog.selection() == (0.0, LIMIT_S)
     assert dialog.name.text() == "心动音乐.mp3"
-    assert "0:20.0" in dialog.hint.text() and "截取" in dialog.hint.text()
-    assert dialog.times.text() == "选中 0:00.0 – 0:05.0 · 5.0 秒"
+    # 截取 says what it takes; no line says what is picked, or how to pick it.
+    assert dialog.cut_button.text() == "截取刚听到的 5 秒" and dialog.why.text() == ""
+    assert not hasattr(dialog, "hint") and not hasattr(dialog, "times")
     assert dialog.where.text() == "0:00.0 / 0:20.0" and dialog.wave.playhead == 0.0
     assert not dialog.has_changes()
+
+
+def test_the_songs_time_is_at_the_end_of_the_row_with_cut(qapp, player):
+    dialog = _dialog(player)
+    dialog.show()
+    qapp.processEvents()
+    try:
+        where, cut = dialog.where.geometry(), dialog.cut_button.geometry()
+        wave = dialog.wave.geometry()
+        assert abs(where.center().y() - cut.center().y()) <= 2 and where.left() > cut.right()
+        assert abs(where.right() - wave.right()) <= 2 and where.top() > wave.bottom()
+    finally:
+        dialog.reject()
 
 
 def test_the_song_plays_from_its_start_as_it_opens_and_the_playhead_follows_the_clock(qapp, player):
@@ -254,7 +268,6 @@ def test_the_right_edge_shortens_and_lengthens_within_the_limits(qapp, player):
     wave = dialog.wave
     _drag(wave, wave.x_of(5.0), wave.x_of(3.0))
     assert dialog.selection()[0] == 0.0 and dialog.selection()[1] == pytest.approx(3.0, abs=0.05)
-    assert dialog.times.text().endswith("· 3.0 秒")
     # Never longer than 5 s, never shorter than half a second.
     _drag(wave, wave.x_of(3.0), wave.x_of(12.0))
     assert dialog.selection() == (0.0, LIMIT_S)
@@ -549,4 +562,4 @@ def test_under_mute_nothing_plays_but_the_playhead_moves_and_cut_takes(qapp, pla
 def test_a_reason_the_song_cannot_play_shows_in_red(qapp, player):
     dialog = _dialog(player, play=lambda _at: "放不了，再试一次")
     dialog.toggle_song()
-    assert not dialog.running and dialog.times.text() == "放不了，再试一次" and dialog.times.objectName() == "error"
+    assert not dialog.running and dialog.why.text() == "放不了，再试一次" and dialog.why.objectName() == "error"
