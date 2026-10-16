@@ -916,3 +916,29 @@ def test_play_on_effects_while_the_hotkey_s_lyre_is_made_keeps_its_music(window)
     assert window.effects_page.sounding and _heard(window) == [TUNES["ice"]]
     _until_started(window)
     assert window.love.playing() and _heard(window) == [TUNES["ice"]]
+
+
+def test_the_song_plays_each_part_as_loud_as_it_is_kept_a_quiet_verse_and_a_loud_chorus_alike(tmp_path):
+    """选择片段's song turned up or down moment by moment as a part round it is kept: picked on a quiet stretch or
+    on one 19 dB louder, the part sounds in the song as it does at 试听 and once kept."""
+    import wave
+
+    import numpy as np
+
+    from blacklist_detect import sound_import
+
+    rate = sound_import.RATE
+    t = np.arange(90 * rate) / rate
+    loudness = np.where((t >= 35) & (t < 55), 0.5, 0.056)
+    decoded = sound_import.Decoded((np.sin(2 * np.pi * 220 * t) * loudness * 32767).astype(np.int16), "song.wav", 90.0)
+
+    def level(path, start: float, end: float) -> float:  # noqa: ANN001
+        with wave.open(str(path)) as wav:
+            samples = np.frombuffer(wav.readframes(wav.getnframes()), "<i2") / 32768
+        part = samples[round(start * rate) : round(end * rate)]
+        return 20 * np.log10(np.sqrt(np.mean(part**2)))
+
+    song = sound_import.save_rest(decoded, 0.0, tmp_path / "song.wav")
+    for start in (10.0, 40.0):
+        kept = sound_import.save_clip(decoded, "trial", tmp_path, start, 5.0)
+        assert abs(level(song, start, start + 5) - level(kept.path, 0, 5)) < 0.5

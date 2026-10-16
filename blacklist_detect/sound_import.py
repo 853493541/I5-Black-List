@@ -359,27 +359,62 @@ def song_name(key: str, folder: Path) -> str:
 
 
 def save_rest(decoded: Decoded, start_s: float, path: Path, volume: int = 100) -> Path:
-    """The sound of decoded from start_s to its end as the WAV at path, the whole song as loud as save_clip makes a
-    part (about TARGET_RMS_DBFS over all of it, peaks no higher than PEAK_DBFS) and at volume percent of that, with no
-    fades: what 选择片段 plays as the song goes on from a moment, so a part sounds there as it will once kept. A minute
-    at a time, so a long song never sits in memory as floats whole."""
+    """The sound of decoded from start_s to its end as the WAV at path, at volume percent, with no fades: what
+    选择片段 plays as the song goes on from a moment. Each moment is turned up or down as save_clip turns a part of
+    CLIP_S round it (to about TARGET_RMS_DBFS, _rolling_gain), so whatever part the player hears and picks sounds
+    there as it does at 试听 and once kept: a quiet verse and a loud chorus both as they will be. Peaks no higher
+    than PEAK_DBFS. A minute at a time, so a long song never sits in memory as floats whole."""
     samples = decoded.samples
     total = len(samples)
     begin = min(max(0, round(start_s * RATE)), total)
     step = 60 * RATE
-    gain = _song_gain(samples, step) / 32768
+    gains = _rolling_gain(samples)
     peak = 10 ** (PEAK_DBFS / 20)
     scale = max(0, volume) / 100
-    parts = (np.clip(_limit(samples[at : at + step] * gain, peak), -peak, peak) * scale for at in range(begin, total, step))
+
+    def part(at: int) -> np.ndarray:
+        chunk = samples[at : at + step] / 32768
+        where = (np.arange(at, at + len(chunk)) + 0.5) / _BLOCK - 0.5
+        gain = np.interp(where, np.arange(len(gains)), gains)
+        return np.clip(_limit(chunk * gain, peak), -peak, peak) * scale
+
     try:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
-        _write(path, parts)
+        _write(path, (part(at) for at in range(begin, total, step)))
     except OSError as error:
         Path(path).unlink(missing_ok=True)
         log.warning("Could not write the song from %.1f s", start_s, exc_info=True)
         raise SoundImportError("放不了，再试一次") from error
     return Path(path)
 
+
+# The song's loudness is read in blocks this many samples long (a tenth of a second).
+_BLOCK = RATE // 10
+
+
+def _rolling_gain(samples: np.ndarray) -> np.ndarray:
+    """Per _BLOCK of samples (16-bit), what brings the CLIP_S round it to about TARGET_RMS_DBFS, as _level's first
+    pass brings a part kept: a silent stretch is not turned up past what the loudness round it asks."""
+    blocks = max(1, -(-len(samples) // _BLOCK))
+    squares = np.zeros(blocks)
+    for at in range(0, len(samples), 60 * RATE):
+        chunk = np.square(samples[at : at + 60 * RATE], dtype=np.float64)
+        first = at // _BLOCK
+        padded = np.zeros(-(-len(chunk) // _BLOCK) * _BLOCK)
+        padded[: len(chunk)] = chunk
+        squares[first : first + len(padded) // _BLOCK] = padded.reshape(-1, _BLOCK).sum(axis=1)
+    span = max(1, round(CLIP_S * RATE / _BLOCK))
+    window = np.convolve(squares, np.ones(span), mode="same")
+    counts = np.convolve(np.ones(blocks), np.ones(span), mode="same") * _BLOCK
+    rms = np.sqrt(window / counts) / 32768
+    quiet = rms < 10 ** (-70 / 20)
+    gains = 10 ** (TARGET_RMS_DBFS / 20) / np.maximum(rms, 10 ** (-70 / 20))
+    # A silent stretch keeps the gain of the sound nearest it, not one that would blow up its hiss.
+    if quiet.all():
+        return np.ones(blocks)
+    loud = np.flatnonzero(~quiet)
+    gains[quiet] = np.interp(np.flatnonzero(quiet), loud, gains[loud])
+    return gains
 
 def _write(path: Path, parts: Iterable[np.ndarray]) -> None:
     """Float samples (-1..1), part by part, as a mono 16-bit WAV at RATE."""
@@ -407,13 +442,16 @@ def _level(clip: np.ndarray) -> np.ndarray:
     return np.clip(clip, -peak, peak)
 
 
-def _song_gain(samples: np.ndarray, step: int) -> float:
-    """What brings samples (16-bit) as a whole to about TARGET_RMS_DBFS, as _level does a part: 1 for a song
-    with no sound. Read step samples at a time."""
-    squares = sum(float(np.square(samples[at : at + step], dtype=np.float64).sum()) for at in range(0, len(samples), step))
-    rms = (squares / max(1, len(samples))) ** 0.5 / 32768
+def _part_gain(samples: np.ndarray, start_s: float, length_s: float) -> float | None:
+    """What brings the part of samples (16-bit) from start_s for length_s seconds to about TARGET_RMS_DBFS, as
+    _level's first pass does; None for a part with no sound, or none at all."""
+    begin = min(max(0, round(start_s * RATE)), len(samples))
+    end = min(begin + round(max(0.0, min(CLIP_S, length_s)) * RATE), len(samples))
+    if end <= begin:
+        return None
+    rms = float(np.sqrt(np.mean(np.square(samples[begin:end], dtype=np.float64)))) / 32768
     if rms < 10 ** (-70 / 20):
-        return 1.0
+        return None
     return 10 ** (TARGET_RMS_DBFS / 20) / rms
 
 
