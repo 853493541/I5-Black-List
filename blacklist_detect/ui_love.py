@@ -26,9 +26,11 @@ READY_S = 0.02
 
 class LoveBorder(QWidget):
     """A click-through window over the game's screen that plays one scene once. started: its clock started, its
-    first frame shows now (its music hangs on it); a scene stopped or played again before that never sends it."""
+    first frame shows now (its music hangs on it); a scene stopped or played again before that never sends it.
+    dropped: stopped while its pictures were being made, before it started: it never showed."""
 
     started = Signal()
+    dropped = Signal()
 
     def __init__(self, rng: random.Random | None = None) -> None:
         super().__init__(
@@ -150,9 +152,12 @@ class LoveBorder(QWidget):
         return self._tick.isActive()
 
     def stop(self) -> None:
+        never_shown = self.waiting()
         self._tick.stop()
         self._warming = None
         self.hide()
+        if never_shown:
+            self.dropped.emit()
 
     def elapsed(self) -> float:
         return self._clock.elapsed() / 1000 if self._clock.isValid() else 0.0

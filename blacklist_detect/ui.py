@@ -468,7 +468,10 @@ class MainWindow(QMainWindow):
         # starts (love.started): a 场景 whose pictures take a while is not heard ahead of it. None: nothing waits.
         self._tune_waiting: str | None = None
         self._tune_since = 0.0
+        # Whether the tune waiting greets a lobby (music.lobby / mine), given back if its 场景 never shows.
+        self._tune_greets = False
         self.love.started.connect(self._love_started)
+        self.love.dropped.connect(self._love_dropped)
         self._ahead_timer = QTimer(self)
         self._ahead_timer.setSingleShot(True)
         self._ahead_timer.setInterval(AHEAD_MS)
@@ -3863,8 +3866,10 @@ class MainWindow(QMainWindow):
 
     def _show_panel(self, result: CheckResult) -> None:
         """The result over the game, and the 场景 and music greeting the lobby: the music starts with its 场景,
-        at once when none is being made."""
-        self._tune_waiting, self._tune_since = None, 0.0
+        at once when none is being made. A 场景 still being made for the lobby checked before keeps its music
+        waiting: checked again before it shows, it is the same lobby's."""
+        if not self.love.waiting():
+            self._tune_waiting, self._tune_since = None, 0.0
         try:
             self._show_result(result)
         finally:
@@ -3876,20 +3881,35 @@ class MainWindow(QMainWindow):
         if self._tune_waiting is None:
             return
         if self.love.waiting():
-            self._tune_since = time.perf_counter()
+            self._tune_since = self._tune_since or time.perf_counter()
             return
+        self._play_tune()
+
+    def _play_tune(self) -> None:
+        """The music waiting, now, unless ▶ on 场景管理 took the music while its 场景 was being made: the player's
+        last ask keeps it."""
         tune, self._tune_waiting = self._tune_waiting, None
-        self.music.preview(tune)
+        if not self.effects_page.sounding:
+            self.music.preview(tune)
 
     def _love_started(self) -> None:
         """The 场景 started: its music with it."""
         if self._tune_waiting is None:
             return
-        tune, self._tune_waiting = self._tune_waiting, None
-        self.music.preview(tune)
+        self._play_tune()
         if self._tune_since:
             log.info("%s was made first: it and its music started %.2f s late.", self.love.scene, time.perf_counter() - self._tune_since)
             self._tune_since = 0.0
+
+    def _love_dropped(self) -> None:
+        """The 场景 stopped before it showed: its music never starts, and the lobby it was to greet is not
+        greeted, so checked again it gets its 场景 and music."""
+        if self._tune_waiting is None:
+            return
+        if self._tune_greets:
+            self.music.ungreet()
+            self._love_played = False
+        self._tune_waiting, self._tune_since, self._tune_greets = None, 0.0, False
 
     def warm_ahead_soon(self) -> None:
         """A 场景 whose pictures take a while made ahead in a moment (_warm_ahead)."""
@@ -3959,7 +3979,7 @@ class MainWindow(QMainWindow):
                 # the 场景, once it is up (_show_panel).
                 self.effects_page.sounding = False
                 self.love.heard(tune)
-                self._tune_waiting = started
+                self._tune_waiting, self._tune_greets = started, True
         if self.store.safe_mode:
             self._show_notice(result)
             log.info("Check %d shown: the corner message (基础模式).", self._check_number)
@@ -4233,7 +4253,7 @@ class MainWindow(QMainWindow):
         self._show_panel_at(self._game_box, "liked", "")
         self._show_clear_mark(heart=True)
         # Its music starts with it: at once, or once its pictures are made.
-        self._tune_waiting, self._tune_since = tune, 0.0
+        self._tune_waiting, self._tune_since, self._tune_greets = tune, 0.0, False
         self._play_love()
         self._start_tune()
         shown = round(self.love.duration() * 1000) if self.love.playing() else 0

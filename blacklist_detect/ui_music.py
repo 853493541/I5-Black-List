@@ -188,6 +188,8 @@ class ThemeMusic:
         # The names read in the last lobby 我's own 场景 greeted, and when its sound started (mine).
         self._last_mine: frozenset[str] = frozenset()
         self._last_mine_at = float("-inf")
+        # As they were before the last lobby or mine, for ungreet.
+        self._before_greeting: tuple[frozenset[str], float, frozenset[str], float] | None = None
         self.muted = False
 
     def pick(self, scene: str) -> str:
@@ -219,6 +221,7 @@ class ThemeMusic:
         to play (preview) as its scene starts."""
         if not likes or not self.audible():
             return ""
+        self._before_greeting = (self._last_lobby, self._last_at, self._last_mine, self._last_mine_at)
         players = frozenset(likes)
         at = self._clock()
         if players == self._last_lobby and at - self._last_at < SAME_LOBBY_S:
@@ -233,6 +236,7 @@ class ThemeMusic:
         or one turning unclear is no new lobby. now=False: as lobby has it."""
         if not self.audible():
             return ""
+        self._before_greeting = (self._last_lobby, self._last_at, self._last_mine, self._last_mine_at)
         players = frozenset(names)
         at = self._clock()
         before, self._last_mine = self._last_mine, players
@@ -240,6 +244,13 @@ class ThemeMusic:
             return ""
         self._last_mine_at = at
         return self._greet(scene, now)
+
+    def ungreet(self) -> None:
+        """The last lobby or mine (now=False) was never heard, its 场景 stopped before it started: checked again,
+        that lobby is greeted as if it were new."""
+        if self._before_greeting is not None:
+            self._last_lobby, self._last_at, self._last_mine, self._last_mine_at = self._before_greeting
+            self._before_greeting = None
 
     def _greet(self, scene: str, now: bool) -> str:
         if not self.pick(scene) or self.level(scene) <= 0:
