@@ -3,6 +3,16 @@ each stands, are in ASKS.md beside it: that list is what "done" means; report ag
 
 # Handoff, 2026-10-16 ~05:35 UTC (the session moved to another account; this master wound down here)
 
+## Update, 2026-10-15 ~21:30 local (new master, session started by the commander)
+
+- The user picked the lyre 场景's name **竖琴清风** and its music **(a) the real 诗人的工作**, and OK'd the download.
+  Downloaded to dist/research/venti_music/audio/ (git-ignored): the whole song, `bard_source.wav` (39.95–45.95 s,
+  mono 44.1 kHz) and `lyre_preview.wav` (0:40.45–0:45.45, levelled; sent to the user).
+- Running: one implementer on `feature/lyre-scene-ship` from improve/quality 0f96c78 (cherry-picks 84386f2): bake
+  ahead, 配乐 (build/sounds/bard.wav + build/lyre_tune.py), poster, SCENES/LOOKS, the name; then if turns allow
+  posters at 960 px and 演说家遇袭's first-click warm-up. Next: tester, merge, release check v0.9.16, ask the user.
+- Notes draft for v0.9.16 (needs the user's OK): 新场景「竖琴清风」 / 嘉宾和组合可直接选场景，可传配乐 / 设置改版，记录可一键加入名单
+
 ## Code
 
 | What | Where |
