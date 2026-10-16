@@ -8,7 +8,8 @@ inside the pane. The boxes always say what plays: 播放场景 ticked brings bac
 ticked unticks 随机, 随机 ticked unticks every scene, and the last scene unticked (or 随机 alone) is 随机. A box
 ticked with 播放场景 off turns it on, with that one alone. A click on a name highlights it and plays it over the
 sample lobby, silent, in the pane's preview (ScenePreview), which the dialog puts in its left column; ▶ plays it
-again from its start (随机 plays 经典). The dialog opens on the scene still, at its best moment: a scene takes up
+again from its start. 随机's name plays a scene drawn at random, another than the one showing, as 随机 does. The
+dialog opens on the first ticked (随机 too, a scene drawn at random) still, at its best moment: a scene takes up
 to a second to make, so one plays only when asked.
 
 One saved on scenes this version all lacks opens as 随机, as it plays. Opened and saved without its 场景
@@ -17,7 +18,9 @@ touched, any one keeps exactly what it had: value() is what was saved until the 
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPoint, QRect, QRectF, QSize, Qt, QTimer
+import random
+
+from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, QSize, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen
 from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QVBoxLayout, QWidget
 
@@ -26,7 +29,7 @@ from blacklist_detect.guests import ticked
 from blacklist_detect.love_scenes import DESIGN
 from blacklist_detect.model import ANY_SCENE, Scenes
 from blacklist_detect.ui_kit import _SCROLL_BAR, _CardScroll, _KeyboardRing
-from blacklist_detect.ui_love_pick import RANDOM, SceneChoice, SceneList, ScenePreview, paint_box
+from blacklist_detect.ui_love_pick import RANDOM, SceneChoice, SceneList, ScenePreview, in_sight, paint_box
 from blacklist_detect.ui_theme import THEME, chinese_font
 
 OFF = Scenes()
@@ -41,6 +44,7 @@ class TickBox(_KeyboardRing, QCheckBox):
     PAD = 6
     GAP = 8
     RADIUS = 6
+    STRIKE = 1.5
 
     def __init__(self, text: str, parent: QWidget | None = None) -> None:
         super().__init__(text, parent)
@@ -55,6 +59,10 @@ class TickBox(_KeyboardRing, QCheckBox):
     def hitButton(self, pos: QPoint) -> bool:  # noqa: N802
         return self.rect().contains(pos)
 
+    def focusInEvent(self, event) -> None:  # noqa: ANN001, N802
+        super().focusInEvent(event)
+        in_sight(self, event)
+
     def paintEvent(self, _event) -> None:  # noqa: ANN001, N802
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
@@ -68,10 +76,22 @@ class TickBox(_KeyboardRing, QCheckBox):
             p.setBrush(Qt.NoBrush)
             p.drawRoundedRect(band, self.RADIUS, self.RADIUS)
         paint_box(p, QRectF(self.PAD, (self.height() - self.BOX) / 2, self.BOX, self.BOX), self.isChecked())
-        p.setFont(self.font())
-        p.setPen(QColor(THEME["text"]))
+        face = self.font()
+        struck = face.strikeOut()
+        # Struck out (a 嘉宾 since taken off the list): the name gray under a line of its own in the text's colour,
+        # thicker than the font's hairline, which is faint at 100 %, and plainly not a stroke of the name.
+        face.setStrikeOut(False)
+        p.setFont(face)
+        p.setPen(QColor(THEME["muted" if struck else "text"]))
         words = QRect(self.PAD + self.BOX + self.GAP, 0, self.width() - (self.PAD + self.BOX + self.GAP), self.height())
-        p.drawText(words, Qt.AlignLeft | Qt.AlignVCenter, QFontMetrics(self.font()).elidedText(self.text(), Qt.ElideRight, words.width()))
+        metrics = QFontMetrics(face)
+        text = metrics.elidedText(self.text(), Qt.ElideRight, words.width())
+        p.drawText(words, Qt.AlignLeft | Qt.AlignVCenter, text)
+        if struck:
+            drawn = p.boundingRect(words, Qt.AlignLeft | Qt.AlignVCenter, text)
+            middle = round(drawn.center().y()) + 0.5
+            p.setPen(QPen(QColor(THEME["text"]), self.STRIKE, Qt.SolidLine, Qt.FlatCap))
+            p.drawLine(QPointF(drawn.left() - 1, middle), QPointF(drawn.right() + 1, middle))
         p.end()
 
 
@@ -112,6 +132,8 @@ class ScenePane(QWidget):
         self.scenes.chose.connect(self._chose)
         self.buttons = self.scenes.buttons
         self.scroll = _CardScroll(self.scenes)
+        # Tab goes from row to row, never to the list round them.
+        self.scroll.setFocusPolicy(Qt.NoFocus)
         self.scenes.setAutoFillBackground(False)
         self.scroll.setFixedHeight(min(len(self.buttons), self.ROWS) * (SceneChoice.H + SceneList.GAP) - SceneList.GAP)
         # The list's own width and room for the scroll bar beside it, which shows once there are more rows.
@@ -128,10 +150,12 @@ class ScenePane(QWidget):
             self._played(True)
         self.play_box.toggled.connect(self._played)
         self._opened = self._shown()
-        # The first ticked in the list shows, still, with none 经典: a click on a name, or ▶, plays.
-        self.scenes.select((*self.scenes.chosen(), self.scenes.key)[0])
+        # The first ticked in the list shows, still (随机 a scene drawn at random), with none 经典: a click on a name,
+        # or ▶, plays.
+        ticks = self.scenes.chosen() or (RANDOM[0],) * bool(self.buttons[RANDOM[0]].chosen)
+        self.scenes.select((*ticks, self.scenes.key)[0])
         self.key = self.scenes.key
-        self.preview.show_still(self.key)
+        self.preview.show_still(self._scene(self.key))
 
     @staticmethod
     def list_width() -> int:
@@ -192,14 +216,20 @@ class ScenePane(QWidget):
         self.scenes.set_chosen((RANDOM[0],) if key == RANDOM[0] or not keys else keys)
 
     def show_scene(self, key: str) -> None:
-        """Highlight this scene and play it over the sample lobby, silent."""
+        """Highlight this row and play its scene over the sample lobby, silent: 随机's, one drawn at random."""
         self.scenes.select(key)
         self.key = self.scenes.key
-        self.preview.show_scene(self.key)
+        self.preview.show_scene(self._scene(self.key))
+
+    def _scene(self, key: str) -> str:
+        """The scene a row plays: its own, or 随机's, one drawn at random, another than the one showing."""
+        if key != RANDOM[0]:
+            return key
+        return random.choice([scene for scene in love_scenes.KEYS if scene != self.preview.scene] or love_scenes.KEYS)
 
     def replay(self) -> None:
-        """▶: the highlighted scene from its start at once, silent still."""
-        self.preview.show_scene(self.key, now=True)
+        """▶: the scene showing from its start at once, silent still."""
+        self.preview.show_scene(self.preview.scene, now=True)
 
     def stop(self) -> None:
         self.preview.stop()

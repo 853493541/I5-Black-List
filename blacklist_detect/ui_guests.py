@@ -8,7 +8,7 @@ they are ticked in the dialog that edits it, beside its fields (ui_guest_scenes.
 
 from __future__ import annotations
 
-from PySide6.QtCore import QSize
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtWidgets import QFrame, QSizePolicy, QVBoxLayout, QWidget
 
 from blacklist_detect import love_scenes
@@ -111,6 +111,8 @@ class ComboDialog(Modal):
             self.people_buttons[like.name] = box
         rows.addStretch(1)
         self.people_scroll = _PeopleScroll(self.people)
+        # Tab goes from 嘉宾 to 嘉宾, never to the box round them.
+        self.people_scroll.setFocusPolicy(Qt.NoFocus)
         self.people.setAutoFillBackground(False)
         self.people_box = QFrame()
         self.people_box.setObjectName("section")

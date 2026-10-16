@@ -14,8 +14,17 @@ import threading
 from pathlib import Path
 
 from PySide6.QtCore import QElapsedTimer, QEvent, QPoint, QPointF, QRectF, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPainterPath, QPen, QPixmap, QPolygonF
-from PySide6.QtWidgets import QAbstractButton, QButtonGroup, QGridLayout, QPushButton, QSizePolicy, QToolTip, QWidget
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QImage, QPainter, QPainterPath, QPen, QPixmap, QPolygonF
+from PySide6.QtWidgets import (
+    QAbstractButton,
+    QButtonGroup,
+    QGridLayout,
+    QPushButton,
+    QScrollArea,
+    QSizePolicy,
+    QToolTip,
+    QWidget,
+)
 
 from blacklist_detect import love_scenes
 from blacklist_detect.love_scenes import DESIGN, sample_stage
@@ -49,7 +58,19 @@ def poster(key: str) -> QPixmap:
 PAUSE_S = 0.7
 # How long a scene whose pictures take a while (竖琴清风) is waited for, made already or nearly: this soon, it plays at
 # once; else its still shows while they are made off the screen's thread.
-READY_S = 0.02
+READY_S = 0.01
+
+
+def in_sight(widget: QWidget, event) -> None:  # noqa: ANN001
+    """A row focused from the keyboard (an arrow, Tab) scrolled into sight in the list it scrolls in; one focused by
+    a click is in sight already and stays where it is under the mouse."""
+    if event.reason() == Qt.FocusReason.MouseFocusReason:
+        return
+    scroll = widget.parentWidget()
+    while scroll is not None and not isinstance(scroll, QScrollArea):
+        scroll = scroll.parentWidget()
+    if scroll is not None:
+        scroll.ensureWidgetVisible(widget, 0, 0)
 
 
 def scene_dot(key: str) -> QColor:
@@ -94,6 +115,19 @@ class SampleMarks:
             QPoint(cover.x() - 16 - card.width(), cover.y() - card.top),
         )
         self._shots: list[tuple[QPixmap, QPoint]] = []
+        # What the scene draws each mark with, and where in its window: the ring, the badge and the card it has.
+        drawn = (_theme(look, "ring"), panel.cover()), (_theme(look, "badge"), heart.badge()), (_theme(look, "card"), QRectF(card.rect()))
+        self._drawn = [(draw, box) for draw, box in drawn if draw is not None]
+        self._ratio = panel.devicePixelRatioF()
+
+    def dress(self) -> threading.Thread | None:
+        """The pictures of the marks the scene draws itself (竖琴清风's take a tenth of a second) made off the screen's
+        thread, each drawn once where its window draws it, so their first grab finds them made; None when it draws none."""
+        if not self._drawn:
+            return None
+        thread = threading.Thread(target=_draw_once, args=(self._drawn, self._ratio), name="preview-dress", daemon=True)
+        thread.start()
+        return thread
 
     def at(self, t: float) -> list[tuple[QPixmap, QPoint]]:
         """The marks t seconds after they showed, each with its place."""
@@ -108,6 +142,19 @@ class SampleMarks:
         for widget in self.widgets:
             widget.deleteLater()
         self.widgets = ()
+
+
+def _draw_once(drawn: list, ratio: float) -> None:
+    """Each mark drawn once at ratio pixels a point, on a picture thrown away: what it keeps is what it made."""
+    image = QImage(1, 1, QImage.Format_ARGB32_Premultiplied)
+    image.setDevicePixelRatio(ratio)
+    p = QPainter(image)
+    p.setRenderHint(QPainter.Antialiasing)
+    for draw, box in drawn:
+        p.save()
+        draw(p, box, 0.0)
+        p.restore()
+    p.end()
 
 
 def _sample_marks(scene: str = "classic") -> list[tuple[QPixmap, QPoint]]:
@@ -139,7 +186,8 @@ class ScenePreview(QWidget):
     its best moment (show_still, its poster), which takes no time to show: a dialog opens on that, and a scene
     is made to play only when the player asks (a scene takes up to a second to make). One asked for by a click
     shows the bare lobby for a frame and is made just after, so the click is seen at once; one whose pictures take
-    a while (竖琴清风) shows its still while they are made off the screen's thread, so the dialog never stalls. With
+    a while (竖琴清风) shows its still at once, while they and its marks' are made off the screen's thread, so the
+    dialog never stalls. With
     play, a ▶ in its corner calls it (to play the scene from its start with its music). started: a scene started
     from its start, its first frame showing now (▶ 播放's music hangs on it)."""
 
@@ -185,6 +233,8 @@ class ScenePreview(QWidget):
         self._still: QPixmap | None = None
         # The pictures of the scene asked for being made, off the screen's thread: it starts once they are.
         self._warming: threading.Thread | None = None
+        # Meanwhile its marks, their pictures being made off it too.
+        self._dressing: tuple[SampleMarks, threading.Thread | None] | None = None
         self._clock = QElapsedTimer()
         self._tick = QTimer(self)
         self._tick.setInterval(33)
@@ -207,15 +257,16 @@ class ScenePreview(QWidget):
 
     def show_scene(self, scene: str, now: bool = False) -> None:
         """Play this scene from its start; one this version no longer has plays what replaced it, or 经典. One not
-        made yet is made after the frame that shows it was asked for, or now (for ▶, its music starting with it)."""
+        made yet is made after the frame that shows it was asked for, or now (for ▶, its music starting with it, and
+        for one whose pictures are made off the screen's thread, its still showing at once)."""
         self.scene = self._known(scene)
         self._still = None
-        self._warming = None
+        self._undress()
         self._paint = self._made.get(self.scene)
         self._waiting = self._paint is None
         if not self._waiting:
             self._ready()
-        elif now:
+        elif now or hasattr(love_scenes.load(self.scene), "warm"):
             self._make()
         else:
             self._tick.stop()
@@ -227,9 +278,16 @@ class ScenePreview(QWidget):
         self._still = poster(self.scene)
         self._paint = None
         self._waiting = False
-        self._warming = None
+        self._undress()
         self._tick.stop()
         self.update()
+
+    def _undress(self) -> None:
+        """Nothing made off the screen's thread is waited for any more; marks half made are let go."""
+        self._warming = None
+        if self._dressing is not None:
+            self._dressing[0].close()
+            self._dressing = None
 
     @staticmethod
     def _known(scene: str) -> str:
@@ -247,8 +305,8 @@ class ScenePreview(QWidget):
         self._ready()
 
     def _ready(self) -> None:
-        """The scene made: it starts now, or, its pictures taking a while, once they are made off the screen's
-        thread, its still showing meanwhile."""
+        """The scene made: it starts now, or, its pictures taking a while, once they and its marks' are made off
+        the screen's thread, its still showing meanwhile."""
         warm = getattr(self._paint, "warm", None)
         if warm is not None:
             sharp = round(self.devicePixelRatioF() * self.width() / DESIGN[0], 2)
@@ -264,12 +322,18 @@ class ScenePreview(QWidget):
 
     def _step(self) -> None:
         if self._warming is not None and not self._warming.is_alive():
-            self._warming = None
-            self._start()
+            if self._dressing is None and self.scene not in self._looks:
+                # Then the marks, their pictures made off the screen's thread too, once the scene's no longer hold it up.
+                marks = SampleMarks(self.scene)
+                self._dressing = marks, marks.dress()
+            if self._dressing is None or self._dressing[1] is None or not self._dressing[1].is_alive():
+                self._warming = None
+                self._start()
         self.update()
 
     def _start(self) -> None:
-        self._marks = self._marks_for(self.scene)
+        self._marks = self._marks_for(self.scene, self._dressing[0] if self._dressing is not None else None)
+        self._dressing = None
         self._clock.start()
         self._tick.start()
         self.update()
@@ -296,20 +360,21 @@ class ScenePreview(QWidget):
         """Out of sight for a while: nothing plays, and of the scenes made only the one shown is kept."""
         self._tick.stop()
         self._waiting = False
-        self._warming = None
+        self._undress()
         self._made = {key: paint for key, paint in self._made.items() if key == self.scene}
 
     def stop(self) -> None:
         self._tick.stop()
         self._waiting = False
-        self._warming = None
+        self._undress()
         self._made.clear()
         for marks in self._looks.values():
             marks.close()
 
-    def _marks_for(self, scene: str) -> SampleMarks:
+    def _marks_for(self, scene: str, marks: SampleMarks | None = None) -> SampleMarks:
+        """The scene's marks, made the first time it plays (or as made while its pictures were), first grabbed."""
         if scene not in self._looks:
-            marks = SampleMarks(scene)
+            marks = marks or SampleMarks(scene)
             marks.at(0.0)
             if not marks.moving:
                 marks.close()
@@ -475,6 +540,10 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
             self._spot_hover = over
             self.update()
         super().mouseMoveEvent(event)
+
+    def focusInEvent(self, event) -> None:  # noqa: ANN001
+        super().focusInEvent(event)
+        in_sight(self, event)
 
     def event(self, event) -> bool:  # noqa: ANN001
         # The spot says what it does when the mouse rests on it.

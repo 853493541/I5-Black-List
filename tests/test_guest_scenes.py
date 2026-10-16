@@ -9,7 +9,7 @@ pytest.importorskip("PySide6")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QPoint, QRect, Qt  # noqa: E402
-from PySide6.QtGui import QKeyEvent  # noqa: E402
+from PySide6.QtGui import QColor, QKeyEvent  # noqa: E402
 from PySide6.QtTest import QTest  # noqa: E402
 from PySide6.QtWidgets import QAbstractButton, QApplication, QDialog, QLabel, QListWidget, QWidget  # noqa: E402
 
@@ -142,8 +142,8 @@ def test_random_and_the_scenes_tick_by_the_rules(store):
     assert _boxes(pane) == ("stars", "fluffy") and pane.value() == Scenes(("stars", "fluffy"))
     QTest.keyClick(pane.buttons["random"], Qt.Key_Space)
     assert _boxes(pane) == ("random",) and pane.value() == ANY_SCENE
-    # The highlight stays where it was through it all.
-    assert pane.key == "classic"
+    # The highlight stays where it opened, on 随机, through it all.
+    assert pane.key == "random"
     dialog.done(QDialog.Rejected)
 
 
@@ -155,14 +155,135 @@ def test_the_arrows_reach_random_and_a_click_on_its_name_previews_as_before(stor
     QTest.qWaitForWindowActive(dialog)
     pane.buttons["classic"].setFocus()
     QTest.keyClick(pane.buttons["classic"], Qt.Key_Up)
-    # Highlighted, it plays as 随机 always did in the preview: 经典; nothing ticks.
+    # Highlighted, it shows a scene drawn at random; nothing ticks.
     random = pane.buttons["random"]
-    assert random.hasFocus() and pane.key == "random" and pane.preview.scene == "classic" and _boxes(pane) == ("random",)
+    assert random.hasFocus() and pane.key == "random" and pane.preview.scene != "random" and _boxes(pane) == ("random",)
     QTest.keyClick(pane.buttons["random"], Qt.Key_Down)
     assert pane.buttons["classic"].hasFocus() and pane.key == "classic"
-    QTest.mouseClick(random, Qt.LeftButton, Qt.NoModifier, QPoint(30, random.height() // 2))
-    assert pane.key == "random" and pane.preview.scene == "classic" and _boxes(pane) == ("random",)
+    for _ in range(4):
+        shown = pane.preview.scene
+        QTest.mouseClick(random, Qt.LeftButton, Qt.NoModifier, QPoint(30, random.height() // 2))
+        assert pane.key == "random" and pane.preview.scene not in (shown, "random") and _boxes(pane) == ("random",)
+    # ▶ plays the one drawn again from its start.
+    shown = pane.preview.scene
+    pane.play_button.click()
+    assert pane.preview.scene == shown
     dialog.done(QDialog.Rejected)
+
+
+def test_a_dialog_on_random_opens_on_its_row_and_a_scene_drawn_at_random(store):
+    dialog = _like(store, 1)
+    pane = dialog.pane
+    assert pane.key == "random" and pane.buttons["random"].isChecked() and pane.preview.is_still
+    from blacklist_detect import love_scenes
+
+    assert pane.preview.scene in love_scenes.KEYS
+    dialog.done(QDialog.Rejected)
+
+
+def test_the_arrows_and_tab_keep_the_focused_row_in_sight_and_never_stop_on_a_list(store):
+    dialog = _like(store, 1)
+    pane = dialog.pane
+    dialog.show()
+    dialog.activateWindow()
+    QTest.qWaitForWindowActive(dialog)
+    viewport = pane.scroll.viewport()
+
+    def in_sight(button) -> bool:  # noqa: ANN001
+        top = button.mapTo(viewport, QPoint(0, 0)).y()
+        return top >= 0 and top + button.height() <= viewport.height()
+
+    pane.buttons["random"].setFocus(Qt.TabFocusReason)
+    keys = list(pane.buttons)
+    for key in keys[1:]:
+        QTest.keyClick(QApplication.focusWidget(), Qt.Key_Down)
+        assert QApplication.focusWidget() is pane.buttons[key] and in_sight(pane.buttons[key]), key
+    for key in reversed(keys[:-1]):
+        QTest.keyClick(QApplication.focusWidget(), Qt.Key_Up)
+        assert QApplication.focusWidget() is pane.buttons[key] and in_sight(pane.buttons[key]), key
+    # Tab goes round the dialog without stopping on a scroll area, nothing seen focused.
+    from PySide6.QtWidgets import QScrollArea
+
+    for _ in range(12):
+        QTest.keyClick(QApplication.focusWidget(), Qt.Key_Tab)
+        assert not isinstance(QApplication.focusWidget(), QScrollArea)
+    pane.stop()
+    dialog.done(QDialog.Rejected)
+
+
+def test_a_combo_s_members_scroll_into_sight_and_one_gone_is_plainly_struck_out(store):
+    from blacklist_detect.ui_guests import ComboDialog
+    from blacklist_detect.ui_theme import THEME
+
+    store.add_like("一只团子")
+    store.add_like("夏天的风")
+    store.add_like("柠檬汽水")
+    dialog = ComboDialog(store.likes, Combo(("心动小鹿", "心动星星", "示例坏人"), Scenes(("angel",))))
+    dialog.resize(dialog.width(), 300)
+    dialog.show()
+    dialog.activateWindow()
+    QTest.qWaitForWindowActive(dialog)
+    scroll = dialog.people_scroll
+    assert scroll.focusPolicy() == Qt.NoFocus
+    boxes = list(dialog.people_buttons.values())
+    boxes[0].setFocus(Qt.TabFocusReason)
+    for box in boxes[1:]:
+        QTest.keyClick(QApplication.focusWidget(), Qt.Key_Down)
+        top = box.mapTo(scroll.viewport(), QPoint(0, 0)).y()
+        assert box.hasFocus() and top >= 0 and top + box.height() <= scroll.viewport().height()
+    # The line through the name gone is in the text's colour, across it, at least a pixel and a half thick.
+    gone = dialog.people_buttons["示例坏人"]
+    picture = gone.grab().toImage()
+    text = QColor(THEME["text"]).rgb() & 0xFFFFFF
+    rows = [y for y in range(picture.height()) if sum((picture.pixel(x, y) & 0xFFFFFF) == text for x in range(picture.width())) > 30]
+    assert rows and max(rows) - min(rows) <= 3
+    dialog.done(QDialog.Rejected)
+
+
+def test_lyre_s_first_click_shows_its_still_at_once_and_never_stalls_the_dialog(store, monkeypatch):
+    """竖琴清风's pictures and its marks' are made off the screen's thread, its still showing meanwhile: the click
+    returns at once and no moment of the dialog waits long."""
+    import time
+
+    from PySide6.QtCore import QEventLoop, QTimer
+
+    from blacklist_detect.love_scenes import lyre
+    from blacklist_detect.ui_love_pick import ScenePreview
+
+    monkeypatch.setattr(lyre, "_made", {})
+    monkeypatch.setattr(lyre, "_MARKS", {})
+    dialog = _like(store, 2)
+    pane = dialog.pane
+    dialog.show()
+    QApplication.processEvents()
+    shown = []
+    real = ScenePreview.paintEvent
+    monkeypatch.setattr(ScenePreview, "paintEvent", lambda preview, event: (shown.append(preview._waiting), real(preview, event)))
+    # How long each of the preview's steps holds the dialog's thread (the marks were 0.1 s of one, the bare lobby before).
+    steps = []
+    step = ScenePreview._step
+
+    def timed(preview) -> None:  # noqa: ANN001
+        begun = time.perf_counter()
+        step(preview)
+        steps.append(time.perf_counter() - begun)
+        if preview._warming is None and preview._marks is not None:
+            loop.quit()
+
+    monkeypatch.setattr(ScenePreview, "_step", timed)
+    start = time.perf_counter()
+    pane.buttons["lyre"].click()
+    click = time.perf_counter() - start
+    loop = QEventLoop()
+    QTimer.singleShot(15000, loop.quit)
+    loop.exec()
+
+    pane.stop()
+    dialog.done(QDialog.Rejected)
+    assert click < 0.1, click
+    # Never the bare lobby: its still from the first frame on, and no step held up past a loose bound.
+    assert shown and not any(shown)
+    assert max(steps) < 0.08, max(steps)
 
 
 def test_play_scenes_off_empties_the_boxes_and_on_again_brings_back_what_they_said(store):
