@@ -1,5 +1,6 @@
-"""测试效果's stand-in for a game: the app's sample lobby (made-up names) as a whole 16:9 game
-screen, in a window of its own, which the 嘉宾 marks then frame as they would a real lobby.
+"""The app's sample lobby (made-up names) as a whole 16:9 game screen, and where 准备案件还原 sits on
+it: the 场景 hotkey puts its marks there on a game no check has seen, and tools/ui_shots.py paints the
+on-game cards over it.
 
 The sample lobby is a crop of a lobby. Around it lies the whole screen the app's own model puts
 around a lobby (layout.game_screen, measured on the crop): from (-56, -52) to (3544, 1973) in the
@@ -10,9 +11,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QRect, QRectF, Qt
+from PySide6.QtCore import QRectF
 from PySide6.QtGui import QColor, QPainter, QPixmap
-from PySide6.QtWidgets import QWidget
 
 SAMPLE_LOBBY = Path(__file__).resolve().parent / "assets" / "sample-lobby.jpg"
 SCREEN_IN_CROP = (-56, -52, 3544, 1973)
@@ -40,30 +40,3 @@ def sample_screen() -> QPixmap:
         painter.end()
         _screen = screen
     return _screen
-
-
-class DemoLobby(QWidget):
-    """The sample screen on the screen, where 测试效果 shows: under the marks, never taking a click
-    or the keyboard."""
-
-    def __init__(self) -> None:
-        super().__init__(
-            None,
-            Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool | Qt.WindowDoesNotAcceptFocus | Qt.WindowTransparentForInput,
-        )
-        self.setWindowTitle("测试效果")
-        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
-        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-        self.setFocusPolicy(Qt.NoFocus)
-
-    def show_at(self, area: QRect) -> None:
-        self.setGeometry(area)
-        self.show()
-        self.raise_()
-
-    def paintEvent(self, _event) -> None:  # noqa: ANN001
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.SmoothPixmapTransform)
-        picture = sample_screen()
-        painter.drawPixmap(QRectF(self.rect()), picture, QRectF(picture.rect()))
-        painter.end()

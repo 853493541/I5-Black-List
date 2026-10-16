@@ -77,7 +77,7 @@ def test_add_and_remove(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
-    # The marks over the game, as before 安全模式: 完整模式 and 自动检查, agreed to once.
+    # The marks over the game, as before 基础模式: 完整模式 and 自动检查, agreed to once.
     window.store.consented = ["full", "auto"]
     window._on_display_mode("full")
     window._on_auto_mode("auto")
@@ -398,7 +398,7 @@ def test_elapsed_time_is_not_shown_in_the_record_list(qapp, tmp_path, monkeypatc
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
-    # The marks over the game, as before 安全模式: 完整模式 and 自动检查, agreed to once.
+    # The marks over the game, as before 基础模式: 完整模式 and 自动检查, agreed to once.
     window.store.consented = ["full", "auto"]
     window._on_display_mode("full")
     window._on_auto_mode("auto")
@@ -526,7 +526,7 @@ def test_capture_mode_defaults_to_safe_mode(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
-    # 安全模式: nothing is watched; the hotkey checks.
+    # 基础模式: nothing is watched; the hotkey checks.
     assert window.safe_on.isChecked() is True
     assert window.store.safe_mode is True
     assert window.store.auto_capture is False
@@ -575,7 +575,7 @@ def test_the_header_pill_opens_the_check_settings(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
-    # The marks over the game, as before 安全模式: 完整模式 and 自动检查, agreed to once.
+    # The marks over the game, as before 基础模式: 完整模式 and 自动检查, agreed to once.
     window.store.consented = ["full", "auto"]
     window._on_display_mode("full")
     window._on_auto_mode("auto")
@@ -596,12 +596,12 @@ def test_the_header_pill_opens_the_check_settings(qapp, tmp_path, monkeypatch):
     assert chip.hovered() is False
     # 显示, 方式 and 直播模式 are in the card under the pill, not in 设置 nor in the header.
     settings_page = window.tabs.widget(window.settings_tab)
-    for control in (window.display_mode, window.auto_mode, window.hotkey_edit, window.stream_switch, window.stream_guide):
+    for control in (window.display_mode, window.auto_mode, window.hotkey_edit, window.stream_choice, window.stream_guide):
         assert panel.isAncestorOf(control) and not settings_page.isAncestorOf(control)
         assert not window.header.isAncestorOf(control)
     rows = [label.text() for label in panel.findChildren(QLabel, "rowLabel") if label.isVisibleTo(panel)]
     assert rows == ["显示", "方式", "直播模式"], "no 提醒"
-    assert window.stream_test.isHidden(), "测试效果 only while 直播模式 is on"
+    assert not any(button.text() == "测试效果" for button in panel.findChildren(QPushButton))
     assert not panel.isVisible()
     chip.click()
     assert panel.isVisible()
@@ -671,7 +671,7 @@ def test_the_header_fits_the_smallest_window(qapp, tmp_path, monkeypatch):
     assert window.status_chip.text() == "手动检查" and window.status_chip.key_text() == "Alt+1"
     header = window.header
     right = (window.update_pill, window.status_chip)
-    assert not header.isAncestorOf(window.stream_switch) and not header.isAncestorOf(window.stream_guide)
+    assert not header.isAncestorOf(window.stream_choice) and not header.isAncestorOf(window.stream_guide)
 
     def fits(widgets):  # noqa: ANN001, ANN202
         for widget in widgets:
@@ -780,7 +780,7 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
-    # The marks over the game, as before 安全模式: 完整模式 and 自动检查, agreed to once.
+    # The marks over the game, as before 基础模式: 完整模式 and 自动检查, agreed to once.
     window.store.consented = ["full", "auto"]
     window._on_display_mode("full")
     window._on_auto_mode("auto")
@@ -907,7 +907,7 @@ def test_panel_covers_the_accept_button(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
-    # The marks over the game, as before 安全模式: 完整模式 and 自动检查, agreed to once.
+    # The marks over the game, as before 基础模式: 完整模式 and 自动检查, agreed to once.
     window.store.consented = ["full", "auto"]
     window._on_display_mode("full")
     window._on_auto_mode("auto")
@@ -960,7 +960,7 @@ def test_a_finished_lobby_is_not_checked_again(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
-    # The marks over the game, as before 安全模式: 完整模式 and 自动检查, agreed to once.
+    # The marks over the game, as before 基础模式: 完整模式 and 自动检查, agreed to once.
     window.store.consented = ["full", "auto"]
     window._on_display_mode("full")
     window._on_auto_mode("auto")
@@ -986,7 +986,7 @@ def test_auto_check_does_not_leave_the_current_tab(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
-    # The marks over the game, as before 安全模式: 完整模式 and 自动检查, agreed to once.
+    # The marks over the game, as before 基础模式: 完整模式 and 自动检查, agreed to once.
     window.store.consented = ["full", "auto"]
     window._on_display_mode("full")
     window._on_auto_mode("auto")
@@ -1094,7 +1094,7 @@ def test_corner_reports_refresh_and_skip(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
-    # The marks over the game, as before 安全模式: 完整模式 and 自动检查, agreed to once.
+    # The marks over the game, as before 基础模式: 完整模式 and 自动检查, agreed to once.
     window.store.consented = ["full", "auto"]
     window._on_display_mode("full")
     window._on_auto_mode("auto")
@@ -1112,7 +1112,7 @@ def test_hotkey_saves_on_the_key_press(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
-    # The marks over the game, as before 安全模式: 完整模式 and 自动检查, agreed to once.
+    # The marks over the game, as before 基础模式: 完整模式 and 自动检查, agreed to once.
     window.store.consented = ["full", "auto"]
     window._on_display_mode("full")
     window._on_auto_mode("auto")
@@ -1189,7 +1189,7 @@ def test_reset_asks_before_clearing_everything(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
-    # The marks over the game, as before 安全模式: 完整模式 and 自动检查, agreed to once.
+    # The marks over the game, as before 基础模式: 完整模式 and 自动检查, agreed to once.
     window.store.consented = ["full", "auto"]
     window._on_display_mode("full")
     window._on_auto_mode("auto")
@@ -1206,7 +1206,7 @@ def test_reset_asks_before_clearing_everything(qapp, tmp_path, monkeypatch):
     window._on_auto_mode("manual")
     assert window.store.auto_capture is False
     window._set_stream_mode(True)
-    assert window.stream_switch.isChecked()
+    assert window.stream_on.isChecked()
     monkeypatch.setattr("blacklist_detect.ui._confirm", lambda *_args: False)
     window._ask_reset()
     assert [entry.name for entry in window.store.entries] == ["甲"]
@@ -1220,12 +1220,12 @@ def test_reset_asks_before_clearing_everything(qapp, tmp_path, monkeypatch):
     assert window.store.theme == "蓝色"
     assert window.store.tag_catalog() == ("炸房", "贴脸", "挂机", "场外", "不尊重底牌")
     assert window.hotkey_edit.text() == "Alt+1"
-    # 安全模式 is back on: checks on the hotkey only.
+    # 基础模式 is back on: checks on the hotkey only.
     assert window.store.safe_mode is True
     assert window.hotkey_edit.isEnabled() is True
     assert window.safe_on.isChecked() is True
     assert window.auto_off.isChecked() is True
-    assert not window.stream_switch.isChecked() and window.stream_test.isHidden() and window.store.stream_guided is False
+    assert window.stream_off.isChecked() and window.store.stream_guided is False
     # Every control that shows a setting goes back with it.
     assert window.status_chip.text() == "手动检查"
     again = Store(window.store.root)
@@ -1329,7 +1329,7 @@ def test_a_failed_check_is_shown_and_clears_when_checks_work(qapp, tmp_path, mon
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
-    # The marks over the game, as before 安全模式: 完整模式 and 自动检查, agreed to once.
+    # The marks over the game, as before 基础模式: 完整模式 and 自动检查, agreed to once.
     window.store.consented = ["full", "auto"]
     window._on_display_mode("full")
     window._on_auto_mode("auto")
@@ -1354,7 +1354,7 @@ def test_the_model_load_is_shown_until_it_finishes(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
-    # The marks over the game, as before 安全模式: 完整模式 and 自动检查, agreed to once.
+    # The marks over the game, as before 基础模式: 完整模式 and 自动检查, agreed to once.
     window.store.consented = ["full", "auto"]
     window._on_display_mode("full")
     window._on_auto_mode("auto")
@@ -2754,7 +2754,7 @@ def test_chinese_input_stays_switchable_where_nothing_takes_text(qapp, tmp_path,
         window._tab_buttons[0],
         window.status_chip,
         window.profile_chip,
-        window.stream_switch,
+        window.stream_on,
         window.toolbar_buttons[0],
     ):
         assert takes_input(widget), widget

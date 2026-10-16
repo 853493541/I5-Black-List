@@ -7,7 +7,7 @@ import pytest
 pytest.importorskip("PySide6")
 
 from PySide6.QtCore import QEvent, QPoint, QRect, Qt  # noqa: E402
-from PySide6.QtGui import QKeyEvent, QPixmap  # noqa: E402
+from PySide6.QtGui import QKeyEvent  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from blacklist_detect.pipeline import CheckResult, Hit, NameSlot  # noqa: E402
@@ -74,70 +74,82 @@ def _on_screen(widget) -> bool:  # noqa: ANN001
     return widget.isVisible() and not widget.testAttribute(Qt.WA_DontShowOnScreen)
 
 
-def test_the_panel_takes_its_height_back_as_stream_mode_is_turned_off_in_it(window, tmp_path, monkeypatch):
-    """With 直播姬 on this PC its line shows under 直播模式 while it is on; turned off from the panel's own switch,
-    the card is as short again at once as before it was turned on, with no blank band under the row."""
+def test_the_panel_keeps_its_size_as_stream_mode_is_turned_on_and_off_in_it(window, tmp_path, monkeypatch):
+    """With 直播姬 on this PC its words show on 直播模式's own row, right of 关闭 / 开启, while it is on: the card
+    is the same size on and off, its longest words cut short with … and all of them in the tooltip."""
     from blacklist_detect import livehime, ui
 
     log_file = tmp_path / "livehime.log"
     log_file.write_text("", encoding="utf-8")
     monkeypatch.setattr(livehime, "log_path", lambda: log_file)
     monkeypatch.setattr(ui.single, "running", lambda _name: False)
-    state = next(key for key in livehime.WORDS if key != livehime.OK)
+    words = max(livehime.WORDS.values(), key=len)
+    state = next(key for key, said in livehime.WORDS.items() if said == words)
     monkeypatch.setattr(livehime, "status", lambda *_args, **_kwargs: state)
     window.show()
     window.check_panel.open_panel()
     QApplication.processEvents()
-    off = window.check_panel.height()
-    window.stream_switch.click()
+    panel, choice, status = window.check_panel, window.stream_choice, window.stream_status
+    off = panel.size()
+    assert not status.isVisible()
+    window.stream_on.click()
     QApplication.processEvents()
-    assert window.stream_status.isVisible() and window.check_panel.height() > off
-    window.stream_switch.click()
-    assert window.check_panel.height() == off and not window.stream_status.isVisible()
+    assert status.isVisible() and status.text() == words and status.toolTip() == words and panel.size() == off
+    # On the row, after the two, up to the card's right edge.
+    assert abs(status.mapTo(panel, status.rect().center()).y() - choice.mapTo(panel, choice.rect().center()).y()) <= 2
+    assert status.mapTo(panel, QPoint(0, 0)).x() > choice.mapTo(panel, QPoint(choice.width(), 0)).x()
+    assert panel.card.rect().contains(QRect(status.mapTo(panel.card, QPoint(0, 0)), status.size()))
+    window.stream_off.click()
+    QApplication.processEvents()
+    assert panel.size() == off and not status.isVisible()
     window.check_panel.close_panel()
     window.hide()
 
 
-def test_the_panel_switch_is_remembered_and_opens_the_window(window):
-    """直播模式 is a switch in the 检查 panel, after 显示 and 方式, with its ⓘ and 测试效果 beside it."""
+def test_the_panel_choice_is_remembered_and_opens_the_window(window):
+    """直播模式 is 关闭 / 开启 in the 检查 panel, after 显示 and 方式, as they are, with its ⓘ after its name."""
     from blacklist_detect.storage import Store
     from blacklist_detect.ui_dialogs import StreamGuideDialog
-    from blacklist_detect.ui_kit import Switch
+    from blacklist_detect.ui_kit import SegmentedControl
     from blacklist_detect.ui_stream import TITLE
 
-    switch = window.stream_switch
-    assert isinstance(switch, Switch) and switch.accessibleName() == "直播模式"
-    assert window.check_panel.isAncestorOf(switch) and window.check_panel.isAncestorOf(window.stream_guide)
-    assert not switch.isChecked() and not window.stream.enabled() and window.stream_test.isHidden()
-    assert switch.cursor().shape() == Qt.PointingHandCursor
+    choice = window.stream_choice
+    assert isinstance(choice, SegmentedControl) and choice.accessibleName() == "直播模式"
+    assert [button.text() for button in choice.buttons.values()] == ["关闭", "开启"], "the default first"
+    assert window.check_panel.isAncestorOf(choice) and window.check_panel.isAncestorOf(window.stream_guide)
+    assert choice.current() == "off" and not window.stream.enabled()
+    assert window.stream_on.cursor().shape() == Qt.PointingHandCursor
     # On; the window is clear behind the marks, so no 色度键 is needed.
-    switch.click()
-    assert switch.isChecked() and window.store.stream_mode == "on"
+    window.stream_on.click()
+    assert choice.current() == "on" and window.store.stream_mode == "on"
     assert window.stream.enabled() and window.stream.isVisible() and window.stream.mode() == "on"
     assert window.stream.windowTitle() == TITLE == "模仿者小工具·直播画面"
     assert Store(window.store.root).stream_mode == "on"
-    assert not window.stream_test.isHidden(), "测试效果 in the 检查 panel while it is on"
-    # The first time, the guide opens with it; after that, from the ⓘ beside the switch.
+    # The first time, the guide opens with it; after that, from the ⓘ after its name.
     assert len(StreamGuideDialog.shown) == 1 and Store(window.store.root).stream_guided is True
-    switch.click()
-    assert not switch.isChecked() and not window.stream.enabled() and not window.stream.isVisible()
-    assert Store(window.store.root).stream_mode == "" and window.stream_test.isHidden()
-    switch.click()
+    # 开启 again changes nothing.
+    window.stream_on.click()
+    assert window.store.stream_mode == "on" and len(StreamGuideDialog.shown) == 1
+    window.stream_off.click()
+    assert choice.current() == "off" and not window.stream.enabled() and not window.stream.isVisible()
+    assert Store(window.store.root).stream_mode == ""
+    window.stream_on.click()
     assert len(StreamGuideDialog.shown) == 1
     window.stream_guide.click()
     assert len(StreamGuideDialog.shown) == 2
-    # Turned off from elsewhere, the switch follows without turning it over again.
+    # Turned off from elsewhere, the choice follows without turning it over again.
     window._set_stream_mode("")
-    assert not switch.isChecked() and not window.stream.enabled()
-    # Space on the switch turns it, as a click does.
+    assert choice.current() == "off" and not window.stream.enabled()
+    # Space on 开启 turns it on, as a click does.
+    window.stream_on.setFocus()
     for kind in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease):
-        QApplication.sendEvent(switch, QKeyEvent(kind, Qt.Key_Space, Qt.NoModifier, " "))
-    assert switch.isChecked() and window.store.stream_mode == "on" and not window.stream_test.isHidden()
+        QApplication.sendEvent(window.stream_on, QKeyEvent(kind, Qt.Key_Space, Qt.NoModifier, " "))
+    assert choice.current() == "on" and window.store.stream_mode == "on"
     # Saved on, it is on at the next start.
     from blacklist_detect.ui import MainWindow
 
     again = MainWindow()
-    assert again.stream_switch.isChecked() and not again.stream_test.isHidden()
+    assert again.stream_choice.current() == "on" and again.stream_on.isChecked()
     again._set_stream_mode("")
     again._watch_timer.stop()
     again.close()
@@ -349,7 +361,7 @@ def test_a_glance_through_the_border_on_screen_does_not_clear_it(window, monkeyp
 
 
 def test_a_border_made_only_for_the_stream_does_not_hold_a_glance_back(window):
-    """安全模式 with 直播模式: the border is never on the screen, so the screen copy is clear."""
+    """基础模式 with 直播模式: the border is never on the screen, so the screen copy is clear."""
     window._set_stream_mode(True)
     _lobby(window, hit=False)
     assert window.love.playing()
@@ -632,10 +644,6 @@ def test_the_log_says_how_zhibojis_canvas_lines_the_game_and_the_marks_up(window
     assert stream._follows is not None and stream._follow_note.startswith("follows 直播姬「Scene 1」")
     line = next(line for line in stream.layout_lines() if line.startswith("直播姬「Scene 1」"))
     assert "off by (+0, +0), size ×1.000" in line, line
-    # 测试效果 shows its sample lobby as big as fits, whatever 直播姬 does with the game.
-    stream.set_backdrop(QPixmap(16, 9), QRect(game))
-    assert stream._fit()[0] == min(stream.width() / stream._area.width(), stream.height() / stream._area.height())
-    stream.set_backdrop(None)
     # A capture stretched out of shape is not followed: the fit stays as 直播姬 gives a new one.
     scene_file({"pos": {"x": 0, "y": 0}, "scale": {"x": full, "y": full * 0.7}})
     stream.follow()

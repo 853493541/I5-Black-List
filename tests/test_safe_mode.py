@@ -1,4 +1,4 @@
-"""安全模式: a check on the hotkey, nothing marked on the game, the result in messages at the bottom right."""
+"""基础模式: a check on the hotkey, nothing marked on the game, the result in messages at the bottom right."""
 
 import pytest
 
@@ -216,7 +216,7 @@ def test_full_mode_brings_the_marks_back(window):
     window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
     assert "panel" in _marks(window) and "hit_card" in _marks(window) and "alert" in _marks(window)
     assert not window.notice.isVisible()
-    # Back to 安全模式: everything over the game goes at once.
+    # Back to 基础模式: everything over the game goes at once.
     window.safe_on.click()
     assert window.store.safe_mode is True
     assert _marks(window) == []
@@ -224,12 +224,12 @@ def test_full_mode_brings_the_marks_back(window):
 
 def test_safe_mode_checks_on_the_hotkey_only(window):
     window.store.consented = ["full", "auto"]
-    # 手动检查 sits beside its hotkey, and in 安全模式 自动检查 cannot be picked.
+    # 手动检查 sits beside its hotkey, and in 基础模式 自动检查 cannot be picked.
     assert list(window.auto_mode.buttons) == ["auto", "manual"]
     assert window.auto_off.isChecked() and not window.auto_on.isEnabled()
     window.auto_on.click()
     assert window.store.auto_capture is False and not window._watch_timer.isActive()
-    # 完整模式 allows it; back to 安全模式, it is 手动检查 again.
+    # 完整模式 allows it; back to 基础模式, it is 手动检查 again.
     window.full_on.click()
     assert window.auto_on.isEnabled()
     window.auto_on.click()
@@ -237,7 +237,7 @@ def test_safe_mode_checks_on_the_hotkey_only(window):
     window.safe_on.click()
     assert (window.store.safe_mode, window.store.auto_capture) == (True, False)
     assert window.auto_off.isChecked() and not window.auto_on.isEnabled()
-    # A settings file saying both comes back as 安全模式 with 手动检查.
+    # A settings file saying both comes back as 基础模式 with 手动检查.
     from blacklist_detect.storage import Store
 
     window.store.auto_capture = True
@@ -282,7 +282,7 @@ def test_turning_down_the_questions_changes_nothing(window, monkeypatch):
     title, body, cancel = asked[0]
     assert title == "开启完整模式"
     assert body == "提醒和场景直接显示在游戏窗口，可能被游戏当成异常。"
-    assert cancel == "保持安全模式"
+    assert cancel == "保持基础模式"
     assert window.store.safe_mode is True
     assert window.safe_on.isChecked() is True
     assert window.store.consented == []
@@ -303,7 +303,7 @@ def test_each_question_is_asked_once_and_the_answer_is_kept(window, monkeypatch)
     again = Store(window.store.root)
     assert again.consented == ["full"]
     assert (again.safe_mode, again.auto_capture) == (False, True)
-    # Manual checks and 安全模式 never ask.
+    # Manual checks and 基础模式 never ask.
     window.store.consented = []
     window.auto_off.click()
     window.safe_on.click()
@@ -344,4 +344,18 @@ def test_the_heart_card_grows_for_more_names_after_fewer(window):
         notice.hide()
     assert heights[0] < heights[1] < heights[2] and heights[3] == heights[0]
     notice.close()
+
+
+def test_the_mode_is_called_basic_and_its_old_name_is_gone(window):
+    # 显示 is 基础模式 | 完整模式, the default first; 安全模式 did not sound right to the player.
+    assert [button.text() for button in window.display_mode.buttons.values()] == ["基础模式", "完整模式"]
+    from pathlib import Path
+
+    import blacklist_detect
+
+    root = Path(blacklist_detect.__file__).parent
+    files = [*root.rglob("*.py"), root.parent / "build" / "使用说明.txt"]
+    # Nor is 测试效果, taken out with the 检查 panel's rework.
+    for old in ("安全模式", "测试效果"):
+        assert not [path.name for path in files if old in path.read_text(encoding="utf-8")], old
 

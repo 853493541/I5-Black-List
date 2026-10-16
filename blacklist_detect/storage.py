@@ -567,7 +567,7 @@ class Store:
         self.hotkey = DEFAULT_HOTKEY
         # 方式: 自动检查 watches for the lobby; 手动检查 (the default) checks on the hotkey.
         self.auto_capture = False
-        # 自动检查 was on when 安全模式 turned it off: 完整模式 turns it back on.
+        # 自动检查 was on when 基础模式 turned it off: 完整模式 turns it back on.
         self.auto_resume = False
         self.save_debug_frames = False
         self.panel_pos: tuple[int, int] | None = None
@@ -587,7 +587,7 @@ class Store:
         self.env_checked = ""
         # × hides the window to the tray (the app keeps checking), or quits.
         self.close_to_tray = True
-        # 显示: 安全模式 marks nothing on the game, the result comes as messages at the bottom right
+        # 显示: 基础模式 marks nothing on the game, the result comes as messages at the bottom right
         # of the screen; 完整模式 (False) draws the marks over it. On unless turned off, also for old settings.
         self.safe_mode = True
         # 设置 › 声音 › 静音: no sound at all.
@@ -801,7 +801,7 @@ class Store:
         # 完整模式 only once agreed to; settings from before the question fall back.
         if "full" not in self.consented:
             self.safe_mode = True
-        # 安全模式 checks on the hotkey only. 自动检查 is not asked about since v0.8.1.
+        # 基础模式 checks on the hotkey only. 自动检查 is not asked about since v0.8.1.
         if self.safe_mode:
             self.auto_resume = self.auto_resume or self.auto_capture
             self.auto_capture = False
@@ -1376,7 +1376,7 @@ class Store:
         self.me = Scenes()
         self.scans = []
         self.hotkey = DEFAULT_HOTKEY
-        # 安全模式 and 手动检查 again, until agreed to otherwise.
+        # 基础模式 and 手动检查 again, until agreed to otherwise.
         self.auto_capture = False
         self.auto_resume = False
         self.save_debug_frames = False

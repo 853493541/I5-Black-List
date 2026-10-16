@@ -67,7 +67,7 @@ def test_the_players_changes_are_logged(window, caplog):
     window.safe_on.click()
     window._set_stream_mode(True)
     said = _said(caplog)
-    for line in ("显示: 完整模式.", "方式: 自动检查.", "方式: 手动检查.", "显示: 安全模式.", "直播模式 on."):
+    for line in ("显示: 完整模式.", "方式: 自动检查.", "方式: 手动检查.", "显示: 基础模式.", "直播模式 on."):
         assert line in said, line
 
 
@@ -200,14 +200,14 @@ def test_auto_check_comes_back_after_safe_mode(window):
     window.display_mode.buttons["full"].click()
     window.auto_mode.buttons["auto"].click()
     assert window.store.auto_capture
-    # 安全模式 checks on the hotkey only…
+    # 基础模式 checks on the hotkey only…
     window.display_mode.buttons["safe"].click()
     assert not window.store.auto_capture and window.auto_mode.current() == "manual"
     # …and remembers, through a restart too.
     assert Store(window.store.root).auto_resume is True
     window.display_mode.buttons["full"].click()
     assert window.store.auto_capture and window.auto_mode.current() == "auto"
-    # 手动检查 picked by hand stays, through 安全模式 and back.
+    # 手动检查 picked by hand stays, through 基础模式 and back.
     window.auto_mode.buttons["manual"].click()
     window.display_mode.buttons["safe"].click()
     window.display_mode.buttons["full"].click()

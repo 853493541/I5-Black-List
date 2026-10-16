@@ -2,7 +2,7 @@
 
 It opens fresh, agrees to 使用声明 and runs the first 检查; fills 黑名单 by hand and by 批量导入,
 and 嘉宾; checks the bundled sample lobby (made-up names) with the real recognition on the real
-worker thread, the way the hotkey does; sees the result in 安全模式, in 完整模式 and in 直播模式;
+worker thread, the way the hotkey does; sees the result in 基础模式, in 完整模式 and in 直播模式;
 gets their 组合's scene and music when the lobby has two 嘉宾 players and no 黑名单; reads 记录;
 uses the 检查 panel, 编辑嘉宾's 场景, 设置 › 静音, 设置 › 检查 and 导出日志; and ends with 清空数据.
 
@@ -116,7 +116,7 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     assert refused.name_error.text() == "已经在黑名单里了" and refused.result() != QDialog.Accepted
     assert [like.name for like in window.store.likes] == ["心动小鹿", "心动星星"]
 
-    # --- 5. A check of the lobby, 安全模式: the hotkey, real recognition on the worker thread. ----
+    # --- 5. A check of the lobby, 基础模式: the hotkey, real recognition on the worker thread. ----
     def sample_lobby():  # noqa: ANN202
         return check_image(str(ui.SAMPLE_LOBBY), list(window.store.entries))
 
@@ -126,7 +126,7 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     _wait(qapp, lambda: window.notice.kind in ("hit", "clear", "error", "missing"))
     assert window.notice.kind == "hit"
     assert window.notice.main.names() == ["示例坏人"]
-    assert window.panel.isHidden() and window.hit_card.isHidden(), "安全模式 draws nothing over the game"
+    assert window.panel.isHidden() and window.hit_card.isHidden(), "基础模式 draws nothing over the game"
     _wait(qapp, lambda: window.notice.likes.isVisible(), 5)
     assert window.notice.likes.names() == ["小鹿", "心动星星"]
     # 记录 has the lobby, every seat read.

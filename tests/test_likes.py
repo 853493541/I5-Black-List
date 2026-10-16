@@ -51,7 +51,7 @@ def window(qapp, tmp_path, monkeypatch):  # noqa: ANN001, ANN201
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     made = MainWindow()
-    # The marks over the game, as before 安全模式: 完整模式 and 自动检查, agreed to once.
+    # The marks over the game, as before 基础模式: 完整模式 and 自动检查, agreed to once.
     made.store.consented = ["full", "auto"]
     made._on_display_mode("full")
     made._on_auto_mode("auto")

@@ -90,7 +90,6 @@ from blacklist_detect.pipeline import (
 from blacklist_detect.storage import DEFAULT_EFFECT_HOTKEY, Store, clean_tag, describe_entry, tag_text
 from blacklist_detect.ui_alert import AlertGlow
 from blacklist_detect.ui_demo import BUTTON as DEMO_BUTTON
-from blacklist_detect.ui_demo import DemoLobby, sample_screen
 from blacklist_detect.ui_dialogs import (
     SAMPLE_LOBBY,
     AddNameDialog,
@@ -111,6 +110,7 @@ from blacklist_detect.ui_icons import pixmap as line_pixmap
 from blacklist_detect.ui_kit import (
     ChoiceBox,
     ConfirmDialog,
+    ElidedLabel,
     EmptyState,
     IconButton,
     OnOffBox,
@@ -214,7 +214,7 @@ CONSENT = {
         "开启完整模式",
         "提醒和场景直接显示在游戏窗口，可能被游戏当成异常。",
         "开启完整模式",
-        "保持安全模式",
+        "保持基础模式",
     ),
 }
 
@@ -223,11 +223,6 @@ CONSENT = {
 UPDATE_FIRST_MS = 1_000
 # 保存调试截图 keeps this many whole-screen pictures, the newest; each can be several MB.
 DEBUG_KEEP = 30
-# 测试效果: how long the sample lobby shows (the border plays about five seconds), how long it
-# shows alone before its marks, and how much of the screen it takes when there is no game to cover.
-DEMO_MS = 7_000
-DEMO_SETTLE_MS = 80
-DEMO_SHARE = 0.6
 # 直播模式: how long after a check the layout of 直播画面 and 直播姬 is written to the log.
 LAYOUT_MS = 1_000
 # The 场景 hotkey: how long its ring and badge stay once its scene has played, then all goes.
@@ -475,7 +470,7 @@ class MainWindow(QMainWindow):
         self.love.choice = "classic"
         # 黑名单 players in the lobby: a red glow at the screen's edges while the result is up.
         self.alert = AlertGlow()
-        # 安全模式: the result in messages at the bottom right of the screen instead of over the game.
+        # 基础模式: the result in messages at the bottom right of the screen instead of over the game.
         self.notice = CornerNotice()
         self._notice_screen = None
         # 直播模式: the marks, never a 黑名单 name, in a window a streaming app can capture.
@@ -520,15 +515,8 @@ class MainWindow(QMainWindow):
         self._rescan_active = False
         # Checks since the app started, so each one's lines in the log share a number.
         self._check_number = 0
-        # 测试效果 while it runs: its 嘉宾 players, where it shows, and what it put aside.
-        self._demo_likes: list[Entry] | None = None
-        self._demo_area: QRect | None = None
-        self._demo_place_box: tuple | None = None
-        self._demo_saved: tuple | None = None
-        self._demo_round = 0
-        self.demo_lobby = DemoLobby()
         # The 场景 hotkey's play while it runs: its scene, where it shows when no lobby was checked
-        # yet, and what it put aside, as 测试效果 does.
+        # yet, and what it put aside.
         self._quick_scene = ""
         self._quick_area: QRect | None = None
         self._quick_saved: tuple | None = None
@@ -1022,10 +1010,11 @@ class MainWindow(QMainWindow):
             return pane
 
         # 检查: how and when a lobby is checked, in a card that opens from the status pill.
-        check = SettingsSection("检查", metrics.horizontalAdvance("直播模式") + 20)
-        # 1 显示: 安全模式 shows the result in a corner box; 完整模式 draws it over the game.
+        # No heading: the pill it opens from says what it is. The names' column holds 直播模式 and its ⓘ.
+        check = SettingsSection(metrics.horizontalAdvance("直播模式") + 4 + CONTROL_H + 4)
+        # 1 显示: 基础模式 shows the result in a corner box; 完整模式 draws it over the game.
         self.display_mode = SegmentedControl(
-            [("safe", "安全模式"), ("full", "完整模式")], "safe" if self.store.safe_mode else "full"
+            [("safe", "基础模式"), ("full", "完整模式")], "safe" if self.store.safe_mode else "full"
         )
         self.display_mode.setAccessibleName("显示")
         self.safe_on = self.display_mode.buttons["safe"]
@@ -1052,29 +1041,27 @@ class MainWindow(QMainWindow):
         self.settings_label.setWordWrap(True)
         self.settings_label.hide()
         check.add_widget(self.settings_label, separated=False, indent=True)
-        # 3 直播模式: a window for the streaming app, with the marks and never a 黑名单 name.
-        self.stream_switch = Switch(bool(self.store.stream_mode))
-        self.stream_switch.setAccessibleName("直播模式")
-        self.stream_switch.clicked.connect(self._on_stream_switch)
-        # ⓘ: what viewers see, and how to set it up in 直播姬, with screenshots.
+        # 3 直播模式: a window for the streaming app, with the marks and never a 黑名单 name. 关闭 first,
+        # as every player starts.
+        self.stream_choice = SegmentedControl([("off", "关闭"), ("on", "开启")], "on" if self.store.stream_mode else "off")
+        self.stream_choice.setAccessibleName("直播模式")
+        self.stream_off = self.stream_choice.buttons["off"]
+        self.stream_on = self.stream_choice.buttons["on"]
+        self.stream_choice.changed.connect(self._on_stream_choice)
+        # ⓘ, right after the name: what viewers see, and how to set it up in 直播姬, with screenshots.
         self.stream_guide = IconButton("info", "直播模式说明")
         self.stream_guide.clicked.connect(self._show_stream_guide)
-        # 测试效果, while it is on: the marks of a lobby with a 黑名单 and two 嘉宾 players, now, with no
-        # lobby: what viewers will see, without waiting for someone listed to turn up.
-        self.stream_test = QPushButton("测试效果")
-        self.stream_test.setAutoDefault(False)
-        self.stream_test.setCursor(Qt.PointingHandCursor)
-        self.stream_test.setToolTip("不用排队：在示例截图上放一遍嘉宾场景，看看直播间能不能看到")
-        self.stream_test.clicked.connect(self.start_stream_test)
-        self.stream_test.setVisible(bool(self.store.stream_mode))
-        check.add_row("直播模式", self.stream_switch, self.stream_guide, self.stream_test)
-        # Whether 直播姬 shows the window, under 直播模式 while it is on: green when it does, in
-        # red until it does (see livehime). Nothing for a streamer without 直播姬.
-        self.stream_status = QLabel("")
+        # Whether 直播姬 shows the window, after the two while it is on: green when it does, in red until
+        # it does (see livehime). Nothing for a streamer without 直播姬. Its room is kept when it says
+        # nothing, so the card keeps its size; cut short with … where the card is narrow, all of it on hover.
+        self.stream_status = ElidedLabel("")
         self.stream_status.setObjectName("streamStatus")
-        self.stream_status.setWordWrap(True)
+        room = self.stream_status.sizePolicy()
+        room.setRetainSizeWhenHidden(True)
+        self.stream_status.setSizePolicy(room)
         self.stream_status.hide()
-        check.add_widget(self.stream_status, separated=False, indent=True)
+        stream_row = check.add_row("直播模式", self.stream_choice, self.stream_status, info=self.stream_guide, stretch=False)
+        stream_row.setStretchFactor(self.stream_status, 1)
         self._stream_state = ""
         self._scene_watch = livehime.SceneWatch()
         self._stream_watch = QTimer(self)
@@ -1457,7 +1444,6 @@ class MainWindow(QMainWindow):
             self._set_result(self._watch_full, self._watch_tone, self._status_kind, self._watch_tip)
         if hasattr(self, "profile_chip"):
             self.status_chip.update()
-            self.stream_switch.update()
             self.stream_guide.refresh()
             self.display_guide.refresh()
             self.profile_chip.update()
@@ -2932,7 +2918,7 @@ class MainWindow(QMainWindow):
         if key == "auto" and self.store.safe_mode:
             self._sync_auto_controls()
             return
-        # The player's own choice: 安全模式 then 完整模式 brings back this, not what was before.
+        # The player's own choice: 基础模式 then 完整模式 brings back this, not what was before.
         self.store.auto_resume = False
         self._toggle_auto(key == "auto")
 
@@ -2944,15 +2930,15 @@ class MainWindow(QMainWindow):
 
     def _set_safe_mode(self, on: bool) -> None:
         if bool(on) != self.store.safe_mode:
-            log.info("显示: %s.", "安全模式" if on else "完整模式")
+            log.info("显示: %s.", "基础模式" if on else "完整模式")
         self.store.safe_mode = bool(on)
         self.store.save_settings()
         if self.store.safe_mode and self.store.auto_capture:
-            # 安全模式 checks on the hotkey only. 自动检查 comes back with 完整模式.
+            # 基础模式 checks on the hotkey only. 自动检查 comes back with 完整模式.
             self.store.auto_resume = True
             self._toggle_auto(False)
         elif not self.store.safe_mode and self.store.auto_resume:
-            log.info("方式: 自动检查 again, as it was before 安全模式.")
+            log.info("方式: 自动检查 again, as it was before 基础模式.")
             self.store.auto_resume = False
             self._toggle_auto(True)
         self._sync_auto_controls()
@@ -2968,7 +2954,7 @@ class MainWindow(QMainWindow):
 
     def _overlay_target(self) -> str:
         """Where the marks go: "screen" over the game (完整模式), "stream" only into 直播模式's
-        window (安全模式 with 直播模式), or "" nowhere (安全模式)."""
+        window (基础模式 with 直播模式), or "" nowhere (基础模式)."""
         if not self.store.safe_mode:
             return "screen"
         return "stream" if self.store.stream_mode else ""
@@ -3013,7 +2999,7 @@ class MainWindow(QMainWindow):
         self.stream.enable(self.store.stream_mode)
         self._sync_stream_controls()
         if self._overlay_target() == "":
-            # 安全模式 without 直播模式 draws nothing: a 场景 hotkey play is over, music and all.
+            # 基础模式 without 直播模式 draws nothing: a 场景 hotkey play is over, music and all.
             self._end_quick_play()
         self._sync_overlay_target()
         self._sync_name_hiding()
@@ -3024,25 +3010,18 @@ class MainWindow(QMainWindow):
         self._check_stream_setup()
 
     def _sync_stream_controls(self) -> None:
-        """The 检查 panel's 直播模式 switch as the store has it, and 测试效果 beside it only while it is on."""
-        on = bool(self.store.stream_mode)
-        self.stream_switch.blockSignals(True)
-        self.stream_switch.setChecked(on)
-        self.stream_switch.blockSignals(False)
-        self.stream_test.setVisible(on)
-        if self.check_panel.isVisible():
-            self.check_panel._place()
+        """The 检查 panel's 直播模式 关闭 / 开启 as the store has it."""
+        self.stream_choice.set_current("on" if self.store.stream_mode else "off")
 
     def _check_stream_setup(self) -> None:
-        """直播模式: whether 直播姬's current scene shows the window, said in the 检查 panel under 直播模式."""
+        """直播模式: whether 直播姬's current scene shows the window, said in the 检查 panel after 关闭 / 开启."""
         state = ""
         if self.store.stream_mode and not self._closing and livehime.log_path().is_file():
             point = self._game_point()
             covers = (lambda capture: livehime.window_over(capture, point)) if point else None
             on = single.running(livehime.PROCESS)
             state = livehime.status(STREAM_TITLE, on, self._scene_watch.scene() if on else None, covers)
-        changed = state != self._stream_state
-        if changed:
+        if state != self._stream_state:
             if state:
                 log.info("直播模式 in 直播姬: %s.", state)
             self._stream_state = state
@@ -3050,12 +3029,8 @@ class MainWindow(QMainWindow):
             self.stream_status.setProperty("tone", "ok" if state == livehime.OK else "warn")
             self.stream_status.style().unpolish(self.stream_status)
             self.stream_status.style().polish(self.stream_status)
-        if self.stream_status.isHidden() == bool(state):
-            self.stream_status.setVisible(bool(state))
-            changed = True
-        if changed and self.check_panel.isVisible():
-            # Open while the line comes, goes or changes: the card takes its new height.
-            self.check_panel._place()
+        # In room kept for it: the card keeps its size as the words come and go.
+        self.stream_status.setVisible(bool(state))
 
     def _game_point(self) -> tuple[int, int] | None:
         """The game's button from the last check, in desktop pixels: the game's window is there."""
@@ -3066,7 +3041,7 @@ class MainWindow(QMainWindow):
         return (left + right) // 2 + origin_x, (top + bottom) // 2 + origin_y
 
     def _sync_auto_controls(self) -> None:
-        """The 方式 choice and the header's pill both follow the saved mode. In 安全模式 it is
+        """The 方式 choice and the header's pill both follow the saved mode. In 基础模式 it is
         手动检查, and 自动检查 cannot be picked."""
         self.auto_mode.set_current("auto" if self.store.auto_capture else "manual")
         self.auto_on.setEnabled(not self.store.safe_mode)
@@ -3332,8 +3307,9 @@ class MainWindow(QMainWindow):
 
             subprocess.Popen(["explorer", "/select,", str(target)], env=paths.child_env())
 
-    def _on_stream_switch(self, on: bool) -> None:
-        """直播模式's switch in the 检查 panel: the first time it is turned on, how to set it up comes with it."""
+    def _on_stream_choice(self, key: str) -> None:
+        """直播模式's 关闭 / 开启 in the 检查 panel: the first time it is turned on, how to set it up comes with it."""
+        on = key == "on"
         self._set_stream_mode(on)
         if on and not self.store.stream_guided:
             self.store.stream_guided = True
@@ -3599,8 +3575,7 @@ class MainWindow(QMainWindow):
 
     def _start(self, fn, live: bool = False) -> bool:
         if live:
-            # A real lobby comes first: 测试效果 and the 场景 hotkey's play give way.
-            self._end_stream_test()
+            # A real lobby comes first: the 场景 hotkey's play gives way.
             self._end_quick_play()
         self._live_check = live
         quiet = self._rescan_active
@@ -3861,15 +3836,12 @@ class MainWindow(QMainWindow):
         self._lobby_who, self._lobby_choice = self._choice_for(likes, bool(hits))
         self._lobby_seats = self._seats_of(result)
         if not self._love_played:
-            # Each lobby its own scene: 安全模式 shows none, so only the music would draw it.
+            # Each lobby its own scene: 基础模式 shows none, so only the music would draw it.
             self.love.draw_again()
         if self._love_for():
             # Checked again once its scene played: that scene's music, not a new draw's.
             tune = self.love.pick() if self._love_played else self._tune_for(self._lobby_choice)
-            if self._demo_likes is not None:
-                # 测试效果 plays it every time it is pressed.
-                started = self.music.preview(tune)
-            elif self._lobby_who == "me":
+            if self._lobby_who == "me":
                 # 我's 场景: the same lobby checked again within a minute hears it once, a player joining
                 # or a name misread or unclear too (ThemeMusic.mine).
                 started = self.music.mine([slot.visible for slot in result.names if not slot.unclear], tune)
@@ -3881,10 +3853,10 @@ class MainWindow(QMainWindow):
                 self.love.heard(tune)
         if self.store.safe_mode:
             self._show_notice(result)
-            log.info("Check %d shown: the corner message (安全模式).", self._check_number)
+            log.info("Check %d shown: the corner message (基础模式).", self._check_number)
         elif exclusive_fullscreen():
             # 完整模式 over a game in exclusive full screen: Windows shows nothing over it but a
-            # plain window, so the corner message comes too, as in 安全模式.
+            # plain window, so the corner message comes too, as in 基础模式.
             log.info("The game is in exclusive full screen: the corner message is shown too.")
             self._show_notice(result)
         if not self._overlay_target():
@@ -3978,7 +3950,7 @@ class MainWindow(QMainWindow):
         store = self.store
         return "; ".join(
             [
-                "显示 " + ("安全模式" if store.safe_mode else "完整模式"),
+                "显示 " + ("基础模式" if store.safe_mode else "完整模式"),
                 "方式 " + ("自动检查" if store.auto_capture else f"手动检查 ({store.hotkey or '无快捷键'})"),
                 "直播模式 " + ("开" if store.stream_mode else "关"),
                 "声音 " + ("静音" if store.sound_muted else "开"),
@@ -3993,9 +3965,7 @@ class MainWindow(QMainWindow):
 
     def _choice_for(self, likes: list[Entry], blacklisted: bool = False) -> tuple[str, str | tuple[str, ...]]:
         """Who greets a lobby with these 嘉宾, a 黑名单 player there too or not, and the 场景 choice
-        (guests.lobby_scene): its 组合, its top 嘉宾, else 我. 测试效果's sample 嘉宾 are on no list: 经典."""
-        if self._demo_likes is not None:
-            return "guest", "classic"
+        (guests.lobby_scene): its 组合, its top 嘉宾, else 我."""
         store = self.store
         return lobby_scene(store.likes, store.combos, likes, store.me, blacklisted, known=_known_scene)
 
@@ -4042,63 +4012,8 @@ class MainWindow(QMainWindow):
 
     def _love_for(self) -> bool:
         """Whether a 场景 greets this lobby: one its 组合, a 嘉宾 or 我 asks for (a lobby with no 嘉宾 may
-        play 我's), a 黑名单 player there too or not; and always in 测试效果."""
-        return bool(self._lobby_who) or self._demo_likes is not None
-
-    def start_stream_test(self) -> bool:
-        """测试效果: the sample lobby (made-up names) shown as the game for a moment, framed by what
-        two 嘉宾 players in it bring, on the screen and in 直播画面 as 显示 and 直播模式 are set: the
-        rose ring and the heart on 准备案件还原, the 嘉宾 card, the border and the music. Viewers
-        see the picture too, so it works with no game open. Nothing is saved to 记录."""
-        if self._demo_likes is not None or self.worker.running_job or not self.store.disclaimer_accepted:
-            return False
-        self.check_panel.close_panel()
-        self._end_quick_play()
-        picture, where = self._demo_place()
-        self._demo_saved = (self._game_box, self._game_screen, self._game_windows, QRect(self.stream._frame), self._live_check)
-        self._demo_area = picture
-        self._demo_place_box = self._demo_boxes(picture)
-        # The two 嘉宾 players sitting in the sample lobby.
-        self._demo_likes = [Entry("心动小鹿"), Entry("心动星星")]
-        self._demo_round += 1
-        turn = self._demo_round
-        # The look for 推演成功 would find no lobby and take the marks down: it waits.
-        self._glance_pause_until = time.perf_counter() + DEMO_MS / 1000 + 1
-        log.info(
-            "测试效果: the sample lobby over %s; 显示 %s, 直播模式 %s.",
-            where, "安全模式" if self.store.safe_mode else "完整模式", "on" if self.store.stream_mode else "off",
-        )  # fmt: skip
-        self.demo_lobby.show_at(picture)
-        if self.store.stream_mode:
-            self.stream.set_frame(picture)
-            self.stream.set_backdrop(sample_screen(), picture)
-        # Once the picture is up, so the marks lie over it.
-        QTimer.singleShot(DEMO_SETTLE_MS, lambda: self._demo_show(turn))
-        QTimer.singleShot(DEMO_MS, lambda: self._end_stream_test(turn))
-        return True
-
-    def _demo_place(self) -> tuple[QRect, str]:
-        """Where 测试效果 puts the sample lobby, 16:9 and as big as fits: over the window 直播姬's
-        scene shows the game with; else over the last lobby's game; else in the middle of this
-        window's screen. Returns it, and what it is over, for the log."""
-        target: QRect | None = None
-        where = "the middle of this window's screen"
-        found = self._livehime_game() if self.store.stream_mode else None
-        if found is not None:
-            target, _game, where = found
-        if target is None and self._game_box is not None:
-            origin_x, origin_y = virtual_origin()
-            left, top, right, bottom = self._game_box
-            x, y, _ratio = native_to_logical((left + right) / 2 + origin_x, (top + bottom) / 2 + origin_y)
-            screen = QApplication.screenAt(QPoint(int(x), int(y))) or QApplication.primaryScreen()
-            target = self._window_frame(screen, innermost=True)
-            where = "the last lobby's game"
-        if target is None:
-            screen = (self.screen() or QApplication.primaryScreen()).geometry()
-            width = round(screen.width() * DEMO_SHARE)
-            target = QRect(0, 0, width, round(width * 9 / 16))
-            target.moveCenter(screen.center())
-        return self._sixteen_nine(target), where
+        play 我's), a 黑名单 player there too or not."""
+        return bool(self._lobby_who)
 
     def _livehime_game(self) -> tuple[QRect, QRect, str] | None:
         """The window 直播姬's scene shows the game with, in Qt's units; the game in it, the innermost of
@@ -4132,8 +4047,8 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _demo_boxes(picture: QRect) -> tuple[tuple[int, ...], tuple[float, ...]]:
-        """The sample's 准备案件还原 and its whole screen, as a check gives them: desktop pixels
-        from the virtual screen's corner."""
+        """准备案件还原 and the whole screen of a 16:9 game shown at picture (the sample lobby's, ui_demo.BUTTON),
+        as a check gives them: desktop pixels from the virtual screen's corner."""
         screen = QApplication.screenAt(picture.center()) or QApplication.primaryScreen()
         area = screen.geometry()
         ratio = screen.devicePixelRatio() or 1.0
@@ -4148,40 +4063,13 @@ class MainWindow(QMainWindow):
         )
         return button, game
 
-    def _demo_show(self, turn: int) -> None:
-        if turn != self._demo_round or self._demo_likes is None or self._closing:
-            return
-        box, game = self._demo_place_box
-        self._live_check = True
-        self._show_panel(CheckResult(header_found=True, message="", button_box=box, game_box=game))
-
-    def _end_stream_test(self, turn: int | None = None) -> None:
-        """Take 测试效果's picture and marks down and put back what it set aside. turn: only that
-        run's end."""
-        if self._demo_likes is None or (turn is not None and turn != self._demo_round):
-            return
-        self._demo_round += 1
-        self._hide_panel_after_title()
-        self.demo_lobby.hide()
-        self.stream.set_backdrop(None)
-        if self.notice.kind:
-            self.notice.hide()
-        self._demo_likes = None
-        self._demo_area = None
-        self._demo_place_box = None
-        if self._demo_saved is not None:
-            self._game_box, self._game_screen, self._game_windows, frame, self._live_check = self._demo_saved
-            self.stream.set_frame(frame)
-            self._demo_saved = None
-        self._glance_pause_until = 0.0
-        log.info("测试效果: done.")
-
     def play_quick_scene(self) -> bool:
         """The 场景 hotkey: the 场景 it plays (store.quick_scene, ticked on 场景管理), at once, with no check (no
-        screen copy, no recognition), as a 嘉宾 lobby would get it: the rose ring and the badge on 准备案件还原, the scene over the game and its music (the 场景's own
-        音量, none with 静音), on the screen, or only in 直播画面 when 安全模式 puts the marks there. It
+        screen copy, no recognition), as a 嘉宾 lobby would get it: the rose ring and the badge on 准备案件还原,
+        the scene over the game and its music (the 场景's own 音量, none with 静音), on the screen, or only in
+        直播画面 when 基础模式 puts the marks there. It
         plays with every 嘉宾 on 不放 too, and pressed again it starts over. It plays nothing when _quick_refusal
-        says why not: before 使用声明 is agreed to, in 安全模式 without 直播模式 (nothing is drawn over the
+        says why not: before 使用声明 is agreed to, in 基础模式 without 直播模式 (nothing is drawn over the
         game there), and while a real lobby is checked or its marks show, since that comes first; a check
         takes the play down.
 
@@ -4192,7 +4080,6 @@ class MainWindow(QMainWindow):
         if why:
             log.info("场景 hotkey: nothing played (%s).", why)
             return False
-        self._end_stream_test()
         # The music is the play's now, not 场景管理's preview's.
         self.effects_page.sounding = False
         self._end_quick_play()
@@ -4213,7 +4100,7 @@ class MainWindow(QMainWindow):
         turn = self._quick_round
         log.info(
             "场景 hotkey: %s over %s; 显示 %s, 直播模式 %s, sound %s.",
-            scene, where, "安全模式" if self.store.safe_mode else "完整模式", "on" if self.store.stream_mode else "off",
+            scene, where, "基础模式" if self.store.safe_mode else "完整模式", "on" if self.store.stream_mode else "off",
             self._sound_said(),
         )  # fmt: skip
         if self._quick_area is None:
@@ -4248,8 +4135,8 @@ class MainWindow(QMainWindow):
         if not self.store.disclaimer_accepted:
             return "先同意使用声明"
         if self._overlay_target() == "":
-            return "安全模式下不显示场景"
-        if self._check_started is not None or (self.panel.isVisible() and not self._quick_scene and self._demo_likes is None):
+            return "基础模式下不显示场景"
+        if self._check_started is not None or (self.panel.isVisible() and not self._quick_scene):
             return "正在检查，稍后再试"
         return ""
 
@@ -4294,7 +4181,7 @@ class MainWindow(QMainWindow):
 
     def _end_quick_play(self, turn: int | None = None) -> None:
         """Take the 场景 hotkey's marks down and put back what it set aside. turn: only that play's
-        end; without it, a play cut short (by a check, by the hotkey again, by 安全模式) stops its music
+        end; without it, a play cut short (by a check, by the hotkey again, by 基础模式) stops its music
         too, unless ▶ on 场景管理 took the music over since."""
         if not self._quick_scene or (turn is not None and turn != self._quick_round):
             return
@@ -4313,7 +4200,7 @@ class MainWindow(QMainWindow):
         log.info("场景 hotkey: done.")
 
     def _show_notice(self, result: CheckResult) -> None:
-        """安全模式: who is in the lobby, in messages at the bottom right of the screen the game is on,
+        """基础模式: who is in the lobby, in messages at the bottom right of the screen the game is on,
         above the taskbar: the corner of the screen, never the corner of a windowed game."""
         people: list[tuple[str, tuple[str, ...]]] = []
         for hit in result.hits:
@@ -4377,7 +4264,7 @@ class MainWindow(QMainWindow):
             log.info("直播模式 mirrors the game's window: %dx%d.", frame.width(), frame.height())
         self.stream.set_frame(frame)
         # Written once the marks are up, so it never holds them back.
-        why = "场景 hotkey" if self._quick_scene else f"check {self._check_number}" if self._demo_likes is None else "测试效果"
+        why = "场景 hotkey" if self._quick_scene else f"check {self._check_number}"
         QTimer.singleShot(LAYOUT_MS, lambda: self.stream.note_layout(why))
 
     def _game_area(self, screen) -> QRect:  # noqa: ANN001
@@ -4389,11 +4276,9 @@ class MainWindow(QMainWindow):
         (a picture of it in 照片) gives way to where the lobby puts the game (game_area.game_rect).
         innermost=False is the whole top-level window, what a 窗口捕捉 captures, as it is."""
         area = screen.geometry()
-        stand_in = self._demo_area if self._demo_area is not None else self._quick_area
-        if stand_in is not None:
-            # 测试效果, or the 场景 hotkey with no lobby seen: over the window 直播姬 shows the game with,
-            # or a screen.
-            return QRect(stand_in)
+        if self._quick_area is not None:
+            # The 场景 hotkey with no lobby seen: over the window 直播姬 shows the game with, or a screen.
+            return QRect(self._quick_area)
         if self._game_box is None:
             return area
         origin_x, origin_y = virtual_origin()
@@ -4455,10 +4340,8 @@ class MainWindow(QMainWindow):
         self._place_beside(self.hit_card)
 
     def _likes_in(self, result: CheckResult) -> list[Entry]:
-        """嘉宾 players in the lobby, in seat order, each once (测试效果's own while it runs). A 黑名单 player's
-        seat is no 嘉宾's: only a misread puts one name on both lists, and the warning wins."""
-        if self._demo_likes is not None:
-            return list(self._demo_likes)
+        """嘉宾 players in the lobby, in seat order, each once. A 黑名单 player's seat is no 嘉宾's: only a
+        misread puts one name on both lists, and the warning wins."""
         warned = {hit.index for hit in result.hits}
         found: list[Entry] = []
         for slot in result.names:

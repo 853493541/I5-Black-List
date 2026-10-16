@@ -878,15 +878,18 @@ class EmptyState(QWidget):
         self.icon.setPixmap(line_pixmap(self._icon_name, 40, THEME["muted"]))
 
 
-class _InlineHint(QLabel):
-    """A row's explanation after its controls, in gray. Cut short with … when the row is
+class ElidedLabel(QLabel):
+    """One line that takes the room its row leaves it, never more. Cut short with … when the row is
     narrow; the whole text is in its tooltip."""
 
-    def __init__(self, text: str) -> None:
+    def __init__(self, text: str = "") -> None:
         super().__init__(text)
-        self.setObjectName("rowHint")
         self.setToolTip(text)
         self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+
+    def setText(self, text: str) -> None:  # noqa: N802
+        super().setText(text)
+        self.setToolTip(text)
 
     def minimumSizeHint(self) -> QSize:
         return QSize(0, super().minimumSizeHint().height())
@@ -899,25 +902,38 @@ class _InlineHint(QLabel):
         painter.drawText(self.rect(), Qt.AlignLeft | Qt.AlignVCenter, shown)
 
 
+class _InlineHint(ElidedLabel):
+    """A row's explanation after its controls, in gray."""
+
+    def __init__(self, text: str) -> None:
+        super().__init__(text)
+        self.setObjectName("rowHint")
+
+
 class SettingsSection(QFrame):
-    """A titled card of settings, as in the 检查 card under the header's pill. Each row is a label in a
-    fixed column with its controls after it. Content stays at the top when the card is taller than it needs.
+    """A card of settings, as the 检查 card under the header's pill, with a heading when it is given a
+    title. Each row is a label in a fixed column with its controls after it. Content stays at the top when
+    the card is taller than it needs.
     """
 
-    def __init__(self, title: str, label_width: int, parent: QWidget | None = None) -> None:
+    def __init__(self, label_width: int, title: str = "", parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._label_width = label_width
-        heading = QLabel(title)
-        heading.setObjectName("sectionTitle")
-        heading.setFont(chinese_font(SECTION_PT))
         self.setObjectName("section")
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.card = self
         self._rows = QVBoxLayout(self)
         self._rows.setSpacing(0)
-        self._rows.setContentsMargins(20, 14, 20, 6)
-        self._rows.addWidget(heading)
-        self._rows.addSpacing(4)
+        if title:
+            heading = QLabel(title)
+            heading.setObjectName("sectionTitle")
+            heading.setFont(chinese_font(SECTION_PT))
+            self._rows.setContentsMargins(20, 14, 20, 6)
+            self._rows.addWidget(heading)
+            self._rows.addSpacing(4)
+        else:
+            # Above the first row as much as below the last; each row pads itself.
+            self._rows.setContentsMargins(20, 6, 20, 6)
         self._rows.addStretch(1)
         self._count = 0
 
@@ -941,8 +957,11 @@ class SettingsSection(QFrame):
         line.setFixedHeight(1)
         self._add(line)
 
-    def add_row(self, label: str, *widgets: QWidget, hint: str = "", stretch: bool = True) -> QHBoxLayout:
-        """The setting's name in a fixed column, its controls right after it, and the hint under them."""
+    def add_row(
+        self, label: str, *widgets: QWidget, hint: str = "", stretch: bool = True, info: QWidget | None = None
+    ) -> QHBoxLayout:
+        """The setting's name in a fixed column, its controls right after it, and the hint under them.
+        info: a mark (ⓘ) right after the name, in the name's column."""
         if self._count:
             self._line()
         self._count += 1
@@ -955,8 +974,19 @@ class SettingsSection(QFrame):
         row.setSpacing(12)
         name = QLabel(label)
         name.setObjectName("rowLabel")
-        name.setFixedWidth(self._label_width)
-        row.addWidget(name, 0, Qt.AlignVCenter)
+        if info is None:
+            name.setFixedWidth(self._label_width)
+            row.addWidget(name, 0, Qt.AlignVCenter)
+        else:
+            named = QWidget()
+            named.setFixedWidth(self._label_width)
+            line = QHBoxLayout(named)
+            line.setContentsMargins(0, 0, 0, 0)
+            line.setSpacing(4)
+            line.addWidget(name, 0, Qt.AlignVCenter)
+            line.addWidget(info, 0, Qt.AlignVCenter)
+            line.addStretch(1)
+            row.addWidget(named, 0, Qt.AlignVCenter)
         for widget in widgets:
             row.addWidget(widget, 0, Qt.AlignVCenter)
         if stretch:

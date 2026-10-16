@@ -187,13 +187,30 @@ def test_an_empty_state_has_a_heading_hint_and_action(qapp):
 
 
 def test_a_settings_section_lays_out_rows(qapp):
-    section = SettingsSection("检查", 80)
+    section = SettingsSection(80, "常规")
     section.add_row("开机启动", Switch(True), hint="开机后在右下角托盘里运行")
     section.add_row("快捷键", QPushButton("Alt+1"))
     labels = [label.text() for label in section.findChildren(QLabel)]
-    assert labels[0] == "检查"
+    assert labels[0] == "常规"
     assert "开机启动" in labels and "快捷键" in labels and "开机后在右下角托盘里运行" in labels
     assert len([w for w in section.findChildren(QWidget) if w.objectName() == "sectionLine"]) == 1
+
+
+def test_a_settings_section_without_a_title_starts_with_its_rows(qapp):
+    from blacklist_detect.ui_kit import ElidedLabel
+
+    section = SettingsSection(80)
+    info = QPushButton("i")
+    words = ElidedLabel("一句很长很长很长很长很长很长的话")
+    section.add_row("直播模式", QPushButton("开启"), words, info=info)
+    assert section.findChild(QLabel, "sectionTitle") is None
+    assert [label.text() for label in section.findChildren(QLabel)][0] == "直播模式"
+    # The mark sits in the names' column, right after the name; the words, cut short, say all of it on hover.
+    name = next(label for label in section.findChildren(QLabel) if label.text() == "直播模式")
+    assert name.parentWidget() is info.parentWidget() and name.parentWidget().width() == 80
+    assert words.toolTip() == words.text() and words.minimumSizeHint().width() == 0
+    words.setText("短")
+    assert words.toolTip() == "短"
 
 
 @pytest.mark.parametrize("dark", [False, True])

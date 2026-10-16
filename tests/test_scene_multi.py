@@ -239,7 +239,7 @@ def test_a_lobby_plays_one_of_the_ticked_never_the_same_twice_in_a_row(window):
 def test_in_safe_mode_each_lobby_draws_its_own_music_never_the_same_twice_in_a_row(window, scenes):
     from pathlib import Path
 
-    # 安全模式 shows no scene over the game: the music is all a lobby gets of it.
+    # 基础模式 shows no scene over the game: the music is all a lobby gets of it.
     window._on_display_mode("safe")
     window.store.add_like("小明", scenes=scenes)
     for _ in range(10):

@@ -93,7 +93,7 @@ class Stage:
 
     def names(self) -> tuple[QRectF, ...]:
         """The twelve names: where the check read them, else where the lobby's layout puts them on a
-        stage this size (the preview, 测试效果)."""
+        stage this size (the preview, the 场景 hotkey with no lobby seen)."""
         if self.seats:
             return self.seats
         from blacklist_detect.layout import NAME_BOXES

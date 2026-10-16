@@ -94,7 +94,7 @@ class LoveBorder(QWidget):
         self._picked = None
 
     def heard(self, scene: str) -> None:
-        """scene's sound greeted a lobby, its scene shown or not (安全模式): the next one is another."""
+        """scene's sound greeted a lobby, its scene shown or not (基础模式): the next one is another."""
         self._last = scene
 
     def playing(self) -> bool:

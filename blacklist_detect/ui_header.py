@@ -178,7 +178,7 @@ class StatusChip(_KeyboardRing, QAbstractButton):
 
 
 class CheckPanel(QFrame):
-    """检查's settings in a card under the status pill: 显示, 方式 and 直播模式, with 测试效果 while it is on.
+    """检查's settings in a card under the status pill: 显示, 方式 and 直播模式, with 直播姬's state while it is on.
 
     It lies over the window the way a menu does. Esc, a click anywhere else in the window, a page
     change or the pill again closes it. A question or a guide it opens comes over the window as a
@@ -234,7 +234,7 @@ class CheckPanel(QFrame):
 
     def _place(self) -> None:
         """Its card's right edge under the pill's, kept inside the window, as tall as its rows are now: a row
-        or a line just shown or hidden (直播模式's) counts at once, not only after Qt's next layout pass."""
+        or a line just shown or hidden (a hotkey's problem) counts at once, not only after Qt's next layout pass."""
         for widget in reversed(self.findChildren(QWidget)):
             if widget.layout() is not None:
                 widget.layout().activate()

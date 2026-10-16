@@ -103,7 +103,7 @@ def test_blacklist_roundtrip(tmp_path):
     assert again.entries[0].reason == "常挂机"
     assert again.entries[0].tags == ()
     assert again.hotkey == "Ctrl+F8"
-    # 安全模式 and 手动检查 by default.
+    # 基础模式 and 手动检查 by default.
     assert again.safe_mode is True
     assert again.auto_capture is False
     store.panel_pos = (12, 34)
@@ -372,13 +372,13 @@ def test_a_settings_file_from_before_counts_as_welcomed(tmp_path):
     (tmp_path / "settings.json").write_text('{"hit_sound": false, "auto_capture": true}', encoding="utf-8")
     store = Store(tmp_path)
     assert store.first_run is False
-    # A file from before 安全模式 opens in 安全模式, which checks only on the hotkey.
+    # A file from before 基础模式 opens in 基础模式, which checks only on the hotkey.
     assert store.safe_mode is True
     assert store.auto_capture is False
 
 
 def test_auto_check_needs_no_answer_of_its_own(tmp_path):
-    # 自动检查 is not asked about: it is kept with 完整模式 agreed to, and only 安全模式 turns it off.
+    # 自动检查 is not asked about: it is kept with 完整模式 agreed to, and only 基础模式 turns it off.
     store = Store(tmp_path)
     store.consented = ["full"]
     store.safe_mode = False

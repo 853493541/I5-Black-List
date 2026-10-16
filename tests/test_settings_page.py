@@ -281,14 +281,18 @@ def test_rows_read_in_both_themes(opened, appearance):
 
 
 def test_the_check_card_keeps_its_look(opened):
-    """The 检查 card under the pill is still a titled card, its names in a fixed column, controls after them."""
+    """The 检查 card under the pill is still a card, with no title (the pill says what it is), its names in a
+    fixed column, controls after them; 直播模式's ⓘ is in that column, after its name."""
     card = opened.check_panel.findChild(SettingsSection)
-    assert card.objectName() == "section" and card.findChild(QLabel, "sectionTitle").text() == "检查"
+    assert card.objectName() == "section" and card.findChild(QLabel, "sectionTitle") is None
+    assert not any(label.text() == "检查" for label in card.findChildren(QLabel))
     assert not opened.tabs.widget(opened.settings_tab).isAncestorOf(card)
     names = [label for label in card.findChildren(QLabel, "rowLabel") if label.text() in ("显示", "方式")]
-    assert len(names) == 2 and names[0].width() == names[1].width()
+    stream = next(label for label in card.findChildren(QLabel, "rowLabel") if label.text() == "直播模式")
+    assert len(names) == 2 and names[0].width() == names[1].width() == stream.parentWidget().width()
+    assert stream.parentWidget().isAncestorOf(opened.stream_guide)
     margins = card.layout().contentsMargins()
-    assert (margins.left(), margins.top(), margins.right(), margins.bottom()) == (20, 14, 20, 6)
+    assert (margins.left(), margins.top(), margins.right(), margins.bottom()) == (20, 6, 20, 6)
 
 
 def test_a_pane_draws_lines_between_rows_only(qapp):

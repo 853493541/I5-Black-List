@@ -217,8 +217,8 @@ def test_a_long_hotkey_is_shown_whole(window):
 
 
 def test_the_check_panel_rows_are_alike_and_each_info_mark_is_beside_its_choice(window):
-    # 显示 is two joined choices, its ⓘ right after them; 方式 has 手动检查 beside its hotkey; 直播模式 has
-    # its ⓘ right after its switch, and 测试效果 after that while it is on.
+    # 显示 is two joined choices, its ⓘ right after them; 方式 has 手动检查 beside its hotkey; 直播模式 is two
+    # joined choices too, its ⓘ right after its name.
     window.show()
     window.check_panel.toggle()
     for _ in range(5):
@@ -229,26 +229,25 @@ def test_the_check_panel_rows_are_alike_and_each_info_mark_is_beside_its_choice(
     assert 0 <= window.display_guide.mapTo(panel, QPoint(0, 0)).x() - end <= 16
     manual = window.auto_mode.buttons["manual"]
     assert window.hotkey_edit.mapTo(panel, QPoint(0, 0)).x() - manual.mapTo(panel, QPoint(manual.width(), 0)).x() <= 16
-    switch = window.stream_switch
+    choice = window.stream_choice
     left = window.display_mode.mapTo(panel, QPoint(0, 0)).x()
-    assert switch.mapTo(panel, QPoint(0, 0)).x() == left and window.auto_mode.mapTo(panel, QPoint(0, 0)).x() == left
-    switch_end = switch.mapTo(panel, QPoint(switch.width(), 0)).x()
-    assert 0 <= window.stream_guide.mapTo(panel, QPoint(0, 0)).x() - switch_end <= 16
-    assert not window.stream_test.isVisible()
-    # With 直播模式 on, 测试效果 comes on the same row, after the ⓘ, and the card, wider, stays under the pill.
+    assert choice.mapTo(panel, QPoint(0, 0)).x() == left and window.auto_mode.mapTo(panel, QPoint(0, 0)).x() == left
+    name = next(label for label in panel.findChildren(QLabel, "rowLabel") if label.text() == "直播模式")
+    name_end = name.mapTo(panel, QPoint(name.fontMetrics().horizontalAdvance("直播模式"), 0)).x()
+    guide = window.stream_guide
+    assert 0 <= guide.mapTo(panel, QPoint(0, 0)).x() - name_end <= 16
+    assert guide.mapTo(panel, QPoint(guide.width(), 0)).x() < left, "before the choice"
+    assert abs(guide.mapTo(panel, guide.rect().center()).y() - name.mapTo(panel, name.rect().center()).y()) <= 2
+    # With 直播模式 on, the card keeps its size and stays under the pill.
+    size = panel.size()
     window._set_stream_mode(True)
     for _ in range(5):
         QApplication.processEvents()
-    test = window.stream_test
-    assert test.isVisible() and panel.isAncestorOf(test)
-    assert abs(test.mapTo(panel, test.rect().center()).y() - switch.mapTo(panel, switch.rect().center()).y()) <= 2
-    guide_end = window.stream_guide.mapTo(panel, QPoint(window.stream_guide.width(), 0)).x()
-    assert 0 <= test.mapTo(panel, QPoint(0, 0)).x() - guide_end <= 16
+    assert panel.size() == size
     card = panel.card.geometry().translated(panel.pos())
     chip = window.status_chip
     pill = chip.geometry().translated(chip.parentWidget().mapTo(window.centralWidget(), QPoint(0, 0)))
     assert abs(card.right() - pill.right()) <= 1 and card.left() >= 0
-    assert panel.card.rect().contains(QRect(test.mapTo(panel.card, QPoint(0, 0)), test.size()))
     window._set_stream_mode("")
     window.check_panel.close_panel()
 

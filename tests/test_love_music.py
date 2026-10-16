@@ -161,7 +161,7 @@ def test_music_off_before_is_mute_now(tmp_path):
 
 @pytest.mark.parametrize("safe", [True, False])
 def test_music_plays_in_either_display_mode(window, safe):
-    """安全模式 draws nothing over the game, but the music is only sound: it plays there too."""
+    """基础模式 draws nothing over the game, but the music is only sound: it plays there too."""
     window.store.safe_mode = safe
     window.store.update_like(1, "小明", "", "", Scenes(("angel",)))
     window._show_panel(_lobby())

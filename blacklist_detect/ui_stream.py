@@ -6,7 +6,7 @@ they are, a little over twenty times a second: the ring round the button and its
 嘉宾 card, the flower border, and the red glow. Viewers see that a 黑名单 player is there (the red
 ring and glow), never who: the card with the names is not copied.
 
-In 安全模式 the marks are made but never put on the streamer's screen (WA_DontShowOnScreen);
+In 基础模式 the marks are made but never put on the streamer's screen (WA_DontShowOnScreen);
 this window is the only place they show. The window itself sits just off the screen, to the
 right of every monitor: the streamer never sees it, and a window capture still reads it, being
 a capture of the window and not of the screen.
@@ -25,7 +25,7 @@ In 直播姬: add a second 窗口捕获, pick 模仿者小工具·直播画面, 
 from before does no harm: there is no green left for it to take.
 
 While no mark shows, it shows nothing: the stream is the game alone. Up to v0.9.14 a red frame (the
-测试框) ran round the game then; 测试效果 is how a streamer sees the marks land now.
+测试框) ran round the game then; the 场景 hotkey is how a streamer sees the marks land now.
 
 A friend's Windows 10 would not capture it off the screen: 直播姬's capture was in the scene and
 live, and blank, while Windows 11 takes it. So once it is open, Windows is asked as 直播姬 asks it
@@ -55,7 +55,7 @@ Where the game is drawn in it follows 直播姬 (follow): in the scene 直播姬
 where it put the game's capture and this window's on its canvas, so the game is drawn here where,
 through this window's capture, it lands on the game's. A friend's viewers saw the marks off the game
 (smaller, up to the left) while the fit 直播姬 gives a new capture was assumed. Where that cannot be
-known (no scene file, the game's window not open, a turned or stretched capture, 测试效果), the
+known (no scene file, the game's window not open, a turned or stretched capture), the
 assumed fit stays: as big as fits, centered.
 """
 
@@ -65,7 +65,7 @@ import logging
 import sys
 
 from PySide6.QtCore import QPoint, QPointF, QProcess, QProcessEnvironment, QRect, QRectF, QSize, QSizeF, Qt, QTimer
-from PySide6.QtGui import QPainter, QPixmap
+from PySide6.QtGui import QPainter
 from PySide6.QtWidgets import QApplication, QWidget
 
 from blacklist_detect import livehime, livehime_layout, paths, wgc, wgc_diagnose
@@ -128,8 +128,6 @@ class StreamMirror(QWidget):
         self._area = QRect()
         # The game's window as a streaming app's 窗口捕捉 sees it, once a check has found it.
         self._frame = QRect()
-        # 测试效果: a picture under the marks, where it is on the screen, so viewers see it too.
-        self._backdrop: tuple[QPixmap, QRect] | None = None
         # Where it sits (SPOTS), and Windows' last answer there (wgc): None until it has answered.
         self.spot = _spots()[0]
         self.answer: int | None = None
@@ -337,13 +335,7 @@ class StreamMirror(QWidget):
 
     def busy(self) -> bool:
         """Whether a mark is showing now."""
-        return self._backdrop is not None or bool(self._marks()) or bool(self._borders()) or self._glow() is not None
-
-    def set_backdrop(self, picture: QPixmap | None, where: QRect | None = None) -> None:
-        """Draw picture under the marks, at where on the screen (测试效果's sample lobby); None
-        takes it away."""
-        self._backdrop = (picture, QRect(where)) if picture is not None and where is not None else None
-        self._step()
+        return bool(self._marks()) or bool(self._borders()) or self._glow() is not None
 
     def _place(self, area: QRect) -> None:
         """Mirror area, from a 16:9 window as wide as its screen, where self.spot says: just right of
@@ -383,7 +375,7 @@ class StreamMirror(QWidget):
         area = self._area
         if area.isEmpty():
             return 1.0, QPointF(0, 0)
-        if self._follows is not None and self._backdrop is None:
+        if self._follows is not None:
             scale, start, corner = self._follows
             return scale, start + QPointF(area.topLeft() - corner) * scale
         scale = min(self.width() / area.width(), self.height() / area.height())
@@ -615,9 +607,6 @@ class StreamMirror(QWidget):
         painter.translate(offset)
         painter.scale(scale, scale)
         painter.translate(-QPointF(self._area.topLeft()))
-        if self._backdrop is not None:
-            picture, where = self._backdrop
-            painter.drawPixmap(QRectF(where), picture, QRectF(picture.rect()))
         # The glow under the border, as on the screen (a 场景 for a 嘉宾 beside a 黑名单 player).
         glow = self._glow()
         if glow is not None:

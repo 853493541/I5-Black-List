@@ -433,21 +433,10 @@ def test_a_real_lobby_comes_first(window, monkeypatch):
     assert window.panel.isVisible() and window.clear_mark.isVisible() and window._quick_scene
 
 
-def test_it_gives_way_to_nothing_but_takes_over_the_stream_test(window):
-    window._set_stream_mode(True)
-    assert window.start_stream_test()
-    _wait(150)
-    assert window.play_quick_scene()
-    assert window._demo_likes is None and not window.demo_lobby.isVisible() and window._quick_scene
-    # 测试效果 then takes the play down in turn.
-    assert window.start_stream_test()
-    assert window._quick_scene == ""
-
-
 def test_in_stream_mode_it_reaches_the_stream_window(window, monkeypatch):
     from blacklist_detect import ui
 
-    # 安全模式 with 直播模式: the marks only in 直播画面, never on the streamer's screen.
+    # 基础模式 with 直播模式: the marks only in 直播画面, never on the streamer's screen.
     window._on_display_mode("safe")
     window._set_stream_mode(True)
     assert window._overlay_target() == "stream"
@@ -493,7 +482,7 @@ def test_the_play_is_logged(window, caplog):
 
 
 def test_in_safe_mode_without_stream_mode_nothing_is_drawn_over_the_game(window):
-    # 安全模式, as every player starts: nothing over the game from the hotkey.
+    # 基础模式, as every player starts: nothing over the game from the hotkey.
     window._on_display_mode("safe")
     assert window._overlay_target() == "" and not window.store.stream_mode
     assert not window.effect_hotkey.callback()

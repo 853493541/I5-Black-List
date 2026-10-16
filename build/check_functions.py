@@ -109,7 +109,7 @@ def main() -> int:
     check("the check is remembered for this version", Store(window.store.root).env_checked == __version__)
     check("使用声明 is asked once and agreed to", asked == [1] and Store(window.store.root).disclaimer_accepted)
     # 完整模式, as a player picks it after its risk is told: the red ring and the card below are drawn over the game
-    # only there (安全模式, the default, shows the result in a corner box).
+    # only there (基础模式, the default, shows the result in a corner box).
     window.store.consented = ["full"]
     window._on_display_mode("full")
     check("完整模式 is on", not window.store.safe_mode)

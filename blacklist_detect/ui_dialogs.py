@@ -772,7 +772,7 @@ STREAM_GUIDE = (
 )
 # 显示's guide: what the player sees in each mode.
 DISPLAY_DIFF = (
-    ("display-diff-1.jpg", "发现黑名单", "安全模式只在右下角提示，完整模式直接标在游戏上"),
+    ("display-diff-1.jpg", "发现黑名单", "基础模式只在右下角提示，完整模式直接标在游戏上"),
     ("display-diff-2.jpg", "遇到嘉宾", "完整模式还有花边"),
 )
 GUIDE_PICTURES = Path(__file__).resolve().parent / "assets"
@@ -908,7 +908,7 @@ class StreamGuideDialog(PictureGuideDialog):
 
 
 class DisplayGuideDialog(PictureGuideDialog):
-    """显示: 安全模式 and 完整模式 side by side."""
+    """显示: 基础模式 and 完整模式 side by side."""
 
     def __init__(self, parent=None) -> None:  # noqa: ANN001
         super().__init__("显示", [("", DISPLAY_DIFF)], parent)

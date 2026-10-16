@@ -168,6 +168,24 @@ def shoot(args) -> None:  # noqa: ANN001
     window.tabs.setCurrentIndex(0)
     step("header_检查", lambda: (window.check_panel.toggle(), save(window, "header_检查"), window.check_panel.close_panel()))
 
+    def check_streaming() -> None:
+        # 直播模式 on, 直播姬 saying its longest words after 关闭 / 开启: the card the same size as with it off.
+        from blacklist_detect import livehime
+
+        was = window.store.stream_mode
+        window._set_stream_mode(True)
+        window._stream_watch.stop()
+        window.stream_status.setText(livehime.WORDS[livehime.BEHIND])
+        window.stream_status.setProperty("tone", "warn")
+        window.stream_status.style().polish(window.stream_status)
+        window.stream_status.show()
+        window.check_panel.toggle()
+        save(window, "header_检查_直播模式")
+        window.check_panel.close_panel()
+        window._set_stream_mode(was)
+
+    step("header_检查_直播模式", check_streaming)
+
     def offered() -> None:
         from blacklist_detect import updater
 
@@ -258,6 +276,7 @@ def shoot(args) -> None:  # noqa: ANN001
     def on_game(name: str, seats: list[str], bad: str = "") -> None:
         from PySide6.QtCore import QPoint, QRect
         from PySide6.QtGui import QPainter, QPixmap
+        from PySide6.QtWidgets import QApplication
 
         from blacklist_detect.layout import NAME_BOXES
         from blacklist_detect.pipeline import CheckResult, Hit, NameSlot
@@ -265,7 +284,10 @@ def shoot(args) -> None:  # noqa: ANN001
 
         # The sample lobby as the game, these names read in its seats (bad: the 黑名单 one), and what a check
         # shows over it: the ring, the cards, the glow and the 场景, painted over the sample in one picture.
-        picture, _where = window._demo_place()
+        # The game: 16:9, six tenths of the window's screen wide, in its middle.
+        screen = (window.screen() or QApplication.primaryScreen()).geometry()
+        picture = QRect(0, 0, round(screen.width() * 0.6), round(screen.width() * 0.6 * 9 / 16))
+        picture.moveCenter(screen.center())
         button, game = window._demo_boxes(picture)
         left, top, right, bottom = game
         width, height = right - left, bottom - top
@@ -276,9 +298,10 @@ def shoot(args) -> None:  # noqa: ANN001
         ]  # fmt: skip
         tags = next((tuple(entry.tags) for entry in window.store.entries if entry.name == bad), ())
         hits = [Hit(seats.index(bad), bad, bad, "", False, "", tags)] if bad else []
-        # Put aside what the check changes, as 测试效果 does, so the steps after this one see the window as it was.
+        # Put aside what the check changes, as the 场景 hotkey does, so the steps after this one see the window as
+        # it was; the game is where the hotkey puts one no check has seen.
         saved = (window._game_box, window._game_screen, window._game_windows, window._live_check, window._love_played)
-        window._demo_area = picture
+        window._quick_area = picture
         window._live_check = True
         window._love_played = False
         try:
@@ -302,7 +325,7 @@ def shoot(args) -> None:  # noqa: ANN001
             window._hide_panel_after_title()
             window.love.stop()
             window.alert.stop()
-            window._demo_area = None
+            window._quick_area = None
             window._game_box, window._game_screen, window._game_windows, window._live_check, window._love_played = saved
 
     if args.data != "empty":

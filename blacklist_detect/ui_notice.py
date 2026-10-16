@@ -1,4 +1,4 @@
-"""安全模式's result: messages at the bottom right of the screen.
+"""基础模式's result: messages at the bottom right of the screen.
 
 Nothing marks the game: no ring round the button, no card beside it. The result comes as a
 message in the corner of the screen the game is on, above the taskbar, the way a chat app's
