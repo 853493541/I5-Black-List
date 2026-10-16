@@ -19,7 +19,7 @@ Status as of 2026-10-16 ~00:40 UTC.
 | 11 | 嘉宾 list | No 批量导入 for 嘉宾 | merged after v0.9.15, not released |
 | 12 | 嘉宾 editor | Two panes: 嘉宾 on the left, 场景 on the right with a box each, preview below with ▶ and autoplay; 随机 on top greys the rest | built + tested (PASS WITH NOTES) on feature/guest-scene-editor 8458378, worktree .claude/worktrees/wf_f69c699a-ff0-1; fix round running (wf_8a0e4e78-7e4: cut grid names, preview under 随机, stale ticks, 随机 box, render_gallery call); then merge |
 | 13 | 我 | 我 on top of the 嘉宾 list on green; 我 can pick a 场景 | row merged, not released; picking its 场景 comes with #12 |
-| 14 | Priority | 组合 > 嘉宾 > 黑名单 > 我 | built + tested (PASS WITH NOTES) on feature/lobby-priority f1546c6, worktree .claude/worktrees/wf_1fdc12dd-f72-1; fix round running (wf for: 我 music guard by name overlap, a hit seat never counts as 嘉宾, the 场景 skips hit seats, ui_shots steps for a mixed and a 我 lobby); then the master runs ui_shots on-game and merges |
+| 14 | Priority | 组合 > 嘉宾 > 黑名单 > 我 | merged on improve/quality (63e5184; 708 tests), not released. Fix round done: 我's music once per lobby by name overlap, a 黑名单 seat never counts as 嘉宾, the 场景 skips 黑名单 seats. Still to do: the master looks at ui_shots' game_黑名单和嘉宾 and game_我的场景 at 150 % |
 | 15 | 检查 | Remove 用截图检查 under 记录 | released v0.9.15 |
 | 16 | 检查 | The 检查 pill's grey background doesn't fit the theme | released v0.9.15 |
 | 17 | 检查 | Remove the 黑名单 / 嘉宾 提醒 choices and what they do | released v0.9.15 |
