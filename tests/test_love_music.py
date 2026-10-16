@@ -744,6 +744,28 @@ def test_a_scene_made_first_is_heard_as_it_starts_and_never_late(window):
     assert window.tunes == [] and not window.love.playing()
 
 
+def test_the_same_lobby_checked_again_while_its_scene_is_made_still_gets_it_and_its_music(window):
+    """检查 pressed again before 竖琴清风 shows stops it (MainWindow._start): the lobby was not greeted, so the
+    check after plays it with its music. A quiet look again (rescan) leaves it being made, its music waiting."""
+    from blacklist_detect.love_scenes import lyre
+
+    _full(window)
+    for index, name in enumerate(("小红", "小明")):
+        window.store.update_like(index, name, "", "", Scenes(("lyre",)))
+    lyre._made.clear()
+    window._show_panel(_lobby())
+    assert window.love.waiting() and window.tunes == []
+    # As _start does for a check pressed while the panel shows.
+    window.love.stop()
+    window._show_panel(_lobby())
+    assert window.love.scene == "lyre" and window.love.waiting() and window.tunes == []
+    # Looked at again quietly while it is still being made: the same lobby, its music still waiting.
+    window._show_panel(_lobby())
+    assert window.tunes == []
+    _until_started(window)
+    assert window.tunes == [TUNES["lyre"]] and window.love.elapsed() < 0.2
+
+
 def test_the_lyre_is_made_ahead_so_a_lobby_starts_it_and_its_music_at_once(window):
     from blacklist_detect.love_scenes import lyre
 
@@ -876,10 +898,6 @@ def test_the_hotkey_s_lyre_ended_or_replaced_before_it_starts_is_never_heard_lat
     assert _heard(window) == [] and not window.love.playing()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="MainWindow._love_started plays the hotkey's waiting tune even after ▶ 播放 on 场景管理 took the music over",
-)
 def test_play_on_effects_while_the_hotkey_s_lyre_is_made_keeps_its_music(window):
     """▶ 播放 on 场景管理 takes the music over from a play over the game: the lyre starting after that is
     seen, and its music is not heard over ▶'s."""
