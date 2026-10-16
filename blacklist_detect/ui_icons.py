@@ -210,9 +210,17 @@ def _heart(p: QPainter) -> None:
     p.drawPath(path)
 
 
+def _ban(p: QPainter) -> None:
+    # A circle with a slash from top left to bottom right: put on 黑名单.
+    p.drawEllipse(QPointF(12, 12), 8.5, 8.5)
+    reach = 8.5 * 0.7071
+    p.drawLine(QPointF(12 - reach, 12 - reach), QPointF(12 + reach, 12 + reach))
+
+
 DRAWINGS: dict[str, Callable[[QPainter], None]] = {
     "add": _add,
     "heart": _heart,
+    "ban": _ban,
     "close": _close,
     "check": _check,
     "search": _search,

@@ -2162,7 +2162,9 @@ class MainWindow(QMainWindow):
         elif kind == "seat":
             self._on_history_cell(*args)
         elif kind == "like_seat":
-            self.likes_page.add_one(split_ellipsis(args[0])[0] or args[0])
+            self._like_seat(*args)
+        elif kind == "ban_seat":
+            self._ban_seat(*args)
         elif kind == "copy_text":
             self._copy_text(*args)
         elif kind == "tag_edit":
@@ -2645,28 +2647,49 @@ class MainWindow(QMainWindow):
             )
             name_item.setToolTip(f"读到「{title}」，是黑名单里的「{listed}」")
             line.addWidget(listed_label, 1, Qt.AlignVCenter)
-        if action:
+        if action == "我":
             action_label = QLabel(action)
             action_label.setObjectName("rowAction")
-            action_label.setFont(chinese_font())
             action_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
             action_label.setFont(chinese_font(SMALL_PT))
-            if action == "我":
-                action_label.setStyleSheet(
-                    f'color: {THEME["chip_text"]}; background: {THEME["chip_bg"]}; border: 1px solid {THEME["chip_bg"]}; border-radius: 9px;'
-                    f' padding: 1px 8px; font-family: "{chinese_family()}"; font-size: {SMALL_PT}pt;'
-                )
-            else:
-                accent = THEME["accent_line"] if is_dark() else THEME["accent"]
-                action_label.setStyleSheet(
-                    f'color: {accent}; background: {THEME["surface"]}; border: 1px solid {THEME["accent_line"]};'
-                    f' border-radius: 6px; padding: 1px 10px; font-family: "{chinese_family()}"; font-size: {SMALL_PT}pt;'
-                )
-            if action == "添加":
-                action_label.hide()
+            action_label.setStyleSheet(
+                f'color: {THEME["chip_text"]}; background: {THEME["chip_bg"]}; border: 1px solid {THEME["chip_bg"]}; border-radius: 9px;'
+                f' padding: 1px 8px; font-family: "{chinese_family()}"; font-size: {SMALL_PT}pt;'
+            )
             line.addWidget(action_label, 0, Qt.AlignVCenter)
+        elif action == "添加":
+            # ♥ and 🚫 at the right end while the pointer is on the seat. They take clicks, so the seat lets
+            # the mouse in; a click beside them goes on to the table, which does nothing with it.
+            wrap.setAttribute(Qt.WA_TransparentForMouseEvents, False)
+            tile.setAttribute(Qt.WA_TransparentForMouseEvents, False)
+            line.addWidget(self._seat_buttons(row, column), 0, Qt.AlignVCenter)
         self.history_table.setCellWidget(row, column, wrap)
         return "unclear" if unclear else "hit" if match is not None else "like" if like is not None else ""
+
+    def _seat_buttons(self, row: int, column: int) -> QWidget:
+        """加入嘉宾 and 加入黑名单 for a seat on neither list, hidden until the pointer is on it."""
+        box = QWidget()
+        box.setObjectName("seatActions")
+        box.setStyleSheet("QWidget#seatActions { background: transparent; }")
+        pair = QHBoxLayout(box)
+        pair.setContentsMargins(0, 0, 0, 0)
+        pair.setSpacing(2)
+        for name, tip, tone, slot in (
+            ("heart", "加入嘉宾", "rose", self._like_seat),
+            ("ban", "加入黑名单", "red", self._ban_seat),
+        ):
+            button = IconButton(name, tip, tone=tone)
+            button.setObjectName("seatLike" if name == "heart" else "seatBan")
+            button.setFocusPolicy(Qt.NoFocus)
+            button.setStyleSheet(
+                f"QPushButton {{ background: transparent; border: none; border-radius: 6px; padding: 0; }}"
+                f" QPushButton:hover {{ background: {THEME[f'{tone}_wash']}; }}"
+                f" QPushButton:pressed {{ background: {THEME[f'{tone}_hover']}; }}"
+            )
+            button.clicked.connect(lambda _checked=False, act=slot: act(row, column))
+            pair.addWidget(button)
+        box.hide()
+        return box
 
     def _history_wrap_style(self, wash: str = "") -> str:
         """A seat: white with a thin gray outline, or filled when it means something (or is under the pointer)."""
@@ -2686,7 +2709,10 @@ class MainWindow(QMainWindow):
             self._clear_history_hover()
             self.history_table.viewport().setCursor(Qt.ArrowCursor)
             return
-        self.history_table.viewport().setCursor(Qt.PointingHandCursor)
+        # A listed seat opens its edit on a click; a seat on neither list is added by its ♥ and 🚫 alone.
+        item = self.history_table.item(row, column)
+        unlisted = item is not None and str(item.data(Qt.UserRole + 1) or "") == "添加"
+        self.history_table.viewport().setCursor(Qt.ArrowCursor if unlisted else Qt.PointingHandCursor)
         if self._history_hover == (row, column):
             return
         self._paint_history_hover(*self._history_hover, False)
@@ -2709,9 +2735,11 @@ class MainWindow(QMainWindow):
         hover = str(wrap.property("toneHover") or "")
         wash = hover if hot and hover else str(wrap.property("toneWash") or "")
         wrap.setStyleSheet(self._history_wrap_style(wash))
-        action_label = wrap.findChild(QLabel, "rowAction")
-        if action_label is not None and action_label.text() == "添加":
-            action_label.setVisible(hot)
+        buttons = wrap.findChild(QWidget, "seatActions")
+        if buttons is not None:
+            # Shown, the pair sits nearer the edge, so the name gives up as little room as it can.
+            wrap.findChild(QFrame, "seat").layout().setContentsMargins(12, 0, 4 if hot else 12, 0)
+            buttons.setVisible(hot)
 
     def _history_menu(self, pos) -> None:  # noqa: ANN001
         index = self.history_table.indexAt(pos)
@@ -2729,8 +2757,8 @@ class MainWindow(QMainWindow):
         if item.data(Qt.UserRole + 2) or item.data(Qt.UserRole + 3):
             items.append(("编辑", ("seat", row, column)))
         elif action == "添加":
-            items.append(("加入黑名单", ("seat", row, column)))
-            items.append(("加入嘉宾列表", ("like_seat", shown)))
+            items.append(("加入黑名单", ("ban_seat", row, column)))
+            items.append(("加入嘉宾列表", ("like_seat", row, column)))
         items.append(("复制名字", ("copy_text", shown)))
         return self._menu(items)
 
@@ -2756,16 +2784,50 @@ class MainWindow(QMainWindow):
         liked = str(item.data(Qt.UserRole + 3) or "")
         if liked:
             self.likes_page.edit(self.store.like_index(liked))
+        # A seat on neither list is added by its ♥ and 🚫 (or the menu): a click on the rest of it does nothing.
+
+    def _seat_name(self, row: int, column: int) -> str:
+        """The name a seat on neither list adds, as the game showed it without the cut; "" for any other seat."""
+        item = self.history_table.item(row, column)
+        if item is None or str(item.data(Qt.UserRole + 1) or "") != "添加":
+            return ""
+        shown = str(item.data(Qt.UserRole) or "")
+        return split_ellipsis(shown)[0] or shown
+
+    def _like_seat(self, row: int, column: int) -> None:
+        """♥: on 嘉宾 at once, on 随机, and the seat turns rose where it is."""
+        name = self._seat_name(row, column)
+        if not name:
             return
-        dialog = AddNameDialog(shown, title="添加", catalog=self.store.tag_catalog(), parent=self, taken=self._taken_names())
-        if dialog.exec() != QDialog.Accepted or dialog.deleted:
+        if self.store.entry_index(name) >= 0:
+            # A player is on one list: a 黑名单 name stays there.
+            self._say("已经在黑名单里了")
             return
-        if not self._take_from_likes(dialog.name):
+        before, likes = self.store.snapshot_entries(), self.store.snapshot_likes()
+        like = self.store.add_like(name)
+        if like is None:
             return
-        if self.store.add(dialog.name, dialog.detail, tags=dialog.tags) is None:
+        self._seat_added(row, column)
+        self._say(f"已加入嘉宾「{like.name}」", undo=lambda: self._put_back(before, likes))
+
+    def _ban_seat(self, row: int, column: int) -> None:
+        """🚫: on 黑名单 at once, with no 原因 or 标签 (a click on the red seat adds them), and the seat turns red."""
+        name = self._seat_name(row, column)
+        if not name:
             return
-        self._show_list()
-        self._show_history_scan(self._selected_scan())
+        before, likes = self.store.snapshot_entries(), self.store.snapshot_likes()
+        if not self._take_from_likes(name):
+            return
+        entry = self.store.add(name, "", tags=())
+        if entry is None:
+            return
+        self._seat_added(row, column)
+        self._say(f"已加入黑名单「{entry.name}」", undo=lambda: self._put_back(before, likes))
+
+    def _seat_added(self, row: int, column: int) -> None:
+        """Both lists and the record redrawn; the 记录 page stays on the same record, and the seat under the pointer."""
+        self._list_changed()
+        self._hover_history_cell(row, column)
 
     def _toggle_auto(self, checked: bool) -> None:
         if bool(checked) != self.store.auto_capture:

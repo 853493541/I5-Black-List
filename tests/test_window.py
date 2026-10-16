@@ -461,14 +461,14 @@ def test_history_adds_a_name_to_the_blacklist(qapp, tmp_path, monkeypatch):
     assert window.history_table.item(0, 1).text() == "庄园美女"
     assert "..." not in window.history_table.item(0, 1).text()
     assert "..." not in str(window.history_table.item(0, 1).data(Qt.UserRole))
-    action = window.history_table.cellWidget(0, 0).findChild(QLabel, "rowAction")
-    assert action.text() == "添加"
-    assert action.isHidden() is True
+    assert window.history_table.cellWidget(0, 0).findChild(QLabel, "rowAction") is None
+    buttons = window.history_table.cellWidget(0, 0).findChild(QWidget, "seatActions")
+    assert buttons.isHidden() is True
     window._paint_history_hover(0, 0, True)
-    assert action.isHidden() is False
+    assert buttons.isHidden() is False
     assert window.history_table.cellWidget(0, 0).styleSheet() == window._history_wrap_style(THEME["gray_wash"])
     window._paint_history_hover(0, 0, False)
-    assert action.isHidden() is True
+    assert buttons.isHidden() is True
     window.player_edit.setText("纪戴宁")
     window._save_player_name()
     assert window.history_table.item(0, 0).foreground().color().name() == "#1c7a3e"
