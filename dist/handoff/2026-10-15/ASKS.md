@@ -30,6 +30,8 @@ Status as of 2026-10-16 ~02:30 UTC. improve/quality = d6cdbba (+ handoff commits
 | 22 | 嘉宾 dialogs (2026-10-16 01:25 UTC) | 添加嘉宾 / 编辑嘉宾 pick the 场景 in the same dialog: 名字/昵称/原因 + a 放场景 box + the scene list one per row with boxes + preview with ▶ and autoplay. No list of other 嘉宾 ("why should I see the full list of guests") | not started. Replaces #12's two-pane dialog |
 | 23 | 放场景 | The box says 放场景: unchecked = 不放; checked with none ticked = random among all; ticked = those, random among them if several | not started (with #22) |
 | 24 | 组合 dialogs | 添加组合 / 编辑组合: left, the 嘉宾 with checkmarks to pick members; right, the scene list one per row; bottom, the preview ("editing combo is completely trash, has no scene selection") | not started (with #22) |
+| 25 | 设置 (2026-10-16 01:30 UTC) | Bug: "on the first row, the second row is merged to the first row for no reason" (常规's 开机启动 and 关闭窗口时 share one row) | not started (with #26) |
+| 26 | 设置 | Redesign "the Claude way" (the user pasted Claude's settings): a catalog of sections on the left, the chosen section on the right; each row has its name and a description on the left and its control on the right | not started |
 | — | Green 场景 | For the friend who mains 吴邪 (green + wind): border only, slow entrance, cute pandas, less middle | v2 rejected; the user wants picture ideas first. 7 concept stills sent 2026-10-16 (dist/concepts_green/: all_concepts.png + one folder per idea with its script): 1 草原风车, 2 竹风铃, 3 风筝, 4 水墨竹, 5 山雾萤火, 6 青铜门, 7 柳与燕. Waiting for the user's pick; then one concept frame of it, then the build. |
 
 "Just changing UI for now" (22:40): no 直播模式 checklist is to be built.
