@@ -260,6 +260,7 @@ def shoot(args) -> None:  # noqa: ANN001
     step("cards", cards)
 
     def on_game(name: str, seats: list[str], bad: str = "") -> None:
+        from PySide6.QtCore import QPoint, QRect
         from PySide6.QtGui import QPainter, QPixmap
 
         from blacklist_detect.layout import NAME_BOXES
@@ -291,7 +292,8 @@ def shoot(args) -> None:  # noqa: ANN001
             shot = QPixmap(picture.size() * ratio)
             shot.setDevicePixelRatio(ratio)
             painter = QPainter(shot)
-            painter.drawPixmap(shot.rect(), sample_screen())
+            # In the picture's own points: shot.rect() is in device pixels, which would draw the sample ratio times too big.
+            painter.drawPixmap(QRect(QPoint(), picture.size()), sample_screen())
             # Bottom to top, as they lie over the game.
             for mark in (window.alert, window.love, window.panel, window.clear_mark, window.like_card, window.hit_card):
                 if mark.isVisible():
