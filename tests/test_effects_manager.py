@@ -1070,3 +1070,59 @@ def test_open_it_follows_the_theme_as_windows_turns_light_or_dark(window):
         assert upload_face() == light
     finally:
         window.scenes_dialog.hide()
+
+
+def _until_preview_started(page) -> None:  # noqa: ANN001
+    deadline = time.time() + 60
+    while page.preview._warming is not None and time.time() < deadline:
+        page.preview._step()
+        time.sleep(0.01)
+    assert page.preview._warming is None
+
+
+def test_play_on_a_scene_being_made_starts_its_music_with_it_then_pauses_as_any(window, clock):
+    """▶ 播放 on 竖琴清风 made cold: its still shows while its pictures are made, nothing is heard and the button
+    still reads 播放 (a click is ▶ again, starting over, not ⏸); its music starts as the scene does, and from
+    then on 暂停 and ▶ go on from where they were."""
+    from blacklist_detect.love_scenes import lyre
+
+    page = window.effects_page
+    page.select("lyre")
+    lyre._made.clear()
+    window.played.clear()
+    page.play_button.click()
+    assert page.preview._warming is not None and window.played == [] and not page.sounding
+    assert page.play_button.text() == "播放" and page._starting
+    page.play_button.click()
+    assert page.preview._warming is not None and window.played == [] and page.play_button.text() == "播放"
+    _until_preview_started(page)
+    assert window.played == [TUNES["lyre"]] and page.sounding and page.play_button.text() == "暂停"
+    assert page.preview._clock.elapsed() == 0
+    clock.now += 1.2
+    page.play_button.click()
+    assert page.play_button.text() == "播放" and window.played[-1] is None and page.preview.held
+    clock.now += 30
+    page.play_button.click()
+    assert page.play_button.text() == "暂停" and window.played[-1].name.endswith("-at1200ms.wav")
+    assert page.preview._clock.elapsed() == 1200
+
+
+def test_play_on_a_scene_being_made_given_up_before_it_starts_is_never_heard_late(window):
+    """Before 竖琴清风's pictures are made, another 场景 clicked or the 场景 hotkey's play: the lyre's music never
+    starts once they are."""
+    from blacklist_detect.love_scenes import lyre
+
+    page = window.effects_page
+    for leave in (lambda: _shown(window, "ice"), window.effect_hotkey.callback):
+        page.select("lyre")
+        lyre._made.clear()
+        window.played.clear()
+        page.play_button.click()
+        warming = page.preview._warming
+        assert warming is not None and window.played == []
+        leave()
+        assert not page._starting
+        warming.join(60)
+        page.preview._step()
+        assert TUNES["lyre"] not in window.played and not page.sounding and page.play_button.text() == "播放"
+        window._end_quick_play()

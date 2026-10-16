@@ -811,3 +811,87 @@ def test_the_preview_shows_the_still_while_the_lyre_is_made(window):  # noqa: AR
         time.sleep(0.01)
     assert began and preview._warming is None
     preview.stop()
+
+
+def _heard(window) -> list:  # noqa: ANN001
+    return [tune for tune in window.tunes if tune is not None]
+
+
+def test_the_hotkey_s_lyre_is_heard_as_it_starts_and_a_scene_made_at_once_at_the_key(window):
+    """The 场景 hotkey's music starts with its 场景: 冰雪 at the key press, 竖琴清风 made cold once its pictures are."""
+    from blacklist_detect.love_scenes import lyre
+
+    _full(window)
+    window.store.quick_scene = "ice"
+    assert window.play_quick_scene()
+    assert window.love.scene == "ice" and not window.love.waiting() and window.tunes == [TUNES["ice"]]
+    window._end_quick_play()
+    window.tunes.clear()
+    window.store.quick_scene = "lyre"
+    lyre._made.clear()
+    assert window.play_quick_scene()
+    assert window.love.scene == "lyre" and window.love.waiting() and window.tunes == []
+    _until_started(window)
+    assert window.tunes == [TUNES["lyre"]] and window.love.elapsed() < 0.2
+    # Its play's end waits for the scene to be over, the marks staying.
+    window._end_quick_play(window._quick_round)
+    assert window._quick_scene == "lyre"
+
+
+def test_the_hotkey_s_lyre_ended_or_replaced_before_it_starts_is_never_heard_late(window):
+    from blacklist_detect.love_scenes import lyre
+
+    _full(window)
+    window.store.quick_scene = "lyre"
+    # Ended (a check, 基础模式) before its pictures are made.
+    lyre._made.clear()
+    assert window.play_quick_scene()
+    warming = window.love._warming
+    assert warming is not None and window.tunes == []
+    window._end_quick_play()
+    warming.join(60)
+    window.love._step()
+    assert _heard(window) == [] and not window.love.playing()
+    # The hotkey again, now on 冰雪: its music at once, the lyre's never.
+    lyre._made.clear()
+    assert window.play_quick_scene()
+    warming = window.love._warming
+    window.store.quick_scene = "ice"
+    assert window.play_quick_scene()
+    assert _heard(window) == [TUNES["ice"]]
+    warming.join(60)
+    window.love._step()
+    assert _heard(window) == [TUNES["ice"]] and window.love.scene == "ice"
+    window._end_quick_play()
+    # 基础模式 chosen: the play over at once, the lyre's music never.
+    window.tunes.clear()
+    window.store.quick_scene = "lyre"
+    lyre._made.clear()
+    assert window.play_quick_scene()
+    warming = window.love._warming
+    window._on_display_mode("safe")
+    assert window.store.safe_mode and window._quick_scene == ""
+    warming.join(60)
+    window.love._step()
+    assert _heard(window) == [] and not window.love.playing()
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="MainWindow._love_started plays the hotkey's waiting tune even after ▶ 播放 on 场景管理 took the music over",
+)
+def test_play_on_effects_while_the_hotkey_s_lyre_is_made_keeps_its_music(window):
+    """▶ 播放 on 场景管理 takes the music over from a play over the game: the lyre starting after that is
+    seen, and its music is not heard over ▶'s."""
+    from blacklist_detect.love_scenes import lyre
+
+    _full(window)
+    window.effects_page.music = window.music
+    window.store.quick_scene = "lyre"
+    window.effects_page.select("ice")
+    lyre._made.clear()
+    assert window.play_quick_scene() and window.love.waiting()
+    window.effects_page.play_preview()
+    assert window.effects_page.sounding and _heard(window) == [TUNES["ice"]]
+    _until_started(window)
+    assert window.love.playing() and _heard(window) == [TUNES["ice"]]
