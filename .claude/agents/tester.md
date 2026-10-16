@@ -15,10 +15,12 @@ folder outside the repo. Run Python with the main checkout's `.venv` (see CLAUDE
 3. Run the full tests and ruff. A timing test that fails while other runs are going is rerun alone before
    it counts.
 4. Run the checks your brief or the plan names.
-5. Try to break it: empty and full lists, long names and reasons, the stress data, 100/150/200% scale,
-   dark theme, a second press while a check runs, whatever this change makes likely.
-6. For UI changes, and only when your brief grants the desktop: `tools/ui_shots.py` into a temp folder.
-   Look at 150% first. Look for cut-off text, overlap, dialogs past 672 px, and real player names.
+5. Try to break it: empty and full lists, long names and reasons, the stress data, a second press while a
+   check runs, whatever this change makes likely; 100 and 200% scale only when the change is about layout or
+   scale. Dark theme is left to the final release check (CLAUDE.md, "Cost").
+6. For UI changes, and only when your brief grants the desktop: one `tools/ui_shots.py` pass into a temp
+   folder, light theme at `--scale 150`. Look for cut-off text, overlap, dialogs past 672 px, and real player
+   names.
 7. Check the CLAUDE.md rules the change comes near.
 
 Report, in about 30 lines:

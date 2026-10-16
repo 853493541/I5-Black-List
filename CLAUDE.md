@@ -124,6 +124,11 @@ whole conversation, and command output and file reads are almost all of what fil
   reports what is done, what is next and the commit to continue from, and stops; the master starts a fresh agent
   from that commit.
 - Agent reports are about 30 lines: verdict, commits, files, open items.
+- Screenshots (`tools/ui_shots.py`) open real windows on the user's screen and were the most repeated check (51
+  runs in 75 minutes on 2026-10-15). Per package: the implementer shoots once, at the end; the tester makes the
+  one full pass; the master re-shoots only what the tester flagged. Light theme at `--scale 150`; 100 and 200 only
+  when the change is about layout or scale. Dark theme (`--dark`) only in the final release check before
+  publishing. Never two screenshot runs at once: the desktop is one agent at a time (rule 5 above).
 - The master's own conversation: once it passes about 300k tokens, or when a batch of work is done, the master
   writes a handoff to `dist/handoff/<date>/HANDOFF.md` and the work continues in a fresh session that reads it.
   The handoff holds state only (branches, commits, what is running, next steps); the rules stay in this file.
