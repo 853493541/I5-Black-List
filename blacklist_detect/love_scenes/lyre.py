@@ -280,8 +280,8 @@ def make(stage: Stage):  # noqa: ANN201
         if lyre_a > 0 and ("bird", 1, "blink") in art:
             bob = _bob(t)
             pose, sx, sy, sway = _idle(t, 0)
-            _sat(p, art["bird", 1, pose], *lyre_pt(*PERCH, angle, rise), 0.35 * angle + 0.6 * sway, 0.66 * sx * (1 + 0.07 * bob),
-                 0.66 * sy * (1 - 0.11 * bob), lyre_a, px, foot)
+            _sat(p, art["bird", 1, pose], *lyre_pt(*PERCH, angle, rise), 0.35 * angle + 0.6 * sway, 0.64 * sx * (1 + 0.07 * bob),
+                 0.64 * sy * (1 - 0.11 * bob), lyre_a, px, foot)
         # The feathers and the leaf the first strum lets go, carried from the strings to where they ride.
         parts = ease_out(win(t, 0.9, 1.4)) * fade
         if parts > 0 and "released-leaf" in art:
@@ -1734,14 +1734,14 @@ def _seed(length: float, ss: float) -> QImage:
     return _picture(np.broadcast_to(rgb(CORE), (size, size, 3)), np.clip(blur(m, 0.5 * ss) * 1.4, 0, 1))
 
 
-# The birds, drawn flat as the friend's picture is: a round little ball, a touch wider than tall and widest low, on a
-# slightly flattened bottom, two rounded crest feathers on its round head, teal over the head and back, a white face
+# The birds, drawn flat as the friend's picture is, three-quarters on: a round little egg, a touch wider than tall,
+# its head end narrower, widest low, on a slightly flattened bottom, long rabbit-ear crest feathers tilted back, teal over the head and back, a white face
 # round the eyes and a white belly with a band of teal between them where the wing lies, a white wing with scalloped
 # feathers and teal tips, dark teal tail feathers, small red-brown eyes, pink blush beside them, a tiny white beak,
 # all in a hand-drawn dark-teal line. BIRD design points tall; its bottom, where it sits, FOOT of that below its middle.
 BIRD_TOP, BIRD_SHADE, BIRD_DEEP, BIRD_DEEP_SHADE = "#6fd3b8", "#46b39a", "#2e8f78", "#236f5e"
 BIRD_WHITE, BIRD_WHITE_SHADE, BIRD_LINE, BIRD_EYE = "#f2fffb", "#cfece4", "#2f6f62", "#5a1f1f"
-BLUSH, BEAK = "#f59aae", "#fffdf6"
+BLUSH, BEAK, BIRD_MARK = "#f59aae", "#fffdf6", "#8e5aa8"
 BIRD = 64.0
 FOOT = 0.45
 # Its wing's turn (degrees, raised as it grows) and how far it is spread, for each pose; folded at rest, and "lift"
@@ -1749,7 +1749,10 @@ FOOT = 0.45
 WINGS = {"sit": (-32.0, 1.0), "blink": (-32.0, 1.0), "lift": (-14.0, 1.0), "up": (62.0, 1.05), "mid": (16.0, 1.05),
          "down": (-62.0, 1.0)}  # fmt: skip
 SHOULDER = (-0.15, 0.12)
-EYES = ((0.13, -0.15), (0.39, -0.16))
+# The face, seen three-quarters on: the eyes, the blush below and outside them, the forehead's diamond.
+EYES = ((0.19, -0.16), (0.47, -0.17))
+BLUSHES = ((0.11, -0.1), (0.52, -0.11))
+MARK = (0.3, -0.27)
 
 
 def _bird(pose: str, face: int, ss: float) -> QImage:
@@ -1842,16 +1845,18 @@ def _bird(pose: str, face: int, ss: float) -> QImage:
         nonlocal color, alpha
         color, alpha = _over(color, alpha, c, a)
 
-    # A ball a touch wider than tall, widest low, its bottom a little flattened, its head round on top.
+    # An egg seen three-quarters on, facing its way: the head end narrower and round, the body widening low, the
+    # bottom a little flattened.
     body = QPainterPath(q(0.0, 0.45))
-    body.lineTo(q(0.2, 0.45))
-    body.cubicTo(q(0.46, 0.45), q(0.56, 0.32), q(0.54, 0.1))
-    body.cubicTo(q(0.52, -0.32), q(0.32, -0.55), q(0.03, -0.55))
-    body.cubicTo(q(-0.27, -0.55), q(-0.51, -0.32), q(-0.53, 0.1))
-    body.cubicTo(q(-0.56, 0.32), q(-0.46, 0.45), q(-0.2, 0.45))
+    body.lineTo(q(0.24, 0.45))
+    body.cubicTo(q(0.48, 0.45), q(0.56, 0.32), q(0.55, 0.12))
+    body.cubicTo(q(0.54, -0.18), q(0.38, -0.55), q(0.1, -0.55))
+    body.cubicTo(q(-0.15, -0.55), q(-0.38, -0.42), q(-0.47, -0.15))
+    body.cubicTo(q(-0.56, 0.08), q(-0.6, 0.42), q(-0.28, 0.45))
     body.closeSubpath()
     m_body = smooth(0.45, 0.55, blur(filled(body), 0.03 * unit))
-    ears = [filled(leaf((-0.06, -0.47), -106, 0.3, 0.12, 0.8)), filled(leaf((0.16, -0.5), -82, 0.27, 0.11, 0.8))]
+    # Long rabbit ears on the top of the head toward the back, tilted back.
+    ears = [filled(leaf((-0.12, -0.46), -124, 0.31, 0.12, 0.85)), filled(leaf((0.05, -0.52), -109, 0.29, 0.115, 0.85))]
     tail = QPainterPath()
     tail.setFillRule(Qt.WindingFill)
     for angle, length in ((166, 0.27), (150, 0.23), (182, 0.2)):
@@ -1861,7 +1866,7 @@ def _bird(pose: str, face: int, ss: float) -> QImage:
     m_wing, m_strokes = filled(near), filled(near_strokes, 0.02)
     grain = noise(size, size, 1.5 * ss, 1, 9) - 0.5
 
-    # Behind the body, back to front: the far wing in a flap, the tail, the crest feathers (teal, pale inside).
+    # Behind the body, back to front: the far wing in a flap, the tail, the ears (teal, pale inside).
     if flap:
         far, _ = wing((-0.08, -0.06), turn + 12, spread * 0.92)
         m_far = filled(far)
@@ -1870,36 +1875,51 @@ def _bird(pose: str, face: int, ss: float) -> QImage:
     over(tones(shade(m_tail, 0.03), BIRD_DEEP, BIRD_DEEP_SHADE), m_tail)
     over(rgb(BIRD_LINE), line(m_tail, 0.022))
     for m in ears:
-        inner = smooth(0.76, 0.86, blur(m, 0.03 * unit)) * m
+        inner = smooth(0.7, 0.8, blur(m, 0.03 * unit)) * m
         c = tones(shade(m, 0.03), BIRD_TOP, BIRD_SHADE)
         c = c + (tones(shade(m, 0.03), BIRD_WHITE, BIRD_WHITE_SHADE) - c) * inner[..., None]
         over(c, m)
         over(rgb(BIRD_LINE), line(m, 0.022))
 
-    # The body: teal, a white face round the eyes and a white belly below, a band of teal between, one shade.
+    # The body, one shade: a teal crown and back; a white face over the facing side of the head, from under the
+    # ears down past the eyes, its back edge a soft curve against the crown; a band of teal; the white belly.
     k = shade(m_body, 0.09)
-    # The face wraps round the front of the head, its top a curve just over the eyes.
-    k_white = np.clip(oval(0.36, -0.19, 0.31, 0.16) + oval(0.12, 0.33, 0.46, 0.26), 0, 1) * m_body
+    patch = QPainterPath(q(0.02, -0.44))
+    patch.cubicTo(q(0.2, -0.52), q(0.45, -0.45), q(0.62, -0.3))
+    patch.lineTo(q(0.64, 0.1))
+    patch.cubicTo(q(0.5, 0.1), q(0.3, 0.04), q(0.12, -0.02))
+    patch.cubicTo(q(0.0, -0.08), q(-0.06, -0.2), q(-0.04, -0.3))
+    patch.cubicTo(q(-0.02, -0.38), q(0.0, -0.42), q(0.02, -0.44))
+    patch.closeSubpath()
+    k_white = np.clip(smooth(0.4, 0.6, blur(filled(patch), 0.012 * unit)) + oval(0.14, 0.47, 0.5, 0.29), 0, 1) * m_body
     c = tones(k, BIRD_TOP, BIRD_SHADE)
     c = c + (tones(k, BIRD_WHITE, BIRD_WHITE_SHADE) - c) * k_white[..., None]
     over(c, m_body)
     over(rgb(BIRD_LINE), line(m_body, 0.03))
 
-    # The face: blush beside the eyes, the eyes (shut, a soft curve), the beak between them.
-    for (ex, ey), side in zip(EYES, (-1, 1), strict=True):
-        r = np.hypot((bx - ex - side * 0.075) / 0.05, (by - ey - 0.035) / 0.03)
-        over(rgb(BLUSH), (1 - smooth(0.7, 1.0, r)) * 0.85)
+    # The face: round blush just below and outside each eye; the eyes low on the face, slightly tilted, the far one
+    # at the head's edge (shut, a soft curve); the purple diamond on the forehead; the beak below between the eyes.
+    for x, y in BLUSHES:
+        r = np.hypot((bx - x) / 0.048, (by - y) / 0.034)
+        over(rgb(BLUSH), (1 - smooth(0.7, 1.0, r)) * 0.85 * m_body)
     eyes = QPainterPath()
-    for ex, ey in EYES:
+    for (ex, ey), tilt in zip(EYES, (-14, 14), strict=True):
+        eye = QPainterPath()
         if pose == "blink":
-            eyes.moveTo(q(ex - 0.04, ey - 0.004))
-            eyes.quadTo(q(ex, ey + 0.034), q(ex + 0.04, ey - 0.004))
+            eye.moveTo(q(-0.038, -0.004))
+            eye.quadTo(q(0, 0.032), q(0.038, -0.004))
         else:
-            eyes.addEllipse(q(ex, ey), 0.034, 0.044)
-    over(rgb(BIRD_EYE), filled(eyes, 0.022) if pose == "blink" else filled(eyes))
-    beak = QPainterPath(q(0.235, -0.13))
-    beak.lineTo(q(0.305, -0.13))
-    beak.lineTo(q(0.27, -0.075))
+            eye.addEllipse(q(0, 0), 0.037, 0.054)
+        eyes.addPath(QTransform().translate(ex, ey).rotate(tilt).map(eye))
+    over(rgb(BIRD_EYE), (filled(eyes, 0.022) if pose == "blink" else filled(eyes)) * m_body)
+    mark = QPainterPath(q(MARK[0], MARK[1] - 0.032))
+    for dx, dy in ((0.018, 0.0), (0.0, 0.032), (-0.018, 0.0)):
+        mark.lineTo(q(MARK[0] + dx, MARK[1] + dy))
+    mark.closeSubpath()
+    over(rgb(BIRD_MARK), filled(mark))
+    beak = QPainterPath(q(0.335, -0.09))
+    beak.lineTo(q(0.405, -0.09))
+    beak.lineTo(q(0.37, -0.038))
     beak.closeSubpath()
     over(rgb(BIRD_LINE), filled(beak, 0.016))
     over(rgb(BEAK), filled(beak))
