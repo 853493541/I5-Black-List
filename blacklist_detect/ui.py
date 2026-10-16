@@ -17,7 +17,6 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
-    QCheckBox,
     QDialog,
     QFrame,
     QHBoxLayout,
@@ -110,9 +109,11 @@ from blacklist_detect.ui_header import CheckPanel, ProfileChip, StatusChip
 from blacklist_detect.ui_icons import icon as line_icon
 from blacklist_detect.ui_icons import pixmap as line_pixmap
 from blacklist_detect.ui_kit import (
+    ChoiceBox,
     ConfirmDialog,
     EmptyState,
     IconButton,
+    OnOffBox,
     SegmentedControl,
     SettingsCatalog,
     SettingsPane,
@@ -972,9 +973,9 @@ class MainWindow(QMainWindow):
         return page
 
     def _settings_page(self) -> QWidget:
-        """The way desktop apps lay out settings: a catalog of sections on the left (常规, 外观, 帮助,
-        关于), the chosen one on the right, its name in bold, then one row per setting: what it is and a
-        gray line on what it does on the left, its control on the right.
+        """The way desktop apps lay out settings: a catalog of sections on the left (常规, 帮助, 关于),
+        the chosen one on the right, its name in bold, then one row per setting: what it is, with a gray
+        line under it where the name alone does not say it, on the left, its control on the right.
 
         检查 (显示, 方式) opens from the status pill in the header, 直播模式 and 角色名称 are in the
         header too, 标签 beside the list on 黑名单, each 嘉宾's and 组合's 场景 on 嘉宾, and the 场景
@@ -1082,36 +1083,31 @@ class MainWindow(QMainWindow):
         # Put over the window under the pill once the header is built.
         self.check_panel = CheckPanel(check)
 
-        # 常规: how the app starts and closes, and 静音. Each its own row.
+        # 常规: how the app starts and closes, its sound and its look, each a row with a dropdown, its
+        # default first. The name says it all but for 开机启动.
         general = section("general", "常规", "settings")
-        self.autostart_switch = Switch(autostart.is_enabled())
-        self.autostart_switch.setAccessibleName("开机启动")
-        self.autostart_switch.setEnabled(autostart.available())
-        self.autostart_switch.toggled.connect(self._set_autostart)
-        general.add_row("开机启动", "Windows 启动时自动打开", self.autostart_switch)
-        # Asked the way Chinese desktop apps ask it: what × does, with both answers in view.
-        self.close_mode = SegmentedControl(
-            [("tray", "最小化"), ("quit", "退出")], "tray" if self.store.close_to_tray else "quit"
+        self.autostart_box = OnOffBox("关闭", "开启", autostart.is_enabled())
+        self.autostart_box.setAccessibleName("开机启动")
+        self.autostart_box.setEnabled(autostart.available())
+        self.autostart_box.toggled.connect(self._set_autostart)
+        general.add_row("开机启动", "Windows 启动时自动打开", self.autostart_box)
+        self.close_mode = ChoiceBox(
+            [("tray", "最小化到托盘"), ("quit", "退出程序")], "tray" if self.store.close_to_tray else "quit"
         )
         self.close_mode.setAccessibleName("关闭窗口时")
         self.close_mode.changed.connect(self._on_close_mode)
-        general.add_row("关闭窗口时", "点 × 时最小化到托盘或直接退出", self.close_mode)
-        # 声音: 静音 for none at all. How loud each 场景 is, is its own 音量 in 场景管理.
-        self.mute_box = QCheckBox("静音")
-        self.mute_box.setChecked(self.store.sound_muted)
-        self.mute_box.setCursor(Qt.PointingHandCursor)
+        general.add_row("关闭窗口时", None, self.close_mode)
+        # 静音 for none at all. How loud each 场景 is, is its own 音量 in 场景管理.
+        self.mute_box = OnOffBox("播放", "静音", self.store.sound_muted)
+        self.mute_box.setAccessibleName("全局声音")
         self.mute_box.toggled.connect(self._on_mute)
-        general.add_row("声音", "每个场景的音量在场景管理里调", self.mute_box)
-
-        # 外观: how the window looks.
-        look = section("look", "外观", "palette")
-        self.appearance_control = SegmentedControl(
+        general.add_row("全局声音", None, self.mute_box)
+        self.appearance_control = ChoiceBox(
             [("light", "浅色"), ("dark", "深色"), ("system", "跟随系统")], self.store.appearance
         )
-        self.appearance_control.setAccessibleName("模式")
-        self.appearance_buttons: dict[str, QPushButton] = self.appearance_control.buttons
+        self.appearance_control.setAccessibleName("主题")
         self.appearance_control.changed.connect(self._set_appearance)
-        look.add_row("模式", "浅色、深色或跟着 Windows", self.appearance_control)
+        general.add_row("主题", None, self.appearance_control)
         self.theme_buttons: dict[str, ThemeSwatch] = {}
         if THEME_PICKER:
             swatch_host = QWidget()
@@ -1123,7 +1119,7 @@ class MainWindow(QMainWindow):
                 swatch.chosen.connect(self._set_theme)
                 self.theme_buttons[name] = swatch
                 swatches.addWidget(swatch, 0, Qt.AlignVCenter)
-            look.add_row("主题色", "按钮和选中时的颜色", swatch_host)
+            general.add_row("主题色", "按钮和选中时的颜色", swatch_host)
 
         # 帮助: when something is wrong, what a friend can do and send.
         helping = section("help", "帮助", "help")
@@ -1133,14 +1129,14 @@ class MainWindow(QMainWindow):
         self.test_button.setAutoDefault(False)
         self.test_button.setCursor(Qt.PointingHandCursor)
         self.test_button.clicked.connect(lambda: self.start_environment_check(force=True))
-        helping.add_row("环境测试", "检查这台电脑能不能正常识别", self.test_button)
+        helping.add_row("环境测试", None, self.test_button)
         self.export_button = QPushButton("导出")
         self.export_button.setAccessibleName("导出日志")
         self.export_button.setFont(ui_font())
         self.export_button.setAutoDefault(False)
         self.export_button.setCursor(Qt.PointingHandCursor)
         self.export_button.clicked.connect(self._export_logs)
-        helping.add_row("导出日志", "出问题时发给朋友看", self.export_button)
+        helping.add_row("导出日志", None, self.export_button)
 
         # 关于: the version (the app's name is everywhere already) and 检查更新, what it found in gray
         # before the button, 使用声明, and starting over at the foot, out of the way.
@@ -1151,7 +1147,8 @@ class MainWindow(QMainWindow):
         version_line.setSpacing(4)
         current = QLabel("当前版本")
         current.setObjectName("rowDescription")
-        self.version_label = QLabel(__version__)
+        # The number alone: "v0.9.15" read as a typo beside 当前版本.
+        self.version_label = QLabel(__version__.removeprefix("v"))
         self.version_label.setObjectName("rowDescription")
         version_line.addWidget(current)
         version_line.addWidget(self.version_label)
@@ -1181,7 +1178,7 @@ class MainWindow(QMainWindow):
         reset.setAutoDefault(False)
         reset.setCursor(Qt.PointingHandCursor)
         reset.clicked.connect(self._ask_reset)
-        about.add_row("清空数据", "删掉黑名单、嘉宾、记录和设置，回到刚安装时", reset)
+        about.add_row("清空数据", "删除黑名单、嘉宾、记录和全部设置", reset)
         self.settings_catalog.setCurrentRow(0)
         return page
 
@@ -1367,7 +1364,7 @@ class MainWindow(QMainWindow):
         self._sync_auto_controls()
         if autostart.is_enabled():
             autostart.set_enabled(False)
-        self._sync_switch(self.autostart_switch, autostart.is_enabled())
+        self._sync_switch(self.autostart_box, autostart.is_enabled())
         self.close_mode.set_current("tray" if self.store.close_to_tray else "quit")
         self.love.choice = "classic"
         self._sync_sound()
@@ -2151,7 +2148,7 @@ class MainWindow(QMainWindow):
         self.tabs.setCurrentIndex(self.settings_tab)
 
     def _show_settings_section(self, key: str) -> None:
-        """设置 open on one section: general, look, help or about."""
+        """设置 open on one section: general, help or about."""
         self._show_settings_page()
         self.settings_catalog.choose(key)
 
@@ -3486,7 +3483,7 @@ class MainWindow(QMainWindow):
         if not autostart.set_enabled(enabled):
             log.warning("Could not change start with Windows to %s", enabled)
             self._say("开机启动没设上")
-        self._sync_switch(self.autostart_switch, autostart.is_enabled())
+        self._sync_switch(self.autostart_box, autostart.is_enabled())
 
     def _on_close_mode(self, key: str) -> None:
         self._set_close_to_tray(key == "tray")
@@ -3496,7 +3493,7 @@ class MainWindow(QMainWindow):
         self.store.save_settings()
 
     @staticmethod
-    def _sync_switch(switch: Switch, on: bool) -> None:
+    def _sync_switch(switch: Switch | OnOffBox, on: bool) -> None:
         if switch.isChecked() != on:
             switch.blockSignals(True)
             switch.setChecked(on)

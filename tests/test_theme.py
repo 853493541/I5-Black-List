@@ -90,6 +90,11 @@ def test_the_appearance_is_saved(tmp_path):
     assert Store(tmp_path).appearance == "light"
 
 
+def _choose_appearance(window, key: str) -> None:  # noqa: ANN001
+    """设置 › 常规 › 主题, picked in its dropdown."""
+    window.appearance_control.setCurrentIndex(window.appearance_control.keys().index(key))
+
+
 def test_dark_switches_the_window_and_back(qapp, tmp_path, monkeypatch):
     from blacklist_detect.ui import MainWindow, TagPill
 
@@ -99,14 +104,14 @@ def test_dark_switches_the_window_and_back(qapp, tmp_path, monkeypatch):
     window = MainWindow()
     window._watch_timer.stop()
     assert ui_theme.is_dark() is False
-    window.appearance_buttons["dark"].click()
+    _choose_appearance(window, "dark")
     assert window.store.appearance == "dark"
     assert ui_theme.is_dark() is True
     assert ui_theme.THEME["bg"] in window.styleSheet()
     assert window.theme_buttons["蓝色"]._color == ui_theme.accent_of("蓝色") == _palette("蓝色", True)["accent"]
     chip = TagPill("炸房")
     assert chip._wash == ui_theme.THEME["red_wash"]
-    window.appearance_buttons["light"].click()
+    _choose_appearance(window, "light")
     assert ui_theme.is_dark() is False
     assert window.theme_buttons["蓝色"]._color == _palette("蓝色", False)["accent"]
     window.close()
@@ -121,13 +126,13 @@ def test_follow_system_reads_windows(qapp, tmp_path, monkeypatch):
     monkeypatch.setattr(ui_theme, "system_is_dark", lambda: dark_system[0])
     window = MainWindow()
     window._watch_timer.stop()
-    window.appearance_buttons["system"].click()
+    _choose_appearance(window, "system")
     assert window._appearance_timer.isActive()
     assert ui_theme.is_dark() is True
     dark_system[0] = False
     window._follow_system()
     assert ui_theme.is_dark() is False
-    window.appearance_buttons["light"].click()
+    _choose_appearance(window, "light")
     assert not window._appearance_timer.isActive()
     window.close()
 

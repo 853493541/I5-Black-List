@@ -282,7 +282,7 @@ def test_update_can_be_checked_from_settings(window, tmp_path, monkeypatch):
     installs as it would at start. 有更新 is in the header only once a version waits."""
     from blacklist_detect import __version__
 
-    assert window.version_label.text() == __version__, "the version alone, not the app's name"
+    assert window.version_label.text() == __version__.removeprefix("v"), "the number alone, not the app's name or a v"
     # 检查更新 and 使用声明 are buttons like 开始 and 导出日志, not links.
     assert window.update_button.objectName() == window.test_button.objectName() == ""
     assert window.disclaimer_button.objectName() == ""
@@ -319,7 +319,7 @@ def test_the_about_section_holds_the_version_check_and_disclaimer(window):
     about = window.settings_sections["about"]
     assert [row.name.text() for row in about.rows] == ["检查更新", "使用声明", "清空数据"]
     update = about.rows[0]
-    assert update.description_text() == f"当前版本{window.version_label.text()}"
+    assert update.description_text() == f"当前版本 {window.version_label.text()}"
     assert update.description.isAncestorOf(window.version_label)
     assert update.controls == (window.update_note, window.update_button)
     assert about.rows[1].controls == (window.disclaimer_button,)

@@ -409,6 +409,63 @@ def _input_rules(family: str) -> str:
             """
 
 
+def _choice_rules(family: str) -> str:
+    """ChoiceBox, 设置's dropdowns: a field like QLineEdit's, its list under it like a menu. The chevron is
+    painted by the box itself."""
+    t = THEME
+    return f"""
+            QComboBox#choice {{
+                font-family: "{family}";
+                font-size: {BODY_PT}pt;
+                background: {t["surface"]};
+                color: {t["text"]};
+                border: 1px solid {t["field_line"]};
+                border-radius: {RADIUS}px;
+                padding: 0 32px 0 10px;
+                min-height: {CONTROL_H - 2}px;
+                combobox-popup: 0;
+            }}
+            QComboBox#choice:hover {{
+                border: 1px solid {t["accent_line"]};
+            }}
+            QComboBox#choice:focus, QComboBox#choice:on {{
+                border: 1px solid {t["accent"]};
+            }}
+            QComboBox#choice:disabled {{
+                color: {t["muted"]};
+                background: {t["surface_alt"]};
+                border: 1px solid {t["border"]};
+            }}
+            QComboBox#choice::drop-down {{
+                border: none;
+                width: 0;
+            }}
+            QComboBox#choice::down-arrow {{
+                image: none;
+            }}
+            QComboBox#choice QAbstractItemView {{
+                font-family: "{family}";
+                font-size: {BODY_PT}pt;
+                background: {t["surface"]};
+                color: {t["text"]};
+                border: 1px solid {t["border"]};
+                padding: 4px;
+                outline: 0;
+            }}
+            QComboBox#choice QAbstractItemView::item {{
+                min-height: 28px;
+                padding: 0 10px;
+                border-radius: {RADIUS}px;
+                color: {t["text"]};
+            }}
+            QComboBox#choice QAbstractItemView::item:hover,
+            QComboBox#choice QAbstractItemView::item:selected {{
+                background: {t["selected"]};
+                color: {t["text"]};
+            }}
+            """
+
+
 def _card_rules() -> str:
     t = THEME
     return f"""
@@ -759,7 +816,7 @@ def _window_style(family: str) -> str:
                 color: {t["text"]};
                 background: transparent;
             }}
-            """ + _kit_rules(family) + _input_rules(family) + f"""
+            """ + _kit_rules(family) + _input_rules(family) + _choice_rules(family) + f"""
             QPlainTextEdit, QTableWidget, QListWidget {{
                 background: {t["surface"]};
                 color: {t["text"]};

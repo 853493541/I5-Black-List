@@ -391,7 +391,7 @@ def test_music_plays_at_its_volume_and_not_at_all_muted(tmp_path):
 
 
 def test_the_sound_row_is_mute_alone(window):
-    """设置 › 常规 › 声音: 静音 alone, no slider (each 场景 has its own 音量). Ticked, nothing is heard and
+    """设置 › 常规 › 全局声音: 播放 or 静音, no slider (each 场景 has its own 音量). On 静音, nothing is heard and
     nothing plays for it; kept for the next start."""
     from PySide6.QtWidgets import QSlider
 
@@ -401,7 +401,7 @@ def test_the_sound_row_is_mute_alone(window):
     box = window.mute_box
     assert not hasattr(window, "volume_slider") and not hasattr(window, "volume_label")
     assert window.settings_scroll.widget().findChildren(QSlider) == []
-    assert box.text() == "静音" and not box.isChecked() and not window.music.muted
+    assert box.currentText() == "播放" and not box.isChecked() and not window.music.muted
     assert not hasattr(window.music, "volume") and not hasattr(window.music, "sample")
     assert "声音 开" in window.settings_line()
     box.click()

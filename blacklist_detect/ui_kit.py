@@ -29,6 +29,7 @@ from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractButton,
     QButtonGroup,
+    QComboBox,
     QDialog,
     QFrame,
     QGraphicsOpacityEffect,
@@ -343,6 +344,72 @@ class SegmentedControl(QWidget):
             button.setChecked(name == key)
 
 
+class ChoiceBox(QComboBox):
+    """A dropdown with one choice shown, like 浅色 / 深色 / 跟随系统, and a chevron on its right."""
+
+    changed = Signal(str)
+
+    WIDTH = 160
+
+    def __init__(self, options: list[tuple[str, str]], current: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("choice")
+        self.setFixedWidth(self.WIDTH)
+        self.setFocusPolicy(Qt.StrongFocus)
+        self.setCursor(Qt.PointingHandCursor)
+        # The list's rows take the app's style, not the system's.
+        self.setItemDelegate(QStyledItemDelegate(self))
+        for key, label in options:
+            self.addItem(label, key)
+        self.set_current(current)
+        self.currentIndexChanged.connect(lambda index: self.changed.emit(str(self.itemData(index))))
+
+    def keys(self) -> list[str]:
+        return [str(self.itemData(index)) for index in range(self.count())]
+
+    def current(self) -> str:
+        return str(self.currentData() or "")
+
+    def set_current(self, key: str) -> None:
+        """Shows key as chosen without telling anyone, as a setting read back from the store is."""
+        self.blockSignals(True)
+        self.setCurrentIndex(max(0, self.findData(key)))
+        self.blockSignals(False)
+
+    def wheelEvent(self, event) -> None:  # noqa: ANN001
+        # A wheel turned over the page scrolls it; only a box being used changes with the wheel.
+        if not self.hasFocus():
+            event.ignore()
+            return
+        super().wheelEvent(event)
+
+    def paintEvent(self, event) -> None:  # noqa: ANN001
+        super().paintEvent(event)
+        side = 16
+        painter = QPainter(self)
+        painter.drawPixmap(self.width() - side - 10, (self.height() - side) // 2, line_pixmap("chevron_down", side, THEME["muted"]))
+
+
+class OnOffBox(ChoiceBox):
+    """A dropdown of two choices that works as a checkbox does: 关闭 / 开启, 播放 / 静音, off first."""
+
+    toggled = Signal(bool)
+
+    def __init__(self, off: str, on: str, checked: bool, parent: QWidget | None = None) -> None:
+        super().__init__([("off", off), ("on", on)], "on" if checked else "off", parent)
+        self.changed.connect(lambda key: self.toggled.emit(key == "on"))
+
+    def isChecked(self) -> bool:
+        return self.current() == "on"
+
+    def setChecked(self, on: bool) -> None:
+        self.setCurrentIndex(1 if on else 0)
+
+    def click(self) -> None:
+        """The other choice, as a click on a checkbox does."""
+        self.setChecked(not self.isChecked())
+
+
 class IconButton(QPushButton):
     """A square button that shows only an icon. The tooltip names what it does."""
 
@@ -472,17 +539,17 @@ class _CardScroll(QScrollArea):
         self.viewport().setAutoFillBackground(False)
         self.setWidget(content)
 
-    def hasHeightForWidth(self) -> bool:  # noqa: N802
+    def hasHeightForWidth(self) -> bool:
         return True
 
-    def heightForWidth(self, width: int) -> int:  # noqa: N802
+    def heightForWidth(self, width: int) -> int:
         return min(_height_for(self.widget(), width - _SCROLL_BAR), self.maximumHeight())
 
-    def sizeHint(self) -> QSize:  # noqa: N802
+    def sizeHint(self) -> QSize:
         width = self.widget().sizeHint().width() + _SCROLL_BAR
         return QSize(width, self.heightForWidth(width))
 
-    def minimumSizeHint(self) -> QSize:  # noqa: N802
+    def minimumSizeHint(self) -> QSize:
         width = self.widget().minimumSizeHint().width() + _SCROLL_BAR
         return QSize(width, min(120, self.maximumHeight()))
 
@@ -982,35 +1049,41 @@ class SettingsCatalog(QListWidget):
 
 
 class SettingsRow(QWidget):
-    """One setting: its name with a gray line on what it does under it on the left, its controls on the right."""
+    """One setting: its name, with a gray line on what it does under it where one helps, on the left, its
+    controls on the right. A name alone sits level with its controls."""
 
-    def __init__(self, name: str, description: str | QWidget, *controls: QWidget) -> None:
+    def __init__(self, name: str, description: str | QWidget | None, *controls: QWidget) -> None:
         super().__init__()
         self.setObjectName("settingsRow")
         row = QHBoxLayout(self)
         row.setContentsMargins(0, 12, 0, 12)
         row.setSpacing(12)
-        text = QVBoxLayout()
-        text.setSpacing(2)
         self.name = QLabel(name)
         self.name.setObjectName("rowLabel")
-        text.addWidget(self.name)
         if isinstance(description, str):
             # Cut short with … on a narrow window; the whole line is in its tooltip.
             description = _InlineHint(description)
             description.setObjectName("rowDescription")
         self.description = description
-        text.addWidget(description)
-        row.addLayout(text, 1)
+        if description is None:
+            row.addWidget(self.name, 1, Qt.AlignVCenter)
+        else:
+            text = QVBoxLayout()
+            text.setSpacing(2)
+            text.addWidget(self.name)
+            text.addWidget(description)
+            row.addLayout(text, 1)
         self.controls = controls
         for control in controls:
             row.addWidget(control, 0, Qt.AlignVCenter)
 
     def description_text(self) -> str:
-        """The gray line as read: a label's text, or the texts of the labels it is made of."""
+        """The gray line as read: a label's text, or the texts of the labels it is made of, spaced as shown."""
+        if self.description is None:
+            return ""
         if isinstance(self.description, QLabel):
             return self.description.text()
-        return "".join(label.text() for label in self.description.findChildren(QLabel))
+        return " ".join(label.text() for label in self.description.findChildren(QLabel))
 
 
 class SettingsPane(QWidget):
@@ -1029,7 +1102,7 @@ class SettingsPane(QWidget):
         self._column.addSpacing(6)
         self.rows: list[SettingsRow] = []
 
-    def add_row(self, name: str, description: str | QWidget, *controls: QWidget) -> SettingsRow:
+    def add_row(self, name: str, description: str | QWidget | None, *controls: QWidget) -> SettingsRow:
         if self.rows:
             line = QFrame()
             line.setObjectName("settingsLine")

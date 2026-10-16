@@ -1703,7 +1703,7 @@ def test_settings_holds_only_what_is_left_of_settings(qapp, tmp_path, monkeypatc
     settings_page = window.tabs.widget(window.settings_tab)
     # 检查 opens from the header's pill; 嘉宾 has nothing left in 设置 (each 嘉宾 and 组合 has 不放), so no
     # section. The sections and their rows are in test_settings_page.
-    assert [pane.heading.text() for pane in window.settings_sections.values()] == ["常规", "外观", "帮助", "关于"]
+    assert [pane.heading.text() for pane in window.settings_sections.values()] == ["常规", "帮助", "关于"]
     # 角色名称 and 标签 moved to 黑名单.
     shown = [label.text() for label in settings_page.findChildren(QLabel)]
     assert "角色名称" not in shown and "标签" not in shown and "嘉宾" not in shown
@@ -2456,9 +2456,9 @@ def test_closing_quits_or_goes_to_the_tray_as_set(qapp, tmp_path, monkeypatch):
     stay = TitleBarClose()
     window.closeEvent(stay)
     assert stay.ignored is True and window._closing is False
-    # 关闭窗口时: 最小化 or 退出, both in view.
-    assert [button.text() for button in window.close_mode.buttons.values()] == ["最小化", "退出"]
-    window.close_mode.buttons["quit"].click()
+    # 关闭窗口时: 最小化到托盘 or 退出程序, in a dropdown.
+    assert [window.close_mode.itemText(index) for index in range(window.close_mode.count())] == ["最小化到托盘", "退出程序"]
+    window.close_mode.setCurrentIndex(window.close_mode.keys().index("quit"))
     assert window.store.close_to_tray is False
     assert Store(window.store.root).close_to_tray is False
     monkeypatch.setattr("blacklist_detect.ui.QMainWindow.closeEvent", lambda self, event: None)
@@ -2485,7 +2485,7 @@ def test_the_start_with_windows_switch(qapp, tmp_path, monkeypatch):
     monkeypatch.setattr(autostart, "set_enabled", set_enabled)
     window = MainWindow()
     window._watch_timer.stop()
-    switch = window.autostart_switch
+    switch = window.autostart_box
     assert switch.isEnabled() and switch.isChecked() is False
     switch.click()
     assert state["on"] is True and switch.isChecked() is True
@@ -2495,7 +2495,7 @@ def test_the_start_with_windows_switch(qapp, tmp_path, monkeypatch):
     assert window.toast.text.text() == "开机启动没设上"
     state["works"] = True
     monkeypatch.setattr("blacklist_detect.ui._confirm", lambda *_args: True)
-    window.close_mode.buttons["quit"].click()
+    window.close_mode.setCurrentIndex(window.close_mode.keys().index("quit"))
     window._ask_reset()
     assert state["on"] is False and switch.isChecked() is False, "清空数据 turns it off"
     assert window.close_mode.current() == "tray"
@@ -2919,16 +2919,16 @@ def test_batch_import_offers_shared_phrases_as_tags_before_importing(qapp, tmp_p
 
 
 def test_settings_show_whole_swatches_and_mute(qapp, tmp_path, monkeypatch):
-    """At the smallest window, with nothing to scroll either way, each 主题色 swatch in 外观 is drawn whole,
-    开机启动, 关闭窗口时 and 声音 › 静音 are a row each, 静音 whole; no 嘉宾场景 switch, nor a 嘉宾场景 on the
-    嘉宾 page."""
+    """At the smallest window, with nothing to scroll either way, each 主题色 swatch in 常规 is drawn whole,
+    开机启动, 关闭窗口时 and 全局声音 are a row each, its dropdown whole; no 嘉宾场景 switch, nor a 嘉宾场景 on
+    the 嘉宾 page."""
     monkeypatch.setattr("blacklist_detect.ui.THEME_PICKER", True)
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
     window._watch_timer.stop()
     window.resize(900, 560)
-    window._show_settings_section("look")
+    window._show_settings_section("general")
     window.show()
     for _ in range(5):
         qapp.processEvents()
@@ -2937,12 +2937,10 @@ def test_settings_show_whole_swatches_and_mute(qapp, tmp_path, monkeypatch):
     for swatch in window.theme_buttons.values():
         assert swatch.visibleRegion().boundingRect().height() == swatch.height(), "a swatch is cut off"
     assert not hasattr(window, "love_switch")
-    window._show_settings_section("general")
-    qapp.processEvents()
     middle = lambda widget: widget.mapTo(window, widget.rect().center()).y()  # noqa: E731
-    assert middle(window.close_mode) > middle(window.autostart_switch) + 30, "关闭窗口时 has a row of its own"
-    assert window.mute_box.isVisible() and middle(window.mute_box) > middle(window.close_mode) + 30, "静音 is the row under"
-    assert window.mute_box.visibleRegion().boundingRect().size() == window.mute_box.size(), "静音 is cut off"
+    assert middle(window.close_mode) > middle(window.autostart_box) + 30, "关闭窗口时 has a row of its own"
+    assert window.mute_box.isVisible() and middle(window.mute_box) > middle(window.close_mode) + 30, "全局声音 is the row under"
+    assert window.mute_box.visibleRegion().boundingRect().size() == window.mute_box.size(), "全局声音 is cut off"
     window.tabs.setCurrentIndex(window.likes_tab)
     qapp.processEvents()
     assert "嘉宾场景" not in [button.text() for button in window.likes_page.findChildren(QPushButton)]
