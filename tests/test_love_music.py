@@ -942,3 +942,63 @@ def test_the_song_plays_each_part_as_loud_as_it_is_kept_a_quiet_verse_and_a_loud
     for start in (10.0, 40.0):
         kept = sound_import.save_clip(decoded, "trial", tmp_path, start, 5.0)
         assert abs(level(song, start, start + 5) - level(kept.path, 0, 5)) < 0.5
+
+
+def _song(minutes: float) -> Decoded:
+    """A song of noise this long, a quiet stretch and a loud one by turns, 20 s each."""
+    rng = np.random.default_rng(0)
+    count = round(minutes * 60 * RATE)
+    loudness = np.where((np.arange(count) // (20 * RATE)) % 2 == 0, 0.05, 0.6)
+    return Decoded((rng.standard_normal(count) * 8000 * loudness).clip(-32768, 32767).astype(np.int16), minutes * 60, "song")
+
+
+def _rest_as_it_was(decoded: Decoded, path) -> None:  # noqa: ANN001
+    """The whole song as save_rest wrote it in v0.9.17: its gains worked out on every play, in float64."""
+    from blacklist_detect import sound_import
+
+    samples, step, peak = decoded.samples, 60 * RATE, 10 ** (sound_import.PEAK_DBFS / 20)
+    gains = sound_import._rolling_gain(samples)
+
+    def part(at: int) -> np.ndarray:
+        chunk = samples[at : at + step] / 32768
+        where = (np.arange(at, at + len(chunk)) + 0.5) / sound_import._BLOCK - 0.5
+        return np.clip(sound_import._limit(chunk * np.interp(where, np.arange(len(gains)), gains), peak), -peak, peak)
+
+    sound_import._write(path, (part(at) for at in range(0, len(samples), step)))
+
+
+def test_the_song_played_with_its_gains_worked_out_once_is_the_same_song(tmp_path):
+    """选择片段 works out how loud each moment plays once and hands it to every 播放 and seek: the song written is the
+    one written without it, and the one v0.9.17 wrote, to within a step of the smallest."""
+    from blacklist_detect import sound_import
+
+    decoded = _song(1.5)
+    gains = sound_import._rolling_gain(decoded.samples)
+    for start, volume in ((0.0, 100), (37.3, 40)):
+        own = _samples(save_rest(decoded, start, tmp_path / "own.wav", volume))[1]
+        given = _samples(save_rest(decoded, start, tmp_path / "given.wav", volume, gains))[1]
+        assert len(own) == len(given) == len(decoded.samples) - round(start * RATE)
+        assert np.abs(own - given).max() <= 1
+    _rest_as_it_was(decoded, tmp_path / "was.wav")
+    now = _samples(save_rest(decoded, 0.0, tmp_path / "now.wav", 100, gains))[1]
+    assert np.abs(_samples(tmp_path / "was.wav")[1] - now).max() <= 1
+
+
+def test_a_play_or_seek_in_a_long_song_takes_well_under_what_it_did(tmp_path):
+    """Each 播放 and seek in 选择片段 writes the rest of the song on the screen's thread: a 4-minute song from its start,
+    its gains given, takes at most 0.7 of what it took in v0.9.17 (about 0.55 measured, best of three runs each)."""
+    import time
+
+    from blacklist_detect import sound_import
+
+    decoded = _song(4)
+    gains = sound_import._rolling_gain(decoded.samples)
+    was, now = [], []
+    for _ in range(3):
+        begun = time.perf_counter()
+        _rest_as_it_was(decoded, tmp_path / "was.wav")
+        was.append(time.perf_counter() - begun)
+        begun = time.perf_counter()
+        save_rest(decoded, 0.0, tmp_path / "now.wav", 100, gains)
+        now.append(time.perf_counter() - begun)
+    assert min(now) <= 0.7 * min(was), (min(now), min(was))

@@ -358,25 +358,27 @@ def song_name(key: str, folder: Path) -> str:
     return next(f"{key}-{n}" for n in itertools.count(1) if not (folder / f"{key}-{n}.wav").exists())
 
 
-def save_rest(decoded: Decoded, start_s: float, path: Path, volume: int = 100) -> Path:
+def save_rest(decoded: Decoded, start_s: float, path: Path, volume: int = 100, gains: np.ndarray | None = None) -> Path:
     """The sound of decoded from start_s to its end as the WAV at path, at volume percent, with no fades: what
     选择片段 plays as the song goes on from a moment. Each moment is turned up or down as save_clip turns a part of
     CLIP_S round it (to about TARGET_RMS_DBFS, _rolling_gain), so whatever part the player hears and picks sounds
     there as it does at 试听 and once kept: a quiet verse and a loud chorus both as they will be. Peaks no higher
-    than PEAK_DBFS. A minute at a time, so a long song never sits in memory as floats whole."""
+    than PEAK_DBFS. A minute at a time, so a long song never sits in memory as floats whole. gains: the song's
+    _rolling_gain, worked out once by a caller that plays it again and again (选择片段), or here."""
     samples = decoded.samples
     total = len(samples)
     begin = min(max(0, round(start_s * RATE)), total)
     step = 60 * RATE
-    gains = _rolling_gain(samples)
+    gains = _rolling_gain(samples) if gains is None else gains
+    # The sample each block's gain is at, its middle: between two, the gain runs straight.
+    middles = np.arange(len(gains)) * _BLOCK + (_BLOCK - 1) / 2
     peak = 10 ** (PEAK_DBFS / 20)
     scale = max(0, volume) / 100
 
     def part(at: int) -> np.ndarray:
-        chunk = samples[at : at + step] / 32768
-        where = (np.arange(at, at + len(chunk)) + 0.5) / _BLOCK - 0.5
-        gain = np.interp(where, np.arange(len(gains)), gains)
-        return np.clip(_limit(chunk * gain, peak), -peak, peak) * scale
+        chunk = samples[at : at + step].astype(np.float32) / np.float32(32768)
+        chunk *= np.interp(np.arange(at, at + len(chunk)), middles, gains).astype(np.float32)
+        return np.clip(_limit(chunk, peak), -peak, peak) * scale
 
     try:
         Path(path).parent.mkdir(parents=True, exist_ok=True)

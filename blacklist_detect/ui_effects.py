@@ -862,6 +862,8 @@ class EffectsPage(QWidget):
         试听 and at 确定."""
         folder = Path(tempfile.mkdtemp(prefix="blacklist_detect_trial_"))
         songs = itertools.count()
+        # How loud each moment of the song is played, worked out once for every 播放 and seek.
+        gains = sound_import._rolling_gain(decoded.samples)
 
         def play(at: float) -> str:
             if self.music is None:
@@ -877,7 +879,7 @@ class EffectsPage(QWidget):
             if level <= 0:
                 return ""
             try:
-                song = sound_import.save_rest(decoded, at, folder / f"song-{next(songs)}.wav", level)
+                song = sound_import.save_rest(decoded, at, folder / f"song-{next(songs)}.wav", level, gains)
             except SoundImportError as error:
                 return str(error)
             self.music.play_file(song)
