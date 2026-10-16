@@ -311,7 +311,7 @@ def test_in_safe_mode_a_silent_scene_greets_the_lobby_and_checking_again_plays_n
     assert not _sounds(window)
 
 
-def test_with_a_blacklist_player_too_several_ticked_dress_the_marks_as_classic(window):
+def test_with_a_blacklist_player_too_one_of_the_ticked_plays_and_dresses_the_marks(window):
     from blacklist_detect.pipeline import Hit
     from blacklist_detect.ui_overlay import love_look
 
@@ -320,7 +320,8 @@ def test_with_a_blacklist_player_too_several_ticked_dress_the_marks_as_classic(w
     result = CheckResult(True, "", names=result.names, hits=[Hit(1, "坏人", "坏人", "", False, "", ())], button_box=result.button_box)
     window._on_lobby_placed(result.button_box)
     window._show_panel(result)
-    assert window.panel.mode == "both" and window.panel.look is love_look("classic") and not window.love.playing()
+    assert window.panel.mode == "both" and window.love.playing() and window.love.scene in ("ice", "stars")
+    assert window.panel.look is love_look(window.love.scene)
 
 
 # 选择场景 -------------------------------------------------------------------------------------------

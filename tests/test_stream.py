@@ -152,6 +152,11 @@ def test_likes_are_copied_clear_around_and_the_border_plays(window):
 
 @pytest.mark.parametrize("safe", [False, True])
 def test_viewers_see_the_red_but_never_a_blacklist_name(window, safe):
+    from blacklist_detect.model import Scenes
+
+    # 嘉宾 asking for no 场景: the red alone (a 场景 over it is in test_lobby_priority).
+    for index, like in enumerate(window.store.likes):
+        window.store.update_like(index, like.name, scenes=Scenes())
     if not safe:
         _full(window)
     window._set_stream_mode(True)

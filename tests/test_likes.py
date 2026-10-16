@@ -207,15 +207,16 @@ def test_likes_and_no_hit_play_the_border_once_per_lobby(window):
     window.love.stop()
     window._show_panel(CheckResult(True, "", names=names, button_box=button))
     assert not window.love.playing()
-    # A 黑名单 player stops it; leaving the lobby lets the next one play it.
+    # A 黑名单 player leaves it playing, over the red glow; leaving the lobby lets the next one play it.
     window._hide_panel_after_title()
     window._on_lobby_placed(button)
     window._show_panel(CheckResult(True, "", names=names, button_box=button))
     assert window.love.playing()
     hit = Hit(2, "坏人", "坏人", "", False, "", ())
     window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
-    assert not window.love.playing()
+    assert window.love.playing() and window.panel.mode == "both" and window.alert.isVisible()
     window._hide_panel_after_title()
+    assert not window.love.playing()
 
 
 def test_the_guest_card_is_as_tall_as_the_cover_whatever_the_names(qapp):

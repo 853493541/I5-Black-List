@@ -151,7 +151,7 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     window.check_now()
     _wait(qapp, lambda: window.hit_card.isVisible())
     assert window.panel.mode == "both" and window.alert.isVisible() and window.like_card.isVisible()
-    assert not window.love.playing(), "never the 嘉宾 scene with a 黑名单 player there"
+    assert window.love.playing(), "the 嘉宾's 场景 with a 黑名单 player there too"
     window._hide_panel_after_title()
 
     # --- 8. 直播模式: viewers get the 嘉宾 marks, never the 黑名单 card, and no 黑名单 name shows. ---

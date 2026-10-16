@@ -315,8 +315,8 @@ class StreamMirror(QWidget):
             running.kill()
 
     def _marks(self) -> list[QWidget]:
-        """The marks showing now: the 嘉宾 card, and the ring with a 嘉宾 or 黑名单 player there
-        (red has no names on it). Never the 黑名单 card; nothing for a lobby with no one listed."""
+        """The marks showing now: the 嘉宾 card, and the ring with a 嘉宾 or 黑名单 player there or 我's 场景
+        (red has no names on it). Never the 黑名单 card; nothing for a lobby with no one listed and no 场景."""
         window = self._window
         marks = [window.like_card]
         if window.panel.mode in ("liked", "hit", "both"):
@@ -618,17 +618,18 @@ class StreamMirror(QWidget):
         if self._backdrop is not None:
             picture, where = self._backdrop
             painter.drawPixmap(QRectF(where), picture, QRectF(picture.rect()))
-        for border in self._borders():
-            painter.save()
-            painter.translate(border.geometry().topLeft())
-            border.paint_at(painter, border.elapsed(), border.width(), border.height())
-            painter.restore()
+        # The glow under the border, as on the screen (a 场景 for a 嘉宾 beside a 黑名单 player).
         glow = self._glow()
         if glow is not None:
             painter.save()
             painter.setOpacity(glow.windowOpacity())
             painter.translate(glow.geometry().topLeft())
             paint_glow(painter, glow.width(), glow.height())
+            painter.restore()
+        for border in self._borders():
+            painter.save()
+            painter.translate(border.geometry().topLeft())
+            border.paint_at(painter, border.elapsed(), border.width(), border.height())
             painter.restore()
         for mark in self._marks():
             painter.setOpacity(mark.windowOpacity())

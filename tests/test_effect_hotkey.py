@@ -362,7 +362,7 @@ def test_it_plays_with_every_guest_on_no_scene(window):
     from blacklist_detect.model import Scenes
 
     window.store.add_like("心动小鹿", scenes=Scenes())
-    assert window._choice_for(window.store.likes) == "off"
+    assert window._choice_for(window.store.likes) == ("", "off")
     window.store.quick_scene = "claw"
     assert window.play_quick_scene()
     assert window.love.playing() and window.love.scene == "claw"
@@ -910,7 +910,7 @@ def test_a_real_lobbys_music_plays_on_whatever_the_page_does(window, monkeypatch
     assert page.sounding and window.played == ["classic"]
     # A real lobby with a 嘉宾 in it, its music after ▶'s.
     monkeypatch.setattr(window, "_likes_in", lambda _result: [ui.Entry("心动小鹿")])
-    monkeypatch.setattr(window, "_choice_for", lambda _likes: "stars")
+    monkeypatch.setattr(window, "_choice_for", lambda _likes, _blacklisted: ("guest", "stars"))
     window._live_check = True
     screen = window.screen().geometry()
     button = (screen.x() + 600, screen.y() + 700, screen.x() + 800, screen.y() + 760)

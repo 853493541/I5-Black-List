@@ -60,7 +60,7 @@ from blacklist_detect.diagnostics import (
     summary_text,
 )
 from blacklist_detect.game_area import exclusive_fullscreen, game_rect, inner_rect_of, window_order, window_rect_at
-from blacklist_detect.guests import lobby_choice
+from blacklist_detect.guests import lobby_scene
 from blacklist_detect.hotkey import GlobalHotkey, everyday, parse_hotkey
 from blacklist_detect.importing import suggest_tags, with_tags
 from blacklist_detect.logs import log, mark_closed, mark_running, masked, on_uncaught, setup_logging
@@ -459,8 +459,9 @@ class MainWindow(QMainWindow):
         self._love_played = False
         # This lobby's 嘉宾场景 choice (a key, keys to pick one of, "random" or "off"), worked out from
         # the 嘉宾 in it when its result shows, and where its players' names are, for a scene that
-        # plays over them.
+        # plays over them. Who asked for it: "combo", "guest", "me" (我's own) or "" (none asks).
         self._lobby_choice: str | tuple[str, ...] = ""
+        self._lobby_who = ""
         self._lobby_seats: tuple[QRectF, ...] = ()
 
         # 嘉宾音乐: the same lobby, in either 显示, also gets a few seconds of wedding music, as loud as the
@@ -3739,19 +3740,22 @@ class MainWindow(QMainWindow):
             return
         hits = list(result.hits)
         likes = self._likes_in(result)
-        # The scenes for these 嘉宾: a combination of theirs, else the top one's own (guests.lobby_choice).
-        self._lobby_choice = self._choice_for(likes)
+        # The 场景 for this lobby: a combination of its 嘉宾, else the top one's own, else 我's when no
+        # 黑名单 player is there (guests.lobby_scene).
+        self._lobby_who, self._lobby_choice = self._choice_for(likes, bool(hits))
         self._lobby_seats = self._seats_of(result)
         if not self._love_played:
             # Each lobby its own scene: 安全模式 shows none, so only the music would draw it.
             self.love.draw_again()
-        if not hits and self._love_for(len(likes)):
-            # Never with a 黑名单 player: the warning is the news then, not the music. Checked again
-            # once its scene played: that scene's music, not a new draw's.
+        if self._love_for():
+            # Checked again once its scene played: that scene's music, not a new draw's.
             tune = self.love.pick() if self._love_played else self._tune_for(self._lobby_choice)
             if self._demo_likes is not None:
                 # 测试效果 plays it every time it is pressed.
                 started = self.music.preview(tune)
+            elif self._lobby_who == "me":
+                # 我's 场景: the same players checked again within a minute hear it once.
+                started = self.music.lobby(["我", *(slot.visible for slot in result.names if not slot.unclear)], tune)
             else:
                 started = self.music.lobby([like.name for like in likes], tune)
             if started:
@@ -3780,15 +3784,21 @@ class MainWindow(QMainWindow):
             self._check_stream_setup()
         if hits:
             self.clear_mark.hide()
-            # A 黑名单 player is the news; the border would bury it.
-            self.love.stop()
-            # 嘉宾 players too: the ring is rose on their side, and their card is on the left.
-            self._dress_love(playing=False)
+            greeted = self._love_for()
+            if not greeted:
+                # No 场景 asked for: the 黑名单 player is all the news.
+                self.love.stop()
+            # 嘉宾 players too: the ring is rose on their side, in the look of the 场景 greeting them,
+            # and their card is on the left.
+            self._dress_love(playing=greeted)
             self._open_panel("both" if likes else "hit", "", result.button_box)
             self._show_hit_card(hits)
             if self.hit_card.isVisible():
                 self._show_like_card(likes)
                 self._show_alert()
+                if greeted and not self._love_played:
+                    # The glow first, then the 场景 over it, parted round the cover and both cards.
+                    self._play_love()
             log.info(
                 "Check %d shown: the red ring, the 黑名单 card (%d)%s and the red glow.",
                 self._check_number, len(hits), f", the 嘉宾 card ({len(likes)})" if likes else "",
@@ -3801,17 +3811,20 @@ class MainWindow(QMainWindow):
         unclear = sum(1 for slot in result.names if slot.unclear)
         if unclear:
             text += f"\n{unclear} 人未识别"
-        # 嘉宾 players and no 黑名单: a rose ring, the heart badge, and their names on the left, all
-        # in the look of the scene that is about to greet them.
-        self._dress_love(playing=bool(likes) and self._love_for(len(likes)))
-        self._open_panel("liked" if likes else "clear", text, result.button_box)
-        self._show_clear_mark(heart=bool(likes))
+        # 嘉宾 players and no 黑名单: a rose ring, the heart badge, and their names on the left. Nobody
+        # listed and 我's 场景: the ring and the badge, as the 场景 hotkey plays it. All in the look of the
+        # scene that is about to greet them.
+        mine = self._lobby_who == "me"
+        self._dress_love(playing=self._love_for())
+        self._open_panel("liked" if likes or mine else "clear", text, result.button_box)
+        self._show_clear_mark(heart=bool(likes) or mine)
         self._show_like_card(likes)
-        log.info(
-            "Check %d shown: %s.", self._check_number,
-            f"the rose ring, the heart and the 嘉宾 card ({len(likes)})" if likes else "the ring (未发现黑名单)",
-        )  # fmt: skip
-        if self._love_for(len(likes)) and not self._love_played:
+        if likes:
+            shown = f"the rose ring, the heart and the 嘉宾 card ({len(likes)})"
+        else:
+            shown = "the rose ring and the heart (我)" if mine else "the ring (未发现黑名单)"
+        log.info("Check %d shown: %s.", self._check_number, shown)
+        if self._love_for() and not self._love_played:
             self._play_love()
 
     def _log_check(self, how: str, result: CheckResult, elapsed: float | None) -> None:
@@ -3853,18 +3866,21 @@ class MainWindow(QMainWindow):
                 "直播模式 " + ("开" if store.stream_mode else "关"),
                 "声音 " + ("静音" if store.sound_muted else "开"),
                 f"场景 {store.quick_scene} ({store.effect_hotkey or '无快捷键'})",
+                # What a lobby with no 嘉宾 asking for a 场景 and no 黑名单 player gets (guests.lobby_scene).
+                "我 " + ("不放" if store.me.off else "随机" if store.me.random else "/".join(store.me.keys)),
                 f"外观 {store.appearance}",
                 "关闭窗口时 " + ("最小化到托盘" if store.close_to_tray else "退出程序"),
                 f"黑名单 {len(store.entries)}, 嘉宾 {len(store.likes)}, 记录 {len(store.scans)}",
             ]
         )
 
-    def _choice_for(self, likes: list[Entry]) -> str | tuple[str, ...]:
-        """The 嘉宾场景 choice for a lobby with these 嘉宾 (guests.lobby_choice). 测试效果's sample 嘉宾 are on
-        no list: 经典."""
+    def _choice_for(self, likes: list[Entry], blacklisted: bool = False) -> tuple[str, str | tuple[str, ...]]:
+        """Who greets a lobby with these 嘉宾, a 黑名单 player there too or not, and the 场景 choice
+        (guests.lobby_scene): its 组合, its top 嘉宾, else 我. 测试效果's sample 嘉宾 are on no list: 经典."""
         if self._demo_likes is not None:
-            return "classic"
-        return lobby_choice(self.store.likes, self.store.combos, likes, "classic", known=_known_scene)
+            return "guest", "classic"
+        store = self.store
+        return lobby_scene(store.likes, store.combos, likes, store.me, blacklisted, known=_known_scene)
 
     def _tune_for(self, choice: str | tuple[str, ...]) -> str:
         """The music for a lobby with this 嘉宾场景 choice: the sound of the scene that plays, none when
@@ -3886,9 +3902,9 @@ class MainWindow(QMainWindow):
         return tuple(seats)
 
     def _dress_love(self, playing: bool) -> None:
-        """The 嘉宾 marks (the ring, the badge and the card) in the look of this lobby's scene: the one
-        about to play, or the one that played for this lobby. With none playing, the look of the
-        lobby's choice, 经典's for several to pick from or for 不放."""
+        """The 嘉宾 marks (the ring, its 嘉宾 half beside a 黑名单 player, the badge and the card) in the look
+        of this lobby's scene: the one about to play, or the one that played for this lobby. With none
+        playing, the look of the lobby's choice, 经典's for several to pick from or for 不放."""
         choice = self._lobby_choice or "classic"
         if playing and self._love_played:
             # What played for this lobby ("" for 不放).
@@ -3903,10 +3919,10 @@ class MainWindow(QMainWindow):
         self.clear_mark.set_look(look)
         self.like_card.set_look(look)
 
-    def _love_for(self, count: int) -> bool:
-        """Whether 嘉宾场景 plays for this many 嘉宾 players: for any, one or more, since each 嘉宾 and
-        组合 picks what greets them; and always in 测试效果."""
-        return count > 0 or self._demo_likes is not None
+    def _love_for(self) -> bool:
+        """Whether a 场景 greets this lobby: one its 组合, a 嘉宾 or 我 asks for (a lobby with no 嘉宾 may
+        play 我's), a 黑名单 player there too or not; and always in 测试效果."""
+        return bool(self._lobby_who) or self._demo_likes is not None
 
     def start_stream_test(self) -> bool:
         """测试效果: the sample lobby (made-up names) shown as the game for a moment, framed by what
@@ -4208,21 +4224,21 @@ class MainWindow(QMainWindow):
         self.notice.show_result(people, likes, unclear, screen)
 
     def _show_alert(self) -> None:
-        """The red glow over the game's screen, under the ring and the cards."""
+        """The red glow over the game's screen, under the 场景 playing and the ring and the cards."""
         cover = self.panel.cover_geometry()
         screen = QApplication.screenAt(cover.center()) or QApplication.primaryScreen()
         if screen is None:
             return
         self.alert.show_on(self._game_area(screen))
-        for mark in (self.panel, self.hit_card, self.like_card):
+        for mark in (self.love, self.panel, self.hit_card, self.like_card):
             if mark.isVisible():
                 _pin_topmost(mark)
 
     def _play_love(self) -> None:
-        """The 嘉宾 scene over the game, parted around the button, the badge and the 嘉宾 card."""
+        """The 嘉宾 scene over the game, parted around the button, the badge and the cards."""
         cover = self.panel.cover_geometry()
         keep = cover
-        for mark in (self.clear_mark, self.like_card):
+        for mark in (self.clear_mark, self.like_card, self.hit_card):
             if mark.isVisible():
                 keep = keep.united(mark.geometry())
         screen = QApplication.screenAt(cover.center()) or QApplication.primaryScreen()
@@ -4232,7 +4248,8 @@ class MainWindow(QMainWindow):
         choice = self._lobby_choice or "classic"
         who = "场景 hotkey" if self._quick_scene else f"Check {self._check_number}"
         said = choice if isinstance(choice, str) else "one of " + "/".join(choice)
-        log.info("%s shown: 嘉宾场景 (%s, sound %s).", who, said, self._sound_said())
+        what = "我的场景" if self._lobby_who == "me" and not self._quick_scene else "嘉宾场景"
+        log.info("%s shown: %s (%s, sound %s).", who, what, said, self._sound_said())
         badge = self.clear_mark.geometry().center() if self.clear_mark.isVisible() else None
         self.love.choice = choice
         self.love.play(self._game_area(screen), keep, badge, self._lobby_seats)

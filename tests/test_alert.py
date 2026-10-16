@@ -58,13 +58,13 @@ def test_a_hit_glows_red_at_the_edges_until_the_lobby_goes(window):
     assert not window.alert.showing()
 
 
-def test_a_hit_with_two_likes_glows_red_instead_of_the_flowers(window):
+def test_a_hit_with_two_likes_glows_red_under_their_scene(window):
     window.store.add_like("小红")
     window.store.add_like("小明")
     button, names = _lobby(window)
     hit = Hit(0, "坏人", "坏人", "", False, "", ())
     window._show_panel(CheckResult(True, "", names=names, hits=[hit], button_box=button))
-    assert window.alert.showing() and not window.love.playing()
+    assert window.alert.showing() and window.love.playing()
     window._hide_panel_after_title()
 
 

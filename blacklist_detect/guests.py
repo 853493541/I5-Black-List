@@ -4,7 +4,8 @@ A combination whose 嘉宾 are all in the lobby wins, the one with the most of t
 one on a tie); other 嘉宾 there with it don't stop it. Else the 嘉宾 highest on the list with scenes
 ticked decides: the list shows the newest first, and the player orders it. Else the highest on 随机:
 any scene. One on 不放 asks for none and the next in line decides; with every one there on 不放, no
-scene plays.
+scene plays for them. Then 我 (the player's own 场景) decides, unless a 黑名单 player is there: the
+warning is the news then (lobby_scene).
 """
 
 from __future__ import annotations
@@ -40,9 +41,36 @@ def lobby_choice(
     here ("classic"); known says whether a scene is one this version plays, so ticked ones it no
     longer has are left out, and a set left with none is as if on 随机. One on 随机 is 随机 whatever
     it has ticked."""
-    here = {fold(like.name) for like in present}
-    if not here:
+    present = list(present)
+    if not present:
         return default
+    return _listed(likes, combos, present, known)[1]
+
+
+def lobby_scene(
+    likes: list[Entry],
+    combos: Iterable[Combo],
+    present: Iterable[Entry],
+    me: Scenes,
+    blacklisted: bool,
+    known: Callable[[str], bool] = _plays,
+) -> tuple[str, str | tuple[str, ...]]:
+    """Who greets a lobby with a 场景, and the choice as love_scenes.choose takes it: ("combo", ...) for
+    a 组合 there, ("guest", ...) for the top 嘉宾 there, ("me", ...) for 我's own, or ("", "off").
+
+    A 组合 or 嘉宾 asking for one wins, a 黑名单 player there too or not. With every one there on 不放,
+    or none there, 我 decides (me), unless a 黑名单 player is there (blacklisted): no 场景 then."""
+    who, choice = _listed(likes, combos, present, known)
+    if who or blacklisted or me.off:
+        return who, choice
+    return "me", _choice(_asked(me, known))
+
+
+def _listed(
+    likes: list[Entry], combos: Iterable[Combo], present: Iterable[Entry], known: Callable[[str], bool]
+) -> tuple[str, str | tuple[str, ...]]:
+    """The 组合's or the top 嘉宾's choice for the 嘉宾 present, ("", "off") with none asking for one."""
+    here = {fold(like.name) for like in present}
     found = []
     for combo in combos:
         members = {fold(name) for name in combo.names}
@@ -51,13 +79,13 @@ def lobby_choice(
     # The most 嘉宾 first; sorted keeps the earlier first on a tie.
     for _size, combo in sorted(found, key=lambda pair: -pair[0]):
         if not combo.scenes.off:
-            return _choice(_asked(combo.scenes, known))
+            return "combo", _choice(_asked(combo.scenes, known))
     on = [like for like in reversed(likes) if fold(like.name) in here and not like.scenes.off]
     for like in on:
         keys = _asked(like.scenes, known)
         if keys:
-            return _choice(keys)
-    return "random" if on else "off"
+            return "guest", _choice(keys)
+    return ("guest", "random") if on else ("", "off")
 
 
 def _asked(scenes: Scenes, known: Callable[[str], bool]) -> tuple[str, ...]:
