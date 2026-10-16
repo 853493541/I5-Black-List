@@ -23,8 +23,8 @@ from PySide6.QtGui import QImage, QPainter  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 OUT = ROOT / "blacklist_detect" / "assets" / "posters"
-# Twice a card's width at 200%: sharp on any screen the app runs on.
-WIDTH = 480
+# 场景管理's preview (480 points) at 200%: sharp there and in every card, on any screen the app runs on.
+WIDTH = 960
 # Each scene's best moment, in seconds: its lightning, its fireworks, its claw with the notice in place, the
 # lyre's second strum with the band full.
 POSTER_AT = {
