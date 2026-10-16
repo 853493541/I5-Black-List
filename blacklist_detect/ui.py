@@ -460,6 +460,9 @@ class MainWindow(QMainWindow):
         # Two or more 嘉宾 players and no 黑名单: a border of silk and flowers, once per lobby.
         self.love = LoveBorder()
         self._love_played = False
+        # Who the scene that played was for and its choice (_lobby_who, _lobby_choice): checked again, the
+        # lobby keeps it while the same one greets it.
+        self._love_played_for: tuple[str, str | tuple[str, ...]] = ("", "")
         # This lobby's 嘉宾场景 choice (a key, keys to pick one of, "random" or "off"), worked out from
         # the 嘉宾 in it when its result shows, and where its players' names are, for a scene that
         # plays over them. Who asked for it: "combo", "guest", "me" (我's own) or "" (none asks).
@@ -3843,7 +3846,13 @@ class MainWindow(QMainWindow):
         likes = self._likes_in(result)
         # The 场景 for this lobby: a combination of its 嘉宾, else the top one's own, else 我's when no
         # 黑名单 player is there (guests.lobby_scene).
-        self._lobby_who, self._lobby_choice = self._choice_for(likes, bool(hits))
+        who, choice = self._choice_for(likes, bool(hits))
+        if self._love_played and (who, choice) != self._love_played_for:
+            # Checked again, and another greets it now (a 嘉宾 read this time, a 组合 complete, or back to 我):
+            # its own 场景, music and look, not those of the one that played.
+            self.love.stop()
+            self._love_played = False
+        self._lobby_who, self._lobby_choice = who, choice
         self._lobby_seats = self._seats_of(result)
         if not self._love_played:
             # Each lobby its own scene: 基础模式 shows none, so only the music would draw it.
@@ -4253,6 +4262,7 @@ class MainWindow(QMainWindow):
         if screen is None:
             return
         self._love_played = True
+        self._love_played_for = (self._lobby_who, self._lobby_choice)
         choice = self._lobby_choice or "classic"
         who = "场景 hotkey" if self._quick_scene else f"Check {self._check_number}"
         said = choice if isinstance(choice, str) else "one of " + "/".join(choice)

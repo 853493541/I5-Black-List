@@ -302,3 +302,54 @@ def test_a_scene_beside_a_blacklist_player_never_plays_over_their_name(window):
     assert len(every) == 3 and window._lobby_seats == every[:2] and len(window.love._seats) == 2
     _check(window, "小明", "路人", "路人乙")
     assert window._lobby_seats == every and len(window.love._seats) == 3
+
+
+def _recheck(window, *names: str, unclear: int = 0) -> None:  # noqa: ANN001
+    """The hotkey pressed again over the lobby still marked: _start, then the new reading."""
+    window.worker.request = lambda fn, kind="check": True
+    assert window._start(lambda: None, live=True)
+    window._show_panel(_lobby(*names, unclear=unclear))
+
+
+def test_checked_again_with_a_guest_read_now_the_guests_scene_greets_it_not_mine(window):
+    from blacklist_detect.ui_overlay import love_look
+
+    window.store.set_me(_one("ice"))
+    window.store.add_like("小明", scenes=_one("cyber"))
+    _check(window, "路人甲", "路人乙")
+    assert window._lobby_who == "me" and window.love.scene == "ice" and _sounds(window) == ["theme-ice.wav"]
+    _recheck(window, "小明", "路人乙")
+    assert window._lobby_who == "guest" and window.love.playing() and window.love.scene == "cyber"
+    assert all(mark.look is love_look("cyber") for mark in (window.panel, window.clear_mark, window.like_card))
+    assert _sounds(window) == ["theme-ice.wav", "theme-cyber.wav"]
+    # 小明 unclear the time after: 我's again, and never the 嘉宾's tune as 我's.
+    _recheck(window, "路人乙", unclear=1)
+    assert window._lobby_who == "me" and window.love.scene == "ice" and window.panel.look is love_look("ice")
+    assert _sounds(window) == ["theme-ice.wav", "theme-cyber.wav"]
+
+
+def test_checked_again_with_the_whole_combination_read_now_its_scene_greets_it(window):
+    from blacklist_detect.ui_music import TUNES
+
+    window.store.add_like("小红")
+    window.store.add_like("小明", scenes=_one("cyber"))
+    window.store.set_combos([Combo(("小明", "小红"), _one("lace"))])
+    _check(window, "小明", "路人")
+    assert window._lobby_who == "guest" and window.love.scene == "cyber"
+    _recheck(window, "小明", "小红")
+    assert window._lobby_who == "combo" and window.love.playing() and window.love.scene == "lace"
+    assert _sounds(window) == ["theme-cyber.wav", TUNES["lace"].name]
+
+
+def test_the_same_guest_checked_again_keeps_the_one_scene_it_had(window):
+    from blacklist_detect.ui_overlay import love_look
+
+    window.store.add_like("小明", scenes=ANY_SCENE)
+    _check(window, "小明", "路人")
+    played = window.love.scene
+    assert window.love.playing() and len(_sounds(window)) <= 1
+    heard = list(window.tunes)
+    for _ in range(3):
+        _recheck(window, "小明", "路人")
+        assert not window.love.playing() and window.love.pick() == played and window.panel.look is love_look(played)
+    assert window.tunes == heard
