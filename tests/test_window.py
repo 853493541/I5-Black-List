@@ -50,7 +50,10 @@ def test_the_name_eye_hides_list_names(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     assert masked_name("怪物名字啊") == "怪****"
-    assert masked_name("甲") == "甲"
+    assert masked_name("甲") == "甲*"
+    assert masked_name("一") == "一*"
+    assert masked_name("坏人") == "坏*"
+    assert masked_name("") == ""
     window = MainWindow()
     window.store.add("怪物名字啊")
     window._show_list()
@@ -1489,6 +1492,44 @@ def test_clearing_the_list_can_be_undone(qapp, tmp_path, monkeypatch):
     assert window.blacklist_table.rowCount() == 2
     assert window.toast.text.text() == "已撤销"
     assert window.toast.action.isHidden()
+    window.close()
+
+
+def test_an_edit_while_a_delete_can_be_undone_retires_its_undo(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    window.store.add("甲")
+    window.store.add("乙")
+    window._show_list()
+    window._delete_entry(0)
+    assert window.toast.action.text() == "撤销"
+
+    def edited(dialog) -> int:  # noqa: ANN001
+        dialog.detail_edit.setPlainText("挂机")
+        dialog._accept()
+        return dialog.result()
+
+    monkeypatch.setattr(AddNameDialog, "exec", edited)
+    window._edit_entry(0)
+    window.toast.action.click()
+    # 撤销 no longer puts the list back as it was before the delete, which would drop the edit.
+    assert [(entry.name, entry.reason) for entry in window.store.entries] == [("乙", "挂机")]
+    window.close()
+
+
+def test_the_player_name_is_kept_the_way_it_is_read_back(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    assert window.player_edit.maxLength() == 64
+    window.player_edit.setText("心动星星😀" + "星" * 80)
+    window._save_player_name()
+    name = window.store.player_name
+    assert name == Store(window.store.root).player_name and name.startswith("心动星星") and "😀" not in name
+    assert len(name) <= 64 and window.player_edit.text() == name
     window.close()
 
 

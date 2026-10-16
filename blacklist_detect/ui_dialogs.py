@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
 from blacklist_detect.importing import ELSEWHERE, MERGE, ODD, SAME, ImportRow, TagSuggestion, plan_import
 from blacklist_detect.match import clean_stored_name, fold
 from blacklist_detect.names import APP_NAME
+from blacklist_detect.ui_icons import icon as line_icon
 from blacklist_detect.ui_icons import pixmap as line_pixmap
 from blacklist_detect.ui_kit import Modal
 from blacklist_detect.ui_theme import (
@@ -39,6 +40,7 @@ from blacklist_detect.ui_theme import (
 from blacklist_detect.ui_widgets import (
     TagPill,
     _FlowHost,
+    masked_name,
     paint_tag_row,
 )
 
@@ -125,6 +127,7 @@ class AddNameDialog(Modal):
         catalog: tuple[str, ...] = (),
         parent=None,
         taken: frozenset[str] | set[str] = frozenset(),
+        masked: bool = False,
     ) -> None:
         super().__init__(parent)
         from blacklist_detect.storage import TAGS
@@ -141,9 +144,19 @@ class AddNameDialog(Modal):
         self._tag_order.extend(tag for tag in self.catalog if tag not in self._tag_order)
         self.deleted = False
         layout = _frame(self, title)
-        self.name_edit = QLineEdit(name)
+        # 直播模式 (or the eye): the name shows masked and stays as it is until the eye at its end shows it.
+        self._hidden_name = name if masked and name else None
+        self.name_edit = QLineEdit(masked_name(name) if self._hidden_name is not None else name)
         self.name_error = _field(layout, "名字", self.name_edit)
         self.name_edit.textChanged.connect(self._clear_name_error)
+        self.reveal_action = None
+        if self._hidden_name is not None:
+            self.name_edit.setReadOnly(True)
+            self.reveal_action = self.name_edit.addAction(
+                line_icon("eye", 16, THEME["muted"]), QLineEdit.ActionPosition.TrailingPosition
+            )
+            self.reveal_action.setToolTip("显示名字")
+            self.reveal_action.triggered.connect(self._reveal_name)
         self.tag_host = _FlowHost(gap=8)
         _field(layout, "标签", self.tag_host)
         self._refresh_tags()
@@ -164,12 +177,27 @@ class AddNameDialog(Modal):
         self.name_edit.returnPressed.connect(self._accept)
         self._before = (name, tuple(self.picked), detail)
         _pointing(self)
+        if self._hidden_name is not None:
+            self.detail_edit.setFocus()
 
     def _clear_name_error(self, _text: str) -> None:
         _say_error(self.name_error, "")
 
     def has_changes(self) -> bool:
-        return (self.name_edit.text(), tuple(self.picked), self.detail_edit.toPlainText()) != self._before
+        return (self._typed_name(), tuple(self.picked), self.detail_edit.toPlainText()) != self._before
+
+    def _typed_name(self) -> str:
+        """The name as saved: the real one while the field still shows it masked."""
+        return self._hidden_name if self._hidden_name is not None else self.name_edit.text()
+
+    def _reveal_name(self) -> None:
+        if self._hidden_name is None:
+            return
+        self.name_edit.setText(self._hidden_name)
+        self._hidden_name = None
+        self.name_edit.setReadOnly(False)
+        self.name_edit.removeAction(self.reveal_action)
+        self.name_edit.setFocus()
 
     def _refresh_tags(self) -> None:
         self.tag_host.clear()
@@ -209,8 +237,9 @@ class AddNameDialog(Modal):
         return tuple(ordered)
 
     def _accept(self) -> None:
-        key = fold(clean_stored_name(self.name_edit.text()))
-        if not self.name_edit.text().strip():
+        typed = self._typed_name()
+        key = fold(clean_stored_name(typed))
+        if not typed.strip():
             problem = "请填写名字"
         elif not key:
             problem = "名字里要有文字或数字"
@@ -222,7 +251,7 @@ class AddNameDialog(Modal):
             _say_error(self.name_error, problem)
             return
         _say_error(self.name_error, "")
-        self.name = self.name_edit.text()
+        self.name = typed
         self.tags = self._chosen()
         self.detail = self.detail_edit.toPlainText()
         self.deleted = False
@@ -393,6 +422,9 @@ class BatchAddDialog(Modal):
         if not 0 <= index < len(self.rows):
             return
         row = self.rows[index]
+        if row.status == ELSEWHERE:
+            # On 嘉宾 already: a player is on one list, so the row stays off.
+            return
         row.checked = not row.checked
         self._picked[fold(row.name)] = row.checked
         self._paint_row(index)

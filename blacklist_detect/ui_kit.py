@@ -674,6 +674,11 @@ class Toast(QWidget):
         self._anim.setEndValue(0.0)
         self._anim.start()
 
+    def drop(self) -> None:
+        """The list changed under the message: its action would undo too much, so it goes at once."""
+        self._callback = None
+        self.dismiss()
+
     def _after_fade(self) -> None:
         if self._hiding:
             self.hide()

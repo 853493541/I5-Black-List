@@ -278,10 +278,83 @@ def test_in_stream_mode_no_page_shows_a_blacklist_name(window):
     seats = [window.history_table.cellWidget(0, c) for c in range(2)]
     record = [label.text() for seat in seats if seat for label in seat.findChildren(type(window.history_empty.hint))]
     assert "坏人" not in record and "坏*" in record and "小红" in record
+    # 复制名字 on the red seat copies the name itself, and its toast shows the mask.
+    menu = window._seat_menu(0, 0)
+    next(action for action in menu.actions() if action.text() == "复制名字").trigger()
+    assert QApplication.clipboard().text() == "坏人"
+    assert window.toast.text.text() == "已复制「坏*」"
     window._set_stream_mode("")
     window._show_history_scan(0)
     seats = [window.history_table.cellWidget(0, c) for c in range(2)]
     assert "坏人" in [label.text() for seat in seats if seat for label in seat.findChildren(type(window.history_empty.hint))]
+
+
+def test_in_stream_mode_toasts_and_questions_mask_blacklist_names(window, monkeypatch):
+    from blacklist_detect import ui
+
+    window._set_stream_mode(True)
+    window.store.add("坏人")
+    window._show_list()
+    window._copy_name(0)
+    assert QApplication.clipboard().text() == "坏人" and window.toast.text.text() == "已复制「坏*」"
+    window._delete_entry(0)
+    assert window.toast.text.text() == "已删除「坏*」"
+
+    def typed(dialog) -> int:  # noqa: ANN001
+        dialog.name_edit.setText("坏人")
+        dialog._accept()
+        return dialog.result()
+
+    monkeypatch.setattr(ui.AddNameDialog, "exec", typed)
+    window._add_by_dialog()
+    assert [entry.name for entry in window.store.entries] == ["坏人"] and window.toast.text.text() == "已添加「坏*」"
+    asked: list[str] = []
+    monkeypatch.setattr(ui.ConfirmDialog, "ask", staticmethod(lambda _parent, _title, text, _button: asked.append(text) or False))
+    assert window._take_from_likes("小红") is False
+    assert asked == ["「小*」在嘉宾列表中，要移到黑名单吗？"]
+    # 🚫 on a 记录 seat on neither list.
+    window.store.add_scan([{"name": "路人乙"}, {"name": "小红"}])
+    window._show_history_scan(0)
+    window._ban_seat(0, 0)
+    assert window.store.entry_index("路人乙") >= 0 and window.toast.text.text() == "已加入黑名单「路**」"
+
+
+def test_in_stream_mode_the_edit_dialog_masks_the_name_until_the_eye_shows_it(window, monkeypatch):
+    from blacklist_detect import ui
+    from blacklist_detect.ui_dialogs import AddNameDialog
+
+    dialog = AddNameDialog("坏人", (), "", title="编辑", allow_delete=True, masked=True)
+    assert dialog.name_edit.text() == "坏*" and dialog.name_edit.isReadOnly()
+    assert dialog.reveal_action.toolTip() == "显示名字" and dialog.reveal_action in dialog.name_edit.actions()
+    assert dialog.focusWidget() is dialog.detail_edit and not dialog.has_changes()
+    dialog._toggle_tag("炸房")
+    assert dialog.has_changes()
+    dialog._accept()
+    assert dialog.result() == ui.QDialog.Accepted and dialog.name == "坏人" and dialog.tags == ("炸房",)
+    # The taken-name check reads the real name, not the stars.
+    taken = AddNameDialog("坏人", masked=True, taken=frozenset({"坏人"}))
+    taken._accept()
+    assert taken.result() != ui.QDialog.Accepted and taken.name_error.text() == "已经在黑名单里了"
+    shown = AddNameDialog("坏人", masked=True)
+    shown.reveal_action.trigger()
+    assert shown.name_edit.text() == "坏人" and not shown.name_edit.isReadOnly()
+    assert shown.reveal_action not in shown.name_edit.actions()
+    shown.name_edit.setText("路人乙")
+    shown._accept()
+    assert shown.name == "路人乙"
+    # The window opens 编辑 masked in 直播模式, and saving keeps the name.
+    window.store.add("坏人", "原因")
+    window._set_stream_mode(True)
+    seen: list[str] = []
+
+    def save(opened) -> int:  # noqa: ANN001
+        seen.append(opened.name_edit.text())
+        opened._accept()
+        return opened.result()
+
+    monkeypatch.setattr(ui.AddNameDialog, "exec", save)
+    window._edit_entry(0)
+    assert seen == ["坏*"] and window.store.entries[0].name == "坏人" and window.store.entries[0].reason == "原因"
 
 
 def test_the_game_window_is_drawn_fitted_in_a_window_that_keeps_its_size(window, monkeypatch):

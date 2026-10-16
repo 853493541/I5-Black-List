@@ -65,6 +65,7 @@ from blacklist_detect.importing import suggest_tags, with_tags
 from blacklist_detect.logs import log, mark_closed, mark_running, masked, on_uncaught, setup_logging
 from blacklist_detect.match import (
     NameLabel,
+    clean_stored_name,
     fold,
     format_hit,
     last_seen,
@@ -683,6 +684,7 @@ class MainWindow(QMainWindow):
         self.player_edit.setObjectName("nameEdit")
         self.player_edit.setPlaceholderText("游戏名")
         self.player_edit.setAccessibleName("游戏名")
+        self.player_edit.setMaxLength(64)
         self.player_edit.setFixedWidth(self.NAME_BOX)
         self.player_edit.hide()
         self.player_edit.installEventFilter(self)
@@ -1440,7 +1442,10 @@ class MainWindow(QMainWindow):
         self._save_player_name()
 
     def _save_player_name(self) -> None:
-        name = self.player_edit.text().strip()
+        # Kept the way the next start reads it back: cleaned and at most 64 characters.
+        name = clean_stored_name(self.player_edit.text().strip())[:64]
+        if name != self.player_edit.text():
+            self.player_edit.setText(name)
         self.profile_chip.set_name(name)
         if name == self.store.player_name:
             return
@@ -1951,6 +1956,10 @@ class MainWindow(QMainWindow):
         """黑名单's names masked: by the eye, or always while 直播模式 is on, the page may be on stream."""
         return self.store.names_hidden or bool(self.store.stream_mode)
 
+    def _listed(self, name: str) -> str:
+        """A 黑名单 name for a toast or a question: masked whenever the pages mask it."""
+        return masked_name(name) if self._names_hidden() else name
+
     def _toggle_name_hiding(self, hidden: bool) -> None:
         self.store.names_hidden = bool(hidden)
         self.store.save_settings()
@@ -2033,6 +2042,8 @@ class MainWindow(QMainWindow):
 
     def _likes_changed(self) -> None:
         """嘉宾 changed, and a move may have taken a name off 黑名单: redraw both and the record."""
+        # An older 撤销 would put this change back too.
+        self.toast.drop()
         self._refresh_tag_views()
 
     def _open_record_menu(self) -> None:
@@ -2075,7 +2086,7 @@ class MainWindow(QMainWindow):
         if index < 0:
             return True
         listed = self.store.likes[index].name
-        if not ConfirmDialog.ask(self, "移到黑名单", f"「{listed}」在嘉宾列表中，要移到黑名单吗？", "移到黑名单"):
+        if not ConfirmDialog.ask(self, "移到黑名单", f"「{self._listed(listed)}」在嘉宾列表中，要移到黑名单吗？", "移到黑名单"):
             return False
         self.store.remove_like(index)
         self.likes_page.refresh()
@@ -2251,7 +2262,7 @@ class MainWindow(QMainWindow):
 
     def _copy_name(self, index: int) -> None:
         if 0 <= index < len(self.store.entries):
-            self._copy_text(self.store.entries[index].name)
+            self._copy_text(self.store.entries[index].name, self._names_hidden())
 
     def _delete_entry(self, index: int) -> None:
         if not 0 <= index < len(self.store.entries):
@@ -2260,7 +2271,7 @@ class MainWindow(QMainWindow):
         before = self.store.snapshot_entries()
         self.store.remove_at(index)
         self._list_changed()
-        self._say(f"已删除「{name}」", undo=lambda: self._put_back(before))
+        self._say(f"已删除「{self._listed(name)}」", undo=lambda: self._put_back(before))
 
     def _share_list(self) -> None:
         """Copy the whole list in the 批量添加 line format, so a friend can paste it."""
@@ -2284,7 +2295,7 @@ class MainWindow(QMainWindow):
         if entry is None:
             return
         self._list_changed()
-        self._say(f"已添加「{entry.name}」", undo=lambda: self._put_back(before, likes))
+        self._say(f"已添加「{self._listed(entry.name)}」", undo=lambda: self._put_back(before, likes))
 
     def _add_many_by_dialog(self) -> None:
         """Paste, check the preview, then, when several 原因 share a phrase, confirm the 标签 to add."""
@@ -2336,13 +2347,19 @@ class MainWindow(QMainWindow):
             catalog=self.store.tag_catalog(),
             parent=self,
             taken=self._taken_names(skip=index),
+            masked=self._names_hidden(),
         )
         if dialog.exec() != QDialog.Accepted:
             return
         if dialog.deleted:
             self._delete_entry(index)
             return
+        # Renamed to a 嘉宾: a player is on one list, so the 嘉宾 moves over when asked.
+        if not self._take_from_likes(dialog.name):
+            return
         self.store.update_at(index, dialog.name, dialog.tags, dialog.detail)
+        # An older 撤销 would put this edit back too.
+        self.toast.drop()
         self._list_changed()
 
     def _reload_history(self, select: int = 0) -> None:
@@ -2632,6 +2649,7 @@ class MainWindow(QMainWindow):
             shown_name = like.shown()
         # 直播模式: this page may be on stream, so a 黑名单 name is masked like on the 黑名单 page.
         hide = match is not None and bool(self.store.stream_mode)
+        unmasked = title if hide and not unclear else ""
         if hide:
             shown_name, listed, tail, title = masked_name(shown_name), "", None, masked_name(title)
         # Lobby order is not the player's number. Show the name until a later stage.
@@ -2641,6 +2659,8 @@ class MainWindow(QMainWindow):
         name_item.setData(Qt.UserRole + 1, action)
         name_item.setData(Qt.UserRole + 2, stored)
         name_item.setData(Qt.UserRole + 3, like.name if like is not None else "")
+        # The name behind a masked seat, for 复制名字.
+        name_item.setData(Qt.UserRole + 4, unmasked)
         name_item.setFlags(name_item.flags() & ~Qt.ItemIsEditable)
         name_font = record_font()
         name_item.setFont(name_font)
@@ -2850,12 +2870,14 @@ class MainWindow(QMainWindow):
         elif action == "添加":
             items.append(("加入黑名单", ("ban_seat", row, column)))
             items.append(("加入嘉宾列表", ("like_seat", row, column)))
-        items.append(("复制名字", ("copy_text", shown)))
+        unmasked = str(item.data(Qt.UserRole + 4) or "")
+        items.append(("复制名字", ("copy_text", unmasked or shown, bool(unmasked))))
         return self._menu(items)
 
-    def _copy_text(self, text: str) -> None:
+    def _copy_text(self, text: str, hide: bool = False) -> None:
+        """The clipboard gets the name itself; the toast shows it masked when the page does."""
         QApplication.clipboard().setText(text)
-        self._say(f"已复制「{text}」")
+        self._say(f"已复制「{masked_name(text) if hide else text}」")
 
     def _on_history_cell(self, row: int, column: int) -> None:
         item = self.history_table.item(row, column)
@@ -2913,7 +2935,7 @@ class MainWindow(QMainWindow):
         if entry is None:
             return
         self._seat_added(row, column)
-        self._say(f"已加入黑名单「{entry.name}」", undo=lambda: self._put_back(before, likes))
+        self._say(f"已加入黑名单「{self._listed(entry.name)}」", undo=lambda: self._put_back(before, likes))
 
     def _seat_added(self, row: int, column: int) -> None:
         """Both lists and the record redrawn; the 记录 page stays on the same record, and the seat under the pointer."""

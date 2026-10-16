@@ -175,10 +175,10 @@ class _FlowHost(QWidget):
 
 
 def masked_name(name: str) -> str:
-    """First character, then a star for every character after it."""
+    """First character, then a star for every character after it, and always at least one star."""
     if not name:
         return ""
-    return name[0] + ("*" * (len(name) - 1))
+    return name[0] + ("*" * max(1, len(name) - 1))
 
 
 class _ColumnHeader(QHeaderView):

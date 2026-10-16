@@ -1022,3 +1022,33 @@ def test_a_combination_with_the_same_guests_as_another_cannot_be_saved(window, m
     assert opened[-1].result() == QDialog.Accepted and store.combos[0].names == ("小明", "小红")
     page.edit_combo(1)
     assert opened[-1].people_error.text() == "已有这几位嘉宾的组合" and store.combos[1].names == ("小红", "阿星")
+
+
+def test_editing_a_blacklist_name_to_a_guest_moves_the_guest_over(window, monkeypatch):
+    from blacklist_detect import ui
+
+    window.store.add("路人乙")
+    window.store.add_like("心动小鹿")
+    monkeypatch.setattr(ui.ConfirmDialog, "ask", staticmethod(lambda *_a, **_k: True))
+
+    def renamed(dialog) -> int:  # noqa: ANN001
+        dialog.name_edit.setText("心动小鹿")
+        dialog._accept()
+        return dialog.result()
+
+    monkeypatch.setattr(ui.AddNameDialog, "exec", renamed)
+    window._edit_entry(0)
+    assert [entry.name for entry in window.store.entries] == ["心动小鹿"] and window.store.likes == []
+
+
+def test_a_batch_row_already_on_the_guest_list_cannot_be_ticked(window):
+    from blacklist_detect.importing import ELSEWHERE
+    from blacklist_detect.ui_dialogs import BatchAddDialog
+
+    window.store.add_like("心动星星")
+    dialog = BatchAddDialog(window.store.tag_catalog(), window.store.entries, parent=window, elsewhere=window.store.likes)
+    dialog.edit.setPlainText("心动星星\n路人乙")
+    dialog._refresh()
+    assert dialog.rows[0].status == ELSEWHERE and not dialog.rows[0].checked
+    dialog._toggle(0)
+    assert not dialog.rows[0].checked and dialog.import_button.text() == "导入 1 人"
