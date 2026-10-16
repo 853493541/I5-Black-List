@@ -33,7 +33,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QPainterPathStroker, QPen, QPixmap, QPolygonF
 
 from blacklist_detect.love_scenes import DESIGN, Stage
-from blacklist_detect.love_scenes.draw import ease_in_out, ease_out, soft_dot, win
+from blacklist_detect.love_scenes.draw import ease_out, soft_dot, win
 from blacklist_detect.love_scenes.light import blur, mask, noise, rgb, smooth
 from blacklist_detect.love_scenes.light import picture as _picture
 
@@ -358,7 +358,7 @@ def make(stage: Stage):  # noqa: ANN201
                 size = 0.88 + 0.12 * smooth(0.8, 1.0, k)
                 lean = toward * (13 - 19 * smooth(0.76, 0.92, k)) * (1 - smooth(0.92, 1.0, k))
                 lean += 1.5 * math.sin(math.pi * (t - FLY[0]) / FLAP) * (1 - smooth(0.8, 1.0, k))
-                _flyer(p, art, "flyer", fx, fy - 4 * u * pull, lean, size * (1 - 0.03 * pull), size * (1 + 0.05 * pull), seen, px,
+                _flyer(p, art, "flyer", fx, fy - LIFT * u * pull, lean, size * (1 - 0.03 * pull), size * (1 + 0.05 * pull), seen, px,
                        flap, tuck, toward)
             else:
                 idle, sx, sy, sway = _idle(t, 1)
@@ -587,15 +587,17 @@ def _flyer(p: QPainter, art: dict, name: str, x: float, y: float, angle: float, 
     (root_x, root_y), (tip_x, tip_y) = places["wing"]["root"], places["wing"]["tip"]
     fold_x, fold_y = places["fold"]["root"]
     along = math.degrees(math.atan2((tip_x - root_x) * kx, (root_y - tip_y) * ky))
-    # Folding, both go on down together from the bottom of the flap to hang at its side; the folded wing comes in over
-    # the raised one before that goes, a frame or two, so neither pops.
-    shut = ease_in_out(tuck)
-    raised, folded = 1 - float(smooth(0.15, 0.3, tuck)), float(smooth(0.0, 0.2, tuck))
+    # Folding, both go on down together from the bottom of the flap to hang at its side, quickly at first; on the way
+    # the wing turns over, the raised one narrowing to its edge and the folded one opening from it, so neither pops.
+    shut = ease_out(tuck)
+    # How wide each is across, one or the other always there, its edge at least.
+    edge = tuck / TURN
+    raised, folded = (max(0.1, 1 - edge), 0.0) if edge <= 1 else (0.0, max(0.1, min(1.0, edge - 1)))
     # A quarter shorter at the bottom of a flap, and shorter still as it folds, to the folded wing's length.
     length = 1 - 0.25 * math.sin(math.pi / 2 * min(1.0, flap / STROKE)) - 0.35 * float(smooth(0.0, 0.3, tuck))
     grow = 1 + GROW * (1 - shut)
 
-    def wings(image: QImage, folding: bool, a: float) -> None:
+    def wings(image: QImage, folding: bool, wide: float) -> None:
         for side, mirror in (("right", 1), ("left", -1)):
             at_x, at_y = places["front"][side]
             p.save()
@@ -609,21 +611,21 @@ def _flyer(p: QPainter, art: dict, name: str, x: float, y: float, angle: float, 
             if folding:
                 # Hanging from the shoulder, opened out to the raised wing's slant and as long, closing as it folds.
                 p.rotate(-(180 - along - turn))
-                p.scale(grow, grow)
+                p.scale(grow * wide, grow)
                 # Laid on as a bird is, so its root is where it turns.
-                _sat(p, image, image.width() / 2 - fold_x * kx * TUCK, image.height() - fold_y * ky * TUCK, 0, 1, 1, a, 1)
+                _sat(p, image, image.width() / 2 - fold_x * kx * TUCK, image.height() - fold_y * ky * TUCK, 0, 1, 1, alpha, 1)
             else:
                 p.rotate(turn + along)
-                p.scale(1, length)
+                p.scale(wide, length)
                 p.rotate(-along)
-                _sat(p, image, image.width() / 2 - root_x * kx, image.height() - root_y * ky, 0, 1, 1, a, 1)
+                _sat(p, image, image.width() / 2 - root_x * kx, image.height() - root_y * ky, 0, 1, 1, alpha, 1)
             p.restore()
 
-    if raised > 0:
-        wings(art["bird", "wing"], False, alpha * raised)
+    if raised:
+        wings(art["bird", "wing"], False, raised)
     _sat(p, body, x, y, angle, sx, sy, alpha, px)
-    if folded > 0:
-        wings(art["bird", "fold"], True, alpha * folded)
+    if folded:
+        wings(art["bird", "fold"], True, folded)
 
 
 def _idle(t: float, which: int) -> tuple[str, float, float, float]:
@@ -1848,6 +1850,10 @@ BIRD_TALL = 1.12
 # bird's, the picture's biggest: made TUCK of the flyer's size, and GROW bigger again opened out to meet the raised wing.
 STROKE = 80.0
 TUCK, GROW = 0.42, 0.4
+# How much of its folding the wing takes to turn over to its edge, and as much again to open as the folded wing.
+TURN = 0.17
+# How high the flyer rises at the bottom of each downstroke, in design points.
+LIFT = 6.5
 _BIRD_FILES: dict[str, QImage] = {}
 _BIRD_LOCK = threading.Lock()
 
