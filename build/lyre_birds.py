@@ -174,6 +174,9 @@ BIRDS = {
             ("line", [(428, 1490), (446, 1490), (456, 1500), (459, 1518)]),
         ],
         "eyes": [],
+        # The flyer wears it at 0.42 of its size: its line all round, the inner edge too where it lies over the white
+        # body, thick enough to be the flyer's line there.
+        "rim": 15,
         # Where it hangs from the bird's shoulder, and opens out about: under its top, its outer third past the side.
         "points": {"root": (402, 1415)},
     },
@@ -327,6 +330,10 @@ def cut(picture: Image.Image, spec: dict) -> tuple[dict[str, Image.Image], tuple
     _draw(labels, spec["repair"], (x0, y0))
     labels = _even(labels)
     mask = _bird_mask(labels, spec, (x0, y0))
+    if "rim" in spec:
+        # The line round it all, as thick as asked, inward from its edge.
+        inward = cv2.distanceTransform(mask.astype(np.uint8), cv2.DIST_L2, 5)
+        labels[(inward > 0) & (inward < spec["rim"] * SCALE)] = LINE
     pictures = {"": render(labels, mask)}
     if spec["eyes"]:
         pictures["_blink"] = render(_shut(labels, spec["eyes"], (x0, y0)), mask)
