@@ -77,13 +77,15 @@ SHARP = 1.5
 # right, and bobs on every strum. One flies in from off the right edge on the entrance's gust, from FLY[0] to FLY[1]
 # seconds in, a flap every FLAP seconds, and lands on the curl in the top right facing left (its way in design points,
 # a curve whose last point is the curl). One sits among the cecilias in the bottom left facing right, and puffs up on
-# the music's downbeat, the first strum. Each blinks now and then.
+# the music's downbeat, the first strum. Sitting, each breathes, sways a little, blinks and flicks a wing now and then.
 PERCH = (53.0, -140.0)
 FLY, FLAP = (0.25, 1.35), 0.24
 WAY_IN = ((1690, 410), (1590, 390), (1575, 90), (1529, 121))
 # The bird among the cecilias sits a little in front of the current, over the stalks' feet.
-NEST = (88, 842)
-BLINKS = ((2.2, 3.75), (2.3, 3.9), (1.7, 3.35, 4.15))
+NEST = (88, 845)
+# Each bird's small life as it sits (the lyre's, the flyer's, the cecilias'): when it blinks, when its wing flutters,
+# and where in its breath it starts.
+IDLE = (((2.2, 3.75), (1.55, 3.3), 0.0), ((2.3, 3.9), (2.6, 4.15), 1.9), ((1.7, 3.35, 4.15), (2.45, 3.9), 3.7))
 
 
 def make(stage: Stage):  # noqa: ANN201
@@ -131,7 +133,8 @@ def make(stage: Stage):  # noqa: ANN201
         (1384, 774, 26, 300, 2.9, False, False, (-6, 0), (1.0, -0.35)), (420, 800, 27, 150, 5.2, False, False, (-7, 0), (-0.8, -0.6)),
     ]  # fmt: skip
     leaves = [(*rest[:4], _matched(rest[4], 1.7, 0.7), *rest[5:]) for rest in leaves]
-    hero_leaves = [(1486, 74, 46, -24, 0.3, False, 1), (1574, 122, 38, 38, 1.9, True, 2), (1504, 162, 32, 76, 3.1, False, 3)]
+    # Clear of the bird that lands on the curl between them.
+    hero_leaves = [(1440, 80, 46, -24, 0.3, False, 1), (1598, 156, 38, 38, 1.9, True, 2), (1504, 162, 32, 76, 3.1, False, 3)]
     hero_leaves = [(x, y, r, a, _matched(ph, 1.1, 0.82), e, s) for x, y, r, a, ph, e, s in hero_leaves]
     updraft = [(1548, 766, 26, -40, _matched(0.9, 2.0, 0.6)), (1592, 698, 23, 30, _matched(2.4, 2.0, 0.6))]
     seeds = [(470, 118, 18, -20, False), (1424, 206, 15, 25, False), (152, 644, 16, 10, True), (1560, 690, 14, -30, True)]
@@ -173,9 +176,9 @@ def make(stage: Stage):  # noqa: ANN201
         for k, (_x, _y, r, angle, _ph, ember, *_rest) in enumerate(leaves):
             out.append((0.85, ("leaf", k), lambda r=r, angle=angle, ember=ember, k=k: _maple_pair(r, angle, ember, 10 + k, ss)))
         out.append((0.85, "seed", lambda: _seed(18, ss)))
-        for pose in ("up", "mid", "down", "sit", "blink"):
+        for pose in ("up", "mid", "down", "sit", "blink", "lift"):
             out.append((0.2, ("bird", -1, pose), lambda pose=pose: _bird(pose, -1, ss)))
-        for pose in ("sit", "blink"):
+        for pose in ("sit", "blink", "lift"):
             out.append((0.3, ("bird", 1, pose), lambda pose=pose: _bird(pose, 1, ss)))
         return sorted(out, key=lambda job: job[0])
 
@@ -237,9 +240,8 @@ def make(stage: Stage):  # noqa: ANN201
             if ("bird", 1, "blink") in art:
                 x = t - STRUMS[0][0]
                 puff = (1 - math.exp(-x / 0.06)) * math.exp(-x / 0.4) if x > 0 else 0.0
-                breath = 1 + 0.012 * math.sin(t * 2.3 + 1)
-                _sat(p, art["bird", 1, _blinked(t, BLINKS[2])], *xy(*NEST), 0, 1.06 * (1 + 0.1 * puff), 1.06 * (1 + 0.08 * puff) * breath, hero, px,
-                     foot)
+                pose, sx, sy, sway = _idle(t, 2)
+                _sat(p, art["bird", 1, pose], *xy(*NEST), sway, sx * (1 + 0.1 * puff), sy * (1 + 0.08 * puff), hero, px, foot)
             for k, (_b0, _b1, top, _size, angle) in enumerate(sprig):
                 turn = angle + nod * (1 if k % 2 else -1)
                 _place(p, art["cecilia", k], *xy(*top), turn, 1, 0.82, hero, px)
@@ -277,9 +279,9 @@ def make(stage: Stage):  # noqa: ANN201
         # On the crossbar: the bird bobs on each strum, down and up and settling.
         if lyre_a > 0 and ("bird", 1, "blink") in art:
             bob = _bob(t)
-            breath = 1 + 0.012 * math.sin(t * 2.6)
-            _sat(p, art["bird", 1, _blinked(t, BLINKS[0])], *lyre_pt(*PERCH, angle, rise), 0.35 * angle, 1 + 0.07 * bob,
-                 (1 - 0.11 * bob) * breath, lyre_a, px, foot)
+            pose, sx, sy, sway = _idle(t, 0)
+            _sat(p, art["bird", 1, pose], *lyre_pt(*PERCH, angle, rise), 0.35 * angle + 0.6 * sway, 0.92 * sx * (1 + 0.07 * bob),
+                 0.92 * sy * (1 - 0.11 * bob), lyre_a, px, foot)
         # The feathers and the leaf the first strum lets go, carried from the strings to where they ride.
         parts = ease_out(win(t, 0.9, 1.4)) * fade
         if parts > 0 and "released-leaf" in art:
@@ -346,10 +348,9 @@ def make(stage: Stage):  # noqa: ANN201
                 size = 0.88 + 0.12 * smooth(0.85, 1.0, way)
                 _sat(p, art["bird", -1, pose], fx, fy - 3 * u * beat * (1 - way), tilt, size * 1.05, size * 0.95, fade, px, foot)
             else:
-                breath = 1 + 0.012 * math.sin(t * 2.4 + 2)
-                if pose == "sit":
-                    pose = _blinked(t, BLINKS[1])
-                _sat(p, art["bird", -1, pose], fx, fy - hop * u, 0, 1 + 0.08 * squash, (1 - 0.12 * squash) * breath, fade, px, foot)
+                idle, sx, sy, sway = _idle(t, 1)
+                _sat(p, art["bird", -1, idle if pose == "sit" else pose], fx, fy - hop * u, sway, sx * (1 + 0.08 * squash),
+                     sy * (1 - 0.12 * squash), fade, px, foot)
         p.restore()
 
     def warm(scale: float) -> None:
@@ -557,9 +558,18 @@ def _sat(p: QPainter, image: QImage, x: float, y: float, angle: float, sx: float
     p.restore()
 
 
-def _blinked(t: float, blinks: tuple[float, ...]) -> str:
-    """A bird's eyes t seconds in: shut ("blink") for a moment from each of blinks, else open ("sit")."""
-    return "blink" if any(0 <= t - when < 0.13 for when in blinks) else "sit"
+def _idle(t: float, which: int) -> tuple[str, float, float, float]:
+    """Sitting bird which's small life t seconds in (see IDLE): its pose, its eyes shut a moment now and then and
+    its wing flicking off its side three times, its breath (its width and height, a few hundredths either way) and
+    its sway, in degrees."""
+    blinks, flutters, phase = IDLE[which]
+    pose = "sit"
+    if any(0 <= t - when < 0.36 and int((t - when) / 0.06) % 2 == 0 for when in flutters):
+        pose = "lift"
+    if any(0 <= t - when < 0.13 for when in blinks):
+        pose = "blink"
+    breath = math.sin(2 * math.pi * t / 1.7 + phase)
+    return pose, 1 - 0.01 * breath, 1 + 0.025 * breath, 2.2 * math.sin(2 * math.pi * t / 2.9 + phase * 1.3)
 
 
 def _bob(t: float) -> float:
@@ -1724,31 +1734,35 @@ def _seed(length: float, ss: float) -> QImage:
     return _picture(np.broadcast_to(rgb(CORE), (size, size, 3)), np.clip(blur(m, 0.5 * ss) * 1.4, 0, 1))
 
 
-# The birds: chubby round teal birds sitting low, almost balls, with a pale mint face and belly, two upright
-# crest feathers, small dark eyes, pink blush, a tiny pale beak, rounded wings with deep teal tips and a little
-# dark tail, in a soft dark-teal line. BIRD design points across their body; their feet FOOT of it below its middle.
+# The birds: fat little teal dumplings, wider than tall, flat underneath, the head the top of the ball, two crest
+# feathers standing up like a rabbit's ears, a big pale face and belly over the front, eyes set wide and low with
+# blush under them, a tiny pale beak, stubby wings pressed to the sides with deep teal tips and a little dark tail,
+# in a firm dark-teal line. BIRD design points tall; its flat bottom, where it sits, FOOT of that below its middle.
 BIRD_TOP, BIRD_SHADE, BIRD_DEEP = "#6fd3b8", "#46b39a", "#2e8f78"
-BIRD_BELLY, BIRD_FACE, BIRD_LINE, BIRD_EYE = "#d9f6ee", "#f2fffb", "#1f5f52", "#3a1f1f"
+BIRD_BELLY, BIRD_FACE, BIRD_LINE, BIRD_EYE = "#d9f6ee", "#f2fffb", "#174a40", "#3a1f1f"
 BLUSH, BEAK = "#f59aae", "#fff7e8"
-TEAL = [(-0.1, "#2c8574"), (0.3, BIRD_SHADE), (0.72, BIRD_TOP), (1.1, "#b4f3e2")]
+TEAL = [(-0.1, "#26796a"), (0.35, BIRD_SHADE), (0.8, BIRD_TOP), (1.15, "#a3ecd8")]
 PALE = [(-0.1, "#8fc4c2"), (0.35, "#b7e2dc"), (0.72, BIRD_BELLY), (1.1, BIRD_FACE)]
-BIRD = 56.0
-FOOT = 0.44
+BIRD = 54.0
+FOOT = 0.45
 # Its wing's turn (degrees, raised as it grows) and how far it is spread, for each pose; folded at rest.
-WINGS = {"sit": (-24.0, 0.92), "blink": (-24.0, 0.92), "up": (78.0, 1.2), "mid": (20.0, 1.2), "down": (-60.0, 1.15)}
-SHOULDER = (-0.17, 0.03)
+# "lift" holds the wing a little off its side, for a flutter.
+WINGS = {"sit": (-30.0, 0.78), "blink": (-30.0, 0.78), "lift": (-8.0, 0.8), "up": (62.0, 1.05), "mid": (16.0, 1.05),
+         "down": (-62.0, 1.0)}
+SHOULDER = (-0.24, 0.1)
+EYES = ((0.1, 0.0), (0.47, -0.01))
 
 
 def _bird(pose: str, face: int, ss: float) -> QImage:
     """A bird facing right (face 1) or left (-1), shaded per pixel: lit from the upper left, a cooler shadow
-    under the belly, a rim of mint light on the far edge. pose: "sit", "blink" (its eyes shut) or a flap,
-    its wings spread "up", "mid" or "down". Centred on its body's middle, ss pixels a design point."""
+    under the belly, a rim of mint light on the far edge. pose: "sit", "blink" (its eyes shut), "lift" (its
+    wing a little off its side) or a flap, its wings spread "up", "mid" or "down". Centred on its body's middle, ss pixels a design point."""
     L = BIRD  # noqa: N806
-    size = int(1.7 * L * ss) // 2 * 2
+    size = int(2.0 * L * ss) // 2 * 2
     xs, ys = _grid(size, size)
-    bx, by = (xs - size / 2) / ss / L * face, (ys - size / 2) / ss / L  # in body widths, as if it faced right
+    bx, by = (xs - size / 2) / ss / L * face, (ys - size / 2) / ss / L  # in its heights, as if it faced right
     turn, spread = WINGS[pose]
-    flap = pose not in ("sit", "blink")
+    flap = pose in ("up", "mid", "down")
 
     def q(x: float, y: float) -> QPointF:
         return QPointF(x, y)
@@ -1777,14 +1791,15 @@ def _bird(pose: str, face: int, ss: float) -> QImage:
     def rim(m: np.ndarray, sigma: float, strength: float) -> np.ndarray:
         return np.clip(blur(m, sigma * L * ss) * strength, 0, 1)
 
-    def leaf(base: tuple[float, float], angle: float, length: float, wide: float) -> QPainterPath:
+    def leaf(base: tuple[float, float], angle: float, length: float, wide: float, tip: float = 0.4) -> QPainterPath:
+        """A feather from base along angle, wide at its widest, its tip as round as tip."""
         a = math.radians(angle)
         d = np.array([math.cos(a), math.sin(a)])
         n = np.array([-d[1], d[0]])
         b = np.array(base)
         path = QPainterPath(q(*(b - n * wide * 0.4)))
-        path.cubicTo(q(*(b + d * length * 0.45 - n * wide)), q(*(b + d * length * 0.9 - n * wide * 0.4)), q(*(b + d * length)))
-        path.cubicTo(q(*(b + d * length * 0.9 + n * wide * 0.4)), q(*(b + d * length * 0.45 + n * wide)), q(*(b + n * wide * 0.4)))
+        path.cubicTo(q(*(b + d * length * 0.45 - n * wide)), q(*(b + d * length * 0.9 - n * wide * tip)), q(*(b + d * length)))
+        path.cubicTo(q(*(b + d * length * 0.9 + n * wide * tip)), q(*(b + d * length * 0.45 + n * wide)), q(*(b + n * wide * 0.4)))
         path.closeSubpath()
         return path
 
@@ -1813,53 +1828,57 @@ def _bird(pose: str, face: int, ss: float) -> QImage:
         nonlocal color, alpha
         color, alpha = _over(color, alpha, c, a)
 
-    body = QPainterPath()
-    body.addEllipse(q(-0.03, 0.07), 0.47, 0.37)
-    body.addEllipse(q(0.1, -0.1), 0.31, 0.3)
-    body.setFillRule(Qt.WindingFill)
-    m_body = round_off(filled(body), 0.05)
-    ears = [filled(leaf((-0.03, -0.29), -118, 0.3, 0.095)), filled(leaf((0.12, -0.34), -100, 0.26, 0.085))]
+    # A dumpling: flat underneath, its back rounding up into the head with no neck, the front a little fuller.
+    body = QPainterPath(q(0.0, 0.45))
+    body.lineTo(q(0.3, 0.45))
+    body.cubicTo(q(0.56, 0.45), q(0.66, 0.24), q(0.64, 0.0))
+    body.cubicTo(q(0.62, -0.32), q(0.44, -0.52), q(0.15, -0.52))
+    body.cubicTo(q(-0.2, -0.52), q(-0.54, -0.28), q(-0.64, 0.06))
+    body.cubicTo(q(-0.69, 0.3), q(-0.55, 0.45), q(-0.3, 0.45))
+    body.closeSubpath()
+    m_body = round_off(filled(body), 0.06)
+    ears = [filled(leaf((0.0, -0.46), -113, 0.33, 0.12, 0.8)), filled(leaf((0.22, -0.49), -96, 0.29, 0.11, 0.8))]
     tail = QPainterPath()
     tail.setFillRule(Qt.WindingFill)
-    for angle, length in ((172, 0.36), (158, 0.33), (186, 0.28)):
-        tail.addPath(leaf((-0.34, 0.24), angle, length, 0.06))
+    for angle, length in ((170, 0.24), (154, 0.21), (186, 0.18)):
+        tail.addPath(leaf((-0.52, 0.3), angle, length, 0.06))
     m_tail = filled(tail)
     near, near_strokes = wing(SHOULDER, turn, spread)
-    m_wing, m_strokes = filled(near), filled(near_strokes, 0.016)
+    m_wing, m_strokes = filled(near), filled(near_strokes, 0.018)
     whole = np.clip(m_body + m_tail + ears[0] + ears[1] + m_wing, 0, 1)
     if flap:
-        far, _ = wing((-0.05, -0.08), turn + 12, spread * 0.92)
+        far, _ = wing((-0.14, -0.1), turn + 12, spread * 0.92)
         m_far = filled(far)
         whole = np.clip(whole + m_far, 0, 1)
     grain = noise(size, size, 2 * ss, 2, 9) - 0.5
 
-    # The soft dark-teal line round all of it, then the parts behind the body, back to front.
-    over(rgb(BIRD_LINE), rim(whole, 0.009, 3.2))
+    # The dark-teal line round all of it, then the parts behind the body, back to front.
+    over(rgb(BIRD_LINE), rim(whole, 0.026, 4.5))
     if flap:
         d, _ = dome(m_far, 0.06, 0.12)
         over(_ramp(TEAL, -0.25 + 0.9 * d), m_far)
     d, _ = dome(m_tail, 0.03, 0.08)
-    over(rgb(BIRD_LINE), rim(m_tail, 0.01, 2.4) * 0.9)
+    over(rgb(BIRD_LINE), rim(m_tail, 0.016, 4.0))
     over(_ramp(TEAL, -0.45 + 0.9 * d + 0.4 * smooth(-0.75, -0.4, bx)), m_tail)
     for m in ears:
         d, _ = dome(m, 0.025, 0.06)
         inner = smooth(0.6, 0.9, blur(m, 0.03 * L * ss)) * m
         c = _ramp(PALE, 0.1 + 0.9 * d)
         c = c + (_ramp(TEAL, 0.1 + 0.8 * d) - c) * (1 - inner)[..., None]
-        over(rgb(BIRD_LINE), rim(m, 0.01, 2.4) * 0.9)
+        over(rgb(BIRD_LINE), rim(m, 0.016, 4.0))
         over(c, m)
 
     # The body: a soft dome lit from the upper left, teal over the head and back, a pale face and belly.
     d, sp = dome(m_body, 0.16, 0.4)
-    k = 0.02 + 1.05 * d - 0.18 * smooth(0.0, 0.44, by)
+    k = -0.06 + 1.0 * d - 0.18 * smooth(0.0, 0.45, by)
     pale = QPainterPath()
-    pale.addEllipse(q(0.19, -0.07), 0.22, 0.17)
-    pale.addEllipse(q(0.12, 0.22), 0.37, 0.23)
+    pale.addEllipse(q(0.3, 0.02), 0.38, 0.22)
+    pale.addEllipse(q(0.2, 0.24), 0.56, 0.36)
     pale.setFillRule(Qt.WindingFill)
     k_pale = smooth(0.3, 0.7, blur(filled(pale), 0.035 * L * ss))
     c = _ramp(TEAL, k) * (1 - k_pale)[..., None] + _ramp(PALE, k + 0.04) * k_pale[..., None]
     # Cooler under the belly, a rim of mint light on the edge away from the light, a faint plush grain.
-    under = smooth(0.12, 0.46, by)
+    under = smooth(0.15, 0.47, by)
     c = c + (rgb("#78aeb8") - c) * (0.38 * under * k_pale)[..., None]
     soft = blur(m_body, 0.05 * L * ss)
     gy, gx = np.gradient(soft)
@@ -1871,32 +1890,32 @@ def _bird(pose: str, face: int, ss: float) -> QImage:
     over(c, m_body)
 
     # The face: blush, eyes (shut, a soft curve), the beak between them.
-    for x, y in ((-0.02, -0.025), (0.36, -0.03)):
-        over(rgb(BLUSH), np.exp(-(((bx - x) / 0.058) ** 2 + ((by - y) / 0.032) ** 2) ** 2) * 0.8)
+    for x, y in ((0.06, 0.095), (0.5, 0.085)):
+        over(rgb(BLUSH), np.exp(-(((bx - x) / 0.068) ** 2 + ((by - y) / 0.036) ** 2) ** 2) * 0.8)
     eyes = QPainterPath()
-    for ex, ey in ((0.04, -0.1), (0.3, -0.1)):
+    for ex, ey in EYES:
         if pose == "blink":
-            eyes.moveTo(q(ex - 0.042, ey - 0.004))
-            eyes.quadTo(q(ex, ey + 0.036), q(ex + 0.042, ey - 0.004))
+            eyes.moveTo(q(ex - 0.048, ey - 0.004))
+            eyes.quadTo(q(ex, ey + 0.04), q(ex + 0.048, ey - 0.004))
         else:
-            eyes.addEllipse(q(ex, ey), 0.04, 0.05)
-    over(rgb(BIRD_EYE), filled(eyes, 0.022) if pose == "blink" else filled(eyes))
+            eyes.addEllipse(q(ex, ey), 0.046, 0.056)
+    over(rgb(BIRD_EYE), filled(eyes, 0.026) if pose == "blink" else filled(eyes))
     if pose != "blink":
-        for ex, ey in ((0.04, -0.1), (0.3, -0.1)):
-            spot = np.exp(-((bx - ex + 0.012 * face) ** 2 + (by - ey + 0.02) ** 2) / 0.012**2)
+        for ex, ey in EYES:
+            spot = np.exp(-((bx - ex + 0.014 * face) ** 2 + (by - ey + 0.022) ** 2) / 0.014**2)
             over(np.broadcast_to(rgb("#ffffff"), spot.shape + (3,)), np.clip(spot * 1.5, 0, 0.95))
-    beak = QPainterPath(q(0.142, -0.075))
-    beak.lineTo(q(0.212, -0.075))
-    beak.lineTo(q(0.177, -0.022))
+    beak = QPainterPath(q(0.25, 0.025))
+    beak.lineTo(q(0.33, 0.025))
+    beak.lineTo(q(0.29, 0.085))
     beak.closeSubpath()
     m_beak = filled(beak)
-    over(rgb(BIRD_LINE), rim(m_beak, 0.008, 2.4) * 0.85)
-    over(rgb(BEAK) * (1 - 0.12 * smooth(-0.07, -0.02, by))[..., None], m_beak)
+    over(rgb(BIRD_LINE), rim(m_beak, 0.01, 3.0) * 0.9)
+    over(rgb(BEAK) * (1 - 0.12 * smooth(0.03, 0.08, by))[..., None], m_beak)
 
     # The near wing over the body: a little shadow on it, its line, pale to deep teal at the tips, its feathers.
     shift = max(1, round(0.025 * L * ss))
     over(rgb("#1d5c50"), np.roll(blur(m_wing, 0.025 * L * ss), shift, axis=0) * m_body * 0.3)
-    over(rgb(BIRD_LINE), rim(m_wing, 0.008, 3.0))
+    over(rgb(BIRD_LINE), rim(m_wing, 0.018, 4.5))
     d, sp = dome(m_wing, 0.05, 0.12)
     sx, sy = SHOULDER
     a = math.radians(turn)
