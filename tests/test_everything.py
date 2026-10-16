@@ -4,7 +4,7 @@ It opens fresh, agrees to 使用声明 and runs the first 检查; fills 黑名�
 and 嘉宾; checks the bundled sample lobby (made-up names) with the real recognition on the real
 worker thread, the way the hotkey does; sees the result in 安全模式, in 完整模式 and in 直播模式;
 gets their 组合's scene and music when the lobby has two 嘉宾 players and no 黑名单; reads 记录;
-uses the 检查 panel, 选择场景, 设置 › 静音, 设置 › 检查 and 导出日志; and ends with 清空数据.
+uses the 检查 panel, 编辑嘉宾's 场景, 设置 › 静音, 设置 › 检查 and 导出日志; and ends with 清空数据.
 
 Each step's own details are tested elsewhere. This one shows they work together. It needs the
 local PaddleOCR model, like test_reference_screenshot.py; CI skips it.
@@ -58,7 +58,6 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     from blacklist_detect.model import Combo, Scenes
     from blacklist_detect.ui import MainWindow
     from blacklist_detect.ui_dialogs import BatchAddDialog, DisclaimerDialog, GuideDialog
-    from blacklist_detect.ui_guest_scenes import GuestScenesDialog
     from blacklist_detect.ui_likes import LikeDialog
     from blacklist_detect.ui_music import TUNES, ThemeMusic
 
@@ -185,20 +184,22 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     window.love.stop()
     window._hide_panel_after_title()
 
-    # --- 10. 嘉宾场景: every scene previews, silent; 设置 › 声音 › 静音 is kept. ---------------------
-    picker = GuestScenesDialog(window.store, ("like", window.store.like_index("心动小鹿")), parent=window)
-    heard = len(played)
-    # On 随机 the boxes are greyed, the names still play: 随机 off, the boxes take ticks.
-    assert not picker.buttons["ice"].box_enabled and picker.buttons["ice"].isEnabled()
-    picker.random_box.click()
+    # --- 10. 编辑嘉宾's 场景: every scene previews, silent; 设置 › 声音 › 静音 is kept. ---------------
+    like = window.store.likes[window.store.like_index("心动小鹿")]
+    picker = LikeDialog(like.name, like.nickname, like.reason, allow_delete=True, parent=window, scenes=like.scenes)
+    pane, heard = picker.pane, len(played)
+    # On 随机 the boxes take ticks; 放场景 off greys them, and the names still play.
+    assert pane.play_box.isChecked() and pane.buttons["ice"].box_enabled
+    pane.play_box.click()
+    assert not pane.buttons["ice"].box_enabled and pane.buttons["ice"].isEnabled()
     for key in love_scenes.KEYS:
-        picker.buttons[key].click()
-        assert picker.preview.scene == key
-        picker.preview.grab()
-    picker.buttons["stars"].click()
-    picker.play_button.click()
+        pane.buttons[key].click()
+        assert pane.preview.scene == key
+        pane.preview.grab()
+    pane.buttons["stars"].click()
+    pane.play_button.click()
     picker._accept()
-    assert picker.key == "stars" and len(played) == heard
+    assert pane.key == "stars" and picker.scenes == Scenes() and len(played) == heard
     window.mute_box.click()
     assert Store(window.store.root).sound_muted is True
     # Every scene plays through over a real-size screen, the button left bare.

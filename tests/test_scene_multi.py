@@ -346,28 +346,30 @@ def test_the_guest_list_shows_each_one_s_scenes(window):
 
 
 def test_a_new_guest_starts_on_random_and_saves_the_scenes_ticked(window, monkeypatch):
-    from blacklist_detect.ui_guest_scenes import GuestScenesDialog
     from blacklist_detect.ui_likes import LikeDialog
 
-    def edit(dialog) -> int:  # noqa: ANN001
-        dialog.name_edit.setText("小明")
-        dialog._accept()
-        return dialog.result()
+    opened = []
 
-    def tick(dialog) -> int:  # noqa: ANN001
-        dialog.scenes.set_chosen(("ice", "fluffy"))
-        dialog._edited()
-        dialog._accept()
-        return dialog.result()
+    def add(name: str, *keys: str):  # noqa: ANN202
+        def answer(dialog) -> int:  # noqa: ANN001
+            opened.append((dialog.pane.play_box.isChecked(), dialog.pane.scenes.chosen()))
+            dialog.name_edit.setText(name)
+            dialog.pane.scenes.set_chosen(keys)
+            dialog.pane._edited()
+            dialog._accept()
+            return dialog.result()
 
-    monkeypatch.setattr(LikeDialog, "exec", edit)
+        return answer
+
+    monkeypatch.setattr(LikeDialog, "exec", add("小明"))
     window.likes_page.add_one()
-    assert window.store.likes[0].scenes == ANY_SCENE
-    monkeypatch.setattr(GuestScenesDialog, "exec", tick)
-    # 随机 kept, its ticks saved alongside.
-    window.likes_page.edit_scenes(("like", 0))
-    assert window.store.likes[0].scenes == Scenes(("ice", "fluffy"), random=True)
-    assert Store(window.store.root).likes[0].scenes == Scenes(("ice", "fluffy"), random=True)
+    # 放场景 on, nothing ticked: 随机.
+    assert opened == [(True, ())] and window.store.likes[0].scenes == ANY_SCENE
+    # Ticked as it is added: those, and saved.
+    monkeypatch.setattr(LikeDialog, "exec", add("小红", "ice", "fluffy"))
+    window.likes_page.add_one()
+    assert window.store.likes[1].scenes == Scenes(("ice", "fluffy"))
+    assert Store(window.store.root).likes[1].scenes == Scenes(("ice", "fluffy"))
 
 
 # 场景, not 特效 ------------------------------------------------------------------------------------
@@ -389,14 +391,13 @@ def _words(root) -> list[str]:  # noqa: ANN001
 
 def test_the_player_reads_scene_never_effect(window):
     from blacklist_detect import livehime
-    from blacklist_detect.ui_guest_scenes import GuestScenesDialog
     from blacklist_detect.ui_guests import ComboDialog
-    from blacklist_detect.ui_likes import LikeDialog
+    from blacklist_detect.ui_likes import LikeDialog, MeDialog
 
     window.store.add_like("小明")
     window.store.add_like("小红")
     assert window.scenes_dialog.windowTitle() == window.likes_page.scenes_button.text() == "场景管理"
-    for root in (window, LikeDialog(parent=window), ComboDialog(window.store.likes, parent=window), GuestScenesDialog(window.store, parent=window)):
+    for root in (window, LikeDialog(parent=window), ComboDialog(window.store.likes, parent=window), MeDialog(window.store.me, parent=window)):
         assert not [words for words in _words(root) if "特效" in words], root
     # 直播姬's own scenes are said to be 直播姬's.
     assert all("直播姬场景" in words for words in livehime.WORDS.values() if "场景" in words)

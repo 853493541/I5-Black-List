@@ -11,8 +11,9 @@ The page is laid out like 黑名单 with a 场景 column for 标签: search, 场
 ui_effects; beside 添加 on the empty list), 添加 (添加嘉宾 or 添加组合), and under 更多, 复制名单 and
 清空嘉宾列表. On top is the 我 row, green: the player's own name and the 场景
 they asked for themselves. The 组合 come next, each a row tagged 组合 with its 嘉宾 and its 场景; under
-them the 嘉宾, whose rows drag into another order. Who gets which 场景 is ticked in 嘉宾场景
-(ui_guest_scenes), opened on the one clicked: from a 场景 cell, the 我 row, or the row menu's 选择场景.
+them the 嘉宾, whose rows drag into another order. A click on a row, its 场景 cell too, opens 编辑嘉宾 or
+编辑组合, each with that one's 场景 beside its fields (ui_guest_scenes.ScenePane); one on the 我 row opens
+我的场景 (MeDialog).
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QHeaderView,
+    QLabel,
     QLineEdit,
     QMenu,
     QPlainTextEdit,
@@ -40,7 +42,7 @@ from PySide6.QtWidgets import (
 from blacklist_detect import love_scenes
 from blacklist_detect.guests import members
 from blacklist_detect.match import clean_stored_name, fold, last_seen
-from blacklist_detect.model import Combo, Entry
+from blacklist_detect.model import ANY_SCENE, Combo, Entry, Scenes
 from blacklist_detect.ui_dialogs import (
     _danger,
     _field,
@@ -48,6 +50,7 @@ from blacklist_detect.ui_dialogs import (
     _primary,
     _say_error,
 )
+from blacklist_detect.ui_guest_scenes import ScenePane, two_columns
 from blacklist_detect.ui_guests import ComboDialog, scenes_said
 from blacklist_detect.ui_icons import icon as line_icon
 from blacklist_detect.ui_kit import ConfirmDialog, EmptyState, IconButton, Modal
@@ -217,8 +220,11 @@ class _GuestTable(QTableWidget):
 
 
 class LikeDialog(Modal):
-    """One 嘉宾 player: 名字, a 昵称 to show for them, and why. Their 场景 are ticked in 嘉宾场景; a new one
-    is on 随机."""
+    """One 嘉宾 player: 名字, a 昵称 to show for them, and why on the left with their 场景 playing under them;
+    on the right the 场景 that greet them (ScenePane). A new one is on 随机. scenes is theirs as saved."""
+
+    # The preview under the fields, smaller than the pane's own so the dialog fits a short screen.
+    PREVIEW_W = 400
 
     def __init__(
         self,
@@ -229,6 +235,7 @@ class LikeDialog(Modal):
         taken: frozenset[str] | set[str] = frozenset(),
         blacklisted: frozenset[str] | set[str] = frozenset(),
         parent=None,  # noqa: ANN001
+        scenes: Scenes = ANY_SCENE,
     ) -> None:
         super().__init__(parent)
         # Folded names already on 嘉宾. Saving one of them again would make a second row.
@@ -238,20 +245,25 @@ class LikeDialog(Modal):
         self.name = name
         self.nickname = nickname
         self.detail = reason
+        self.scenes = scenes
         self.deleted = False
         layout = _frame(self, "编辑嘉宾" if allow_delete else "添加嘉宾")
-        self.card.setFixedWidth(520)
+        left, right = two_columns(layout)
         self.name_edit = QLineEdit(name)
-        self.name_error = _field(layout, "名字", self.name_edit)
+        self.name_error = _field(left, "名字", self.name_edit)
         self.name_edit.textChanged.connect(self._clear_name_error)
         self.nickname_edit = QLineEdit(nickname)
         self.nickname_edit.setPlaceholderText("遇到时显示的名字")
-        _field(layout, "昵称", self.nickname_edit)
+        _field(left, "昵称", self.nickname_edit)
         self.detail_edit = QPlainTextEdit()
         self.detail_edit.setPlainText(reason)
         self.detail_edit.setTabChangesFocus(True)
         self.detail_edit.setFixedHeight(self.fontMetrics().lineSpacing() * 2 + 18)
-        _field(layout, "原因", self.detail_edit)
+        _field(left, "原因", self.detail_edit)
+        self.pane = ScenePane(scenes, self.PREVIEW_W)
+        left.addWidget(self.pane.preview)
+        left.addStretch(1)
+        right.addWidget(self.pane)
         remove = _danger("删除", self._delete) if allow_delete else None
         self.footer(_primary("保存" if allow_delete else "添加", self._accept), left=remove)
         self.name_edit.returnPressed.connect(self._accept)
@@ -264,7 +276,11 @@ class LikeDialog(Modal):
 
     def has_changes(self) -> bool:
         now = (self.name_edit.text(), self.nickname_edit.text(), self.detail_edit.toPlainText())
-        return now != self._before
+        return now != self._before or self.pane.has_changes()
+
+    def done(self, result: int) -> None:  # noqa: A003
+        self.pane.stop()
+        super().done(result)
 
     def _accept(self) -> None:
         key = fold(clean_stored_name(self.name_edit.text()))
@@ -284,12 +300,44 @@ class LikeDialog(Modal):
         self.name = self.name_edit.text()
         self.nickname = self.nickname_edit.text()
         self.detail = self.detail_edit.toPlainText()
+        self.scenes = self.pane.value()
         self.deleted = False
         self.accept()
 
     def _delete(self) -> None:
         self.deleted = True
         self.accept()
+
+
+class MeDialog(Modal):
+    """我的场景: the 场景 the player asks for themselves, on the right (ScenePane); on the left their name
+    and the scene playing. scenes is theirs as saved."""
+
+    def __init__(self, scenes: Scenes, player_name: str = "", parent=None) -> None:  # noqa: ANN001
+        super().__init__(parent)
+        self.scenes = scenes
+        layout = _frame(self, "我的场景")
+        left, right = two_columns(layout)
+        self.name_label = QLabel(player_name or NO_NAME)
+        self.name_label.setObjectName("field" if player_name else "sub")
+        left.addWidget(self.name_label)
+        self.pane = ScenePane(scenes)
+        left.addWidget(self.pane.preview)
+        left.addStretch(1)
+        right.addWidget(self.pane)
+        self.footer(_primary("保存", self._accept))
+        _pointing(self)
+
+    def has_changes(self) -> bool:
+        return self.pane.has_changes()
+
+    def _accept(self) -> None:
+        self.scenes = self.pane.value()
+        self.accept()
+
+    def done(self, result: int) -> None:  # noqa: A003
+        self.pane.stop()
+        super().done(result)
 
 
 def share_likes(likes: list[Entry]) -> str:
@@ -572,7 +620,7 @@ class LikesPage(QWidget):
         if dialog.exec() != QDialog.Accepted or dialog.deleted:
             return
         before = (self.store.snapshot_likes(), self.store.snapshot_entries())
-        like = self.store.add_like(dialog.name, dialog.nickname, dialog.detail)
+        like = self.store.add_like(dialog.name, dialog.nickname, dialog.detail, dialog.scenes)
         if like is None:
             return
         self._done(f"「{like.shown()}」加进嘉宾了", before)
@@ -584,38 +632,32 @@ class LikesPage(QWidget):
         dialog = LikeDialog(
             like.name, like.nickname, like.reason, allow_delete=True,
             taken=self._taken(skip=index),
-            blacklisted=self._blacklisted(), parent=self.window(),
+            blacklisted=self._blacklisted(), parent=self.window(), scenes=like.scenes,
         )
         if dialog.exec() != QDialog.Accepted:
             return
         if dialog.deleted:
             self.delete(index)
             return
-        self.store.update_like(index, dialog.name, dialog.nickname, dialog.detail, like.scenes)
+        self.store.update_like(index, dialog.name, dialog.nickname, dialog.detail, dialog.scenes)
         self._met_cache = None
         self.refresh()
         self.changed.emit()
 
-    def edit_scenes(self, who: tuple[str, int]) -> None:
-        """嘉宾场景, opened on this one: ("me", 0), ("combo", its place) or ("like", its place)."""
-        from blacklist_detect.ui_guest_scenes import GuestScenesDialog
-
-        if GuestScenesDialog(self.store, who, parent=self.window()).exec() != QDialog.Accepted:
+    def edit_me(self) -> None:
+        """The 我 row clicked: it has no 编辑嘉宾, only 我的场景, the 场景 the player asks for themselves."""
+        dialog = MeDialog(self.store.me, self.store.player_name, parent=self.window())
+        if dialog.exec() != QDialog.Accepted or dialog.scenes == self.store.me:
             return
+        self.store.set_me(dialog.scenes)
         self.refresh()
         self.changed.emit()
 
-    def edit_me(self) -> None:
-        """The 我 row clicked: it has no 编辑嘉宾, only the 场景 the player asks for themselves."""
-        self.edit_scenes(("me", 0))
-
-    def _edit_row(self, row: int, column: int = 0) -> None:
-        """A click: the 我 row and any 场景 cell open 嘉宾场景, the other cells 编辑嘉宾 or 编辑组合."""
+    def _edit_row(self, row: int, _column: int = 0) -> None:
+        """A click on any cell, 场景 too: the 我 row opens 我的场景, the others 编辑嘉宾 or 编辑组合."""
         index, number = self._index_at(row), self._combo_at(row)
         if self._is_me(row):
             self.edit_me()
-        elif column == THEME_COLUMN and max(index, number) >= 0:
-            self.edit_scenes(("combo", number) if number >= 0 else ("like", index))
         elif number >= 0:
             self.edit_combo(number)
         else:
@@ -739,14 +781,13 @@ class LikesPage(QWidget):
         row = self.table.rowAt(pos.y())
         index, number = self._index_at(row), self._combo_at(row)
         if self._is_me(row):
-            items = (("选择场景", "me_scenes", 0),)
+            items = (("编辑", "me_edit", 0),)
         elif number >= 0:
-            items = (("编辑", "combo_edit", number), ("选择场景", "combo_scenes", number), (None, None, -1), ("删除", "combo_delete", number))
+            items = (("编辑", "combo_edit", number), (None, None, -1), ("删除", "combo_delete", number))
         elif index >= 0:
             top = index == len(self.store.likes) - 1
             items = (
                 ("编辑", "edit", index),
-                ("选择场景", "scenes", index),
                 ("复制名字", "copy", index),
                 *(() if top else (("置顶", "top", index),)),
                 (None, None, -1),
@@ -775,9 +816,7 @@ class LikesPage(QWidget):
             "delete": self.delete,
             "combo_edit": self.edit_combo,
             "combo_delete": self.delete_combo,
-            "scenes": lambda index: self.edit_scenes(("like", index)),
-            "combo_scenes": lambda number: self.edit_scenes(("combo", number)),
-            "me_scenes": lambda _place: self.edit_me(),
+            "me_edit": lambda _place: self.edit_me(),
         }[kind](index)
 
     def _copy(self, index: int) -> None:
@@ -795,4 +834,4 @@ class LikesPage(QWidget):
         self.refresh()
 
 
-__all__ = ["LikeDialog", "LikesPage", "share_likes"]
+__all__ = ["LikeDialog", "LikesPage", "MeDialog", "share_likes"]

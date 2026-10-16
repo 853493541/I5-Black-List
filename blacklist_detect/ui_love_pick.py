@@ -1,7 +1,7 @@
 """The scenes listed to pick from, and one playing over the sample lobby.
 
-Every scene in love_scenes.SCENES by name, each with a dot in its colour (SceneList); in 嘉宾场景
-(ui_guest_scenes) in three columns, each with a box to tick. A click on a name highlights it, and it plays
+Every scene in love_scenes.SCENES by name, each with a dot in its colour (SceneList); beside a 嘉宾's,
+a 组合's or 我's fields (ui_guest_scenes.ScenePane) one per row, each with a box to tick. A click on a name highlights it, and it plays
 over the fake-name sample lobby, with the app's own marks on it (ScenePreview).
 The 场景管理 page (ui_effects) is made of the same list, with no boxes, and preview, its list marking the
 场景 the hotkey plays with ✓ apart from the one shown, and with ♪ each 场景 that plays one of the player's songs;
@@ -244,7 +244,7 @@ def _draw_note(p: QPainter, centre: QPointF, color: str) -> None:
 
 
 def paint_box(p: QPainter, box: QRectF, on: bool) -> None:
-    """嘉宾场景's box: filled, with a ✓, when ticked; an empty square when not."""
+    """A 场景 box: filled, with a ✓, when ticked; an empty square when not."""
     p.save()
     if on:
         p.setPen(Qt.NoPen)
@@ -261,8 +261,8 @@ def paint_box(p: QPainter, box: QRectF, on: bool) -> None:
 
 class SceneChoice(_KeyboardRing, QAbstractButton):
     """One scene in a list: a dot in its colour and its name. Highlighted, it sits in a ringed band; under
-    the mouse, the band shows faintly. In 嘉宾场景 (chosen not None) a box at its end is ticked or not, by a
-    click on it or Space, apart from the band, and chose says so; on 随机 (set_box_enabled(False)) the box
+    the mouse, the band shows faintly. In ScenePane (chosen not None) a box at its end is ticked or not, by a
+    click on it or Space, apart from the band, and chose says so; 放场景 off (set_box_enabled(False)) the box
     is greyed and does not tick, and the name still highlights. On the 场景管理 page a ✓ there is apart
     from the band too (tick: the hotkey plays it), and own puts a ♪ before it (it plays one of the player's songs).
     With neither, the ✓ goes with the band."""
@@ -275,7 +275,7 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
     BOX = 16
     # Where the name starts, after the dot.
     TEXT_X = 16 + 2 * DOT + 12
-    # Kept clear at the row's end: for the ✓, and for 嘉宾场景's box with a gap before it.
+    # Kept clear at the row's end: for the ✓, and for ScenePane's box with a gap before it.
     END = 36
     BOX_END = 32 + 12
 
@@ -295,7 +295,7 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         # None: the ✓ goes with the band.
         self.tick: bool | None = None
         self.own = False
-        # 嘉宾场景's box: None for none, else whether it is ticked.
+        # ScenePane's box: None for none, else whether it is ticked.
         self.chosen: bool | None = None
         self.box_enabled = True
         self._box_press = False
@@ -307,13 +307,13 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         self.update()
 
     def set_chosen(self, on: bool) -> None:
-        """Give this scene 嘉宾场景's box, ticked or not."""
+        """Give this scene ScenePane's box, ticked or not."""
         self.chosen = on
         self.setAccessibleDescription("已勾选" if on else "未勾选")
         self.update()
 
     def set_box_enabled(self, on: bool) -> None:
-        """Whether the box can be ticked: not on 随机, where it is greyed, its tick kept."""
+        """Whether the box can be ticked: not with 放场景 off, where it is greyed, its tick kept."""
         self.box_enabled = on
         self.update()
 
@@ -421,17 +421,17 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         p.end()
 
     def _paint_box(self, p: QPainter) -> None:
-        """嘉宾场景's box at the row's end; on 随机 greyed, its tick kept."""
+        """ScenePane's box at the row's end; with 放场景 off greyed, its tick kept."""
         if not self.box_enabled:
-            # 嘉宾场景 on 随机: the boxes greyed, the names as ever.
+            # 放场景 off: the boxes greyed, the names as ever.
             p.setOpacity(p.opacity() * 0.4)
         paint_box(p, QRectF(self.width() - 32, (self.height() - self.BOX) / 2, self.BOX, self.BOX), bool(self.chosen))
 
 
 class SceneList(QWidget):
-    """Every scene in love_scenes.SCENES by name, one highlighted: 嘉宾场景's grid, and the 场景管理 page's
+    """Every scene in love_scenes.SCENES by name, one highlighted: ScenePane's list, and the 场景管理 page's
     list. key is the one highlighted, 经典 for one this version does not have; picked(key) says a click
-    highlighted one. In 嘉宾场景 (chosen: the keys ticked) each has a box to tick, and chose says one was
+    highlighted one. In ScenePane (chosen: the keys ticked) each has a box to tick, and chose says one was
     ticked or unticked. On the page (marks), set_marks puts the ✓ on the hotkey's and a ♪ on each that
     plays one of the player's songs. In columns, row by row, the whole width shared alike among them."""
 
@@ -491,7 +491,7 @@ class SceneList(QWidget):
             button.set_chosen(key in keys)
 
     def set_boxes_enabled(self, on: bool) -> None:
-        """Whether the boxes can be ticked (not on 随机); the names highlight either way."""
+        """Whether the boxes can be ticked (not with 放场景 off); the names highlight either way."""
         for button in self.buttons.values():
             button.set_box_enabled(on)
 

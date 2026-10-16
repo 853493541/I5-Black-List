@@ -426,8 +426,8 @@ def test_ticking_mute_stops_the_sound_playing(window):
 
 def test_every_sound_goes_through_the_sound_control(window):
     """A lobby's, ▶ on 场景管理, the 场景 hotkey and 播放: each at the 场景's own 音量, the player's own sound
-    for it if any, none with 静音. 嘉宾场景's preview is silent."""
-    from blacklist_detect.ui_guest_scenes import GuestScenesDialog
+    for it if any, none with 静音. 编辑嘉宾's preview is silent."""
+    from blacklist_detect.ui_guest_scenes import ScenePane
     from blacklist_detect.ui_music import sound_dir
 
     window.effects_page.music = window.likes_page.music = window.music
@@ -436,7 +436,7 @@ def test_every_sound_goes_through_the_sound_control(window):
     window.store.update_like(1, "小明", "", "", Scenes(("angel",)))
     window.store.quick_scene = "stars"
     window.effects_page.select("stars")
-    picker = GuestScenesDialog(window.store, ("like", 1), parent=window)
+    picker = ScenePane(window.store.likes[1].scenes)
 
     def every_path() -> list:
         window.tunes.clear()
@@ -467,7 +467,7 @@ def test_every_sound_goes_through_the_sound_control(window):
     assert np.abs(_samples(heard[0])[1] - np.rint(ice * 0.6)).max() <= 1
     window.mute_box.click()
     assert every_path() == []
-    picker.close()
+    picker.stop()
 
 
 def _managed(tmp_path, sounds: dict):  # noqa: ANN001, ANN202

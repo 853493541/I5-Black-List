@@ -4,8 +4,6 @@ A screen is measured by the room Windows leaves for windows: 1366×768 with its 
 1080p at 150% (1280×720) leaves 672. Every dialog fits the second, with its buttons in view.
 """
 
-from math import ceil
-
 import numpy as np
 import pytest
 from PySide6.QtCore import QPoint, QRect
@@ -15,7 +13,6 @@ from blacklist_detect.model import Combo, Entry, Scenes
 from blacklist_detect.ui import MainWindow
 from blacklist_detect.ui_dialogs import StreamGuideDialog
 from blacklist_detect.ui_kit import ConfirmDialog, Modal, _height_for
-from blacklist_detect.ui_theme import DIALOG_PAD
 from blacklist_detect.ui_widgets import TagPill
 
 LAPTOP = 728
@@ -76,7 +73,7 @@ def _dialogs(window, monkeypatch) -> dict[str, Modal]:
         "编辑嘉宾": lambda: window.likes_page.edit(0),
         "添加组合": window.likes_page.add_combo,
         "编辑组合": lambda: window.likes_page.edit_combo(0),
-        "嘉宾场景": lambda: window.likes_page.edit_scenes(("like", 1)),
+        "我的场景": window.likes_page.edit_me,
         "场景管理": window.likes_page.scenes_button.click,
         "选择片段": lambda: SoundTrimDialog(song, 44100, "心动音乐.mp3", lambda _start, _length: None, lambda: None, window).exec(),
         "显示说明": window._show_display_guide,
@@ -98,16 +95,22 @@ def test_every_dialog_fits_a_short_screen_with_its_buttons(window, monkeypatch):
         assert _card_height(dialog) <= SHORT - 8, title
 
 
-def test_the_scene_editor_and_the_guest_dialogs_fit_a_short_screen_without_scrolling(window, monkeypatch):
-    """嘉宾场景, the tallest of them, shows 随机, every scene, the preview and 确定 at once on 1080p at 150%."""
+SCENE_DIALOGS = ("添加嘉宾", "编辑嘉宾", "添加组合", "编辑组合", "我的场景")
+
+
+def test_the_guest_dialogs_fit_a_short_screen_without_scrolling(window, monkeypatch):
+    """Each with its 场景 beside it shows 放场景, every scene, the preview and its button at once on 1080p at 150%."""
     dialogs = _dialogs(window, monkeypatch)
-    for title in ("嘉宾场景", "添加嘉宾", "编辑嘉宾", "添加组合", "编辑组合"):
-        dialogs[title].fit_height(SHORT)
-        assert dialogs[title].scroll is None and _card_height(dialogs[title]) <= SHORT - 8, title
-    editor = dialogs["嘉宾场景"]
-    used = next(button for button in editor.findChildren(QPushButton) if button.text() == "确定")
-    assert used.isVisibleTo(editor) and editor.random_box.isVisibleTo(editor) and editor.preview.isVisibleTo(editor)
-    assert editor.who == ("like", 1)
+    for title in SCENE_DIALOGS:
+        dialog = dialogs[title]
+        dialog.fit_height(SHORT)
+        assert dialog.scroll is None and _card_height(dialog) <= SHORT - 8, title
+        used = next(button for button in dialog.findChildren(QPushButton) if button.text() in ("添加", "保存"))
+        pane = dialog.pane
+        assert used.isVisibleTo(dialog) and pane.play_box.isVisibleTo(dialog) and pane.preview.isVisibleTo(dialog), title
+        # Every scene in view, none scrolled away.
+        assert pane.scroll.height() >= pane.scenes.minimumSizeHint().height(), title
+        dialog.done(QDialog.Rejected)
 
 
 def test_scene_manager_with_three_songs_fits_a_short_screen_without_scrolling(window, monkeypatch):
@@ -133,22 +136,20 @@ def test_scene_manager_with_three_songs_fits_a_short_screen_without_scrolling(wi
     window.mute_box.click()
 
 
-def test_more_scenes_make_the_preview_smaller_not_the_scene_editor_taller(window, monkeypatch):
-    """With 16 scenes, six rows of three, the preview gives up the room the sixth row takes."""
+def test_more_scenes_scroll_in_their_column_and_no_dialog_grows(window, monkeypatch):
+    """With 16 scenes the list scrolls inside its column: each dialog keeps today's height."""
     from blacklist_detect import love_scenes
-    from blacklist_detect.ui_guest_scenes import GuestScenesDialog
 
-    today = GuestScenesDialog(window.store, parent=window)
+    today = {title: _card_height(dialog) for title, dialog in _dialogs(window, monkeypatch).items() if title in SCENE_DIALOGS}
     fake = [(f"fake{number}", f"示例场景{number}") for number in range(16 - len(love_scenes.SCENES))]
     monkeypatch.setattr(love_scenes, "SCENES", [*love_scenes.SCENES, *fake])
-    more = GuestScenesDialog(window.store, parent=window)
-    assert len(more.buttons) == 16 and len(today.buttons) <= 15
-    assert more.preview.width() < GuestScenesDialog.PREVIEW_W == today.preview.width()
-    for dialog in (today, more):
+    for title, dialog in _dialogs(window, monkeypatch).items():
+        if title not in SCENE_DIALOGS:
+            continue
+        pane = dialog.pane
+        assert len(pane.buttons) == 16 and pane.scroll.height() < pane.scenes.minimumSizeHint().height(), title
         dialog.fit_height(SHORT)
-        assert dialog.scroll is None and _card_height(dialog) <= SHORT - 8
-    assert _card_height(more) <= _card_height(today) + (5 - ceil(len(today.buttons) / 3)) * 36
-    for dialog in (today, more):
+        assert dialog.scroll is None and _card_height(dialog) == today[title], title
         dialog.done(QDialog.Rejected)
 
 
@@ -159,8 +160,9 @@ def _guests(count: int) -> list[Entry]:
 
 @pytest.mark.parametrize("count", [0, 2, 20, 60])
 def test_the_combo_dialogs_fit_a_short_screen_however_many_guests(window, count):
-    """添加组合 and 编辑组合 list every 嘉宾 to pick: past a few rows the list scrolls inside them, so
-    neither grows, and 保存 stays in view even with 至少选两位嘉宾 under the list."""
+    """添加组合 and 编辑组合 list every 嘉宾 to pick, one per row: past ROWS and a half the list scrolls inside
+    them, so neither grows, and 保存 stays in view even with 至少选两位嘉宾 under the list."""
+    from blacklist_detect.ui_guest_scenes import TickBox
     from blacklist_detect.ui_guests import ComboDialog
 
     likes = _guests(count)
@@ -172,14 +174,14 @@ def test_the_combo_dialogs_fit_a_short_screen_however_many_guests(window, count)
         assert dialog.result() != QDialog.Accepted and dialog.people_error.isVisibleTo(dialog)
         dialog.fit_height(SHORT)
         assert dialog.scroll is None and _card_height(dialog) <= SHORT - 8, count
-        # The list's own width in the card: past 4½ rows of these names it stops growing and scrolls.
-        people, width = dialog.people_scroll, dialog.card.minimumWidth() - 2 * DIALOG_PAD
-        assert (_height_for(dialog.people, width) > people.maximumHeight()) == (count >= 20), count
-        assert people.heightForWidth(width) == min(_height_for(dialog.people, width), people.maximumHeight())
+        rows, people = len(dialog.people_buttons) * TickBox.H, dialog.people_scroll
+        assert (rows > people.height()) == (count >= 20) and people.height() <= (ComboDialog.ROWS + 1) * TickBox.H, count
+        dialog.done(QDialog.Rejected)
 
 
 def test_the_combo_dialog_opens_on_its_own_guests_however_far_down_the_list_they_are(window):
     """The 组合's 嘉宾 come first, the oldest and one taken off the list too, so none is scrolled out of sight."""
+    from blacklist_detect.ui_guest_scenes import TickBox
     from blacklist_detect.ui_guests import ComboDialog
 
     likes = _guests(60)
@@ -187,12 +189,8 @@ def test_the_combo_dialog_opens_on_its_own_guests_however_far_down_the_list_they
     dialog = ComboDialog(likes, combo, parent=window)
     ticked = [button.isChecked() for button in dialog.people_buttons.values()]
     assert ticked == [True] * 3 + [False] * 58
-    # Placed as in the dialog, beside its scroll bar, they sit within the rows it shows.
-    people = dialog.people_scroll
-    width = dialog.card.minimumWidth() - 2 * DIALOG_PAD - people.verticalScrollBar().sizeHint().width()
-    dialog.people._arrange(width, place=True)
-    for name in combo.names:
-        assert dialog.people_buttons[name].geometry().bottom() < people.maximumHeight(), name
+    # One per row, they are the first rows it shows.
+    assert set(list(dialog.people_buttons)[:3]) == set(combo.names) and 3 * TickBox.H <= dialog.people_scroll.height()
     dialog._accept()
     assert dialog.result() == QDialog.Accepted and set(dialog.combo.names) == set(combo.names)
 

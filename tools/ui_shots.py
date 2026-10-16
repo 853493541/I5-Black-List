@@ -187,11 +187,13 @@ def shoot(args) -> None:  # noqa: ANN001
     likes = window.likes_page
     step("dlg_添加嘉宾", likes.add_one)
     if window.store.likes:
-        step("dlg_编辑嘉宾", lambda: likes.edit(0))
+        # 心动小鹿 where the sample list has her, with her two scenes ticked.
+        step("dlg_编辑嘉宾", lambda: likes.edit(max(0, window.store.like_index("心动小鹿"))))
     if len(window.store.likes) >= 2:
         step("dlg_添加组合", likes.add_combo)
     if window.store.combos:
         step("dlg_编辑组合", lambda: likes.edit_combo(0))
+    step("dlg_我的场景", likes.edit_me)
 
     def add_menu() -> None:
         from PySide6.QtGui import QPainter
@@ -209,8 +211,6 @@ def shoot(args) -> None:  # noqa: ANN001
         likes.add_menu.hide()
 
     step("menu_添加嘉宾", add_menu)
-    if window.store.likes:
-        step("dlg_嘉宾场景", lambda: likes.edit_scenes(("like", window.store.like_index("心动小鹿"))))
 
     def trim() -> None:
         from blacklist_detect.ui_sound_trim import SoundTrimDialog
@@ -409,7 +409,7 @@ def _seed(root: Path, args, version: str) -> None:  # noqa: ANN001
         ):
             store.add(name, tags=tags, reason=reason)
         # Several 场景, 随机 and one; a 组合 on 不放; 我 on a 场景 of its own.
-        store.add_like("心动小鹿", nickname="小鹿", reason="声音好听", scenes=Scenes(("fluffy", "stars", "lace")))
+        store.add_like("心动小鹿", nickname="小鹿", reason="声音好听", scenes=Scenes(("fluffy", "stars")))
         store.add_like("心动星星")
         store.add_like("一起开黑的朋友", reason="每次都带我赢", scenes=Scenes(("cyber",)))
         store.set_combos([Combo(("心动小鹿", "心动星星"), Scenes(("angel",))), Combo(("心动星星", "一起开黑的朋友"), Scenes())])
