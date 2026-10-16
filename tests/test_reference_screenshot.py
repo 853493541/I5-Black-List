@@ -148,3 +148,45 @@ def test_the_same_lobby_again_is_read_where_it_was_and_a_moved_one_is_searched_f
     assert moved.header_found and "spot" not in moved.timings
     assert moved.button_box != first.button_box
     engine.lobby_spot = None
+
+
+@pytest.fixture(scope="module")
+def whole_sample_game():
+    """The whole 16:9 game screen round the sample crop, its edges continued."""
+    import numpy as np
+    from PIL import Image
+
+    from blacklist_detect.pipeline import check_rgb
+    from blacklist_detect.ui import SAMPLE_LOBBY
+
+    crop = np.asarray(Image.open(SAMPLE_LOBBY).convert("RGB"))
+    left, top, right, bottom = (round(v) for v in check_rgb(crop, []).game_box)
+    pad = ((max(0, -top), max(0, bottom - crop.shape[0])), (max(0, -left), max(0, right - crop.shape[1])), (0, 0))
+    whole = np.pad(crop, pad, mode="edge")
+    return Image.fromarray(whole[top + pad[0][0] : bottom + pad[0][0], left + pad[1][0] : right + pad[1][0]])
+
+
+@pytest.mark.parametrize(
+    ("screen", "window", "at"),
+    [
+        ((2560, 1440), (1280, 720), (426, 240)),  # MuMu in a window on a 1440p screen
+        ((1920, 1080), (960, 540), (320, 180)),
+        ((3840, 1080), (1920, 1080), (1920, 0)),  # two 1080p screens side by side, the game full screen on one
+    ],
+)
+def test_a_game_window_on_a_bigger_screen_reads_every_name(whole_sample_game, screen, window, at):
+    """The whole desktop is copied, so a game smaller than it is shrunk with it. The names are still cut
+    where they are, sized from the title down to 准备就绪, and the 黑名单 player is marked."""
+    import numpy as np
+    from PIL import Image
+
+    from blacklist_detect.ocr_engine import get_engine
+    from blacklist_detect.pipeline import check_rgb
+
+    get_engine().lobby_spot = None
+    canvas = Image.new("RGB", screen, (32, 64, 112))
+    canvas.paste(whole_sample_game.resize(window, Image.LANCZOS), at)
+    result = check_rgb(np.asarray(canvas), [Entry(name="示例坏人")])
+    get_engine().lobby_spot = None
+    assert [slot.visible for slot in result.names] == SAMPLE_NAMES
+    assert [hit.entry_name for hit in result.hits] == ["示例坏人"]

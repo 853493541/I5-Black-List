@@ -17,6 +17,9 @@ REF_H = 1695
 TITLE_BOX = (0.435, 0.074, 0.635, 0.187)
 MODE_BOX = (0.401, 0.199, 0.654, 0.247)
 COUNTDOWN_BOX = (0.466, 0.253, 0.604, 0.296)
+# 准备就绪's middle is this many reference px under the title's (1229 and 1246 on the reference and the sample,
+# against 244 to the countdown), so the lobby's size measured to it is five times as fine.
+REF_READY_DY = 1238.0
 # The light 准备案件还原 control at the bottom of the reference shot.
 BUTTON_BOX = (0.458, 0.896, 0.614, 0.980)
 
@@ -224,6 +227,21 @@ def contains_title(lines: list[OcrLine]) -> bool:
     return any("推演成功" in _norm(line.text) for line in lines)
 
 
+def _ready_scale(lines: list[OcrLine], title: tuple[float, float, float, float], scale: float) -> float:
+    """The lobby's size from the title down to 准备就绪, when it was read under the title within 8% of where
+    the countdown puts it; else the countdown's. A game window on a shrunk screen reads the countdown a few
+    pixels off, and sized from it alone the names were cut a quarter-line low."""
+    title_x, title_y = _center(title)
+    for line in lines:
+        if _READY_RE.search(unicodedata.normalize("NFKC", line.text or "")) is None:
+            continue
+        ready_x, ready_y = _center(line.box)
+        sized = (ready_y - title_y) / REF_READY_DY
+        if abs(sized / scale - 1) <= 0.08 and abs(ready_x - title_x) <= title[2] - title[0]:
+            return sized
+    return scale
+
+
 def find_anchor(lines: list[OcrLine], image_width: int, image_height: int) -> Anchor:
     """Require 推演成功, 模仿者狂欢（12人狂欢）, and 倒计时 <seconds> 秒.
 
@@ -298,6 +316,7 @@ def find_anchor(lines: list[OcrLine], image_width: int, image_height: int) -> An
 
     _score, title, mode, countdown, seconds, scale = best
     title_c = _center(title.box)
+    scale = _ready_scale(lines, title.box, scale)
     name_boxes = tuple(
         _map_box(frac, title_c, ref_title_c, scale, image_width, image_height) for frac in NAME_BOXES
     )
