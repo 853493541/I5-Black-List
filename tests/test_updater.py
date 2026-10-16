@@ -183,6 +183,60 @@ def test_unpacking_keeps_to_the_app_files(tmp_path):
     ]
     assert updater.staged_version(root) == "v9.0.0"
     assert not (tmp_path / "evil.txt").exists()
+    assert not (root / updater.PARTIAL).exists()
+
+
+class _Died(BaseException):
+    """The app stopped while unpacking: 退出, or Windows shutting down."""
+
+
+_COPY = updater.shutil.copyfileobj
+
+
+def _copy_dies_after(monkeypatch, files: int, error: BaseException) -> None:  # noqa: ANN001
+    copied = []
+
+    def dying(source, out, *args):  # noqa: ANN001, ANN002, ANN202
+        if len(copied) == files:
+            raise error
+        copied.append(out)
+        return _COPY(source, out, *args)
+
+    monkeypatch.setattr(updater.shutil, "copyfileobj", dying)
+
+
+def test_an_unpacking_that_stops_halfway_leaves_no_update_to_lay_over(tmp_path, monkeypatch):
+    zipped = _update_zip(tmp_path / "u.zip")
+    root = tmp_path / "app"
+    root.mkdir()
+    # A copy that fails is cleaned up and said.
+    _copy_dies_after(monkeypatch, 2, OSError("disk full"))
+    with pytest.raises(UpdateError, match="再试一次"):
+        updater.stage(zipped, root, "v9.0.0")
+    assert not (root / updater.STAGED).exists() and not (root / updater.PARTIAL).exists()
+    # An app that dies halfway cleans up nothing, but leaves no update.new for the launcher either.
+    _copy_dies_after(monkeypatch, 2, _Died())
+    with pytest.raises(_Died):
+        updater.stage(zipped, root, "v9.0.0")
+    assert not (root / updater.STAGED).exists() and updater.staged_version(root) == ""
+    # The next try starts over and ends whole.
+    monkeypatch.setattr(updater.shutil, "copyfileobj", _COPY)
+    updater.stage(zipped, root, "v9.0.0")
+    assert updater.staged_version(root) == "v9.0.0" and not (root / updater.PARTIAL).exists()
+
+
+def test_an_update_that_cannot_be_moved_into_place_is_said_and_cleaned_up(tmp_path, monkeypatch):
+    zipped = _update_zip(tmp_path / "u.zip")
+    root = tmp_path / "app"
+    root.mkdir()
+
+    def held(self, target):  # noqa: ANN001, ANN202
+        raise PermissionError("held by the virus scanner")
+
+    monkeypatch.setattr(Path, "rename", held)
+    with pytest.raises(UpdateError, match="更新包坏了"):
+        updater.stage(zipped, root, "v9.0.0")
+    assert not (root / updater.STAGED).exists() and not (root / updater.PARTIAL).exists()
 
 
 QTMEDIA = ("Qt6Multimedia.dll", "QtMultimedia.pyd", "multimedia/windowsmediaplugin.dll")
@@ -562,7 +616,7 @@ def test_the_app_ends_its_process_when_the_window_is_gone(monkeypatch):
     assert ended == [0]
 
 
-def test_an_update_that_does_not_go_in_is_restarted_twice_then_left(tmp_path):
+def test_an_update_that_does_not_go_in_is_restarted_twice_then_left(tmp_path, monkeypatch):
     assert updater.note_restart(tmp_path, "v9.0.0", now=1000) is True
     assert updater.note_restart(tmp_path, "v9.0.0", now=1010) is True
     # A third restart into the same version would only loop.
@@ -571,6 +625,21 @@ def test_an_update_that_does_not_go_in_is_restarted_twice_then_left(tmp_path):
     assert updater.note_restart(tmp_path, "v9.0.1", now=1030) is True
     assert updater.note_restart(tmp_path, "v9.0.0", now=1030 + updater.TRIES_FORGET_S) is True
     # The new version running clears the count.
+    monkeypatch.setattr(updater, "__version__", "v9.0.0")
+    updater.confirm_started(tmp_path)
+    assert not (tmp_path / updater.TRIES).exists()
+
+
+def test_an_update_the_launcher_never_lays_over_stops_after_three_restarts(tmp_path, monkeypatch):
+    """Each restart starts the old version again: it confirms itself, and the count of the new one stays."""
+    monkeypatch.setattr(updater, "__version__", "v1.0.0")
+    tried = []
+    for at in (1000, 1010, 1020):
+        updater.confirm_started(tmp_path)
+        tried.append(updater.note_restart(tmp_path, "v1.0.1", now=at))
+    assert tried == [True, True, False]
+    # A tries file that cannot be read is no reason to keep it.
+    (tmp_path / updater.TRIES).write_text("{", encoding="utf-8")
     updater.confirm_started(tmp_path)
     assert not (tmp_path / updater.TRIES).exists()
 

@@ -68,6 +68,8 @@ PUBLIC_KEY = "N4neQZQZcRKxH5DP/85SZr1cCq3s2sMaZFzG3lCiO14="
 
 FOLDER = "BlackListDetect"
 STAGED = "update.new"
+# Where stage() unpacks, renamed to update.new once whole: the launcher never sees half an update.
+PARTIAL = "update.part"
 BACKUP = "update.old"
 PENDING = "update.check"
 VERSION_FILE = ".version"
@@ -297,11 +299,14 @@ def _allowed(rel: PurePosixPath) -> bool:
 
 
 def stage(zip_path: Path, root: Path, version: str) -> Path:
-    """Unpack the update zip into root/update.new, for the launcher to lay over the folder."""
+    """Unpack the update zip into root/update.new, for the launcher to lay over the folder. It is unpacked
+    into update.part and renamed at the end, so an app stopped halfway leaves no update.new to lay over."""
     staged = root / STAGED
-    if staged.exists():
-        shutil.rmtree(staged)
-    staged.mkdir()
+    partial = root / PARTIAL
+    for old in (partial, staged):
+        if old.exists():
+            shutil.rmtree(old)
+    partial.mkdir()
     try:
         with zipfile.ZipFile(zip_path) as bundle:
             for item in bundle.infolist():
@@ -314,17 +319,18 @@ def stage(zip_path: Path, root: Path, version: str) -> Path:
                 if not _allowed(rel):
                     log.warning("Update zip entry left out: %s", item.filename)
                     continue
-                target = staged.joinpath(*rel.parts)
+                target = partial.joinpath(*rel.parts)
                 target.parent.mkdir(parents=True, exist_ok=True)
                 with bundle.open(item) as source, open(target, "wb") as out:
                     shutil.copyfileobj(source, out)
+        if not (partial / _ALLOWED_DIR / "__init__.py").is_file():
+            shutil.rmtree(partial, ignore_errors=True)
+            raise UpdateError("更新包不完整，再试一次")
+        (partial / VERSION_FILE).write_text(version, encoding="utf-8")
+        partial.rename(staged)
     except (zipfile.BadZipFile, OSError) as error:
-        shutil.rmtree(staged, ignore_errors=True)
+        shutil.rmtree(partial, ignore_errors=True)
         raise UpdateError("更新包坏了，再试一次") from error
-    if not (staged / _ALLOWED_DIR / "__init__.py").is_file():
-        shutil.rmtree(staged, ignore_errors=True)
-        raise UpdateError("更新包不完整，再试一次")
-    (staged / VERSION_FILE).write_text(version, encoding="utf-8")
     return staged
 
 
@@ -386,9 +392,16 @@ def note_restart(root: Path | None, version: str, now: float | None = None) -> b
 
 
 def confirm_started(root: Path | None) -> bool:
-    """The new version is running: the launcher need not put the old one back. True if it had to be told."""
+    """The new version is running: the launcher need not put the old one back. True if it had to be told.
+    The restart count goes only once the version it counts has gone in: an old version starting again, the
+    update not laid over, keeps counting, so note_restart stops the loop."""
     if root is not None:
-        (root / TRIES).unlink(missing_ok=True)
+        try:
+            saved = str(json.loads((root / TRIES).read_text(encoding="utf-8")).get("version", ""))
+        except (OSError, ValueError, TypeError, AttributeError):
+            saved = ""
+        if parse_version(saved) <= parse_version(__version__):
+            (root / TRIES).unlink(missing_ok=True)
     if root is None or not (root / PENDING).exists():
         return False
     (root / PENDING).unlink(missing_ok=True)
