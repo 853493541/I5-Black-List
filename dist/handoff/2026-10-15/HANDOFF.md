@@ -1,6 +1,50 @@
 Read CLAUDE.md first (team rules, cost rules, release rules). This file is state only. The user's asks, with where
 each stands, are in ASKS.md beside it: that list is what "done" means; report against it.
 
+# Handoff, 2026-10-16 ~00:55 PDT (master "BLA master", started ~23:00 by Commander 2; context ~335k, rotating)
+
+## Code
+
+| What | Where |
+|---|---|
+| Released | **v0.9.16** = `main` = `origin/main` = `a2ab08c` (GitHub + 6 proxies checked). |
+| `improve/quality` | **`6865a5c`** (+ this handoff), local, NOT pushed past `a2ab08c`. 814 passed, 5 skipped, ruff clean. |
+| `__version__` | `v0.9.16` |
+| On the user's PC | `6865a5c` installed with `build/install_local.py --verify` at ~00:52 PDT (12 names, app restarted). |
+| Running | nothing. |
+
+## Done this cycle (in ASKS.md terms)
+
+- F2 leftovers (#40's 场景管理 notes, volume-0 trim, duplicate 组合, theme switch with 场景管理 open): `4210731`.
+- F1 竖琴清风 timing (#35/#38 follow-ups) + review fixes + tests: `7eb7930`..`09eee29`. Released in v0.9.16.
+- v0.9.16 released on the user's word (notes: 新场景「竖琴清风」 / 嘉宾和组合可直接选场景，可传配乐 / 设置改版，记录可一键加入名单).
+- UI batch #48-55 merged (`d3ef49d`..`6865a5c`), reviewed (wf_698bfea2-2e0: 2 confirmed, both fixed in `6865a5c`), installed.
+  Pictures: dist/ui_batch_48/ (G1 list dots, G2 picker, sound_rows).
+
+## Next steps, in order
+
+1. #56, waiting on the user's answer ("Should the 场景 hotkey play on your screen in 基础模式 too?"). If yes: in
+   ui.py play_quick_scene, right after `self._end_quick_play()` (~4214 at 34a1d67), clear `Qt.WA_DontShowOnScreen` on
+   panel, hit_card, like_card, clear_mark, love, alert; after `self._quick_scene = ""` in _end_quick_play (~4328) call
+   `self._sync_overlay_target()`; update the docstring; flip tests/test_effect_hotkey.py:456-458 and add a check that a
+   later 检查 stays stream-only. Maybe also let 基础模式 without 直播模式 play on screen instead of refusing (ui.py
+   ~4269, `_quick_refusal`): ask with the same answer. Then one desktop check: Alt+3 over another app.
+2. The user's look at the installed build (#48-55); their verdict.
+3. One desktop tester pass (ui_shots light 150) on the batch, if the user wants a v0.9.17; release only on their word.
+4. Small, from the v0.9.16 release check (dist/release_check/v0.9.16/REPORT.md): 竖琴清风's first click in a dialog
+   hitches ~0.2 s (ScenePreview bake start on the UI thread); 场景管理's list scrolls with its last row half cut while
+   the hotkey warning shows (designed scroll, but CLAUDE.md says the left keeps room for every scene).
+5. Open from before: green 场景 for the 吴邪 friend (waits on the user's pick of the 7 stills), #28 designer pictures.
+
+## Gotchas (new)
+
+- Offscreen pictures need `QT_QPA_FONTDIR=C:/Windows/Fonts` or Chinese draws as boxes.
+- Worktrees `.claude/worktrees/ui-batch` (permission denied on remove), `agent-ab6e5f0c90018d9d1` (locked) and the
+  merged agents' (`agent-a3c04...`, `agent-a7a51...`, `agent-a8f22...`, `sound-rows`, `ui-batch-base`) can be cleaned
+  (ccd_host clean_up_worktrees); their branches are all merged.
+- Agents hit their turn caps (implementer 60, tester 40) before reporting; a SendMessage "finish in ~15 turns and
+  report" worked each time.
+
 # Handoff, 2026-10-15 22:37 PDT (stopped by the user's #ec "end the cycle", relayed by the commander)
 
 ## Code
