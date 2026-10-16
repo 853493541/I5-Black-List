@@ -85,12 +85,12 @@ class LoveBorder(QWidget):
         self._badge = QPointF(badge) - origin if badge is not None else None
         self._seats = tuple(seat.translated(-origin) for seat in seats)
         # The same scene again (the 场景 hotkey pressed again) keeps the last two made for it, on the
-        # screen and in 直播画面: over the same place it starts at once. 演说家遇袭 takes a second to make.
+        # screen and in 直播画面: over the same place it starts at once. 演说家遇袭's and 竖琴清风's pictures take a while to make.
         paint, _limit = self._made_for(Stage(area.width(), area.height(), self._gap, self._badge, self._seats))
         self._made = dict([(key, made) for key, made in self._made.items() if key[0] == scene][-2:])
         self._clock.invalidate()
         self._tick.start()
-        # A scene whose pictures take a while (竖琴清风) has them made first, several at a time, and starts
+        # A scene whose pictures take a while (演说家遇袭, 竖琴清风) has them made first, several at a time, and starts
         # once they are, so its entrance plays from its first frame; made for this place, the next play
         # starts at once.
         warm = getattr(paint, "warm", None)

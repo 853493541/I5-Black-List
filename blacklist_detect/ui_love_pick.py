@@ -298,7 +298,7 @@ class ScenePreview(QWidget):
         return scene if scene in love_scenes.KEYS else love_scenes.KEYS[0]
 
     def _make(self) -> None:
-        """The scene asked for, made (演说家遇袭 takes nearly a second) and played from its start."""
+        """The scene asked for, made and played from its start (once its pictures are, for 演说家遇袭 and 竖琴清风: _ready)."""
         if not self._waiting:
             return
         self._waiting = False
