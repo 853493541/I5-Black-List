@@ -22,6 +22,10 @@ Merged since v0.9.15 (all tested by a tester agent, read and re-tested by the ma
 
 - **A / P5 `feature/scene-manager-dialog`** (workflow wf_6ca450e8-078, base `d6cdbba`): implementer (one ui_shots pass at the end) → tester (one full pass) → one fix round if it fails. Asks 3 and 4. When it reports: rebase onto `improve/quality`, read the diff, run the full tests and ruff, look at the dialog shot at 150 %, merge. A new session restarts it from `~/.claude/projects/C--Users-Zhibin-Ren-Desktop-Black-List-App/<session>/workflows/scripts/p5-scene-manager-dialog-*.js` or briefs a fresh implementer from that script's SPEC.
 
+## On the user's PC
+
+- 2026-10-16 01:07 UTC: the user asked "don't ship, just build it locally, I'll see". `build/install_local.py --verify` installed `improve/quality` 0798416 (asks 5, 10–14 in, 3–4 not yet) into `%LOCALAPPDATA%\Programs\BlackListDetect` and restarted it; 12 names verified, log clean. Their data folder was backed up first to `dist/backup_appdata_20261016` (git-ignored). Reinstall the same way once A merges. Still nothing published past v0.9.15.
+
 ## Waiting on the user
 
 - **Green 场景** (for the 吴邪 friend): 7 concept stills sent; the user picks one (dist/concepts_green/all_concepts.png). Then one concept frame of the pick, then the build. The user wants pictures, not text, and no name until they choose.
