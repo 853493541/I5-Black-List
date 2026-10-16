@@ -628,15 +628,15 @@ def _kit_rules(family: str) -> str:
                 border: 1px solid {t["border"]};
                 border-radius: {CARD_RADIUS}px;
             }}
-            QLabel#sectionTitle {{
+            QLabel#sectionTitle, QLabel#settingsHeading {{
                 font-family: "{family}";
                 font-size: {SECTION_PT}pt;
                 font-weight: 600;
                 color: {t["text"]};
                 background: transparent;
             }}
-            QLabel#sectionTitle[group="true"] {{ font-size: {BODY_PT}pt; }}
-            QFrame#sectionGroup {{ background: transparent; border: none; }}
+            QWidget#settingsPane, QWidget#settingsRow {{ background: transparent; }}
+            QFrame#settingsLine {{ background: {t["border"]}; border: none; }}
             QLabel#dialogTitle {{
                 font-family: "{family}";
                 font-size: {DIALOG_TITLE_PT}pt;
@@ -660,7 +660,7 @@ def _kit_rules(family: str) -> str:
                 background: transparent;
             }}
             QLabel#streamStatus[tone="ok"] {{ color: {t["green"]}; }}
-            QLabel#rowHint, QLabel#emptyHint {{
+            QLabel#rowHint, QLabel#rowDescription, QLabel#emptyHint {{
                 font-family: "{family}";
                 font-size: {SMALL_PT}pt;
                 color: {t["muted"]};
@@ -801,17 +801,17 @@ def _window_style(family: str) -> str:
                 color: {t["text"]};
                 font-weight: 400;
             }}
-            QListWidget#tags {{
+            QListWidget#tags, QListWidget#settingsCatalog {{
                 background: transparent;
                 border: none;
                 padding: 0;
                 outline: none;
             }}
-            QListWidget#tags:focus {{
+            QListWidget#tags:focus, QListWidget#settingsCatalog:focus {{
                 border: none;
                 outline: none;
             }}
-            QListWidget#tags::item {{
+            QListWidget#tags::item, QListWidget#settingsCatalog::item {{
                 padding: 0;
                 margin: 1px 0;
                 border: none;

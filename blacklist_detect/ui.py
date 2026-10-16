@@ -114,6 +114,8 @@ from blacklist_detect.ui_kit import (
     EmptyState,
     IconButton,
     SegmentedControl,
+    SettingsCatalog,
+    SettingsPane,
     SettingsSection,
     Switch,
     TabButton,
@@ -970,17 +972,23 @@ class MainWindow(QMainWindow):
         return page
 
     def _settings_page(self) -> QWidget:
-        """One card per row, like settings grouped with like, all on one screen:
-        常规, 嘉宾, 外观, then 帮助 at the foot, where starting over is out of the way.
+        """The way desktop apps lay out settings: a catalog of sections on the left (常规, 外观, 帮助,
+        关于), the chosen one on the right, its name in bold, then one row per setting: what it is and a
+        gray line on what it does on the left, its control on the right.
 
         检查 (显示, 方式) opens from the status pill in the header, 直播模式 and 角色名称 are in the
         header too, 标签 beside the list on 黑名单, each 嘉宾's and 组合's 场景 on 嘉宾, and the 场景
         hotkey with the 场景 it plays on 场景管理.
         """
         page = QWidget()
-        layout = QVBoxLayout(page)
+        layout = QHBoxLayout(page)
         _page(layout)
-        # Only a very large text size makes this scroll; at the smallest window it fits.
+        layout.setSpacing(PAD)
+        self.settings_catalog = SettingsCatalog()
+        self.settings_catalog.currentRowChanged.connect(self._on_settings_section)
+        self.settings_catalog.entered.connect(self._enter_settings_section)
+        layout.addWidget(self.settings_catalog)
+        # Only the chosen section is shown; one taller than the window scrolls on the right alone.
         scroll = QScrollArea()
         scroll.setObjectName("settingsScroll")
         scroll.setWidgetResizable(True)
@@ -991,23 +999,26 @@ class MainWindow(QMainWindow):
         body.setObjectName("settingsBody")
         column = QVBoxLayout(body)
         column.setContentsMargins(0, 0, 0, 0)
-        column.setSpacing(GAP)
-        # The cards as wide as the page, on a wide window too.
+        column.setSpacing(0)
+        # On a wide window the rows keep a width where a control is still read with its name.
         holder = QWidget()
-        cards = QVBoxLayout(holder)
-        cards.setContentsMargins(0, 0, 0, 0)
-        cards.setSpacing(18)
+        holder.setMaximumWidth(760)
+        panes = QVBoxLayout(holder)
+        panes.setContentsMargins(0, 0, 0, 0)
         column.addWidget(holder)
         column.addStretch(1)
         scroll.setWidget(body)
         layout.addWidget(scroll, 1)
         metrics = QFontMetrics(chinese_font())
-        label_width = metrics.horizontalAdvance("关闭窗口时") + 8
+        self.settings_sections: dict[str, SettingsPane] = {}
 
-        def section(title: str) -> SettingsSection:
-            card = SettingsSection(title, label_width, compact=True)
-            cards.addWidget(card)
-            return card
+        def section(key: str, title: str, icon: str) -> SettingsPane:
+            pane = SettingsPane(title)
+            pane.hide()
+            panes.addWidget(pane)
+            self.settings_sections[key] = pane
+            self.settings_catalog.add_section(key, title, icon)
+            return pane
 
         # 检查: how and when a lobby is checked, in a card that opens from the status pill.
         check = SettingsSection("检查", metrics.horizontalAdvance("直播模式") + 20)
@@ -1071,42 +1082,36 @@ class MainWindow(QMainWindow):
         # Put over the window under the pill once the header is built.
         self.check_panel = CheckPanel(check)
 
-        # 常规: how the app starts and closes, on one row, and 静音.
-        general = section("常规")
+        # 常规: how the app starts and closes, and 静音. Each its own row.
+        general = section("general", "常规", "settings")
         self.autostart_switch = Switch(autostart.is_enabled())
         self.autostart_switch.setAccessibleName("开机启动")
         self.autostart_switch.setEnabled(autostart.available())
         self.autostart_switch.toggled.connect(self._set_autostart)
+        general.add_row("开机启动", "Windows 启动时自动打开", self.autostart_switch)
         # Asked the way Chinese desktop apps ask it: what × does, with both answers in view.
-        close_label = QLabel("关闭窗口时")
-        close_label.setObjectName("rowLabel")
-        close_label.setContentsMargins(20, 0, 0, 0)
         self.close_mode = SegmentedControl(
             [("tray", "最小化"), ("quit", "退出")], "tray" if self.store.close_to_tray else "quit"
         )
         self.close_mode.setAccessibleName("关闭窗口时")
         self.close_mode.changed.connect(self._on_close_mode)
-        general.add_row("开机启动", self.autostart_switch, close_label, self.close_mode)
+        general.add_row("关闭窗口时", "点 × 时最小化到托盘或直接退出", self.close_mode)
         # 声音: 静音 for none at all. How loud each 场景 is, is its own 音量 in 场景管理.
         self.mute_box = QCheckBox("静音")
         self.mute_box.setChecked(self.store.sound_muted)
         self.mute_box.setCursor(Qt.PointingHandCursor)
         self.mute_box.toggled.connect(self._on_mute)
-        general.add_row("声音", self.mute_box)
-        self.disclaimer_button = QPushButton("使用声明")
-        self.disclaimer_button.setFont(ui_font())
-        self.disclaimer_button.setAutoDefault(False)
-        self.disclaimer_button.setCursor(Qt.PointingHandCursor)
-        self.disclaimer_button.clicked.connect(self._show_disclaimer)
+        general.add_row("声音", "每个场景的音量在场景管理里调", self.mute_box)
 
         # 外观: how the window looks.
-        look = section("外观")
+        look = section("look", "外观", "palette")
         self.appearance_control = SegmentedControl(
             [("light", "浅色"), ("dark", "深色"), ("system", "跟随系统")], self.store.appearance
         )
+        self.appearance_control.setAccessibleName("模式")
         self.appearance_buttons: dict[str, QPushButton] = self.appearance_control.buttons
         self.appearance_control.changed.connect(self._set_appearance)
-        look.add_row("模式", self.appearance_control)
+        look.add_row("模式", "浅色、深色或跟着 Windows", self.appearance_control)
         self.theme_buttons: dict[str, ThemeSwatch] = {}
         if THEME_PICKER:
             swatch_host = QWidget()
@@ -1118,25 +1123,40 @@ class MainWindow(QMainWindow):
                 swatch.chosen.connect(self._set_theme)
                 self.theme_buttons[name] = swatch
                 swatches.addWidget(swatch, 0, Qt.AlignVCenter)
-            look.add_row("主题色", swatch_host)
+            look.add_row("主题色", "按钮和选中时的颜色", swatch_host)
 
-        # 帮助: when something is wrong, what a friend can do and send. 环境测试 and its log share a row.
-        helping = section("帮助")
+        # 帮助: when something is wrong, what a friend can do and send.
+        helping = section("help", "帮助", "help")
         # 环境测试: the first open's test again, then a report of where a check's time goes.
         self.test_button = QPushButton("开始")
         self.test_button.setFont(ui_font())
         self.test_button.setAutoDefault(False)
         self.test_button.setCursor(Qt.PointingHandCursor)
         self.test_button.clicked.connect(lambda: self.start_environment_check(force=True))
-        self.export_button = QPushButton("导出日志")
+        helping.add_row("环境测试", "检查这台电脑能不能正常识别", self.test_button)
+        self.export_button = QPushButton("导出")
+        self.export_button.setAccessibleName("导出日志")
         self.export_button.setFont(ui_font())
         self.export_button.setAutoDefault(False)
         self.export_button.setCursor(Qt.PointingHandCursor)
         self.export_button.clicked.connect(self._export_logs)
-        helping.add_row("环境测试", self.test_button, self.export_button)
-        # 声明: the version (the app's name is everywhere already), the 检查更新 button, what it found in
-        # gray, then the 使用声明 button. A waiting version turns 检查更新 into the 有更新 button.
+        helping.add_row("导出日志", "出问题时发给朋友看", self.export_button)
+
+        # 关于: the version (the app's name is everywhere already) and 检查更新, what it found in gray
+        # before the button, 使用声明, and starting over at the foot, out of the way.
+        about = section("about", "关于", "info")
+        version = QWidget()
+        version_line = QHBoxLayout(version)
+        version_line.setContentsMargins(0, 0, 0, 0)
+        version_line.setSpacing(4)
+        current = QLabel("当前版本")
+        current.setObjectName("rowDescription")
         self.version_label = QLabel(__version__)
+        self.version_label.setObjectName("rowDescription")
+        version_line.addWidget(current)
+        version_line.addWidget(self.version_label)
+        version_line.addStretch(1)
+        # A waiting version turns 检查更新 into the 有更新 button.
         self.update_note = QLabel("")
         self.update_note.setObjectName("rowHint")
         self.update_note.hide()
@@ -1145,17 +1165,24 @@ class MainWindow(QMainWindow):
         self.update_button.setAutoDefault(False)
         self.update_button.setCursor(Qt.PointingHandCursor)
         self.update_button.clicked.connect(self._check_updates_now)
-        helping.add_row("声明", self.version_label, self.update_button, self.update_note, self.disclaimer_button)
-        # Starting over sits here too: one card fewer, so 设置 fits the window without scrolling.
-        data = helping
-        reset = QPushButton("清空数据")
+        about.add_row("检查更新", version, self.update_note, self.update_button)
+        self.disclaimer_button = QPushButton("查看")
+        self.disclaimer_button.setAccessibleName("使用声明")
+        self.disclaimer_button.setFont(ui_font())
+        self.disclaimer_button.setAutoDefault(False)
+        self.disclaimer_button.setCursor(Qt.PointingHandCursor)
+        self.disclaimer_button.clicked.connect(self._show_disclaimer)
+        about.add_row("使用声明", "免费自制工具，和官方无关", self.disclaimer_button)
+        reset = QPushButton("清空")
         reset.setObjectName("danger")
+        reset.setAccessibleName("清空数据")
         reset.setFont(ui_font())
         self.reset_button = reset
         reset.setAutoDefault(False)
         reset.setCursor(Qt.PointingHandCursor)
         reset.clicked.connect(self._ask_reset)
-        data.add_row("重置", reset)
+        about.add_row("清空数据", "删掉黑名单、嘉宾、记录和设置，回到刚安装时", reset)
+        self.settings_catalog.setCurrentRow(0)
         return page
 
     def _fill_tag_list(self) -> None:
@@ -1427,6 +1454,8 @@ class MainWindow(QMainWindow):
         if hasattr(self, "tag_list"):
             self.tag_add.refresh()
             self.tag_list.viewport().update()
+        if hasattr(self, "settings_catalog"):
+            self.settings_catalog.viewport().update()
         if hasattr(self, "watch_label"):
             self._set_result(self._watch_full, self._watch_tone, self._status_kind, self._watch_tip)
         if hasattr(self, "profile_chip"):
@@ -2120,6 +2149,28 @@ class MainWindow(QMainWindow):
 
     def _show_settings_page(self) -> None:
         self.tabs.setCurrentIndex(self.settings_tab)
+
+    def _show_settings_section(self, key: str) -> None:
+        """设置 open on one section: general, look, help or about."""
+        self._show_settings_page()
+        self.settings_catalog.choose(key)
+
+    def _on_settings_section(self, row: int) -> None:
+        """The section chosen in the catalog, alone on the right, from its top."""
+        chosen = self.settings_catalog.current_key() if row >= 0 else ""
+        for key, pane in self.settings_sections.items():
+            pane.setVisible(key == chosen)
+        self.settings_scroll.verticalScrollBar().setValue(0)
+
+    def _enter_settings_section(self) -> None:
+        """Enter in the catalog: on to the chosen section's first control."""
+        pane = self.settings_sections.get(self.settings_catalog.current_key())
+        for row in pane.rows if pane is not None else ():
+            # A segmented control takes focus on its buttons.
+            for widget in (widget for control in row.controls for widget in (control, *control.findChildren(QPushButton))):
+                if widget.isEnabled() and widget.focusPolicy() & Qt.TabFocus:
+                    widget.setFocus(Qt.FocusReason.TabFocusReason)
+                    return
 
     def _focus_search(self) -> None:
         self._show_blacklist_page()
@@ -3306,7 +3357,7 @@ class MainWindow(QMainWindow):
     # --- 环境测试: 屏幕截图, 识别功能, 识别测试, then 自动检查 and 手动检查 timed ---------------
 
     def start_environment_check(self, force: bool = False) -> bool:
-        """Run the test on the first open and after an update, or from 设置 › 环境测试 (force), which
+        """Run the test on the first open and after an update, or from 设置 › 帮助 › 环境测试 (force), which
         ends in a report of the timings. False when it is not due."""
         if not force and self.store.env_checked == __version__:
             return False

@@ -156,6 +156,27 @@ def _records(p: QPainter) -> None:
         p.drawLine(QPointF(8, y), QPointF(16, y))
 
 
+def _help(p: QPainter) -> None:
+    p.drawEllipse(QPointF(12, 12), 8.5, 8.5)
+    path = QPainterPath(QPointF(9.4, 9.6))
+    path.cubicTo(9.4, 6.4, 14.6, 6.4, 14.6, 9.6)
+    path.cubicTo(14.6, 11.6, 12, 11.8, 12, 13.8)
+    p.drawPath(path)
+    p.drawPoint(QPointF(12, 16.8))
+
+
+def _palette(p: QPainter) -> None:
+    # A painter's palette: round, with the thumb's bite at the lower right, and three dabs of paint.
+    path = QPainterPath(QPointF(12, 20.5))
+    path.arcTo(QRectF(3.5, 3.5, 17, 17), 270, -290)
+    path.quadTo(19.2, 16.2, 16.6, 15.6)
+    path.quadTo(13.2, 15, 13.6, 17.6)
+    path.quadTo(14, 20.5, 12, 20.5)
+    p.drawPath(path)
+    for x, y in ((8.2, 11.5), (10.5, 7.8), (14.8, 7.8)):
+        p.drawEllipse(QPointF(x, y), 1.2, 1.2)
+
+
 def _settings(p: QPainter) -> None:
     for y, knob in ((7, 9), (12, 15), (17, 11)):
         p.drawLine(QPointF(4, y), QPointF(20, y))
@@ -235,6 +256,8 @@ DRAWINGS: dict[str, Callable[[QPainter], None]] = {
     "eye_off": _eye_off,
     "warning": _warning,
     "info": _info,
+    "help": _help,
+    "palette": _palette,
     "play": _play,
     "records": _records,
     "settings": _settings,

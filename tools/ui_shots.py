@@ -118,7 +118,15 @@ def shoot(args) -> None:  # noqa: ANN001
     settle(0.8)
     for index in range(window.tabs.count()):
         window.tabs.setCurrentIndex(index)
-        save(window, f"page_{window._tab_buttons[index].name()}")
+        if index != window.settings_tab:
+            save(window, f"page_{window._tab_buttons[index].name()}")
+            continue
+        # 设置: one shot per section of its catalog, then back to the first.
+        catalog = window.settings_catalog
+        for row in range(catalog.count()):
+            catalog.setCurrentRow(row)
+            save(window, f"page_设置_{catalog.item(row).text()}")
+        catalog.setCurrentRow(0)
 
     def same_key() -> None:
         from PySide6.QtCore import QEvent, Qt
@@ -169,11 +177,12 @@ def shoot(args) -> None:  # noqa: ANN001
         save(window, "header_发现新版本")
         window.update_panel.close_panel()
         save(window, "header_有更新")
-        window.tabs.setCurrentIndex(window.settings_tab)
+        window._show_settings_section("about")
         save(window, "page_设置_有更新")
         window._offered = None
         window.update_pill.hide()
-        window.update_button.setText("检查更新")
+        window._show_update_button()
+        window.settings_catalog.choose("general")
         window.tabs.setCurrentIndex(0)
 
     step("有更新", offered)

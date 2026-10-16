@@ -1,5 +1,6 @@
-"""Standard controls built on the theme tokens: switch, segmented control, icon
-button, toast, confirm dialog, empty state, and the settings section card.
+﻿"""Standard controls built on the theme tokens: switch, segmented control, icon
+button, toast, confirm dialog, empty state, the settings section card, and
+设置's catalog, sections and rows.
 
 Each one reads its colors from THEME and its sizes from ui_theme, so it follows
 浅色/深色 and the accent without its own stylesheet values.
@@ -33,9 +34,14 @@ from PySide6.QtWidgets import (
     QGraphicsOpacityEffect,
     QHBoxLayout,
     QLabel,
+    QListWidget,
+    QListWidgetItem,
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QStyle,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
     QVBoxLayout,
     QWidget,
 )
@@ -827,47 +833,24 @@ class _InlineHint(QLabel):
 
 
 class SettingsSection(QFrame):
-    """A titled card in 设置. Each row is a label in a fixed column with its controls after it.
-
-    A compact section is a group the way Windows 11 settings show one: its title above a card
-    of even rows, each row's explanation in gray right after its controls. Groups stacked one
-    per row still fit on one screen. Content stays at the top when a card is taller than it needs.
+    """A titled card of settings, as in the 检查 card under the header's pill. Each row is a label in a
+    fixed column with its controls after it. Content stays at the top when the card is taller than it needs.
     """
 
-    # The height of a compact row: a control and a little room.
-    COMPACT_ROW = CONTROL_H + 8
-
-    def __init__(self, title: str, label_width: int, parent: QWidget | None = None, *, compact: bool = False) -> None:
+    def __init__(self, title: str, label_width: int, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._label_width = label_width
-        self._compact = compact
         heading = QLabel(title)
         heading.setObjectName("sectionTitle")
         heading.setFont(chinese_font(SECTION_PT))
-        self._rows = QVBoxLayout()
+        self.setObjectName("section")
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.card = self
+        self._rows = QVBoxLayout(self)
         self._rows.setSpacing(0)
-        if compact:
-            # The group itself is see-through; its card holds the rows.
-            self.setObjectName("sectionGroup")
-            heading.setProperty("group", True)
-            outer = QVBoxLayout(self)
-            outer.setContentsMargins(0, 0, 0, 0)
-            outer.setSpacing(6)
-            outer.addWidget(heading)
-            self.card = QFrame()
-            self.card.setObjectName("section")
-            self.card.setAttribute(Qt.WA_StyledBackground, True)
-            self._rows.setContentsMargins(16, 2, 16, 2)
-            self.card.setLayout(self._rows)
-            outer.addWidget(self.card)
-        else:
-            self.setObjectName("section")
-            self.setAttribute(Qt.WA_StyledBackground, True)
-            self.card = self
-            self._rows.setContentsMargins(20, 14, 20, 6)
-            self.setLayout(self._rows)
-            self._rows.addWidget(heading)
-            self._rows.addSpacing(4)
+        self._rows.setContentsMargins(20, 14, 20, 6)
+        self._rows.addWidget(heading)
+        self._rows.addSpacing(4)
         self._rows.addStretch(1)
         self._count = 0
 
@@ -892,20 +875,15 @@ class SettingsSection(QFrame):
         self._add(line)
 
     def add_row(self, label: str, *widgets: QWidget, hint: str = "", stretch: bool = True) -> QHBoxLayout:
-        """The setting's name in a fixed column, its controls right after it.
-
-        The hint goes under the controls, or in gray right after them on a compact card.
-        """
+        """The setting's name in a fixed column, its controls right after it, and the hint under them."""
         if self._count:
             self._line()
         self._count += 1
         host = QWidget()
         host.setObjectName("sectionRow")
         column = QVBoxLayout(host)
-        column.setContentsMargins(0, *((4, 0, 4) if self._compact else (10, 0, 10)))
+        column.setContentsMargins(0, 10, 0, 10)
         column.setSpacing(4)
-        if self._compact:
-            host.setMinimumHeight(self.COMPACT_ROW)
         row = QHBoxLayout()
         row.setSpacing(12)
         name = QLabel(label)
@@ -914,17 +892,150 @@ class SettingsSection(QFrame):
         row.addWidget(name, 0, Qt.AlignVCenter)
         for widget in widgets:
             row.addWidget(widget, 0, Qt.AlignVCenter)
-        if hint and self._compact:
-            row.addSpacing(4)
-            row.addWidget(_InlineHint(hint), 1, Qt.AlignVCenter)
-        elif stretch:
+        if stretch:
             row.addStretch(1)
         column.addLayout(row)
-        if hint and not self._compact:
+        if hint:
             note = QLabel(hint)
             note.setObjectName("rowHint")
             note.setWordWrap(True)
             note.setContentsMargins(self._label_width + 12, 0, 0, 0)
             column.addWidget(note)
         self._add(host)
+        return row
+
+
+class _CatalogDelegate(QStyledItemDelegate):
+    """A row of 设置's catalog: its line icon, then its name, on the row's wash when chosen."""
+
+    INSET = 12
+    ROW = 36
+    ICON = 18
+
+    def paint(self, painter, option, index) -> None:  # noqa: ANN001
+        view = self.parent()
+        drawn = QStyleOptionViewItem(option)
+        self.initStyleOption(drawn, index)
+        drawn.state = drawn.state & ~QStyle.State_HasFocus
+        drawn.text = ""
+        view.style().drawControl(QStyle.CE_ItemViewItem, drawn, painter, view)
+        chosen = bool(option.state & QStyle.State_Selected)
+        rect = option.rect.adjusted(self.INSET, 0, -self.INSET, 0)
+        top = rect.top() + (rect.height() - self.ICON) // 2
+        tone = THEME["text"] if chosen else THEME["muted"]
+        painter.save()
+        painter.drawPixmap(rect.left(), top, line_pixmap(str(index.data(Qt.UserRole + 1) or ""), self.ICON, tone))
+        painter.setFont(chinese_font(BODY_PT))
+        painter.setPen(QColor(THEME["text"]))
+        text = rect.adjusted(self.ICON + 10, 0, 0, 0)
+        painter.drawText(text, Qt.AlignLeft | Qt.AlignVCenter, str(index.data(Qt.DisplayRole) or ""))
+        painter.restore()
+
+    def sizeHint(self, _option, _index) -> QSize:  # noqa: ANN001
+        return QSize(0, self.ROW)
+
+
+class SettingsCatalog(QListWidget):
+    """设置's sections down the left, each with its icon; the chosen one on the selected wash.
+
+    ↑ and ↓ move through them as a click does; Enter goes on into the chosen section (entered).
+    """
+
+    entered = Signal()
+
+    WIDTH = 180
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("settingsCatalog")
+        self.setAccessibleName("设置")
+        self.setFixedWidth(self.WIDTH)
+        self.setFrameShape(QFrame.NoFrame)
+        self.setFocusPolicy(Qt.StrongFocus)
+        self.setItemDelegate(_CatalogDelegate(self))
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setCursor(Qt.PointingHandCursor)
+
+    def add_section(self, key: str, title: str, icon: str) -> QListWidgetItem:
+        item = QListWidgetItem(title)
+        item.setData(Qt.UserRole, key)
+        item.setData(Qt.UserRole + 1, icon)
+        self.addItem(item)
+        return item
+
+    def keys(self) -> list[str]:
+        return [str(self.item(row).data(Qt.UserRole)) for row in range(self.count())]
+
+    def current_key(self) -> str:
+        item = self.currentItem()
+        return str(item.data(Qt.UserRole)) if item is not None else ""
+
+    def choose(self, key: str) -> None:
+        self.setCurrentRow(self.keys().index(key))
+
+    def keyPressEvent(self, event) -> None:  # noqa: ANN001
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            self.entered.emit()
+            return
+        super().keyPressEvent(event)
+
+
+class SettingsRow(QWidget):
+    """One setting: its name with a gray line on what it does under it on the left, its controls on the right."""
+
+    def __init__(self, name: str, description: str | QWidget, *controls: QWidget) -> None:
+        super().__init__()
+        self.setObjectName("settingsRow")
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 12, 0, 12)
+        row.setSpacing(12)
+        text = QVBoxLayout()
+        text.setSpacing(2)
+        self.name = QLabel(name)
+        self.name.setObjectName("rowLabel")
+        text.addWidget(self.name)
+        if isinstance(description, str):
+            # Cut short with … on a narrow window; the whole line is in its tooltip.
+            description = _InlineHint(description)
+            description.setObjectName("rowDescription")
+        self.description = description
+        text.addWidget(description)
+        row.addLayout(text, 1)
+        self.controls = controls
+        for control in controls:
+            row.addWidget(control, 0, Qt.AlignVCenter)
+
+    def description_text(self) -> str:
+        """The gray line as read: a label's text, or the texts of the labels it is made of."""
+        if isinstance(self.description, QLabel):
+            return self.description.text()
+        return "".join(label.text() for label in self.description.findChildren(QLabel))
+
+
+class SettingsPane(QWidget):
+    """A section of 设置: its name in bold, then one row per setting, thin lines between the rows, no card."""
+
+    def __init__(self, title: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("settingsPane")
+        self.heading = QLabel(title)
+        self.heading.setObjectName("settingsHeading")
+        self.heading.setFont(chinese_font(SECTION_PT))
+        self._column = QVBoxLayout(self)
+        self._column.setContentsMargins(0, 0, 0, 0)
+        self._column.setSpacing(0)
+        self._column.addWidget(self.heading)
+        self._column.addSpacing(6)
+        self.rows: list[SettingsRow] = []
+
+    def add_row(self, name: str, description: str | QWidget, *controls: QWidget) -> SettingsRow:
+        if self.rows:
+            line = QFrame()
+            line.setObjectName("settingsLine")
+            line.setFixedHeight(1)
+            self._column.addWidget(line)
+        row = SettingsRow(name, description, *controls)
+        self._column.addWidget(row)
+        self.rows.append(row)
         return row

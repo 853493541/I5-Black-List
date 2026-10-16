@@ -11,7 +11,7 @@ pytest.importorskip("PySide6")
 
 from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, Qt
 from PySide6.QtGui import QEnterEvent, QFocusEvent, QFontMetrics, QKeyEvent, QMouseEvent
-from PySide6.QtWidgets import QApplication, QDialog, QHBoxLayout, QLabel, QPushButton, QWidget
+from PySide6.QtWidgets import QApplication, QDialog, QHBoxLayout, QLabel, QPushButton
 
 from blacklist_detect import __version__
 from blacklist_detect.pipeline import CheckResult, Hit, NameSlot
@@ -1194,7 +1194,8 @@ def test_reset_asks_before_clearing_everything(qapp, tmp_path, monkeypatch):
     window._on_display_mode("full")
     window._on_auto_mode("auto")
     buttons = [button.text() for button in window.findChildren(QPushButton)]
-    assert "清空数据" in buttons and "清除数据且复原" not in buttons and "打开数据文件夹" not in buttons
+    assert window.reset_button.text() == "清空" and window.reset_button.accessibleName() == "清空数据"
+    assert "清除数据且复原" not in buttons and "打开数据文件夹" not in buttons
     window.store.add("甲", tags=("炸房",))
     window.store.add_scan([{"seat": 1, "name": "甲", "unclear": False}])
     window.store.player_name = "纪戴宁"
@@ -1694,42 +1695,26 @@ def test_the_installer_can_ask_the_open_copy_to_quit(qapp):
     server.close()
 
 
-def test_settings_are_grouped_into_titled_cards(qapp, tmp_path, monkeypatch):
-    from blacklist_detect.ui_kit import SettingsSection
-
+def test_settings_holds_only_what_is_left_of_settings(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
     window._watch_timer.stop()
     settings_page = window.tabs.widget(window.settings_tab)
-    sections = settings_page.findChildren(SettingsSection)
-    titles = [section.findChild(QLabel, "sectionTitle").text() for section in sections]
-    # 检查 opens from the header's pill. 常规 holds two rows, 开机启动 with 关闭窗口时 and 声音 (静音); 嘉宾 has
-    # nothing left in 设置 (each 嘉宾 and 组合 has 不放), so no card.
-    assert titles == ["常规", "外观", "帮助"]
-    assert len(sections[0].findChildren(QWidget, "sectionRow")) == 2
-    assert [label.text() for label in sections[0].findChildren(QLabel, "rowLabel")] == ["开机启动", "关闭窗口时", "声音"]
+    # 检查 opens from the header's pill; 嘉宾 has nothing left in 设置 (each 嘉宾 and 组合 has 不放), so no
+    # section. The sections and their rows are in test_settings_page.
+    assert [pane.heading.text() for pane in window.settings_sections.values()] == ["常规", "外观", "帮助", "关于"]
     # 角色名称 and 标签 moved to 黑名单.
     shown = [label.text() for label in settings_page.findChildren(QLabel)]
-    assert "角色名称" not in shown and "标签" not in shown
+    assert "角色名称" not in shown and "标签" not in shown and "嘉宾" not in shown
     # 提示音 is gone; 主题色 is hidden until it comes back.
     assert "提示音" not in shown and "主题色" not in shown
     assert not settings_page.isAncestorOf(window.tag_list)
-    # Like with like, all of it on one screen at a usual size; the smallest window scrolls.
     window.resize(900, 760)
     window.tabs.setCurrentIndex(window.settings_tab)
     window.show()
     for _ in range(5):
         qapp.processEvents()
-    assert window.settings_scroll.verticalScrollBar().maximum() == 0, "设置 fits without scrolling"
-    # One card per row, full width, each title in a column on its left.
-    assert [section.x() for section in sections] == [sections[0].x()] * len(sections)
-    assert [section.width() for section in sections] == [sections[0].width()] * len(sections)
-    assert [section.y() for section in sections] == sorted(section.y() for section in sections)
-    heads = [section.findChild(QLabel, "sectionTitle") for section in sections]
-    assert all(head.y() == heads[0].y() and head.width() == heads[0].width() for head in heads)
-    rows = [section.findChild(QLabel, "rowLabel") for section in sections]
-    assert all(row.mapTo(window, QPoint(0, 0)).x() == rows[0].mapTo(window, QPoint(0, 0)).x() for row in rows)
     # 版本 is not shown.
     assert "版本" not in [label.text() for label in window.findChildren(QLabel)]
     window.hide()
@@ -2934,16 +2919,16 @@ def test_batch_import_offers_shared_phrases_as_tags_before_importing(qapp, tmp_p
 
 
 def test_settings_show_whole_swatches_and_mute(qapp, tmp_path, monkeypatch):
-    """At the size 设置 just fits, with nothing to scroll either way, each 主题色 swatch is drawn whole, 开机启动
-    and 关闭窗口时 share a row, and 声音 › 静音 is the next, whole; no 嘉宾场景 switch, nor a 嘉宾场景 on the
+    """At the smallest window, with nothing to scroll either way, each 主题色 swatch in 外观 is drawn whole,
+    开机启动, 关闭窗口时 and 声音 › 静音 are a row each, 静音 whole; no 嘉宾场景 switch, nor a 嘉宾场景 on the
     嘉宾 page."""
     monkeypatch.setattr("blacklist_detect.ui.THEME_PICKER", True)
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
     window._watch_timer.stop()
-    window.resize(900, 760)
-    window.tabs.setCurrentIndex(window.settings_tab)
+    window.resize(900, 560)
+    window._show_settings_section("look")
     window.show()
     for _ in range(5):
         qapp.processEvents()
@@ -2952,9 +2937,11 @@ def test_settings_show_whole_swatches_and_mute(qapp, tmp_path, monkeypatch):
     for swatch in window.theme_buttons.values():
         assert swatch.visibleRegion().boundingRect().height() == swatch.height(), "a swatch is cut off"
     assert not hasattr(window, "love_switch")
+    window._show_settings_section("general")
+    qapp.processEvents()
     middle = lambda widget: widget.mapTo(window, widget.rect().center()).y()  # noqa: E731
-    assert abs(middle(window.autostart_switch) - middle(window.close_mode)) <= 2, "关闭窗口时 sits on 开机启动's row"
-    assert window.mute_box.isVisible() and middle(window.mute_box) > middle(window.close_mode) + 10, "静音 is the row under"
+    assert middle(window.close_mode) > middle(window.autostart_switch) + 30, "关闭窗口时 has a row of its own"
+    assert window.mute_box.isVisible() and middle(window.mute_box) > middle(window.close_mode) + 30, "静音 is the row under"
     assert window.mute_box.visibleRegion().boundingRect().size() == window.mute_box.size(), "静音 is cut off"
     window.tabs.setCurrentIndex(window.likes_tab)
     qapp.processEvents()

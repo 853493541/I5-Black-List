@@ -278,7 +278,7 @@ def window(tmp_path, monkeypatch):  # noqa: ANN001, ANN201
 
 
 def test_update_can_be_checked_from_settings(window, tmp_path, monkeypatch):
-    """设置 › 帮助 › 声明: the version and 检查更新. The answer shows beside the button; a new version
+    """设置 › 关于 › 检查更新, with the version under it. The answer shows beside the button; a new version
     installs as it would at start. 有更新 is in the header only once a version waits."""
     from blacklist_detect import __version__
 
@@ -313,25 +313,17 @@ def test_update_can_be_checked_from_settings(window, tmp_path, monkeypatch):
     assert window.update_note.text() == ""
 
 
-def test_the_declaration_row_holds_the_version_check_and_disclaimer(window):
-    """设置 › 帮助: 环境测试, then 声明 (version, 检查更新, what it found, 使用声明, all from the left), then 重置."""
-    from PySide6.QtWidgets import QLabel, QSpacerItem
-
-    from blacklist_detect.ui_kit import SettingsSection
-
-    helping = next(
-        section
-        for section in window.tabs.widget(window.settings_tab).findChildren(SettingsSection)
-        if section.findChild(QLabel, "sectionTitle").text() == "帮助"
-    )
-    assert [label.text() for label in helping.findChildren(QLabel, "rowLabel")] == ["环境测试", "声明", "重置"]
-    row = window.version_label.parentWidget().layout().itemAt(0).layout()
-    items = [row.itemAt(i) for i in range(row.count())]
-    widgets = [item.widget() for item in items if item.widget() is not None]
-    assert [w.text() for w in widgets[:1]] == ["声明"]
-    assert widgets[1:] == [window.version_label, window.update_button, window.update_note, window.disclaimer_button]
-    # 使用声明 follows the note; the row's room is after it, not before.
-    assert isinstance(items[-1].spacerItem(), QSpacerItem) and items[-2].widget() is window.disclaimer_button
+def test_the_about_section_holds_the_version_check_and_disclaimer(window):
+    """设置 › 关于: 检查更新 with 当前版本 under it and what it found in gray before the button, 使用声明, then
+    清空数据 at the foot."""
+    about = window.settings_sections["about"]
+    assert [row.name.text() for row in about.rows] == ["检查更新", "使用声明", "清空数据"]
+    update = about.rows[0]
+    assert update.description_text() == f"当前版本{window.version_label.text()}"
+    assert update.description.isAncestorOf(window.version_label)
+    assert update.controls == (window.update_note, window.update_button)
+    assert about.rows[1].controls == (window.disclaimer_button,)
+    assert about.rows[2].controls == (window.reset_button,) and window.reset_button.objectName() == "danger"
     # The 有更新 button while a version waits, and back to 检查更新 once none does.
     window._offered = Release(version="v9.0.0", url="", sha256="", size=0, base="v0.1.0", notes=())
     window._show_update_button()
