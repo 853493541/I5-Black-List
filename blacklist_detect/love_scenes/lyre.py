@@ -564,17 +564,18 @@ def _flyer(p: QPainter, art: dict, name: str, x: float, y: float, angle: float, 
     body, wing = art["bird", name], art["bird", "wing"]
     if flap is not None and alpha > 0.01:
         places = _bird_places()
-        k = body.width() / _bird_file("perch").width()
+        # The pictures' pixels to the bird's, across and down (BIRD_TALL draws it taller than wide).
+        kx, ky = body.width() / _bird_file("perch").width(), body.height() / _bird_file("perch").height()
         back_x, back_y = places["perch"]["back"]
         root_x, root_y = places["wing"]["root"]
         p.save()
         p.translate(x, y)
         p.rotate(angle)
         p.scale(sx / px, sy / px)
-        p.translate(body.width() / 2 - back_x * k, back_y * k - body.height())
+        p.translate(body.width() / 2 - back_x * kx, back_y * ky - body.height())
         p.rotate(flap)
         p.setOpacity(alpha)
-        p.drawImage(QPointF(-root_x * k, -root_y * k), wing)
+        p.drawImage(QPointF(-root_x * kx, -root_y * ky), wing)
         p.restore()
     _sat(p, body, x, y, angle, sx, sy, alpha, px)
 
@@ -1753,13 +1754,16 @@ def _seed(length: float, ss: float) -> QImage:
     return _picture(np.broadcast_to(rgb(CORE), (size, size, 3)), np.clip(blur(m, 0.5 * ss) * 1.4, 0, 1))
 
 
-# The birds, cut out of the friend's picture: fan art by the Weibo artist @瀛愭矏瀛恄, used at the user's decision
+# The birds, cut out of the friend's picture: fan art by the Weibo artist @子沐子_, used at the user's decision
 # (build/lyre_birds.py cuts them). perch.png faces right, lily.png the front, each with a copy with its eyes shut;
 # wing.png is a raised wing alone. The flyer is the perch bird turned round, the wing at its back. birds.json has,
 # in the pictures' pixels, where the wing grows from the perch bird's back and from its own root.
 BIRDS_DIR = Path(__file__).resolve().parent.parent / "assets" / "birds"
-# How wide each is across, in design points: the one on the lyre as wide as keeps its ears under the top border.
-BIRD_WIDE = {"perch": 64.0, "flyer": 66.0, "lily": 70.0}
+# How wide each is across, in design points: the one on the lyre as wide as keeps its ears under the top border once
+# BIRD_TALL makes it taller.
+BIRD_WIDE = {"perch": 57.0, "flyer": 66.0, "lily": 70.0}
+# How much taller than the picture each bird is drawn, for the user's taste: a little less squat.
+BIRD_TALL = 1.12
 # The flyer's wing turned down from raised, in degrees, as it flaps.
 FLAPS = {"up": 0.0, "mid": 40.0, "down": 80.0}
 _BIRD_FILES: dict[str, QImage] = {}
@@ -1786,10 +1790,11 @@ def _bird(name: str, wide: float) -> QImage:
         source = source.flipped(Qt.Horizontal)
     if name == "wing":
         wide *= source.width() / _bird_file("perch").width()
-    # Halved a step at a time, so the line keeps its weight and nothing shimmers.
+    # Halved a step at a time, so the line keeps its weight and nothing shimmers; then BIRD_TALL taller.
     while source.width() > 2 * wide:
         source = source.scaledToWidth(source.width() // 2, Qt.SmoothTransformation)
-    return source.scaledToWidth(max(1, round(wide)), Qt.SmoothTransformation)
+    high = source.height() * wide / source.width() * BIRD_TALL
+    return source.scaled(max(1, round(wide)), max(1, round(high)), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
 
 
 # The marks, each made once for each size and sharpness it is shown at.
