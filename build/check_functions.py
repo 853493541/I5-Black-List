@@ -77,6 +77,7 @@ def topmost(widget) -> bool:  # noqa: ANN001
 def main() -> int:
     app = QApplication(sys.argv)
     from blacklist_detect import __version__, ui
+    from blacklist_detect.hotkey import parse_hotkey
     from blacklist_detect.pipeline import check_image, load_rgb
     from blacklist_detect.storage import Store
     from blacklist_detect.ui_overlay import RED
@@ -84,7 +85,10 @@ def main() -> int:
     app.setFont(ui.chinese_font())
     ui._apply_theme(app)
 
-    # 1. A first open: the environment check runs with the real OCR, then the guide shows once.
+    # 1. A first open: 使用声明 is asked and agreed to, as a player does (a check is refused until it is), the
+    #    environment check runs with the real OCR, then the guide shows once.
+    asked: list[int] = []
+    ui.DisclaimerDialog.open = lambda self: (asked.append(1), self.accept())
     guides: list[int] = []
     ui.GuideDialog.open = lambda self: guides.append(1)
     started = time.monotonic()
@@ -103,6 +107,12 @@ def main() -> int:
     wait_until(lambda: bool(guides), 10)
     check("the welcome guide shows once, after it", guides == [1] and not window.store.first_run)
     check("the check is remembered for this version", Store(window.store.root).env_checked == __version__)
+    check("使用声明 is asked once and agreed to", asked == [1] and Store(window.store.root).disclaimer_accepted)
+    # 完整模式, as a player picks it after its risk is told: the red ring and the card below are drawn over the game
+    # only there (安全模式, the default, shows the result in a corner box).
+    window.store.consented = ["full"]
+    window._on_display_mode("full")
+    check("完整模式 is on", not window.store.safe_mode)
 
     # 2. The reader on the reference lobby, with someone from it on the list: a picture read the way a
     #    live check reads the screen (用截图检查 is gone from the app).
@@ -131,11 +141,13 @@ def main() -> int:
     window.panel.hide()
     window.hit_card.hide()
 
-    # 4. 手动检查 with the global hotkey.
+    # 4. 手动检查 with the global hotkey: one of its own, since the copy the player has open holds Alt+1.
     pressed: list[int] = []
+    window.store.hotkey = "Ctrl+Alt+F9"
     window._toggle_auto(False)
     window.hotkey.callback = lambda: pressed.append(1)
-    check("手动检查 registers Alt+1 with Windows", window.hotkey.active == "Alt+1" and window.hotkey._registered, window.hotkey.error)
+    key = parse_hotkey(window.store.hotkey).display
+    check(f"手动检查 registers {key} with Windows", window.hotkey.active == key and window.hotkey._registered, window.hotkey.error)
     user32.PostThreadMessageW(ctypes.windll.kernel32.GetCurrentThreadId(), 0x0312, window.hotkey._id, 0)
     wait_until(lambda: bool(pressed), 5)
     check("pressing it starts a check", pressed == [1])
