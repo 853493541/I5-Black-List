@@ -77,12 +77,12 @@ LEAN = 12.0
 SHARP = 1.5
 # The birds (see _bird). One sits on the lyre's crossbar right of its pegs (in ref from the lyre's middle), facing
 # right, and bobs on every strum. One flies in from off the right edge on the entrance's gust, from FLY[0] to FLY[1]
-# seconds in, a flap of both wings every FLAP seconds, and lands on the curl in the top right facing us (its way in
-# design points, a curve whose last point is the curl). One sits among the cecilias in the bottom left facing us, and puffs up on
+# seconds in, a flap of both wings every FLAP seconds, swoops down past the curl in the top right and turns back up to
+# land on it facing us (its way in design points, a curve whose last point is the curl). One sits among the cecilias in the bottom left facing us, and puffs up on
 # the music's downbeat, the first strum. Sitting, each breathes, sways a little, blinks and flicks a wing now and then.
 PERCH = (53.0, -129.0)
 FLY, FLAP = (0.25, 1.35), 0.24
-WAY_IN = ((1740, 190), (1665, 135), (1585, 105), (1529, 121))
+WAY_IN = ((1705, 185), (1440, 218), (1420, 70), (1529, 121))
 # The bird among the cecilias sits a little in front of the current, over the stalks' feet.
 NEST = (88, 845)
 # Each bird's small life as it sits (the lyre's, the flyer's, the cecilias'): when it blinks, when its wing flutters,
@@ -178,7 +178,7 @@ def make(stage: Stage):  # noqa: ANN201
         for k, (_x, _y, r, angle, _ph, ember, *_rest) in enumerate(leaves):
             out.append((0.85, ("leaf", k), lambda r=r, angle=angle, ember=ember, k=k: _maple_pair(r, angle, ember, 10 + k, ss)))
         out.append((0.85, "seed", lambda: _seed(18, ss)))
-        for name in ("flyer", "flyer_blink", "wing"):
+        for name in ("flyer", "flyer_blink", "wing", "fold"):
             out.append((0.2, ("bird", name), lambda name=name: _bird(name, BIRD_WIDE["flyer"] * ss)))
         for name in ("perch", "perch_blink", "lily", "lily_blink"):
             out.append((0.3, ("bird", name), lambda name=name: _bird(name, BIRD_WIDE[name.split("_")[0]] * ss)))
@@ -339,16 +339,20 @@ def make(stage: Stage):  # noqa: ANN201
                 _tumble(p, art["updraft", k], lx + 3 * u * math.sin(life * 1.4 + k) + 0.3 * lift, ly - rise_k - lift,
                         ang + life * 90, _flip(phase, 2.0, life), hero, px)
         # The bird on the wind, flapping in from the right and landing on the curl.
-        if t > FLY[0] and ("bird", "wing") in art:
+        if t > FLY[0] and ("bird", "fold") in art:
             way, flap, squash, hop = _flight(t)
             fx, fy = _bezier_at([xy(*point) for point in WAY_IN], way)
             if way < 1:
-                # Up on each downstroke, stretched a little as it pulls, leaning the way it flies.
+                # Up on each downstroke, stretched a little as it pulls; banked into the way it flies and rocking a
+                # little stroke to stroke, then flaring back to brake as it comes in to land.
                 nx, _ny = _bezier_at([xy(*point) for point in WAY_IN], min(1.0, way + 0.02))
-                pull = flap / STROKE * (1 - smooth(0.8, 1.0, way))
+                toward = max(-1.0, min(1.0, (nx - fx) / (2 * u)))
+                pull = min(flap, STROKE) / STROKE * (1 - smooth(0.85, 1.0, way))
                 size = 0.88 + 0.12 * smooth(0.85, 1.0, way)
-                lean = max(-1.0, min(1.0, (nx - fx) / (2 * u))) * 7 * (1 - smooth(0.85, 1.0, way))
-                _flyer(p, art, "flyer", fx, fy - 4 * u * pull, lean, size * (1 - 0.03 * pull), size * (1 + 0.05 * pull), fade, px, flap)
+                lean = toward * (13 - 19 * smooth(0.7, 0.92, way)) * (1 - smooth(0.92, 1.0, way))
+                lean += 1.5 * math.sin(math.pi * (t - FLY[0]) / FLAP) * (1 - smooth(0.85, 1.0, way))
+                _flyer(p, art, "flyer", fx, fy - 4 * u * pull, lean, size * (1 - 0.03 * pull), size * (1 + 0.05 * pull), fade, px,
+                       flap, toward)
             else:
                 idle, sx, sy, sway = _idle(t, 1)
                 _flyer(p, art, idle.replace("bird", "flyer"), fx, fy - hop * u, sway, sx * (1 + 0.08 * squash),
@@ -559,38 +563,49 @@ def _sat(p: QPainter, image: QImage, x: float, y: float, angle: float, sx: float
 
 
 def _flyer(p: QPainter, art: dict, name: str, x: float, y: float, angle: float, sx: float, sy: float, alpha: float,
-           px: float, flap: float) -> None:
-    """The flyer (name: "flyer" or "flyer_blink") as _sat lays a bird on, a wing at each side turned down flap degrees
-    from raised as the picture holds it (STROKE at the bottom of a flap, FOLD folded down its sides), shortened a little
-    as it sweeps forward. Raised, the wings are behind the bird, as the picture's raised wing is by the head; lowered,
-    in front of it."""
-    body, wing = art["bird", name], art["bird", "wing"]
-    if flap >= STROKE / 2:
+           px: float, flap: float, lead: float = 0.0) -> None:
+    """The flyer (name: "flyer" or "flyer_blink") as _sat lays a bird on, a wing at each shoulder turned down flap
+    degrees from raised as the picture holds it (STROKE at the bottom of a flap), behind the bird as the picture's
+    raised wing is by the head, and shorter as it sweeps forward. Past SWAP, the folded wing on each side instead, in
+    front of the bird as the picture's birds that face us hold theirs, opening out less as flap comes to FOLD. lead (-1
+    to 1) is how far it flies to its left or right: that side's wing beats a little less deep."""
+    if alpha <= 0.01:
+        return
+    body = art["bird", name]
+    folded = flap > SWAP
+    wing = art["bird", "fold" if folded else "wing"]
+    if folded:
         _sat(p, body, x, y, angle, sx, sy, alpha, px)
-    if alpha > 0.01:
-        places = _bird_places()
-        # The pictures' pixels to the bird's, across and down (BIRD_TALL draws it taller than wide).
-        kx, ky = body.width() / _bird_file("front").width(), body.height() / _bird_file("front").height()
-        (root_x, root_y), (tip_x, tip_y) = places["wing"]["root"], places["wing"]["tip"]
-        along = math.degrees(math.atan2((tip_x - root_x) * kx, (root_y - tip_y) * ky))
-        # Shorter as it sweeps forward; folding, it turns over (its feathers out) and tucks in to half its length.
-        tuck = float(smooth(STROKE, FOLD, flap))
-        length = (1 - 0.18 * math.sin(math.pi * min(1.0, flap / STROKE))) * (1 - 0.5 * tuck)
-        for side, mirror in (("right", 1), ("left", -1)):
-            at_x, at_y = places["front"][side]
-            p.save()
-            p.translate(x, y)
-            p.rotate(angle)
-            p.scale(sx / px, sy / px)
-            p.translate(at_x * kx - body.width() / 2, at_y * ky - body.height())
-            p.scale(mirror, 1)
-            p.rotate(flap + along)
-            p.scale(1 - 2 * tuck, length)
+    places = _bird_places()
+    # The pictures' pixels to the bird's, across and down (BIRD_TALL draws it taller than wide); the folded wing's are
+    # TUCK of those.
+    kx, ky = body.width() / _bird_file("front").width(), body.height() / _bird_file("front").height()
+    k = TUCK if folded else 1.0
+    (root_x, root_y), (tip_x, tip_y) = places["fold" if folded else "wing"]["root"], places["wing"]["tip"]
+    along = math.degrees(math.atan2((tip_x - root_x) * kx, (root_y - tip_y) * ky))
+    # A quarter shorter at the bottom of a flap, and shorter still going on down to fold.
+    length = 1 - 0.25 * math.sin(math.pi / 2 * min(1.0, flap / STROKE)) - 0.2 * float(smooth(STROKE, SWAP, flap))
+    opened = (FOLD - flap) / (FOLD - SWAP)
+    for side, mirror in (("right", 1), ("left", -1)):
+        at_x, at_y = places["front"][side]
+        p.save()
+        p.translate(x, y)
+        p.rotate(angle)
+        p.scale(sx / px, sy / px)
+        p.translate(at_x * kx - body.width() / 2, at_y * ky - body.height())
+        p.scale(mirror, 1)
+        if folded:
+            # Opening out from the bird's side, a little bigger as it does, to meet the wing coming down.
+            p.rotate(-OPEN * opened)
+            p.scale(1 + 0.25 * opened, 1 + 0.25 * opened)
+        else:
+            p.rotate(flap * (1 - 0.15 * max(0.0, lead * mirror) * (flap <= STROKE)) + along)
+            p.scale(1, length)
             p.rotate(-along)
-            # Laid on as a bird is, so its root is where it turns.
-            _sat(p, wing, wing.width() / 2 - root_x * kx, wing.height() - root_y * ky, 0, 1, 1, alpha, 1)
-            p.restore()
-    if flap < STROKE / 2:
+        # Laid on as a bird is, so its root is where it turns.
+        _sat(p, wing, wing.width() / 2 - root_x * kx * k, wing.height() - root_y * ky * k, 0, 1, 1, alpha, 1)
+        p.restore()
+    if not folded:
         _sat(p, body, x, y, angle, sx, sy, alpha, px)
 
 
@@ -622,24 +637,32 @@ def _flight(t: float) -> tuple[float, float, float, float]:
     as it lands, and (in points) how high it hops as it flaps once on the second strum."""
     k = win(t, *FLY)
     if k < 1:
-        # Each flap a quick stroke down and a slower one up; the last folds the wings as it lands.
-        beat = (t - FLY[0]) / FLAP % 1
-        flap = STROKE * (ease_in_out(beat / 0.4) if beat < 0.4 else 1 - ease_in_out((beat - 0.4) / 0.6))
-        fold = smooth(0.8, 1.0, k)
-        return 1 - (1 - k) ** 2, flap + (FOLD - flap) * fold, 0.0, 0.0
+        # Each flap a quick stroke down, snapping at the bottom, and a slower one up, easing into the picture's raised
+        # pose; counted back from the last, whose stroke down goes on to fold the wings as it lands.
+        last = FLY[1] - FLAP
+        if t < last:
+            beat = (t - last) / FLAP % 1
+            flap = STROKE * ((beat / 0.35) ** 2 if beat < 0.35 else (1 - (beat - 0.35) / 0.65) ** 2)
+        else:
+            flap = FOLD * ease_out((t - last) / FLAP)
+        return 1 - (1 - k) ** 2, flap, 0.0, 0.0
     x = t - FLY[1]
     squash = math.sin(x * 2 * math.pi / 0.4) * math.exp(-x / 0.16)
+    # Settling, the folded wings lift from its sides a moment.
+    flap = FOLD - 10 * max(0.0, squash)
     x = t - STRUMS[1][0]
     if 0 <= x < 0.36:
-        # Up from its sides, one stroke down and folded again.
-        if x < 0.12:
-            flap = FOLD * (1 - ease_in_out(x / 0.12))
-        elif x < 0.22:
-            flap = STROKE * ease_in_out((x - 0.12) / 0.1)
+        # Open from its sides, up, one stroke down and folded again.
+        if x < 0.05:
+            flap = FOLD - (FOLD - SWAP) * ease_in_out(x / 0.05)
+        elif x < 0.14:
+            flap = SWAP * (1 - ease_out((x - 0.05) / 0.09))
+        elif x < 0.2:
+            flap = STROKE * ((x - 0.14) / 0.06) ** 2
         else:
-            flap = STROKE + (FOLD - STROKE) * ease_in_out((x - 0.22) / 0.14)
+            flap = STROKE + (FOLD - STROKE) * ease_out((x - 0.2) / 0.16)
         return 1.0, flap, squash, 4 * math.sin(math.pi * min(1.0, x / 0.32))
-    return 1.0, FOLD, squash, 0.0
+    return 1.0, flap, squash, 0.0
 
 
 def _bezier_at(points: list, k: float) -> tuple[float, float]:
@@ -1782,11 +1805,15 @@ def _seed(length: float, ss: float) -> QImage:
 BIRDS_DIR = Path(__file__).resolve().parent.parent / "assets" / "birds"
 # How wide each is across, in design points: the one on the lyre as wide as keeps its ears under the top border once
 # BIRD_TALL makes it taller.
-BIRD_WIDE = {"perch": 57.0, "flyer": 66.0, "lily": 70.0}
+# The flyer as tall as the perch bird would be 66 wide, as it was when it was that bird turned round.
+BIRD_WIDE = {"perch": 57.0, "flyer": 47.0, "lily": 70.0}
 # How much taller than the picture each bird is drawn, for the user's taste: a little less squat.
 BIRD_TALL = 1.12
-# The flyer's wings turned down from raised, in degrees: at the bottom of a flap, and folded down its sides.
-STROKE, FOLD = 100.0, 150.0
+# The flyer's wings turned down from raised, in degrees: at the bottom of a flap, where the folded wing takes over
+# (opening out OPEN degrees from the bird's side) going on down, and folded. The folded wing is the cecilias' bird's,
+# the picture's biggest: made TUCK of the flyer's size.
+STROKE, SWAP, FOLD, OPEN = 80.0, 125.0, 150.0, 30.0
+TUCK = 0.42
 _BIRD_FILES: dict[str, QImage] = {}
 _BIRD_LOCK = threading.Lock()
 
@@ -1807,8 +1834,8 @@ def _bird(name: str, wide: float) -> QImage:
     """Cut-out name ("perch", "lily", "flyer", each or with "_blink", or "wing") made smoothly to wide pixels across
     its bird: the flyer is the front bird, and the wing is made to the flyer's size."""
     source = _bird_file(name.replace("flyer", "front"))
-    if name == "wing":
-        wide *= source.width() / _bird_file("front").width()
+    if name in ("wing", "fold"):
+        wide *= source.width() / _bird_file("front").width() * (TUCK if name == "fold" else 1)
     # Halved a step at a time, so the line keeps its weight and nothing shimmers; then BIRD_TALL taller.
     while source.width() > 2 * wide:
         source = source.scaledToWidth(source.width() // 2, Qt.SmoothTransformation)

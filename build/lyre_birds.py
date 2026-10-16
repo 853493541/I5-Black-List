@@ -123,13 +123,19 @@ BIRDS = {
             ("fill", "white", [(684, 1088), (740, 1090), (790, 1088), (830, 1081), (860, 1079), (900, 1082), (976, 1084), (975, 1160),
                                (940, 1200), (850, 1228), (760, 1215), (700, 1170), (680, 1110)]),
             ("fill", "white", [(810, 1086), (830, 1074), (870, 1074), (870, 1095), (810, 1095)], ["dark", "line", "teal"]),
-            ("line", [(737, 976), (714, 990), (698, 1015), (690, 1048), (688, 1085), (694, 1122), (712, 1160), (746, 1192),
-                      (796, 1212), (852, 1219), (902, 1211), (938, 1190), (958, 1155), (966, 1105), (966, 1055), (960, 1018),
+            # Round and wider than tall as the picture's birds are, its bottom fluffy as theirs: broken, with flicks.
+            ("line", [(737, 976), (714, 990), (698, 1015), (690, 1048), (687, 1085), (689, 1120), (699, 1148), (720, 1170),
+                      (750, 1185), (768, 1190)]),
+            ("line", [(778, 1193), (792, 1195)], 6.5),
+            ("line", [(802, 1197), (850, 1198), (892, 1193), (926, 1179), (950, 1155), (962, 1120), (966, 1075), (962, 1032),
                       (944, 1002)]),
+            ("line", [(733, 1178), (727, 1187), (720, 1192)], 5.5),
+            ("line", [(906, 1188), (914, 1195), (922, 1198)], 5.5),
+            ("line", [(956, 1140), (964, 1146), (969, 1154)], 5),
         ],
         "eyes": [(748, 1028), (863, 1045)],
-        # Where its wings grow from its sides, low on them as the picture's raised wing does.
-        "points": {"left": (700, 1122), "right": (958, 1122)},
+        # Where its wings grow from its sides: at the shoulders, where the teal of its sides meets its white belly.
+        "points": {"left": (701, 1090), "right": (953, 1090)},
     },
     # The raised wing of the bird at the bottom right, alone: the flyer flaps it. Its edge where it meets that bird's
     # body is drawn on.
@@ -146,6 +152,30 @@ BIRDS = {
         "eyes": [],
         # Its base, where it turns, and its tip.
         "points": {"root": (962, 1166), "tip": (1058, 930)},
+    },
+    # A folded wing, alone: the cecilias' bird's own (at its right), held flat on its side as the picture's birds that
+    # face us hold theirs. The flyer folds its wings to it. Its bottom, past the picture's edge, is drawn on as that
+    # bird's is.
+    "fold": {
+        "box": (300, 1310, 480, 1640),
+        "outline": [(320, 1400), (335, 1365), (365, 1338), (400, 1328), (440, 1336), (462, 1352), (472, 1380), (474, 1420),
+                    (474, 1460), (474, 1500), (470, 1530), (458, 1565), (440, 1598), (415, 1624), (390, 1627), (365, 1612),
+                    (345, 1587), (332, 1550), (322, 1500), (316, 1450)],
+        "seeds": [(380, 1450), (400, 1380)],
+        "repair": [
+            ("line", [(347, 1516), (350, 1550), (360, 1580), (378, 1602), (400, 1612)]),
+            ("line", [(458, 1516), (448, 1550), (433, 1584), (416, 1605), (398, 1613)]),
+            # Alone, it is closed where it meets the body: at its top, thinly behind the dashes down its inner edge,
+            # and below its scallops, where the body's teal shows, by one more scallop.
+            ("fill", "white", [(392, 1352), (446, 1350), (452, 1374), (428, 1366), (398, 1364)], ["teal"]),
+            ("line", [(432, 1342), (446, 1352), (452, 1366), (452, 1382)]),
+            ("line", [(343, 1418), (337, 1445), (334, 1470), (335, 1497)], 4.5),
+            ("fill", "white", [(424, 1494), (463, 1486), (463, 1528), (428, 1530)], ["teal"]),
+            ("line", [(428, 1490), (446, 1490), (456, 1500), (459, 1518)]),
+        ],
+        "eyes": [],
+        # Where it hangs from the bird's shoulder, and opens out about: under its top, its outer third past the side.
+        "points": {"root": (402, 1415)},
     },
 }
 
