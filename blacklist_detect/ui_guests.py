@@ -1,8 +1,8 @@
 """嘉宾 themes: the scenes a 嘉宾 or a 组合 has as the 嘉宾 list says them, and 组合, the 嘉宾 who, all in
 one lobby, get scenes of their own (guests.lobby_choice).
 
-The 嘉宾 list says a 嘉宾's or a 组合's scenes in a word or two (scenes_said); they are ticked in the
-dialog that edits it, beside its fields (ui_guest_scenes.ScenePane). The 组合 head the 嘉宾 page's list
+The 嘉宾 list says a 嘉宾's or a 组合's scenes in a word or two (scenes_said), after their dots (scene_dots);
+they are ticked in the dialog that edits it, beside its fields (ui_guest_scenes.ScenePane). The 组合 head the 嘉宾 page's list
 (ui_likes), each a row tagged 组合 that opens ComboDialog; 添加组合 adds one, on 不放 to begin with.
 """
 
@@ -29,14 +29,20 @@ def scene_name(key: str) -> str:
 
 
 def scenes_said(scenes: Scenes) -> str:
-    """A 嘉宾's or a 组合's scenes as the 嘉宾 list says them: 不放, 随机 (any scene), the one scene's name,
-    or N个场景."""
-    if scenes.off:
-        return "不放"
-    keys = () if scenes.random else ticked(scenes)
-    if not keys:
+    """A 嘉宾's or a 组合's scenes as the 嘉宾 list says them: nothing on 不放, 随机 (any scene), the one
+    scene's name, or N个场景."""
+    keys = scene_dots(scenes)
+    if keys == ["random"]:
         return "随机"
-    return scene_name(keys[0]) if len(keys) == 1 else f"{len(keys)}个场景"
+    return scene_name(keys[0]) if len(keys) == 1 else f"{len(keys)}个场景" if keys else ""
+
+
+def scene_dots(scenes: Scenes) -> list[str]:
+    """The dots (ui_love_pick.scene_dot) before the 嘉宾 list's words for scenes: none on 不放, 随机's
+    ("random") for any scene, else each scene ticked's."""
+    if scenes.off:
+        return []
+    return list(() if scenes.random else ticked(scenes)) or ["random"]
 
 
 class _PeopleScroll(_CardScroll):

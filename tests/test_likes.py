@@ -74,7 +74,7 @@ def test_the_page_lists_names_with_their_nicknames(window):
     # The 我 row on top; then newest first; 昵称 beside the name; 随机 under 场景 for any scene; a
     # dash for 最近遇到 until they are met.
     assert rows == [
-        ["点右上角填写游戏名", "", "不放", "", ""],
+        ["点右上角填写游戏名", "", "", "", ""],
         ["小红", "", "随机", "", "—"],
         ["救人很稳的小明", "明哥", "随机", "上把救了我", "—"],
     ]
@@ -114,12 +114,97 @@ def test_the_effect_column_shows_every_scene_name_whole(window):
     from PySide6.QtGui import QFontMetrics
 
     from blacklist_detect import love_scenes
-    from blacklist_detect.ui_likes import THEME_COLUMN
+    from blacklist_detect.ui_likes import DOTS_WIDE, THEME_COLUMN, _dots_wide
     from blacklist_detect.ui_theme import chinese_font
 
-    # 毛茸茸保护协会, the longest, with the cell's padding on both sides.
-    longest = max(QFontMetrics(chinese_font()).horizontalAdvance(name) for _key, name in love_scenes.SCENES)
-    assert window.likes_page.table.columnWidth(THEME_COLUMN) >= longest + 2 * 12
+    # 毛茸茸保护协会, the longest, after its dot, with the cell's padding on both sides; and a few dots side
+    # by side before N个场景.
+    metrics = QFontMetrics(chinese_font())
+    longest = max(metrics.horizontalAdvance(name) for _key, name in love_scenes.SCENES)
+    width = window.likes_page.table.columnWidth(THEME_COLUMN)
+    assert width >= _dots_wide(1) + longest + 2 * 12
+    assert width >= _dots_wide(DOTS_WIDE) + metrics.horizontalAdvance(f"{len(love_scenes.SCENES)}个场景") + 2 * 12
+
+
+def _scenes_cells(page):  # noqa: ANN001, ANN202
+    """The 我 row on its own 场景, 心动小鹿 on 竖琴清风, 心动星星 on 随机, 阿星 on three, 示例坏人 and a 组合
+    on 不放, and 我 on 不放 too when me_off."""
+    from blacklist_detect.model import Combo
+
+    store = page.store
+    store.add_like("示例坏人", scenes=Scenes())
+    store.add_like("阿星", scenes=Scenes(("ice", "fluffy", "claw")))
+    store.add_like("心动星星", scenes=Scenes(random=True))
+    store.add_like("心动小鹿", scenes=Scenes(("lyre",)))
+    store.set_combos([Combo(("心动小鹿", "心动星星"), Scenes())])
+    page.refresh()
+
+
+def test_a_row_on_no_scene_shows_nothing_under_scene(window):
+    """不放: the 嘉宾's, the 组合's and 我's 场景 cell is empty, no words and no dot."""
+    from blacklist_detect.ui_likes import SCENES_ROLE, THEME_COLUMN
+
+    page, table = window.likes_page, window.likes_page.table
+    _scenes_cells(page)
+    table.resize(900, 400)
+    picture = _picture(table)
+    # 我, the 组合, then 示例坏人 at the foot.
+    for row in (0, 1, table.rowCount() - 1):
+        item = table.item(row, THEME_COLUMN)
+        assert item.text() == "" and not item.data(SCENES_ROLE) and not item.toolTip()
+        cell = table.visualItemRect(item)
+        ground = picture.pixelColor(cell.left() + 1, cell.top() + 2)
+        # Above the row's divider, the cell is its ground all over.
+        assert all(
+            picture.pixelColor(x, y) == ground for x in range(cell.left(), cell.right()) for y in range(cell.top(), cell.bottom() - 2)
+        ), row
+
+
+def test_the_scene_cell_has_each_scene_s_dot_before_its_words(window):
+    """One 场景: its dot and its name; 随机: 随机's dot; several: each one's dot side by side, then N个场景, their
+    names in the tooltip. The dots are painted in scene_dot's colour, left of the words."""
+    from blacklist_detect.ui_likes import SCENES_ROLE, THEME_COLUMN
+    from blacklist_detect.ui_love_pick import SceneChoice, scene_dot
+
+    page, store, table = window.likes_page, window.store, window.likes_page.table
+    _scenes_cells(page)
+    store.set_me(Scenes(("angel",)))
+    page.refresh()
+    said = {table.item(row, 0).text(): table.item(row, THEME_COLUMN) for row in range(table.rowCount())}
+    assert [(said[name].text(), list(said[name].data(SCENES_ROLE))) for name in ("心动小鹿", "心动星星", "阿星")] == [
+        ("竖琴清风", ["lyre"]),
+        ("随机", ["random"]),
+        ("3个场景", ["ice", "fluffy", "claw"]),
+    ]
+    assert said["阿星"].toolTip() == "冰蓝极光、毛茸茸保护协会、演说家遇袭" and not said["心动小鹿"].toolTip()
+    assert table.item(0, THEME_COLUMN).text() == "金色传说" and list(table.item(0, THEME_COLUMN).data(SCENES_ROLE)) == ["angel"]
+    table.resize(900, 400)
+    picture = _picture(table)
+
+    def near(color, want) -> bool:  # noqa: ANN001
+        return max(abs(color.red() - want.red()), abs(color.green() - want.green()), abs(color.blue() - want.blue())) <= 12
+
+    for name, keys in (("心动小鹿", ["lyre"]), ("心动星星", ["random"]), ("阿星", ["ice", "fluffy", "claw"]), (table.item(0, 0).text(), ["angel"])):
+        cell = table.visualItemRect(said[name])
+        y = cell.top() + cell.height() // 2
+        ground = picture.pixelColor(cell.left() + 1, y)
+        spans = []
+        for key in keys:
+            xs = [x for x in range(cell.left(), cell.right()) if near(picture.pixelColor(x, y), scene_dot(key))]
+            # The dot's run, not a pixel of the words' tinted edge that happens to be near its colour.
+            xs = [x for number, x in enumerate(xs) if x == xs[0] + number]
+            # As wide as the 场景 lists' dot, and centred on the row as they are.
+            assert 2 * SceneChoice.DOT - 3 <= len(xs) <= 2 * SceneChoice.DOT + 1, (name, key, len(xs))
+            middle = (min(xs) + max(xs)) // 2
+            column = [y2 for y2 in range(cell.top(), cell.bottom()) if near(picture.pixelColor(middle, y2), scene_dot(key))]
+            assert abs((min(column) + max(column)) / 2 - (cell.top() + cell.height() / 2)) <= 1.5, (name, key)
+            spans.append((min(xs), max(xs)))
+        # Side by side in the order ticked, from near the cell's left.
+        assert spans == sorted(spans) and spans[0][0] - cell.left() < 16, name
+        # Nothing before the first dot; the words after the last.
+        assert all(picture.pixelColor(x, y2) == ground for x in range(cell.left(), spans[0][0] - 1) for y2 in range(y - 8, y + 8))
+        words = [x for x in range(spans[-1][1] + 2, cell.right()) for y2 in range(y - 8, y + 8) if picture.pixelColor(x, y2) != ground]
+        assert words and min(words) > spans[-1][1] + 4, name
 
 
 def test_a_blacklisted_name_is_refused_not_moved(window, monkeypatch):
@@ -738,7 +823,7 @@ def test_the_toolbar_adds_a_guest_or_a_combination(window, monkeypatch):
     monkeypatch.setattr(ComboDialog, "exec", add)
     page.add_combo_button.click()
     assert dialogs[-1].windowTitle() == "添加组合" and store.combos == [Combo(("小明", "小红"), Scenes())]
-    assert _rows(page)[0][:3] == ["小明 + 小红", "", "不放"]
+    assert _rows(page)[0][:3] == ["小明 + 小红", "", ""]
     # 场景管理 stays beside the search.
     assert page.scenes_button in page.toolbar_buttons
 
@@ -804,7 +889,7 @@ def test_the_me_row_heads_the_list_in_green_with_the_players_name(window, monkey
     window._show_list()
     # On top, above the 组合: where to fill in the name until there is one, and 我's own 场景.
     assert page._is_me(0) and table.item(0, NAME).data(ME_ROLE) == ""
-    assert [table.item(0, column).text() for column in range(5)] == [NO_NAME, "", "不放", "", ""]
+    assert [table.item(0, column).text() for column in range(5)] == [NO_NAME, "", "", "", ""]
     assert page._combo_at(1) == 0 and page._index_at(0) == -1 and page._combo_at(0) == -1
     # The header's name, saved, is the row's.
     window.player_edit.setText("测试主播")

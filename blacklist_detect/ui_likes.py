@@ -18,7 +18,7 @@ them the 嘉宾, whose rows drag into another order. A click on a row, its 场�
 
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, QPoint, QRect, Qt, Signal
+from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -51,9 +51,10 @@ from blacklist_detect.ui_dialogs import (
     _say_error,
 )
 from blacklist_detect.ui_guest_scenes import OFF, ScenePane, two_columns
-from blacklist_detect.ui_guests import ComboDialog, scenes_said
+from blacklist_detect.ui_guests import ComboDialog, scene_dots, scene_name, scenes_said
 from blacklist_detect.ui_icons import icon as line_icon
 from blacklist_detect.ui_kit import ConfirmDialog, EmptyState, IconButton, Modal
+from blacklist_detect.ui_love_pick import SceneChoice, scene_dot
 from blacklist_detect.ui_theme import ROW_H, THEME, _page, _pointing, chinese_font
 from blacklist_detect.ui_widgets import (
     NEVER_MET,
@@ -74,6 +75,11 @@ COMBO_ROLE = Qt.UserRole + 1
 PEOPLE_ROLE = Qt.UserRole + 2
 # On each cell of the 我 row: the player's own name, empty when they have not given it.
 ME_ROLE = Qt.UserRole + 3
+# On each row's 场景: the keys of the dots before its words (scene_dots), none on 不放.
+SCENES_ROLE = Qt.UserRole + 4
+# Between a 场景 cell's dots side by side, and after the last before its words. Several dots close up where the
+# cell is too narrow for them all; the column is as wide as this many side by side and N个场景.
+DOT_GAP, WORDS_GAP, DOTS_WIDE = 3, 8, 3
 # The tag before a 组合's 嘉宾, and why 添加组合 cannot be picked yet.
 COMBO_TAG = "组合"
 # The tag before the player's own name on the 我 row, and what it says before there is one.
@@ -147,13 +153,43 @@ def _paint_me_name(painter: QPainter, rect: QRect, font: QFont, name: str) -> No
     _paint_tagged(painter, rect, font, ME_TAG, ("surface", "green"), [(name, "text", False) if name else (NO_NAME, "muted", False)])
 
 
+def _dots_wide(count: int) -> int:
+    """How wide count dots are side by side, with the gap after them before the words."""
+    return count * 2 * SceneChoice.DOT + (count - 1) * DOT_GAP + WORDS_GAP
+
+
+def _paint_dotted(painter: QPainter, rect: QRect, font: QFont, dots: list[str], text: str) -> None:
+    """A cell's words after a dot in each 场景's colour (scene_dot), as big and as centred as the 场景 lists
+    draw them, side by side; where the cell is too narrow for them and the words, the dots close up to
+    half over one another, then the words are cut with …."""
+    painter.save()
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    metrics = QFontMetrics(font)
+    x, size, middle = rect.left(), 2 * SceneChoice.DOT, rect.top() + rect.height() / 2
+    if dots:
+        room = rect.width() - metrics.horizontalAdvance(text) - _dots_wide(1)
+        step = size + DOT_GAP if len(dots) == 1 else max(SceneChoice.DOT, min(size + DOT_GAP, room / (len(dots) - 1)))
+        painter.setPen(Qt.NoPen)
+        for number, key in enumerate(dots):
+            painter.setBrush(scene_dot(key))
+            painter.drawEllipse(QPointF(x + SceneChoice.DOT + number * step, middle), SceneChoice.DOT, SceneChoice.DOT)
+        x += round((len(dots) - 1) * step) + size + WORDS_GAP
+    painter.setFont(font)
+    painter.setPen(QColor(THEME["text"]))
+    words = QRect(x, rect.top(), max(0, rect.right() + 1 - x), rect.height())
+    painter.drawText(words, Qt.AlignLeft | Qt.AlignVCenter, metrics.elidedText(text, Qt.ElideRight, words.width()))
+    painter.restore()
+
+
 class _GuestDelegate(_PlainItemDelegate):
-    """The list's cells: a 组合 row's 名字 painted with its tag and its 嘉宾, the 我 row on green."""
+    """The list's cells: a 组合 row's 名字 painted with its tag and its 嘉宾, the 我 row on green, and 场景
+    with each scene's dot before its words."""
 
     def paint(self, painter, option, index) -> None:  # noqa: ANN001
         people = index.data(PEOPLE_ROLE)
         me = index.data(ME_ROLE)
-        if not people and me is None:
+        dots = index.data(SCENES_ROLE)
+        if not people and me is None and not dots:
             super().paint(painter, option, index)
             return
         view = self.parent()
@@ -171,17 +207,20 @@ class _GuestDelegate(_PlainItemDelegate):
             _paint_combo_name(painter, words, drawn.font, people)
         elif index.column() == NAME:
             _paint_me_name(painter, words, drawn.font, me)
-        elif text := str(index.data() or ""):
+        elif dots or index.data():
             # Inset as the style insets a cell's words, so they line up with the column's.
             margin = view.style().pixelMetric(QStyle.PM_FocusFrameHMargin, None, view) + 1
             words.adjust(margin, 0, -margin, 0)
-            painter.save()
-            painter.setFont(drawn.font)
-            painter.setPen(QColor(THEME["text"]))
-            shown = QFontMetrics(drawn.font).elidedText(text, Qt.ElideRight, words.width())
-            painter.drawText(words, Qt.AlignLeft | Qt.AlignVCenter, shown)
-            painter.restore()
+            _paint_dotted(painter, words, drawn.font, list(dots or ()), str(index.data() or ""))
         _row_divider(painter, option.rect)
+
+
+def _scenes_cell(item: QTableWidgetItem, scenes: Scenes) -> None:
+    """A row's 场景: the dots before its words (SCENES_ROLE), and for several, their names in its tooltip."""
+    dots = scene_dots(scenes)
+    item.setData(SCENES_ROLE, dots)
+    if len(dots) > 1:
+        item.setToolTip("、".join(scene_name(key) for key in dots))
 
 
 class _GuestTable(QTableWidget):
@@ -416,11 +455,13 @@ class LikesPage(QWidget):
         head = self.table.horizontalHeader()
         head.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         head.setHighlightSections(False)
-        # 场景 as wide as the longest scene name or word for several and the cell's padding: 毛茸茸保护协会
-        # is never cut.
+        # 场景 as wide as the longest scene name after its dot, or a few dots and the word for several, and
+        # the cell's padding: 毛茸茸保护协会 is never cut.
         metrics = QFontMetrics(chinese_font())
-        words = [name for _key, name in love_scenes.SCENES] + ["随机", "不放", f"{len(love_scenes.SCENES)}个场景"]
-        theme_width = max(110, max(metrics.horizontalAdvance(word) for word in words) + 2 * 12 + 16)
+        words = [name for _key, name in love_scenes.SCENES] + ["随机"]
+        said = [_dots_wide(1) + metrics.horizontalAdvance(word) for word in words]
+        said.append(_dots_wide(DOTS_WIDE) + metrics.horizontalAdvance(f"{len(love_scenes.SCENES)}个场景"))
+        theme_width = max(110, max(said) + 2 * 12 + 16)
         for column, width in ((NAME, 200), (NICKNAME, 140), (THEME_COLUMN, theme_width), (MET, 120)):
             head.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
             self.table.setColumnWidth(column, width)
@@ -499,6 +540,8 @@ class LikesPage(QWidget):
             item.setFlags(item.flags() & ~Qt.ItemIsDragEnabled & ~Qt.ItemIsDropEnabled)
             if column == NAME:
                 item.setToolTip(f"{ME_TAG}：{name}" if name else NO_NAME)
+            if column == THEME_COLUMN:
+                _scenes_cell(item, self.store.me)
             self.table.setItem(0, column, item)
 
     def _shown_combos(self) -> list[int]:
@@ -530,6 +573,8 @@ class LikesPage(QWidget):
             if column == NAME:
                 item.setData(PEOPLE_ROLE, people)
                 item.setToolTip(f"{COMBO_TAG}：{who}")
+            if column == THEME_COLUMN:
+                _scenes_cell(item, combo.scenes)
             if column == MET:
                 item.setForeground(QColor(THEME["muted"]))
             self.table.setItem(row, column, item)
@@ -559,6 +604,8 @@ class LikesPage(QWidget):
                 item.setData(Qt.UserRole, index)
                 if column == REASON and text:
                     item.setToolTip(text)
+                if column == THEME_COLUMN:
+                    _scenes_cell(item, like.scenes)
                 if column in (NICKNAME, MET):
                     item.setForeground(QColor(THEME["rose"] if column == NICKNAME else THEME["muted"]))
                 table.setItem(row, column, item)

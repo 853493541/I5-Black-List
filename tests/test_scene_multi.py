@@ -329,7 +329,7 @@ def test_the_list_says_the_scenes_in_a_word_or_two():
     from blacklist_detect.ui_guests import scenes_said
 
     said = (Scenes(("ice",)), Scenes(("ice", "lace")), ANY_SCENE, Scenes(("ice",), random=True), OFF, Scenes(("ribbon",)))
-    assert [scenes_said(s) for s in said] == ["冰蓝极光", "2个场景", "随机", "随机", "不放", "随机"]
+    assert [scenes_said(s) for s in said] == ["冰蓝极光", "2个场景", "随机", "随机", "", "随机"]
 
 
 def test_the_guest_list_shows_each_one_s_scenes(window):
@@ -340,8 +340,8 @@ def test_the_guest_list_shows_each_one_s_scenes(window):
     store.set_combos([Combo(("小明", "小红"), Scenes(("lace", "neon", "claw"))), Combo(("小红", "阿星"), OFF)])
     page.refresh()
     cells = [page.table.item(row, 2).text() for row in range(page.table.rowCount())]
-    # 我 first, on 不放 until the player picks.
-    assert cells == ["不放", "3个场景", "不放", "金色传说", "不放", "2个场景"]
+    # 我 first, on 不放 until the player picks: nothing under 场景, as for each one on 不放.
+    assert cells == ["", "3个场景", "", "金色传说", "", "2个场景"]
     assert page.table.horizontalHeaderItem(2).text() == "场景"
 
 
