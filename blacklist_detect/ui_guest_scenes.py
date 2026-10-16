@@ -2,19 +2,21 @@
 
 On the left everyone as the 嘉宾 list has them: 我 on top, green, then the 组合 with their blue tag, then
 the 嘉宾, each with its 场景 in a word or two (scenes_said) as edited so far. A click picks one, and the
-right shows theirs: 随机 (any scene, the ticks kept under it but greyed), the scenes in three columns each
-with its box (several ticked, one of them each time; none ticked, 不放), and the highlighted one playing
-over the sample lobby, silent (ScenePreview); ▶ plays it again from its start.
+right shows theirs: 随机 (any scene, the ticks kept under it but their boxes greyed), the scenes in three
+columns each with its box (several ticked, one of them each time; none ticked, 不放), and the highlighted
+one playing over the sample lobby, silent (ScenePreview); ▶ plays it again from its start. A name is
+highlighted by a click on 随机 too. One whose ticked scenes this version all lacks shows as 随机, as the
+list says it and as it plays.
 
-Each one's edits are kept as another is picked, and saved together by 确定, only those that changed;
-取消, × and Esc keep none.
+Each one's edits are kept as another is picked, and saved together by 确定, only those that differ from
+what it showed; 取消, × and Esc keep none.
 """
 
 from __future__ import annotations
 
 from math import ceil
 
-from PySide6.QtCore import QRect, QRectF, QSize, Qt
+from PySide6.QtCore import QPoint, QRect, QRectF, QSize, Qt
 from PySide6.QtGui import QColor, QFontMetrics, QPainter, QPen
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -34,9 +36,9 @@ from blacklist_detect.love_scenes import DESIGN
 from blacklist_detect.model import Combo, Scenes
 from blacklist_detect.ui_dialogs import _primary
 from blacklist_detect.ui_guests import scenes_said
-from blacklist_detect.ui_kit import Modal
+from blacklist_detect.ui_kit import Modal, _KeyboardRing
 from blacklist_detect.ui_likes import _paint_combo_name, _paint_me_name
-from blacklist_detect.ui_love_pick import SceneChoice, SceneList, ScenePreview
+from blacklist_detect.ui_love_pick import SceneChoice, SceneList, ScenePreview, paint_box
 from blacklist_detect.ui_theme import THEME, _pointing, chinese_font
 
 # Who is edited: ("me", 0), ("combo", its place in store.combos) or ("like", its place in store.likes).
@@ -92,11 +94,41 @@ class _PersonDelegate(QStyledItemDelegate):
         painter.restore()
 
 
+class _RandomBox(_KeyboardRing, QCheckBox):
+    """随机, its box drawn as the grid's boxes are (filled with a ✓ when ticked), not the app's checkbox."""
+
+    BOX = SceneChoice.BOX
+    PAD = 4
+    GAP = 8
+
+    def sizeHint(self) -> QSize:
+        return QSize(self.PAD + self.BOX + self.GAP + QFontMetrics(self.font()).horizontalAdvance(self.text()) + self.PAD, 28)
+
+    def hitButton(self, pos: QPoint) -> bool:  # noqa: N802
+        return self.rect().contains(pos)
+
+    def paintEvent(self, _event) -> None:  # noqa: ANN001, N802
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        if self.underMouse():
+            p.fillRect(self.rect(), QColor(THEME["hover"]))
+        if self.show_ring():
+            p.setPen(QPen(QColor(THEME["accent_line"]), 1.5, Qt.DashLine))
+            p.drawRect(QRectF(self.rect()).adjusted(1, 1, -1, -1))
+        paint_box(p, QRectF(self.PAD, (self.height() - self.BOX) / 2, self.BOX, self.BOX), self.isChecked())
+        p.setFont(self.font())
+        p.setPen(QColor(THEME["text"]))
+        p.drawText(QRect(self.PAD + self.BOX + self.GAP, 0, self.width(), self.height()), Qt.AlignLeft | Qt.AlignVCenter, self.text())
+        p.end()
+
+
 class GuestScenesDialog(Modal):
     """嘉宾场景, opened on who (ME, ("combo", n) or ("like", i)). value(who) is someone's 场景 as edited so
     far; 确定 saves those that changed into the store."""
 
-    W = 270
+    W = 250
+    # The grid: three names side by side, each whole, its box clear of it.
+    GRID_W = 576
     PREVIEW_W = 448
     # Five rows of scenes (up to 15) and the preview at its full size share this height: with more scenes
     # the preview gets smaller rather than the dialog taller.
@@ -132,7 +164,7 @@ class GuestScenesDialog(Modal):
         side.setSpacing(12)
         top = QHBoxLayout()
         top.setSpacing(12)
-        self.random_box = QCheckBox("随机")
+        self.random_box = _RandomBox("随机")
         self.random_box.setToolTip("每次随机放一个场景")
         self.random_box.toggled.connect(self._random_toggled)
         top.addWidget(self.random_box)
@@ -141,7 +173,7 @@ class GuestScenesDialog(Modal):
         top.addWidget(self.hint)
         top.addStretch(1)
         side.addLayout(top)
-        self.scenes = SceneList(chosen=(), columns=3, width=self.PREVIEW_W)
+        self.scenes = SceneList(chosen=(), columns=3, width=self.GRID_W)
         self.scenes.picked.connect(self.show_scene)
         self.scenes.chose.connect(self._edited)
         self.buttons = self.scenes.buttons
@@ -183,9 +215,17 @@ class GuestScenesDialog(Modal):
             return self.store.me
         return (self.store.combos if kind == "combo" else self.store.likes)[place].scenes
 
+    def _shown(self, who: tuple[str, int]) -> Scenes:
+        """Someone's 场景 as the editor shows them unedited: as saved, but one whose ticked scenes this version
+        all lacks is 随机, as the list says it and as it plays."""
+        saved = self._saved(who)
+        if saved.keys and not saved.random and not ticked(saved):
+            return Scenes(saved.keys, random=True)
+        return saved
+
     def value(self, who: tuple[str, int]) -> Scenes:
         """Someone's 场景 as edited so far."""
-        return self.edits.get(who, self._saved(who))
+        return self.edits.get(who, self._shown(who))
 
     def has_changes(self) -> bool:
         return bool(self.edits)
@@ -217,17 +257,18 @@ class GuestScenesDialog(Modal):
         self._edited()
 
     def _show_random(self) -> None:
-        """随机 greys the grid, its ticks kept, and hides 都不勾：不放, which it is not."""
+        """随机 greys the grid's boxes, their ticks kept, and hides 都不勾：不放, which it is not; the names
+        still highlight and play."""
         on = self.random_box.isChecked()
-        self.scenes.setEnabled(not on)
+        self.scenes.set_boxes_enabled(not on)
         self.hint.setHidden(on)
 
     def _edited(self) -> None:
-        """A box ticked or unticked: this one's 场景 as they are now, kept until 确定 unless back as saved."""
+        """A box ticked or unticked: this one's 场景 as they are now, kept until 确定 unless back as shown."""
         if self._loading:
             return
         scenes = Scenes(self.scenes.chosen(), random=self.random_box.isChecked())
-        saved = self._saved(self.who)
+        saved = self._shown(self.who)
         # The same ticks in another order are no change.
         if scenes.random == saved.random and set(scenes.keys) == set(ticked(saved)):
             self.edits.pop(self.who, None)

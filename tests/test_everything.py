@@ -188,8 +188,8 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     # --- 10. 嘉宾场景: every scene previews, silent; 设置 › 声音 › 静音 is kept. ---------------------
     picker = GuestScenesDialog(window.store, ("like", window.store.like_index("心动小鹿")), parent=window)
     heard = len(played)
-    # On 随机 the grid is greyed: 随机 off, the scenes take clicks.
-    assert not picker.scenes.isEnabled()
+    # On 随机 the boxes are greyed, the names still play: 随机 off, the boxes take ticks.
+    assert not picker.buttons["ice"].box_enabled and picker.buttons["ice"].isEnabled()
     picker.random_box.click()
     for key in love_scenes.KEYS:
         picker.buttons[key].click()

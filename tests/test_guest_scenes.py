@@ -52,6 +52,13 @@ def _tick(dialog, *keys: str) -> None:  # noqa: ANN001
         QTest.mouseClick(button, Qt.LeftButton, Qt.NoModifier, QPoint(button.width() - 24, button.height() // 2))
 
 
+def _boxes_on(dialog) -> bool:  # noqa: ANN001
+    """Whether the grid's boxes can be ticked: all of them, or (on 随机) none."""
+    on = {button.box_enabled for button in dialog.buttons.values()}
+    assert len(on) == 1 and dialog.scenes.isEnabled()
+    return on.pop()
+
+
 def test_everyone_is_listed_in_the_list_s_order_and_it_opens_on_the_one_asked(store):
     dialog = _dialog(store, ("like", 0))
     assert dialog.windowTitle() == "嘉宾场景"
@@ -84,7 +91,7 @@ def test_ticks_random_and_no_scene_are_saved_by_ok_alone(store, tmp_path):
     # Nothing saved yet; the list says the edit already.
     assert store.likes[0].scenes == Scenes(("fluffy", "stars")) and _rows(dialog)[4][1] == "2个场景"
     dialog.select(("like", 1))
-    assert dialog.random_box.isChecked() and not dialog.scenes.isEnabled() and dialog.scenes.chosen() == ()
+    assert dialog.random_box.isChecked() and not _boxes_on(dialog) and dialog.scenes.chosen() == ()
     dialog.random_box.click()
     assert dialog.value(("like", 1)) == OFF and _rows(dialog)[3][1] == "不放" and not dialog.hint.isHidden()
     dialog.select(("like", 2))
@@ -183,22 +190,80 @@ def test_the_scenes_sit_in_three_columns_and_a_box_ticks_without_moving_the_high
     dialog.done(QDialog.Rejected)
 
 
-def test_random_greys_the_grid_and_keeps_its_ticks(store):
+def test_random_greys_the_boxes_and_keeps_its_ticks(store):
     dialog = _dialog(store, ("like", 0))
     dialog.random_box.click()
-    assert not dialog.scenes.isEnabled() and dialog.hint.isHidden()
+    assert not _boxes_on(dialog) and dialog.hint.isHidden()
     assert dialog.scenes.chosen() == ("stars", "fluffy") and dialog.value(("like", 0)) == Scenes(("stars", "fluffy"), random=True)
     assert _rows(dialog)[4][1] == "随机"
     dialog.buttons["ice"].grab()
     dialog.random_box.click()
-    assert dialog.scenes.isEnabled() and not dialog.hint.isHidden() and not dialog.has_changes()
+    assert _boxes_on(dialog) and not dialog.hint.isHidden() and not dialog.has_changes()
     # Saved 随机 with ticks opens greyed, the ticks shown.
     store.update_like(0, "心动小鹿", scenes=Scenes(("ice",), random=True))
     again = _dialog(store, ("like", 0))
-    assert again.random_box.isChecked() and not again.scenes.isEnabled() and again.scenes.chosen() == ("ice",)
+    assert again.random_box.isChecked() and not _boxes_on(again) and again.scenes.chosen() == ("ice",)
     assert again.value(("like", 0)) != ANY_SCENE
     for each in (dialog, again):
         each.done(QDialog.Rejected)
+
+
+def test_on_random_a_name_still_plays_by_click_or_keyboard_and_a_box_does_not_tick(store):
+    dialog = _dialog(store, ("like", 1))
+    dialog.show()
+    QApplication.processEvents()
+    assert dialog.random_box.isChecked() and not _boxes_on(dialog)
+    ice = dialog.buttons["ice"]
+    assert ice.isEnabled() and ice.focusPolicy() == Qt.StrongFocus
+    QTest.mouseClick(ice, Qt.LeftButton, Qt.NoModifier, QPoint(30, ice.height() // 2))
+    assert dialog.key == "ice" and dialog.preview.scene == "ice"
+    # A click where the box is highlights the name too, and ticks nothing.
+    _tick(dialog, "lace")
+    assert dialog.key == "lace" and dialog.scenes.chosen() == () and not dialog.has_changes()
+    # The keyboard: Space on a name highlights it, and ticks nothing.
+    QTest.keyClick(dialog.buttons["stars"], Qt.Key_Space)
+    assert dialog.key == "stars" and dialog.preview.scene == "stars" and dialog.scenes.chosen() == ()
+    assert not dialog.has_changes()
+    dialog.done(QDialog.Rejected)
+
+
+def test_one_on_scenes_this_version_lacks_shows_as_random_and_only_a_change_is_saved(store, tmp_path):
+    from blacklist_detect.guests import lobby_choice
+
+    gone = Scenes(("no_such_scene",))
+    store.update_like(0, "心动小鹿", scenes=gone)
+    assert lobby_choice(store.likes, [], store.likes[:1], "classic") == "random"
+    dialog = _dialog(store, ("like", 0))
+    # As the list says it and as it plays: 随机, nothing ticked, no 都不勾：不放.
+    assert _rows(dialog)[4][1] == "随机" and dialog.random_box.isChecked() and dialog.hint.isHidden()
+    assert dialog.scenes.chosen() == () and not _boxes_on(dialog) and not dialog.has_changes()
+    # Just looking saves nothing; 随机 off and on again is no change either.
+    dialog.random_box.click()
+    dialog.random_box.click()
+    assert not dialog.has_changes()
+    dialog.ok_button.click()
+    assert store.likes[0].scenes == gone and Store(tmp_path).likes[0].scenes == gone
+    # Unticking 随机 to leave nothing ticked is 不放, and saved.
+    again = _dialog(store, ("like", 0))
+    again.random_box.click()
+    assert again.value(("like", 0)) == OFF and _rows(again)[4][1] == "不放" and again.has_changes()
+    again.ok_button.click()
+    assert store.likes[0].scenes == OFF and Store(tmp_path).likes[0].scenes == OFF
+
+
+def test_every_scene_name_shows_whole_in_the_grid_with_its_name_as_a_tooltip(store):
+    from blacklist_detect import love_scenes
+
+    dialog = _dialog(store, ("like", 0))
+    dialog.show()
+    QApplication.processEvents()
+    assert len(dialog.buttons) == len(love_scenes.SCENES)
+    for key, title in love_scenes.SCENES:
+        button = dialog.buttons[key]
+        # Highlighted (bold) or not, it is not cut with …, and its box sits clear of it.
+        assert button.shown_name(True) == button.shown_name(False) == title, title
+        assert button.toolTip() == title
+    dialog.done(QDialog.Rejected)
 
 
 def test_the_preview_is_silent_and_replays_from_its_start(store):

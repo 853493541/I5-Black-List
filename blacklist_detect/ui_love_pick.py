@@ -243,10 +243,27 @@ def _draw_note(p: QPainter, centre: QPointF, color: str) -> None:
     p.restore()
 
 
+def paint_box(p: QPainter, box: QRectF, on: bool) -> None:
+    """嘉宾场景's box: filled, with a ✓, when ticked; an empty square when not."""
+    p.save()
+    if on:
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(THEME["accent"]))
+        p.drawRoundedRect(box, 4, 4)
+        tick = line_pixmap("check", 12, THEME["on_accent"], stroke=2.0)
+        p.drawPixmap(box.adjusted(2, 2, -2, -2), tick, QRectF(tick.rect()))
+    else:
+        p.setPen(QPen(QColor(THEME["field_line"]), 1.2))
+        p.setBrush(QColor(THEME["surface"]))
+        p.drawRoundedRect(box.adjusted(0.5, 0.5, -0.5, -0.5), 4, 4)
+    p.restore()
+
+
 class SceneChoice(_KeyboardRing, QAbstractButton):
     """One scene in a list: a dot in its colour and its name. Highlighted, it sits in a ringed band; under
     the mouse, the band shows faintly. In 嘉宾场景 (chosen not None) a box at its end is ticked or not, by a
-    click on it or Space, apart from the band, and chose says so. On the 场景管理 page a ✓ there is apart
+    click on it or Space, apart from the band, and chose says so; on 随机 (set_box_enabled(False)) the box
+    is greyed and does not tick, and the name still highlights. On the 场景管理 page a ✓ there is apart
     from the band too (tick: the hotkey plays it), and own puts a ♪ before it (the player's own sound).
     With neither, the ✓ goes with the band."""
 
@@ -258,6 +275,9 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
     BOX = 16
     # Where the name starts, after the dot.
     TEXT_X = 16 + 2 * DOT + 12
+    # Kept clear at the row's end: for the ✓, and for 嘉宾场景's box with a gap before it.
+    END = 36
+    BOX_END = 32 + 12
 
     def __init__(self, key: str, name: str, parent: QWidget | None = None) -> None:
         from blacklist_detect.ui_overlay import love_look
@@ -277,6 +297,7 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         self.own = False
         # 嘉宾场景's box: None for none, else whether it is ticked.
         self.chosen: bool | None = None
+        self.box_enabled = True
         self._box_press = False
 
     def set_marks(self, tick: bool, own: bool) -> None:
@@ -291,13 +312,21 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         self.setAccessibleDescription("已勾选" if on else "未勾选")
         self.update()
 
+    def set_box_enabled(self, on: bool) -> None:
+        """Whether the box can be ticked: not on 随机, where it is greyed, its tick kept."""
+        self.box_enabled = on
+        self.update()
+
+    def _ticks(self) -> bool:
+        return self.chosen is not None and self.box_enabled
+
     def _toggle_chosen(self) -> None:
         self.set_chosen(not self.chosen)
         self.chose.emit(self.chosen)
 
     def _on_box(self, event) -> bool:  # noqa: ANN001
         """Whether the mouse is on the box: the end of the row, where it sits."""
-        return self.chosen is not None and event.position().x() >= self.width() - 40
+        return self._ticks() and event.position().x() >= self.width() - 40
 
     def mousePressEvent(self, event) -> None:  # noqa: ANN001
         # A press on the box ticks it and leaves the highlight where it is.
@@ -317,7 +346,7 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         super().mouseReleaseEvent(event)
 
     def keyPressEvent(self, event) -> None:  # noqa: ANN001
-        if self.chosen is not None and event.key() == Qt.Key_Space:
+        if self._ticks() and event.key() == Qt.Key_Space:
             if not event.isAutoRepeat():
                 self._toggle_chosen()
             event.accept()
@@ -325,7 +354,7 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         super().keyPressEvent(event)
 
     def keyReleaseEvent(self, event) -> None:  # noqa: ANN001
-        if self.chosen is not None and event.key() == Qt.Key_Space:
+        if self._ticks() and event.key() == Qt.Key_Space:
             event.accept()
             return
         super().keyReleaseEvent(event)
@@ -334,6 +363,13 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         font = chinese_font()
         font.setWeight(QFont.DemiBold)
         return QSize(self.TEXT_X + QFontMetrics(font).horizontalAdvance(self.text()) + 44 + 20 * self.own, self.H)
+
+    def shown_name(self, bold: bool) -> str:
+        """The name as drawn, cut with … only when the row is too narrow for it."""
+        font = chinese_font()
+        font.setWeight(QFont.DemiBold if bold else QFont.Normal)
+        room = self.width() - self.TEXT_X - (self.END if self.chosen is None else self.BOX_END) - 20 * self.own
+        return QFontMetrics(font).elidedText(self.text(), Qt.ElideRight, room)
 
     def enterEvent(self, event) -> None:  # noqa: ANN001
         self._hover = True
@@ -349,7 +385,6 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         if not self.isEnabled():
-            # 嘉宾场景 on 随机: the grid greyed, its ticks kept.
             p.setOpacity(0.4)
         box = QRectF(self.rect()).adjusted(1, 1, -1, -1)
         if self.isChecked():
@@ -371,8 +406,8 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         font.setWeight(QFont.DemiBold if self.isChecked() else QFont.Normal)
         p.setFont(font)
         p.setPen(QColor(THEME["text"]))
-        words = QRectF(self.TEXT_X, 0, self.width() - self.TEXT_X - 36 - 20 * self.own, self.height())
-        p.drawText(words, Qt.AlignLeft | Qt.AlignVCenter, QFontMetrics(font).elidedText(self.text(), Qt.ElideRight, int(words.width())))
+        words = QRectF(self.TEXT_X, 0, self.width() - self.TEXT_X, self.height())
+        p.drawText(words, Qt.AlignLeft | Qt.AlignVCenter, self.shown_name(self.isChecked()))
         if self.own:
             _draw_note(p, QPointF(self.width() - 45, self.height() / 2), THEME["muted"])
         if self.chosen is not None:
@@ -386,18 +421,11 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         p.end()
 
     def _paint_box(self, p: QPainter) -> None:
-        """嘉宾场景's box at the row's end: filled, with a ✓, when ticked; an empty square when not."""
-        box = QRectF(self.width() - 32, (self.height() - self.BOX) / 2, self.BOX, self.BOX)
-        if self.chosen:
-            p.setPen(Qt.NoPen)
-            p.setBrush(QColor(THEME["accent"]))
-            p.drawRoundedRect(box, 4, 4)
-            tick = line_pixmap("check", 12, THEME["on_accent"], stroke=2.0)
-            p.drawPixmap(box.adjusted(2, 2, -2, -2), tick, QRectF(tick.rect()))
-        else:
-            p.setPen(QPen(QColor(THEME["field_line"]), 1.2))
-            p.setBrush(QColor(THEME["surface"]))
-            p.drawRoundedRect(box.adjusted(0.5, 0.5, -0.5, -0.5), 4, 4)
+        """嘉宾场景's box at the row's end; on 随机 greyed, its tick kept."""
+        if not self.box_enabled:
+            # 嘉宾场景 on 随机: the boxes greyed, the names as ever.
+            p.setOpacity(p.opacity() * 0.4)
+        paint_box(p, QRectF(self.width() - 32, (self.height() - self.BOX) / 2, self.BOX, self.BOX), bool(self.chosen))
 
 
 class SceneList(QWidget):
@@ -434,8 +462,9 @@ class SceneList(QWidget):
         for place, (key, title) in enumerate(love_scenes.SCENES):
             button = SceneChoice(key, title)
             if columns > 1:
-                # Alike, however long the name: a long one is cut with … as in the list.
+                # Alike, wide enough for every name whole; the name again when the mouse rests on it.
                 button.setFixedWidth(cell)
+                button.setToolTip(title)
             button.clicked.connect(lambda _checked=False, key=key: self._click(key))
             button.chose.connect(lambda _on: self.chose.emit())
             group.addButton(button)
@@ -460,6 +489,11 @@ class SceneList(QWidget):
         keys = {love_scenes.shown(key) for key in keys}
         for key, button in self.buttons.items():
             button.set_chosen(key in keys)
+
+    def set_boxes_enabled(self, on: bool) -> None:
+        """Whether the boxes can be ticked (not on 随机); the names highlight either way."""
+        for button in self.buttons.values():
+            button.set_box_enabled(on)
 
     def chosen(self) -> tuple[str, ...]:
         """The scenes ticked, in the list's order."""

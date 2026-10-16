@@ -205,7 +205,7 @@ def main() -> int:
 def _like_dialog(window):  # noqa: ANN001, ANN202
     from blacklist_detect.ui_likes import LikeDialog
 
-    return LikeDialog("丙丙的猫猫头", "猫猫", "救人很稳，开局就报点", title="编辑", allow_delete=True, parent=window)
+    return LikeDialog("丙丙的猫猫头", "猫猫", "救人很稳，开局就报点", allow_delete=True, parent=window)
 
 
 def _tag_dialog(store, window, off: str = ""):  # noqa: ANN001, ANN202
