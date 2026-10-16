@@ -281,6 +281,8 @@ def shoot(args) -> None:  # noqa: ANN001
         ]  # fmt: skip
         tags = next((tuple(entry.tags) for entry in window.store.entries if entry.name == bad), ())
         hits = [Hit(seats.index(bad), bad, bad, "", False, "", tags)] if bad else []
+        # Put aside what the check changes, as 测试效果 does, so the steps after this one see the window as it was.
+        saved = (window._game_box, window._game_screen, window._game_windows, window._live_check, window._love_played)
         window._demo_area = picture
         window._live_check = True
         window._love_played = False
@@ -305,6 +307,7 @@ def shoot(args) -> None:  # noqa: ANN001
             window.love.stop()
             window.alert.stop()
             window._demo_area = None
+            window._game_box, window._game_screen, window._game_windows, window._live_check, window._love_played = saved
 
     if args.data != "empty":
         # A 黑名单 player beside two 嘉宾 with a 组合's 场景: the both ring in its look, the 黑名单 card right,
