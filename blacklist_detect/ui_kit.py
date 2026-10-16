@@ -1212,7 +1212,8 @@ class _CatalogDelegate(QStyledItemDelegate):
 class SettingsCatalog(QListWidget):
     """设置's sections down the left, each with its icon; the chosen one on the selected wash.
 
-    ↑ and ↓ move through them as a click does; Enter goes on into the chosen section (entered).
+    ↑ and ↓ move through them as a click does; Enter goes on into the chosen section (entered). A section is
+    always chosen: Ctrl+click on it, or anything else that clears the choice, keeps it.
     """
 
     entered = Signal()
@@ -1230,6 +1231,15 @@ class SettingsCatalog(QListWidget):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setCursor(Qt.PointingHandCursor)
+        self.itemSelectionChanged.connect(self._keep_chosen)
+
+    def _keep_chosen(self) -> None:
+        if not self.count() or self.selectedItems():
+            return
+        if self.currentItem() is None:
+            self.setCurrentRow(0)
+        else:
+            self.currentItem().setSelected(True)
 
     def add_section(self, key: str, title: str, icon: str) -> QListWidgetItem:
         item = QListWidgetItem(title)

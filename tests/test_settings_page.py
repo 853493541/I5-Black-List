@@ -96,6 +96,53 @@ def test_the_catalog_lists_the_sections_and_shows_the_chosen_one(opened):
     assert _shown(opened) == ["help"]
 
 
+def test_a_section_is_always_chosen(opened):
+    """Ctrl+click on the chosen section, Ctrl+Space, a click below the sections or a cleared choice: it stays
+    chosen, on its wash, and shown."""
+    from PySide6.QtCore import QPoint
+    from PySide6.QtTest import QTest
+
+    catalog = opened.settings_catalog
+    catalog.choose("about")
+    about = catalog.item(2)
+    rect = catalog.visualItemRect(about)
+    below = QPoint(rect.center().x(), catalog.viewport().height() - 4)
+    ctrl = Qt.KeyboardModifier.ControlModifier
+    catalog.setFocus()
+    for deselect in (
+        lambda: QTest.mouseClick(catalog.viewport(), Qt.MouseButton.LeftButton, ctrl, rect.center()),
+        lambda: QTest.keyClick(catalog, Qt.Key_Space, ctrl),
+        lambda: QTest.mouseClick(catalog.viewport(), Qt.MouseButton.LeftButton, ctrl, below),
+        catalog.clearSelection,
+    ):
+        deselect()
+        _settle()
+        assert catalog.selectedItems() == [about] and catalog.current_key() == "about" and _shown(opened) == ["about"]
+
+
+def test_a_long_update_note_keeps_the_about_section_in_the_window(opened):
+    """A long answer from 检查更新 (a network error) is cut short with … before the button and whole in its
+    tooltip: 检查更新, 当前版本 and every row of 关于 stay in the window at 900x560."""
+    from PySide6.QtCore import QPoint, QRect
+
+    opened.settings_catalog.choose("about")
+    note = "网络连不上：HTTPSConnectionPool(host='api.github.com', port=443): Max retries exceeded with url " * 3
+    opened._show_update_note(note, warn=True)
+    _settle()
+    shown = QRect(QPoint(0, 0), opened.settings_scroll.viewport().size())
+    for widget in (opened.update_note, opened.update_button, opened.version_label, opened.disclaimer_button, opened.reset_button):
+        assert widget.isVisible() and shown.contains(QRect(widget.mapTo(opened.settings_scroll.viewport(), QPoint(0, 0)), widget.size()))
+    assert opened.settings_scroll.horizontalScrollBar().maximum() == 0
+    assert opened.version_label.width() >= opened.version_label.sizeHint().width()
+    assert opened.update_note.text() == opened.update_note.toolTip() == note
+    assert 0 < opened.update_note.width() < opened.update_note.fontMetrics().horizontalAdvance(note)
+    # A short one is shown whole, right before the button.
+    opened._show_update_note("已是最新版本")
+    _settle()
+    assert opened.update_note.width() >= opened.update_note.fontMetrics().horizontalAdvance("已是最新版本")
+    assert opened.update_button.x() - opened.update_note.geometry().right() <= 16
+
+
 def test_enter_goes_on_into_the_chosen_section(opened):
     catalog = opened.settings_catalog
     catalog.choose("help")

@@ -98,7 +98,6 @@ from blacklist_detect.ui_dialogs import (
     DisplayGuideDialog,
     FlowReportDialog,
     GuideDialog,
-    PictureResultDialog,
     StreamGuideDialog,
     TagSuggestDialog,
     _confirm,
@@ -191,7 +190,6 @@ __all__ = [
     "DayFolderIcon",
     "GuideDialog",
     "MainWindow",
-    "PictureResultDialog",
     "SAMPLE_LOBBY",
     "TagPill",
     "_COVER_OUTSET",
@@ -1168,9 +1166,11 @@ class MainWindow(QMainWindow):
         version_line.addWidget(current)
         version_line.addWidget(self.version_label)
         version_line.addStretch(1)
-        # A waiting version turns 检查更新 into the 有更新 button.
-        self.update_note = QLabel("")
+        # A waiting version turns 检查更新 into the 有更新 button. A long note (a network error) is cut short
+        # with … before the button, whole in its tooltip, so the button stays in the window.
+        self.update_note = ElidedLabel("")
         self.update_note.setObjectName("rowHint")
+        self.update_note.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         self.update_note.hide()
         self.update_button = QPushButton("检查更新")
         self.update_button.setFont(ui_font())
