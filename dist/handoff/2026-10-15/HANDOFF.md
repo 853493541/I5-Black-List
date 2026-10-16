@@ -53,6 +53,19 @@ each stands, are in ASKS.md beside it: that list is what "done" means; report ag
   (notes: 新场景「竖琴清风」 / 嘉宾和组合可直接选场景，可传配乐 / 设置改版，记录可一键加入名单). Release check: one tester
   with the desktop on `09eee29`, then bump, make_release, sign, push, publish, check --each.
 
+- **v0.9.16 RELEASED** (~00:05 PDT): release check READY WITH NOTES (dist/release_check/v0.9.16/REPORT.md: 806
+  tests, 325 shots light+dark 100/150/200, check_functions 22/22, v0.9.15 upgrade both ways). Commit `a2ab08c` =
+  main = origin/main = origin/improve/quality. GitHub + 6 proxies serve v0.9.16 (check --each). Not installed by hand:
+  the in-app update offers it. Check notes not fixed: 竖琴清风's first click in a dialog hitches ~0.2 s; 场景管理's list
+  scrolls (last row half cut) while the hotkey warning shows.
+- UI batch (#48-55): branch `ui/batch-48` (worktree .claude/worktrees/ui-batch) = a2ab08c + e743e87 (rename, 随机 dot)
+  + 9749ab5 (G1 list dots) + 74adb19 (G2 随机 row) + bb55f3d (配乐 rows). Full tests + review workflow wf_698bfea2-2e0
+  running; then fast-forward improve/quality. Pictures: dist/ui_batch_48/.
+- #56 (hotkey unseen in 直播模式): researched. Not a regression: in 基础模式 + 直播模式 every mark, the hotkey's scene
+  too, is WA_DontShowOnScreen and only drawn into the off-screen 直播画面 (ui.py ~2990-3005, since c13f5ca, v0.9.12).
+  Fix (ui.py ~4214 and ~4328): the hotkey's play shows on screen too, back to stream-only after; needs the user's OK
+  because 基础模式 exists to not draw over the game.
+
 ## Not built (stopped at #ec; the next master's first package, from improve/quality)
 
 F1, 竖琴清风's timing (the user has not seen these yet; they come from the implementer's own report):
