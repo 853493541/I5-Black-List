@@ -17,6 +17,8 @@ from blacklist_detect.love_scenes import KEYS, Stage, choose, sample_stage  # no
 
 # The scenes that draw the 嘉宾 marks as themes of their own.
 THEMES = ("classic", "cyber", "neon", "angel", "equation", "fluffy", "claw")
+# Scenes drawn for a player to see before they go into 设置: the same rules hold for them.
+CONCEPTS = ("lyre",)
 
 
 @pytest.fixture(scope="module")
@@ -44,7 +46,7 @@ def _drawn(image: QImage) -> bool:
     return any(image.pixelColor(x, y).alpha() for x in range(0, image.width(), 7) for y in range(0, image.height(), 7))
 
 
-@pytest.mark.parametrize("key", KEYS)
+@pytest.mark.parametrize("key", KEYS + CONCEPTS)
 def test_every_scene_plays_through_and_keeps_the_button_bare(qapp, key):
     stage = sample_stage()
     shots = _frames(stage, key)
@@ -57,7 +59,7 @@ def test_every_scene_plays_through_and_keeps_the_button_bare(qapp, key):
         assert all(shot.pixelColor(x, y).alpha() < 40 for x in range(button.left(), button.right(), 6) for y in (button.top(), button.bottom()))
 
 
-@pytest.mark.parametrize("key", KEYS)
+@pytest.mark.parametrize("key", KEYS + CONCEPTS)
 def test_every_scene_fits_another_window_shape(qapp, key):
     """A windowed emulator is narrower and taller than the lobby the scenes were drawn on."""
     stage = Stage(900, 640, QRectF(300, 540, 330, 100), badge=QPointF(600, 580))
@@ -475,3 +477,78 @@ def test_the_conductors_badge_holds_his_role_icon(qapp, scale):
     assert 0.55 <= (xs.max() - xs.min()) / (ys.max() - ys.min()) <= 0.8
     x, y = round(middle + tip.x() * scale), round(middle + tip.y() * scale)
     assert tip.x() < 0 and tip.y() < 0 and alpha[y - 1 : y + 2, x - 1 : x + 2].max() > 100
+
+
+def test_the_lyre_frames_the_lobby_in_jade_and_leaves_its_middle_bare(qapp):
+    """竖琴清风 is a frame: while it plays every edge has its jade band, the lyre stands in the top left,
+    and the names, the title and the middle of the lobby keep the game's own colors."""
+    stage = sample_stage()
+    shot = _frames(stage, "lyre")[4]
+    assert love_scenes.load("lyre").DURATION == 5.0
+    middle = stage.height / 2
+    for x, y in ((6, middle), (stage.width - 6, middle), (stage.width * 0.3, 6), (stage.width * 0.2, stage.height - 6)):
+        color = shot.pixelColor(round(x), round(y))
+        assert color.alpha() > 150 and color.green() > color.red() and color.green() > color.blue(), (x, y)
+    # The lyre's rose-brown wood, left of its strings.
+    wood = shot.pixelColor(round(95 * stage.unit()), round(150 * stage.unit()))
+    assert wood.alpha() > 200 and wood.red() > wood.green() > wood.blue(), wood.name()
+    for name in stage.names():
+        assert all(shot.pixelColor(round(name.left() + name.width() * k / 4), round(name.center().y())).alpha() < 12 for k in range(1, 4)), name
+    assert shot.pixelColor(round(stage.width / 2), round(stage.height * 0.15)).alpha() < 12, "the title is bare"
+
+
+def test_the_lyre_comes_in_softly_and_goes_cleanly(qapp):
+    """Nothing pops in: the first frame is empty and the band breathes in; at the end all of it is gone."""
+    stage = sample_stage()
+    paint = love_scenes.load("lyre").make(stage)
+    edge = []
+    for t in (0.0, 0.1, 0.25, 0.5, 5.0):
+        image = QImage(round(stage.width), round(stage.height), QImage.Format_ARGB32_Premultiplied)
+        image.fill(Qt.transparent)
+        painter = QPainter(image)
+        painter.setRenderHint(QPainter.Antialiasing)
+        paint(painter, t)
+        painter.end()
+        edge.append(image.pixelColor(6, round(stage.height / 2)).alpha())
+        if t in (0.0, 5.0):
+            assert not _drawn(image), t
+    assert edge[1] < edge[2] < edge[3], edge
+
+
+def test_the_lyre_draws_its_marks(qapp):
+    from blacklist_detect.love_scenes import lyre
+    from blacklist_detect.ui_love_pick import SampleMarks
+    from blacklist_detect.ui_overlay import love_look
+
+    assert love_look("lyre").marks == "lyre" and love_look("lyre").ink == lyre.LOOK["ink"]
+    marks = SampleMarks("lyre")
+    assert marks.moving
+    for t in (0.0, 0.7, 2.5):
+        shots = marks.at(t)
+        assert len(shots) == 3 and all(_drawn(pixmap.toImage()) for pixmap, _at in shots)
+    marks.close()
+    # A white feather before the first name, a red leaf before the second.
+    feather, leaf = (lyre.lead(18.0, index).toImage() for index in (0, 1))
+    assert feather.devicePixelRatio() >= 2 and _drawn(feather) and _drawn(leaf)
+    reds = [leaf.pixelColor(x, y) for x in range(leaf.width()) for y in range(leaf.height()) if leaf.pixelColor(x, y).alpha() > 200]
+    assert reds and sum(c.red() > c.green() + 60 for c in reds) > len(reds) / 2
+
+
+def test_the_lyre_keeps_a_frame_quick_once_its_pictures_are_made(qapp):
+    """The pictures are made once; a frame after that is cheap."""
+    import statistics
+    import time
+
+    stage = sample_stage()
+    paint = love_scenes.load("lyre").make(stage)
+    image = QImage(round(stage.width), round(stage.height), QImage.Format_ARGB32_Premultiplied)
+    spent = []
+    for i in range(int(love_scenes.load("lyre").DURATION * 30)):
+        image.fill(Qt.transparent)
+        painter = QPainter(image)
+        painter.setRenderHint(QPainter.Antialiasing)
+        start = time.perf_counter()
+        paint(painter, i / 30)
+        spent.append(time.perf_counter() - start)
+        painter.end()
+    assert statistics.median(spent) < 0.02, f"median {statistics.median(spent) * 1000:.1f} ms"
