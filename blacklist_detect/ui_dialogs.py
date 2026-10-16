@@ -177,8 +177,6 @@ class AddNameDialog(Modal):
         self.name_edit.returnPressed.connect(self._accept)
         self._before = (name, tuple(self.picked), detail)
         _pointing(self)
-        if self._hidden_name is not None:
-            self.detail_edit.setFocus()
 
     def _clear_name_error(self, _text: str) -> None:
         _say_error(self.name_error, "")

@@ -326,7 +326,8 @@ def test_in_stream_mode_the_edit_dialog_masks_the_name_until_the_eye_shows_it(wi
     dialog = AddNameDialog("坏人", (), "", title="编辑", allow_delete=True, masked=True)
     assert dialog.name_edit.text() == "坏*" and dialog.name_edit.isReadOnly()
     assert dialog.reveal_action.toolTip() == "显示名字" and dialog.reveal_action in dialog.name_edit.actions()
-    assert dialog.focusWidget() is dialog.detail_edit and not dialog.has_changes()
+    # The first focus is not moved to 原因: as unmasked, Enter in the (read-only) name saves.
+    assert dialog.focusWidget() is not dialog.detail_edit and not dialog.has_changes()
     dialog._toggle_tag("炸房")
     assert dialog.has_changes()
     dialog._accept()

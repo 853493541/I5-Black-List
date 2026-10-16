@@ -1334,6 +1334,8 @@ class MainWindow(QMainWindow):
         elif result == "renamed":
             if self._tag_filter == tag:
                 self._tag_filter = renamed
+            # An older 撤销 would put the old 标签 back too.
+            self.toast.drop()
             self._refresh_tag_views()
 
     def _refresh_tag_views(self) -> None:
@@ -1353,6 +1355,8 @@ class MainWindow(QMainWindow):
             return
         if not self.store.remove_custom_tag(tag):
             return
+        # An older 撤销 would put the 标签 back too.
+        self.toast.drop()
         self._refresh_tag_views()
 
     def _set_settings_note(self, text: str, held: bool = False) -> None:

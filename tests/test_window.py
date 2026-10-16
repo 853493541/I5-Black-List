@@ -1519,6 +1519,29 @@ def test_an_edit_while_a_delete_can_be_undone_retires_its_undo(qapp, tmp_path, m
     window.close()
 
 
+def test_renaming_or_deleting_a_tag_retires_an_older_undo(qapp, tmp_path, monkeypatch):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    window.store.add_custom_tag("很坏")
+    window.store.add("甲", tags=["很坏"])
+    window.store.add("乙", tags=["很坏"])
+    window._show_list()
+    window._delete_entry(1)
+    window._edit_tag("很坏")
+    window.tag_editor.setText("更坏")
+    window._finish_tag_edit()
+    # 撤销 would have put 乙 back with the old 标签 and undone the rename on 甲.
+    assert window.toast._callback is None
+    assert [(entry.name, entry.tags) for entry in window.store.entries] == [("甲", ("更坏",))]
+    window._delete_entry(0)
+    monkeypatch.setattr("blacklist_detect.ui._confirm", lambda *args: True)
+    window._remove_tag("更坏")
+    assert window.toast._callback is None
+    window.close()
+
+
 def test_the_player_name_is_kept_the_way_it_is_read_back(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
