@@ -8,7 +8,7 @@ each stands, are in ASKS.md beside it: that list is what "done" means; report ag
 | What | Where |
 |---|---|
 | Released | **v0.9.17** = `main` = `origin/main` = `origin/improve/quality` = `a290763` (GitHub + 6 proxies checked, ~01:35 PDT). Notes: 嘉宾列表显示场景色点 / 场景可选「随机」，勾选即播放 / 场景快捷键在基础模式也能看到. Release check by the master (5-hour window at 94 %): 815 tests, check_functions 22/22, ui_shots light+dark 100/150/200 (dist/release_check/v0.9.17/). |
-| `improve/quality` | **`8e73ee5`** (+ this handoff), local, NOT pushed past `a290763` (v0.9.17). 815 passed, 5 skipped, ruff clean. |
+| `improve/quality` | **`3891998`** (+ this handoff), local, NOT pushed past `a290763` (v0.9.17). 815 passed, 5 skipped, ruff clean. |
 | `__version__` | `v0.9.17` |
 | On the user's PC | `8e73ee5` installed with `build/install_local.py --verify` at ~01:50 PDT (12 names, app restarted). |
 | Running | nothing. |
@@ -20,6 +20,16 @@ each stands, are in ASKS.md beside it: that list is what "done" means; report ag
 - v0.9.16 released on the user's word (notes: 新场景「竖琴清风」 / 嘉宾和组合可直接选场景，可传配乐 / 设置改版，记录可一键加入名单).
 - UI batch #48-55 merged (`d3ef49d`..`6865a5c`), reviewed (wf_698bfea2-2e0: 2 confirmed, both fixed in `6865a5c`), installed.
   Pictures: dist/ui_batch_48/ (G1 list dots, G2 picker, sound_rows).
+
+## Running (02:40 PDT)
+
+- Polish A (`polish/scene-picker`: lyre first-click hitch, arrows scroll, Tab stops, 随机 preview, strike-out) and
+  B (`polish/scene-manager`: left room with the hotkey note, dim layer, 选择片段 levelling, stale comments), both from
+  930cd2a. Polish C merged (`db570c8`..`3891998`: 关于 long note elided, catalog always chosen, PictureResultDialog
+  removed, render_gallery made-up names).
+- New 场景 (#58-60): researchers on 凌雪阁 成男 (dist/research/lingxuege/) and the 模仿者 role "Yin Mojia"
+  (dist/research/yinmojia/); a designer on 3 storm-night directions (dist/concepts_storm/). Pictures first, the user
+  picks; no app code until then.
 
 ## Next steps, in order
 
