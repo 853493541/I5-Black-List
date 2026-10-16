@@ -74,17 +74,18 @@ def _on_screen(widget) -> bool:  # noqa: ANN001
     return widget.isVisible() and not widget.testAttribute(Qt.WA_DontShowOnScreen)
 
 
-def test_the_header_switch_is_remembered_and_opens_the_window(window):
-    """直播模式 is a switch in the header, right of the 检查 pill, with its ⓘ beside it: no panel of its own."""
+def test_the_panel_switch_is_remembered_and_opens_the_window(window):
+    """直播模式 is a switch in the 检查 panel, after 显示 and 方式, with its ⓘ and 测试效果 beside it."""
     from blacklist_detect.storage import Store
     from blacklist_detect.ui_dialogs import StreamGuideDialog
-    from blacklist_detect.ui_header import StreamSwitch
+    from blacklist_detect.ui_kit import Switch
     from blacklist_detect.ui_stream import TITLE
 
     switch = window.stream_switch
-    assert isinstance(switch, StreamSwitch) and switch.text() == "直播模式" and switch.accessibleName() == "直播模式"
-    assert not switch.isChecked() and not window.stream.enabled()
-    assert switch.cursor().shape() == Qt.PointingHandCursor and switch.focusPolicy() == Qt.TabFocus
+    assert isinstance(switch, Switch) and switch.accessibleName() == "直播模式"
+    assert window.check_panel.isAncestorOf(switch) and window.check_panel.isAncestorOf(window.stream_guide)
+    assert not switch.isChecked() and not window.stream.enabled() and window.stream_test.isHidden()
+    assert switch.cursor().shape() == Qt.PointingHandCursor
     # On; the window is clear behind the marks, so no 色度键 is needed.
     switch.click()
     assert switch.isChecked() and window.store.stream_mode == "on"
@@ -105,8 +106,9 @@ def test_the_header_switch_is_remembered_and_opens_the_window(window):
     window._set_stream_mode("")
     assert not switch.isChecked() and not window.stream.enabled()
     # Space on the switch turns it, as a click does.
-    QApplication.sendEvent(switch, QKeyEvent(QEvent.Type.KeyPress, Qt.Key_Space, Qt.NoModifier, " "))
-    assert switch.isChecked() and window.store.stream_mode == "on"
+    for kind in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease):
+        QApplication.sendEvent(switch, QKeyEvent(kind, Qt.Key_Space, Qt.NoModifier, " "))
+    assert switch.isChecked() and window.store.stream_mode == "on" and not window.stream_test.isHidden()
     # Saved on, it is on at the next start.
     from blacklist_detect.ui import MainWindow
 

@@ -215,8 +215,8 @@ def test_a_long_hotkey_is_shown_whole(window):
 
 
 def test_the_check_panel_rows_are_alike_and_each_info_mark_is_beside_its_choice(window):
-    # 显示 is two joined choices, its ⓘ right after them; 方式 has 手动检查 beside its hotkey. 直播模式's
-    # ⓘ is right after its switch in the header.
+    # 显示 is two joined choices, its ⓘ right after them; 方式 has 手动检查 beside its hotkey; 直播模式 has
+    # its ⓘ right after its switch, and 测试效果 after that while it is on.
     window.show()
     window.check_panel.toggle()
     for _ in range(5):
@@ -227,17 +227,26 @@ def test_the_check_panel_rows_are_alike_and_each_info_mark_is_beside_its_choice(
     assert 0 <= window.display_guide.mapTo(panel, QPoint(0, 0)).x() - end <= 16
     manual = window.auto_mode.buttons["manual"]
     assert window.hotkey_edit.mapTo(panel, QPoint(0, 0)).x() - manual.mapTo(panel, QPoint(manual.width(), 0)).x() <= 16
-    header = window.stream_switch.parentWidget()
-    switch_end = window.stream_switch.mapTo(header, QPoint(window.stream_switch.width(), 0)).x()
-    assert 0 <= window.stream_guide.mapTo(header, QPoint(0, 0)).x() - switch_end <= 8
-    # With 直播模式 on, 测试效果 has a row of its own in the panel, lined up with the others.
+    switch = window.stream_switch
+    left = window.display_mode.mapTo(panel, QPoint(0, 0)).x()
+    assert switch.mapTo(panel, QPoint(0, 0)).x() == left and window.auto_mode.mapTo(panel, QPoint(0, 0)).x() == left
+    switch_end = switch.mapTo(panel, QPoint(switch.width(), 0)).x()
+    assert 0 <= window.stream_guide.mapTo(panel, QPoint(0, 0)).x() - switch_end <= 16
+    assert not window.stream_test.isVisible()
+    # With 直播模式 on, 测试效果 comes on the same row, after the ⓘ, and the card, wider, stays under the pill.
     window._set_stream_mode(True)
     for _ in range(5):
         QApplication.processEvents()
-    assert window.stream_test.isVisible() and panel.isAncestorOf(window.stream_test)
-    left = window.display_mode.mapTo(panel, QPoint(0, 0)).x()
-    assert window.stream_test.mapTo(panel, QPoint(0, 0)).x() == left
-    assert window.auto_mode.mapTo(panel, QPoint(0, 0)).x() == left
+    test = window.stream_test
+    assert test.isVisible() and panel.isAncestorOf(test)
+    assert abs(test.mapTo(panel, test.rect().center()).y() - switch.mapTo(panel, switch.rect().center()).y()) <= 2
+    guide_end = window.stream_guide.mapTo(panel, QPoint(window.stream_guide.width(), 0)).x()
+    assert 0 <= test.mapTo(panel, QPoint(0, 0)).x() - guide_end <= 16
+    card = panel.card.geometry().translated(panel.pos())
+    chip = window.status_chip
+    pill = chip.geometry().translated(chip.parentWidget().mapTo(window.centralWidget(), QPoint(0, 0)))
+    assert abs(card.right() - pill.right()) <= 1 and card.left() >= 0
+    assert panel.card.rect().contains(QRect(test.mapTo(panel.card, QPoint(0, 0)), test.size()))
     window._set_stream_mode("")
     window.check_panel.close_panel()
 

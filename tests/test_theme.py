@@ -136,9 +136,8 @@ def test_follow_system_reads_windows(qapp, tmp_path, monkeypatch):
 @pytest.mark.parametrize("name", ACCENTS)
 def test_the_header_pills_wear_the_theme_and_stay_readable(qapp, name, dark):
     """The 检查 pill: 手动检查 on the card's color with its edge (no gray of its own), 自动检查中 in the accent's
-    tint, a problem in red; 直播模式's switch on the card's color while off, in the accent's tint while on.
-    Every state's words read on its wash."""
-    from blacklist_detect.ui_header import StatusChip, StreamSwitch
+    tint, a problem in red. Every state's words read on its wash."""
+    from blacklist_detect.ui_header import StatusChip
 
     ui_theme.use_theme(name, "dark" if dark else "light")
     t = ui_theme.THEME
@@ -156,13 +155,6 @@ def test_the_header_pills_wear_the_theme_and_stay_readable(qapp, name, dark):
         wash, ink = chip._colors()[:2]
         assert wash != t["chip_bg"], f"{tone}: not the gray it had"
         assert contrast(ink, wash) >= (3.0 if tone == "idle" else 4.5), tone
-    switch = StreamSwitch()
-    assert switch._colors()[:2] == (t["surface"], t["text"])
-    switch.setChecked(True)
-    wash, ink, _edge, track = switch._colors()
-    assert (wash, ink, track) == (t["accent_wash"], accent, accent)
-    assert contrast(ink, wash) >= 4.5
-    for widget in (chip, switch):
-        widget.resize(widget.sizeHint())
-        assert not widget.grab().isNull()
+    chip.resize(chip.sizeHint())
+    assert not chip.grab().isNull()
     ui_theme.use_theme("蓝色", "light")

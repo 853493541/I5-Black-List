@@ -928,12 +928,3 @@ class SettingsSection(QFrame):
             column.addWidget(note)
         self._add(host)
         return row
-
-    def show_row(self, row: QHBoxLayout, visible: bool) -> None:
-        """Show or hide a row add_row made, with the line above it."""
-        host = row.parentWidget()
-        index = self._rows.indexOf(host)
-        above = self._rows.itemAt(index - 1).widget() if index > 0 else None
-        host.setVisible(visible)
-        if above is not None and above.objectName() == "sectionLine":
-            above.setVisible(visible)
