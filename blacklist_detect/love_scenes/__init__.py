@@ -6,7 +6,9 @@ its marks at the bottom) clear. Heavy scenes set MAX_RATIO, the most pixels per 
 drawn at; a sharper screen gets them scaled up, which their soft light hides. A heavy scene with a
 small part that must stay crisp (a jewel) gives paint a `sharp` attribute, paint(painter, t) for
 that part alone, and takes paint(painter, t, sharp=False) to draw the rest; the part is then drawn
-on top at the screen's own sharpness.
+on top at the screen's own sharpness. A scene whose pictures take seconds to make gives paint a `warm`
+attribute, warm(ratio), which makes them all for that many pixels per point, safe off the screen's thread
+(QImage only); the border plays it once they are made, so its first frame is its start.
 
 Scenes are drawn for a lobby about 1635 by 848 points and scale with the stage.
 
@@ -65,6 +67,7 @@ SCENES: tuple[tuple[str, str], ...] = (
     ("equation", "数学公式"),
     ("fluffy", "毛茸茸保护协会"),
     ("claw", "演说家遇袭"),
+    ("lyre", "竖琴清风"),
 )
 KEYS = tuple(key for key, _name in SCENES)
 # A scene that is gone, and the one a player who chose it gets now: 天使 took 香槟's place.

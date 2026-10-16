@@ -99,7 +99,8 @@ SCENE_DIALOGS = ("添加嘉宾", "编辑嘉宾", "添加组合", "编辑组合",
 
 
 def test_the_guest_dialogs_fit_a_short_screen_without_scrolling(window, monkeypatch):
-    """Each with its 场景 beside it shows 放场景, every scene, the preview and its button at once on 1080p at 150%."""
+    """Each with its 场景 beside it shows 放场景, the scenes, the preview and its button at once on 1080p at 150%;
+    past ten scenes the list scrolls in its column."""
     dialogs = _dialogs(window, monkeypatch)
     for title in SCENE_DIALOGS:
         dialog = dialogs[title]
@@ -108,8 +109,9 @@ def test_the_guest_dialogs_fit_a_short_screen_without_scrolling(window, monkeypa
         used = next(button for button in dialog.findChildren(QPushButton) if button.text() in ("添加", "保存"))
         pane = dialog.pane
         assert used.isVisibleTo(dialog) and pane.play_box.isVisibleTo(dialog) and pane.preview.isVisibleTo(dialog), title
-        # Every scene in view, none scrolled away.
-        assert pane.scroll.height() >= pane.scenes.minimumSizeHint().height(), title
+        # Nine scenes or more in view, the rest a scroll away.
+        rows = pane.scenes.minimumSizeHint().height()
+        assert pane.scroll.height() >= min(rows, rows * 9 / len(pane.buttons)), title
         dialog.done(QDialog.Rejected)
 
 

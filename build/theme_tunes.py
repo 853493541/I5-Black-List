@@ -8,8 +8,9 @@ chimes as its two stars meet; 赛博朋克·一 zaps at each of its five strikes
 赛博朋克·二 rains and thunders at each of its four strikes over city-pop chords; 毛茸茸保护协会 plucks a
 bouncy tune, pops its stars, boings its sprouts and pats its paw prints. The tunes are this script's
 own or public domain, so a stream can carry them. 经典 greets in silence; 玫瑰花边, 金色传说 and
-数学公式 keep the wedding tunes made for them (build/wedding_tunes.py: organ, bells, canon) and 演说家遇袭 its
-own (build/ambush_tune.py).
+数学公式 keep the wedding tunes made for them (build/wedding_tunes.py: organ, bells, canon). Two are not
+this rule's, both the user's choice made knowing who owns the music: 演说家遇袭's is the game's 指挥家 music
+(build/ambush_tune.py) and 竖琴清风's 温迪's 诗人的工作 by HOYO-MiX (build/lyre_tune.py, 2026-10-16).
 
 Each is mono 16-bit 44.1 kHz, as long as its scene, at about -19 dBFS with peaks under -3 dBFS.
 """

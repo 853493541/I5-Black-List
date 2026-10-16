@@ -1,10 +1,10 @@
 """Draw each 嘉宾特效 scene's picture for its thumbnails (ui_guests.thumbnail): the scene at its best moment
 over the fake-name sample lobby, with the app's 嘉宾 marks in its look, as a lobby would show it.
 
-    python build/theme_posters.py
+    python build/theme_posters.py [key ...]
 
-Writes blacklist_detect/assets/posters/<key>.jpg for every scene in love_scenes.SCENES, WIDTH pixels
-wide. Run it again when a scene changes or a new one is added (a new one is caught at POSTER_SHARE of
+Writes blacklist_detect/assets/posters/<key>.jpg for every scene in love_scenes.SCENES (or the ones named),
+WIDTH pixels wide. Run it again when a scene changes or a new one is added (a new one is caught at POSTER_SHARE of
 its length until it gets a moment of its own here); tests/test_love_scenes.py checks every scene has one.
 """
 
@@ -25,7 +25,8 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 OUT = ROOT / "blacklist_detect" / "assets" / "posters"
 # Twice a card's width at 200%: sharp on any screen the app runs on.
 WIDTH = 480
-# Each scene's best moment, in seconds: its lightning, its fireworks, its claw with the notice in place.
+# Each scene's best moment, in seconds: its lightning, its fireworks, its claw with the notice in place, the
+# lyre's second strum with the band full.
 POSTER_AT = {
     "classic": 2.0,
     "lace": 2.5,
@@ -37,6 +38,7 @@ POSTER_AT = {
     "equation": 3.5,
     "fluffy": 2.75,
     "claw": 3.4,
+    "lyre": 2.95,
 }
 POSTER_SHARE = 0.55
 # The marks come up a moment after the scene starts, as in a lobby.
@@ -52,6 +54,8 @@ def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     lobby = QImage(str(SAMPLE_LOBBY)).scaled(round(DESIGN[0]), round(DESIGN[1]), Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
     for key, name in love_scenes.SCENES:
+        if sys.argv[1:] and key not in sys.argv[1:]:
+            continue
         module = love_scenes.load(key)
         t = POSTER_AT.get(key, module.DURATION * POSTER_SHARE)
         image = lobby.convertToFormat(QImage.Format_ARGB32_Premultiplied)

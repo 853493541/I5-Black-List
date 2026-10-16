@@ -18,7 +18,10 @@ running round it; the badge is the lyre, small, on a jade disc.
 from __future__ import annotations
 
 import math
+import os
 import random
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -162,24 +165,15 @@ def make(stage: Stage):  # noqa: ANN201
         out.append((0.85, "seed", lambda: _seed(18, ss)))
         return sorted(out, key=lambda job: job[0])
 
-    baked: dict[float, tuple[dict, list]] = {}
-
-    def prepare(scale: float, t: float) -> dict:
-        """The pictures wanted now, made at once, and one more a frame ahead of time, so no frame waits long."""
-        if scale not in baked:
-            baked.clear()
-            baked[scale] = ({}, jobs(scale))
-        art, waiting = baked[scale]
-        ran = False
-        while waiting and (waiting[0][0] <= t + 0.05 or not ran):
-            _need, name, job = waiting.pop(0)
-            art[name] = job()
-            ran = True
-        return art
+    # What the pictures hang on: the stage's size and the gap round the button, not the names or the badge.
+    shape = (round(width), round(height), *(round(v, 1) for v in (gap.x(), gap.y(), gap.width(), gap.height())))
 
     def paint(p: QPainter, t: float) -> None:
-        scale = _sharpness(p)
-        art = prepare(scale, t)
+        want = _sharpness(p)
+        made = _made_near(shape, want) or _pictures(shape, want, jobs)
+        # Drawn from pictures made for another sharpness (直播画面 from the screen's), sized by theirs.
+        scale = made.scale
+        art = made.upto(t)
         px = 2 * scale  # sprite pixels per point
         leave = smooth(0.0, 1.0, win(t, 4.4, 5.0))
         fade = 1 - leave
@@ -315,7 +309,72 @@ def make(stage: Stage):  # noqa: ANN201
                         ang + life * 90, _flip(phase, 2.0, life), hero, px)
         p.restore()
 
+    def warm(scale: float) -> None:
+        """Every picture for scale pixels a point made now, off the screen's thread: the border starts the
+        scene once they are, so its entrance plays from its first frame."""
+        _pictures(shape, round(scale, 2), jobs).finish()
+
+    paint.warm = warm
     return paint
+
+
+class _Pictures:
+    """One stage's pictures at one sharpness: those made, and the jobs still waiting, first wanted first."""
+
+    def __init__(self, scale: float, jobs: list) -> None:
+        self.scale = scale
+        self.art: dict = {}
+        self.waiting = jobs
+        self.done = False
+        self.lock = threading.Lock()
+
+    def upto(self, t: float) -> dict:
+        """The pictures wanted t seconds in, made at once, and one more a frame ahead of time, so no frame waits long."""
+        if not self.done:
+            with self.lock:
+                ran = False
+                while self.waiting and (self.waiting[0][0] <= t + 0.05 or not ran):
+                    _need, name, job = self.waiting.pop(0)
+                    self.art[name] = job()
+                    ran = True
+                self.done = not self.waiting
+        return self.art
+
+    def finish(self) -> None:
+        """Every picture still waiting, made several at a time."""
+        with self.lock:
+            jobs, self.waiting = self.waiting, []
+            with ThreadPoolExecutor(WORKERS) as pool:
+                made = list(pool.map(lambda job: job[2](), jobs))
+            self.art.update((name, picture) for (_need, name, _job), picture in zip(jobs, made, strict=True))
+            self.done = True
+
+
+# How many pictures are made at once ahead of a play.
+WORKERS = min(4, os.cpu_count() or 1)
+# The pictures made for the last few stages and sharpnesses: a lobby on the same game, the 场景 hotkey pressed
+# again and 直播画面 find theirs made.
+KEEP = 4
+_made: dict[tuple, _Pictures] = {}
+_made_lock = threading.Lock()
+
+
+def _pictures(shape: tuple, scale: float, jobs) -> _Pictures:  # noqa: ANN001
+    """The pictures for a stage of this shape at scale pixels a point, kept; jobs(scale) lists what makes them."""
+    with _made_lock:
+        key = (*shape, scale)
+        made = _made.pop(key, None) or _Pictures(scale, jobs(scale))
+        _made[key] = made
+        while len(_made) > KEEP:
+            del _made[next(iter(_made))]
+        return made
+
+
+def _made_near(shape: tuple, scale: float) -> _Pictures | None:
+    """This stage's pictures all made at scale, else at the sharpness nearest it; None when none are all made."""
+    with _made_lock:
+        done = [made for key, made in _made.items() if key[:-1] == shape and made.done]
+    return min(done, key=lambda made: abs(made.scale - scale), default=None)
 
 
 def _sharpness(p: QPainter) -> float:

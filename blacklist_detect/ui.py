@@ -4195,6 +4195,10 @@ class MainWindow(QMainWindow):
         too, unless ▶ on 场景管理 took the music over since."""
         if not self._quick_scene or (turn is not None and turn != self._quick_round):
             return
+        if turn is not None and self.love.playing():
+            # Its scene made its pictures first and started late: the marks stay until it is over.
+            QTimer.singleShot(QUICK_HOLD_MS, lambda: self._end_quick_play(turn))
+            return
         self._quick_round += 1
         self._hide_panel_after_title()
         if turn is None and not self.effects_page.sounding:

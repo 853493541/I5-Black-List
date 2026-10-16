@@ -5,7 +5,9 @@ accents on the scene's moments. build/theme_tunes.py plays 冰蓝极光's, 星�
 毛茸茸保护协会's; build/wedding_tunes.py the wedding tunes 玫瑰花边 (the Bridal Chorus on organ), 金色传说
 (church bells) and 数学公式 (Pachelbel's Canon on harp) keep. No recording is used for those, so a stream can carry them. 演说家遇袭's is the 指挥家's music from
 模仿者狂欢 with the 演说家遇袭 notice's sound in it at its strike (build/ambush_tune.py): the game's own
-recording, the user's choice made knowing NetEase owns it.
+recording, the user's choice made knowing NetEase owns it. 竖琴清风's is 温迪's 诗人的工作 (Bard's Adventure,
+HOYO-MiX) at its hook, its downbeat on the lyre's first strum (build/lyre_tune.py): the game's own recording too,
+the user's choice (2026-10-16) made knowing HoYoverse owns it.
 
 The sound follows the theme. 场景管理 gives each 场景 its own 音量, and may give it one of the player's songs
 instead (经典 too, up to three each), converted once as it was added into a tune like these (paths.custom_sound_dir);
@@ -41,6 +43,7 @@ TUNES: dict[str, Path] = {
     "equation": ASSETS / "wedding-canon.wav",
     "fluffy": ASSETS / "theme-fluffy.wav",
     "claw": ASSETS / "ambush.wav",
+    "lyre": ASSETS / "lyre.wav",
 }
 # A 场景's 音量 in 场景管理: how loud, in steps of this many percent, 100 (each tune as made) by default.
 VOLUME_STEP = 5

@@ -10,10 +10,11 @@ marks, and clicks pass through the whole window to the game.
 from __future__ import annotations
 
 import random
+import threading
 
 from PySide6.QtCore import QElapsedTimer, QPoint, QPointF, QRect, QRectF, Qt, QTimer
 from PySide6.QtGui import QImage, QPainter
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QApplication, QWidget
 
 from blacklist_detect import love_scenes
 from blacklist_detect.love_scenes import Stage
@@ -51,6 +52,8 @@ class LoveBorder(QWidget):
         self._made: dict[tuple, object] = {}
         self._buffers: dict[tuple, QImage] = {}
         self._clock = QElapsedTimer()
+        # A scene's pictures being made before it starts (its paint's warm), off the screen's thread.
+        self._warming: threading.Thread | None = None
         self._tick = QTimer(self)
         self._tick.setInterval(33)
         self._tick.timeout.connect(self._step)
@@ -73,13 +76,30 @@ class LoveBorder(QWidget):
         self._seats = tuple(seat.translated(-origin) for seat in seats)
         # The same scene again (the 场景 hotkey pressed again) keeps the last two made for it, on the
         # screen and in 直播画面: over the same place it starts at once. 演说家遇袭 takes a second to make.
+        paint, _limit = self._made_for(Stage(area.width(), area.height(), self._gap, self._badge, self._seats))
         self._made = dict([(key, made) for key, made in self._made.items() if key[0] == scene][-2:])
-        self._clock.start()
+        self._clock.invalidate()
         self._tick.start()
+        # A scene whose pictures take a while (竖琴清风) has them made first, several at a time, and starts
+        # once they are, so its entrance plays from its first frame; made for this place, the next play
+        # starts at once.
+        warm = getattr(paint, "warm", None)
+        self._warming = None
+        if warm is not None:
+            screen = QApplication.screenAt(area.center()) or QApplication.primaryScreen()
+            ratio = screen.devicePixelRatio() if screen is not None else 1.0
+            self._warming = threading.Thread(target=warm, args=(ratio,), name="scene-warm", daemon=True)
+            self._warming.start()
+        else:
+            self._begin()
+        return True
+
+    def _begin(self) -> None:
+        self._warming = None
+        self._clock.start()
         self.show()
         _pin_topmost(self)
         self.update()
-        return True
 
     def pick(self) -> str:
         """The scene this lobby's play() plays ("" for 无), settled now, 随机 too, so the 嘉宾 marks can
@@ -102,6 +122,7 @@ class LoveBorder(QWidget):
 
     def stop(self) -> None:
         self._tick.stop()
+        self._warming = None
         self.hide()
 
     def elapsed(self) -> float:
@@ -111,6 +132,10 @@ class LoveBorder(QWidget):
         return float(love_scenes.load(self.scene).DURATION)
 
     def _step(self) -> None:
+        if self._warming is not None:
+            if not self._warming.is_alive():
+                self._begin()
+            return
         if self.elapsed() >= self.duration():
             self.stop()
             return
@@ -123,7 +148,10 @@ class LoveBorder(QWidget):
         painter.end()
 
     def paint_at(self, painter: QPainter, t: float, width: float, height: float, gap: QRectF | None = None) -> None:
-        """The scene at t seconds into its play, on a width by height area (this window, or 直播模式's)."""
+        """The scene at t seconds into its play, on a width by height area (this window, or 直播模式's);
+        nothing while its pictures are being made."""
+        if self._warming is not None:
+            return
         stage = Stage(width, height, gap if gap is not None else self._gap, self._badge, self._seats)
         paint, limit = self._made_for(stage)
         ratio = painter.device().devicePixelRatioF() if painter.device() is not None else 1.0
@@ -153,10 +181,13 @@ class LoveBorder(QWidget):
         badge = (stage.badge.x(), stage.badge.y()) if stage.badge is not None else None
         seats = tuple((seat.x(), seat.y(), seat.width(), seat.height()) for seat in stage.seats)
         key = (self.scene, round(stage.width), round(stage.height), gap.x(), gap.y(), gap.width(), gap.height(), badge, seats)
-        if key not in self._made:
+        made = self._made.pop(key, None)
+        if made is None:
             module = love_scenes.load(self.scene)
-            self._made[key] = (module.make(stage), getattr(module, "MAX_RATIO", None))
-        return self._made[key]
+            made = (module.make(stage), getattr(module, "MAX_RATIO", None))
+        # The last one used last: play() keeps the last two.
+        self._made[key] = made
+        return made
 
     def _buffer(self, width: float, height: float, ratio: float) -> QImage:
         key = (round(width), round(height), ratio)

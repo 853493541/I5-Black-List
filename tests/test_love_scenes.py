@@ -16,9 +16,7 @@ from blacklist_detect import love_scenes  # noqa: E402
 from blacklist_detect.love_scenes import KEYS, Stage, choose, sample_stage  # noqa: E402
 
 # The scenes that draw the 嘉宾 marks as themes of their own.
-THEMES = ("classic", "cyber", "neon", "angel", "equation", "fluffy", "claw")
-# Scenes drawn for a player to see before they go into 设置: the same rules hold for them.
-CONCEPTS = ("lyre",)
+THEMES = ("classic", "cyber", "neon", "angel", "equation", "fluffy", "claw", "lyre")
 
 
 @pytest.fixture(scope="module")
@@ -46,7 +44,7 @@ def _drawn(image: QImage) -> bool:
     return any(image.pixelColor(x, y).alpha() for x in range(0, image.width(), 7) for y in range(0, image.height(), 7))
 
 
-@pytest.mark.parametrize("key", KEYS + CONCEPTS)
+@pytest.mark.parametrize("key", KEYS)
 def test_every_scene_plays_through_and_keeps_the_button_bare(qapp, key):
     stage = sample_stage()
     shots = _frames(stage, key)
@@ -59,7 +57,7 @@ def test_every_scene_plays_through_and_keeps_the_button_bare(qapp, key):
         assert all(shot.pixelColor(x, y).alpha() < 40 for x in range(button.left(), button.right(), 6) for y in (button.top(), button.bottom()))
 
 
-@pytest.mark.parametrize("key", KEYS + CONCEPTS)
+@pytest.mark.parametrize("key", KEYS)
 def test_every_scene_fits_another_window_shape(qapp, key):
     """A windowed emulator is narrower and taller than the lobby the scenes were drawn on."""
     stage = Stage(900, 640, QRectF(300, 540, 330, 100), badge=QPointF(600, 580))
@@ -80,7 +78,7 @@ def test_choosing_one_random_or_none():
     # 命运红线, 雪纺, 缎带, 花雨, 纸鹤晚霞 and 蝶梦 are gone: a player who had one, or a key from another
     # version, gets 经典. 香槟 is gone too, and 天使 took its place. 经典 is the gold welcome now, and the
     # rose border that was 经典花边 is 玫瑰花边 (lace), second.
-    assert KEYS == ("classic", "lace", "ice", "stars", "cyber", "neon", "angel", "equation", "fluffy", "claw")
+    assert KEYS == ("classic", "lace", "ice", "stars", "cyber", "neon", "angel", "equation", "fluffy", "claw", "lyre")
     for gone in ("thread", "chiffon", "ribbon", "petals", "cranes", "butterfly", "disco"):
         assert choose(gone, "", rng) == "classic"
     assert choose("champagne", "", rng) == "angel"
@@ -145,7 +143,7 @@ def test_the_same_scene_played_again_is_not_made_again(qapp, monkeypatch):
     border.choice = "ice"
     border.play(area, keep)
     border.stop()
-    assert border._made == {}
+    assert [key[0] for key in border._made] == ["ice"]
     play()
     assert made == ["stars", "stars"]
     for width in (800, 900, 1000):
@@ -552,3 +550,49 @@ def test_the_lyre_keeps_a_frame_quick_once_its_pictures_are_made(qapp):
         spent.append(time.perf_counter() - start)
         painter.end()
     assert statistics.median(spent) < 0.02, f"median {statistics.median(spent) * 1000:.1f} ms"
+
+
+def test_the_lyre_makes_its_pictures_before_it_starts(qapp):
+    """竖琴清风's pictures take seconds to make: the border makes them first, off the screen's thread, and
+    starts after, so the first frame is its start (the band breathing in), not a second and more in; then
+    a frame is quick, 直播画面's smaller one too, from the same pictures."""
+    import time
+
+    from blacklist_detect.love_scenes import lyre
+    from blacklist_detect.ui_love import LoveBorder
+
+    lyre._made.clear()
+    border = LoveBorder(random.Random(1))
+    border.setAttribute(Qt.WA_DontShowOnScreen, True)
+    border.choice = "lyre"
+    area = QRect(0, 0, 960, 540)
+    assert border.play(area, QRect(330, 470, 300, 60))
+    image = QImage(960, 540, QImage.Format_ARGB32_Premultiplied)
+    image.fill(Qt.transparent)
+    painter = QPainter(image)
+    border.paint_at(painter, border.elapsed(), 960, 540)
+    painter.end()
+    assert border.playing() and border.elapsed() == 0.0 and not _drawn(image), "nothing until its pictures are made"
+    deadline = time.monotonic() + 60
+    while border._warming is not None and time.monotonic() < deadline:
+        border._step()
+        time.sleep(0.01)
+    assert border._warming is None and border.elapsed() < 0.05, border.elapsed()
+    for zoom in (1.0, 0.5):
+        image.fill(Qt.transparent)
+        painter = QPainter(image)
+        painter.scale(zoom, zoom)
+        start = time.perf_counter()
+        border.paint_at(painter, 0.3, 960, 540)
+        spent = time.perf_counter() - start
+        painter.end()
+        assert spent < 0.05 and _drawn(image), (zoom, spent)
+    border.stop()
+    # Played again over the same place, another lobby's names: it starts at once.
+    start = time.monotonic()
+    border.play(area, QRect(330, 470, 300, 60), seats=(QRectF(100, 100, 80, 20),))
+    while border._warming is not None and time.monotonic() < deadline:
+        border._step()
+        time.sleep(0.01)
+    assert time.monotonic() - start < 0.5
+    border.stop()
