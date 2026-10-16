@@ -17,7 +17,7 @@ Status as of 2026-10-16 ~02:30 UTC. improve/quality = d6cdbba (+ handoff commits
 | 9 | 场景 | 演说家遇袭's song is too loud; match the others | released v0.9.15 |
 | 10 | 嘉宾 list | 组合 tag in blue, not the 黑名单 red | merged (482c80e), not released |
 | 11 | 嘉宾 list | No 批量导入 for 嘉宾 | merged (482c80e), not released |
-| 12 | 嘉宾 editor | Two panes: 嘉宾 on the left, 场景 on the right with a box each, preview below with ▶ and autoplay; 随机 on top greys the rest | merged (d5b18b6), not released |
+| 12 | 嘉宾 editor | Two panes: 嘉宾 on the left, 场景 on the right with a box each, preview below with ▶ and autoplay; 随机 on top greys the rest | merged (d5b18b6), not released; the user tried it 2026-10-16 and changed it: superseded by #22–24 |
 | 13 | 我 | 我 on top of the 嘉宾 list on green; 我 can pick a 场景 | merged (482c80e row, d5b18b6 its 场景), not released |
 | 14 | Priority | 组合 > 嘉宾 > 黑名单 > 我 | merged (63e5184), not released; on-game shots checked by the master |
 | 15 | 检查 | Remove 用截图检查 under 记录 | released v0.9.15 |
@@ -27,6 +27,9 @@ Status as of 2026-10-16 ~02:30 UTC. improve/quality = d6cdbba (+ handoff commits
 | 19 | 检查 | Remove 测试框 | released v0.9.15 |
 | 20 | Testing | No sound from background tests unless a sound is being checked | released v0.9.15 |
 | 21 | 记录 (2026-10-16 01:15 UTC) | On the 记录 page the hover 添加 button becomes two buttons on the right: a heart (add to 嘉宾) and a circle-with-slash 🚫 (add to 黑名单). A click adds at once; once added, it stays showing that state | building (implementer on feature/record-buttons, base 13e9588, no desktop; the tester's screenshot pass waits until A frees the desktop). Decisions: one click adds with an 撤销 toast, no dialog; reason/tags later by clicking the red seat; a click on the seat body adds nothing; the menu does what the buttons do; the page stays put |
+| 22 | 嘉宾 dialogs (2026-10-16 01:25 UTC) | 添加嘉宾 / 编辑嘉宾 pick the 场景 in the same dialog: 名字/昵称/原因 + a 放场景 box + the scene list one per row with boxes + preview with ▶ and autoplay. No list of other 嘉宾 ("why should I see the full list of guests") | not started. Replaces #12's two-pane dialog |
+| 23 | 放场景 | The box says 放场景: unchecked = 不放; checked with none ticked = random among all; ticked = those, random among them if several | not started (with #22) |
+| 24 | 组合 dialogs | 添加组合 / 编辑组合: left, the 嘉宾 with checkmarks to pick members; right, the scene list one per row; bottom, the preview ("editing combo is completely trash, has no scene selection") | not started (with #22) |
 | — | Green 场景 | For the friend who mains 吴邪 (green + wind): border only, slow entrance, cute pandas, less middle | v2 rejected; the user wants picture ideas first. 7 concept stills sent 2026-10-16 (dist/concepts_green/: all_concepts.png + one folder per idea with its script): 1 草原风车, 2 竹风铃, 3 风筝, 4 水墨竹, 5 山雾萤火, 6 青铜门, 7 柳与燕. Waiting for the user's pick; then one concept frame of it, then the build. |
 
 "Just changing UI for now" (22:40): no 直播模式 checklist is to be built.
