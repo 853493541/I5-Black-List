@@ -261,6 +261,59 @@ def shoot(args) -> None:  # noqa: ANN001
 
     step("cards", cards)
 
+    def on_game(name: str, seats: list[str], bad: str = "") -> None:
+        from PySide6.QtGui import QPainter, QPixmap
+
+        from blacklist_detect.layout import NAME_BOXES
+        from blacklist_detect.pipeline import CheckResult, Hit, NameSlot
+        from blacklist_detect.ui_demo import sample_screen
+
+        # The sample lobby as the game, these names read in its seats (bad: the 黑名单 one), and what a check
+        # shows over it: the ring, the cards, the glow and the 场景, painted over the sample in one picture.
+        picture, _where = window._demo_place()
+        button, game = window._demo_boxes(picture)
+        left, top, right, bottom = game
+        width, height = right - left, bottom - top
+        slots = [
+            NameSlot(index, (round(left + x0 * width), round(top + y0 * height), round(left + x1 * width), round(top + y1 * height)),
+                     seat, seat, False, 0.95, False)
+            for index, (seat, (x0, y0, x1, y1)) in enumerate(zip(seats, NAME_BOXES, strict=False))
+        ]  # fmt: skip
+        tags = next((tuple(entry.tags) for entry in window.store.entries if entry.name == bad), ())
+        hits = [Hit(seats.index(bad), bad, bad, "", False, "", tags)] if bad else []
+        window._demo_area = picture
+        window._live_check = True
+        window._love_played = False
+        try:
+            window._show_panel(CheckResult(header_found=True, message="", names=slots, hits=hits, button_box=button, game_box=game))
+            settle(0.8)
+            ratio = window.devicePixelRatioF()
+            shot = QPixmap(picture.size() * ratio)
+            shot.setDevicePixelRatio(ratio)
+            painter = QPainter(shot)
+            painter.drawPixmap(shot.rect(), sample_screen())
+            # Bottom to top, as they lie over the game.
+            for mark in (window.alert, window.love, window.panel, window.clear_mark, window.like_card, window.hit_card):
+                if mark.isVisible():
+                    painter.drawPixmap(mark.geometry().topLeft() - picture.topLeft(), mark.grab())
+            painter.end()
+            path = out / f"{len(shots):02d}_{name}.png"
+            shot.save(str(path))
+            shots.append(path.name)
+        finally:
+            window._hide_panel_after_title()
+            window.love.stop()
+            window.alert.stop()
+            window._demo_area = None
+
+    if args.data != "empty":
+        # A 黑名单 player beside two 嘉宾 with a 组合's 场景: the both ring in its look, the 黑名单 card right,
+        # the 嘉宾 card left, the glow and the 场景 over it.
+        step("game_黑名单和嘉宾", lambda: on_game("game_黑名单和嘉宾", SEATS, bad="示例坏人"))
+        # Nobody listed, 我 on a 场景: its ring and badge, no card.
+        strangers = [seat for seat in SEATS if seat not in ("示例坏人", "心动小鹿", "心动星星")]
+        step("game_我的场景", lambda: on_game("game_我的场景", strangers))
+
     def corner() -> None:
         from blacklist_detect.ui_notice import _Card
 

@@ -3754,8 +3754,9 @@ class MainWindow(QMainWindow):
                 # 测试效果 plays it every time it is pressed.
                 started = self.music.preview(tune)
             elif self._lobby_who == "me":
-                # 我's 场景: the same players checked again within a minute hear it once.
-                started = self.music.lobby(["我", *(slot.visible for slot in result.names if not slot.unclear)], tune)
+                # 我's 场景: the same lobby checked again within a minute hears it once, a player joining
+                # or a name misread or unclear too (ThemeMusic.mine).
+                started = self.music.mine([slot.visible for slot in result.names if not slot.unclear], tune)
             else:
                 started = self.music.lobby([like.name for like in likes], tune)
             if started:
@@ -3890,10 +3891,14 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _seats_of(result: CheckResult) -> tuple[QRectF, ...]:
-        """The players' names where the check read them, on the screen in Qt's units."""
+        """The players' names where the check read them, on the screen in Qt's units, but a 黑名单 player's:
+        a 场景 over the names (演说家遇袭 scratches them out) never hides the one warned about."""
         origin_x, origin_y = virtual_origin()
+        warned = {hit.index for hit in result.hits}
         seats = []
         for slot in result.names:
+            if slot.index in warned:
+                continue
             left, top, right, bottom = slot.box
             x0, y0, _ratio = native_to_logical(left + origin_x, top + origin_y)
             x1, y1, _ratio = native_to_logical(right + origin_x, bottom + origin_y)
@@ -4348,11 +4353,15 @@ class MainWindow(QMainWindow):
         self._place_beside(self.hit_card)
 
     def _likes_in(self, result: CheckResult) -> list[Entry]:
-        """嘉宾 players in the lobby, in seat order, each once (测试效果's own while it runs)."""
+        """嘉宾 players in the lobby, in seat order, each once (测试效果's own while it runs). A 黑名单 player's
+        seat is no 嘉宾's: only a misread puts one name on both lists, and the warning wins."""
         if self._demo_likes is not None:
             return list(self._demo_likes)
+        warned = {hit.index for hit in result.hits}
         found: list[Entry] = []
         for slot in result.names:
+            if slot.index in warned:
+                continue
             label = NameLabel(raw=slot.raw, visible=slot.visible, truncated=slot.truncated, unclear=slot.unclear)
             for match in match_label(label, list(self.store.likes)):
                 if all(match.entry is not seen for seen in found):

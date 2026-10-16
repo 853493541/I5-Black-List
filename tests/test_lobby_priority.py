@@ -120,7 +120,7 @@ def window(qapp, tmp_path, monkeypatch):  # noqa: ANN001, ANN201
     made.close()
 
 
-def _lobby(*names: str, bad: str = "") -> CheckResult:
+def _lobby(*names: str, bad: str = "", unclear: int = 0) -> CheckResult:
     screen = QApplication.primaryScreen().availableGeometry()
     left = screen.left() + screen.width() // 2 - 90
     button = (left, screen.top() + 300, left + 180, screen.top() + 360)
@@ -129,15 +129,25 @@ def _lobby(*names: str, bad: str = "") -> CheckResult:
         NameSlot(index, (100 * index, 100, 100 * index + 80, 130), name, name, False, 0.9, False)
         for index, name in enumerate(seats)
     ]
+    slots += [
+        NameSlot(index, (100 * index, 100, 100 * index + 80, 130), "", "", False, 0.1, True)
+        for index in range(len(seats), len(seats) + unclear)
+    ]
     hits = [Hit(len(names), bad, bad, "", False, "", ())] if bad else []
     return CheckResult(True, "", names=slots, hits=hits, button_box=button)
 
 
 def _check(window, *names: str, bad: str = "") -> None:  # noqa: ANN001
-    result = _lobby(*names, bad=bad)
+    window.music._last_lobby = frozenset()
+    window.music._last_mine_at = float("-inf")
+    _again(window, *names, bad=bad)
+
+
+def _again(window, *names: str, bad: str = "", unclear: int = 0) -> None:  # noqa: ANN001
+    """The lobby checked as a new check would: the music remembers the last one."""
+    result = _lobby(*names, bad=bad, unclear=unclear)
     window._hide_panel_after_title()
     window._love_played = False
-    window.music._last_lobby = frozenset()
     window._on_lobby_placed(result.button_box)
     window._show_panel(result)
 
@@ -159,12 +169,8 @@ def test_a_lobby_with_nobody_listed_plays_mine_with_the_scene_marks_and_no_card(
     # 直播画面 gets the ring and the badge, as for the 场景 hotkey.
     assert window.panel in window.stream._marks() and window.clear_mark in window.stream._marks()
     # The same players checked again within the minute: no second time.
-    assert window.music._last_lobby == frozenset({"我", "路人甲", "路人乙"})
-    window._hide_panel_after_title()
-    window._love_played = False
-    result = _lobby("路人甲", "路人乙")
-    window._on_lobby_placed(result.button_box)
-    window._show_panel(result)
+    assert window.music._last_mine == frozenset({"路人甲", "路人乙"})
+    _again(window, "路人甲", "路人乙")
     assert window.love.playing() and _sounds(window) == ["theme-ice.wav"]
     assert "我 ice" in window.settings_line()
 
@@ -233,3 +239,66 @@ def test_in_safe_mode_the_corner_message_and_the_scenes_music_even_with_a_blackl
     window.store.set_me(_one("stars"))
     _check(window, "路人甲")
     assert window.notice.kind == "clear" and _sounds(window)[-1] == "theme-stars.wav"
+
+
+def test_mine_hears_a_lobby_once_a_minute_however_its_names_read():
+    from blacklist_detect.ui_music import SAME_LOBBY_S, ThemeMusic
+
+    clock = [0.0]
+    played: list = []
+    music = ThemeMusic(play=played.append, clock=lambda: clock[0])
+    assert music.mine(["甲", "乙", "丙", "丁"], "ice")
+    # Checked again, a player joined, one misread, one unclear, none read at all: the same lobby.
+    for names in (["甲", "乙", "丙", "丁"], ["甲", "乙", "丙", "丁", "戊"], ["甲", "乙", "丙", "己"], ["甲", "乙", "丙"], []):
+        assert not music.mine(names, "ice"), names
+    assert not music.mine(["甲", "乙"], "ice")
+    # Mostly other players: a new lobby.
+    assert music.mine(["子", "丑", "寅", "卯"], "ice")
+    clock[0] += SAME_LOBBY_S
+    assert music.mine(["子", "丑", "寅", "卯"], "ice")
+    assert len([tune for tune in played if tune]) == 3
+
+
+def test_a_lobby_greeted_by_mine_plays_its_music_once_as_players_join_or_read_differently(window):
+    clock = [0.0]
+    window.music._clock = lambda: clock[0]
+    window.store.set_me(_one("ice"))
+    _check(window, "路人甲", "路人乙", "路人丙", "路人丁")
+    assert _sounds(window) == ["theme-ice.wav"]
+    _again(window, "路人甲", "路人乙", "路人丙", "路人丁")
+    _again(window, "路人甲", "路人乙", "路人丙", "路人丁", "路人戊")
+    _again(window, "路人甲", "路人乙", "路人丙", "路人己")
+    _again(window, "路人甲", "路人乙", "路人丙", unclear=1)
+    assert window.love.playing() and _sounds(window) == ["theme-ice.wav"]
+    _again(window, "小子", "小丑", "小寅", "小卯")
+    assert _sounds(window) == ["theme-ice.wav"] * 2
+    clock[0] += 61
+    _again(window, "小子", "小丑", "小寅", "小卯")
+    assert _sounds(window) == ["theme-ice.wav"] * 3
+
+
+def test_a_blacklist_player_read_as_a_guest_too_is_only_the_warning(window):
+    window.store.add_like("坏人", scenes=_one("ice"))
+    window.store.set_me(_one("stars"))
+    _check(window, "路人", bad="坏人")
+    assert window._lobby_who == "" and window.panel.mode == "hit" and window.hit_card.isVisible()
+    assert not window.love.playing() and not window.like_card.isVisible() and not _sounds(window)
+    # Another 嘉宾 there decides as usual, and a 组合 with the 黑名单 player is not in the lobby.
+    window.store.add_like("小明", scenes=_one("angel"))
+    window.store.set_combos([Combo(("小明", "坏人"), _one("lace"))])
+    _check(window, "小明", bad="坏人")
+    assert window._lobby_who == "guest" and window.love.scene == "angel" and window.love.playing()
+    assert [like.name for like in window._likes_in(_lobby("小明", bad="坏人"))] == ["小明"]
+    assert window.panel.mode == "both" and window.like_card.isVisible() and _sounds(window) == ["wedding-bells.wav"]
+
+
+def test_a_scene_beside_a_blacklist_player_never_plays_over_their_name(window):
+    from dataclasses import replace
+
+    window.store.add_like("小明", scenes=_one("claw"))
+    _check(window, "小明", "路人", bad="坏人")
+    assert window.love.playing() and window.love.scene == "claw"
+    every = window._seats_of(replace(_lobby("小明", "路人", bad="坏人"), hits=[]))
+    assert len(every) == 3 and window._lobby_seats == every[:2] and len(window.love._seats) == 2
+    _check(window, "小明", "路人", "路人乙")
+    assert window._lobby_seats == every and len(window.love._seats) == 3

@@ -160,6 +160,9 @@ class ThemeMusic:
         self._sounds = sounds
         self._last_lobby: frozenset[str] = frozenset()
         self._last_at = float("-inf")
+        # The names read in the last lobby 我's own 场景 greeted, and when its sound started (mine).
+        self._last_mine: frozenset[str] = frozenset()
+        self._last_mine_at = float("-inf")
         self.muted = False
 
     def pick(self, scene: str) -> str:
@@ -195,6 +198,24 @@ class ThemeMusic:
         if players == self._last_lobby and now - self._last_at < SAME_LOBBY_S:
             return ""
         self._last_lobby, self._last_at = players, now
+        return self._greet(scene)
+
+    def mine(self, names: list[str], scene: str) -> str:
+        """A lobby with nobody listed asking, greeted by 我's own 场景, with these names read in it: play its
+        sound, unless 我's greeted the same lobby within SAME_LOBBY_S. The same lobby: at least half the
+        names read last time are read again, or either check read none, so a player joining, a name misread
+        or one turning unclear is no new lobby."""
+        if not self.audible():
+            return ""
+        players = frozenset(names)
+        now = self._clock()
+        before, self._last_mine = self._last_mine, players
+        if now - self._last_mine_at < SAME_LOBBY_S and (not before or not players or 2 * len(before & players) >= len(before)):
+            return ""
+        self._last_mine_at = now
+        return self._greet(scene)
+
+    def _greet(self, scene: str) -> str:
         if not self.pick(scene) or self.level(scene) <= 0:
             return ""
         return self.preview(scene)
