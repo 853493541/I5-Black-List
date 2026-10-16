@@ -204,7 +204,7 @@ class ScenePreview(QWidget):
         if play is not None:
             button = QPushButton(self)
             button.setObjectName("previewPlay")
-            button.setToolTip("从头播放，带音乐")
+            button.setToolTip("从头播放，带配乐")
             button.setAccessibleName("播放")
             button.setCursor(Qt.PointingHandCursor)
             button.setAutoDefault(False)

@@ -359,3 +359,16 @@ def test_the_mode_is_called_basic_and_its_old_name_is_gone(window):
     for old in ("安全模式", "测试效果"):
         assert not [path.name for path in files if old in path.read_text(encoding="utf-8")], old
 
+
+
+def test_the_guide_in_the_release_folder_names_what_the_app_shows():
+    # 使用说明 ships beside the exe; it once still sent players to 「心动」页 and 「自检」, and promised a beep.
+    from pathlib import Path
+
+    import blacklist_detect
+
+    guide = (Path(blacklist_detect.__file__).parent.parent / "build" / "使用说明.txt").read_text(encoding="utf-8")
+    for old in ("心动", "自检", "「日志」", "自动检查」", "响一声"):
+        assert old not in guide, old
+    for shown in ("嘉宾", "环境测试", "导出日志", "直播模式", "场景管理"):
+        assert shown in guide, shown
