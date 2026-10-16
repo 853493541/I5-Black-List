@@ -38,8 +38,8 @@ LOBBY_AT = (247, 123)
 HALF_WIDTH = 460
 # The lobby under the cards that comes back, in the picture: left, top, right, bottom (exclusive).
 PATCH = (300, 120, HALF_WIDTH - 1, 243)
-# The cards' corner in the picture (right and bottom edges) and their scale, a logical px to a picture px,
-# as the cards were shot before.
+# The cards' corner in the picture (right edge, and the bottom of the tallest stack) and their scale, a logical px
+# to a picture px, as the cards were shot before.
 CORNER = (452, 233)
 CARD_SCALE = 0.367
 # Cards are drawn this many times larger, then brought down, so their words stay sharp.
@@ -109,18 +109,21 @@ def main() -> None:
     lobby = cv2.imread(str(ASSETS / "sample-lobby.jpg"))
     lobby = cv2.resize(lobby, None, fx=LOBBY_SCALE, fy=LOBBY_SCALE, interpolation=cv2.INTER_AREA)
     left, top, right, bottom = PATCH
-    for name, (hits, likes) in PICTURES.items():
+    gap = round(_GAP * CARD_SCALE)
+    stacks = {name: card_pictures(hits, likes) for name, (hits, likes) in PICTURES.items()}
+    # Every picture's cards start where the tallest stack's do, down from CORNER: a shorter stack put on the
+    # corner left half a lobby name showing above its top card.
+    first = min(CORNER[1] - sum(card.shape[0] + gap for card in cards) + gap for cards in stacks.values())
+    for name, cards in stacks.items():
         path = ASSETS / name
         picture = cv2.imread(str(path))
         x, y = LOBBY_AT
         picture[top:bottom, left:right] = lobby[y + top : y + bottom, x + left : x + right]
-        place = CORNER[1]
-        gap = round(_GAP * CARD_SCALE)
-        for card in card_pictures(hits, likes):
+        place = first
+        for card in reversed(cards):
             height, width = card.shape[:2]
-            place -= height
             put(picture[:, :HALF_WIDTH], card, CORNER[0] - width, place)
-            place -= gap
+            place += height + gap
         cv2.imwrite(str(path), picture, [cv2.IMWRITE_JPEG_QUALITY, 92])
         print(f"{name}: {picture.shape[1]}x{picture.shape[0]}")
 
