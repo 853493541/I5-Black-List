@@ -17,7 +17,7 @@ touched, any one keeps exactly what it had: value() is what was saved until the 
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPoint, QRect, QRectF, QSize, Qt
+from PySide6.QtCore import QPoint, QRect, QRectF, QSize, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen
 from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QVBoxLayout, QWidget
 
@@ -167,6 +167,19 @@ class ScenePane(QWidget):
         if not on:
             self._kept = self.scenes.chosen()
         self.scenes.set_chosen((self._kept or (RANDOM[0],)) if on else ())
+        if on:
+            self._into_view()
+
+    def _into_view(self) -> None:
+        """The first box ticked in sight, though the list scrolls past it (竖琴清风, its last): what plays is
+        never a scroll away."""
+        first = (*self.scenes.chosen(), RANDOM[0])[0]
+        self.scroll.ensureWidgetVisible(self.buttons[first], 0, 0)
+
+    def showEvent(self, event) -> None:  # noqa: ANN001
+        super().showEvent(event)
+        # Once laid out: as it opens, the list is not yet as tall as it shows.
+        QTimer.singleShot(0, self._into_view)
 
     def _chose(self, key: str, _on: bool) -> None:
         """A box ticked or unticked: with 播放场景 off, it on with that one alone; 随机 ticked, or no scene left

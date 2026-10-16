@@ -455,12 +455,14 @@ class LikesPage(QWidget):
         head = self.table.horizontalHeader()
         head.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         head.setHighlightSections(False)
-        # 场景 as wide as the longest scene name after its dot, or a few dots and the word for several, and
-        # the cell's padding: 毛茸茸保护协会 is never cut.
+        # 场景 as wide as the longest scene name after its dot, or every scene's dot, as close as _paint_dotted puts
+        # them, and the word for them all, and the cell's padding: 毛茸茸保护协会 and 11个场景 are never cut.
         metrics = QFontMetrics(chinese_font())
         words = [name for _key, name in love_scenes.SCENES] + ["随机"]
         said = [_dots_wide(1) + metrics.horizontalAdvance(word) for word in words]
-        said.append(_dots_wide(DOTS_WIDE) + metrics.horizontalAdvance(f"{len(love_scenes.SCENES)}个场景"))
+        every = len(love_scenes.SCENES)
+        closest = (every - 1) * SceneChoice.DOT + _dots_wide(1)
+        said.append(max(_dots_wide(DOTS_WIDE), closest) + metrics.horizontalAdvance(f"{every}个场景"))
         theme_width = max(110, max(said) + 2 * 12 + 16)
         for column, width in ((NAME, 200), (NICKNAME, 140), (THEME_COLUMN, theme_width), (MET, 120)):
             head.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)

@@ -562,3 +562,25 @@ def test_a_combo_s_guests_are_boxed_over_the_preview_at_the_column_s_foot(store)
     _laid_out(many)
     assert many.people_scroll.verticalScrollBar().maximum() > 0 and _at(many, many.people_box) == places[0][0]
     many.done(QDialog.Rejected)
+
+
+def test_the_first_box_ticked_is_in_sight_though_the_list_scrolls_past_it(store):  # noqa: ARG001
+    """竖琴清风 is the list's last, a scroll away: a 嘉宾 on it opens with its tick in sight, and so does 播放场景
+    ticked again."""
+    from blacklist_detect.ui_guest_scenes import ScenePane
+
+    def in_sight(pane, key: str) -> bool:  # noqa: ANN001
+        QApplication.processEvents()
+        button = pane.buttons[key]
+        top = button.mapTo(pane.scroll.viewport(), QPoint(0, 0)).y()
+        return top >= 0 and top + button.height() <= pane.scroll.viewport().height()
+
+    pane = ScenePane(Scenes(("lyre",)))
+    pane.show()
+    assert pane.scroll.verticalScrollBar().maximum() > 0 and in_sight(pane, "lyre")
+    pane.scroll.verticalScrollBar().setValue(0)
+    pane.play_box.setChecked(False)
+    pane.play_box.setChecked(True)
+    assert in_sight(pane, "lyre")
+    pane.stop()
+    pane.close()

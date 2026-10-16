@@ -115,6 +115,7 @@ def test_the_effect_column_shows_every_scene_name_whole(window):
 
     from blacklist_detect import love_scenes
     from blacklist_detect.ui_likes import DOTS_WIDE, THEME_COLUMN, _dots_wide
+    from blacklist_detect.ui_love_pick import SceneChoice
     from blacklist_detect.ui_theme import chinese_font
 
     # 毛茸茸保护协会, the longest, after its dot, with the cell's padding on both sides; and a few dots side
@@ -124,6 +125,9 @@ def test_the_effect_column_shows_every_scene_name_whole(window):
     width = window.likes_page.table.columnWidth(THEME_COLUMN)
     assert width >= _dots_wide(1) + longest + 2 * 12
     assert width >= _dots_wide(DOTS_WIDE) + metrics.horizontalAdvance(f"{len(love_scenes.SCENES)}个场景") + 2 * 12
+    # Every scene ticked: all their dots as close as they go (half over one another) and 11个场景 whole.
+    every = len(love_scenes.SCENES)
+    assert width >= (every - 1) * SceneChoice.DOT + _dots_wide(1) + metrics.horizontalAdvance(f"{every}个场景") + 2 * 12
 
 
 def _scenes_cells(page):  # noqa: ANN001, ANN202
@@ -905,7 +909,12 @@ def test_the_me_row_heads_the_list_in_green_with_the_players_name(window, monkey
     # Green, all across; the 组合 under it on the card.
     table.resize(900, 400)
     picture = _picture(table)
-    at = lambda row, column: picture.pixelColor(table.visualItemRect(table.item(row, column)).center()).name()  # noqa: E731
+
+    def at(row: int, column: int) -> str:
+        # Near the cell's left edge: in the test's window the table can be narrower than its columns.
+        cell = table.visualItemRect(table.item(row, column))
+        return picture.pixelColor(cell.left() + 6, cell.center().y()).name()
+
     assert at(0, MET) == at(0, REASON) == THEME["green_wash"]
     assert at(1, REASON) == THEME["surface"]
     # A click on any cell or Enter on it opens 我的场景 (edit_me), never 编辑嘉宾 or 编辑组合; Delete deletes
