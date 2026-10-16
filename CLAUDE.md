@@ -65,7 +65,8 @@ rerun alone before it counts as a failure.
   read as cheap clip-art to the user.
 - Chosen on purpose, not defects: red tags everywhere except the 嘉宾 list's blue 组合 tag and green 我 row (the player
   asked for them), 全局声音 a 播放 / 静音 dropdown in 常规 (the player asked for dropdowns), 检查失败 (not 无法检查), 方式 自动 | 手动 (手动 second, right beside
-  its hotkey).
+  its hotkey), 使用声明's gray line in 关于 (the not-official disclaimer stays in view), and 清空数据 keeping backups/ (a
+  hidden safety net; the user's choice, 2026-10-16).
 - Only the app as the player runs it makes a sound (`run_app` calls `ui_music.allow_sound`). Tests, `tools/ui_shots.py`,
   the release check and agents' scripts stay silent; the user hears every sound played in the background. Set
   `BLACKLIST_DETECT_SOUND=1` only when a sound itself is being checked by ear, and say so.
