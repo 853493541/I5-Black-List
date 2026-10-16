@@ -915,8 +915,9 @@ def _window_style(family: str) -> str:
                 spacing: 8px;
                 min-height: 28px;
                 color: {t["text"]};
-                background: transparent;
             }}
+            /* A background on a QRadioButton, transparent too, makes windows11 draw no circle on the chosen one. */
+            QCheckBox {{ background: transparent; }}
             QCheckBox:hover, QRadioButton:hover {{ color: {t["accent_line"]}; }}
             QSlider {{ background: transparent; min-height: 28px; }}
             QSlider::groove:horizontal {{

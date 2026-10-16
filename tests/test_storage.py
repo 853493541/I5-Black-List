@@ -843,6 +843,70 @@ def test_an_old_single_sound_becomes_the_chosen_song_and_the_chosen_one_is_saved
     assert Store(tmp_path).scene_sounds == loaded.scene_sounds
 
 
+def _song_wav(store: Store, file: str, seconds: float) -> str:
+    """A silent WAV of seconds in custom_sounds, as a song kept for a 场景."""
+    import wave
+
+    from blacklist_detect.paths import custom_sound_dir
+
+    folder = custom_sound_dir(store.root)
+    folder.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(folder / file), "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(8000)
+        wav.writeframes(b"\0\0" * round(seconds * 8000))
+    return file
+
+
+def test_songs_v0_9_15_left_out_as_it_saved_come_back(tmp_path):
+    """v0.9.15 saves a 场景's chosen song only, as "file", and none with 默认 chosen: after it, the songs it left
+    out of the list (<key>-<n>.wav) come back by n, named by their file, the chosen one still chosen. Never
+    after this version saved: a file it could not delete stays out."""
+    import json
+
+    store = Store(tmp_path)
+    for n in (1, 2, 3):
+        store.add_scene_song("stars", {"file": _song_wav(store, f"stars-{n}.wav", n), "name": f"{n}.mp3", "start": 0.0, "length": n})
+    store.add_scene_song("ice", {"file": _song_wav(store, "ice-1.wav", 2.0), "name": "冰.mp3", "length": 2.0})
+    store.choose_scene_song("stars", "stars-2.wav")
+    store.choose_scene_song("ice", "")
+    _song_wav(store, "lace-1.wav", 1.0)
+    assert "lace" not in Store(tmp_path).scene_sounds
+    # As v0.9.15 saves it.
+    settings = json.loads(store.settings_path.read_text(encoding="utf-8"))
+    del settings["scene_songs"]
+    settings["scene_sounds"] = {"stars": {"volume": 80, "file": "stars-2.wav", "name": "2.mp3", "start": 0.0, "length": 2.0}}
+    store.settings_path.write_text(json.dumps(settings), encoding="utf-8")
+    back = Store(tmp_path)
+    assert back.scene_sounds["stars"] == {
+        "volume": 80,
+        "songs": [{"file": "stars-1.wav", "name": "", "length": 1.0}, {"file": "stars-2.wav", "name": "2.mp3", "start": 0.0, "length": 2.0},
+                  {"file": "stars-3.wav", "name": "", "length": 3.0}],
+        "chosen": "stars-2.wav",
+    }  # fmt: skip
+    assert back.scene_sounds["ice"] == {"volume": 100, "songs": [{"file": "ice-1.wav", "name": "", "length": 2.0}], "chosen": ""}
+    assert back.scene_sounds["lace"]["chosen"] == ""
+    # A song of v0.9.15's own (<key>.wav) first; past MAX_SONGS the last are left out, never the chosen.
+    _song_wav(store, "neon-1.wav", 1.0)
+    _song_wav(store, "neon-2.wav", 1.0)
+    _song_wav(store, "neon-3.wav", 1.0)
+    settings["scene_sounds"] = {"neon": {"file": _song_wav(store, "neon.wav", 1.0), "name": "旧.mp3"}}
+    store.settings_path.write_text(json.dumps(settings), encoding="utf-8")
+    neon = Store(tmp_path).scene_sounds["neon"]
+    assert [song["file"] for song in neon["songs"]] == ["neon.wav", "neon-1.wav", "neon-2.wav"] and neon["chosen"] == "neon.wav"
+
+
+def test_a_song_past_three_takes_the_oldest_s_file_with_it(tmp_path):
+    from blacklist_detect.paths import custom_sound_dir
+
+    store = Store(tmp_path)
+    for n in (1, 2, 3, 4):
+        store.add_scene_song("ice", {"file": _song_wav(store, f"ice-{n}.wav", 1.0), "name": f"{n}.mp3"})
+    assert [song["file"] for song in store.scene_songs("ice")] == ["ice-2.wav", "ice-3.wav", "ice-4.wav"]
+    assert not (custom_sound_dir(tmp_path) / "ice-1.wav").exists() and (custom_sound_dir(tmp_path) / "ice-2.wav").exists()
+
+
 def test_bad_effect_sounds_are_dropped_and_the_other_settings_kept(tmp_path):
     """A 场景管理 entry that is no sound is dropped by itself: the rest of 设置 is as saved. A volume that is
     none is 100%, a file named with a path (or not there) is none, a key this version does not know is kept

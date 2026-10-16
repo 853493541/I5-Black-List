@@ -6,6 +6,7 @@ import json
 import logging
 import re
 import shutil
+import wave
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -484,22 +485,67 @@ def _scene_sound_saved(entry: dict) -> dict:
     return saved
 
 
-def _scene_sounds(value: object, folder: Path) -> dict[str, dict]:
+def _scene_sounds(value: object, folder: Path, unlisted: bool = False) -> dict[str, dict]:
     """场景管理 as saved: by scene key, each 场景's own 音量 and sound (_scene_sound). A key this version does
     not have is kept for the one that has; a replaced scene's is its replacement's, unless that has its own.
+    unlisted: saved by v0.9.15, which kept only the chosen song of each, so the rest come back (_unlisted_songs).
     Never raises: a bad entry is dropped, not the rest of the settings."""
     sounds: dict[str, dict] = {}
-    if not isinstance(value, dict):
-        return sounds
-    for raw, saved in value.items():
+    if isinstance(value, dict):
+        for raw, saved in value.items():
+            try:
+                key = love_scenes.shown(str(raw).strip()[:40])
+                entry = _scene_sound(saved, folder)
+                if key and entry is not None and not (key != raw and key in value):
+                    sounds[key] = entry
+            except Exception:
+                _log.info("场景管理: the saved sound of %r dropped.", raw)
+    if unlisted:
         try:
-            key = love_scenes.shown(str(raw).strip()[:40])
-            entry = _scene_sound(saved, folder)
-            if key and entry is not None and not (key != raw and key in value):
-                sounds[key] = entry
+            _unlisted_songs(sounds, folder)
         except Exception:
-            _log.info("场景管理: the saved sound of %r dropped.", raw)
+            _log.info("场景管理: songs not in the list left out.", exc_info=True)
     return sounds
+
+
+_SONG_FILE = re.compile(r"([a-z]+)-(\d+)\.wav")
+
+
+def _wav_seconds(path: Path) -> float | None:
+    """How long the WAV at path is, None when it cannot be read."""
+    try:
+        with wave.open(str(path)) as wav:
+            return _seconds(wav.getnframes() / wav.getframerate())
+    except (OSError, EOFError, ZeroDivisionError, wave.Error):
+        return None
+
+
+def _unlisted_songs(sounds: dict[str, dict], folder: Path) -> None:
+    """Songs in folder (<key>-<n>.wav) that sounds does not list, back in their 场景's, by n after the song v0.9.15
+    had: it saved a 场景's chosen song only, and none with 默认 chosen. The file each came from is not known, so
+    its row shows its own name. Up to MAX_SONGS, the chosen one kept."""
+    found: dict[str, list[tuple[int, str]]] = {}
+    for path in folder.glob("*-*.wav") if folder.is_dir() else ():
+        match = _SONG_FILE.fullmatch(path.name)
+        if match and match[1] in love_scenes.KEYS:
+            found.setdefault(match[1], []).append((int(match[2]), path.name))
+    for key, numbered in found.items():
+        entry = dict(sounds.get(key) or {"volume": 100})
+        songs = list(entry.get("songs", ()))
+        for _number, file in sorted(numbered):
+            if all(song["file"] != file for song in songs):
+                song = _scene_song({"file": file, "length": _wav_seconds(folder / file)}, folder)
+                if song is not None:
+                    songs.append(song)
+        order = {file: number for number, file in numbered}
+        songs.sort(key=lambda song: order.get(song["file"], -1))
+        chosen = entry.get("chosen", "")
+        while len(songs) > MAX_SONGS:
+            songs.remove(next(song for song in reversed(songs) if song["file"] != chosen))
+        if songs:
+            entry["songs"] = songs
+            entry["chosen"] = chosen
+            sounds[key] = entry
 
 
 class Store:
@@ -611,10 +657,15 @@ class Store:
 
     def add_scene_song(self, key: str, song: dict) -> None:
         """A song kept for a 场景 (its file already in custom_sounds), the one it plays from now on. Saved. The
-        page lets no more than MAX_SONGS in; one more drops the oldest from the list."""
+        page lets no more than MAX_SONGS in; one more drops the oldest, its file too."""
         entry = dict(self.scene_sounds.get(key) or {})
-        songs = [kept for kept in entry.get("songs", ()) if kept["file"] != song["file"]]
-        entry["songs"] = [*songs, dict(song)][-MAX_SONGS:]
+        songs = [*(kept for kept in entry.get("songs", ()) if kept["file"] != song["file"]), dict(song)]
+        for gone in songs[:-MAX_SONGS]:
+            try:
+                (custom_sound_dir(self.root) / gone["file"]).unlink(missing_ok=True)
+            except OSError:
+                _log.info("场景管理: %s, dropped from the list, is held.", gone["file"])
+        entry["songs"] = songs[-MAX_SONGS:]
         entry["chosen"] = song["file"]
         entry.setdefault("volume", 100)
         self._set_scene_sound(key, entry)
@@ -1042,6 +1093,8 @@ class Store:
                     for key, entry in self.scene_sounds.items()
                     if entry.get("songs") or entry.get("volume", 100) != 100
                 },
+                # Every song is in scene_sounds. v0.9.15 drops this as it saves, with all but the chosen songs.
+                "scene_songs": True,
                 "quick_scene": self.quick_scene,
                 "effect_hotkey": self.effect_hotkey,
                 "stream_mode": self.stream_mode,
@@ -1095,7 +1148,9 @@ class Store:
             # Up to v0.9.12 设置 › 嘉宾特效 › 音乐 turned the sound on or off: its 无 is 静音 now.
             muted = settings.get("sound_muted", settings.get("love_music") == "off")
             self.sound_muted = muted is True
-            self.scene_sounds = _scene_sounds(settings.get("scene_sounds"), custom_sound_dir(self.root))
+            self.scene_sounds = _scene_sounds(
+                settings.get("scene_sounds"), custom_sound_dir(self.root), unlisted=settings.get("scene_songs") is not True
+            )
             # A scene this version has (one replaced is its replacement), else 经典.
             scene = love_scenes.shown(str(settings.get("quick_scene", "") or ""))
             self.quick_scene = scene if scene in love_scenes.KEYS else "classic"

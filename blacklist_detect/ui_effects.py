@@ -20,6 +20,7 @@ from __future__ import annotations
 import itertools
 import shutil
 import tempfile
+import time
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QSize, Qt, Signal
@@ -153,9 +154,10 @@ class _Choice(QRadioButton):
 class SoundChoices(QWidget):
     """场景管理's 声音: what the shown 场景 may play, one of them chosen like a radio button. 默认 first (the scene's
     own; 经典's is none, 默认（无声）), then each of the player's songs, its name and length, up to MAX_SONGS. Each
-    has ▶ (play(file), "" for 默认) and each song ✕ (delete(file)); a click on one chooses it (chose(file)), and
-    nothing plays by itself. 上传 and 恢复默认 sit on 默认's row: 上传 is off once there are MAX_SONGS songs, 恢复默认
-    (back to 默认) shown while a song is chosen. Its rows are made once and shown as there are songs."""
+    has ▶ (play(file), "" for 默认) and each song ✕ (delete(file)); a click on one, or ↑ and ↓, chooses it
+    (chose(file)), and nothing plays by itself. 上传 and 恢复默认 sit on 默认's row: 上传 is off once there are
+    MAX_SONGS songs, 恢复默认 (back to 默认) shown while a song is chosen. Its rows are made once and shown as there
+    are songs, so after a ✕ the next song is under it: a second click as quick as a double-click's deletes nothing."""
 
     chose = Signal(str)
     play = Signal(str)
@@ -175,9 +177,12 @@ class SoundChoices(QWidget):
         self.choices: list[_Choice] = []
         self.play_buttons: list[IconButton] = []
         self.delete_buttons: list[IconButton] = []
+        # When a ✕ last deleted a song (time.monotonic()).
+        self._deleted_at = 0.0
         for row in range(1 + MAX_SONGS):
             choice = _Choice()
             choice.clicked.connect(lambda _checked=False, row=row: self.chose.emit(self.files[row]))
+            choice.installEventFilter(self)
             self.group.addButton(choice)
             grid.addWidget(choice, row, 0)
             listen = IconButton("play", "播放")
@@ -187,7 +192,7 @@ class SoundChoices(QWidget):
             self.play_buttons.append(listen)
             if row:
                 gone = IconButton("close", "删掉这首")
-                gone.clicked.connect(lambda _checked=False, row=row: self.delete.emit(self.files[row]))
+                gone.clicked.connect(lambda _checked=False, row=row: self._gone(row))
                 grid.addWidget(gone, row, 2)
                 self.delete_buttons.append(gone)
         self.upload_button = _button("上传", upload)
@@ -222,6 +227,25 @@ class SoundChoices(QWidget):
     def chosen(self) -> str:
         """The file of the one checked, "" for 默认."""
         return self.files[self.choices.index(self.group.checkedButton())] if self.group.checkedButton() else ""
+
+    def _gone(self, row: int) -> None:
+        """✕ on a row: its song deleted, unless a song was only just: the second click of a double-click would
+        delete the one that moved up under it."""
+        if time.monotonic() - self._deleted_at < QApplication.doubleClickInterval() / 1000:
+            return
+        self._deleted_at = time.monotonic()
+        self.delete.emit(self.files[row])
+
+    def eventFilter(self, watched, event) -> bool:  # noqa: ANN001
+        # ↑ and ↓ choose the row above or below, as a click does, not only move to it.
+        if watched in self.choices and event.type() == QEvent.Type.KeyPress and event.key() in (Qt.Key_Up, Qt.Key_Down):
+            shown = [choice for choice in self.choices if not choice.isHidden()]
+            at = shown.index(watched) + (1 if event.key() == Qt.Key_Down else -1)
+            if 0 <= at < len(shown):
+                shown[at].setFocus(Qt.FocusReason.OtherFocusReason)
+                shown[at].click()
+            return True
+        return super().eventFilter(watched, event)
 
     def changeEvent(self, event) -> None:  # noqa: ANN001
         super().changeEvent(event)

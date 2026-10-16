@@ -14,7 +14,9 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 pytest.importorskip("PySide6")
 
-from PySide6.QtWidgets import QApplication, QDialog, QFileDialog  # noqa: E402
+from PySide6.QtCore import Qt  # noqa: E402
+from PySide6.QtTest import QTest  # noqa: E402
+from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QRadioButton, QStyleFactory, QVBoxLayout, QWidget  # noqa: E402
 
 from blacklist_detect import sound_import  # noqa: E402
 from blacklist_detect.paths import custom_sound_dir  # noqa: E402
@@ -492,7 +494,8 @@ def test_deleting_a_song_drops_its_file_and_copies_and_the_chosen_one_falls_back
     folder = custom_sound_dir(window.store.root)
     assert not (folder / "ice-1.wav").exists() and _copies("ice-1") == [] and _copies("ice-2")
     assert _rows(page) == ["默认", "b.wav · 2.5 秒"] and _chosen(page) == "b.wav · 2.5 秒"
-    # ✕ on b, the chosen: 默认 plays, the 音量 stays.
+    # ✕ on b, the chosen, a moment later: 默认 plays, the 音量 stays.
+    _wait(QApplication.doubleClickInterval() + 50)
     page.sounds.delete_buttons[0].click()
     assert not (folder / "ice-2.wav").exists() and _copies("ice-2") == [] and _copies(TUNES["stars"].stem)
     assert window.store.scene_sounds["ice"] == {"volume": 60} and Store(window.store.root).scene_sounds["ice"] == {"volume": 60}
@@ -561,6 +564,67 @@ def test_upload_is_off_at_three_songs_until_one_is_deleted(window, pick, trim, t
     files = [song["file"] for song in window.store.scene_songs("cyber")]
     assert files == ["cyber-1.wav", "cyber-3.wav", "cyber-2.wav"] and window.store.scene_sounds["cyber"]["chosen"] == "cyber-2.wav"
     assert _rows(page)[1:] == ["0.wav · 1.0 秒", "2.wav · 3.0 秒", "new.wav · 1.5 秒"]
+
+
+def test_a_double_click_on_x_deletes_one_song(window, pick, trim, tmp_path):
+    page = _shown(window, "neon")
+    for number in range(3):
+        pick["chosen"] = _wav(tmp_path / f"{number}.wav", 1.0)
+        page.upload_button.click()
+    # The next song moves up under the ✕ just clicked: the second click of a double-click deletes nothing.
+    page.sounds.delete_buttons[0].click()
+    page.sounds.delete_buttons[0].click()
+    folder = custom_sound_dir(window.store.root)
+    assert [song["file"] for song in window.store.scene_songs("neon")] == ["neon-2.wav", "neon-3.wav"]
+    assert (folder / "neon-2.wav").exists() and _rows(page)[1:] == ["1.wav · 1.0 秒", "2.wav · 1.0 秒"]
+    # A moment later, it does.
+    _wait(QApplication.doubleClickInterval() + 50)
+    page.sounds.delete_buttons[0].click()
+    assert [song["file"] for song in window.store.scene_songs("neon")] == ["neon-3.wav"]
+
+
+def test_up_and_down_choose_a_row_and_play_nothing(window, pick, trim, tmp_path):
+    page = _shown(window, "angel")
+    for name in ("a.wav", "b.wav"):
+        pick["chosen"] = _wav(tmp_path / name, 2.0)
+        page.upload_button.click()
+    window.played.clear()
+    QTest.keyClick(page.sounds.choices[2], Qt.Key_Up)
+    assert window.store.scene_sound("angel")[0].name == "angel-1.wav" and _chosen(page) == "a.wav · 2.0 秒"
+    QTest.keyClick(page.sounds.choices[1], Qt.Key_Up)
+    assert window.store.scene_sound("angel")[0] is None and _chosen(page) == "默认"
+    # Nothing above 默认, nothing under the last song.
+    QTest.keyClick(page.sounds.choices[0], Qt.Key_Up)
+    assert _chosen(page) == "默认"
+    QTest.keyClick(page.sounds.choices[0], Qt.Key_Down)
+    QTest.keyClick(page.sounds.choices[1], Qt.Key_Down)
+    QTest.keyClick(page.sounds.choices[2], Qt.Key_Down)
+    assert window.store.scene_sound("angel")[0].name == "angel-2.wav" and _chosen(page) == "b.wav · 2.0 秒"
+    assert window.played == []
+
+
+def test_the_chosen_sound_has_its_circle_in_windows_11_s_style():
+    """The style the app has on Windows 11 draws no circle on a chosen QRadioButton that the sheet gives a
+    background, transparent too. The tests' own style (fusion) draws one either way."""
+    from blacklist_detect import ui_theme
+
+    if "windows11" not in QStyleFactory.keys():
+        pytest.skip("windows11 is Windows 11's own")
+    QApplication.instance() or QApplication([])
+    style = QStyleFactory.create("windows11")
+    root = QWidget()
+    root.setObjectName("root")
+    QVBoxLayout(root).addWidget(chosen := QRadioButton("默认"))
+    for widget in (root, chosen):
+        widget.setStyle(style)
+    root.setStyleSheet(ui_theme._window_style(ui_theme.chinese_family()))
+    chosen.setChecked(True)
+    root.resize(200, 60)
+    image = root.grab().toImage()
+    back = image.pixelColor(1, 1).lightness()
+    at = chosen.geometry()
+    circle = [(x, y) for x in range(at.x(), at.x() + 24) for y in range(at.top(), at.bottom())]
+    assert sum(abs(image.pixelColor(x, y).lightness() - back) > 40 for x, y in circle) > 60
 
 
 def test_a_new_song_never_takes_a_file_still_there(window, pick, trim, tmp_path):
