@@ -543,7 +543,6 @@ def _tick(seen: list, *keys: str):  # noqa: ANN202
         seen.append(dialog)
         dialog.pane.play_box.setChecked(True)
         dialog.pane.scenes.set_chosen(keys)
-        dialog.pane._edited()
         dialog._accept()
         return dialog.result()
 

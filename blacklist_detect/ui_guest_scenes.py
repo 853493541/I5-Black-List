@@ -1,12 +1,15 @@
 """The 场景 of one 嘉宾, 组合 or 我: ScenePane, the right side of 添加嘉宾 / 编辑嘉宾 (ui_likes.LikeDialog),
 添加组合 / 编辑组合 (ui_guests.ComboDialog) and 我的场景 (ui_likes.MeDialog).
 
-On top 播放场景, a box: off, 不放 (the list's boxes and dots gray, their ticks kept while the dialog is open); on with
-none ticked, 随机 (any scene); on with ticks, those (several: one of them at random each time). While it is
-on, a hint beside it says that none ticked plays any. A new 嘉宾 or 组合 starts off. Under it every scene, one per row, each with its box; past ROWS rows the list scrolls
-inside the pane. A click on a name highlights it and plays it over the sample lobby, silent, in the pane's
-preview (ScenePreview), which the dialog puts in its left column; ▶ plays it again from its start. The dialog
-opens on the scene still, at its best moment: a scene takes up to a second to make, so one plays only when asked.
+On top 播放场景, a box: off, 不放 (every box under it empty, their ticks kept while the dialog is open); on, the
+list's first row 随机 (any scene) or the scenes ticked (several: one of them at random each time). A new 嘉宾 or
+组合 starts off. Under it 随机 and every scene, one per row, each with its box; past ROWS rows the list scrolls
+inside the pane. The boxes always say what plays: 播放场景 ticked brings back the ticks it had, or 随机; a scene
+ticked unticks 随机, 随机 ticked unticks every scene, and the last scene unticked (or 随机 alone) is 随机. A box
+ticked with 播放场景 off turns it on, with that one alone. A click on a name highlights it and plays it over the
+sample lobby, silent, in the pane's preview (ScenePreview), which the dialog puts in its left column; ▶ plays it
+again from its start (随机 plays 经典). The dialog opens on the scene still, at its best moment: a scene takes up
+to a second to make, so one plays only when asked.
 
 One saved on scenes this version all lacks opens as 随机, as it plays. Opened and saved without its 场景
 touched, any one keeps exactly what it had: value() is what was saved until the boxes say otherwise.
@@ -16,14 +19,14 @@ from __future__ import annotations
 
 from PySide6.QtCore import QPoint, QRect, QRectF, QSize, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen
-from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QVBoxLayout, QWidget
 
 from blacklist_detect import love_scenes
 from blacklist_detect.guests import ticked
 from blacklist_detect.love_scenes import DESIGN
 from blacklist_detect.model import ANY_SCENE, Scenes
 from blacklist_detect.ui_kit import _SCROLL_BAR, _CardScroll, _KeyboardRing
-from blacklist_detect.ui_love_pick import SceneChoice, SceneList, ScenePreview, paint_box
+from blacklist_detect.ui_love_pick import RANDOM, SceneChoice, SceneList, ScenePreview, paint_box
 from blacklist_detect.ui_theme import THEME, chinese_font
 
 OFF = Scenes()
@@ -86,17 +89,13 @@ def two_columns(layout: QVBoxLayout) -> tuple[QVBoxLayout, QVBoxLayout]:
     return left, right
 
 
-# Beside 播放场景 while it is on, whatever is ticked; nothing while it is off.
-HINT = "不勾选场景则随机播放"
-
-
 class ScenePane(QWidget):
-    """播放场景 over every scene, one per row, for one 嘉宾, 组合 or 我 saved on scenes. value() is their
+    """播放场景 over 随机 and every scene, one per row, for one 嘉宾, 组合 or 我 saved on scenes. value() is their
     场景 as the boxes say them; preview is the pane's ScenePreview, for the dialog to place."""
 
-    # Rows of scenes shown before the list scrolls: today's ten, so a scene added later scrolls the list
-    # rather than making every dialog it is in taller.
-    ROWS = 10
+    # Rows shown before the list scrolls: 随机 and ten scenes, so a scene added later scrolls the list rather than
+    # making every dialog it is in taller.
+    ROWS = 11
     PREVIEW_W = 448
 
     def __init__(self, scenes: Scenes, preview_width: int = PREVIEW_W, parent: QWidget | None = None) -> None:
@@ -105,21 +104,12 @@ class ScenePane(QWidget):
         column = QVBoxLayout(self)
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(6)
-        top = QHBoxLayout()
-        # The box's own end pad and this keep the hint clear of it, and the row no wider than the list.
-        top.setSpacing(2)
         self.play_box = TickBox("播放场景")
-        self.play_box.setToolTip("不勾：不播放；勾上不选场景：随机播放一个")
-        self.play_box.toggled.connect(self._edited)
-        top.addWidget(self.play_box)
-        self.hint = QLabel()
-        self.hint.setObjectName("sub")
-        top.addWidget(self.hint)
-        top.addStretch(1)
-        column.addLayout(top)
+        self.play_box.setToolTip("不勾：不播放；勾选任一场景即开启")
+        column.addWidget(self.play_box, 0, Qt.AlignLeft)
         self.scenes = SceneList(chosen=(), columns=1, width=self.list_width())
         self.scenes.picked.connect(self.show_scene)
-        self.scenes.chose.connect(self._edited)
+        self.scenes.chose.connect(self._chose)
         self.buttons = self.scenes.buttons
         self.scroll = _CardScroll(self.scenes)
         self.scenes.setAutoFillBackground(False)
@@ -131,13 +121,13 @@ class ScenePane(QWidget):
         self.preview = ScenePreview(None, preview_width, play=self.replay)
         self.play_button = self.preview.play_button
         self.play_button.setToolTip("从头播放")
-        # As it opened: 播放场景 on or off and the scenes ticked, those this version has.
-        on = not scenes.off
-        keys = () if scenes.random else ticked(scenes)
-        self.play_box.setChecked(on)
-        self.scenes.set_chosen(keys)
+        # As it opened: 播放场景 on or off and the scenes ticked, those this version has; kept while it is off.
+        self._kept = () if scenes.random else ticked(scenes)
+        self.play_box.setChecked(not scenes.off)
+        if self.play_box.isChecked():
+            self._played(True)
+        self.play_box.toggled.connect(self._played)
         self._opened = self._shown()
-        self._edited()
         # The first ticked in the list shows, still, with none 经典: a click on a name, or ▶, plays.
         self.scenes.select((*self.scenes.chosen(), self.scenes.key)[0])
         self.key = self.scenes.key
@@ -172,11 +162,21 @@ class ScenePane(QWidget):
     def has_changes(self) -> bool:
         return self._shown() != self._opened
 
-    def _edited(self, _on: bool = False) -> None:
-        """播放场景 or a box ticked: off grays the boxes, their ticks kept, and takes the hint away."""
-        on = self.play_box.isChecked()
-        self.scenes.set_boxes_enabled(on)
-        self.hint.setText(HINT if on else "")
+    def _played(self, on: bool) -> None:
+        """播放场景 ticked: the ticks it had back, or 随机; unticked: every box empty, their ticks kept."""
+        if not on:
+            self._kept = self.scenes.chosen()
+        self.scenes.set_chosen((self._kept or (RANDOM[0],)) if on else ())
+
+    def _chose(self, key: str, _on: bool) -> None:
+        """A box ticked or unticked: with 播放场景 off, it on with that one alone; 随机 ticked, or no scene left
+        ticked, 随机 alone; a scene ticked or unticked with others ticked, those."""
+        if not self.play_box.isChecked():
+            self._kept = () if key == RANDOM[0] else (key,)
+            self.play_box.setChecked(True)
+            return
+        keys = self.scenes.chosen()
+        self.scenes.set_chosen((RANDOM[0],) if key == RANDOM[0] or not keys else keys)
 
     def show_scene(self, key: str) -> None:
         """Highlight this scene and play it over the sample lobby, silent."""
@@ -192,4 +192,4 @@ class ScenePane(QWidget):
         self.preview.stop()
 
 
-__all__ = ["HINT", "OFF", "ScenePane", "TickBox", "two_columns"]
+__all__ = ["OFF", "ScenePane", "TickBox", "two_columns"]

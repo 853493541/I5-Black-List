@@ -357,7 +357,6 @@ def test_a_new_guest_starts_on_no_scene_and_saves_the_scenes_ticked(window, monk
             if on:
                 dialog.pane.play_box.click()
             dialog.pane.scenes.set_chosen(keys)
-            dialog.pane._edited()
             dialog._accept()
             return dialog.result()
 

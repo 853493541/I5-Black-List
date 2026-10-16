@@ -23,7 +23,8 @@ from blacklist_detect.ui_icons import pixmap as line_pixmap
 from blacklist_detect.ui_kit import _KeyboardRing
 from blacklist_detect.ui_theme import THEME, chinese_font, is_dark
 
-# 随机's dot, where the 场景 are listed with theirs: a colour none of them has.
+# 随机, first in ScenePane's list: any scene. Its dot, where the 场景 are listed with theirs, is a colour none of them has.
+RANDOM = ("random", "随机")
 RANDOM_DOT = (160, 210, 60)
 
 SAMPLE_LOBBY = Path(__file__).resolve().parent / "assets" / "sample-lobby.jpg"
@@ -55,7 +56,7 @@ def scene_dot(key: str) -> QColor:
     """A 场景's dot in the lists, its look's glow; "random" is 随机's."""
     from blacklist_detect.ui_overlay import love_look
 
-    return QColor(*RANDOM_DOT) if key == "random" else QColor(*love_look(key).glow)
+    return QColor(*RANDOM_DOT) if key == RANDOM[0] else QColor(*love_look(key).glow)
 
 
 class SampleMarks:
@@ -376,26 +377,18 @@ def _draw_note(p: QPainter, centre: QPointF, color: str) -> None:
     p.restore()
 
 
-def _faded_gray(share: float) -> QColor:
-    """A true gray, no tint of the theme's: as light as this share of the theme's gray over the surface."""
-    gray, surface = QColor(THEME["gray"]), QColor(THEME["surface"])
-    level = share * gray.lightnessF() + (1 - share) * surface.lightnessF()
-    return QColor.fromRgbF(level, level, level)
-
-
-def paint_box(p: QPainter, box: QRectF, on: bool, enabled: bool = True) -> None:
-    """A 场景 box: filled, with a ✓, when ticked; an empty square when not. Not enabled (播放场景 off), all
-    of it gray, its tick kept."""
+def paint_box(p: QPainter, box: QRectF, on: bool) -> None:
+    """A 场景 box: filled, with a ✓, when ticked; an empty square when not."""
     p.save()
     if on:
         p.setPen(Qt.NoPen)
-        p.setBrush(QColor(THEME["accent"]) if enabled else _faded_gray(0.55))
+        p.setBrush(QColor(THEME["accent"]))
         p.drawRoundedRect(box, 4, 4)
-        tick = line_pixmap("check", 12, THEME["on_accent"] if enabled else _faded_gray(0).name(), stroke=2.0)
+        tick = line_pixmap("check", 12, THEME["on_accent"], stroke=2.0)
         p.drawPixmap(box.adjusted(2, 2, -2, -2), tick, QRectF(tick.rect()))
     else:
-        p.setPen(QPen(QColor(THEME["field_line"]) if enabled else _faded_gray(0.45), 1.2))
-        p.setBrush(QColor(THEME["surface"]) if enabled else _faded_gray(0.08))
+        p.setPen(QPen(QColor(THEME["field_line"]), 1.2))
+        p.setBrush(QColor(THEME["surface"]))
         p.drawRoundedRect(box.adjusted(0.5, 0.5, -0.5, -0.5), 4, 4)
     p.restore()
 
@@ -403,8 +396,8 @@ def paint_box(p: QPainter, box: QRectF, on: bool, enabled: bool = True) -> None:
 class SceneChoice(_KeyboardRing, QAbstractButton):
     """One scene in a list: a dot in its colour and its name. Highlighted, it sits in a ringed band; under
     the mouse, the band shows faintly. In ScenePane (chosen not None) a box at its end is ticked or not, by a
-    click on it or Space, apart from the band, and chose says so; 播放场景 off (set_box_enabled(False)) the box
-    and the dot are gray and the box does not tick, and the name still highlights. On the 场景管理 page (tick not None) a round
+    click on it or Space, apart from the band, and chose says so (ScenePane decides what that ticks, 播放场景 off
+    or on). On the 场景管理 page (tick not None) a round
     spot there is apart from the band too: ✓ when the hotkey plays it (tick), empty when not, and a click on an
     empty one or Space says ticked, for the hotkey to play it; own puts a ♪ before it (it plays one of the
     player's songs). With neither, the ✓ goes with the band."""
@@ -439,7 +432,6 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         self.own = False
         # ScenePane's box: None for none, else whether it is ticked.
         self.chosen: bool | None = None
-        self.box_enabled = True
         self._box_press = False
         # The mouse on the 场景管理 page's spot.
         self._spot_hover = False
@@ -457,14 +449,9 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         self.setAccessibleDescription("已勾选" if on else "未勾选")
         self.update()
 
-    def set_box_enabled(self, on: bool) -> None:
-        """Whether the box can be ticked: not with 播放场景 off, where it and the dot are gray, its tick kept."""
-        self.box_enabled = on
-        self.update()
-
     def _ticks(self) -> bool:
         """Whether the row's end takes a click of its own: ScenePane's box, or the page's spot."""
-        return (self.chosen is not None and self.box_enabled) or self.tick is not None
+        return self.chosen is not None or self.tick is not None
 
     def _toggle_chosen(self) -> None:
         if self.chosen is None:
@@ -568,8 +555,7 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
             p.setBrush(Qt.NoBrush)
             p.drawRoundedRect(box, self.RADIUS, self.RADIUS)
         p.setPen(Qt.NoPen)
-        # 播放场景 off: the dot gray with the boxes, the name as ever.
-        p.setBrush(self.dot if self.box_enabled or self.chosen is None else _faded_gray(0.5))
+        p.setBrush(self.dot)
         p.drawEllipse(QPointF(16 + self.DOT, self.height() / 2), self.DOT, self.DOT)
         font = chinese_font()
         font.setWeight(QFont.DemiBold if self.isChecked() else QFont.Normal)
@@ -608,20 +594,20 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         p.restore()
 
     def _paint_box(self, p: QPainter) -> None:
-        """ScenePane's box at the row's end; with 播放场景 off gray, its tick kept."""
-        paint_box(p, QRectF(self.width() - 32, (self.height() - self.BOX) / 2, self.BOX, self.BOX), bool(self.chosen), self.box_enabled)
+        """ScenePane's box at the row's end."""
+        paint_box(p, QRectF(self.width() - 32, (self.height() - self.BOX) / 2, self.BOX, self.BOX), bool(self.chosen))
 
 
 class SceneList(QWidget):
     """Every scene in love_scenes.SCENES by name, one highlighted: ScenePane's list, and the 场景管理 page's
     list. key is the one highlighted, 经典 for one this version does not have; picked(key) says a click
-    highlighted one. In ScenePane (chosen: the keys ticked) each has a box to tick, and chose says one was
-    ticked or unticked. On the page (marks) each has a spot, and ticked(key) says a click on one's (or Space)
+    highlighted one. In ScenePane (chosen: the keys ticked) 随机 comes first, each has a box to tick, and
+    chose(key, on) says the player ticked or unticked one. On the page (marks) each has a spot, and ticked(key) says a click on one's (or Space)
     asked for the hotkey to play it; set_marks puts the ✓ on the hotkey's and a ♪ on each that plays one of the
     player's songs. In columns, row by row, the whole width shared alike among them."""
 
     picked = Signal(str)
-    chose = Signal()
+    chose = Signal(str, bool)
     ticked = Signal(str)
     W = 200
     GAP = 2
@@ -645,14 +631,14 @@ class SceneList(QWidget):
         group = QButtonGroup(self)
         group.setExclusive(True)
         self.buttons: dict[str, SceneChoice] = {}
-        for place, (key, title) in enumerate(love_scenes.SCENES):
+        for place, (key, title) in enumerate([RANDOM] * (chosen is not None) + list(love_scenes.SCENES)):
             button = SceneChoice(key, title)
             if columns > 1:
                 # Alike, wide enough for every name whole; the name again when the mouse rests on it.
                 button.setFixedWidth(cell)
                 button.setToolTip(title)
             button.clicked.connect(lambda _checked=False, key=key: self._click(key))
-            button.chose.connect(lambda _on: self.chose.emit())
+            button.chose.connect(lambda on, key=key: self.chose.emit(key, on))
             button.ticked.connect(lambda key=key: self.ticked.emit(key))
             group.addButton(button)
             grid.addWidget(button, *divmod(place, columns))
@@ -672,19 +658,14 @@ class SceneList(QWidget):
             button.set_marks(key == ticked, key in own)
 
     def set_chosen(self, keys) -> None:  # noqa: ANN001
-        """Tick these scenes (one replaced is its replacement) and no others."""
+        """Tick these scenes (one replaced is its replacement), 随机 if "random" is one, and no others."""
         keys = {love_scenes.shown(key) for key in keys}
         for key, button in self.buttons.items():
             button.set_chosen(key in keys)
 
-    def set_boxes_enabled(self, on: bool) -> None:
-        """Whether the boxes can be ticked (not with 播放场景 off); the names highlight either way."""
-        for button in self.buttons.values():
-            button.set_box_enabled(on)
-
     def chosen(self) -> tuple[str, ...]:
-        """The scenes ticked, in the list's order."""
-        return tuple(key for key, button in self.buttons.items() if button.chosen)
+        """The scenes ticked, in the list's order; 随机 is none."""
+        return tuple(key for key, button in self.buttons.items() if button.chosen and key != RANDOM[0])
 
     def select(self, key: str) -> None:
         """Highlight this scene: one replaced is its replacement, one this version does not have 经典."""

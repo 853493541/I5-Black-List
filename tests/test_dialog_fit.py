@@ -143,7 +143,7 @@ def test_scene_manager_with_three_songs_fits_a_short_screen_without_scrolling(wi
 
 
 def test_more_scenes_scroll_in_their_column_and_no_dialog_grows(window, monkeypatch):
-    """With 16 scenes the list scrolls inside its column: each dialog keeps today's height."""
+    """With 16 scenes (and 随机 over them) the list scrolls inside its column: each dialog keeps today's height."""
     from blacklist_detect import love_scenes
 
     today = {title: _card_height(dialog) for title, dialog in _dialogs(window, monkeypatch).items() if title in SCENE_DIALOGS}
@@ -153,7 +153,7 @@ def test_more_scenes_scroll_in_their_column_and_no_dialog_grows(window, monkeypa
         if title not in SCENE_DIALOGS:
             continue
         pane = dialog.pane
-        assert len(pane.buttons) == 16 and pane.scroll.height() < pane.scenes.minimumSizeHint().height(), title
+        assert len(pane.buttons) == 17 and pane.scroll.height() < pane.scenes.minimumSizeHint().height(), title
         dialog.fit_height(SHORT)
         assert dialog.scroll is None and _card_height(dialog) == today[title], title
         dialog.done(QDialog.Rejected)
