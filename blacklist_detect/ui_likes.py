@@ -7,8 +7,9 @@ when 嘉宾 with different 场景 meet in a lobby the higher one decides, unless
 there (guests.lobby_choice). A player is on one list at a time: a 黑名单 name is refused here, and putting
 a 嘉宾 name on 黑名单 asks to move it.
 
-The page is laid out like 黑名单 with a 场景 column for 标签: search, 添加 (添加嘉宾 or 添加组合), and
-under 更多, 复制名单 and 清空嘉宾列表. On top is the 我 row, green: the player's own name and the 场景
+The page is laid out like 黑名单 with a 场景 column for 标签: search, 场景管理 beside it (each 场景's sound,
+ui_effects; beside 添加 on the empty list), 添加 (添加嘉宾 or 添加组合), and under 更多, 复制名单 and
+清空嘉宾列表. On top is the 我 row, green: the player's own name and the 场景
 they asked for themselves. The 组合 come next, each a row tagged 组合 with its 嘉宾 and its 场景; under
 them the 嘉宾, whose rows drag into another order. Who gets which 场景 is ticked in 嘉宾场景
 (ui_guest_scenes), opened on the one clicked: from a 场景 cell, the 我 row, or the row menu's 选择场景.
@@ -300,6 +301,8 @@ class LikesPage(QWidget):
     """The 嘉宾 page. It changes only the store; changed() tells the window to redraw the rest."""
 
     changed = Signal()
+    # 场景管理 asked for, from beside the search or on the empty list: the window opens it.
+    manage_scenes = Signal()
 
     def __init__(self, store, say, parent: QWidget | None = None, music=None) -> None:  # noqa: ANN001
         super().__init__(parent)
@@ -320,11 +323,17 @@ class LikesPage(QWidget):
         self.search_icon = self.search.addAction(line_icon("search", 16, THEME["muted"]), QLineEdit.ActionPosition.LeadingPosition)
         self.search.textChanged.connect(self.refresh)
         toolbar.addWidget(self.search, 1)
+        # 场景管理: each 场景's sound, and the 场景 hotkey's, in a dialog of its own (manage_scenes).
+        self.scenes_button = QPushButton("场景管理")
+        self.scenes_button.setAccessibleName("场景管理")
+        self.scenes_button.setToolTip("每个场景的声音和音量，场景快捷键")
+        self.scenes_button.clicked.connect(self.manage_scenes.emit)
+        toolbar.addWidget(self.scenes_button)
         toolbar.addStretch(1)
         self.add_button = QPushButton("添加")
         self.add_button.setObjectName("primary")
         self.add_button.clicked.connect(self._open_add)
-        self.toolbar_buttons = (self.add_button,)
+        self.toolbar_buttons = (self.add_button, self.scenes_button)
         toolbar.addWidget(self.add_button)
         # 添加: a 嘉宾, or a 组合 of them, who all in one lobby get 场景 of their own.
         self.add_menu = QMenu(self)
@@ -380,6 +389,10 @@ class LikesPage(QWidget):
         self.empty_add_button = self.empty.add_action(QPushButton("添加"))
         self.empty_add_button.setObjectName("primary")
         self.empty_add_button.clicked.connect(self._open_add)
+        # With no 嘉宾 yet the toolbar is hidden: 场景管理 sits beside 添加 instead.
+        self.empty_scenes_button = self.empty.add_action(QPushButton("场景管理"))
+        self.empty_scenes_button.setAccessibleName("场景管理")
+        self.empty_scenes_button.clicked.connect(self.manage_scenes.emit)
         outer.addWidget(self.empty, 1)
         self.refresh()
 
@@ -505,6 +518,7 @@ class LikesPage(QWidget):
             self.empty.set_icon("heart")
             self.empty.set_text("嘉宾列表还是空的")
         self.empty_add_button.setVisible(not has_any)
+        self.empty_scenes_button.setVisible(not has_any)
         table.setVisible(shown)
         self.empty.setVisible(not shown)
         # Only the whole list has an order to change.

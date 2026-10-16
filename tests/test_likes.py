@@ -84,6 +84,32 @@ def test_the_page_lists_names_with_their_nicknames(window):
     assert page.table.isHidden() and "没有找到" in page.empty.title.text()
 
 
+def test_scene_manager_opens_from_beside_the_search_and_from_the_empty_list(window):
+    """场景管理 is no tab: it opens from the 嘉宾 page, right of the search, or beside 添加 while the list is
+    empty, whose toolbar is hidden then. A search that finds nobody keeps it beside the search."""
+    page, dialog = window.likes_page, window.scenes_dialog
+    window.show()
+    window._show_likes_page()
+    QApplication.processEvents()
+    assert page.empty_scenes_button.isVisible() and not page.scenes_button.isVisible()
+    page.empty_scenes_button.click()
+    QApplication.processEvents()
+    assert dialog.isVisible() and window.effects_page.preview._tick.isActive()
+    dialog.reject()
+    window.store.add_like("心动小鹿")
+    page.refresh()
+    QApplication.processEvents()
+    assert page.scenes_button.isVisible() and not page.empty_scenes_button.isVisible()
+    search, button = page.search.geometry(), page.scenes_button.geometry()
+    assert 0 < button.left() - search.right() <= 16 and button.center().y() == search.center().y()
+    page.search.setText("没有这个")
+    assert page.scenes_button.isVisible() and not page.empty_scenes_button.isVisible()
+    page.scenes_button.click()
+    assert dialog.isVisible() and window.tabs.currentIndex() == window.likes_tab
+    dialog.reject()
+    window.hide()
+
+
 def test_the_effect_column_shows_every_scene_name_whole(window):
     from PySide6.QtGui import QFontMetrics
 

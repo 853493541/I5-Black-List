@@ -146,13 +146,13 @@ def test_the_settings_save_and_load_and_bad_ones_fall_back(tmp_path):
 
 
 def test_the_page_lists_every_scene_and_saves_the_one_given_the_hotkey(window):
-    assert window.tabs.tabText(window.effects_tab) == "场景管理"
-    assert window.likes_tab < window.effects_tab < window.settings_tab
+    assert "场景管理" not in [window.tabs.tabText(index) for index in range(window.tabs.count())]
     page = window.effects_page
+    assert page.window() is window.scenes_dialog and window.scenes_dialog.windowTitle() == "场景管理"
     assert [(key, button.text()) for key, button in page.scenes.buttons.items()] == list(love_scenes.SCENES)
     assert page.scenes.key == "classic" and page.scenes.buttons["classic"].isChecked()
-    window.tabs.setCurrentIndex(window.effects_tab)
     window.show()
+    window._show_scene_manager()
     QApplication.processEvents()
     assert page.preview.scene == "classic" and page.preview._tick.isActive()
     # A click shows a scene; 快捷键放这个 gives it the hotkey.
@@ -168,8 +168,8 @@ def test_the_page_lists_every_scene_and_saves_the_one_given_the_hotkey(window):
     assert window.played[-1] == "fluffy"
     page.scenes.buttons["fluffy"].click()
     assert window.played[-1] == "stop"
-    # Out of sight, the preview rests.
-    window.tabs.setCurrentIndex(window.settings_tab)
+    # Closed, the preview rests.
+    window.scenes_dialog.reject()
     assert not page.preview._tick.isActive()
     # Labels only: the hotkey, 快捷键放这个 and 播放, in one row.
     assert window.effect_hotkey_edit.text() == "Alt+F12" and page.play_button.text() == "播放"
@@ -178,14 +178,12 @@ def test_the_page_lists_every_scene_and_saves_the_one_given_the_hotkey(window):
     window.hide()
 
 
-def test_the_page_fits_the_smallest_window(window):
-    """At 900x560 every control is in view, a note under the rows too; the preview gives up room for them,
-    never below _Fitted.MIN_W (test_effects_manager has a 场景 with the player's own sound)."""
-    from blacklist_detect.ui_effects import _Fitted
-
+def test_the_dialog_shows_every_control_over_the_smallest_window(window):
+    """Over a window at 900x560 every control is in view, a note under the rows too, and the preview at its
+    full size (test_effects_manager has a 场景 with the player's own songs)."""
     window.resize(900, 560)
-    window.tabs.setCurrentIndex(window.effects_tab)
     window.show()
+    window._show_scene_manager()
     _wait(50)
     page = window.effects_page
     page._tell("这个视频里没有能放的声音")
@@ -194,12 +192,17 @@ def test_the_page_fits_the_smallest_window(window):
     def placed(widget):  # noqa: ANN001, ANN202
         return widget.geometry().translated(widget.parentWidget().mapTo(page, widget.pos()) - widget.pos())
 
-    assert page.rect().contains(placed(page.preview)) and page.preview.width() >= _Fitted.MIN_W
+    assert page.rect().contains(placed(page.preview)) and page.preview.width() == page.PREVIEW_W
     controls = (page.sounds, page.upload_button, page.volume_slider, page.volume_label, page.level_note,
-                window.effect_hotkey_edit, page.assign_button, page.play_button, page.note, page.scenes.buttons["claw"])  # fmt: skip
+                window.effect_hotkey_edit, page.assign_button, page.play_button, page.note)  # fmt: skip
     for control in controls:
         assert page.rect().contains(placed(control)), control
     assert not placed(page.note).intersects(placed(page.play_button))
+    # Every scene in view, the list as tall as what is beside it: it scrolls only past that.
+    claw = page.scenes.buttons["claw"]
+    assert page.scene_scroll.viewport().rect().contains(claw.geometry().translated(0, -page.scene_scroll.verticalScrollBar().value()))
+    assert page.scene_scroll.height() == page.height()
+    window.scenes_dialog.reject()
     window.hide()
 
 
@@ -489,7 +492,7 @@ def test_in_safe_mode_without_stream_mode_nothing_is_drawn_over_the_game(window)
     assert not window.effect_hotkey.callback()
     assert not window.panel.isVisible() and not window.clear_mark.isVisible() and not window.love.playing()
     assert window._quick_scene == "" and window.played == []
-    window.tabs.setCurrentIndex(window.effects_tab)
+    window._show_scene_manager()
     window.effects_page.play_button.click()
     assert window._quick_scene == "" and window.effects_page.note.text() == "安全模式下不显示场景"
     assert not window.effects_page.note.isHidden()
@@ -521,8 +524,8 @@ def test_stream_mode_off_in_safe_mode_takes_a_play_down_music_and_all(window):
 
 def test_picking_a_scene_mid_play_leaves_the_plays_music(window):
     page = window.effects_page
-    window.tabs.setCurrentIndex(window.effects_tab)
     window.show()
+    window._show_scene_manager()
     QApplication.processEvents()
     page.scenes.buttons["stars"].click()
     page.play_button.click()
@@ -816,34 +819,56 @@ def test_starting_over_puts_the_effect_hotkey_and_page_back(window, monkeypatch)
     assert page.scenes.key == "classic" and page.scenes.buttons["classic"].isChecked() and page.note.isHidden()
 
 
-def test_the_hotkey_row_is_whole_the_first_time_the_page_opens(window):
+def test_the_hotkey_row_is_whole_the_first_time_the_dialog_opens(window):
     window.resize(900, 560)
-    window.tabs.setCurrentIndex(window.history_tab)
     window.show()
     QApplication.processEvents()
-    window.tabs.setCurrentIndex(window.effects_tab)
+    window._show_scene_manager()
     QApplication.processEvents()
     page = window.effects_page
-    below = page.stage.below
     for widget in (window.effect_hotkey_edit, page.play_button):
-        assert widget.mapTo(below, widget.rect().bottomLeft()).y() < below.height()
-    # A note under it comes and goes without moving the preview.
-    size = page.preview.size()
+        assert widget.mapTo(page, widget.rect().bottomLeft()).y() < page.height()
+    # A note under it comes and goes without moving the preview or the dialog.
+    size, card = page.preview.size(), window.scenes_dialog.card.size()
     page.say("最多两个键，比如 Alt+1")
-    assert page.preview.size() == size
+    QApplication.processEvents()
+    assert page.preview.size() == size and window.scenes_dialog.card.size() == card
     page.say("")
-    assert page.preview.size() == size
+    QApplication.processEvents()
+    assert page.preview.size() == size and window.scenes_dialog.card.size() == card
+    window.scenes_dialog.reject()
     window.hide()
 
 
-def test_coming_back_to_the_page_does_not_make_the_scene_again(window):
-    page = window.effects_page
-    window.tabs.setCurrentIndex(window.effects_tab)
+def test_the_dialog_opens_on_the_scene_list_and_closes_with_esc_or_its_x(window):
+    """The hotkey box would take the next key pressed for the 场景 hotkey: the dialog never opens on it,
+    even after it was used last."""
+    from PySide6.QtTest import QTest
+
+    page, dialog = window.effects_page, window.scenes_dialog
     window.show()
+    for close in (lambda: QTest.keyClick(dialog, Qt.Key_Escape), dialog.close_button.click):
+        window._show_scene_manager()
+        QApplication.processEvents()
+        assert dialog.isVisible() and dialog.focusWidget() is page.scenes.buttons[page.scenes.key]
+        assert not window.effect_hotkey_edit.hasFocus() and window.effect_hotkey.active == "Alt+F12"
+        window.effect_hotkey_edit.setFocus()
+        QApplication.processEvents()
+        assert dialog.focusWidget() is window.effect_hotkey_edit
+        close()
+        QApplication.processEvents()
+        assert not dialog.isVisible() and not page.preview._tick.isActive()
+    window.hide()
+
+
+def test_coming_back_to_the_dialog_does_not_make_the_scene_again(window):
+    page = window.effects_page
+    window.show()
+    window._show_scene_manager()
     QApplication.processEvents()
     made = page.preview._paint
-    window.tabs.setCurrentIndex(window.settings_tab)
-    window.tabs.setCurrentIndex(window.effects_tab)
+    window.scenes_dialog.reject()
+    window._show_scene_manager()
     assert page.preview._paint is made and page.preview._tick.isActive()
     # With another app in front, it rests; it plays again as the app comes back.
     page._app_state(Qt.ApplicationState.ApplicationInactive)
@@ -855,8 +880,8 @@ def test_coming_back_to_the_page_does_not_make_the_scene_again(window):
 
 def test_the_preview_keeps_in_step_with_its_music_and_rests_while_minimized(window):
     page = window.effects_page
-    window.tabs.setCurrentIndex(window.effects_tab)
     window.show()
+    window._show_scene_manager()
     QApplication.processEvents()
     page.preview.play_button.click()
     _wait(120)
@@ -882,19 +907,19 @@ def test_the_preview_keeps_in_step_with_its_music_and_rests_while_minimized(wind
     window.hide()
 
 
-def test_music_from_the_preview_stops_as_the_page_goes(window):
+def test_music_from_the_preview_stops_as_the_dialog_closes(window):
     page = window.effects_page
-    window.tabs.setCurrentIndex(window.effects_tab)
     window.show()
+    window._show_scene_manager()
     QApplication.processEvents()
     page.preview.play_button.click()
     assert window.played == ["classic"]
-    window.tabs.setCurrentIndex(window.history_tab)
+    window.scenes_dialog.reject()
     assert window.played == ["classic", "stop"]
     # The play's music, though, plays on.
-    window.tabs.setCurrentIndex(window.effects_tab)
+    window._show_scene_manager()
     page.play_button.click()
-    window.tabs.setCurrentIndex(window.history_tab)
+    window.scenes_dialog.reject()
     assert window.played[-1] == "classic"
     window.hide()
 
@@ -903,8 +928,8 @@ def test_a_real_lobbys_music_plays_on_whatever_the_page_does(window, monkeypatch
     from blacklist_detect import ui
 
     page = window.effects_page
-    window.tabs.setCurrentIndex(window.effects_tab)
     window.show()
+    window._show_scene_manager()
     QApplication.processEvents()
     page.preview.play_button.click()
     assert page.sounding and window.played == ["classic"]
@@ -918,7 +943,7 @@ def test_a_real_lobbys_music_plays_on_whatever_the_page_does(window, monkeypatch
     assert window.played == ["classic", "stars"] and not page.sounding
     # Picking on 场景 and leaving it stop nothing.
     page.scenes.buttons["fluffy"].click()
-    window.tabs.setCurrentIndex(window.history_tab)
+    window.scenes_dialog.reject()
     assert len(window.played) == 2
     window._hide_panel_after_title()
     window.hide()

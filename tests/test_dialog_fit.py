@@ -77,6 +77,7 @@ def _dialogs(window, monkeypatch) -> dict[str, Modal]:
         "添加组合": window.likes_page.add_combo,
         "编辑组合": lambda: window.likes_page.edit_combo(0),
         "嘉宾场景": lambda: window.likes_page.edit_scenes(("like", 1)),
+        "场景管理": window.likes_page.scenes_button.click,
         "选择片段": lambda: SoundTrimDialog(song, 44100, "心动音乐.mp3", lambda _start, _length: None, lambda: None, window).exec(),
         "显示说明": window._show_display_guide,
         "直播模式说明": window._show_stream_guide,
@@ -107,6 +108,29 @@ def test_the_scene_editor_and_the_guest_dialogs_fit_a_short_screen_without_scrol
     used = next(button for button in editor.findChildren(QPushButton) if button.text() == "确定")
     assert used.isVisibleTo(editor) and editor.random_box.isVisibleTo(editor) and editor.preview.isVisibleTo(editor)
     assert editor.who == ("like", 1)
+
+
+def test_scene_manager_with_three_songs_fits_a_short_screen_without_scrolling(window, monkeypatch):
+    """场景管理 at its tallest: 默认 and three songs, 恢复默认 shown, 已静音 and a note under the hotkey, every
+    row in view on 1080p at 150% with no scroll. Its scene list is as tall as the rest beside it."""
+    from blacklist_detect.paths import custom_sound_dir
+
+    folder = custom_sound_dir(window.store.root)
+    folder.mkdir(parents=True, exist_ok=True)
+    for number, name in enumerate(("一个名字很长很长很长很长很长很长的心动音乐.mp3", "小星星.wav", "心动音乐.mp3"), 1):
+        (folder / f"fluffy-{number}.wav").write_bytes(b"")
+        window.store.add_scene_song("fluffy", {"file": f"fluffy-{number}.wav", "name": name, "start": 0.0, "length": 5.0})
+    window.mute_box.click()
+    page = window.effects_page
+    page.select("fluffy")
+    page.say(f"检查已在用 {window.store.hotkey}，场景快捷键未设置", held=True)
+    dialog = _dialogs(window, monkeypatch)["场景管理"]
+    assert dialog is window.scenes_dialog
+    assert [choice.isVisibleTo(page) for choice in page.sounds.choices] == [True] * 4 and page.reset_button.isVisibleTo(page)
+    dialog.fit_height(SHORT)
+    assert dialog.scroll is None and _card_height(dialog) <= SHORT - 8
+    assert page.preview.width() == page.PREVIEW_W and page.note.isVisibleTo(page) and page.level_note.text() == "已静音"
+    window.mute_box.click()
 
 
 def test_more_scenes_make_the_preview_smaller_not_the_scene_editor_taller(window, monkeypatch):

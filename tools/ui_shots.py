@@ -135,24 +135,28 @@ def shoot(args) -> None:  # noqa: ANN001
         modifiers = Qt.KeyboardModifier.NoModifier
         for modifier in spec.modifiers:
             modifiers |= flags[modifier]
-        window.tabs.setCurrentIndex(window.effects_tab)
+        dialog = window.scenes_dialog
+        dialog.show()
         edit = window.effect_hotkey_edit
         app.sendEvent(edit, QFocusEvent(QEvent.Type.FocusIn))
         app.sendEvent(edit, QKeyEvent(QEvent.Type.KeyPress, key, modifiers))
-        save(window, "page_场景_同一个键")
+        save(dialog, "dlg_场景管理_同一个键")
         app.sendEvent(edit, QFocusEvent(QEvent.Type.FocusOut))
+        dialog.close()
 
-    step("page_场景_同一个键", same_key)
+    # 场景管理, opened from the 嘉宾 page: the 场景 the hotkey plays, then 检查's key pressed for its hotkey.
+    window.tabs.setCurrentIndex(window.likes_tab)
+    step("dlg_场景管理", window._show_scene_manager)
+    step("dlg_场景管理_同一个键", same_key)
 
     def own_sound() -> None:
         # 毛茸茸保护协会 shown, with the player's own sound (seeded as 心动音乐.mp3), its 音量 below 100%.
-        window.tabs.setCurrentIndex(window.effects_tab)
         window.effects_page.scenes.buttons["fluffy"].click()
-        save(window, "page_场景_自定义声音")
+        window._show_scene_manager()
         window.effects_page.scenes.buttons[window.store.quick_scene].click()
 
     if args.data != "empty":
-        step("page_场景_自定义声音", own_sound)
+        step("dlg_场景管理_自定义声音", own_sound)
     window.tabs.setCurrentIndex(0)
     step("header_检查", lambda: (window.check_panel.toggle(), save(window, "header_检查"), window.check_panel.close_panel()))
 

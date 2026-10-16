@@ -105,7 +105,7 @@ from blacklist_detect.ui_dialogs import (
     TagSuggestDialog,
     _confirm,
 )
-from blacklist_detect.ui_effects import EffectsPage
+from blacklist_detect.ui_effects import EffectsDialog, EffectsPage
 from blacklist_detect.ui_header import CheckPanel, ProfileChip, StatusChip, StreamSwitch
 from blacklist_detect.ui_icons import icon as line_icon
 from blacklist_detect.ui_icons import pixmap as line_pixmap
@@ -609,11 +609,13 @@ class MainWindow(QMainWindow):
         self.blacklist_tab = self.tabs.addTab(self._list_page(), "黑名单")
         self.likes_page = LikesPage(self.store, self._say, music=self.music)
         self.likes_page.changed.connect(self._likes_changed)
+        self.likes_page.manage_scenes.connect(self._show_scene_manager)
         self.likes_tab = self.tabs.addTab(self.likes_page, "嘉宾")
+        self.settings_tab = self.tabs.addTab(self._settings_page(), "设置")
+        # 场景管理, opened from the 嘉宾 page: made once, so what it shows stays between openings.
         self.effect_hotkey_edit = self._hotkey_box("场景快捷键", none="未设置")
         self.effects_page = EffectsPage(self.store, self.music, self.effect_hotkey_edit, self._play_from_page)
-        self.effects_tab = self.tabs.addTab(self.effects_page, "场景管理")
-        self.settings_tab = self.tabs.addTab(self._settings_page(), "设置")
+        self.scenes_dialog = EffectsDialog(self.effects_page, self)
         self.tabs.tabBar().hide()
         self.tabs.currentChanged.connect(self._sync_tab_buttons)
         header = QWidget()
@@ -2095,8 +2097,7 @@ class MainWindow(QMainWindow):
             ("Ctrl+1", self._show_records_page),
             ("Ctrl+2", self._show_blacklist_page),
             ("Ctrl+3", self._show_likes_page),
-            ("Ctrl+4", self._show_effects_page),
-            ("Ctrl+5", self._show_settings_page),
+            ("Ctrl+4", self._show_settings_page),
             ("Ctrl+F", self._focus_search),
             ("Ctrl+N", self._add_by_dialog),
             ("Ctrl+I", self._add_many_by_dialog),
@@ -2114,8 +2115,9 @@ class MainWindow(QMainWindow):
     def _show_likes_page(self) -> None:
         self.tabs.setCurrentIndex(self.likes_tab)
 
-    def _show_effects_page(self) -> None:
-        self.tabs.setCurrentIndex(self.effects_tab)
+    def _show_scene_manager(self) -> None:
+        """场景管理 over the window, on the 场景 it showed last."""
+        self.scenes_dialog.open()
 
     def _show_settings_page(self) -> None:
         self.tabs.setCurrentIndex(self.settings_tab)
@@ -2957,7 +2959,7 @@ class MainWindow(QMainWindow):
         self._sync_status_tip()
 
     def _hotkey_box(self, name: str, none: str = "无") -> QLineEdit:
-        """A box that takes a hotkey as it is pressed (eventFilter, _take_hotkey): 检查's, or the 场景管理 page's.
+        """A box that takes a hotkey as it is pressed (eventFilter, _take_hotkey): 检查's, or 场景管理's.
         none: what it says with no key, 未设置 for the 场景 hotkey, which can be none."""
         edit = QLineEdit()
         edit.setReadOnly(True)
@@ -3760,7 +3762,7 @@ class MainWindow(QMainWindow):
             else:
                 started = self.music.lobby([like.name for like in likes], tune)
             if started:
-                # The lobby's music now, not ▶'s on 场景管理: leaving that page or picking there leaves it on.
+                # The lobby's music now, not ▶'s on 场景管理: closing it or picking there leaves it on.
                 self.effects_page.sounding = False
                 self.love.heard(tune)
         if self.store.safe_mode:
@@ -4080,7 +4082,7 @@ class MainWindow(QMainWindow):
             log.info("场景 hotkey: nothing played (%s).", why)
             return False
         self._end_stream_test()
-        # The music is the play's now, not the 场景管理 page's preview's.
+        # The music is the play's now, not 场景管理's preview's.
         self.effects_page.sounding = False
         self._end_quick_play()
         scene = scene or self.store.quick_scene

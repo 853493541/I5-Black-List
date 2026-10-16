@@ -693,7 +693,7 @@ def test_the_header_fits_the_smallest_window(qapp, tmp_path, monkeypatch):
     assert 64 <= window.player_edit.width() < window.NAME_BOX
     window._finish_player_name()
     # A wider window has room: 直播模式 and the name are whole, and the box is as wide as it gets.
-    window.resize(1100, 560)
+    window.resize(1040, 560)
     for _ in range(3):
         qapp.processEvents()
     fits((*tabs, *right, chip))
@@ -760,8 +760,8 @@ def test_tabs_show_counts_as_badges(qapp, tmp_path, monkeypatch):
     window = MainWindow()
     window._watch_timer.stop()
     tabs = window._tab_buttons
-    assert [tab.name() for tab in tabs] == ["记录", "黑名单", "嘉宾", "场景管理", "设置"]
-    assert [tab.count() for tab in tabs] == [0, 0, 0, 0, 0]
+    assert [tab.name() for tab in tabs] == ["记录", "黑名单", "嘉宾", "设置"]
+    assert [tab.count() for tab in tabs] == [0, 0, 0, 0]
     narrow = tabs[window.blacklist_tab].sizeHint().width()
     window.store.add("甲")
     window.store.add("乙")
@@ -772,7 +772,7 @@ def test_tabs_show_counts_as_badges(qapp, tmp_path, monkeypatch):
     assert window.tabs.tabText(window.blacklist_tab) == "黑名单  2"
     tabs[2].click()
     assert window.tabs.currentIndex() == 2
-    assert [tab.isChecked() for tab in tabs] == [False, False, True, False, False]
+    assert [tab.isChecked() for tab in tabs] == [False, False, True, False]
     window.tabs.setCurrentIndex(window.blacklist_tab)
     assert tabs[window.blacklist_tab].isChecked()
     assert tabs[0].focusPolicy() == Qt.TabFocus
@@ -995,7 +995,7 @@ def test_auto_check_does_not_leave_the_current_tab(qapp, tmp_path, monkeypatch):
     window._on_auto_mode("auto")
     window.worker.request = lambda fn, kind="check": True
     assert window.tabs.tabText(0).startswith("记录")
-    assert window.tabs.count() == 5
+    assert window.tabs.count() == 4
     settings = window.tabs.count() - 1
     window.tabs.setCurrentIndex(settings)
     window._start(lambda: None, live=True)
@@ -1852,11 +1852,12 @@ def test_keyboard_reaches_every_page_and_list(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
     window._watch_timer.stop()
-    # Ctrl+1 to Ctrl+5 open the pages in their order; Ctrl+F lands on 黑名单.
-    window.shortcuts["Ctrl+5"].activated.emit()
-    assert window.tabs.currentIndex() == window.settings_tab == 4
+    # Ctrl+1 to Ctrl+4 open the pages in their order, 场景管理 none (it opens from 嘉宾); Ctrl+F lands on 黑名单.
+    assert [tab.name() for tab in window._tab_buttons] == ["记录", "黑名单", "嘉宾", "设置"]
+    assert [tab.toolTip() for tab in window._tab_buttons] == ["Ctrl+1", "Ctrl+2", "Ctrl+3", "Ctrl+4"]
+    assert "Ctrl+5" not in window.shortcuts
     window.shortcuts["Ctrl+4"].activated.emit()
-    assert window.tabs.currentIndex() == window.effects_tab == 3
+    assert window.tabs.currentIndex() == window.settings_tab == 3
     window.shortcuts["Ctrl+3"].activated.emit()
     assert window.tabs.currentIndex() == window.likes_tab == 2
     window.shortcuts["Ctrl+1"].activated.emit()
@@ -1915,7 +1916,11 @@ def test_controls_take_keyboard_focus_and_have_names(qapp, tmp_path, monkeypatch
     window = MainWindow()
     window._watch_timer.stop()
     # Buttons take focus from Tab, never from a click, so no ring follows the mouse.
-    buttons = [b for b in window.findChildren(QPushButton) if b.objectName() not in ("rowDelete", "toastAction")]
+    # 场景管理's ×, as every dialog's, is not a Tab stop: Esc does the same.
+    buttons = [
+        b for b in window.findChildren(QPushButton)
+        if b.objectName() not in ("rowDelete", "toastAction") and b is not window.scenes_dialog.close_button
+    ]
     assert buttons and all(b.focusPolicy() == Qt.TabFocus for b in buttons)
     for kind in (IconButton, Switch, TabButton, ThemeSwatch):
         for control in window.findChildren(kind):

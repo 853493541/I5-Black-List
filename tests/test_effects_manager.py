@@ -1,4 +1,4 @@
-"""场景管理 (ui_effects): the 场景 page shows a 场景 apart from the one the hotkey plays, and sets each 场景's
+"""场景管理 (ui_effects): the dialog shows a 场景 apart from the one the hotkey plays, and sets each 场景's
 sound (the player's own, cut in 选择片段 when it is long) and 音量. Made-up sounds and file dialogs only:
 nothing is played aloud, and every file is in the test's own folder."""
 
@@ -393,17 +393,19 @@ def test_a_file_that_cannot_be_used_says_why_until_another_is_shown(window, pick
 
 
 def test_nothing_changes_under_a_file_being_read(window, pick, trim, tmp_path, monkeypatch):
+    window.show()
+    window._show_scene_manager()
     page = _shown(window, "lace")
     read = sound_import.decode
     seen = {}
 
     def slow(path):  # noqa: ANN001, ANN202
         # The player clicks around while it is read, as a video's nested event loop would let them.
-        seen["enabled"] = window.isEnabled()
+        seen["enabled"] = page.window().isEnabled()
         page.scenes.buttons["ice"].click()
         page.upload_button.click()
         page.reset_button.click()
-        window._tab_buttons[window.settings_tab].click()
+        page.window().close_button.click()
         seen["note"] = page.note.text()
         return read(path)
 
@@ -411,9 +413,9 @@ def test_nothing_changes_under_a_file_being_read(window, pick, trim, tmp_path, m
     pick["chosen"] = _wav(tmp_path / "a.wav", 2.0)
     page.upload_button.click()
     assert seen == {"enabled": False, "note": "正在读取…"}
-    assert len(pick["asked"]) == 1 and window.tabs.currentIndex() != window.settings_tab
+    assert len(pick["asked"]) == 1 and window.scenes_dialog.isVisible()
     # The sound is the 场景's shown when 上传 was pressed, and the page says so.
-    assert window.isEnabled() and page.scenes.key == "lace" and list(window.store.scene_sounds) == ["lace"]
+    assert page.window().isEnabled() and page.scenes.key == "lace" and list(window.store.scene_sounds) == ["lace"]
     assert _chosen(page) == "a.wav · 2.0 秒" and page.scenes.buttons["lace"].own
 
 
@@ -683,10 +685,11 @@ def test_an_mp3_is_read_and_kept(window, pick, trim):
     assert entry["name"] == "organ.mp3" and entry["length"] == pytest.approx(1.5, abs=0.1) and trim["opened"] == []
 
 
-def test_the_page_with_three_songs_fits_the_smallest_window(window, pick, trim, tmp_path):
+def test_the_dialog_with_three_songs_shows_every_control(window, pick, trim, tmp_path):
+    """test_dialog_fit has it on a short screen."""
     window.resize(900, 560)
-    window.tabs.setCurrentIndex(window.effects_tab)
     window.show()
+    window._show_scene_manager()
     _wait(50)
     page = _shown(window, "fluffy")
     for name in ("一个名字很长很长很长很长很长很长很长很长很长很长很长很长的心动音乐.wav", "b.wav", "c.wav"):
@@ -703,10 +706,11 @@ def test_the_page_with_three_songs_fits_the_smallest_window(window, pick, trim, 
     controls = (*page.sounds.choices, *page.sounds.play_buttons, *page.sounds.delete_buttons, page.upload_button, page.reset_button)
     for control in (*controls, page.volume_slider, page.level_note, page.play_button, page.assign_button):
         assert page.rect().contains(placed(control)), control
-    assert page.preview.width() >= page.stage.MIN_W
+    assert page.preview.width() == page.PREVIEW_W
     # A name too long for its room is cut in the middle, whole in its tooltip.
     long = page.sounds.choices[1]
     assert long.text() != long.full and long.toolTip() == long.full and long.text().endswith("2.0 秒")
+    window.scenes_dialog.reject()
     window.hide()
 
 
@@ -739,6 +743,6 @@ def test_the_tab_row_keeps_clear_of_the_chips_in_the_smallest_window(window):
     window.profile_chip.set_name("一二三四五六七八九十")
     _wait(30)
     last = window._tab_buttons[-1]
-    assert window.tabs.tabText(window.effects_tab) == "场景管理"
+    assert [tab.name() for tab in window._tab_buttons] == ["记录", "黑名单", "嘉宾", "设置"]
     assert last.mapTo(window, last.rect().topRight()).x() < window.update_pill.mapTo(window, window.update_pill.rect().topLeft()).x()
     window.hide()

@@ -395,7 +395,7 @@ def test_the_player_reads_scene_never_effect(window):
 
     window.store.add_like("小明")
     window.store.add_like("小红")
-    assert window._tab_buttons[window.effects_tab].name() == "场景管理"
+    assert window.scenes_dialog.windowTitle() == window.likes_page.scenes_button.text() == "场景管理"
     for root in (window, LikeDialog(parent=window), ComboDialog(window.store.likes, parent=window), GuestScenesDialog(window.store, parent=window)):
         assert not [words for words in _words(root) if "特效" in words], root
     # 直播姬's own scenes are said to be 直播姬's.

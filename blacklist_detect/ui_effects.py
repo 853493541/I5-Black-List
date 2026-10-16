@@ -1,9 +1,9 @@
-"""场景管理: every 场景's sound, and which one the 场景 hotkey plays.
+"""场景管理: every 场景's sound, and which one the 场景 hotkey plays, in a dialog opened from the 嘉宾 page.
 
-Every scene in love_scenes.SCENES is listed by name with its dot, as in 选择场景 (ui_love_pick.SceneList).
-A click shows one: it plays beside the list over the fake-name sample lobby, as big as the page allows, and
-▶ plays it from its start with its music. The list's ✓ is the 场景 the hotkey plays, which 快捷键放这个 makes
-the one shown; a ♪ is a 场景 that plays one of the player's songs.
+Every scene in love_scenes.SCENES is listed by name with its dot, the list 嘉宾场景 (ui_guest_scenes) has in
+a grid; past the height of what is beside it, the list scrolls. A click shows one: it plays beside the list
+over the fake-name sample lobby, and ▶ plays it from its start with its music. The list's ✓ is the 场景 the
+hotkey plays, which 快捷键放这个 makes the one shown; a ♪ is a 场景 that plays one of the player's songs.
 
 Under the preview, the shown 场景's 声音 (SoundChoices: 默认, its own, and up to three songs of the player's, each
 上传 from a file, a part of it picked in 选择片段 when it is longer than a 场景's sound may be; one is chosen, and
@@ -12,7 +12,8 @@ set the way 检查's is (the window's hotkey box), with 播放, which plays the 
 plays its own: at once over the game, with no check (MainWindow.play_quick_scene).
 
 The preview plays only while it can be seen, its window not minimized, and the app is in front: behind the
-game it would paint 30 times a second for nothing.
+game it would paint 30 times a second for nothing. The page lives on in EffectsDialog, made once with the
+window: × and Esc close it, which rests the preview and stops a sound its ▶ started.
 """
 
 from __future__ import annotations
@@ -30,12 +31,14 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QDialog,
     QFileDialog,
+    QFrame,
     QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
     QRadioButton,
+    QScrollArea,
     QSizePolicy,
     QSlider,
     QVBoxLayout,
@@ -43,62 +46,37 @@ from PySide6.QtWidgets import (
 )
 
 from blacklist_detect import love_scenes, sound_import
-from blacklist_detect.love_scenes import DESIGN
 from blacklist_detect.paths import custom_sound_dir
 from blacklist_detect.sound_import import CLIP_S, SoundImportError
 from blacklist_detect.storage import MAX_SONGS
-from blacklist_detect.ui_kit import IconButton
+from blacklist_detect.ui_kit import _SCROLL_BAR, IconButton, Modal
 from blacklist_detect.ui_love_pick import SceneList, ScenePreview
 from blacklist_detect.ui_music import TUNES, VOLUME_STEP
 from blacklist_detect.ui_sound_trim import SoundTrimDialog
-from blacklist_detect.ui_theme import CONTROL_H, GAP, _page, chinese_font
+from blacklist_detect.ui_theme import CONTROL_H, _dialog_style, chinese_family, chinese_font
 
 
-class _Fitted(QWidget):
-    """The preview as big as it fits, the lobby's shape kept, at the top left, and what goes under it
-    (below) right under it. The preview keeps the most room below has needed, so it does not jump
-    as a note under the hotkey comes and goes."""
+class _ListScroll(QScrollArea):
+    """The scene list, as tall as what stands beside it and no taller: past that it scrolls, so more
+    scenes never make the dialog taller. Its scroll bar's room is kept beside the names."""
 
-    MIN_W = 320
-
-    def __init__(self, preview: ScenePreview, below: QWidget, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.preview = preview
-        self.below = below
-        preview.setParent(self)
-        below.setParent(self)
-        # Its box and 播放 grow once they are styled, after the first place: placed again then.
-        below.installEventFilter(self)
-        self._under = 0
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.setMinimumSize(QSize(self.MIN_W, self._tall(self.MIN_W)))
-
-    def _tall(self, width: int) -> int:
-        return round(width * DESIGN[1] / DESIGN[0]) + GAP + self.below.sizeHint().height()
+    def __init__(self, scenes: SceneList) -> None:
+        super().__init__()
+        self.setObjectName("sceneScroll")
+        self.setFrameShape(QFrame.NoFrame)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setWidgetResizable(True)
+        self.viewport().setAutoFillBackground(False)
+        scenes.setAutoFillBackground(False)
+        self.setWidget(scenes)
+        self.setFixedWidth(scenes.minimumWidth() + _SCROLL_BAR + 4)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Ignored)
 
     def sizeHint(self) -> QSize:
-        return QSize(ScenePreview.WIDTH, self._tall(ScenePreview.WIDTH))
+        return QSize(self.width(), 0)
 
-    def place(self) -> None:
-        under = self.below.sizeHint().height()
-        self._under = max(self._under, under)
-        room = max(1, self.height() - self._under - GAP)
-        self.preview.set_width(max(1, min(self.width(), int(room * DESIGN[0] / DESIGN[1]))))
-        self.preview.move(0, 0)
-        self.below.setGeometry(0, self.preview.height() + GAP, self.width(), under)
-
-    def resizeEvent(self, event) -> None:  # noqa: ANN001
-        super().resizeEvent(event)
-        self.place()
-
-    def showEvent(self, event) -> None:  # noqa: ANN001
-        super().showEvent(event)
-        self.place()
-
-    def eventFilter(self, watched, event) -> bool:  # noqa: ANN001
-        if watched is self.below and event.type() == QEvent.Type.LayoutRequest:
-            self.place()
-        return super().eventFilter(watched, event)
+    def minimumSizeHint(self) -> QSize:
+        return QSize(self.width(), 0)
 
 
 def _button(text: str, action, primary: bool = False) -> QPushButton:  # noqa: ANN001
@@ -168,7 +146,7 @@ class SoundChoices(QWidget):
         grid = QGridLayout(self)
         grid.setContentsMargins(0, 0, 0, 0)
         grid.setHorizontalSpacing(6)
-        grid.setVerticalSpacing(2)
+        grid.setVerticalSpacing(4)
         grid.setColumnStretch(4, 1)
         self.group = QButtonGroup(self)
         self.group.setExclusive(True)
@@ -270,9 +248,12 @@ class SoundChoices(QWidget):
 
 
 class EffectsPage(QWidget):
-    """The 场景管理 page. scenes.key is the 场景 shown, store.quick_scene the hotkey's; hotkey_box is the
+    """What 场景管理 shows. scenes.key is the 场景 shown, store.quick_scene the hotkey's; hotkey_box is the
     window's box for the 场景 hotkey, and play(key) what 播放 does with the one shown. sounding: the music
     playing is the one ▶ started, which stops as the page goes out of sight."""
+
+    # The preview's width, the sample lobby's shape kept: as wide as 嘉宾场景's.
+    PREVIEW_W = 448
 
     def __init__(self, store, music, hotkey_box: QLineEdit, play, parent: QWidget | None = None) -> None:  # noqa: ANN001
         super().__init__(parent)
@@ -284,21 +265,26 @@ class EffectsPage(QWidget):
         # hotkey as it stands (held) comes back.
         self._told = ""
         self._held_text = ""
-        outer = QVBoxLayout(self)
-        _page(outer)
-        body = QHBoxLayout()
+        body = QHBoxLayout(self)
+        body.setContentsMargins(0, 0, 0, 0)
         body.setSpacing(20)
-        outer.addLayout(body, 1)
         self.scenes = SceneList(store.quick_scene, marks=True)
         self.scenes.picked.connect(self._pick)
-        body.addWidget(self.scenes, 0, Qt.AlignTop)
-        self.preview = ScenePreview(play=self.play_preview)
-        # The shown 场景's 声音 and 音量, then the hotkey and 播放, right under the preview.
+        self.scene_scroll = _ListScroll(self.scenes)
+        body.addWidget(self.scene_scroll)
+        side = QVBoxLayout()
+        side.setSpacing(16)
+        body.addLayout(side)
+        self.preview = ScenePreview(width=self.PREVIEW_W, play=self.play_preview)
+        side.addWidget(self.preview)
+        # The shown 场景's 声音 and 音量, then the hotkey and 播放, right under the preview, the names in a
+        # column of their own.
         below = QWidget()
+        below.setFixedWidth(self.PREVIEW_W)
         rows = QGridLayout(below)
         rows.setContentsMargins(0, 0, 0, 0)
-        rows.setHorizontalSpacing(12)
-        rows.setVerticalSpacing(6)
+        rows.setHorizontalSpacing(16)
+        rows.setVerticalSpacing(12)
         rows.setColumnStretch(1, 1)
         for row, name in enumerate(("声音", "音量", "快捷键")):
             label = QLabel(name)
@@ -351,7 +337,7 @@ class EffectsPage(QWidget):
         rows.addLayout(hotkey, 2, 1)
         # What is wrong with a key pressed for the hotkey, as 检查 says it, why 播放 played nothing, or what
         # became of a sound uploaded, under them. Its room is kept while it is hidden.
-        self.note = QLabel("")
+        self.note = QLabel(" ")
         self.note.setObjectName("rowHint")
         self.note.setWordWrap(True)
         policy = self.note.sizePolicy()
@@ -359,8 +345,8 @@ class EffectsPage(QWidget):
         self.note.setSizePolicy(policy)
         self.note.hide()
         rows.addWidget(self.note, 3, 1)
-        self.stage = _Fitted(self.preview, below)
-        body.addWidget(self.stage, 1)
+        side.addWidget(below)
+        side.addStretch(1)
         self._sync_marks()
         self._sync_rows()
         QGuiApplication.instance().applicationStateChanged.connect(self._app_state)
@@ -414,10 +400,9 @@ class EffectsPage(QWidget):
         self._note(text or self._held_text)
 
     def _note(self, text: str) -> None:
-        self.note.setText(text)
+        # Hidden, a line's room is kept, so the dialog keeps its height as a note comes and goes.
+        self.note.setText(text or " ")
         self.note.setVisible(bool(text))
-        self.stage.below.layout().activate()
-        self.stage.place()
 
     # The shown 场景's sound.
     def _own(self, key: str) -> Path | None:
@@ -624,8 +609,10 @@ class EffectsPage(QWidget):
         self._choose("")
 
     def _seen(self) -> bool:
-        """On screen: this page the one shown, in a window that is not minimized."""
-        return self.isVisible() and not self.window().isMinimized()
+        """On screen: 场景管理 open, over a window that is not minimized."""
+        window = self.window()
+        host = window.parentWidget()
+        return self.isVisible() and not window.isMinimized() and not (host is not None and host.window().isMinimized())
 
     def _show(self) -> None:
         """The shown scene from its start; made again only when it changed (演说家遇袭 takes over a second).
@@ -653,3 +640,33 @@ class EffectsPage(QWidget):
             self.music.stop()
         self.sounding = False
         super().hideEvent(event)
+
+
+class EffectsDialog(Modal):
+    """场景管理: the page in a dialog of its own, made once with the window and opened again and again from
+    the 嘉宾 page, the page and what it shows kept between. It has no buttons at its foot: × and Esc close it,
+    which rests the preview and stops a sound ▶ started (the page's hideEvent). It opens with the scene
+    list in focus, never the hotkey box, which would take the next key pressed for the 场景 hotkey."""
+
+    def __init__(self, page: EffectsPage, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.page = page
+        self.frame("场景管理").addWidget(page)
+        # Its window minimized with it open, the preview rests; restored, it plays again.
+        if parent is not None:
+            parent.window().installEventFilter(self)
+
+    def eventFilter(self, watched, event) -> bool:  # noqa: ANN001
+        if event.type() == QEvent.Type.WindowStateChange and watched is self.parentWidget().window():
+            if watched.isMinimized():
+                self.page.preview.pause()
+            elif self.page._seen():
+                self.page._show()
+        return super().eventFilter(watched, event)
+
+    def setVisible(self, visible: bool) -> None:  # noqa: FBT001
+        if visible and not self.isVisible():
+            # In the theme as it is now: 浅色 or 深色 may have changed since it was made.
+            self.setStyleSheet(_dialog_style(chinese_family()))
+            self.page.scenes.buttons[self.page.scenes.key].setFocus(Qt.FocusReason.OtherFocusReason)
+        super().setVisible(visible)
