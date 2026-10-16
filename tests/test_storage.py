@@ -1086,17 +1086,25 @@ def _held(path):
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="a file held open without sharing is Windows'")
-def test_a_history_file_held_by_another_program_is_not_said_to_be_broken(tmp_path):
+def test_a_file_held_by_another_program_is_not_said_to_be_broken_nor_saved_over(tmp_path):
     history = tmp_path / "history.json"
     scans = {"scans": [{"at": "2020-01-01T00:00:00+00:00", "names": [{"seat": 1, "name": "心动星星"}]}]}
     history.write_text(json.dumps(scans, ensure_ascii=False), encoding="utf-8")
-    release = _held(history)
+    blacklist = tmp_path / "blacklist.json"
+    blacklist.write_text(json.dumps({"entries": [{"name": "示例坏人"}]}, ensure_ascii=False), encoding="utf-8")
+    releases = [_held(history), _held(blacklist)]
     try:
         store = Store(tmp_path)
     finally:
-        release()
-    assert store.scans == [] and store.load_warning == "", "nothing was set aside, so nothing is said"
+        for release in releases:
+            release()
+    assert store.scans == [] and store.entries == []
+    assert store.load_warning == "黑名单文件读不了，这次改动不保存；记录文件读不了，这次记录不保存"
+    # The hold over, what is done in this run waits for the next open: the files are as they were.
+    store.add("心动小鹿")
+    store.add_scan([{"seat": 1, "name": "心动小鹿"}])
     assert not list(tmp_path.glob("*.unreadable-*")) and json.loads(history.read_text(encoding="utf-8")) == scans
+    assert [entry.name for entry in Store(tmp_path).entries] == ["示例坏人"]
 
 
 def test_a_broken_file_that_cannot_be_set_aside_is_not_said_to_be_backed_up(tmp_path, monkeypatch):
@@ -1106,7 +1114,11 @@ def test_a_broken_file_that_cannot_be_set_aside_is_not_said_to_be_backed_up(tmp_
         (tmp_path / name).write_text("{", encoding="utf-8")
     monkeypatch.setattr(storage, "_set_aside", lambda _path: None)
     store = Store(tmp_path)
-    assert store.load_warning == "" and store.entries == [] and store.likes == [] and store.scans == []
+    assert store.entries == [] and store.likes == [] and store.scans == []
+    assert "已备份" not in store.load_warning and store.load_warning.count("读不了") == 4
+    store.save_entries(), store.save_likes(), store.save_settings(), store.save_scans()
+    files = ("settings.json", "blacklist.json", "likes.json", "history.json")
+    assert all((tmp_path / name).read_text(encoding="utf-8") == "{" for name in files), "not saved over"
     monkeypatch.undo()
     assert Store(tmp_path).load_warning.count("已备份") == 4
 

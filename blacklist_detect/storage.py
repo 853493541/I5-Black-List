@@ -366,7 +366,7 @@ def _log_set_aside(exc: Exception, path: Path, backup: Path | None) -> None:
 
 def _set_aside(path: Path) -> Path | None:
     """Move an unreadable file out of the way under a new name. Earlier ones are never overwritten. None when
-    it cannot be moved (another program holds it open): it is not known to be broken, so nothing is said."""
+    it cannot be moved (another program holds it open): it is not known to be broken, and it is not saved over."""
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     target = path.with_name(f"{path.stem}.unreadable-{stamp}{path.suffix}")
     try:
@@ -800,6 +800,8 @@ class Store:
         self.column_order = [0, 1, 2, 3]
         self.column_widths = list(DEFAULT_COLUMN_WIDTHS)
         self.load_warning = ""
+        # Files that could not be read and are still where they were: saved over, what is in them would be gone.
+        self._unread: set[Path] = set()
         self._old_volume, self._old_scenes_off = 100, False
         self._load_settings()
         # 完整模式 only once agreed to; settings from before the question fall back.
@@ -832,8 +834,7 @@ class Store:
                 self.entries = []
                 backup = _set_aside(self.blacklist_path)
                 _log_set_aside(exc, self.blacklist_path, backup)
-                if backup is not None:
-                    self.load_warning = "；".join(part for part in (self.load_warning, "黑名单文件坏了，已备份，先用空名单") if part)
+                self._warn(self.blacklist_path, backup, "黑名单文件坏了，已备份，先用空名单", "黑名单文件读不了，这次改动不保存")
         self._load_likes()
         self._fold_old_settings()
         discovered = False
@@ -879,8 +880,7 @@ class Store:
                 self.scans = []
                 backup = _set_aside(self.history_path)
                 _log_set_aside(exc, self.history_path, backup)
-                if backup is not None:
-                    self.load_warning = "；".join(part for part in (self.load_warning, "记录文件坏了，已备份，先用空记录") if part)
+                self._warn(self.history_path, backup, "记录文件坏了，已备份，先用空记录", "记录文件读不了，这次记录不保存")
         collapsed = _collapse(self.scans)
         if len(collapsed) != len(self.scans):
             self.scans = collapsed
@@ -922,8 +922,7 @@ class Store:
             self.me = Scenes()
             backup = _set_aside(self.likes_path)
             _log_set_aside(exc, self.likes_path, backup)
-            if backup is not None:
-                self.load_warning = "；".join(part for part in (self.load_warning, "嘉宾文件坏了，已备份，先用空列表") if part)
+            self._warn(self.likes_path, backup, "嘉宾文件坏了，已备份，先用空列表", "嘉宾文件读不了，这次改动不保存")
 
     def _fold_old_settings(self) -> None:
         """Settings saved up to v0.9.14, once, into what took their place: 声音 below 100 into every 场景's own
@@ -950,7 +949,22 @@ class Store:
             _log.info("The old settings, folded in, could not be saved (%s): again the next open.", exc)
         self._old_volume, self._old_scenes_off = 100, False
 
+    def _warn(self, path: Path, backup: Path | None, kept: str, held: str) -> None:
+        """Say a file could not be read: kept aside, or, still where it was, not saved over until the next open."""
+        if backup is None:
+            self._unread.add(path)
+        self.load_warning = "；".join(part for part in (self.load_warning, kept if backup is not None else held) if part)
+
+    def _saves(self, path: Path) -> bool:
+        """False for a file not read at open and still there (another program held it): it waits for the next open."""
+        if path in self._unread:
+            _log.info("%s was not read at open: not saved over.", path.name)
+            return False
+        return True
+
     def save_likes(self) -> None:
+        if not self._saves(self.likes_path):
+            return
         _daily_backup(self.likes_path)
         _atomic_write(
             self.likes_path,
@@ -1061,6 +1075,8 @@ class Store:
         _log.info("嘉宾: cleared.")
 
     def save_entries(self) -> None:
+        if not self._saves(self.blacklist_path):
+            return
         _daily_backup(self.blacklist_path)
         _atomic_write(
             self.blacklist_path,
@@ -1078,6 +1094,8 @@ class Store:
         )
 
     def save_settings(self) -> None:
+        if not self._saves(self.settings_path):
+            return
         _atomic_write(
             self.settings_path,
             {
@@ -1209,11 +1227,12 @@ class Store:
             # Saved without them, they would be gone for good.
             unlisted = _scene_sounds(None, custom_sound_dir(self.root), unlisted=True)
             self.scene_sounds = {**unlisted, **self.scene_sounds}
-            if backup is not None:
-                self.load_warning = "；".join(part for part in (self.load_warning, "设置文件坏了，已备份，先用默认设置") if part)
+            self._warn(self.settings_path, backup, "设置文件坏了，已备份，先用默认设置", "设置文件读不了，这次改动不保存")
 
     def save_scans(self) -> None:
         """Never raises: 记录 are the least of the files, and one that cannot be saved must not cost a check its marks."""
+        if not self._saves(self.history_path):
+            return
         try:
             _atomic_write(self.history_path, {"scans": self.scans[:_MAX_SCANS]})
         except OSError as exc:
