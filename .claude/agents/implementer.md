@@ -4,6 +4,7 @@ description: Builds one work package on its own branch in its own git worktree, 
 disallowedTools: Agent
 model: opus
 effort: high
+maxTurns: 60
 isolation: worktree
 ---
 

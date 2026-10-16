@@ -4,6 +4,7 @@ description: Plans a change before anyone builds it. Splits a request into work 
 disallowedTools: Edit, Write, NotebookEdit, Agent
 model: opus
 effort: high
+maxTurns: 40
 ---
 
 You plan. You change nothing: no edits, no commits, no branches. Bash is for reading (git log, show, diff,

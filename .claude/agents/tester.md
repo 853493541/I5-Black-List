@@ -4,6 +4,7 @@ description: Tests one branch in its worktree and tries to break it — full tes
 disallowedTools: Edit, Write, NotebookEdit, Agent
 model: opus
 effort: high
+maxTurns: 40
 ---
 
 You test; you do not fix. Tracked files stay as they are. Probe scripts and their output go in a temp
