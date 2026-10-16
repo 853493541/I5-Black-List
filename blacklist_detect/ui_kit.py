@@ -14,6 +14,7 @@ from collections.abc import Callable
 from PySide6.QtCore import (
     QEasingCurve,
     QEvent,
+    QLineF,
     QObject,
     QPoint,
     QPropertyAnimation,
@@ -1093,8 +1094,8 @@ class _InlineHint(ElidedLabel):
 
 
 class _Hairline(QWidget):
-    """A 1 px line between settings rows. A styled QFrame came out 1 or 2 px by where it fell at 125 and 150 %;
-    a cosmetic pen is one device pixel wherever it lands."""
+    """A line between settings rows, one device pixel at every scale. A styled QFrame came out 1 or 2 px by
+    where it fell at 125 and 150 %; a cosmetic pen is one device pixel wherever it lands."""
 
     def __init__(self, name: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -1105,7 +1106,9 @@ class _Hairline(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing, False)
         painter.setPen(QPen(QColor(THEME["border"]), 0))
-        painter.drawLine(0, 0, self.width() - 1, 0)
+        # Through the middle of the row: at y 0 the line fell outside the widget wherever its top landed between
+        # device pixels, and every other line was gone at 125 and 150 %.
+        painter.drawLine(QLineF(0, 0.5, self.width(), 0.5))
         painter.end()
 
 

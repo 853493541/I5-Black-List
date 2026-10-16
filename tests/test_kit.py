@@ -212,17 +212,52 @@ def test_the_lines_between_settings_are_one_device_pixel_at_every_scale(qapp):
     lines = [w for w in pane.findChildren(QWidget) if w.objectName() == "settingsLine"]
     lines += [w for w in section.findChildren(QWidget) if w.objectName() == "sectionLine"]
     assert len(lines) == 3 and all(isinstance(line, _Hairline) and line.height() == 1 for line in lines)
-    line = lines[0]
-    line.resize(200, 1)
-    border = QColor(THEME["border"]).rgb()
-    for ratio in (1.0, 1.25, 1.5, 2.0):
-        picture = QImage(round(200 * ratio), 4, QImage.Format_RGB32)
-        picture.setDevicePixelRatio(ratio)
-        picture.fill(QColor("#ffffff"))
-        line.render(picture)
-        rows = [y for y in range(picture.height()) if picture.pixel(100, y) == border]
-        assert rows == [0], ratio
 
+
+@pytest.mark.parametrize("scale", ["1.25", "1.5", "2"])
+def test_every_hairline_shows_one_device_pixel_wherever_it_falls(scale, tmp_path):
+    """Qt's scale is set before the app starts, so each scale draws in a run of its own: eight lines under rows
+    of eight heights, so their tops fall on every fraction of a device pixel."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    script = """
+from PySide6.QtGui import QColor
+from PySide6.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget
+from blacklist_detect.ui_kit import _Hairline
+from blacklist_detect.ui_theme import THEME
+
+app = QApplication([])
+window = QWidget()
+window.setStyleSheet("background: #ffffff;")
+column = QVBoxLayout(window)
+column.setSpacing(0)
+column.setContentsMargins(0, 0, 0, 0)
+for height in range(17, 25):
+    row = QLabel("x")
+    row.setFixedHeight(height)
+    column.addWidget(row)
+    column.addWidget(_Hairline("settingsLine"))
+window.resize(100, 300)
+window.show()
+app.processEvents()
+image = window.grab().toImage()
+line = QColor(THEME["border"]).rgb()
+rows = [y for y in range(image.height()) if image.pixel(50, y) == line]
+runs = []
+for y in rows:
+    if runs and y == runs[-1][1] + 1:
+        runs[-1][1] = y
+    else:
+        runs.append([y, y])
+print([last - first + 1 for first, last in runs])
+"""
+    root = Path(__file__).resolve().parents[1]
+    env = dict(os.environ, QT_QPA_PLATFORM="offscreen", QT_SCALE_FACTOR=scale, PYTHONPATH=str(root), APPDATA=str(tmp_path))
+    done = subprocess.run([sys.executable, "-c", script], env=env, cwd=root, capture_output=True, text=True, timeout=60)
+    assert done.returncode == 0, done.stderr[-2000:]
+    assert done.stdout.strip().splitlines()[-1] == str([1] * 8)
 
 def test_a_settings_section_without_a_title_starts_with_its_rows(qapp):
     from blacklist_detect.ui_kit import ElidedLabel
