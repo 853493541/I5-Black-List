@@ -128,3 +128,8 @@ whole conversation, and command output and file reads are almost all of what fil
   writes a handoff to `dist/handoff/<date>/HANDOFF.md` and the work continues in a fresh session that reads it.
   The handoff holds state only (branches, commits, what is running, next steps); the rules stay in this file.
   The master updates it after each merge, so a session that runs out of usage loses nothing.
+- The user's asks are state, so every handoff carries them: each ask in the user's own words with its status (not
+  started, building, merged, released), in the handoff or in an `ASKS.md` beside it. A new ask goes on the list the
+  moment it arrives. That list is what "done" means: the master reports progress against it, never in package names
+  alone. (2026-10-15: a handoff that carried only the packages lost the user's 20 asks, and an hour of real work,
+  a release included, read to the user as nothing done.)
