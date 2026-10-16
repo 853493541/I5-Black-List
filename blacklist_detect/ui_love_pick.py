@@ -1,12 +1,11 @@
-"""选择场景: the scenes a 嘉宾 or a 组合 is greeted with, ticked from every one in love_scenes.SCENES.
+"""The scenes listed to pick from, and one playing over the sample lobby.
 
-On top, 放场景 or 不放 (none for them). The scenes are listed by name, each with a dot in its colour and a
-box to tick (SceneList): several ticked, one of them plays each time, never the one just played twice in a
-row; none ticked, any scene. A click on a name highlights it, and it plays on the right over the fake-name
-sample lobby, with the app's own marks on it (ScenePreview); ▶ plays it from its start with its music (as
-loud as its 音量 in 场景管理 says). 确定 gives them; 取消 or closing changes nothing.
+Every scene in love_scenes.SCENES by name, each with a dot in its colour (SceneList); in 嘉宾场景
+(ui_guest_scenes) in three columns, each with a box to tick. A click on a name highlights it, and it plays
+over the fake-name sample lobby, with the app's own marks on it (ScenePreview).
 The 场景管理 page (ui_effects) is made of the same list, with no boxes, and preview, its list marking the
-场景 the hotkey plays with ✓ apart from the one shown, and with ♪ each 场景 given the player's own sound.
+场景 the hotkey plays with ✓ apart from the one shown, and with ♪ each 场景 given the player's own sound;
+there ▶ plays the scene from its start with its music (as loud as its 音量 says).
 """
 
 from __future__ import annotations
@@ -15,15 +14,13 @@ from pathlib import Path
 
 from PySide6.QtCore import QElapsedTimer, QPoint, QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPainterPath, QPen, QPixmap, QPolygonF
-from PySide6.QtWidgets import QAbstractButton, QButtonGroup, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QAbstractButton, QButtonGroup, QGridLayout, QPushButton, QSizePolicy, QWidget
 
 from blacklist_detect import love_scenes
 from blacklist_detect.love_scenes import DESIGN, sample_stage
-from blacklist_detect.model import ANY_SCENE, Scenes
-from blacklist_detect.ui_dialogs import _primary
 from blacklist_detect.ui_icons import pixmap as line_pixmap
-from blacklist_detect.ui_kit import Modal, SegmentedControl, _KeyboardRing
-from blacklist_detect.ui_theme import THEME, _pointing, chinese_font, is_dark
+from blacklist_detect.ui_kit import _KeyboardRing
+from blacklist_detect.ui_theme import THEME, chinese_font, is_dark
 
 SAMPLE_LOBBY = Path(__file__).resolve().parent / "assets" / "sample-lobby.jpg"
 
@@ -226,11 +223,6 @@ class ScenePreview(QWidget):
         painter.end()
 
 
-def tune_for(scene: str, music_choice: str) -> str:
-    """The music a scene plays with: its own sound, unless music_choice is "off"."""
-    return scene if music_choice != "off" else ""
-
-
 def _draw_note(p: QPainter, centre: QPointF, color: str) -> None:
     """A small ♪, 14 px tall, drawn rather than typed so every font shows it alike."""
     p.save()
@@ -253,7 +245,7 @@ def _draw_note(p: QPainter, centre: QPointF, color: str) -> None:
 
 class SceneChoice(_KeyboardRing, QAbstractButton):
     """One scene in a list: a dot in its colour and its name. Highlighted, it sits in a ringed band; under
-    the mouse, the band shows faintly. In 选择场景 (chosen not None) a box at its end is ticked or not, by a
+    the mouse, the band shows faintly. In 嘉宾场景 (chosen not None) a box at its end is ticked or not, by a
     click on it or Space, apart from the band, and chose says so. On the 场景管理 page a ✓ there is apart
     from the band too (tick: the hotkey plays it), and own puts a ♪ before it (the player's own sound).
     With neither, the ✓ goes with the band."""
@@ -283,7 +275,7 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         # None: the ✓ goes with the band.
         self.tick: bool | None = None
         self.own = False
-        # 选择场景's box: None for none, else whether it is ticked.
+        # 嘉宾场景's box: None for none, else whether it is ticked.
         self.chosen: bool | None = None
         self._box_press = False
 
@@ -294,7 +286,7 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         self.update()
 
     def set_chosen(self, on: bool) -> None:
-        """Give this scene 选择场景's box, ticked or not."""
+        """Give this scene 嘉宾场景's box, ticked or not."""
         self.chosen = on
         self.setAccessibleDescription("已勾选" if on else "未勾选")
         self.update()
@@ -357,7 +349,7 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         if not self.isEnabled():
-            # 选择场景 on 不放: the list greyed.
+            # 嘉宾场景 on 随机: the grid greyed, its ticks kept.
             p.setOpacity(0.4)
         box = QRectF(self.rect()).adjusted(1, 1, -1, -1)
         if self.isChecked():
@@ -394,7 +386,7 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         p.end()
 
     def _paint_box(self, p: QPainter) -> None:
-        """选择场景's box at the row's end: filled, with a ✓, when ticked; an empty square when not."""
+        """嘉宾场景's box at the row's end: filled, with a ✓, when ticked; an empty square when not."""
         box = QRectF(self.width() - 32, (self.height() - self.BOX) / 2, self.BOX, self.BOX)
         if self.chosen:
             p.setPen(Qt.NoPen)
@@ -409,35 +401,47 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
 
 
 class SceneList(QWidget):
-    """Every scene in love_scenes.SCENES by name, one highlighted: 选择场景's list, and the 场景管理 page's.
-    key is the one highlighted, 经典 for one this version does not have; picked(key) says a click
-    highlighted one. In 选择场景 (chosen: the keys ticked) each has a box to tick, and chose says one was
+    """Every scene in love_scenes.SCENES by name, one highlighted: 嘉宾场景's grid, and the 场景管理 page's
+    list. key is the one highlighted, 经典 for one this version does not have; picked(key) says a click
+    highlighted one. In 嘉宾场景 (chosen: the keys ticked) each has a box to tick, and chose says one was
     ticked or unticked. On the page (marks), set_marks puts the ✓ on the hotkey's and a ♪ on each with
-    the player's own sound."""
+    the player's own sound. In columns, row by row, the whole width shared alike among them."""
 
     picked = Signal(str)
     chose = Signal()
     W = 200
+    GAP = 2
 
     def __init__(
-        self, current: str = "", parent: QWidget | None = None, marks: bool = False, chosen: tuple[str, ...] | None = None
+        self,
+        current: str = "",
+        parent: QWidget | None = None,
+        marks: bool = False,
+        chosen: tuple[str, ...] | None = None,
+        columns: int = 1,
+        width: int = W,
     ) -> None:
         super().__init__(parent)
-        self.setFixedWidth(self.W)
-        column = QVBoxLayout(self)
-        column.setContentsMargins(0, 0, 0, 0)
-        column.setSpacing(2)
+        self.setFixedWidth(width)
+        grid = QGridLayout(self)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setHorizontalSpacing(4)
+        grid.setVerticalSpacing(self.GAP)
+        cell = (width - 4 * (columns - 1)) // columns
         group = QButtonGroup(self)
         group.setExclusive(True)
         self.buttons: dict[str, SceneChoice] = {}
-        for key, title in love_scenes.SCENES:
+        for place, (key, title) in enumerate(love_scenes.SCENES):
             button = SceneChoice(key, title)
+            if columns > 1:
+                # Alike, however long the name: a long one is cut with … as in the list.
+                button.setFixedWidth(cell)
             button.clicked.connect(lambda _checked=False, key=key: self._click(key))
             button.chose.connect(lambda _on: self.chose.emit())
             group.addButton(button)
-            column.addWidget(button)
+            grid.addWidget(button, *divmod(place, columns))
             self.buttons[key] = button
-        column.addStretch(1)
+        grid.setRowStretch(grid.rowCount(), 1)
         self.key = ""
         self.select(current)
         if marks:
@@ -470,96 +474,3 @@ class SceneList(QWidget):
     def _click(self, key: str) -> None:
         self.select(key)
         self.picked.emit(key)
-
-
-class ScenePicker(Modal):
-    """选择场景: 放场景 or 不放 on top; the scenes by name on the left, each with its box, the highlighted
-    one playing on the right. current is what it starts on (a key: that one ticked). key is the one
-    highlighted, the first ticked to begin with; value() the scenes as 确定 gives them."""
-
-    def __init__(
-        self,
-        current: Scenes | str = ANY_SCENE,
-        name: str = "",
-        music=None,  # noqa: ANN001
-        music_choice: str = "theme",
-        parent: QWidget | None = None,
-    ) -> None:
-        super().__init__(parent)
-        if isinstance(current, str):
-            current = Scenes((current,)) if current else ANY_SCENE
-        self.music = music
-        self.music_choice = music_choice
-        layout = self.frame(f"选择场景 · {name}" if name else "选择场景")
-        row = QHBoxLayout()
-        row.setSpacing(20)
-        known = [key for key in map(love_scenes.shown, () if current.random else current.keys) if key in love_scenes.KEYS]
-        self.scenes = SceneList(known[0] if known else "", chosen=tuple(known))
-        self.scenes.picked.connect(self.show_scene)
-        self.buttons = self.scenes.buttons
-        row.addWidget(self.scenes)
-        # 放场景 or 不放 over the preview: beside the list, which is taller, it costs the dialog no height.
-        side = QVBoxLayout()
-        side.setSpacing(12)
-        top = QHBoxLayout()
-        top.setSpacing(12)
-        self.mode = SegmentedControl([("on", "放场景"), ("off", "不放")], "off" if current.off else "on")
-        self.mode.changed.connect(self._show_mode)
-        top.addWidget(self.mode)
-        self.hint = QLabel("都不选：每次随机放一个")
-        self.hint.setObjectName("sub")
-        top.addWidget(self.hint)
-        top.addStretch(1)
-        side.addLayout(top)
-        self.preview = ScenePreview(self, play=self.play)
-        self.play_button = self.preview.play_button
-        side.addWidget(self.preview)
-        side.addStretch(1)
-        row.addLayout(side)
-        layout.addLayout(row)
-        cancel = QPushButton("取消")
-        cancel.setAutoDefault(False)
-        cancel.clicked.connect(self.reject)
-        self.ok_button = _primary("确定", self.accept)
-        self.footer(cancel, self.ok_button)
-        _pointing(self)
-        self.key = self.scenes.key
-        self._before = self.value()
-        self._show_mode()
-        self.preview.show_scene(self.key)
-
-    def value(self) -> Scenes:
-        """The scenes ticked, 随机 for none, or 不放."""
-        if self.mode.current() == "off":
-            return Scenes()
-        chosen = self.scenes.chosen()
-        return Scenes(chosen, random=not chosen)
-
-    def has_changes(self) -> bool:
-        return self.value() != self._before
-
-    def _show_mode(self, _key: str = "") -> None:
-        """不放 greys the list and hides its hint: no scene plays for them."""
-        on = self.mode.current() != "off"
-        self.scenes.setEnabled(on)
-        self.hint.setHidden(not on)
-
-    def show_scene(self, key: str) -> None:
-        """Highlight this scene and play it, quietly: the music of the one before stops."""
-        self.scenes.select(key)
-        self.key = self.scenes.key
-        self.preview.show_scene(self.key)
-        if self.music is not None:
-            self.music.stop()
-
-    def play(self) -> None:
-        """The highlighted scene from its start with its music, as a lobby would get them."""
-        self.preview.show_scene(self.key)
-        if self.music is not None:
-            self.music.preview(tune_for(self.key, self.music_choice))
-
-    def done(self, result: int) -> None:  # noqa: A003
-        self.preview.stop()
-        if self.music is not None:
-            self.music.stop()
-        super().done(result)

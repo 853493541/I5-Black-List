@@ -4,6 +4,8 @@ A screen is measured by the room Windows leaves for windows: 1366×768 with its 
 1080p at 150% (1280×720) leaves 672. Every dialog fits the second, with its buttons in view.
 """
 
+from math import ceil
+
 import numpy as np
 import pytest
 from PySide6.QtCore import QPoint, QRect
@@ -61,7 +63,6 @@ def _dialogs(window, monkeypatch) -> dict[str, Modal]:
         monkeypatch.setattr(kind, "open", keep)
     from blacklist_detect.diagnostics import FlowTest
     from blacklist_detect.ui_dialogs import FlowReportDialog, PictureResultDialog
-    from blacklist_detect.ui_love_pick import ScenePicker
     from blacklist_detect.ui_sound_trim import SoundTrimDialog
 
     song = (np.sin(np.arange(20 * 44100) / 44100 * 2 * np.pi * 440) * 12000).astype(np.int16)
@@ -75,7 +76,7 @@ def _dialogs(window, monkeypatch) -> dict[str, Modal]:
         "编辑嘉宾": lambda: window.likes_page.edit(0),
         "添加组合": window.likes_page.add_combo,
         "编辑组合": lambda: window.likes_page.edit_combo(0),
-        "选择场景": lambda: ScenePicker(Scenes(("angel", "ice")), "心动小鹿", parent=window).exec(),
+        "嘉宾场景": lambda: window.likes_page.edit_scenes(("like", 1)),
         "选择片段": lambda: SoundTrimDialog(song, 44100, "心动音乐.mp3", lambda _start, _length: None, lambda: None, window).exec(),
         "显示说明": window._show_display_guide,
         "直播模式说明": window._show_stream_guide,
@@ -96,15 +97,35 @@ def test_every_dialog_fits_a_short_screen_with_its_buttons(window, monkeypatch):
         assert _card_height(dialog) <= SHORT - 8, title
 
 
-def test_the_picker_and_the_guest_dialogs_fit_a_short_screen_without_scrolling(window, monkeypatch):
-    """选择场景, the tallest of them, shows 放场景 / 不放, every scene and 确定 at once on 1080p at 150%."""
+def test_the_scene_editor_and_the_guest_dialogs_fit_a_short_screen_without_scrolling(window, monkeypatch):
+    """嘉宾场景, the tallest of them, shows 随机, every scene, the preview and 确定 at once on 1080p at 150%."""
     dialogs = _dialogs(window, monkeypatch)
-    for title in ("选择场景", "添加嘉宾", "编辑嘉宾", "添加组合", "编辑组合"):
+    for title in ("嘉宾场景", "添加嘉宾", "编辑嘉宾", "添加组合", "编辑组合"):
         dialogs[title].fit_height(SHORT)
         assert dialogs[title].scroll is None and _card_height(dialogs[title]) <= SHORT - 8, title
-    picker = dialogs["选择场景"]
-    used = next(button for button in picker.findChildren(QPushButton) if button.text() == "确定")
-    assert used.isVisibleTo(picker) and picker.mode.isVisibleTo(picker) and picker.scroll is None
+    editor = dialogs["嘉宾场景"]
+    used = next(button for button in editor.findChildren(QPushButton) if button.text() == "确定")
+    assert used.isVisibleTo(editor) and editor.random_box.isVisibleTo(editor) and editor.preview.isVisibleTo(editor)
+    assert editor.who == ("like", 1)
+
+
+def test_more_scenes_make_the_preview_smaller_not_the_scene_editor_taller(window, monkeypatch):
+    """With 16 scenes, six rows of three, the preview gives up the room the sixth row takes."""
+    from blacklist_detect import love_scenes
+    from blacklist_detect.ui_guest_scenes import GuestScenesDialog
+
+    today = GuestScenesDialog(window.store, parent=window)
+    fake = [(f"fake{number}", f"示例场景{number}") for number in range(16 - len(love_scenes.SCENES))]
+    monkeypatch.setattr(love_scenes, "SCENES", [*love_scenes.SCENES, *fake])
+    more = GuestScenesDialog(window.store, parent=window)
+    assert len(more.buttons) == 16 and len(today.buttons) <= 15
+    assert more.preview.width() < GuestScenesDialog.PREVIEW_W == today.preview.width()
+    for dialog in (today, more):
+        dialog.fit_height(SHORT)
+        assert dialog.scroll is None and _card_height(dialog) <= SHORT - 8
+    assert _card_height(more) <= _card_height(today) + (5 - ceil(len(today.buttons) / 3)) * 36
+    for dialog in (today, more):
+        dialog.done(QDialog.Rejected)
 
 
 def _guests(count: int) -> list[Entry]:

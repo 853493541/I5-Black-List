@@ -10,8 +10,8 @@ a 嘉宾 name on 黑名单 asks to move it.
 The page is laid out like 黑名单 with a 场景 column for 标签: search, 添加 (添加嘉宾 or 添加组合), and
 under 更多, 复制名单 and 清空嘉宾列表. On top is the 我 row, green: the player's own name and the 场景
 they asked for themselves. The 组合 come next, each a row tagged 组合 with its 嘉宾 and its 场景; under
-them the 嘉宾, whose rows drag into another order. 嘉宾场景 itself, on or
-off, and its music are in 设置.
+them the 嘉宾, whose rows drag into another order. Who gets which 场景 is ticked in 嘉宾场景
+(ui_guest_scenes), opened on the one clicked: from a 场景 cell, the 我 row, or the row menu's 选择场景.
 """
 
 from __future__ import annotations
@@ -39,7 +39,7 @@ from PySide6.QtWidgets import (
 from blacklist_detect import love_scenes
 from blacklist_detect.guests import members
 from blacklist_detect.match import clean_stored_name, fold, last_seen
-from blacklist_detect.model import ANY_SCENE, Combo, Entry, Scenes
+from blacklist_detect.model import Combo, Entry
 from blacklist_detect.ui_dialogs import (
     _danger,
     _field,
@@ -47,7 +47,7 @@ from blacklist_detect.ui_dialogs import (
     _primary,
     _say_error,
 )
-from blacklist_detect.ui_guests import ComboDialog, ThemeField, scenes_said
+from blacklist_detect.ui_guests import ComboDialog, scenes_said
 from blacklist_detect.ui_icons import icon as line_icon
 from blacklist_detect.ui_kit import ConfirmDialog, EmptyState, IconButton, Modal
 from blacklist_detect.ui_theme import ROW_H, THEME, _page, _pointing, chinese_font
@@ -216,7 +216,8 @@ class _GuestTable(QTableWidget):
 
 
 class LikeDialog(Modal):
-    """One 嘉宾 player: 名字, a 昵称 to show for them, the 场景 that greet them, and why."""
+    """One 嘉宾 player: 名字, a 昵称 to show for them, and why. Their 场景 are ticked in 嘉宾场景; a new one
+    is on 随机."""
 
     def __init__(
         self,
@@ -224,8 +225,6 @@ class LikeDialog(Modal):
         nickname: str = "",
         reason: str = "",
         allow_delete: bool = False,
-        scenes: Scenes = ANY_SCENE,
-        music=None,  # noqa: ANN001
         taken: frozenset[str] | set[str] = frozenset(),
         blacklisted: frozenset[str] | set[str] = frozenset(),
         parent=None,  # noqa: ANN001
@@ -238,7 +237,6 @@ class LikeDialog(Modal):
         self.name = name
         self.nickname = nickname
         self.detail = reason
-        self.scenes = scenes
         self.deleted = False
         layout = _frame(self, "编辑嘉宾" if allow_delete else "添加嘉宾")
         self.card.setFixedWidth(520)
@@ -253,20 +251,18 @@ class LikeDialog(Modal):
         self.detail_edit.setTabChangesFocus(True)
         self.detail_edit.setFixedHeight(self.fontMetrics().lineSpacing() * 2 + 18)
         _field(layout, "原因", self.detail_edit)
-        self.theme_field = ThemeField(scenes, name, music)
-        _field(layout, "场景", self.theme_field)
         remove = _danger("删除", self._delete) if allow_delete else None
         self.footer(_primary("保存" if allow_delete else "添加", self._accept), left=remove)
         self.name_edit.returnPressed.connect(self._accept)
         self.nickname_edit.returnPressed.connect(self._accept)
-        self._before = (name, nickname, reason, self.theme_field.value())
+        self._before = (name, nickname, reason)
         _pointing(self)
 
     def _clear_name_error(self, _text: str) -> None:
         _say_error(self.name_error, "")
 
     def has_changes(self) -> bool:
-        now = (self.name_edit.text(), self.nickname_edit.text(), self.detail_edit.toPlainText(), self.theme_field.value())
+        now = (self.name_edit.text(), self.nickname_edit.text(), self.detail_edit.toPlainText())
         return now != self._before
 
     def _accept(self) -> None:
@@ -287,7 +283,6 @@ class LikeDialog(Modal):
         self.name = self.name_edit.text()
         self.nickname = self.nickname_edit.text()
         self.detail = self.detail_edit.toPlainText()
-        self.scenes = self.theme_field.value()
         self.deleted = False
         self.accept()
 
@@ -556,7 +551,6 @@ class LikesPage(QWidget):
     def add_one(self, name: str = "") -> None:
         dialog = LikeDialog(
             name if isinstance(name, str) else "",
-            music=self.music,
             taken=self._taken(),
             blacklisted=self._blacklisted(),
             parent=self.window(),
@@ -564,7 +558,7 @@ class LikesPage(QWidget):
         if dialog.exec() != QDialog.Accepted or dialog.deleted:
             return
         before = (self.store.snapshot_likes(), self.store.snapshot_entries())
-        like = self.store.add_like(dialog.name, dialog.nickname, dialog.detail, dialog.scenes)
+        like = self.store.add_like(dialog.name, dialog.nickname, dialog.detail)
         if like is None:
             return
         self._done(f"「{like.shown()}」加进嘉宾了", before)
@@ -575,7 +569,6 @@ class LikesPage(QWidget):
         like = self.store.likes[index]
         dialog = LikeDialog(
             like.name, like.nickname, like.reason, allow_delete=True,
-            scenes=like.scenes, music=self.music,
             taken=self._taken(skip=index),
             blacklisted=self._blacklisted(), parent=self.window(),
         )
@@ -584,26 +577,38 @@ class LikesPage(QWidget):
         if dialog.deleted:
             self.delete(index)
             return
-        self.store.update_like(index, dialog.name, dialog.nickname, dialog.detail, dialog.scenes)
+        self.store.update_like(index, dialog.name, dialog.nickname, dialog.detail, like.scenes)
         self._met_cache = None
         self.refresh()
         self.changed.emit()
 
-    def edit_me(self) -> None:
-        """The 我 row clicked: it has no 编辑嘉宾. The 场景 the player asks for themselves will be chosen
-        here."""
+    def edit_scenes(self, who: tuple[str, int]) -> None:
+        """嘉宾场景, opened on this one: ("me", 0), ("combo", its place) or ("like", its place)."""
+        from blacklist_detect.ui_guest_scenes import GuestScenesDialog
 
-    def _edit_row(self, row: int, _column: int = 0) -> None:
-        number = self._combo_at(row)
+        if GuestScenesDialog(self.store, who, parent=self.window()).exec() != QDialog.Accepted:
+            return
+        self.refresh()
+        self.changed.emit()
+
+    def edit_me(self) -> None:
+        """The 我 row clicked: it has no 编辑嘉宾, only the 场景 the player asks for themselves."""
+        self.edit_scenes(("me", 0))
+
+    def _edit_row(self, row: int, column: int = 0) -> None:
+        """A click: the 我 row and any 场景 cell open 嘉宾场景, the other cells 编辑嘉宾 or 编辑组合."""
+        index, number = self._index_at(row), self._combo_at(row)
         if self._is_me(row):
             self.edit_me()
+        elif column == THEME_COLUMN and max(index, number) >= 0:
+            self.edit_scenes(("combo", number) if number >= 0 else ("like", index))
         elif number >= 0:
             self.edit_combo(number)
         else:
-            self.edit(self._index_at(row))
+            self.edit(index)
 
     def _combo_editor(self, combo: Combo | None = None) -> ComboDialog:
-        return ComboDialog(self.store.likes, combo, parent=self.window(), music=self.music)
+        return ComboDialog(self.store.likes, combo, parent=self.window())
 
     def add_combo(self, _checked: bool = False) -> None:
         """添加组合: two or more 嘉宾 and the 场景 that greet them all in one lobby."""
@@ -719,12 +724,15 @@ class LikesPage(QWidget):
     def _row_menu(self, pos) -> None:  # noqa: ANN001
         row = self.table.rowAt(pos.y())
         index, number = self._index_at(row), self._combo_at(row)
-        if number >= 0:
-            items = (("编辑", "combo_edit", number), (None, None, -1), ("删除", "combo_delete", number))
+        if self._is_me(row):
+            items = (("选择场景", "me_scenes", 0),)
+        elif number >= 0:
+            items = (("编辑", "combo_edit", number), ("选择场景", "combo_scenes", number), (None, None, -1), ("删除", "combo_delete", number))
         elif index >= 0:
             top = index == len(self.store.likes) - 1
             items = (
                 ("编辑", "edit", index),
+                ("选择场景", "scenes", index),
                 ("复制名字", "copy", index),
                 *(() if top else (("置顶", "top", index),)),
                 (None, None, -1),
@@ -753,6 +761,9 @@ class LikesPage(QWidget):
             "delete": self.delete,
             "combo_edit": self.edit_combo,
             "combo_delete": self.delete_combo,
+            "scenes": lambda index: self.edit_scenes(("like", index)),
+            "combo_scenes": lambda number: self.edit_scenes(("combo", number)),
+            "me_scenes": lambda _place: self.edit_me(),
         }[kind](index)
 
     def _copy(self, index: int) -> None:

@@ -58,8 +58,8 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     from blacklist_detect.model import Combo, Scenes
     from blacklist_detect.ui import MainWindow
     from blacklist_detect.ui_dialogs import BatchAddDialog, DisclaimerDialog, GuideDialog
+    from blacklist_detect.ui_guest_scenes import GuestScenesDialog
     from blacklist_detect.ui_likes import LikeDialog
-    from blacklist_detect.ui_love_pick import ScenePicker
     from blacklist_detect.ui_music import TUNES, ThemeMusic
 
     monkeypatch.setenv("APPDATA", str(tmp_path))
@@ -185,15 +185,20 @@ def test_a_whole_first_session(qapp, tmp_path, monkeypatch):
     window.love.stop()
     window._hide_panel_after_title()
 
-    # --- 10. 选择场景: every scene previews; 设置 › 声音 › 静音 is kept. ---------------------------
-    picker = ScenePicker("lace", "心动小鹿", window.music, parent=window)
+    # --- 10. 嘉宾场景: every scene previews, silent; 设置 › 声音 › 静音 is kept. ---------------------
+    picker = GuestScenesDialog(window.store, ("like", window.store.like_index("心动小鹿")), parent=window)
+    heard = len(played)
+    # On 随机 the grid is greyed: 随机 off, the scenes take clicks.
+    assert not picker.scenes.isEnabled()
+    picker.random_box.click()
     for key in love_scenes.KEYS:
         picker.buttons[key].click()
         assert picker.preview.scene == key
         picker.preview.grab()
     picker.buttons["stars"].click()
-    picker.accept()
-    assert picker.key == "stars"
+    picker.play_button.click()
+    picker._accept()
+    assert picker.key == "stars" and len(played) == heard
     window.mute_box.click()
     assert Store(window.store.root).sound_muted is True
     # Every scene plays through over a real-size screen, the button left bare.

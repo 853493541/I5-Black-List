@@ -70,9 +70,7 @@ def shoot(args) -> None:  # noqa: ANN001
     from PySide6.QtWidgets import QDialog
 
     from blacklist_detect import __version__, autostart, hotkey, ui
-    from blacklist_detect.model import Scenes
     from blacklist_detect.ui_kit import Modal
-    from blacklist_detect.ui_love_pick import ScenePicker
 
     _seed(data / "BlackListDetect", args, __version__)
     shots: list[str] = []
@@ -207,8 +205,8 @@ def shoot(args) -> None:  # noqa: ANN001
         likes.add_menu.hide()
 
     step("menu_添加嘉宾", add_menu)
-    step("dlg_选择场景", lambda: ScenePicker(Scenes(("fluffy", "stars", "lace")), "心动小鹿", parent=window).exec())
-    step("dlg_选择场景_不放", lambda: ScenePicker(Scenes(), "心动星星", parent=window).exec())
+    if window.store.likes:
+        step("dlg_嘉宾场景", lambda: likes.edit_scenes(("like", window.store.like_index("心动小鹿"))))
 
     def trim() -> None:
         from blacklist_detect.ui_sound_trim import SoundTrimDialog

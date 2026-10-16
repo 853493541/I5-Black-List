@@ -386,21 +386,22 @@ def test_the_corner_message_says_no_blacklist_when_none_is_there():
     assert result_messages([], ["小明"], 1)[0].title == "未发现黑名单"
 
 
-def test_a_guest_picks_a_theme_and_the_page_shows_and_orders_them(window):
+def test_a_guest_picks_a_theme_and_the_page_shows_and_orders_them(window, monkeypatch):
+    from blacklist_detect.ui_guest_scenes import GuestScenesDialog
     from blacklist_detect.ui_likes import LikeDialog
 
     dialog = LikeDialog(parent=window)
-    field = dialog.theme_field
-    # A new 嘉宾 is greeted by any scene until they tick some.
-    assert dialog.windowTitle() == "添加嘉宾" and field.name.text() == "全部场景 · 随机" and field.value() == ANY_SCENE
     dialog.name_edit.setText("小明")
-    _pick_in(field, "cyber")
-    assert field.name.text() == "赛博朋克·一" and dialog.has_changes()
-    dialog._accept()
-    assert dialog.scenes == Scenes(("cyber",))
-    assert LikeDialog("小明", allow_delete=True, scenes=Scenes(("cyber",)), parent=window).windowTitle() == "编辑嘉宾"
+    assert dialog.windowTitle() == "添加嘉宾" and dialog.has_changes()
+    assert LikeDialog("小明", allow_delete=True, parent=window).windowTitle() == "编辑嘉宾"
     page = window.likes_page
-    window.store.add_like(dialog.name, scenes=dialog.scenes)
+    # A new 嘉宾 has no 场景 row: any scene, until 嘉宾场景 ticks some.
+    monkeypatch.setattr(LikeDialog, "exec", lambda dialog: dialog.name_edit.setText("小明") or dialog._accept() or dialog.result())
+    page.add_one()
+    assert window.store.likes[0].name == "小明" and window.store.likes[0].scenes == ANY_SCENE
+    monkeypatch.setattr(GuestScenesDialog, "exec", _tick([], "cyber"))
+    page.edit_scenes(("like", 0))
+    assert window.store.likes[0].scenes == Scenes(("cyber",))
     window.store.add_like("小红")
     window.store.add_like("阿星", scenes=Scenes(("angel",)))
     window.store.player_name = "测试主播"
@@ -422,18 +423,18 @@ def test_a_guest_picks_a_theme_and_the_page_shows_and_orders_them(window):
     assert not page.table.dragEnabled()
 
 
-def _pick_in(field, key: str) -> None:  # noqa: ANN001
-    """更换 › on a 场景 row, and 确定 on this scene alone ticked in 选择场景."""
-    from blacklist_detect import ui_love_pick
+def _tick(seen: list, *keys: str):  # noqa: ANN202
+    """嘉宾场景's exec: these scenes alone ticked for the one it opened on, then 确定."""
 
-    def choose(picker) -> int:  # noqa: ANN001
-        picker.scenes.set_chosen((key,))
-        picker.accept()
-        return picker.result()
+    def answer(dialog) -> int:  # noqa: ANN001
+        seen.append(dialog.who)
+        dialog.random_box.setChecked(False)
+        dialog.scenes.set_chosen(keys)
+        dialog._edited()
+        dialog._accept()
+        return dialog.result()
 
-    with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(ui_love_pick.ScenePicker, "exec", choose)
-        field.change_button.click()
+    return answer
 
 
 def test_a_combination_needs_two_guests_and_greets_them_with_its_theme(window):
@@ -446,16 +447,15 @@ def test_a_combination_needs_two_guests_and_greets_them_with_its_theme(window):
     store.add_like("小明", scenes=Scenes(("cyber",)))
     store.add_like("小红")
     editor = ComboDialog(store.likes, parent=window)
-    # A new combination starts as a new 嘉宾 does: any scene.
-    assert editor.windowTitle() == "添加组合" and editor.theme.value() == ANY_SCENE
+    assert editor.windowTitle() == "添加组合"
     editor.people_buttons["小明"].click()
     editor._accept()
     assert editor.combo is None and editor.people_error.text() == "至少选两位嘉宾"
     editor.people_buttons["小红"].click()
-    _pick_in(editor.theme, "equation")
     editor._accept()
-    assert editor.combo == Combo(("小明", "小红"), Scenes(("equation",)))
-    store.set_combos([editor.combo])
+    # A new combination starts as a new 嘉宾 does: any scene; 嘉宾场景 ticks its own.
+    assert editor.combo == Combo(("小明", "小红"), ANY_SCENE)
+    store.set_combos([Combo(editor.combo.names, Scenes(("equation",)))])
     # Both in the lobby: the combination's 数学 dresses the marks, not 小明's own 赛博.
     names = [
         NameSlot(0, (0, 0, 1, 1), "小明", "小明", False, 0.9, False),
@@ -505,55 +505,6 @@ def test_editing_a_combination_keeps_a_guest_since_taken_off_the_list(window):
     assert editor.combo == Combo(("小明", "小红"), Scenes(("angel",)))
 
 
-def test_the_picker_returns_the_scene_used_and_closing_changes_nothing(window, monkeypatch):
-    from PySide6.QtGui import QColor
-
-    from blacklist_detect import love_scenes
-    from blacklist_detect.ui_guests import ThemeField
-    from blacklist_detect.ui_love_pick import ScenePicker
-    from blacklist_detect.ui_music import TUNES, ThemeMusic
-    from blacklist_detect.ui_overlay import love_look
-
-    played: list = []
-    picker = ScenePicker("fluffy", "心动小鹿", ThemeMusic(play=played.append), parent=window)
-    # Every scene by name, each with a dot in its colour; the current one highlighted and playing.
-    assert picker.windowTitle() == "选择场景 · 心动小鹿"
-    assert [(key, button.text()) for key, button in picker.buttons.items()] == list(love_scenes.SCENES)
-    assert picker.buttons["ice"].dot == QColor(*love_look("ice").glow)
-    assert picker.key == "fluffy" and picker.preview.scene == "fluffy" and picker.preview._tick.isActive()
-    picker.buttons["stars"].click()
-    assert picker.key == "stars" and picker.preview.scene == "stars" and played == [None]
-    assert [key for key, button in picker.buttons.items() if button.isChecked()] == ["stars"]
-    # ▶ plays it from its start with its music.
-    picker.play_button.click()
-    assert played[-1] == TUNES["stars"]
-    for button in picker.buttons.values():
-        button.grab()
-    picker.accept()
-    assert picker.result() == QDialog.Accepted and picker.key == "stars" and played[-1] is None
-    assert not picker.preview._tick.isActive()
-    # A scene this version no longer has starts on what replaced it, or 经典.
-    assert ScenePicker("champagne").key == "angel" and ScenePicker("ribbon").key == "classic"
-    assert ScenePicker().windowTitle() == "选择场景"
-
-    # Closed without 确定: the 场景 row keeps what it had.
-    def close(dialog) -> int:  # noqa: ANN001
-        dialog.buttons["claw"].click()
-        dialog.scenes.set_chosen(("claw",))
-        dialog.reject()
-        return dialog.result()
-
-    monkeypatch.setattr(ScenePicker, "exec", close)
-    field = ThemeField(Scenes(("angel",)), "小明", ThemeMusic(play=played.append))
-    field.change_button.click()
-    assert field.value() == Scenes(("angel",)) and field.name.text() == "金色传说"
-    # ▶ on the row opens 选择场景 on the row's scene, playing with its music.
-    seen = []
-    monkeypatch.setattr(ScenePicker, "exec", lambda dialog: seen.append((dialog.key, dialog.windowTitle())) or QDialog.Rejected)
-    field.play_button.click()
-    assert seen == [("angel", "选择场景 · 小明")] and played[-1] == TUNES["angel"]
-
-
 def _rows(page) -> list[list[str]]:  # noqa: ANN001
     """The rows under the 我 row."""
     start = int(page._is_me(0))
@@ -566,6 +517,7 @@ def test_combinations_head_the_list_tagged_and_open_to_edit(window, monkeypatch)
     from PySide6.QtWidgets import QMenu
 
     from blacklist_detect.model import Combo
+    from blacklist_detect.ui_guest_scenes import GuestScenesDialog
     from blacklist_detect.ui_guests import ComboDialog
     from blacklist_detect.ui_likes import COMBO_ROLE, PEOPLE_ROLE
 
@@ -599,34 +551,42 @@ def test_combinations_head_the_list_tagged_and_open_to_edit(window, monkeypatch)
 
     def edit(dialog) -> int:  # noqa: ANN001
         opened.append(dialog)
-        _pick_in(dialog.theme, "ice")
         dialog._accept()
         return dialog.result()
 
     monkeypatch.setattr(ComboDialog, "exec", edit)
     # A click on a 组合 opens it to edit.
-    page.table.cellClicked.emit(2, 2)
-    assert opened[0].windowTitle() == "编辑组合" and opened[0].theme.name.text() == "冰蓝极光"
+    page.table.cellClicked.emit(2, 0)
+    assert opened[0].windowTitle() == "编辑组合"
     assert {name for name, button in opened[0].people_buttons.items() if button.isChecked()} == {"小红", "阿星"}
-    assert store.combos[1] == Combo(("小红", "阿星"), Scenes(("ice",))) and changed
-    assert _rows(page)[1][2] == "冰蓝极光"
-    # Enter on one does the same.
+    assert store.combos[1] == Combo(("小红", "阿星"), Scenes(("fluffy",))) and changed
+    # Its 场景 cell opens 嘉宾场景 on it instead.
+    seen: list = []
+    monkeypatch.setattr(GuestScenesDialog, "exec", _tick(seen, "ice"))
+    page.table.cellClicked.emit(2, 2)
+    assert seen == [("combo", 1)] and len(opened) == 1
+    assert store.combos[1] == Combo(("小红", "阿星"), Scenes(("ice",))) and _rows(page)[1][2] == "冰蓝极光"
+    # Enter on one opens 编辑组合.
     page.table.setCurrentCell(1, 0)
     QApplication.sendEvent(page.table, QKeyEvent(QEvent.Type.KeyPress, Qt.Key_Return, Qt.NoModifier))
-    assert len(opened) == 2 and opened[1].combo == Combo(("小明", "小红"), Scenes(("ice",)))
-    # Its menu has 编辑 and 删除; 删除 offers 撤销.
+    assert len(opened) == 2 and opened[1].combo == Combo(("小明", "小红"), Scenes(("angel",)))
+    # Its menu has 编辑, 选择场景 and 删除; 删除 offers 撤销.
     menus = []
     monkeypatch.setattr(QMenu, "popup", lambda menu, *_args: menus.append(menu))
     page._row_menu(page.table.visualItemRect(page.table.item(2, 0)).center())
     actions = menus[0].actions()
-    assert [action.text() for action in actions] == ["编辑", "", "删除"]
+    assert [action.text() for action in actions] == ["编辑", "选择场景", "", "删除"]
+    actions[1].trigger()
+    assert seen[-1] == ("combo", 1)
     actions[-1].trigger()
-    assert store.combos == [Combo(("小明", "小红"), Scenes(("ice",)))] and said[-1][0] == "已删除组合「小红 + 阿星」"
+    assert store.combos == [Combo(("小明", "小红"), Scenes(("angel",)))] and said[-1][0] == "已删除组合「小红 + 阿星」"
     said[-1][1]()
     assert store.combos[1] == Combo(("小红", "阿星"), Scenes(("ice",))) and _rows(page)[1][0] == "小红 + 阿星"
     # A 嘉宾's row keeps its own menu.
     page._row_menu(page.table.visualItemRect(page.table.item(4, 0)).center())
-    assert [action.text() for action in menus[-1].actions()] == ["编辑", "复制名字", "置顶", "", "删除"]
+    assert [action.text() for action in menus[-1].actions()] == ["编辑", "选择场景", "复制名字", "置顶", "", "删除"]
+    menus[-1].actions()[1].trigger()
+    assert seen[-1] == ("like", store.like_index("小红")) and store.likes[store.like_index("小红")].scenes == Scenes(("ice",))
     # A 嘉宾 since taken off the list shows struck out, and the 组合 stays to edit or delete.
     page.delete(store.like_index("阿星"))
     assert page.table.item(2, 0).data(PEOPLE_ROLE) == [("小红", True), ("阿星", False)] and not page.table.grab().isNull()
@@ -830,7 +790,8 @@ def test_the_me_row_heads_the_list_in_green_with_the_players_name(window, monkey
     at = lambda row, column: picture.pixelColor(table.visualItemRect(table.item(row, column)).center()).name()  # noqa: E731
     assert at(0, MET) == at(0, REASON) == THEME["green_wash"]
     assert at(1, REASON) == THEME["surface"]
-    # A click or Enter on it opens no 编辑嘉宾 or 编辑组合, Delete deletes nothing, and it has no menu.
+    # A click or Enter on it opens 嘉宾场景 (edit_me), never 编辑嘉宾 or 编辑组合; Delete deletes nothing, and
+    # its menu has 选择场景 alone.
     opened, asked, menus = [], [], []
     monkeypatch.setattr(LikeDialog, "exec", lambda dialog: opened.append(dialog) or QDialog.Rejected)
     monkeypatch.setattr(ComboDialog, "exec", lambda dialog: opened.append(dialog) or QDialog.Rejected)
@@ -842,7 +803,9 @@ def test_the_me_row_heads_the_list_in_green_with_the_players_name(window, monkey
     for key in (Qt.Key_Return, Qt.Key_Delete):
         QApplication.sendEvent(table, QKeyEvent(QEvent.Type.KeyPress, key, Qt.NoModifier))
     page._row_menu(table.visualItemRect(table.item(0, NAME)).center())
-    assert opened == [] and menus == [] and asked == [1, 1, 1]
+    assert [action.text() for action in menus[0].actions()] == ["选择场景"]
+    menus[0].actions()[0].trigger()
+    assert opened == [] and asked == [1, 1, 1, 1]
     assert len(store.likes) == 2 and len(store.combos) == 1
     # Searched for: there while the search is in the player's name.
     page.search.setText("主播")

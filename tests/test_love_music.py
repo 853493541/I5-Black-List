@@ -425,47 +425,44 @@ def test_ticking_mute_stops_the_sound_playing(window):
 
 
 def test_every_sound_goes_through_the_sound_control(window):
-    """A lobby's, ▶ on 场景, ▶ in 选择场景 (the 嘉宾 and 组合 dialogs'), the 场景 hotkey and 播放: each at the
-    场景's own 音量, the player's own sound for it if any, none with 静音."""
-    from blacklist_detect.ui_likes import LikeDialog
-    from blacklist_detect.ui_love_pick import ScenePicker
+    """A lobby's, ▶ on 场景管理, the 场景 hotkey and 播放: each at the 场景's own 音量, the player's own sound
+    for it if any, none with 静音. 嘉宾场景's preview is silent."""
+    from blacklist_detect.ui_guest_scenes import GuestScenesDialog
     from blacklist_detect.ui_music import sound_dir
 
     window.effects_page.music = window.likes_page.music = window.music
-    assert LikeDialog(music=window.likes_page.music, parent=window).theme_field.music is window.music
     window.store.consented = ["full"]
     window._on_display_mode("full")
     window.store.update_like(1, "小明", "", "", Scenes(("angel",)))
     window.store.quick_scene = "stars"
     window.effects_page.select("stars")
-    picker = ScenePicker("fluffy", "心动小鹿", window.music, parent=window)
+    picker = GuestScenesDialog(window.store, ("like", 1), parent=window)
 
     def every_path() -> list:
         window.tunes.clear()
         assert window.play_quick_scene(under_pointer=False)
         window._end_quick_play()
         window.effects_page.play_preview()
-        picker.play()
+        picker.show_scene("fluffy")
+        picker.replay()
         window.music._last_lobby = frozenset()
         window._show_panel(_lobby())
         window._hide_panel_after_title()
         return [tune for tune in window.tunes if tune is not None]
 
     # At 100% each 场景's tune itself.
-    assert every_path() == [TUNES["stars"], TUNES["stars"], TUNES["fluffy"], TUNES["angel"]]
+    assert every_path() == [TUNES["stars"], TUNES["stars"], TUNES["angel"]]
     window.store.scene_sounds = {key: {"volume": 50} for key in ("stars", "fluffy", "angel")}
     heard = every_path()
-    assert [tune.parent for tune in heard] == [sound_dir()] * 4
+    assert [tune.parent for tune in heard] == [sound_dir()] * 3
     assert all(tune.name.startswith("50-") for tune in heard)
-    assert [TUNES[key].stem in tune.name for key, tune in zip(("stars", "stars", "fluffy", "angel"), heard, strict=True)] == [True] * 4
-    # 场景管理: 星河许愿 the player's own sound at 60%, 毛茸茸 its own at 40%, 天使 the player's at 100%.
+    assert [TUNES[key].stem in tune.name for key, tune in zip(("stars", "stars", "angel"), heard, strict=True)] == [True] * 3
+    # 场景管理: 星河许愿 the player's own sound at 60%, 天使 the player's at 100%.
     _own_sound(window.store, "stars", like="ice", volume=60)
-    window.store.scene_sounds["fluffy"] = {"volume": 40}
     angel = _own_sound(window.store, "angel", like="cyber")
     heard = every_path()
-    assert [tune.parent for tune in heard[:3]] == [sound_dir()] * 3 and heard[3] == angel
-    starts = ("60-stars-", "60-stars-", f"40-{TUNES['fluffy'].stem}-")
-    assert [tune.name.startswith(start) for start, tune in zip(starts, heard, strict=False)] == [True] * 3
+    assert [tune.parent for tune in heard[:2]] == [sound_dir()] * 2 and heard[2] == angel
+    assert [tune.name.startswith("60-stars-") for tune in heard[:2]] == [True] * 2
     _, ice = _samples(TUNES["ice"])
     assert np.abs(_samples(heard[0])[1] - np.rint(ice * 0.6)).max() <= 1
     window.mute_box.click()

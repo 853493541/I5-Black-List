@@ -188,17 +188,15 @@ def test_noise_is_the_same_as_worked_out_per_pixel():
 def test_every_scene_has_its_picture(qapp):
     from pathlib import Path
 
-    from blacklist_detect.ui_guests import POSTERS, poster, thumbnail
+    from blacklist_detect.ui_guests import POSTERS, poster
 
-    # build/theme_posters.py draws them; a scene added without one would show a blank thumbnail.
+    # build/theme_posters.py draws them; a scene added without one would show a blank picture.
     assert {path.stem for path in Path(POSTERS).glob("*.jpg")} == set(KEYS)
     for key in KEYS:
         assert not poster(key).isNull(), key
     # One this version does not have shows what plays for it.
     assert poster("ribbon").cacheKey() == poster("classic").cacheKey()
     assert poster("champagne").cacheKey() == poster("angel").cacheKey()
-    small = thumbnail("stars", 56)
-    assert small.width() / small.devicePixelRatio() == 56
 
 
 def test_the_border_settles_its_scene_before_it_plays(qapp):
