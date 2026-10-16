@@ -26,6 +26,6 @@ Status as of 2026-10-16 ~00:40 UTC.
 | 18 | 检查 | 直播模式 out of the panel: its own switch in the header with its ⓘ | released v0.9.15 |
 | 19 | 检查 | Remove 测试框 | released v0.9.15 |
 | 20 | Testing | No sound from background tests unless a sound is being checked | released v0.9.15 |
-| — | Green 场景 | For the friend who mains 吴邪 (green + wind): border only, slow entrance, cute pandas, less middle | v2 rejected; the user now wants picture ideas first: 7 concept stills rendering (workflow wf_1f423b6f-a13) |
+| — | Green 场景 | For the friend who mains 吴邪 (green + wind): border only, slow entrance, cute pandas, less middle | v2 rejected; the user wants picture ideas first. 7 concept stills sent 2026-10-16 (dist/concepts_green/: all_concepts.png + one folder per idea with its script): 1 草原风车, 2 竹风铃, 3 风筝, 4 水墨竹, 5 山雾萤火, 6 青铜门, 7 柳与燕. Waiting for the user's pick; then one concept frame of it, then the build. |
 
 "Just changing UI for now" (22:40): no 直播模式 checklist is to be built.
