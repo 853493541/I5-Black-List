@@ -16,7 +16,7 @@ Asks 1–34, 36 and 37 in ASKS.md are merged and installed. The last batch (2026
 
 ## Running
 
-- **#38 music research** (workflow `wf_83277528-06f`, 5 researcher agents: 温迪's official music, the songs of the friend's two GMVs, the repo's 配乐 rules, a verifier, a summary). If it finished before this master stopped, its summary is in `dist/research/venti_music/REPORT.md`; if not, read its result from the journal: `C:\Users\Zhibin Ren\.claude\projects\C--Users-Zhibin-Ren-Desktop-Black-List-App\4e73d4f5-e751-4fc2-9a63-5de144d4da0e\subagents\workflows\wf_83277528-06f\journal.jsonl` (the last `result` lines), or run the research again. Then give the user the candidates with the 5 s hook and the stream catch (build/theme_tunes.py: the app's default tunes are its own or public domain so a stream can carry them; a real recording breaks that), with the options: (a) a 5 s cut of the official recording, (b) the motif re-played by the build script's own lyre/harp voice on the scene's strums (0.9, 2.9, 4.4 s), (c) an original tune, (d) the player uploads the song in 场景管理. Download audio only with the user's OK.
+- **#38 music research: DONE** (workflow `wf_83277528-06f`, 5 researcher agents, verified): `dist/research/venti_music/REPORT.md` (summary first, then the verification and the three reports). In short: 温迪's music is 《诗人的工作》 / Bard's Adventure (official https://www.youtube.com/watch?v=APFVfv9klmg, 1:47); the hook by YouTube most-replayed is 0:40–0:45 (second choice 1:04–1:09), not listened to yet; options (a) real 5 s cut as default (breaks the stream rule of build/theme_tunes.py; 演说家遇袭 is the only precedent, by the user's choice), (b) its melody re-played by the build script's harp on the strums 0.9/2.9/4.4 s, (c) an original lyre tune, (d) the player uploads it in 场景管理 and cuts 0:40–0:45; recommended (c)+(d). Sent to the user; waiting for their pick. Download audio only with their OK.
 - No agent is running. No worktree of this session holds unmerged work except `feature/lyre-scene` below.
 
 ## Built, waiting
@@ -27,7 +27,7 @@ Asks 1–34, 36 and 37 in ASKS.md are merged and installed. The last batch (2026
 
 ## Next steps, in order
 
-1. Read the #38 result; send the user the music options (pictures/links, not prose walls); wait for their pick and their OK to download.
+1. The user's music pick (#38, options in REPORT.md; already sent to them); with (a) or a listen to settle the hook, get their OK to download the official upload first.
 2. Get the lyre 场景's name from the user.
 3. One implementer for the lyre 场景's integration (bake ahead, 配乐, poster, SCENES/LOOKS, name), from improve/quality.
 4. Small follow-ups (not blocking): posters at 960 px so the 场景管理 still is sharp (theme_posters rewrites every poster: run it when no scene branch is in flight); 演说家遇袭 takes ~0.9 s to make on its first click (claw.py `_cleared`/`fade`, `_fog_layer`, `_frayed`).
