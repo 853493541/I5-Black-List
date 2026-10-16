@@ -1,4 +1,4 @@
-# What the user asked for (2026-10-15, 22:25–22:45 UTC, in the "[BLA] Planner" session)
+﻿# What the user asked for (2026-10-15, 22:25–22:45 UTC, in the "[BLA] Planner" session)
 
 The source of truth for "done". Taken from the user's own messages in transcript a44fbfc6 (queued messages at
 22:25:49, 22:30:37, 22:35:50, 22:40:11, 22:43:35, 22:45:18). Report against THIS list, not against packages.
@@ -27,11 +27,11 @@ Status as of 2026-10-16 ~02:30 UTC. improve/quality = d6cdbba (+ handoff commits
 | 19 | 检查 | Remove 测试框 | released v0.9.15 |
 | 20 | Testing | No sound from background tests unless a sound is being checked | released v0.9.15 |
 | 21 | 记录 (2026-10-16 01:15 UTC) | On the 记录 page the hover 添加 button becomes two buttons on the right: a heart (add to 嘉宾) and a circle-with-slash 🚫 (add to 黑名单). A click adds at once; once added, it stays showing that state | building (implementer on feature/record-buttons, base 13e9588, no desktop; the tester's screenshot pass waits until A frees the desktop). Decisions: one click adds with an 撤销 toast, no dialog; reason/tags later by clicking the red seat; a click on the seat body adds nothing; the menu does what the buttons do; the page stays put |
-| 22 | 嘉宾 dialogs (2026-10-16 01:25 UTC) | 添加嘉宾 / 编辑嘉宾 pick the 场景 in the same dialog: 名字/昵称/原因 + a 放场景 box + the scene list one per row with boxes + preview with ▶ and autoplay. No list of other 嘉宾 ("why should I see the full list of guests") | not started. Replaces #12's two-pane dialog |
-| 23 | 放场景 | The box says 放场景: unchecked = 不放; checked with none ticked = random among all; ticked = those, random among them if several | not started (with #22) |
-| 24 | 组合 dialogs | 添加组合 / 编辑组合: left, the 嘉宾 with checkmarks to pick members; right, the scene list one per row; bottom, the preview ("editing combo is completely trash, has no scene selection") | not started (with #22) |
-| 25 | 设置 (2026-10-16 01:30 UTC) | Bug: "on the first row, the second row is merged to the first row for no reason" (常规's 开机启动 and 关闭窗口时 share one row) | not started (with #26) |
-| 26 | 设置 | Redesign "the Claude way" (the user pasted Claude's settings): a catalog of sections on the left, the chosen section on the right; each row has its name and a description on the left and its control on the right | not started |
+| 22 | 嘉宾 dialogs (2026-10-16 01:25 UTC) | 添加嘉宾 / 编辑嘉宾 pick the 场景 in the same dialog: 名字/昵称/原因 + a 放场景 box + the scene list one per row with boxes + preview with ▶ and autoplay. No list of other 嘉宾 ("why should I see the full list of guests") | building (workflow wf_65cdc217-2a7, feature/guest-dialogs, base 8a4b065, no desktop). Replaces #12's two-pane dialog. Decision: preview at the bottom of the LEFT column (a full-width one under a one-per-row list would not fit 672 px) |
+| 23 | 放场景 | The box says 放场景: unchecked = 不放; checked with none ticked = random among all; ticked = those, random among them if several | building (with #22) |
+| 24 | 组合 dialogs | 添加组合 / 编辑组合: left, the 嘉宾 with checkmarks to pick members; right, the scene list one per row; bottom, the preview ("editing combo is completely trash, has no scene selection") | building (with #22) |
+| 25 | 设置 (2026-10-16 01:30 UTC) | Bug: "on the first row, the second row is merged to the first row for no reason" (常规's 开机启动 and 关闭窗口时 share one row) | building (with #26) |
+| 26 | 设置 | Redesign "the Claude way" (the user pasted Claude's settings): a catalog of sections on the left, the chosen section on the right; each row has its name and a description on the left and its control on the right | building (workflow wf_5df86789-8ea, feature/settings-catalog, base 7d71dcf, no desktop). Sections 常规 / 外观 / 帮助 / 关于; no search box |
 | — | Green 场景 | For the friend who mains 吴邪 (green + wind): border only, slow entrance, cute pandas, less middle | v2 rejected; the user wants picture ideas first. 7 concept stills sent 2026-10-16 (dist/concepts_green/: all_concepts.png + one folder per idea with its script): 1 草原风车, 2 竹风铃, 3 风筝, 4 水墨竹, 5 山雾萤火, 6 青铜门, 7 柳与燕. Waiting for the user's pick; then one concept frame of it, then the build. |
 
 "Just changing UI for now" (22:40): no 直播模式 checklist is to be built.

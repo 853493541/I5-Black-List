@@ -20,6 +20,11 @@ Merged since v0.9.15 (all tested by a tester agent, read and re-tested by the ma
 
 ## Running
 
+Four packages, three of them in `ui.py` in disjoint regions (tabs / 记录 / 设置) — merge one at a time, rebasing each. The desktop: only A's agents use it now; #21, #22–24 and #25–26 build and test offscreen, and get ONE screenshot pass each (by a tester, or the master) after A's tester is done, never two at once. The user wants to see #22–24 and #25–26 as pictures before they merge.
+
+- **#21 `feature/record-buttons`** (implementer agent, base 13e9588, no desktop): 记录 seats get ♥ and 🚫 buttons on hover; one click adds with 撤销; the page stays put.
+- **#22–24 `feature/guest-dialogs`** (workflow wf_65cdc217-2a7, base 8a4b065, no desktop): 添加/编辑嘉宾, 添加/编辑组合 and 我 dialogs each pick their own 场景 (放场景 box + one scene per row + preview at the bottom of the left column); GuestScenesDialog removed.
+- **#25–26 `feature/settings-catalog`** (workflow wf_5df86789-8ea, base 7d71dcf, no desktop): 设置 with a catalog (常规/外观/帮助/关于) and rows of name+description left, control right; 开机启动 and 关闭窗口时 on separate rows. After it merges, update CLAUDE.md's 设置 rule ("fits 900x760 without scrolling, so it gets no new rows").
 - **A / P5 `feature/scene-manager-dialog`** (workflow wf_6ca450e8-078, base `d6cdbba`): implementer (one ui_shots pass at the end) → tester (one full pass) → one fix round if it fails. Asks 3 and 4. When it reports: rebase onto `improve/quality`, read the diff, run the full tests and ruff, look at the dialog shot at 150 %, merge. A new session restarts it from `~/.claude/projects/C--Users-Zhibin-Ren-Desktop-Black-List-App/<session>/workflows/scripts/p5-scene-manager-dialog-*.js` or briefs a fresh implementer from that script's SPEC.
 
 ## On the user's PC
