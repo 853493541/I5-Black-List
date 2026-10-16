@@ -1710,7 +1710,7 @@ def _badge_art(box: QRectF, scale: float) -> QImage:
     shadow = np.clip(radius + 3 - np.hypot(cx - 2, cy - 2.5), 0, 4) / 4 * 0.45 * (1 - disc)
     color = np.where((disc > 0)[..., None], color, rgb(PINE))
     image = _picture(color, np.clip(disc + shadow, 0, 1))
-    # The lyre on it, the same as the scene's, drawn twice as sharp and made small.
+    # The lyre on it, the same as the scene's, drawn twice as sharp and made small, standing in the disc's middle.
     per = radius * 1.58 / 357  # points a ref
     lyre = _lyre_image(0.0, 2 * per * scale, halo=False)
     q = QPainter(image)
@@ -1718,9 +1718,26 @@ def _badge_art(box: QRectF, scale: float) -> QImage:
     q.setRenderHint(QPainter.Antialiasing)
     q.scale(scale, scale)
     big = lyre.width() / (2 * scale)
-    q.drawImage(QRectF(side / 2 - radius * 0.146 - big / 2, box.height() / 2 + radius * 0.02 - big / 2, big, big), lyre)
+    across, down = _ink_middle(lyre)
+    q.drawImage(QRectF(side / 2 - across * big, box.height() / 2 - down * big, big, big), lyre)
     q.end()
     return image
+
+
+def _ink_middle(image: QImage) -> tuple[float, float]:
+    """Where the lyre's middle is in its picture, as fractions of its width and height: across, the middle of its
+    crossbar and horns (the top quarter of what shows, alpha past a sixth, which the lilies at its right do not
+    reach), so the lyre itself stands in the middle and its lilies reach out to the right; down, the middle of all
+    of it."""
+    argb = image.convertToFormat(QImage.Format_ARGB32)
+    rows = np.frombuffer(argb.constBits(), np.uint8, argb.sizeInBytes()).reshape(argb.height(), argb.bytesPerLine())
+    shows = rows[:, 3 : argb.width() * 4 : 4] > 40
+    ys, xs = np.nonzero(shows)
+    if not len(xs):
+        return 0.5, 0.5
+    top = shows[ys.min() : ys.min() + (ys.max() - ys.min() + 1) // 4]
+    tx = np.nonzero(top.any(axis=0))[0]
+    return (tx.min() + tx.max() + 1) / 2 / argb.width(), (ys.min() + ys.max() + 1) / 2 / argb.height()
 
 
 def badge(p: QPainter, box: QRectF, t: float) -> None:
