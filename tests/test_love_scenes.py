@@ -596,3 +596,24 @@ def test_the_lyre_makes_its_pictures_before_it_starts(qapp):
         time.sleep(0.01)
     assert time.monotonic() - start < 0.5
     border.stop()
+
+
+def test_a_scene_slow_to_make_starts_once_made(qapp, monkeypatch):
+    """演说家遇袭 takes a second to make: it is made before the clock starts, so its first frame is its start."""
+    import time
+
+    from blacklist_detect.ui_love import LoveBorder
+
+    module = love_scenes.load("claw")
+    real = module.make
+    monkeypatch.setattr(module, "make", lambda stage: time.sleep(0.3) or real(stage))
+    border = LoveBorder(random.Random(1))
+    border.setAttribute(Qt.WA_DontShowOnScreen, True)
+    border.choice = "claw"
+    assert border.play(QRect(0, 0, 960, 540), QRect(330, 470, 300, 60))
+    image = QImage(960, 540, QImage.Format_ARGB32_Premultiplied)
+    painter = QPainter(image)
+    border.paint_at(painter, border.elapsed(), 960, 540)
+    painter.end()
+    assert border.elapsed() < 0.1, "the first frame came at once"
+    border.stop()
