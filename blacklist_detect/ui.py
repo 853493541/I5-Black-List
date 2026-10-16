@@ -3033,8 +3033,9 @@ class MainWindow(QMainWindow):
         self.store.save_settings()
         self.stream.enable(self.store.stream_mode)
         self._sync_stream_controls()
-        if self._overlay_target() == "":
-            # 基础模式 without 直播模式 draws no check's marks: a 场景 hotkey play is over too, music and all.
+        if self.store.safe_mode:
+            # 基础模式 switched either way: a 场景 hotkey play is over, music and all, its marks put where a check's go
+            # (only into 直播画面, or nowhere). In 完整模式 they are on the screen either way, and it plays on.
             self._end_quick_play()
         self._sync_overlay_target()
         self._sync_name_hiding()

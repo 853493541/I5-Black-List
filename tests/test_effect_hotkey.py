@@ -938,3 +938,13 @@ def test_a_real_lobbys_music_plays_on_whatever_the_page_does(window, monkeypatch
     assert len(window.played) == 2
     window._hide_panel_after_title()
     window.hide()
+
+
+def test_stream_mode_switched_on_in_safe_mode_takes_a_play_down_music_and_all(window):
+    """基础模式 alone plays the hotkey's 场景 on the screen; 直播模式 switched on meanwhile ends it, as switched off
+    does, and a check's marks are only for the stream again."""
+    window._on_display_mode("safe")
+    assert window.play_quick_scene() and window.love.playing()
+    window._set_stream_mode(True)
+    assert window._quick_scene == "" and not window.love.playing() and window.played[-1] == "stop"
+    assert all(mark.testAttribute(Qt.WA_DontShowOnScreen) for mark in (window.panel, window.love, window.clear_mark))
