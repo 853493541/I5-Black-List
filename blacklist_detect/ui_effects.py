@@ -11,7 +11,7 @@ click on another's gives it the hotkey. A ♪ is a 场景 that plays one of the 
 Under the preview, the shown 场景's 配乐: its 音量 and ▶ 播放 (the scene from its start with its music, ⏸ 暂停
 while it plays), then on the left under it its choices (SoundChoices: 默认, its own, and up to three songs of
 the player's, each 上传 from a file, a part of it picked in 选择片段 when it is longer than a 场景's sound may
-be; one is chosen, and 恢复默认 chooses 默认 again), each with its ▶, ⏸ and a moving wave while it plays.
+be; one is chosen, a click on 默认 back to it), each with its ▶, ⏸ and a moving wave while it plays.
 
 The preview plays only while it can be seen, its window not minimized, and the app is in front: behind the
 game it would paint 30 times a second for nothing. The page lives on in EffectsDialog, made once with the
@@ -273,11 +273,11 @@ class _Listen(IconButton):
 
 class SoundChoices(QWidget):
     """场景管理's 配乐: what the shown 场景 may play, one of them chosen like a radio button. 默认 first (the scene's
-    own; 经典's is none, 默认（无声）), then each of the player's songs, its name and length, up to MAX_SONGS. Each
+    own, with its length; 经典's is none, 默认（无声）), then each of the player's songs, its name and length, up to MAX_SONGS. Each
     has ▶ (play(file), "" for 默认) and each song ✕ (delete(file)); a click on one, or ↑ and ↓, chooses it
     (chose(file)), and nothing plays by itself. While a row's sound plays (set_playing) its ▶ is ⏸ and a wave
-    moves right after it; paused, it is ▶ again, to go on. 上传 and 恢复默认 sit on 默认's row: 上传 is off
-    once there are MAX_SONGS songs, 恢复默认 (back to 默认) shown while a song is chosen. Its rows are made once and
+    moves right after it; paused, it is ▶ again, to go on. 上传 sits at the right end of 默认's row, off once
+    there are MAX_SONGS songs; a click on 默认 goes back to it. Its rows are made once and
     shown as there are songs, so after a ✕ the next song is under it: a second click as quick as a double-click's
     deletes nothing."""
 
@@ -285,7 +285,7 @@ class SoundChoices(QWidget):
     play = Signal(str)
     delete = Signal(str)
 
-    def __init__(self, upload, restore, parent: QWidget | None = None) -> None:  # noqa: ANN001
+    def __init__(self, upload, parent: QWidget | None = None) -> None:  # noqa: ANN001
         super().__init__(parent)
         column = QVBoxLayout(self)
         column.setContentsMargins(0, 0, 0, 0)
@@ -309,8 +309,6 @@ class SoundChoices(QWidget):
         self._paused = False
         self.upload_button = _button("上传", upload)
         self.upload_button.setAccessibleName("上传配乐")
-        self.reset_button = _button("恢复默认", restore)
-        self.reset_button.setAccessibleName("恢复默认配乐")
         for row in range(1 + MAX_SONGS):
             # Each row packed on the left from its name, as 配乐's above; its wave right after its ▶, in room kept
             # while it is still, so nothing on the row moves as it starts: a second click to pause lands on ⏸, not ✕.
@@ -336,12 +334,10 @@ class SoundChoices(QWidget):
                 gone.clicked.connect(lambda _checked=False, row=row: self._gone(row))
                 line.addWidget(gone)
                 self.delete_buttons.append(gone)
-            else:
-                line.addSpacing(4)
-                line.addWidget(self.upload_button)
-                line.addSpacing(4)
-                line.addWidget(self.reset_button)
             line.addStretch(1)
+            if not row:
+                # At the row's right end, under ▶ 播放's.
+                line.addWidget(self.upload_button)
 
     def set_sounds(self, default: str, sounds: bool, songs: list[dict], chosen: str, room: int = 0) -> None:
         """default: what 默认 is called; sounds: whether it plays anything. songs: the 场景's, oldest first, each
@@ -364,7 +360,6 @@ class SoundChoices(QWidget):
         full = len(songs) >= MAX_SONGS
         self.upload_button.setEnabled(not full)
         self.upload_button.setToolTip(f"最多 {MAX_SONGS} 首，先删掉一首" if full else "")
-        self.reset_button.setVisible(picked != 0)
         # Each row's own layout measured anew now, not once it is next laid out: the page keeps its size by
         # what this says it needs (EffectsPage._sync_rows), and a row's layout keeps its last measure until then.
         for line in self._lines:
@@ -523,13 +518,12 @@ class EffectsPage(QWidget):
         self._paint_play()
         volume.addWidget(self.play_button)
         rows.addLayout(volume, 0, 1)
-        # 默认 and the player's songs, one chosen, with 上传 and 恢复默认.
-        self.sounds = SoundChoices(self.upload, self.restore)
+        # 默认 and the player's songs, one chosen, with 上传 at the right.
+        self.sounds = SoundChoices(self.upload)
         self.sounds.chose.connect(self._choose)
         self.sounds.play.connect(self._listen)
         self.sounds.delete.connect(self._delete)
         self.upload_button = self.sounds.upload_button
-        self.reset_button = self.sounds.reset_button
         # On the left, under 配乐 itself.
         rows.addWidget(self.sounds, 1, 0, 1, 2)
         # What became of a 配乐 uploaded, under them. Its room is kept while it is hidden.
@@ -717,7 +711,8 @@ class EffectsPage(QWidget):
         # What shrinks goes first: the dialog grows with what it shows and does not shrink back by itself.
         if spare < self.spare.height():
             self.spare.setFixedHeight(spare)
-        self.sounds.set_sounds("默认" if key in TUNES else "默认（无声）", key in TUNES, songs, own.name if own else "", room)
+        default = f"默认 · {tune_seconds(TUNES[key]):.1f} 秒" if key in TUNES else "默认（无声）"
+        self.sounds.set_sounds(default, key in TUNES, songs, own.name if own else "", room)
         self.spare.setFixedHeight(spare)
         # The 音量 as it plays: 1 to 4% (an old 声音 folded in) stands at 0 but says what is heard.
         volume = self.store.scene_sound(key)[1]
@@ -929,10 +924,6 @@ class EffectsPage(QWidget):
         )
         self._sync_marks()
         self._sync_rows()
-
-    def restore(self) -> None:
-        """恢复默认: the 场景's own sound again (经典's none), chosen over its songs, which stay; its 音量 kept."""
-        self._choose("")
 
     def _seen(self) -> bool:
         """On screen: 场景管理 open, over a window that is not minimized."""

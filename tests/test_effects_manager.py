@@ -208,9 +208,13 @@ def test_the_rows_say_what_each_effect_plays(window):
     page = _shown(window, "classic")
     assert _rows(page) == ["默认（无声）"] and _chosen(page) == "默认（无声）" and page.upload_button.text() == "上传"
     assert not page.sounds.play_buttons[0].isEnabled() and page.upload_button.isEnabled()
-    assert page.reset_button.isHidden() and not page.volume_slider.isEnabled()
+    assert not page.volume_slider.isEnabled()
     _shown(window, "ice")
-    assert _rows(page) == ["默认"] and page.reset_button.isHidden() and page.volume_slider.isEnabled()
+    # 默认 says how long the 场景's own sound is; 上传 at the right end of its row, under ▶ 播放.
+    assert _rows(page) == ["默认 · 5.0 秒"] and page.volume_slider.isEnabled()
+    right = page.upload_button.mapTo(page, page.upload_button.rect().topRight()).x()
+    assert abs(right - page.play_button.mapTo(page, page.play_button.rect().topRight()).x()) <= 2
+    assert not hasattr(page, "reset_button") and not [b for b in page.findChildren(QPushButton) if b.text() == "恢复默认"]
     assert page.sounds.play_buttons[0].isEnabled()
     assert page.volume_slider.value() * 5 == 100 and page.volume_label.text() == "100%" and page.level_note.text() == ""
 
@@ -294,8 +298,8 @@ def test_a_short_sound_is_kept_whole_and_marked_and_nothing_plays(window, pick, 
     assert Store(window.store.root).scene_sounds["ice"] == entry
     # ♪ on it, it chosen under 默认, and nothing plays by itself: whatever played stops for the new sound.
     assert page.scenes.buttons["ice"].own and not page.scenes.buttons["stars"].own
-    assert _rows(page) == ["默认", "心动音乐.wav · 3.0 秒"] and _chosen(page) == "心动音乐.wav · 3.0 秒"
-    assert page.upload_button.text() == "上传" and page.upload_button.isEnabled() and not page.reset_button.isHidden()
+    assert _rows(page) == ["默认 · 5.0 秒", "心动音乐.wav · 3.0 秒"] and _chosen(page) == "心动音乐.wav · 3.0 秒"
+    assert page.upload_button.text() == "上传" and page.upload_button.isEnabled()
     assert window.played and all(tune is None for tune in window.played)
     assert window.music.pick("ice") == "ice" and page.sound_note.isHidden()
 
@@ -493,7 +497,7 @@ def test_nothing_changes_under_a_file_being_read(window, pick, trim, tmp_path, m
         seen["enabled"] = page.window().isEnabled()
         page.scenes.buttons["ice"].click()
         page.upload_button.click()
-        page.reset_button.click()
+        page.sounds.choices[0].click()
         page.window().close_button.click()
         seen["note"] = page.sound_note.text()
         return read(path)
@@ -557,11 +561,11 @@ def test_restoring_the_default_chooses_it_and_keeps_the_songs_and_the_volume(win
     pick["chosen"] = _wav(tmp_path / "a.wav", 2.0)
     page.upload_button.click()
     window.played.clear()
-    page.reset_button.click()
+    page.sounds.choices[0].click()
     own = custom_sound_dir(window.store.root) / "ice-1.wav"
     assert own.is_file() and window.store.scene_sounds["ice"]["chosen"] == ""
     assert Store(window.store.root).scene_sound("ice") == (None, 60)
-    assert _rows(page) == ["默认", "a.wav · 2.0 秒"] and _chosen(page) == "默认" and page.reset_button.isHidden()
+    assert _rows(page) == ["默认 · 5.0 秒", "a.wav · 2.0 秒"] and _chosen(page) == "默认 · 5.0 秒"
     assert not page.scenes.buttons["ice"].own and window.music.pick("ice") == "ice" and window.played == []
 
 
@@ -584,13 +588,13 @@ def test_deleting_a_song_drops_its_file_and_copies_and_the_chosen_one_falls_back
     page.sounds.delete_buttons[0].click()
     folder = custom_sound_dir(window.store.root)
     assert not (folder / "ice-1.wav").exists() and _copies("ice-1") == [] and _copies("ice-2")
-    assert _rows(page) == ["默认", "b.wav · 2.5 秒"] and _chosen(page) == "b.wav · 2.5 秒"
+    assert _rows(page) == ["默认 · 5.0 秒", "b.wav · 2.5 秒"] and _chosen(page) == "b.wav · 2.5 秒"
     # ✕ on b, the chosen, a moment later: 默认 plays, the 音量 stays.
     _wait(QApplication.doubleClickInterval() + 50)
     page.sounds.delete_buttons[0].click()
     assert not (folder / "ice-2.wav").exists() and _copies("ice-2") == [] and _copies(TUNES["stars"].stem)
     assert window.store.scene_sounds["ice"] == {"volume": 60} and Store(window.store.root).scene_sounds["ice"] == {"volume": 60}
-    assert _rows(page) == ["默认"] and _chosen(page) == "默认" and page.reset_button.isHidden()
+    assert _rows(page) == ["默认 · 5.0 秒"] and _chosen(page) == "默认 · 5.0 秒"
     assert not page.scenes.buttons["ice"].own and window.music.pick("ice") == "ice"
 
 
@@ -725,7 +729,7 @@ def test_each_sound_s_play_pauses_it_with_a_wave_beside_it_one_at_a_time(window,
     rows[1].click()
     window.played.clear()
     page.sounds.delete_buttons[0].click()
-    assert window.played[0] is None and not any(wave.running for wave in waves) and _rows(page) == ["默认", "b.wav · 2.0 秒"]
+    assert window.played[0] is None and not any(wave.running for wave in waves) and _rows(page) == ["默认 · 5.0 秒", "b.wav · 2.0 秒"]
 
 
 def test_a_wave_starts_right_after_its_play_and_moves_nothing_so_a_second_click_pauses(window, pick, trim, tmp_path, clock):
@@ -852,10 +856,10 @@ def test_up_and_down_choose_a_row_and_play_nothing(window, pick, trim, tmp_path)
     QTest.keyClick(page.sounds.choices[2], Qt.Key_Up)
     assert window.store.scene_sound("angel")[0].name == "angel-1.wav" and _chosen(page) == "a.wav · 2.0 秒"
     QTest.keyClick(page.sounds.choices[1], Qt.Key_Up)
-    assert window.store.scene_sound("angel")[0] is None and _chosen(page) == "默认"
+    assert window.store.scene_sound("angel")[0] is None and _chosen(page) == "默认 · 5.0 秒"
     # Nothing above 默认, nothing under the last song.
     QTest.keyClick(page.sounds.choices[0], Qt.Key_Up)
-    assert _chosen(page) == "默认"
+    assert _chosen(page) == "默认 · 5.0 秒"
     QTest.keyClick(page.sounds.choices[0], Qt.Key_Down)
     QTest.keyClick(page.sounds.choices[1], Qt.Key_Down)
     QTest.keyClick(page.sounds.choices[2], Qt.Key_Down)
@@ -906,7 +910,7 @@ def test_classic_may_have_one_too(window, pick, trim, tmp_path):
     page.upload_button.click()
     assert page.volume_slider.isEnabled() and window.music.pick("classic") == "classic"
     assert page.scenes.buttons["classic"].own and _chosen(page) == "a.wav · 2.0 秒"
-    page.reset_button.click()
+    page.sounds.choices[0].click()
     assert window.music.pick("classic") == "" and _chosen(page) == "默认（无声）" and not page.scenes.buttons["classic"].own
     # Its song is there still, to be heard at its 音量.
     assert page.volume_slider.isEnabled()
@@ -955,7 +959,7 @@ def test_the_dialog_with_three_songs_shows_every_control(window, pick, trim, tmp
     def placed(widget):  # noqa: ANN001, ANN202
         return widget.geometry().translated(widget.parentWidget().mapTo(page, widget.pos()) - widget.pos())
 
-    controls = (*page.sounds.choices, *page.sounds.play_buttons, *page.sounds.delete_buttons, page.upload_button, page.reset_button)
+    controls = (*page.sounds.choices, *page.sounds.play_buttons, *page.sounds.delete_buttons, page.upload_button)
     for control in (*controls, page.volume_slider, page.level_note, page.play_button, window.effect_hotkey_edit):
         assert page.rect().contains(placed(control)), control
     assert page.preview.width() == page.PREVIEW_W
@@ -1031,7 +1035,7 @@ def test_settings_saved_by_the_page_load_as_they_were(window, pick, trim, tmp_pa
     again = type(window)()
     assert again.effects_page.scenes.buttons["cyber"].own
     again.effects_page.scenes.buttons["cyber"].click()
-    assert _rows(again.effects_page) == ["默认", "a.wav · 2.0 秒", "b.wav · 2.0 秒"] and _chosen(again.effects_page) == "a.wav · 2.0 秒"
+    assert _rows(again.effects_page) == ["默认 · 5.0 秒", "a.wav · 2.0 秒", "b.wav · 2.0 秒"] and _chosen(again.effects_page) == "a.wav · 2.0 秒"
     again.close()
 
 
