@@ -190,7 +190,7 @@ class SoundChoices(QWidget):
     def set_sounds(self, default: str, sounds: bool, songs: list[dict], chosen: str, room: int = 0) -> None:
         """default: what 默认 is called; sounds: whether it plays anything. songs: the 场景's, oldest first, each
         {"file", "name", "length"}; chosen: the file of the one it plays, "" for 默认. room: how many songs' rows
-        are kept, empty, below fewer songs, so what is under them stays where it is."""
+        the page keeps room for (EffectsPage puts that room at its foot, not between the rows)."""
         self.files = ["", *(song["file"] for song in songs[:MAX_SONGS])] + [""] * (MAX_SONGS - min(len(songs), MAX_SONGS))
         self.choices[0].set_full(default)
         self._sounds = sounds
@@ -200,9 +200,6 @@ class SoundChoices(QWidget):
         for row in range(1, 1 + MAX_SONGS):
             shown = row <= len(songs)
             for widget in (self.choices[row], self.play_buttons[row], self.delete_buttons[row - 1]):
-                policy = widget.sizePolicy()
-                policy.setRetainSizeWhenHidden(row <= room)
-                widget.setSizePolicy(policy)
                 widget.setVisible(shown)
         picked = self.files.index(chosen) if chosen and chosen in self.files else 0
         self.choices[picked].setChecked(True)
@@ -210,6 +207,11 @@ class SoundChoices(QWidget):
         self.upload_button.setEnabled(not full)
         self.upload_button.setToolTip(f"最多 {MAX_SONGS} 首，先删掉一首" if full else "")
         self.reset_button.setVisible(picked != 0)
+
+    def song_row_height(self) -> int:
+        """How much taller a song's row makes 声音: the tallest of its choice, ▶ and ✕, and the gap above it."""
+        parts = (self.choices[1], self.play_buttons[1], self.delete_buttons[0])
+        return max(part.sizeHint().height() for part in parts) + self.layout().verticalSpacing()
 
     def set_muted(self, muted: bool) -> None:
         """设置's 静音 on or off: under it every ▶ is off, saying 已静音."""
@@ -350,6 +352,11 @@ class EffectsPage(QWidget):
         self.note.setSizePolicy(policy)
         self.note.hide()
         rows.addWidget(self.note, 3, 1)
+        # The room kept for songs another 场景 has (_sync_rows): here at the foot, not between 声音's rows.
+        self.spare = QWidget()
+        self.spare.setFixedHeight(0)
+        rows.addWidget(self.spare, 4, 0, 1, 2)
+        self.below = below
         side.addWidget(below)
         side.addStretch(1)
         self._sync_marks()
@@ -404,6 +411,12 @@ class EffectsPage(QWidget):
         self._told = self.scenes.key if text else ""
         self._note(text or self._held_text)
 
+    def forget_said(self) -> None:
+        """Opened again: a note about a key once pressed or a sound once uploaded is old news and goes; one about
+        the hotkey as it stands (held) stays."""
+        self._told = ""
+        self._note(self._held_text)
+
     def _note(self, text: str) -> None:
         # Hidden, a line's room is kept, so the dialog keeps its height as a note comes and goes.
         self.note.setText(text or " ")
@@ -420,13 +433,19 @@ class EffectsPage(QWidget):
         self.scenes.set_marks(self.store.quick_scene, owned)
 
     def _sync_rows(self) -> None:
-        """声音, 音量 and 快捷键放这个 as they are for the 场景 shown. 声音 keeps room for as many songs as any 场景
-        has, so the dialog keeps its size as one after another is shown."""
+        """声音, 音量 and 快捷键放这个 as they are for the 场景 shown. The page keeps room for as many songs as any
+        场景 has, at its foot, so the dialog keeps its size as one after another is shown while 音量 and 快捷键
+        stay right under the songs this one has."""
         key = self.scenes.key
         songs = self.store.scene_songs(key)
         own = self._own(key)
         room = max(len(self.store.scene_songs(scene)) for scene in self.scenes.buttons)
+        spare = max(0, room - len(songs)) * self.sounds.song_row_height()
+        # What shrinks goes first: the dialog grows with what it shows and does not shrink back by itself.
+        if spare < self.spare.height():
+            self.spare.setFixedHeight(spare)
         self.sounds.set_sounds("默认" if key in TUNES else "默认（无声）", key in TUNES, songs, own.name if own else "", room)
+        self.spare.setFixedHeight(spare)
         # The 音量 as it plays: 1 to 4% (an old 声音 folded in) stands at 0 but says what is heard.
         volume = self.store.scene_sound(key)[1]
         self.volume_slider.blockSignals(True)
@@ -675,5 +694,6 @@ class EffectsDialog(Modal):
         if visible and not self.isVisible():
             # In the theme as it is now: 浅色 or 深色 may have changed since it was made.
             self.setStyleSheet(_dialog_style(chinese_family()))
+            self.page.forget_said()
             self.page.scenes.buttons[self.page.scenes.key].setFocus(Qt.FocusReason.OtherFocusReason)
         super().setVisible(visible)

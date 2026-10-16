@@ -14,7 +14,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 pytest.importorskip("PySide6")
 
-from PySide6.QtCore import Qt  # noqa: E402
+from PySide6.QtCore import QPoint, Qt  # noqa: E402
 from PySide6.QtTest import QTest  # noqa: E402
 from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QRadioButton, QStyleFactory, QVBoxLayout, QWidget  # noqa: E402
 
@@ -715,7 +715,8 @@ def test_the_dialog_with_three_songs_shows_every_control(window, pick, trim, tmp
 
 
 def test_the_dialog_keeps_its_size_from_scene_to_scene(window, pick, trim, tmp_path):
-    """声音 keeps room for as many songs as any 场景 has: 音量 and the hotkey stay put as another is shown."""
+    """The page keeps room for as many songs as any 场景 has, at its foot: the dialog keeps its size as another is
+    shown, while 音量 sits right under the songs that one has, with no empty rows between."""
     window.show()
     window._show_scene_manager()
     page = _shown(window, "fluffy")
@@ -723,12 +724,44 @@ def test_the_dialog_keeps_its_size_from_scene_to_scene(window, pick, trim, tmp_p
         pick["chosen"] = _wav(tmp_path / name, 2.0)
         page.upload_button.click()
     _wait(30)
-    card, slider = window.scenes_dialog.card.size(), page.volume_slider.mapTo(page, page.volume_slider.rect().topLeft())
+
+    def gap() -> int:
+        """From the foot of 声音's rows (默认 and the songs shown) to 音量's top."""
+        sounds = page.sounds
+        return page.volume_slider.mapTo(page, QPoint(0, 0)).y() - sounds.mapTo(page, QPoint(0, sounds.height())).y()
+
+    # Measured once it has settled from the uploads' own dialogs.
+    _shown(window, "fluffy")
+    _wait(20)
+    card, with_songs = window.scenes_dialog.card.size(), gap()
+    slider = page.volume_slider.mapTo(page, QPoint(0, 0)).y()
     for key in ("classic", "ice", "fluffy"):
         _shown(window, key)
         _wait(20)
-        assert window.scenes_dialog.card.size() == card and page.volume_slider.mapTo(page, page.volume_slider.rect().topLeft()) == slider
+        assert window.scenes_dialog.card.size() == card and gap() == with_songs
+        if key != "fluffy":
+            # No songs: 音量 two rows higher than under fluffy's two, the room left at the foot.
+            assert page.volume_slider.mapTo(page, QPoint(0, 0)).y() < slider
     assert [choice.isVisibleTo(page) for choice in page.sounds.choices] == [True, True, True, False]
+    window.scenes_dialog.reject()
+    window.hide()
+
+
+def test_a_note_about_a_key_once_pressed_is_gone_when_it_opens_again(window):
+    """A note about a key pressed or a sound uploaded is old news next time; one about the hotkey as it stands
+    (another program has its key) stays."""
+    window.show()
+    window._show_scene_manager()
+    page = window.effects_page
+    page.say("检查已在用这个键，换一个")
+    assert page.note.isVisibleTo(page) and page.note.text() == "检查已在用这个键，换一个"
+    window.scenes_dialog.reject()
+    window._show_scene_manager()
+    assert not page.note.isVisibleTo(page)
+    page.say("Alt+F12 被别的程序占用了", held=True)
+    window.scenes_dialog.reject()
+    window._show_scene_manager()
+    assert page.note.isVisibleTo(page) and page.note.text() == "Alt+F12 被别的程序占用了"
     window.scenes_dialog.reject()
     window.hide()
 
