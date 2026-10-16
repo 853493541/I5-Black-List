@@ -1,4 +1,4 @@
-﻿"""Standard controls built on the theme tokens: switch, segmented control, icon
+"""Standard controls built on the theme tokens: switch, segmented control, icon
 button, toast, confirm dialog, empty state, the settings section card, and
 设置's catalog, sections and rows.
 
