@@ -1549,6 +1549,14 @@ class MainWindow(QMainWindow):
         table = getattr(self, "history_table", None)
         if table is not None and watched is table.viewport() and event.type() == QEvent.Type.Leave:
             self._clear_history_hover()
+        elif table is not None and isinstance(watched, QWidget) and watched.objectName() == "seatWrap":
+            # A seat on neither list: the pointer on it, its ♥ and 🚫 included, lights it; off it, the seat now
+            # under the pointer lights, or none.
+            if event.type() == QEvent.Type.Enter:
+                index = table.indexAt(watched.geometry().center())
+                self._hover_history_cell(index.row(), index.column())
+            elif event.type() == QEvent.Type.Leave:
+                self._hover_history_under_pointer()
         history = getattr(self, "history_list", None)
         if history is not None and watched is history.viewport():
             if event.type() == QEvent.Type.Leave:
@@ -2663,6 +2671,9 @@ class MainWindow(QMainWindow):
             wrap.setAttribute(Qt.WA_TransparentForMouseEvents, False)
             tile.setAttribute(Qt.WA_TransparentForMouseEvents, False)
             line.addWidget(self._seat_buttons(row, column), 0, Qt.AlignVCenter)
+            # Taking the mouse, it hides the pointer from the table, so it lights itself (eventFilter).
+            wrap.setObjectName("seatWrap")
+            wrap.installEventFilter(self)
         self.history_table.setCellWidget(row, column, wrap)
         return "unclear" if unclear else "hit" if match is not None else "like" if like is not None else ""
 
@@ -2722,6 +2733,17 @@ class MainWindow(QMainWindow):
     def _clear_history_hover(self) -> None:
         self._paint_history_hover(*self._history_hover, False)
         self._history_hover = (-1, -1)
+
+    def _hover_history_under_pointer(self) -> None:
+        """The seat under the pointer lit, or none: the table may not say so itself when the pointer comes back
+        to the seat it last told of."""
+        viewport = self.history_table.viewport()
+        spot = viewport.mapFromGlobal(QCursor.pos())
+        index = self.history_table.indexAt(spot)
+        if viewport.isVisible() and viewport.rect().contains(spot) and index.isValid():
+            self._hover_history_cell(index.row(), index.column())
+        else:
+            self._clear_history_hover()
 
     def _paint_history_hover(self, row: int, column: int, hot: bool) -> None:
         if row < 0 or column < 0:

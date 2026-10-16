@@ -98,6 +98,50 @@ def test_only_a_seat_on_neither_list_has_the_buttons_and_only_on_hover(window):
     assert window.history_table.viewport().cursor().shape() == Qt.PointingHandCursor
 
 
+def test_a_real_pointer_lights_a_seat_on_neither_list_and_its_buttons_keep_it_lit(window, monkeypatch):
+    """Such a seat takes the mouse for its buttons, so the table never hears the pointer on it: the seat itself
+    lights on Enter, and on Leave the seat now under the pointer lights, or none (tester: a real cursor never lit it)."""
+    from PySide6.QtCore import QEvent, QPointF
+    from PySide6.QtGui import QEnterEvent
+
+    from blacklist_detect import ui
+
+    window.show()
+    QApplication.processEvents()
+    table = window.history_table
+    first, second = table.cellWidget(2, 0), table.cellWidget(2, 1)
+    assert first.objectName() == second.objectName() == "seatWrap"
+    pointer = {"at": QPoint()}
+    monkeypatch.setattr(ui.QCursor, "pos", staticmethod(lambda: pointer["at"]))
+
+    def enter(wrap) -> None:  # noqa: ANN001
+        middle = QPointF(wrap.rect().center())
+        QApplication.sendEvent(wrap, QEnterEvent(middle, middle, QPointF(wrap.mapToGlobal(wrap.rect().center()))))
+
+    def leave_to(spot: QPoint) -> None:
+        pointer["at"] = spot
+        QApplication.sendEvent(leaving, QEvent(QEvent.Type.Leave))
+
+    enter(first)
+    assert window._history_hover == (2, 0) and not _buttons(window, 2, 0).isHidden()
+    # Onto ♥: no Leave reaches the seat (the button is inside it), so it stays lit.
+    assert first.isAncestorOf(_button(window, 2, 0, "seatLike")) and window._history_hover == (2, 0)
+    # Off it onto the next seat: that one lights, this one's buttons go.
+    leaving = first
+    leave_to(second.mapToGlobal(second.rect().center()))
+    assert window._history_hover == (2, 1) and _buttons(window, 2, 0).isHidden() and not _buttons(window, 2, 1).isHidden()
+    # Off it onto a listed seat the table told of before: that one lights, with no Enter from the table.
+    leaving = second
+    listed = table.cellWidget(0, 0)
+    leave_to(listed.mapToGlobal(listed.rect().center()))
+    assert window._history_hover == (0, 0) and _buttons(window, 2, 1).isHidden()
+    # Off the table: none.
+    enter(second)
+    leave_to(window.mapToGlobal(QPoint(2, 2)))
+    assert window._history_hover == (-1, -1) and _buttons(window, 2, 1).isHidden()
+    window.hide()
+
+
 def test_the_heart_adds_to_guests_at_once_and_the_seat_turns_rose_in_place(window):
     record = _record(window)
     likes = window.tabs.tabText(window.likes_tab)
