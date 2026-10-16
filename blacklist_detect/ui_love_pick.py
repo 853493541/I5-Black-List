@@ -324,18 +324,26 @@ def _draw_note(p: QPainter, centre: QPointF, color: str) -> None:
     p.restore()
 
 
-def paint_box(p: QPainter, box: QRectF, on: bool) -> None:
-    """A 场景 box: filled, with a ✓, when ticked; an empty square when not."""
+def _faded_gray(share: float) -> QColor:
+    """A true gray, no tint of the theme's: as light as this share of the theme's gray over the surface."""
+    gray, surface = QColor(THEME["gray"]), QColor(THEME["surface"])
+    level = share * gray.lightnessF() + (1 - share) * surface.lightnessF()
+    return QColor.fromRgbF(level, level, level)
+
+
+def paint_box(p: QPainter, box: QRectF, on: bool, enabled: bool = True) -> None:
+    """A 场景 box: filled, with a ✓, when ticked; an empty square when not. Not enabled (播放场景 off), all
+    of it gray, its tick kept."""
     p.save()
     if on:
         p.setPen(Qt.NoPen)
-        p.setBrush(QColor(THEME["accent"]))
+        p.setBrush(QColor(THEME["accent"]) if enabled else _faded_gray(0.55))
         p.drawRoundedRect(box, 4, 4)
-        tick = line_pixmap("check", 12, THEME["on_accent"], stroke=2.0)
+        tick = line_pixmap("check", 12, THEME["on_accent"] if enabled else _faded_gray(0).name(), stroke=2.0)
         p.drawPixmap(box.adjusted(2, 2, -2, -2), tick, QRectF(tick.rect()))
     else:
-        p.setPen(QPen(QColor(THEME["field_line"]), 1.2))
-        p.setBrush(QColor(THEME["surface"]))
+        p.setPen(QPen(QColor(THEME["field_line"]) if enabled else _faded_gray(0.45), 1.2))
+        p.setBrush(QColor(THEME["surface"]) if enabled else _faded_gray(0.08))
         p.drawRoundedRect(box.adjusted(0.5, 0.5, -0.5, -0.5), 4, 4)
     p.restore()
 
@@ -343,8 +351,8 @@ def paint_box(p: QPainter, box: QRectF, on: bool) -> None:
 class SceneChoice(_KeyboardRing, QAbstractButton):
     """One scene in a list: a dot in its colour and its name. Highlighted, it sits in a ringed band; under
     the mouse, the band shows faintly. In ScenePane (chosen not None) a box at its end is ticked or not, by a
-    click on it or Space, apart from the band, and chose says so; 放场景 off (set_box_enabled(False)) the box
-    is greyed and does not tick, and the name still highlights. On the 场景管理 page (tick not None) a round
+    click on it or Space, apart from the band, and chose says so; 播放场景 off (set_box_enabled(False)) the box
+    and the dot are gray and the box does not tick, and the name still highlights. On the 场景管理 page (tick not None) a round
     spot there is apart from the band too: ✓ when the hotkey plays it (tick), empty when not, and a click on an
     empty one or Space says ticked, for the hotkey to play it; own puts a ♪ before it (it plays one of the
     player's songs). With neither, the ✓ goes with the band."""
@@ -400,7 +408,7 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         self.update()
 
     def set_box_enabled(self, on: bool) -> None:
-        """Whether the box can be ticked: not with 放场景 off, where it is greyed, its tick kept."""
+        """Whether the box can be ticked: not with 播放场景 off, where it and the dot are gray, its tick kept."""
         self.box_enabled = on
         self.update()
 
@@ -510,7 +518,8 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
             p.setBrush(Qt.NoBrush)
             p.drawRoundedRect(box, self.RADIUS, self.RADIUS)
         p.setPen(Qt.NoPen)
-        p.setBrush(self.dot)
+        # 播放场景 off: the dot gray with the boxes, the name as ever.
+        p.setBrush(self.dot if self.box_enabled or self.chosen is None else _faded_gray(0.5))
         p.drawEllipse(QPointF(16 + self.DOT, self.height() / 2), self.DOT, self.DOT)
         font = chinese_font()
         font.setWeight(QFont.DemiBold if self.isChecked() else QFont.Normal)
@@ -549,11 +558,8 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         p.restore()
 
     def _paint_box(self, p: QPainter) -> None:
-        """ScenePane's box at the row's end; with 放场景 off greyed, its tick kept."""
-        if not self.box_enabled:
-            # 放场景 off: the boxes greyed, the names as ever.
-            p.setOpacity(p.opacity() * 0.4)
-        paint_box(p, QRectF(self.width() - 32, (self.height() - self.BOX) / 2, self.BOX, self.BOX), bool(self.chosen))
+        """ScenePane's box at the row's end; with 播放场景 off gray, its tick kept."""
+        paint_box(p, QRectF(self.width() - 32, (self.height() - self.BOX) / 2, self.BOX, self.BOX), bool(self.chosen), self.box_enabled)
 
 
 class SceneList(QWidget):
@@ -622,7 +628,7 @@ class SceneList(QWidget):
             button.set_chosen(key in keys)
 
     def set_boxes_enabled(self, on: bool) -> None:
-        """Whether the boxes can be ticked (not with 放场景 off); the names highlight either way."""
+        """Whether the boxes can be ticked (not with 播放场景 off); the names highlight either way."""
         for button in self.buttons.values():
             button.set_box_enabled(on)
 

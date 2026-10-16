@@ -1,4 +1,4 @@
-"""The 场景 beside a 嘉宾's, a 组合's and 我's own fields (ScenePane): 放场景 off is 不放, on with none ticked
+"""The 场景 beside a 嘉宾's, a 组合's and 我's own fields (ScenePane): 播放场景 off is 不放, on with none ticked
 随机, on with ticks those; saved by the dialog's 添加 / 保存 alone, and untouched kept exactly."""
 
 import os
@@ -70,7 +70,7 @@ def _tick(pane, *keys: str) -> None:  # noqa: ANN001
 
 
 def _boxes_on(pane) -> bool:  # noqa: ANN001
-    """Whether the list's boxes can be ticked: all of them, or (放场景 off) none."""
+    """Whether the list's boxes can be ticked: all of them, or (播放场景 off) none."""
     on = {button.box_enabled for button in pane.buttons.values()}
     assert len(on) == 1 and pane.scenes.isEnabled()
     return on.pop()
@@ -93,7 +93,7 @@ def test_the_three_states_load_in_each_dialog(store):
         # Its ticked plays.
         assert pane.key == key and pane.preview.scene == key
         dialog.done(QDialog.Rejected)
-    # A new 嘉宾 or 组合 starts on 不放, its boxes greyed and no hint; 放场景 ticked, 随机.
+    # A new 嘉宾 or 组合 starts on 不放, its boxes gray and no hint; 播放场景 ticked, 随机.
     from blacklist_detect.ui_guest_scenes import HINT
     from blacklist_detect.ui_guests import ComboDialog
     from blacklist_detect.ui_likes import LikeDialog
@@ -126,7 +126,7 @@ def test_the_hint_shows_only_while_scenes_play_whatever_is_ticked(store):
 
 
 def test_a_guest_s_three_states_are_saved_both_ways(store, tmp_path, monkeypatch):
-    """Through the 嘉宾 page: 放场景 off saves 不放, on with none ticked 随机, on with ticks those."""
+    """Through the 嘉宾 page: 播放场景 off saves 不放, on with none ticked 随机, on with ticks those."""
     from blacklist_detect.ui_likes import LikeDialog
 
     page = _page(store)
@@ -177,7 +177,7 @@ def test_a_combo_s_members_and_scenes_are_saved_together(store, tmp_path, monkey
     assert seen == ["编辑组合"]
     for read in (store, Store(tmp_path)):
         assert read.combos == [Combo(("心动星星", "晚风吹过"), Scenes(("ice", "neon")))]
-    # 放场景 off: 不放.
+    # 播放场景 off: 不放.
     monkeypatch.setattr(ComboDialog, "exec", lambda dialog: dialog.pane.play_box.click() or dialog._accept() or dialog.result())
     page.edit_combo(0)
     assert store.combos == [Combo(("心动星星", "晚风吹过"), OFF)]
@@ -251,7 +251,7 @@ def test_saved_untouched_each_keeps_exactly_what_it_had(store, tmp_path, monkeyp
         dialog.done(QDialog.Rejected)
     page = _page(store)
     for kind in (LikeDialog, ComboDialog, MeDialog):
-        # 放场景 off and on again is no change either.
+        # 播放场景 off and on again is no change either.
         monkeypatch.setattr(kind, "exec", lambda dialog: dialog.pane.play_box.click() or dialog.pane.play_box.click() or dialog._accept() or dialog.result())
     page.edit(0)
     page.edit(1)
@@ -304,13 +304,70 @@ def test_one_scene_per_row_a_box_ticks_and_a_name_plays(store):
     ice = pane.buttons["ice"]
     QTest.mouseClick(ice, Qt.LeftButton, Qt.NoModifier, QPoint(30, ice.height() // 2))
     assert pane.key == "ice" and pane.preview.scene == "ice" and pane.scenes.chosen() == ("ice", "stars", "fluffy")
-    # Space ticks or unticks; a click anywhere on 放场景's row ticks it.
+    # Space ticks or unticks; a click anywhere on 播放场景's row ticks it.
     QTest.keyClick(pane.buttons["stars"], Qt.Key_Space)
     assert pane.value() == Scenes(("ice", "fluffy")) and dialog.has_changes()
     box = pane.play_box
     QTest.mouseClick(box, Qt.LeftButton, Qt.NoModifier, QPoint(box.width() - 4, box.height() // 2))
     assert pane.value() == OFF
     dialog.done(QDialog.Rejected)
+
+
+def test_the_box_says_play_scenes_in_every_dialog(store):
+    for dialog in (_like(store, 0), _combo(store), _me(store)):
+        assert dialog.pane.play_box.text() == "播放场景" and "播放" in dialog.pane.play_box.toolTip()
+        dialog.done(QDialog.Rejected)
+
+
+def _spread(image, rect: QRect) -> int:  # noqa: ANN001
+    """How far from gray the most coloured pixel in rect is: 0 for black, white and every gray between."""
+    widest = 0
+    for x in range(rect.left(), rect.right() + 1):
+        for y in range(rect.top(), rect.bottom() + 1):
+            color = image.pixelColor(x, y)
+            rgb = (color.red(), color.green(), color.blue())
+            widest = max(widest, max(rgb) - min(rgb))
+    return widest
+
+
+@pytest.mark.parametrize("dark", [False, True])
+def test_with_play_scenes_off_no_box_ticks_and_every_box_and_dot_is_gray(store, dark):
+    """播放场景 off: no box takes a click or Space, and each box, ticked or not, and each dot is gray; on again,
+    the ticks are back and coloured. The names still play. The same in 编辑嘉宾 and 编辑组合."""
+    from blacklist_detect.ui_love_pick import SceneChoice
+    from blacklist_detect.ui_theme import use_theme
+
+    use_theme("蓝色", "dark" if dark else "light")
+    try:
+        for dialog in (_like(store, 0), _combo(store)):
+            pane = dialog.pane
+            _tick(pane, "ice")
+            ticked = pane.scenes.chosen()
+            pane.play_box.click()
+            assert not _boxes_on(pane)
+            for key, button in pane.buttons.items():
+                _tick(pane, key)
+                QTest.keyClick(button, Qt.Key_Space)
+            assert pane.scenes.chosen() == ticked and pane.value() == OFF
+            # Ticked and not, away from the highlighted row so its band is not in the way.
+            ice, plain = pane.buttons["ice"], pane.buttons["lace"]
+            assert pane.key not in ("ice", "lace")
+            box = QRect(ice.width() - 33, (ice.height() - SceneChoice.BOX) // 2 - 1, SceneChoice.BOX + 2, SceneChoice.BOX + 2)
+            dot = QRect(16, ice.height() // 2 - SceneChoice.DOT, 2 * SceneChoice.DOT, 2 * SceneChoice.DOT)
+            for button in (ice, plain):
+                image = button.grab().toImage()
+                assert _spread(image, box) <= 12 and _spread(image, dot) <= 12, (type(dialog).__name__, button.key)
+            pane.play_box.click()
+            assert _boxes_on(pane) and pane.scenes.chosen() == ticked
+            image = ice.grab().toImage()
+            assert _spread(image, box) > 40 and _spread(image, dot) > 40
+            # A click on a name plays it either way.
+            pane.play_box.click()
+            QTest.mouseClick(ice, Qt.LeftButton, Qt.NoModifier, QPoint(30, ice.height() // 2))
+            assert pane.key == "ice" and pane.scenes.chosen() == ticked
+            dialog.done(QDialog.Rejected)
+    finally:
+        use_theme("蓝色", "light")
 
 
 def test_no_dialog_lists_other_guests_but_the_combo_its_members(store):

@@ -185,6 +185,31 @@ def test_the_combo_dialogs_fit_a_short_screen_however_many_guests(window, count)
         assert height(dialog) == none, count
 
 
+@pytest.mark.parametrize("count", [3, 5, 12, 30])
+def test_every_guest_in_the_combo_dialogs_is_reached_by_scrolling_its_box(window, count):
+    """However many 嘉宾 there are, 添加组合 and 编辑组合 fit a short screen and each 嘉宾 scrolls into view in
+    已添加的嘉宾's box, the box scrolling only once they are more than it shows."""
+    from blacklist_detect.ui_guests import ComboDialog
+
+    likes = _guests(count)
+    combo = Combo((likes[0].name, likes[-1].name), Scenes(("angel",)))
+    for dialog in (ComboDialog(likes, parent=window), ComboDialog(likes, combo, parent=window)):
+        dialog.fit_height(SHORT)
+        dialog.show()
+        QApplication.processEvents()
+        assert dialog.scroll is None and _card_height(dialog) <= SHORT - 8, count
+        scroll = dialog.people_scroll
+        view = scroll.viewport().rect()
+        bar = scroll.verticalScrollBar()
+        assert (bar.maximum() > 0) == (dialog.people.height() > view.height()), count
+        for name, box in dialog.people_buttons.items():
+            scroll.ensureWidgetVisible(box, 0, 0)
+            QApplication.processEvents()
+            place = QRect(box.mapTo(scroll.viewport(), QPoint(0, 0)), box.size())
+            assert view.contains(place), (count, name)
+        dialog.done(QDialog.Rejected)
+
+
 def test_the_combo_dialog_opens_on_its_own_guests_however_far_down_the_list_they_are(window):
     """The 组合's 嘉宾 come first, the oldest and one taken off the list too, so none is scrolled out of sight."""
     from blacklist_detect.ui_guest_scenes import TickBox
