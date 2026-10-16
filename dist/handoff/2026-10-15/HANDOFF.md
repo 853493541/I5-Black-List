@@ -1,6 +1,20 @@
 Read CLAUDE.md first (team rules, cost rules, release rules). This file is state only. The user's asks, with where
 each stands, are in ASKS.md beside it: that list is what "done" means; report against it.
 
+# Update 2026-10-16 16:20 PDT: ask #69, the v1.0 full check, now fixing (no release: "Don't release yet.")
+
+- Findings: dist/release_check/v1.0/ALL_PROBLEMS.md (check) and verify/VERIFY.md (confirmed, with fix plans and tests).
+- `improve/quality` = `a364f18` (+ this note): small fixes merged (0f07f19, a364f18). 829 passed, 5 skipped, ruff clean. Not installed.
+- Implementers running, all from a364f18, files disjoint: fix/v1-ocr-window (layout.py, the blocker), fix/v1-storage
+  (storage.py + updater.py), fix/v1-perf (claw.py warm, sound_import gains), fix/v1-stream-lists (ui.py, ui_dialogs.py,
+  ui_widgets.py; has the desktop for one ui_shots run at its end).
+- Next: tester per branch, merge one at a time; then fix/v1-polish (VERIFY.md 199-261: radio accent, hairlines,
+  separators, 嘉宾 header, empty order, dialog restyle, dark gutter, display-diff re-shoot on the desktop) from the
+  merged stream-lists; then the final check (full tests, shots light+dark 150, ice timing idle), install --verify, report.
+- User decisions to ask: 清空数据 leaves backups/ (delete or keep), 完整模式 no-lobby press (show 没有找到大厅?),
+  使用声明's gray line in 关于. Post-1.0: runtime-save excepthook, launcher mid-Apply, 经典/cyber/neon warm, 分享 comma.
+- v1.0 is published as exactly `v1.0.0` (__version__, tag, build/notes/v1.0.0.txt) when the user says so.
+
 # Handoff, 2026-10-16 ~00:55 PDT (master "BLA master", started ~23:00 by Commander 2; context ~335k, rotating)
 
 ## Code
