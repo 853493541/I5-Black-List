@@ -1,4 +1,4 @@
-﻿# What the user asked for (2026-10-15, 22:25–22:45 UTC, in the "[BLA] Planner" session)
+# What the user asked for (2026-10-15, 22:25–22:45 UTC, in the "[BLA] Planner" session)
 
 The source of truth for "done". Taken from the user's own messages in transcript a44fbfc6 (queued messages at
 22:25:49, 22:30:37, 22:35:50, 22:40:11, 22:43:35, 22:45:18). Report against THIS list, not against packages.
@@ -8,8 +8,8 @@ Status as of 2026-10-16 ~02:30 UTC. improve/quality = d6cdbba (+ handoff commits
 |---|---|---|---|
 | 1 | 设置 | Remove the sound volume slider (each 场景 has its own now); keep 静音 | released v0.9.15 |
 | 2 | 设置 | Remove the 嘉宾 场景 on/off switch | released v0.9.15 |
-| 3 | 场景管理 | 场景管理 leaves the top tabs; a button right of the 嘉宾 search box opens it as a modal | building (A / P5, workflow wf_6ca450e8-078: build → test → one fix round) |
-| 4 | 场景管理 | The panel looks better; previews keep autoplay (the user dropped the "frame at max" idea) | building (part of A) |
+| 3 | 场景管理 | 场景管理 leaves the top tabs; a button right of the 嘉宾 search box opens it as a modal | merged (21c0c6f), not released |
+| 4 | 场景管理 | The panel looks better; previews keep autoplay (the user dropped the "frame at max" idea) | merged (21c0c6f + 9e5de32: no blank song rows, old notes cleared on reopen), not released |
 | 5 | 场景管理 | Sound: 默认 or uploaded songs, up to 3 per 场景, one chosen | merged (d6cdbba), not released. Under 静音 every ▶ is off and says 已静音 |
 | 6 | 选择片段 | Keeps playing past 5 s; 截取 takes the 5 s just heard | released v0.9.15 |
 | 7 | 选择片段 | 试听 works; ◀ ▶ buttons for small moves, not only the keyboard | released v0.9.15 |
@@ -26,13 +26,13 @@ Status as of 2026-10-16 ~02:30 UTC. improve/quality = d6cdbba (+ handoff commits
 | 18 | 检查 | 直播模式 out of the panel: its own switch in the header with its ⓘ | released v0.9.15 |
 | 19 | 检查 | Remove 测试框 | released v0.9.15 |
 | 20 | Testing | No sound from background tests unless a sound is being checked | released v0.9.15 |
-| 21 | 记录 (2026-10-16 01:15 UTC) | On the 记录 page the hover 添加 button becomes two buttons on the right: a heart (add to 嘉宾) and a circle-with-slash 🚫 (add to 黑名单). A click adds at once; once added, it stays showing that state | building (implementer on feature/record-buttons, base 13e9588, no desktop; the tester's screenshot pass waits until A frees the desktop). Decisions: one click adds with an 撤销 toast, no dialog; reason/tags later by clicking the red seat; a click on the seat body adds nothing; the menu does what the buttons do; the page stays put |
-| 22 | 嘉宾 dialogs (2026-10-16 01:25 UTC) | 添加嘉宾 / 编辑嘉宾 pick the 场景 in the same dialog: 名字/昵称/原因 + a 放场景 box + the scene list one per row with boxes + preview with ▶ and autoplay. No list of other 嘉宾 ("why should I see the full list of guests") | building (workflow wf_65cdc217-2a7, feature/guest-dialogs, base 8a4b065, no desktop). Replaces #12's two-pane dialog. Decision: preview at the bottom of the LEFT column (a full-width one under a one-per-row list would not fit 672 px) |
-| 23 | 放场景 | The box says 放场景: unchecked = 不放; checked with none ticked = random among all; ticked = those, random among them if several | building (with #22) |
-| 24 | 组合 dialogs | 添加组合 / 编辑组合: left, the 嘉宾 with checkmarks to pick members; right, the scene list one per row; bottom, the preview ("editing combo is completely trash, has no scene selection") | building (with #22) |
-| 25 | 设置 (2026-10-16 01:30 UTC) | Bug: "on the first row, the second row is merged to the first row for no reason" (常规's 开机启动 and 关闭窗口时 share one row) | building (with #26) |
-| 26 | 设置 | Redesign "the Claude way" (the user pasted Claude's settings): a catalog of sections on the left, the chosen section on the right; each row has its name and a description on the left and its control on the right | building (workflow wf_5df86789-8ea, feature/settings-catalog, base 7d71dcf, no desktop). Sections 常规 / 外观 / 帮助 / 关于; no search box |
-| 27 | Header (2026-10-16 01:40 UTC) | "On the top right we have too much to display ... I know I just split that out ... just merge that back first" — 直播模式 leaves the header and goes back into the 检查 panel (undoes the header switch of #18; the pill colours, no 提醒, no 测试框 stay). "I will see what next change is" | building |
+| 21 | 记录 (2026-10-16 01:15 UTC) | On the 记录 page the hover 添加 button becomes two buttons on the right: a heart (add to 嘉宾) and a circle-with-slash 🚫 (add to 黑名单). A click adds at once; once added, it stays showing that state | merged (7c1ae51), not released. The tester caught that a real mouse never lit the seat; fixed and proved with a real cursor and real clicks |
+| 22 | 嘉宾 dialogs (2026-10-16 01:25 UTC) | 添加嘉宾 / 编辑嘉宾 pick the 场景 in the same dialog: 名字/昵称/原因 + a 放场景 box + the scene list one per row with boxes + preview with ▶ and autoplay. No list of other 嘉宾 ("why should I see the full list of guests") | built + tested + screenshots taken (feature/guest-dialogs d252589, rebased on 7c1ae51, 747 tests); waiting for the user to see the pictures, then merge |
+| 23 | 放场景 | The box says 放场景: unchecked = 不放; checked with none ticked = random among all; ticked = those, random among them if several | built + tested + screenshots taken (feature/guest-dialogs d252589, rebased on 7c1ae51, 747 tests); waiting for the user to see the pictures, then merge |
+| 24 | 组合 dialogs | 添加组合 / 编辑组合: left, the 嘉宾 with checkmarks to pick members; right, the scene list one per row; bottom, the preview ("editing combo is completely trash, has no scene selection") | built + tested + screenshots taken (feature/guest-dialogs d252589, rebased on 7c1ae51, 747 tests); waiting for the user to see the pictures, then merge |
+| 25 | 设置 (2026-10-16 01:30 UTC) | Bug: "on the first row, the second row is merged to the first row for no reason" (常规's 开机启动 and 关闭窗口时 share one row) | built + tested + screenshots taken (feature/settings-catalog 44dfb82, rebased on 7c1ae51, 757 tests); waiting for the user to see the pictures, then merge. Button texts shortened to 导出 / 查看 / 清空 (to confirm) |
+| 26 | 设置 | Redesign "the Claude way" (the user pasted Claude's settings): a catalog of sections on the left, the chosen section on the right; each row has its name and a description on the left and its control on the right | built + tested + screenshots taken (feature/settings-catalog 44dfb82, rebased on 7c1ae51, 757 tests); waiting for the user to see the pictures, then merge. Button texts shortened to 导出 / 查看 / 清空 (to confirm) |
+| 27 | Header (2026-10-16 01:40 UTC) | "On the top right we have too much to display ... I know I just split that out ... just merge that back first" — 直播模式 leaves the header and goes back into the 检查 panel (undoes the header switch of #18; the pill colours, no 提醒, no 测试框 stay). "I will see what next change is" | merged (3e25cf3), not released; the panel also shrinks back when 直播模式 is turned off in it |
 | — | Green 场景 | For the friend who mains 吴邪 (green + wind): border only, slow entrance, cute pandas, less middle | v2 rejected; the user wants picture ideas first. 7 concept stills sent 2026-10-16 (dist/concepts_green/: all_concepts.png + one folder per idea with its script): 1 草原风车, 2 竹风铃, 3 风筝, 4 水墨竹, 5 山雾萤火, 6 青铜门, 7 柳与燕. Waiting for the user's pick; then one concept frame of it, then the build. |
 
 "Just changing UI for now" (22:40): no 直播模式 checklist is to be built.
