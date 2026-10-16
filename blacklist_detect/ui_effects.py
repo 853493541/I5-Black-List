@@ -1,21 +1,24 @@
 """场景管理: every 场景's 配乐, and which one the 场景 hotkey plays, in a dialog opened from the 嘉宾 page.
 
 On the left, the hotkey, set the way 检查's is (the window's hotkey box), what it does under it, and what is
-wrong with a key pressed for it; then every scene in love_scenes.SCENES by name with its dot, the list
-嘉宾场景 (ui_guest_scenes) has in a grid; past the height of what is beside it, the list scrolls. A click on a
+wrong with a key pressed for it; then every scene in love_scenes.SCENES by name with its dot, one per row as
+the 嘉宾 dialogs list them (ui_guest_scenes), with no 随机. The left keeps room for every scene under a note of
+two lines, so none is scrolled away or cut, and a longer note makes it taller. A click on a
 name shows one: it plays beside the list over the fake-name sample lobby; the dialog opens on the one shown
 last, still, at its best moment, as a scene takes up to a second to make. The spot at a scene's end is the
 hotkey's: ✓ on the 场景 it plays (at once over the game, with no check: MainWindow.play_quick_scene), and a
 click on another's gives it the hotkey. A ♪ is a 场景 that plays one of the player's songs.
 
 Under the preview, the shown 场景's 配乐: its 音量 and ▶ 播放 (the scene from its start with its music, ⏸ 暂停
-while it plays), then on the left under it its choices (SoundChoices: 默认, its own, and up to three songs of
-the player's, each 上传 from a file, a part of it picked in 选择片段 when it is longer than a 场景's sound may
-be; one is chosen, a click on 默认 back to it), each with its ▶, ⏸ and a moving wave while it plays.
+while it plays), then under them its choices (SoundChoices: 默认, the scene's own tune, and up to three songs
+of the player's, each 上传 from a file, a part of it picked in 选择片段 when it is longer than a 场景's sound may
+be, the song heard there as loud as the part will play; one is chosen, a click on 默认 back to it), each with
+its ▶, ⏸ and a moving wave while it plays.
 
 The preview plays only while it can be seen, its window not minimized, and the app is in front: behind the
 game it would paint 30 times a second for nothing. The page lives on in EffectsDialog, made once with the
-window: × and Esc close it, which rests the preview and stops a sound ▶ started.
+window: × and Esc close it, which rests the preview and stops a sound ▶ started. Grown while it is open, its
+shade is laid over the window again, as opening it lays it.
 """
 
 from __future__ import annotations
@@ -118,8 +121,9 @@ class _Preview(ScenePreview):
 
 
 class _ListScroll(QScrollArea):
-    """The scene list, as tall as the room it is given (_HotkeySide keeps room for every scene): past that,
-    while a note under the hotkey shows, it scrolls. Its scroll bar's room is kept beside the names."""
+    """The scene list, as tall as the room it is given: _HotkeySide keeps room for every scene with a note of up to
+    two lines over it, so the list shows whole. Only past that would it scroll; its scroll bar's room is kept
+    beside the names."""
 
     def __init__(self, scenes: SceneList) -> None:
         super().__init__()
@@ -143,12 +147,15 @@ class _ListScroll(QScrollArea):
 
 class _HotkeySide(QWidget):
     """The page's left: 快捷键 and its box, what the hotkey does, a note about it while there is one, and the
-    scene list. At least as tall as the hotkey's rows and every scene, so no scene is scrolled away; a note
-    takes its room from the list, and the dialog keeps its size as one comes and goes."""
+    scene list. At least as tall as the hotkey's rows, a note of NOTE_LINES lines and every scene, so no scene is
+    scrolled away or cut: a note takes the room kept for it, and the dialog keeps its size as one comes and goes.
+    A longer note makes the left taller."""
 
     # Between the hotkey's rows, and from them to the list.
     GAP = 4
     LIST_GAP = 12
+    # The lines a note may wrap to in the room kept for it.
+    NOTE_LINES = 2
 
     def __init__(self, hotkey_box: QLineEdit, scroll: _ListScroll) -> None:
         super().__init__()
@@ -186,11 +193,16 @@ class _HotkeySide(QWidget):
 
     def keep_room(self) -> None:
         """A minimum of its own, which the layouts hold to also when they measure height for width (its notes
-        wrap): the hotkey's row, the line under it, the gaps and every scene, in the style's sizes."""
+        wrap): the hotkey's row, the line under it, a note's lines (NOTE_LINES, or the one shown's when it has more),
+        the gaps and every scene, in the style's sizes."""
         self.ensurePolished()
         row = max(self.label.sizeHint().height(), self.box.sizeHint().height())
         hint = self.hint.heightForWidth(self.hint.width())
-        room = row + self.GAP + hint + self.LIST_GAP + self.scroll.widget().minimumSizeHint().height()
+        margins = self.note.contentsMargins()
+        note = self.NOTE_LINES * self.note.fontMetrics().lineSpacing() + margins.top() + margins.bottom()
+        if self.note.text():
+            note = max(note, self.note.heightForWidth(self.note.width()))
+        room = row + self.GAP + hint + self.GAP + note + self.LIST_GAP + self.scroll.widget().minimumSizeHint().height()
         if room != self.minimumHeight():
             self.setMinimumHeight(room)
 
@@ -672,6 +684,7 @@ class EffectsPage(QWidget):
         self._held_text = text if held else ""
         self.note.setText(text)
         self.note.setVisible(bool(text))
+        self.left.keep_room()
 
     def _tell(self, text: str, warn: bool = False) -> None:  # noqa: FBT001, FBT002
         """A note about the shown 场景's 配乐, underlined when it is a warning: it goes as another 场景 is shown."""
@@ -842,7 +855,8 @@ class EffectsPage(QWidget):
 
     def _trim(self, decoded, key: str, name: str) -> tuple[float, float] | None:  # noqa: ANN001
         """选择片段 on a long sound: the part picked, or None when it is closed. It plays the sound from a moment
-        to its end at the 场景's level (a new file each time: winsound may still hold the last), and its 试听
+        to its end as loud as a part of it is kept (save_rest), at the 场景's level (a new file each time: winsound
+        may still hold the last), so the part sounds there as it will once kept; and its 试听
         the part as the 场景 will (made as save_clip makes it, at the 场景's level), from a folder of the
         page's own that goes with the dialog. A part save_clip would refuse (a silent one) is told there, at
         试听 and at 确定."""
@@ -973,6 +987,8 @@ class EffectsDialog(Modal):
     def __init__(self, page: EffectsPage, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.page = page
+        # The size the shade was laid over the window for (_cover_host).
+        self._covered = QSize()
         self.frame("场景管理").addWidget(page)
         # Its window minimized with it open, the preview rests; restored, it plays again.
         if parent is not None:
@@ -987,6 +1003,19 @@ class EffectsDialog(Modal):
             elif self.page._seen():
                 self.page._show()
         return super().eventFilter(watched, event)
+
+    def _cover_host(self) -> None:
+        super()._cover_host()
+        self._covered = self.minimumSizeHint().expandedTo(self.sizeHint())
+
+    def event(self, event) -> bool:  # noqa: ANN001
+        """Grown or shrunk while open (a song uploaded, a note that wraps): the shade laid over the window again as
+        opening it lays it, never left hanging past the window as the dialog grows from its top."""
+        handled = super().event(event)
+        laid = event.type() == QEvent.Type.LayoutRequest and self.isVisible()
+        if laid and self.minimumSizeHint().expandedTo(self.sizeHint()) != self._covered:
+            self._cover_host()
+        return handled
 
     def restyle(self) -> None:
         """In the theme as it is now: 浅色 or 深色 may have changed since it was made, or while it is open (跟随系统).

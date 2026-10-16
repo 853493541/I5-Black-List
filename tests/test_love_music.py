@@ -613,17 +613,20 @@ def test_dropping_one_tune_s_copies_keeps_every_other(tmp_path):
 
 def test_the_song_from_a_moment_is_the_rest_of_it_at_a_volume_and_plays_as_it_is(tmp_path):
     """选择片段 plays the player's song from wherever its playhead is: winsound cannot start a file midway, so
-    the rest of the song is written as a file of its own, as loud as the 场景's 音量, and played as it is."""
+    the rest of the song is written as a file of its own, levelled as a part kept is, as loud as the 场景's 音量,
+    and played as it is."""
     song = np.rint(np.sin(np.arange(3 * RATE) / 7) * 20000).astype(np.int16)
     decoded = Decoded(song, 3.0, "心动音乐")
     rest = save_rest(decoded, 1.25, tmp_path / "trial" / "song-0.wav", 40)
     params, samples = _samples(rest)
     assert (params.nchannels, params.sampwidth, params.framerate) == (1, 2, RATE)
     assert len(samples) == len(song) - round(1.25 * RATE)
-    assert np.abs(samples - np.rint(song[round(1.25 * RATE) :] * 0.4)).max() <= 1
+    # The whole song at the loudness a part is kept at (TARGET_RMS_DBFS), then at 40% of that.
+    gain = 10 ** (-19 / 20) / np.sqrt(np.mean((song / 32768.0) ** 2))
+    assert np.abs(samples - np.rint(song[round(1.25 * RATE) :] * gain * 0.4)).max() <= 1
     # From its very end, nothing; from before its start, all of it.
     assert len(_samples(save_rest(decoded, 9.0, tmp_path / "end.wav"))[1]) == 0
-    assert np.array_equal(_samples(save_rest(decoded, -1.0, tmp_path / "all.wav"))[1], song)
+    assert np.abs(_samples(save_rest(decoded, -1.0, tmp_path / "all.wav"))[1] - np.rint(song * gain)).max() <= 1
     music, played, _clock = _managed(tmp_path, {})
     assert music.play_file(rest) and played == [rest]
     music.muted = True

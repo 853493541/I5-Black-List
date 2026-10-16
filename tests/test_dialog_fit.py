@@ -115,8 +115,8 @@ def test_the_guest_dialogs_fit_a_short_screen_without_scrolling(window, monkeypa
 
 
 def test_scene_manager_with_three_songs_fits_a_short_screen_without_scrolling(window, monkeypatch):
-    """场景管理 at its tallest: 默认 and three songs, 已静音 and a note under the hotkey, every
-    row in view on 1080p at 150% with no scroll. Its scene list is as tall as the rest beside it."""
+    """场景管理 at its tallest: 默认 and three songs, 已静音 and a note of two lines under the hotkey, every
+    row in view on 1080p at 150% with no scroll. Its left keeps room for every scene under that note."""
     from blacklist_detect.paths import custom_sound_dir
 
     folder = custom_sound_dir(window.store.root)
@@ -127,7 +127,7 @@ def test_scene_manager_with_three_songs_fits_a_short_screen_without_scrolling(wi
     window.mute_box.click()
     page = window.effects_page
     page.select("fluffy")
-    page.say(f"检查已在用 {window.store.hotkey}，场景快捷键未设置", held=True)
+    page.say("场景快捷键 Ctrl+Shift+F12 已不能用，换成了 Alt+F12", held=True)
     dialog = _dialogs(window, monkeypatch)["场景管理"]
     assert dialog is window.scenes_dialog
     assert [choice.isVisibleTo(page) for choice in page.sounds.choices] == [True] * 4

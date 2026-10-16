@@ -14,7 +14,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 pytest.importorskip("PySide6")
 
-from PySide6.QtCore import QEvent, QPoint, Qt  # noqa: E402
+from PySide6.QtCore import QEvent, QPoint, QRect, Qt  # noqa: E402
 from PySide6.QtTest import QTest  # noqa: E402
 from PySide6.QtWidgets import (  # noqa: E402
     QApplication,
@@ -38,15 +38,25 @@ from blacklist_detect.ui_sound_trim import SoundTrimDialog  # noqa: E402
 SOUNDS = os.path.join(os.path.dirname(__file__), "fixtures", "sounds")
 
 
-def _wav(path, seconds: float, pitch: float = 440.0):  # noqa: ANN001, ANN202
+def _wav(path, seconds: float, pitch: float = 440.0, loudness: float = 12000):  # noqa: ANN001, ANN202
     """A made-up tone, mono 16-bit at 44.1 kHz."""
     t = np.arange(round(seconds * 44100)) / 44100
     with wave.open(str(path), "wb") as wav:
         wav.setnchannels(1)
         wav.setsampwidth(2)
         wav.setframerate(44100)
-        wav.writeframes((np.sin(2 * np.pi * pitch * t) * 12000).astype("<i2").tobytes())
+        wav.writeframes((np.sin(2 * np.pi * pitch * t) * loudness).astype("<i2").tobytes())
     return path
+
+
+def _frames(path) -> np.ndarray:  # noqa: ANN001
+    with wave.open(str(path)) as wav:
+        return np.frombuffer(wav.readframes(wav.getnframes()), "<i2").astype(np.int32)
+
+
+def _rms(frames: np.ndarray) -> float:
+    """How loud 16-bit samples are, 0 to 1."""
+    return float(np.sqrt(np.mean((frames / 32768) ** 2)))
 
 
 def _wait(ms: int) -> None:
@@ -380,13 +390,13 @@ def test_the_part_picker_plays_the_song_from_the_playhead_at_the_effect_s_level(
         later = window.played[-1]
         assert later != song and later.parent == song.parent and not song.exists()
         heard.append(later)
-        # The rest of the song from there, at the 场景's 50%.
+        # The rest of the song from there, as loud as a part of it is kept, at the 场景's 50%.
         with wave.open(str(later)) as wav:
             assert wav.getnframes() == round(5.0 * 44100)
             frames = np.frombuffer(wav.readframes(wav.getnframes()), "<i2").astype(np.int32)
-        with wave.open(str(tmp_path / "long.wav")) as wav:
-            source = np.frombuffer(wav.readframes(wav.getnframes()), "<i2")[round(3.0 * 44100) :].astype(np.int32)
-        assert np.abs(frames - source / 2).max() <= 1
+        whole = _frames(tmp_path / "long.wav")
+        gain = 10 ** (sound_import.TARGET_RMS_DBFS / 20) / _rms(whole)
+        assert np.abs(frames - whole[round(3.0 * 44100) :] * gain / 2).max() <= 1
         # 确定 stops it, and nothing plays after.
         dialog.cut()
         dialog.accept()
@@ -397,6 +407,30 @@ def test_the_part_picker_plays_the_song_from_the_playhead_at_the_effect_s_level(
     assert not heard[-1].exists() and not heard[-1].parent.exists()
     assert window.store.scene_sounds["stars"]["chosen"] == "stars-1.wav"
     assert window.played[-1] is None
+
+
+@pytest.mark.parametrize("loudness", [600, 30000])
+def test_the_part_picker_plays_a_quiet_or_loud_song_as_loud_as_the_part_it_keeps(window, pick, trim, tmp_path, loudness):
+    """What 选择片段 plays from the playhead is as loud as 试听's part and the part kept, however loud the file."""
+    page = _shown(window, "stars")
+    page.volume_slider.setValue(10)
+    pick["chosen"] = _wav(tmp_path / "long.wav", 8.0, loudness=loudness)
+    heard = {}
+
+    def listen(dialog) -> bool:  # noqa: ANN001
+        dialog.show()
+        heard["song"] = _frames(window.played[-1])
+        dialog.toggle_preview()
+        heard["trial"] = _frames(window.played[-1])
+        return True
+
+    trim["do"] = listen
+    page.upload_button.click()
+    kept = _frames(custom_sound_dir(window.store.root) / window.store.scene_sounds["stars"]["chosen"])
+    # Away from the part's fades; the song and 试听 at the 场景's 50%, the part kept at 100%.
+    middle = slice(round(0.5 * 44100), round(4.5 * 44100))
+    song, trial, kept = _rms(heard["song"][middle]), _rms(heard["trial"][middle]), _rms(kept[middle]) / 2
+    assert abs(20 * np.log10(song / trial)) < 0.25 and abs(20 * np.log10(song / kept)) < 0.25
 
 
 def test_closing_the_part_picker_changes_nothing(window, pick, trim, tmp_path):
@@ -555,7 +589,7 @@ def test_where_only_wav_can_be_read_the_dialog_says_so(window, pick, monkeypatch
     assert "WAV" in title and kinds == f"WAV 声音 ({sound_import.WAV_FILTER})"
 
 
-def test_restoring_the_default_chooses_it_and_keeps_the_songs_and_the_volume(window, pick, trim, tmp_path):
+def test_choosing_the_default_again_keeps_the_songs_and_the_volume(window, pick, trim, tmp_path):
     page = _shown(window, "ice")
     page.volume_slider.setValue(12)
     pick["chosen"] = _wav(tmp_path / "a.wav", 2.0)
@@ -998,6 +1032,106 @@ def test_the_dialog_keeps_its_size_from_scene_to_scene(window, pick, trim, tmp_p
             assert top(page.sound_note) < note and page.spare.height() > 0
     assert [choice.isVisibleTo(page) for choice in page.sounds.choices] == [True, True, True, False]
     window.scenes_dialog.reject()
+    window.hide()
+
+
+def _scenes_whole(page) -> bool:  # noqa: ANN001
+    """Every scene in the list in view, none cut, and no scroll bar."""
+    scroll = page.scene_scroll
+    bottom = max(button.geometry().bottom() for button in page.scenes.buttons.values())
+    return not scroll.verticalScrollBar().isVisible() and bottom < scroll.viewport().height()
+
+
+LONG_NOTE = "这是一段很长很长的提示，" * 6
+
+
+class _Tall:
+    """The window's screen, with a 1080p screen's room for windows: 场景管理 fits it without scrolling."""
+
+    def __init__(self, screen) -> None:  # noqa: ANN001
+        self._screen = screen
+
+    def availableGeometry(self) -> QRect:  # noqa: N802
+        return QRect(0, 0, 1920, 1040)
+
+    def __getattr__(self, name: str):  # noqa: ANN204
+        return getattr(self._screen, name)
+
+
+@pytest.fixture
+def tall(window, monkeypatch):  # noqa: ANN001, ANN201
+    screen = _Tall(QApplication.primaryScreen())
+    monkeypatch.setattr(type(window), "screen", lambda _window: screen)
+    return window
+
+
+def test_every_scene_shows_whole_under_a_note_of_two_lines_and_the_dialog_keeps_its_size(tall):
+    """A note under the hotkey takes the room kept for it: the list never scrolls nor cuts its last scene, and
+    the dialog keeps its size; a longer one makes the left taller, every scene still whole."""
+    window = tall
+    window.resize(900, 560)
+    window.show()
+    window._show_scene_manager()
+    _wait(100)
+    page = window.effects_page
+    card = window.scenes_dialog.card.size()
+    assert window.scenes_dialog.scroll is None and _scenes_whole(page)
+    line = page.note.fontMetrics().lineSpacing()
+    for note in ("这个键被别的程序占了，换一个", f"检查已在用 {window.store.hotkey}，场景快捷键未设置", "两行" * 14):
+        page.say(note, held=True)
+        _wait(100)
+        assert page.note.isVisible() and page.note.height() <= 2 * line, note
+        assert _scenes_whole(page) and window.scenes_dialog.card.size() == card, note
+    room = page.left.minimumHeight()
+    page.say(LONG_NOTE, held=True)
+    assert page.left.minimumHeight() > room
+    _wait(100)
+    assert page.note.height() > 2 * line and _scenes_whole(page)
+    page.say("")
+    window.scenes_dialog.reject()
+    window.hide()
+
+
+def test_the_shade_is_laid_over_the_window_again_as_the_dialog_grows_while_open(tall, pick, trim, tmp_path):
+    """Songs uploaded and a long note, at the window's smallest: the shade where opening it again would lay it, not
+    hanging below the window; over a window the card fits in, the shade is the window."""
+    window = tall
+    window.resize(900, 560)
+    window.move(100, 200)
+    window.show()
+    window._show_scene_manager()
+    _wait(100)
+    dialog = window.scenes_dialog
+    opened = dialog.geometry()
+    page = _shown(window, "fluffy")
+    for name in ("a.wav", "b.wav", "c.wav"):
+        pick["chosen"] = _wav(tmp_path / name, 2.0)
+        page.upload_button.click()
+    page.say(LONG_NOTE, held=True)
+    # Laid out a layout at a time, an event each: slower while other tests run.
+    for _ in range(40):
+        _wait(50)
+        if dialog.geometry().height() > opened.height():
+            break
+    _wait(50)
+    grown = dialog.geometry()
+    middle = window.geometry().center().y()
+    assert grown.height() > opened.height() and abs(grown.center().y() - middle) <= 1
+    dialog.reject()
+    window._show_scene_manager()
+    _wait(100)
+    assert dialog.geometry() == grown
+    # Taller than the card: the shade is the window, as the note goes and comes.
+    dialog.reject()
+    window.resize(1000, 800)
+    window._show_scene_manager()
+    _wait(100)
+    for note in ("", LONG_NOTE):
+        page.say(note, held=True)
+        _wait(100)
+        assert dialog.geometry() == QRect(window.mapToGlobal(QPoint(0, 0)), window.size()), note
+    page.say("")
+    dialog.reject()
     window.hide()
 
 

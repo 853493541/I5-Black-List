@@ -5,8 +5,8 @@ built-in tunes (ui_music.TUNES), and save_clip keeps at most CLIP_S of it, about
 (TARGET_RMS_DBFS, peaks no higher than PEAK_DBFS), as <scene key>-<n>.wav in a folder of the app's own
 (song_name: a 场景 keeps up to three).
 From then on it plays like any tune: winsound, a quieter copy for its 音量 (ui_music.scaled_tune).
-While the part is picked (选择片段), save_rest writes the song from a moment on, for winsound to play there:
-it cannot start a file anywhere but at its start.
+While the part is picked (选择片段), save_rest writes the song from a moment on, as loud as save_clip makes
+a part, for winsound to play there: it cannot start a file anywhere but at its start.
 
 WAV is read here with Python's wave. Everything else goes through Qt's QAudioDecoder, which hands the
 file to Windows' own decoders (Media Foundation): nothing is bundled for the formats themselves. The
@@ -359,16 +359,21 @@ def song_name(key: str, folder: Path) -> str:
 
 
 def save_rest(decoded: Decoded, start_s: float, path: Path, volume: int = 100) -> Path:
-    """The sound of decoded from start_s to its end as the WAV at path, at volume percent of its loudness as
-    read (no levelling, no fades): what 选择片段 plays as the song goes on from a moment. A minute at a time,
-    so a long song never sits in memory as floats whole."""
-    total = len(decoded.samples)
+    """The sound of decoded from start_s to its end as the WAV at path, the whole song as loud as save_clip makes a
+    part (about TARGET_RMS_DBFS over all of it, peaks no higher than PEAK_DBFS) and at volume percent of that, with no
+    fades: what 选择片段 plays as the song goes on from a moment, so a part sounds there as it will once kept. A minute
+    at a time, so a long song never sits in memory as floats whole."""
+    samples = decoded.samples
+    total = len(samples)
     begin = min(max(0, round(start_s * RATE)), total)
     step = 60 * RATE
-    gain = max(0, volume) / 100 / 32768
+    gain = _song_gain(samples, step) / 32768
+    peak = 10 ** (PEAK_DBFS / 20)
+    scale = max(0, volume) / 100
+    parts = (np.clip(_limit(samples[at : at + step] * gain, peak), -peak, peak) * scale for at in range(begin, total, step))
     try:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
-        _write(path, (decoded.samples[at : at + step].astype(np.float64) * gain for at in range(begin, total, step)))
+        _write(path, parts)
     except OSError as error:
         Path(path).unlink(missing_ok=True)
         log.warning("Could not write the song from %.1f s", start_s, exc_info=True)
@@ -400,6 +405,16 @@ def _level(clip: np.ndarray) -> np.ndarray:
         if rms >= target * 10 ** (-0.25 / 20):
             break
     return np.clip(clip, -peak, peak)
+
+
+def _song_gain(samples: np.ndarray, step: int) -> float:
+    """What brings samples (16-bit) as a whole to about TARGET_RMS_DBFS, as _level does a part: 1 for a song
+    with no sound. Read step samples at a time."""
+    squares = sum(float(np.square(samples[at : at + step], dtype=np.float64).sum()) for at in range(0, len(samples), step))
+    rms = (squares / max(1, len(samples))) ** 0.5 / 32768
+    if rms < 10 ** (-70 / 20):
+        return 1.0
+    return 10 ** (TARGET_RMS_DBFS / 20) / rms
 
 
 def _limit(clip: np.ndarray, peak: float, block: int = RATE // 100) -> np.ndarray:
