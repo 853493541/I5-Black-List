@@ -495,6 +495,54 @@ def test_the_lyre_frames_the_lobby_in_jade_and_leaves_its_middle_bare(qapp):
     assert shot.pixelColor(round(stage.width / 2), round(stage.height * 0.15)).alpha() < 12, "the title is bare"
 
 
+def test_the_lyre_s_birds_sit_on_its_frame_and_never_over_the_lobby(qapp, monkeypatch):
+    """竖琴清风's three teal birds: one on the lyre in the top left, one flying in to the curl in the top right, one
+    among the cecilias in the bottom left. At no moment is one over the names, the cards, the title or the button."""
+    import numpy as np
+
+    from blacklist_detect.love_scenes import lyre
+
+    stage = sample_stage()
+    w, h = round(stage.width), round(stage.height)
+    birds = QImage(w, h, QImage.Format_ARGB32_Premultiplied)
+    real = lyre._sat
+
+    def sat(p, *rest) -> None:  # noqa: ANN001
+        # Each bird drawn as the scene draws it, onto a picture of the birds alone.
+        q = QPainter(birds)
+        q.setRenderHint(QPainter.SmoothPixmapTransform)
+        q.setTransform(p.transform())
+        real(q, *rest)
+        q.end()
+
+    monkeypatch.setattr(lyre, "_sat", sat)
+    paint = lyre.make(stage)
+    names = stage.names()
+    lobby = QRectF(min(n.left() for n in names), names[0].top() - 0.2 * h, 0, 0)
+    lobby.setRight(max(n.right() for n in names))
+    lobby.setBottom(max(n.bottom() for n in names))
+    title = QRectF(0.38 * w, 0.07 * h, 0.3 * w, 0.23 * h)
+    image = QImage(w, h, QImage.Format_ARGB32_Premultiplied)
+    for i in range(51):
+        t = i / 10
+        birds.fill(Qt.transparent)
+        painter = QPainter(image)
+        paint(painter, t)
+        painter.end()
+        alpha = np.frombuffer(birds.constBits(), dtype=np.uint8).reshape(h, w, 4)[..., 3]
+        for box in (lobby, title, stage.gap):
+            r = box.toAlignedRect()
+            assert alpha[max(0, r.top()) : r.bottom(), max(0, r.left()) : r.right()].max(initial=0) < 8, (t, box)
+        if t in (0.0, 5.0):
+            assert alpha.max() == 0, t
+        if t == 3.0:
+            # All three there, teal: top left on the lyre, top right on the curl, bottom left by the cecilias.
+            blue, green, red, opaque = np.frombuffer(birds.constBits(), dtype=np.uint8).reshape(h, w, 4).astype(int).transpose(2, 0, 1)
+            teal = (opaque > 200) & (green > red + 60) & (blue > red + 30)
+            for rows, cols in ((slice(0, h // 4), slice(0, w // 4)), (slice(0, h // 4), slice(3 * w // 4, w)), (slice(3 * h // 4, h), slice(0, w // 4))):
+                assert teal[rows, cols].sum() > 300, (rows, cols)
+
+
 def test_the_lyre_comes_in_softly_and_goes_cleanly(qapp):
     """Nothing pops in: the first frame is empty and the band breathes in; at the end all of it is gone."""
     stage = sample_stage()
