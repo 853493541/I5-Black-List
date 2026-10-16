@@ -1,7 +1,7 @@
-"""绔栫惔娓呴: the screen framed in jade wind, played by 娓╄开's lyre.
+"""竖琴清风: the screen framed in jade wind, played by 温迪's lyre.
 
 A band of green air breathes in from every edge, and a wind current, mint with a white core, draws
-itself round the screen clockwise from the top left, where the lyre Der Fr眉hling (鏂愭灄) fades in,
+itself round the screen clockwise from the top left, where the lyre Der Frühling (斐林) fades in,
 rising, leaning as when it is played. Its strings shimmer left to right as if strummed, and the wind
 leaves them in three strands, the longest running on to become the top border, letting go two white
 feathers and a red maple leaf. Red maple leaves tumble in a wind curl in the top right and ride an
@@ -46,7 +46,7 @@ VERMILION, DEEP_MAPLE, EMBER = "#e2452b", "#8a1420", "#ec7a35"
 FEATHER, FEATHER_SHADE = "#f7fbf8", "#c5d8d0"
 HEART = "#e3f0b4"
 LOOK = {
-    # Its dot in the scene lists too: a jade green, well clear of 姣涜尭鑼镐繚鎶ゅ崗浼?s teal beside it.
+    # Its dot in the scene lists too: a jade green, well clear of 毛茸茸保护协会's teal beside it.
     "glow": (56, 182, 106),
     "rim": MINT,
     "band": (ANEMO, MINT),
@@ -198,7 +198,7 @@ def make(stage: Stage):  # noqa: ANN201
     def paint(p: QPainter, t: float) -> None:
         want = _sharpness(p)
         made = _made_near(shape, want) or _pictures(shape, want, jobs)
-        # Drawn from pictures made for another sharpness (鐩存挱鐢婚潰 from the screen's), sized by theirs.
+        # Drawn from pictures made for another sharpness (直播画面 from the screen's), sized by theirs.
         scale = made.scale
         art = made.bared(made.upto(t), gap, u)
         px = 2 * scale  # sprite pixels per point
@@ -439,8 +439,8 @@ class _Pictures:
 
 # How many pictures are made at once ahead of a play.
 WORKERS = min(4, os.cpu_count() or 1)
-# The pictures made for the last few stages and sharpnesses: a lobby on the same game, the 鍦烘櫙 hotkey pressed
-# again and 鐩存挱鐢婚潰 find theirs made.
+# The pictures made for the last few stages and sharpnesses: a lobby on the same game, the 场景 hotkey pressed
+# again and 直播画面 find theirs made.
 KEEP = 4
 _made: dict[tuple, _Pictures] = {}
 _made_lock = threading.Lock()
@@ -1109,7 +1109,7 @@ def _stalks(p: QPainter, sprig: list, buds: list, xy, u: float, alpha: float) ->
     p.restore()
 
 
-# The lyre: Der Fr眉hling (鏂愭灄), drawn close to its in-game render: a tall rose-brown U on a small flat foot,
+# The lyre: Der Frühling (斐林), drawn close to its in-game render: a tall rose-brown U on a small flat foot,
 # its horn tips standing above a thin crossbar with 7 pale-gold pegs, 7 glowing strings in one bright block
 # down to a pale bridge, a teal gem in a pale-gold star with gold blade flourishes on the bowl, and two white
 # cecilias with long leaves over the lower right arm. Drawn in the reference picture's pixels ("ref": the
@@ -1842,6 +1842,7 @@ def _bird_file(name: str) -> QImage:
         return _BIRD_FILES[name]
 
 
+@functools.lru_cache(maxsize=1)
 def _bird_places() -> dict:
     return json.loads((BIRDS_DIR / "birds.json").read_text(encoding="utf-8"))
 
@@ -1934,7 +1935,7 @@ def ring(p: QPainter, cover: QRectF, t: float) -> None:
 
 
 def _badge_art(box: QRectF, scale: float) -> QImage:
-    """The badge: a small Der Fr眉hling on a jade disc lit from the upper left, nothing else."""
+    """The badge: a small Der Frühling on a jade disc lit from the upper left, nothing else."""
     side = box.width()
     w, h = math.ceil(side * scale), math.ceil(box.height() * scale)
     radius = min(side, box.height()) * 0.375

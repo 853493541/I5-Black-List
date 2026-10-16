@@ -289,9 +289,10 @@ def _verify(stage: Path) -> None:
         problems.append("updates cannot be checked (cryptography, requests or certifi missing)")
     if data["platform"] != "windows" or not data["icon"]:
         problems.append(f"Qt platform {data['platform']!r}, icon loaded {data['icon']}")
-    root = str(stage).lower()
+    # Both in their full long form, so a relative or 8.3 --out still matches the paths the staged Python reports.
+    root = os.path.realpath(stage).lower()
     for path in data["modules"] + data["dlls"]:
-        lowered = path.lower()
+        lowered = os.path.realpath(path).lower()
         if "site-packages" in lowered and not lowered.startswith(root):
             problems.append(f"loaded from outside the bundle: {path}")
     if problems:

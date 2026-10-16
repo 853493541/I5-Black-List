@@ -46,7 +46,10 @@ MARKS_AT = 0.2
 
 
 def main() -> None:
-    app = QApplication.instance() or QApplication([])  # noqa: F841
+    app = QApplication.instance() or QApplication([])
+    # Offscreen Qt on Windows has no Chinese fonts: the posters' cards would read as boxes.
+    if sys.platform == "win32" and app.platformName() == "offscreen":
+        raise SystemExit("Posters need the windows platform for their Chinese text: run without QT_QPA_PLATFORM=offscreen.")
     from blacklist_detect import love_scenes
     from blacklist_detect.love_scenes import DESIGN, sample_stage
     from blacklist_detect.ui_love_pick import SAMPLE_LOBBY, SampleMarks

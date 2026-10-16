@@ -35,7 +35,7 @@ The live check copies the screen with one GDI BitBlt on Windows; elsewhere only 
 PYTHONPATH=. python -m blacklist_detect check tests/fixtures/reference-lobby.png
 ```
 
-On the included reference shot this prints twelve names. Ten of them match the lobby labels, including the three cut-off names. The third card is read as **霁玥吉尔曼** and the Latin card as **gffdsd**. The app shows that text as read. It does not rewrite it to **罪玥吉尔曼** or **gifdsd**.
+On the included reference shot this prints twelve names. Ten of them match the lobby labels, including the three cut-off names. Two cards, the third and the one in Latin letters, are read a letter off from their labels; the app shows such text as read and does not rewrite it to the label.
 
 ## OCR model
 
