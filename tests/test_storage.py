@@ -1,6 +1,9 @@
 import json
 import os
 import stat
+import sys
+
+import pytest
 
 from blacklist_detect.paths import app_dir
 from blacklist_detect.storage import Store
@@ -1068,6 +1071,44 @@ def test_a_cut_short_history_file_is_kept_aside_and_said(tmp_path):
     for broken in ("", '{"scans": [{"names": [{"seat": "一"}]}]}'):
         history.write_text(broken, encoding="utf-8")
         assert "记录文件坏了" in Store(tmp_path).load_warning, broken
+
+
+def _held(path):
+    """The file open in another program that shares it with no one, as a backup or sync tool may hold it."""
+    import ctypes
+    from ctypes import wintypes
+
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.CreateFileW.restype = wintypes.HANDLE
+    handle = kernel.CreateFileW(str(path), 0x80000000, 0, None, 3, 0, None)
+    assert handle != wintypes.HANDLE(-1).value, ctypes.get_last_error()
+    return lambda: kernel.CloseHandle(wintypes.HANDLE(handle))
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="a file held open without sharing is Windows'")
+def test_a_history_file_held_by_another_program_is_not_said_to_be_broken(tmp_path):
+    history = tmp_path / "history.json"
+    scans = {"scans": [{"at": "2020-01-01T00:00:00+00:00", "names": [{"seat": 1, "name": "心动星星"}]}]}
+    history.write_text(json.dumps(scans, ensure_ascii=False), encoding="utf-8")
+    release = _held(history)
+    try:
+        store = Store(tmp_path)
+    finally:
+        release()
+    assert store.scans == [] and store.load_warning == "", "nothing was set aside, so nothing is said"
+    assert not list(tmp_path.glob("*.unreadable-*")) and json.loads(history.read_text(encoding="utf-8")) == scans
+
+
+def test_a_broken_file_that_cannot_be_set_aside_is_not_said_to_be_backed_up(tmp_path, monkeypatch):
+    from blacklist_detect import storage
+
+    for name in ("settings.json", "blacklist.json", "likes.json", "history.json"):
+        (tmp_path / name).write_text("{", encoding="utf-8")
+    monkeypatch.setattr(storage, "_set_aside", lambda _path: None)
+    store = Store(tmp_path)
+    assert store.load_warning == "" and store.entries == [] and store.likes == [] and store.scans == []
+    monkeypatch.undo()
+    assert Store(tmp_path).load_warning.count("已备份") == 4
 
 
 def test_files_saved_with_a_bom_are_read(tmp_path):

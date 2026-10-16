@@ -355,20 +355,24 @@ def _daily_backup(path: Path) -> None:
         pass
 
 
-def _log_set_aside(exc: Exception, backup: Path) -> None:
+def _log_set_aside(exc: Exception, path: Path, backup: Path | None) -> None:
     from blacklist_detect.logs import log
 
-    log.warning("A file could not be read (%s); kept as %s", exc, backup)
+    if backup is None:
+        log.warning("A file could not be read (%s); left as %s, it could not be moved either", exc, path)
+    else:
+        log.warning("A file could not be read (%s); kept as %s", exc, backup)
 
 
-def _set_aside(path: Path) -> Path:
-    """Move an unreadable file out of the way under a new name. Earlier ones are never overwritten."""
+def _set_aside(path: Path) -> Path | None:
+    """Move an unreadable file out of the way under a new name. Earlier ones are never overwritten. None when
+    it cannot be moved (another program holds it open): it is not known to be broken, so nothing is said."""
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     target = path.with_name(f"{path.stem}.unreadable-{stamp}{path.suffix}")
     try:
         path.replace(target)
     except OSError:
-        return path
+        return None
     return target
 
 
@@ -827,8 +831,9 @@ class Store:
             except (OSError, ValueError, AttributeError, TypeError) as exc:
                 self.entries = []
                 backup = _set_aside(self.blacklist_path)
-                _log_set_aside(exc, backup)
-                self.load_warning = "；".join(part for part in (self.load_warning, "黑名单文件坏了，已备份，先用空名单") if part)
+                _log_set_aside(exc, self.blacklist_path, backup)
+                if backup is not None:
+                    self.load_warning = "；".join(part for part in (self.load_warning, "黑名单文件坏了，已备份，先用空名单") if part)
         self._load_likes()
         self._fold_old_settings()
         discovered = False
@@ -873,8 +878,9 @@ class Store:
             except (OSError, json.JSONDecodeError, AttributeError, TypeError, ValueError) as exc:
                 self.scans = []
                 backup = _set_aside(self.history_path)
-                _log_set_aside(exc, backup)
-                self.load_warning = "；".join(part for part in (self.load_warning, "记录文件坏了，已备份，先用空记录") if part)
+                _log_set_aside(exc, self.history_path, backup)
+                if backup is not None:
+                    self.load_warning = "；".join(part for part in (self.load_warning, "记录文件坏了，已备份，先用空记录") if part)
         collapsed = _collapse(self.scans)
         if len(collapsed) != len(self.scans):
             self.scans = collapsed
@@ -915,8 +921,9 @@ class Store:
             self.combos = []
             self.me = Scenes()
             backup = _set_aside(self.likes_path)
-            _log_set_aside(exc, backup)
-            self.load_warning = "；".join(part for part in (self.load_warning, "嘉宾文件坏了，已备份，先用空列表") if part)
+            _log_set_aside(exc, self.likes_path, backup)
+            if backup is not None:
+                self.load_warning = "；".join(part for part in (self.load_warning, "嘉宾文件坏了，已备份，先用空列表") if part)
 
     def _fold_old_settings(self) -> None:
         """Settings saved up to v0.9.14, once, into what took their place: 声音 below 100 into every 场景's own
@@ -1197,12 +1204,13 @@ class Store:
             self._old_scenes_off = settings.get("love_scene") == "off"
         except (OSError, ValueError, AttributeError, TypeError) as exc:
             backup = _set_aside(self.settings_path)
-            _log_set_aside(exc, backup)
+            _log_set_aside(exc, self.settings_path, backup)
             # The songs uploaded in 场景管理 are still in their folder: back in their 场景's, as for a file of v0.9.15's.
             # Saved without them, they would be gone for good.
             unlisted = _scene_sounds(None, custom_sound_dir(self.root), unlisted=True)
             self.scene_sounds = {**unlisted, **self.scene_sounds}
-            self.load_warning = "；".join(part for part in (self.load_warning, "设置文件坏了，已备份，先用默认设置") if part)
+            if backup is not None:
+                self.load_warning = "；".join(part for part in (self.load_warning, "设置文件坏了，已备份，先用默认设置") if part)
 
     def save_scans(self) -> None:
         """Never raises: 记录 are the least of the files, and one that cannot be saved must not cost a check its marks."""
