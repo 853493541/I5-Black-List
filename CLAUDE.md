@@ -122,6 +122,13 @@ whole conversation, and command output and file reads are almost all of what fil
 
 - Agents keep output small: commands with short output (`pytest -q`, `git diff --stat` before a full diff), and
   big files such as `ui.py` read by line range after a grep, never whole.
+- Read less, read once: file reading is about 90 % of what fills an agent. Grep first, read only the lines needed,
+  put several ranges or files in one call, never re-read what is already in the conversation, and for a big file
+  write the parts that matter into a temp note and work from that.
+- Fewer turns: every turn re-reads the agent's whole start (about 60-80k tokens), so independent reads, greps and
+  checks go into one turn, never one small read per turn.
+- No tiny agents: a step shorter than about 10 turns does not get its own agent. Fold it into the brief of the agent
+  that needs it, or continue a running or just-finished agent with SendMessage instead of starting a fresh one.
 - A package is sized to finish in about 50 agent turns. An agent that gets there unfinished commits what works,
   reports what is done, what is next and the commit to continue from, and stops; the master starts a fresh agent
   from that commit.

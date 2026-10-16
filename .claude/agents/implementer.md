@@ -36,6 +36,8 @@ The work:
 - Commit on your branch. A few commits are fine; messages follow CLAUDE.md.
 - Keep output small: `pytest -q`, `git diff --stat` before a full diff, and big files such as `ui.py` read by
   line range after a grep, never whole (CLAUDE.md, "Cost").
+- Read once and batch: several ranges or files in one call, independent reads and checks in one turn, never re-read
+  what is already in the conversation.
 - Screenshots: one `tools/ui_shots.py` pass at the end, light theme at `--scale 150`, and only when your brief
   grants the desktop. The tester makes the full pass; dark theme waits for the release check (CLAUDE.md, "Cost").
 - About 50 turns in and not done: commit what works and stop. Report what is done, what is next, and the commit
