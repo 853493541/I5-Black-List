@@ -1393,6 +1393,10 @@ class MainWindow(QMainWindow):
         self.alert.stop()
         self.stream.enable("")
         self._sync_overlay_target()
+        # 直播模式 off, as 关闭 turns it off: the names show again, and 直播姬 is no longer watched.
+        self._sync_name_hiding()
+        self._stream_watch.stop()
+        self._check_stream_setup()
         self._reload_history()
         self.likes_page.refresh()
 

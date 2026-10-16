@@ -1207,6 +1207,8 @@ def test_reset_asks_before_clearing_everything(qapp, tmp_path, monkeypatch):
     assert window.store.auto_capture is False
     window._set_stream_mode(True)
     assert window.stream_on.isChecked()
+    header = window.blacklist_table.horizontalHeader()
+    assert header.locked and header.names_hidden and window._stream_watch.isActive()
     monkeypatch.setattr("blacklist_detect.ui._confirm", lambda *_args: False)
     window._ask_reset()
     assert [entry.name for entry in window.store.entries] == ["甲"]
@@ -1226,6 +1228,8 @@ def test_reset_asks_before_clearing_everything(qapp, tmp_path, monkeypatch):
     assert window.safe_on.isChecked() is True
     assert window.auto_off.isChecked() is True
     assert window.stream_off.isChecked() and window.store.stream_guided is False
+    # 直播模式 off for the 黑名单 page too: the eye works again, and 直播姬 is no longer watched.
+    assert not header.locked and not header.names_hidden and not window._stream_watch.isActive()
     # Every control that shows a setting goes back with it.
     assert window.status_chip.text() == "手动检查"
     again = Store(window.store.root)
