@@ -8,10 +8,10 @@ last, still, at its best moment, as a scene takes up to a second to make. The sp
 hotkey's: ✓ on the 场景 it plays (at once over the game, with no check: MainWindow.play_quick_scene), and a
 click on another's gives it the hotkey. A ♪ is a 场景 that plays one of the player's songs.
 
-Under the preview, the shown 场景's 配乐: its 音量 and ▶ 播放 (the scene from its start with its music), then
-its choices (SoundChoices: 默认, its own, and up to three songs of the player's, each 上传 from a file, a part
-of it picked in 选择片段 when it is longer than a 场景's sound may be; one is chosen, and 恢复默认 chooses 默认
-again).
+Under the preview, the shown 场景's 配乐: its 音量 and ▶ 播放 (the scene from its start with its music, ⏸ 暂停
+while it plays), then on the left under it its choices (SoundChoices: 默认, its own, and up to three songs of
+the player's, each 上传 from a file, a part of it picked in 选择片段 when it is longer than a 场景's sound may
+be; one is chosen, and 恢复默认 chooses 默认 again), each with its ▶, ⏸ and a moving wave while it plays.
 
 The preview plays only while it can be seen, its window not minimized, and the app is in front: behind the
 game it would paint 30 times a second for nothing. The page lives on in EffectsDialog, made once with the
@@ -26,7 +26,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QSize, Qt, Signal
+from PySide6.QtCore import QEvent, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QFontMetrics, QGuiApplication
 from PySide6.QtWidgets import (
     QApplication,
@@ -53,9 +53,68 @@ from blacklist_detect.sound_import import CLIP_S, SoundImportError
 from blacklist_detect.storage import MAX_SONGS
 from blacklist_detect.ui_kit import _SCROLL_BAR, IconButton, Modal
 from blacklist_detect.ui_love_pick import SceneList, ScenePreview
-from blacklist_detect.ui_music import TUNES, VOLUME_STEP
+from blacklist_detect.ui_music import TUNES, VOLUME_STEP, tune_seconds
 from blacklist_detect.ui_sound_trim import SoundTrimDialog, _glyph
+from blacklist_detect.ui_soundwave import SoundWave, pause_icon
 from blacklist_detect.ui_theme import THEME, _dialog_style, chinese_family, chinese_font
+
+# What ▶ 播放 started, as against a row's sound (its file, "" for 默认).
+_SCENE = "scene"
+
+
+class _Clock:
+    """The preview's clock, as QElapsedTimer's start, isValid and elapsed (ms), that can also stand still: hold
+    stops it where it is, go goes on from there."""
+
+    def __init__(self) -> None:
+        self._began: float | None = None
+        self._held: float | None = None
+
+    def start(self) -> None:
+        self._began, self._held = time.monotonic(), None
+
+    def isValid(self) -> bool:  # noqa: N802
+        return self._began is not None
+
+    def elapsed(self) -> int:
+        if self._began is None:
+            return 0
+        return round(1000 * (self._held if self._held is not None else time.monotonic() - self._began))
+
+    def hold(self) -> None:
+        if self._began is not None and self._held is None:
+            self._held = time.monotonic() - self._began
+
+    def go(self) -> None:
+        if self._held is not None:
+            self._began, self._held = time.monotonic() - self._held, None
+
+    @property
+    def held(self) -> bool:
+        return self._held is not None
+
+
+class _Preview(ScenePreview):
+    """场景管理's preview, which ▶ 播放's 暂停 holds still where the scene is (hold), to go on from there (go)."""
+
+    def __init__(self, width: int) -> None:
+        super().__init__(width=width)
+        self._clock = _Clock()
+
+    @property
+    def held(self) -> bool:
+        return self._clock.held
+
+    def hold(self) -> None:
+        self._clock.hold()
+        self.pause()
+        self.update()
+
+    def go(self, run: bool = True) -> None:  # noqa: FBT001, FBT002
+        """On from where it was held; run: playing now, else once it is in sight again (resume)."""
+        self._clock.go()
+        if run:
+            self.resume(from_start=False)
 
 
 class _ListScroll(QScrollArea):
@@ -176,7 +235,9 @@ class _Choice(QRadioButton):
         return QSize(hint.width() + words + 2, hint.height())
 
     def minimumSizeHint(self) -> QSize:
-        return QSize(self.fontMetrics().horizontalAdvance("…") * 6, super().minimumSizeHint().height())
+        # Six "…" wide, cut that far; a shorter name (默认) only as wide as it is, its ▶ right after it.
+        least = min(self.fontMetrics().horizontalAdvance("…") * 6, self.sizeHint().width())
+        return QSize(least, super().minimumSizeHint().height())
 
     def _fit(self) -> None:
         shown = self.fontMetrics().elidedText(self.full, Qt.ElideMiddle, max(1, self._room() - 2))
@@ -189,13 +250,35 @@ class _Choice(QRadioButton):
         self._fit()
 
 
+class _Listen(IconButton):
+    """▶ beside a sound, ⏸ in the accent while it plays (set_playing)."""
+
+    playing = False
+
+    def __init__(self) -> None:
+        super().__init__("play", "播放")
+
+    def set_playing(self, on: bool) -> None:  # noqa: FBT001
+        if on != self.playing:
+            self.playing = on
+            self.refresh()
+
+    def refresh(self) -> None:
+        if self.playing:
+            self.setIcon(pause_icon(16, THEME["accent"]))
+        else:
+            super().refresh()
+
+
 class SoundChoices(QWidget):
     """场景管理's 配乐: what the shown 场景 may play, one of them chosen like a radio button. 默认 first (the scene's
     own; 经典's is none, 默认（无声）), then each of the player's songs, its name and length, up to MAX_SONGS. Each
     has ▶ (play(file), "" for 默认) and each song ✕ (delete(file)); a click on one, or ↑ and ↓, chooses it
-    (chose(file)), and nothing plays by itself. 上传 and 恢复默认 sit on 默认's row: 上传 is off once there are
-    MAX_SONGS songs, 恢复默认 (back to 默认) shown while a song is chosen. Its rows are made once and shown as there
-    are songs, so after a ✕ the next song is under it: a second click as quick as a double-click's deletes nothing."""
+    (chose(file)), and nothing plays by itself. While a row's sound plays (set_playing) its ▶ is ⏸ and a wave
+    moves at the row's right; paused, it is ▶ again, to go on. 上传 and 恢复默认 sit on 默认's row: 上传 is off
+    once there are MAX_SONGS songs, 恢复默认 (back to 默认) shown while a song is chosen. Its rows are made once and
+    shown as there are songs, so after a ✕ the next song is under it: a second click as quick as a double-click's
+    deletes nothing."""
 
     chose = Signal(str)
     play = Signal(str)
@@ -203,48 +286,60 @@ class SoundChoices(QWidget):
 
     def __init__(self, upload, restore, parent: QWidget | None = None) -> None:  # noqa: ANN001
         super().__init__(parent)
-        grid = QGridLayout(self)
-        grid.setContentsMargins(0, 0, 0, 0)
-        grid.setHorizontalSpacing(6)
-        grid.setVerticalSpacing(4)
-        grid.setColumnStretch(4, 1)
+        column = QVBoxLayout(self)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(4)
         self.group = QButtonGroup(self)
         self.group.setExclusive(True)
         # By row: 默认, then a song in each. files[row] is the file of the song shown there, "" for 默认.
         self.files = [""] * (1 + MAX_SONGS)
         self.choices: list[_Choice] = []
-        self.play_buttons: list[IconButton] = []
+        self.play_buttons: list[_Listen] = []
         self.delete_buttons: list[IconButton] = []
+        self.waves: list[SoundWave] = []
+        self._lines: list[QHBoxLayout] = []
         # When a ✕ last deleted a song (time.monotonic()).
         self._deleted_at = 0.0
         # Whether 默认 plays anything, and whether 静音 is on: under it no ▶ can be pressed, as 选择片段's 试听.
         self._sounds = True
         self._muted = False
+        # The row whose sound ▶ started, None for none, and whether it waits paused.
+        self._playing: int | None = None
+        self._paused = False
+        self.upload_button = _button("上传", upload)
+        self.upload_button.setAccessibleName("上传配乐")
+        self.reset_button = _button("恢复默认", restore)
+        self.reset_button.setAccessibleName("恢复默认配乐")
         for row in range(1 + MAX_SONGS):
+            # Each row packed on the left from its name, as 配乐's above; its wave at the right.
+            line = QHBoxLayout()
+            line.setSpacing(6)
+            column.addLayout(line)
+            self._lines.append(line)
             choice = _Choice()
             choice.clicked.connect(lambda _checked=False, row=row: self.chose.emit(self.files[row]))
             choice.installEventFilter(self)
             self.group.addButton(choice)
-            grid.addWidget(choice, row, 0)
-            listen = IconButton("play", "播放")
+            line.addWidget(choice)
+            listen = _Listen()
             listen.clicked.connect(lambda _checked=False, row=row: self.play.emit(self.files[row]))
-            grid.addWidget(listen, row, 1)
+            line.addWidget(listen)
             self.choices.append(choice)
             self.play_buttons.append(listen)
             if row:
                 gone = IconButton("close", "删掉这首")
                 gone.clicked.connect(lambda _checked=False, row=row: self._gone(row))
-                grid.addWidget(gone, row, 2)
+                line.addWidget(gone)
                 self.delete_buttons.append(gone)
-        self.upload_button = _button("上传", upload)
-        self.upload_button.setAccessibleName("上传配乐")
-        self.reset_button = _button("恢复默认", restore)
-        self.reset_button.setAccessibleName("恢复默认配乐")
-        reset = QHBoxLayout()
-        reset.setSpacing(10)
-        reset.addWidget(self.upload_button)
-        reset.addWidget(self.reset_button)
-        grid.addLayout(reset, 0, 2, 1, 3, Qt.AlignLeft)
+            else:
+                line.addSpacing(4)
+                line.addWidget(self.upload_button)
+                line.addSpacing(4)
+                line.addWidget(self.reset_button)
+            line.addStretch(1)
+            wave = SoundWave()
+            line.addWidget(wave, 0, Qt.AlignVCenter)
+            self.waves.append(wave)
 
     def set_sounds(self, default: str, sounds: bool, songs: list[dict], chosen: str, room: int = 0) -> None:
         """default: what 默认 is called; sounds: whether it plays anything. songs: the 场景's, oldest first, each
@@ -266,21 +361,39 @@ class SoundChoices(QWidget):
         self.upload_button.setEnabled(not full)
         self.upload_button.setToolTip(f"最多 {MAX_SONGS} 首，先删掉一首" if full else "")
         self.reset_button.setVisible(picked != 0)
+        # Each row's own layout measured anew now, not once it is next laid out: the page keeps its size by
+        # what this says it needs (EffectsPage._sync_rows), and a row's layout keeps its last measure until then.
+        for line in self._lines:
+            line.invalidate()
+        self.updateGeometry()
 
     def song_row_height(self) -> int:
         """How much taller a song's row makes 配乐: the tallest of its choice, ▶ and ✕, and the gap above it."""
         parts = (self.choices[1], self.play_buttons[1], self.delete_buttons[0])
-        return max(part.sizeHint().height() for part in parts) + self.layout().verticalSpacing()
+        return max(part.sizeHint().height() for part in parts) + self.layout().spacing()
 
     def set_muted(self, muted: bool) -> None:
         """设置's 静音 on or off: under it every ▶ is off, saying 已静音."""
         self._muted = muted
         self._sync_play()
 
+    def set_playing(self, file: str | None, paused: bool = False) -> None:  # noqa: FBT001, FBT002
+        """The row of file ("" for 默认) as ▶ started its sound: playing, ⏸ and its wave moving, or paused, ▶ to go
+        on where it stopped; None: every row ▶, no wave."""
+        self._playing = self.files.index(file) if file is not None and file in self.files else None
+        self._paused = paused
+        self._sync_play()
+
     def _sync_play(self) -> None:
         for row, button in enumerate(self.play_buttons):
+            mine = row == self._playing and not self._muted
+            playing = mine and not self._paused
             button.setEnabled(not self._muted and (row > 0 or self._sounds))
-            button.setToolTip("已静音" if self._muted else "播放")
+            button.set_playing(playing)
+            tip = "已静音" if self._muted else "暂停" if playing else "接着播放" if mine else "播放"
+            button.setToolTip(tip)
+            button.setAccessibleName(tip)
+            self.waves[row].run(playing)
 
     def chosen(self) -> str:
         """The file of the one checked, "" for 默认."""
@@ -315,8 +428,12 @@ class SoundChoices(QWidget):
 
 class EffectsPage(QWidget):
     """What 场景管理 shows. scenes.key is the 场景 shown, store.quick_scene the hotkey's; hotkey_box is the
-    window's box for the 场景 hotkey. sounding: the music playing is the one ▶ started, which stops as the page
-    goes out of sight."""
+    window's box for the 场景 hotkey.
+
+    One sound at a time plays from its ▶s: ▶ 播放's (the scene and its music) or a row's. While one plays its
+    ▶ is ⏸ 暂停, which stops it where it is, the scene held still, and ▶ goes on with both from there (winsound
+    cannot pause: the sound from that moment on is played). It ends by itself after its length; another ▶,
+    another 场景 shown, 静音, closing the dialog or minimizing its window ends it too, every ▶ ▶ again."""
 
     # The preview's width, the sample lobby's shape kept: as wide as 嘉宾场景's.
     PREVIEW_W = 448
@@ -325,7 +442,19 @@ class EffectsPage(QWidget):
         super().__init__(parent)
         self.store = store
         self.music = music
-        self.sounding = False
+        # What ▶ started: _SCENE for ▶ 播放, a row's file ("" for 默认), None for nothing. It plays, or with
+        # _paused_at it waits paused that many seconds in. _began: when it would have started, played on from
+        # its start (time.monotonic()); _length: how long it plays; _music_s: how long 播放's music is.
+        self._what: str | None = None
+        self._paused_at: float | None = None
+        self._began = 0.0
+        self._length = 0.0
+        self._music_s = 0.0
+        self._sounding = False
+        # Its end, timed from its length: winsound says nothing as a sound ends.
+        self._end = QTimer(self)
+        self._end.setSingleShot(True)
+        self._end.timeout.connect(lambda: self._settle(stop=False))
         self.held = False
         # The 场景 a note about its 配乐 was said for: it goes as another is shown.
         self._told = ""
@@ -345,7 +474,7 @@ class EffectsPage(QWidget):
         side = QVBoxLayout()
         side.setSpacing(16)
         body.addLayout(side)
-        self.preview = ScenePreview(width=self.PREVIEW_W)
+        self.preview = _Preview(self.PREVIEW_W)
         side.addWidget(self.preview)
         # The shown 场景's 配乐 right under the preview: its 音量 and ▶ 播放, then its choices.
         below = QWidget()
@@ -380,7 +509,7 @@ class EffectsPage(QWidget):
         self.level_note.setObjectName("rowHint")
         volume.addWidget(self.level_note)
         volume.addStretch(1)
-        # ▶ 播放: the scene from its start in the preview, with its music.
+        # ▶ 播放: the scene from its start in the preview, with its music; ⏸ 暂停 while it plays.
         self.play_button = _button("播放", self.play_preview, primary=True)
         self.play_button.setAccessibleName("播放场景和配乐")
         self.play_button.setIconSize(QSize(12, 12))
@@ -394,7 +523,8 @@ class EffectsPage(QWidget):
         self.sounds.delete.connect(self._delete)
         self.upload_button = self.sounds.upload_button
         self.reset_button = self.sounds.reset_button
-        rows.addWidget(self.sounds, 1, 1)
+        # On the left, under 配乐 itself.
+        rows.addWidget(self.sounds, 1, 0, 1, 2)
         # What became of a 配乐 uploaded, under them. Its room is kept while it is hidden.
         self.sound_note = QLabel(" ")
         self.sound_note.setObjectName("rowHint")
@@ -403,7 +533,7 @@ class EffectsPage(QWidget):
         policy.setRetainSizeWhenHidden(True)
         self.sound_note.setSizePolicy(policy)
         self.sound_note.hide()
-        rows.addWidget(self.sound_note, 2, 1)
+        rows.addWidget(self.sound_note, 2, 0, 1, 2)
         # The room kept for songs another 场景 has (_sync_rows): here at the foot, not between the songs.
         self.spare = QWidget()
         self.spare.setFixedHeight(0)
@@ -417,6 +547,7 @@ class EffectsPage(QWidget):
 
     def select(self, key: str) -> None:
         """Show this scene, still, ✓ and ♪ as the store has them (after 清空数据), without saving."""
+        self._settle()
         self.scenes.select(key)
         self._sync_marks()
         self._sync_rows()
@@ -427,10 +558,8 @@ class EffectsPage(QWidget):
         """A click on a scene: it is shown, and plays quietly, the music ▶ started stopped. A play over the
         game keeps its music; the hotkey's 场景 stays as it was. One not made yet is made just after the click
         is seen."""
+        self._settle()
         self.preview.show_scene(self.scenes.key)
-        if self.sounding and self.music is not None:
-            self.music.stop()
-        self.sounding = False
         if self._told and self._told != self.scenes.key:
             self._tell("")
         self._sync_rows()
@@ -443,11 +572,90 @@ class EffectsPage(QWidget):
 
     def play_preview(self) -> None:
         """▶ 播放: the scene from its start in the preview, with its music, which takes over from a play's
-        over the game."""
-        self.preview.show_scene(self.scenes.key, now=True)
-        if self.music is not None:
-            self.music.preview(self.scenes.key)
-            self.sounding = True
+        over the game; while they play, 暂停, and ▶ again goes on with them from where they were."""
+        if self._what == _SCENE:
+            self._toggle()
+            return
+        self._settle()
+        key = self.scenes.key
+        self.preview.show_scene(key, now=True)
+        started = self.music is not None and bool(self.music.preview(key))
+        self._music_s = tune_seconds(self.music.tune_of(key)) if started else 0.0
+        self._run(_SCENE, 0.0, max(love_scenes.load(self.preview.scene).DURATION, self._music_s), started)
+
+    # What ▶ started: one sound at a time, played, paused and played on.
+    @property
+    def sounding(self) -> bool:
+        """The music playing is the one a ▶ here started, which stops as the page goes out of sight. The window
+        sets it False as the music becomes another's (a lobby's, the 场景 hotkey's): every ▶ is ▶ again."""
+        return self._sounding
+
+    @sounding.setter
+    def sounding(self, on: bool) -> None:
+        if on:
+            self._sounding = True
+        else:
+            self._settle(stop=False)
+
+    def _run(self, what: str, at: float, length: float, sounding: bool) -> None:  # noqa: FBT001
+        """what plays from at seconds in, to its end after length."""
+        self._what, self._paused_at, self._sounding = what, None, sounding
+        self._began = time.monotonic() - at
+        self._length = length
+        self._end.start(max(0, round((length - at) * 1000)))
+        self._show_playing()
+
+    def _toggle(self) -> None:
+        """⏸ on what plays: stopped where it is, 播放's scene held still there. ▶ on it paused: on from there."""
+        if self._paused_at is None:
+            at = min(time.monotonic() - self._began, self._length)
+            if self._sounding and self.music is not None:
+                self.music.stop()
+            self._sounding = False
+            self._end.stop()
+            if self._what == _SCENE:
+                self.preview.hold()
+            self._paused_at = at
+            self._show_playing()
+            return
+        what, at = self._what, self._paused_at
+        if what == _SCENE:
+            self.preview.go(run=self._seen())
+            started = self.music is not None and at < self._music_s and bool(self.music.preview(self.scenes.key, at=at))
+        else:
+            started = self._song(what, at)
+            if not started:
+                self._settle()
+                return
+        self._run(what, at, self._length, started)
+
+    def _settle(self, stop: bool = True) -> None:  # noqa: FBT001, FBT002
+        """Nothing a ▶ here started plays or waits paused: 播放 and every row's ▶ are ▶ again, no wave moves,
+        a scene held still goes on, and with stop the music a ▶ started is stopped."""
+        if stop and self._sounding and self.music is not None:
+            self.music.stop()
+        held = self.preview.held
+        self._what, self._paused_at, self._sounding = None, None, False
+        self._end.stop()
+        if held:
+            self.preview.go(run=self._seen())
+        self._show_playing()
+
+    def _show_playing(self) -> None:
+        """播放 and each row's ▶ as what a ▶ started is now: ⏸ 暂停 on the one playing, ▶ on the rest."""
+        muted = self.music is not None and self.music.muted
+        playing = self._what == _SCENE and self._paused_at is None
+        self.play_button.setText("暂停" if playing else "播放")
+        self.play_button.setAccessibleName("暂停场景和配乐" if playing else "播放场景和配乐")
+        if muted:
+            tip = "已静音"
+        elif playing:
+            tip = "暂停"
+        else:
+            tip = "接着播放" if self._what == _SCENE else "从头播放，带配乐"
+        self.play_button.setToolTip(tip)
+        self._paint_play()
+        self.sounds.set_playing(None if self._what in (None, _SCENE) else self._what, self._paused_at is not None)
 
     def say(self, text: str, held: bool = False) -> None:
         """A note under the hotkey. held: it is about the hotkey as it stands (another program has its key,
@@ -505,16 +713,20 @@ class EffectsPage(QWidget):
         self.sync_sound()
 
     def sync_sound(self) -> None:
-        """The note beside 音量, ▶ 播放 and the ▶ of each sound as 设置's 静音 is now: that nothing is heard."""
+        """The note beside 音量, ▶ 播放 and the ▶ of each sound as 设置's 静音 is now: that nothing is heard, and
+        nothing a ▶ started plays on."""
         muted = self.music is not None and self.music.muted
+        if muted and self._what is not None:
+            self._settle()
         self.level_note.setText("已静音" if muted and self.volume_slider.isEnabled() else "")
         self.play_button.setEnabled(not muted)
-        self.play_button.setToolTip("已静音" if muted else "从头播放，带配乐")
         self.sounds.set_muted(muted)
+        self._show_playing()
 
     def _paint_play(self) -> None:
-        """▶ on 播放 in the colour of its words, as the theme has it."""
-        self.play_button.setIcon(_glyph("play", 12, THEME["on_accent"]))
+        """▶ on 播放, ⏸ while it plays, in the colour of its words, as the theme has it."""
+        playing = self._what == _SCENE and self._paused_at is None
+        self.play_button.setIcon(_glyph("pause" if playing else "play", 12, THEME["on_accent"]))
 
     def _on_volume(self, step: int) -> None:
         """音量 moved: the shown 场景 plays this loud from now on. Dragged, it is saved and heard once let go
@@ -540,10 +752,25 @@ class EffectsPage(QWidget):
         self._sync_rows()
 
     def _listen(self, file: str) -> None:
-        """▶ beside 默认 or a song: it whole, at the 场景's 音量, chosen or not. It stops as the page goes."""
+        """▶ beside 默认 or a song: it whole, at the 场景's 音量, chosen or not, in place of whatever a ▶ here
+        started; ⏸ while it plays, and ▶ again on from there. It stops as the page goes."""
         if self.music is None:
             return
-        self.sounding = self.music.song(self.scenes.key, custom_sound_dir(self.store.root) / file if file else None)
+        if self._what == file:
+            self._toggle()
+            return
+        # The new sound takes the last one's place, or stops it if it has none to play.
+        self._settle(stop=False)
+        if self._song(file, 0.0):
+            self._run(file, 0.0, tune_seconds(self._song_path(file)), True)
+
+    def _song_path(self, file: str) -> Path | None:
+        """Where a row's sound is: the player's song, or for 默认 ("") the scene's own (经典's none)."""
+        return custom_sound_dir(self.store.root) / file if file else TUNES.get(self.scenes.key)
+
+    def _song(self, file: str, at: float) -> bool:
+        """A row's sound from at seconds on; False when nothing plays (静音, 0%, 经典's 默认)."""
+        return self.music.song(self.scenes.key, self._song_path(file), at=at)
 
     def _delete(self, file: str) -> None:
         """✕ beside a song: it gone, its file and its copies too, and 默认 played if it was the one chosen."""
@@ -694,9 +921,10 @@ class EffectsPage(QWidget):
         return self.isVisible() and not window.isMinimized() and not (host is not None and host.window().isMinimized())
 
     def _show(self) -> None:
-        """Back in sight: a scene playing plays again from its start, or, while ▶'s music plays on, where the
-        music is; a still stays still."""
-        self.preview.resume(from_start=not self.sounding)
+        """Back in sight: a scene playing plays again from its start, or, while ▶ 播放's plays on, where it is
+        with its music; one paused stays where it was, and a still stays still."""
+        if not self.preview.held:
+            self.preview.resume(from_start=self._what != _SCENE)
 
     def _app_state(self, state) -> None:  # noqa: ANN001
         """With the game in front, the preview rests; it plays again as the app comes back."""
@@ -720,10 +948,8 @@ class EffectsPage(QWidget):
             self._paint_play()
 
     def hideEvent(self, event) -> None:  # noqa: ANN001
+        self._settle()
         self.preview.rest()
-        if self.sounding and self.music is not None:
-            self.music.stop()
-        self.sounding = False
         super().hideEvent(event)
 
 
@@ -744,6 +970,8 @@ class EffectsDialog(Modal):
     def eventFilter(self, watched, event) -> bool:  # noqa: ANN001
         if event.type() == QEvent.Type.WindowStateChange and watched is self.parentWidget().window():
             if watched.isMinimized():
+                # Nothing a ▶ started plays on behind it.
+                self.page._settle()
                 self.page.preview.pause()
             elif self.page._seen():
                 self.page._show()

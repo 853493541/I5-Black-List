@@ -14,7 +14,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 pytest.importorskip("PySide6")
 
-from PySide6.QtCore import QPoint, Qt  # noqa: E402
+from PySide6.QtCore import QEvent, QPoint, Qt  # noqa: E402
 from PySide6.QtTest import QTest  # noqa: E402
 from PySide6.QtWidgets import (  # noqa: E402
     QApplication,
@@ -607,6 +607,130 @@ def test_each_row_s_play_plays_it_at_the_effect_s_volume_chosen_or_not(window, p
     assert page.sounds.play_buttons[1].isEnabled() and page.sounds.play_buttons[1].toolTip() == "播放"
     _shown(window, "classic")
     assert not page.sounds.play_buttons[0].isEnabled()
+
+
+class _Clock:
+    """time.monotonic for the page, moved by hand."""
+
+    def __init__(self) -> None:
+        self.now = 100.0
+
+    def monotonic(self) -> float:
+        return self.now
+
+
+@pytest.fixture
+def clock(monkeypatch):  # noqa: ANN201
+    from blacklist_detect import ui_effects
+
+    made = _Clock()
+    monkeypatch.setattr(ui_effects, "time", made)
+    return made
+
+
+def test_play_becomes_pause_and_goes_on_from_where_it_was(window, clock):
+    """▶ 播放 is ⏸ 暂停 while the scene and its music play: a click holds the scene still and stops the music
+    there, ▶ again goes on with both from that moment, and once over it is ▶ 播放, from the start next time."""
+    page = _shown(window, "ice")
+    window.played.clear()
+    page.play_button.click()
+    assert page.play_button.text() == "暂停" and page.play_button.toolTip() == "暂停" and page.sounding
+    assert window.played[-1] == TUNES["ice"] and page._end.isActive() and page._end.interval() == 5000
+    clock.now += 1.2
+    page.play_button.click()
+    assert page.play_button.text() == "播放" and page.play_button.toolTip() == "接着播放" and not page.sounding
+    assert window.played[-1] is None and page.preview.held and not page.preview._tick.isActive() and not page._end.isActive()
+    # Paused as long as the player likes: the scene stays where it was.
+    clock.now += 30
+    assert page.preview._clock.elapsed() == 1200
+    page.play_button.click()
+    assert page.play_button.text() == "暂停" and window.played[-1].name.endswith("-at1200ms.wav") and page.sounding
+    assert not page.preview.held and page.preview._clock.elapsed() == 1200 and page._end.interval() == 3800
+    # Over by itself: ▶ 播放 again, and the next play is from the start.
+    page._end.timeout.emit()
+    assert page.play_button.text() == "播放" and page.play_button.toolTip() == "从头播放，带配乐" and not page.sounding
+    page.play_button.click()
+    assert window.played[-1] == TUNES["ice"] and page.preview._clock.elapsed() == 0
+    # Another 场景 shown: ▶ 播放 again, nothing playing.
+    window.played.clear()
+    _shown(window, "stars")
+    assert page.play_button.text() == "播放" and window.played == [None] and not page._end.isActive()
+
+
+def test_each_sound_s_play_pauses_it_with_a_wave_beside_it_one_at_a_time(window, pick, trim, tmp_path, clock):
+    page = _shown(window, "stars")
+    for name in ("a.wav", "b.wav"):
+        pick["chosen"] = _wav(tmp_path / name, 2.0)
+        page.upload_button.click()
+    rows, waves = page.sounds.play_buttons, page.sounds.waves
+    window.played.clear()
+    rows[1].click()
+    assert rows[1].playing and rows[1].toolTip() == "暂停" and window.played[-1].name == "stars-1.wav"
+    assert [wave.running for wave in waves] == [False, True, False, False] and not waves[1].isHidden()
+    assert page._end.interval() == 2000 and page.play_button.text() == "播放"
+    # ⏸: stopped where it is, its wave gone; ▶: on from there.
+    clock.now += 0.5
+    rows[1].click()
+    assert not rows[1].playing and rows[1].toolTip() == "接着播放" and window.played[-1] is None
+    assert not waves[1].running and waves[1].isHidden() and not page._end.isActive()
+    rows[1].click()
+    assert window.played[-1].name.endswith("-at500ms.wav") and waves[1].running and page._end.interval() == 1500
+    # One at a time: another row, 默认 or ▶ 播放 stops the last, and its wave.
+    rows[2].click()
+    assert [wave.running for wave in waves] == [False, False, True, False] and rows[1].toolTip() == "播放"
+    rows[0].click()
+    assert [wave.running for wave in waves] == [True, False, False, False] and window.played[-1] == TUNES["stars"]
+    page.play_button.click()
+    assert not any(wave.running for wave in waves) and page.play_button.text() == "暂停"
+    rows[2].click()
+    assert page.play_button.text() == "播放" and waves[2].running
+    # Over by itself: ▶ again, the wave still.
+    page._end.timeout.emit()
+    assert not any(wave.running for wave in waves) and not any(button.playing for button in rows) and not page.sounding
+    # ✕ on the song playing stops it first.
+    rows[1].click()
+    window.played.clear()
+    page.sounds.delete_buttons[0].click()
+    assert window.played[0] is None and not any(wave.running for wave in waves) and _rows(page) == ["默认", "b.wav · 2.0 秒"]
+
+
+def test_mute_closing_minimizing_and_the_window_s_music_put_every_play_back(window, pick, trim, tmp_path, clock):
+    window.show()
+    window._show_scene_manager()
+    page = _shown(window, "stars")
+    pick["chosen"] = _wav(tmp_path / "a.wav", 2.0)
+    page.upload_button.click()
+    rows, waves = page.sounds.play_buttons, page.sounds.waves
+    # 静音: every ▶ off saying so, no wave, nothing playing.
+    rows[1].click()
+    window.mute_box.click()
+    assert not any(wave.running or not wave.isHidden() for wave in waves) and window.played[-1] is None
+    assert rows[1].toolTip() == "已静音" and not rows[1].playing and not page.sounding
+    window.mute_box.click()
+    assert rows[1].toolTip() == "播放"
+    # The window's music taking over (a lobby's, the 场景 hotkey's): ▶ 播放 again.
+    page.play_button.click()
+    page.sounding = False
+    assert page.play_button.text() == "播放" and not page._end.isActive()
+    # A row started while the scene waits paused: the scene goes on, quietly.
+    page.play_button.click()
+    page.play_button.click()
+    assert page.preview.held
+    rows[1].click()
+    assert not page.preview.held and page.preview._tick.isActive() and waves[1].running
+    # Closed: nothing plays, no wave moves, and it opens on ▶.
+    window.played.clear()
+    window.scenes_dialog.reject()
+    assert window.played == [None] and not waves[1].running and not rows[1].playing and not page._end.isActive()
+    # Its window minimized (as Windows tells it, without minimizing the real one): the same.
+    window._show_scene_manager()
+    rows[1].click()
+    window.isMinimized = lambda: True
+    QApplication.sendEvent(window, QEvent(QEvent.Type.WindowStateChange))
+    assert not waves[1].running and not rows[1].playing and window.played[-1] is None
+    del window.isMinimized
+    window.scenes_dialog.reject()
+    window.hide()
 
 
 def test_upload_is_off_at_three_songs_until_one_is_deleted(window, pick, trim, tmp_path):

@@ -50,10 +50,13 @@ VOLUME_STEP = 5
 # What 音量's slider plays as it is let go: a moment of the 场景's sound, this long, fading out.
 SAMPLE_S = 1.5
 SAMPLE_FADE_S = 0.25
+# A sound paused in 场景管理 goes on from where it was, as a copy cut from there, rising over this long (no click).
+RESUME_FADE_S = 0.015
 # The same 嘉宾 players found again this soon are the same lobby, checked again: no second tune.
 SAME_LOBBY_S = 60.0
-# A quieter copy's name: volume, the tune's name, its file's size and time, and for a moment its length.
-_COPY = re.compile(r"(\d+)-(.+)-(\d+)-(\d+)(-\d+ms)?\.wav")
+# A quieter copy's name: volume, the tune's name, its file's size and time, for a moment its length, and for
+# the rest of it from a moment on (a sound paused, played on) where it starts.
+_COPY = re.compile(r"(\d+)-(.+)-(\d+)-(\d+)(-\d+ms)?(-at\d+ms)?\.wav")
 
 
 def sound_dir() -> Path:
@@ -61,32 +64,40 @@ def sound_dir() -> Path:
     return app_dir() / "sounds"
 
 
-def scaled_tune(path: Path, volume: int, folder: Path, seconds: float | None = None) -> Path | None:
-    """The tune at volume percent of its loudness, and with seconds only its start, fading out: a copy
-    with its samples scaled, made once in folder and named for the file and the volume. The whole tune at
-    100% is the file itself. None when no copy can be made: better nothing than a tune too loud. As one is
-    made, the same tune's copies of that length at another volume, its copies of an older file (an update
-    rewrites every tune, a player's own sound is replaced) and copies left half written are dropped, so the
-    folder holds each tune as it is now, at its own volume."""
-    if volume >= 100 and seconds is None:
+def scaled_tune(path: Path, volume: int, folder: Path, seconds: float | None = None, start: float = 0.0) -> Path | None:
+    """The tune at volume percent of its loudness, and with seconds only its start, fading out, or with start
+    what comes from that many seconds on, rising softly: a copy with its samples scaled, made once in folder
+    and named for the file and the volume. The whole tune at 100% is the file itself. None when no copy can
+    be made: better nothing than a tune too loud. As one is made, the same tune's copies of that length at
+    another volume (from a moment on: every other such copy), its copies of an older file (an update rewrites
+    every tune, a player's own sound is replaced) and copies left half written are dropped, so the folder
+    holds each tune as it is now, at its own volume."""
+    if volume >= 100 and seconds is None and start <= 0:
         return path
     try:
         stat = path.stat()
         length = f"-{round(seconds * 1000)}ms" if seconds is not None else ""
+        at = f"-at{round(start * 1000)}ms" if start > 0 else ""
         current = f"{stat.st_size}-{stat.st_mtime_ns}"
-        made = folder / f"{volume}-{path.stem}-{current}{length}.wav"
+        made = folder / f"{volume}-{path.stem}-{current}{length}{at}.wav"
         if made.is_file():
             return made
         with wave.open(str(path)) as source:
             params = source.getparams()
             if params.sampwidth != 2:
                 return None
-            frames = params.nframes if seconds is None else min(params.nframes, round(seconds * params.framerate))
+            skip = min(params.nframes, round(start * params.framerate))
+            source.setpos(skip)
+            rest = params.nframes - skip
+            frames = rest if seconds is None else min(rest, round(seconds * params.framerate))
             samples = np.frombuffer(source.readframes(frames), dtype="<i2").astype(np.float64)
         samples *= volume / 100
         if seconds is not None:
             fade = min(len(samples) // params.nchannels, round(SAMPLE_FADE_S * params.framerate))
             samples[len(samples) - fade * params.nchannels :] *= np.repeat(np.linspace(1.0, 0.0, fade), params.nchannels)
+        if at:
+            rise = min(len(samples) // params.nchannels, round(RESUME_FADE_S * params.framerate))
+            samples[: rise * params.nchannels] *= np.repeat(np.linspace(0.0, 1.0, rise), params.nchannels)
         folder.mkdir(parents=True, exist_ok=True)
         for old in folder.iterdir():
             # A .part (or anything else no copy's name) goes; another tune's copy stays.
@@ -96,7 +107,7 @@ def scaled_tune(path: Path, volume: int, folder: Path, seconds: float | None = N
             elif copy[2] != path.stem:
                 stale = False
             else:
-                stale = f"{copy[3]}-{copy[4]}" != current or (copy[5] or "") == length
+                stale = f"{copy[3]}-{copy[4]}" != current or ((copy[5] or "") == length and bool(copy[6]) == bool(at))
             if stale:
                 try:
                     old.unlink()
@@ -142,6 +153,17 @@ def play_tune(path: Path | None) -> None:
             winsound.PlaySound(str(path), winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT)
     except Exception:
         pass
+
+
+def tune_seconds(path: Path | None) -> float:
+    """How long a tune plays, in seconds: 0 for none, or one that cannot be read."""
+    if path is None:
+        return 0.0
+    try:
+        with wave.open(str(path)) as source:
+            return source.getnframes() / source.getframerate()
+    except (OSError, EOFError, wave.Error, ZeroDivisionError):
+        return 0.0
 
 
 class ThemeMusic:
@@ -223,20 +245,25 @@ class ThemeMusic:
             return ""
         return self.preview(scene)
 
-    def preview(self, scene: str) -> str:
-        """Play a scene's sound now; with none, or muted, stop whatever is playing."""
+    def preview(self, scene: str, at: float = 0.0) -> str:
+        """Play a scene's sound now, with at from that many seconds on (场景管理's ▶ 播放 paused, played on);
+        with none, or muted, stop whatever is playing."""
         tune = self.pick(scene)
-        return tune if self._start(self._tune(tune), self.level(tune)) else ""
+        return tune if self._start(self._tune(tune), self.level(tune), start=at) else ""
+
+    def tune_of(self, scene: str) -> Path | None:
+        """The file a 场景's sound plays from: the player's song chosen, else its own; None for none (经典)."""
+        return self._tune(scene)
 
     def taste(self, scene: str) -> bool:
         """A moment of a 场景's sound as loud as it plays, for its 音量 in 场景管理."""
         return self._start(self._tune(scene), self.level(scene), SAMPLE_S)
 
-    def song(self, scene: str, path: Path | None = None) -> bool:
+    def song(self, scene: str, path: Path | None = None, at: float = 0.0) -> bool:
         """One of a 场景's sounds whole, chosen or not, as loud as that 场景 plays (▶ beside it in 场景管理): the
-        player's song at path, or with None its 默认, the scene's own (经典's none). drop takes a song's copies
-        with it as it is deleted."""
-        return self._start(path if path is not None else TUNES.get(scene), self.level(scene))
+        player's song at path, or with None its 默认, the scene's own (经典's none); with at, from that many
+        seconds on (paused, played on). drop takes a song's copies with it as it is deleted."""
+        return self._start(path if path is not None else TUNES.get(scene), self.level(scene), start=at)
 
     def trial(self, path: Path, scene: str) -> bool:
         """A sound not yet a 场景's (选择片段's 试听), as loud as that 场景 plays: its quieter copy is made
@@ -254,9 +281,9 @@ class ThemeMusic:
         self._play(tune)
         return tune is not None
 
-    def _start(self, tune: Path | None, volume: int, seconds: float | None = None) -> bool:
+    def _start(self, tune: Path | None, volume: int, seconds: float | None = None, start: float = 0.0) -> bool:
         if tune is not None and not self.muted and volume > 0:
-            tune = scaled_tune(tune, volume, self._folder or sound_dir(), seconds)
+            tune = scaled_tune(tune, volume, self._folder or sound_dir(), seconds, start)
         else:
             tune = None
         self._play(tune)

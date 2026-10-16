@@ -11,7 +11,7 @@ import pytest
 from blacklist_detect import love_scenes
 from blacklist_detect.model import Scenes
 from blacklist_detect.sound_import import RATE, Decoded, save_rest
-from blacklist_detect.ui_music import SAME_LOBBY_S, SAMPLE_S, TUNES, ThemeMusic, scaled_tune
+from blacklist_detect.ui_music import _COPY, RESUME_FADE_S, SAME_LOBBY_S, SAMPLE_S, TUNES, ThemeMusic, scaled_tune, tune_seconds
 
 
 class Clock:
@@ -369,6 +369,37 @@ def test_a_moment_is_the_tune_s_start_fading_out(tmp_path):
     assert np.abs(samples[-200:]).max() < np.abs(samples[:head]).max() / 20
     whole = scaled_tune(tune, 100, tmp_path, SAMPLE_S)
     assert whole != tune and len(_samples(whole)[1]) == len(samples)
+
+
+def test_a_sound_played_on_after_a_pause_is_the_rest_of_it_rising_softly(tmp_path):
+    """场景管理's ⏸ then ▶: winsound cannot pause, so the sound goes on as a copy of the rest of it from where it
+    was, at its volume, at 100% too, its first moment rising so it starts without a click. Each one made takes
+    the last one's place; the whole tune's copy stays."""
+    tune = TUNES["ice"]
+    params, original = _samples(tune)
+    whole = scaled_tune(tune, 60, tmp_path)
+    rest = scaled_tune(tune, 60, tmp_path, start=1.5)
+    assert rest.name.endswith("-at1500ms.wav") and _COPY.fullmatch(rest.name)[2] == tune.stem
+    _, samples = _samples(rest)
+    skip = round(1.5 * params.framerate)
+    assert len(samples) == len(original) - skip
+    rise = round(RESUME_FADE_S * params.framerate)
+    assert np.abs(samples[rise:] - np.rint(original[skip + rise :] * 0.6)).max() <= 1
+    assert abs(samples[0]) <= 1 and np.abs(samples[:rise]).max() <= np.abs(original[skip : skip + rise]).max() * 0.6 + 1
+    loud = scaled_tune(tune, 100, tmp_path, start=2.0)
+    assert loud != tune and len(_samples(loud)[1]) == len(original) - 2 * params.framerate
+    assert sorted(tmp_path.iterdir()) == sorted([whole, loud])
+    assert tune_seconds(tune) == pytest.approx(len(original) / params.framerate) and tune_seconds(tmp_path / "gone.wav") == 0.0
+
+
+def test_the_preview_and_a_row_play_on_from_where_they_were(tmp_path):
+    music, played, _clock = _managed(tmp_path, {"stars": (None, 50)})
+    assert music.preview("stars", at=2.0) == "stars" and played[-1].name.endswith("-at2000ms.wav")
+    assert played[-1].name.startswith(f"50-{TUNES['stars'].stem}-")
+    assert music.song("stars", at=1.25) and played[-1].name.endswith("-at1250ms.wav")
+    assert music.tune_of("stars") == TUNES["stars"] and music.tune_of("classic") is None
+    music.muted = True
+    assert music.preview("stars", at=2.0) == "" and played[-1] is None
 
 
 def test_music_plays_at_its_volume_and_not_at_all_muted(tmp_path):

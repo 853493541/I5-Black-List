@@ -136,6 +136,10 @@ def test_scene_manager_with_three_songs_fits_a_short_screen_without_scrolling(wi
     assert dialog.scroll is None and _card_height(dialog) <= SHORT - 8
     assert page.preview.width() == page.PREVIEW_W and page.note.isVisibleTo(page) and page.level_note.text() == "已静音"
     window.mute_box.click()
+    # The last song playing, its wave at its row's right: no taller.
+    height = _card_height(dialog)
+    page.sounds.play_buttons[3].click()
+    assert page.sounds.waves[3].isVisibleTo(page) and _card_height(dialog) == height
 
 
 def test_more_scenes_scroll_in_their_column_and_no_dialog_grows(window, monkeypatch):
