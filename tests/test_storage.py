@@ -602,11 +602,12 @@ def test_the_old_sound_volume_is_folded_into_every_scene_s_own_once(tmp_path):
     loaded = Store(tmp_path)
     assert loaded.load_warning == "" and loaded.theme == "紫色"
     expected = {key: {"volume": 60} for key in love_scenes.KEYS}
-    expected.update(stars={"volume": 30}, neon={"volume": 60, "file": own, "name": "我的声音.mp3"}, future={"volume": 20})
+    song = {"file": own, "name": "我的声音.mp3"}
+    expected.update(stars={"volume": 30}, neon={"volume": 60, "songs": [song], "chosen": own}, future={"volume": 20})
     assert loaded.scene_sounds == expected
     assert loaded.scene_sound("neon") == (custom_sound_dir(tmp_path) / own, 60) and loaded.scene_sound("cyber") == (None, 60)
     settings = json.loads(loaded.settings_path.read_text(encoding="utf-8"))
-    assert "sound_volume" not in settings and settings["scene_sounds"] == expected
+    assert "sound_volume" not in settings and settings["scene_sounds"] == {**expected, "neon": {**expected["neon"], **song}}
     saved = _files(tmp_path)
     assert Store(tmp_path).scene_sounds == expected and _files(tmp_path) == saved
     # Down to a step of 5; below 5 what was heard (5% of 5% played at 1%), kept so the next open; 0 for every
@@ -720,7 +721,7 @@ def test_mute_is_kept_and_reset(tmp_path):
 
 
 def _own_sound(store: Store, key: str) -> str:
-    """A player's own sound for a 场景, as 场景管理 keeps it: <key>.wav in custom_sounds."""
+    """A player's own sound for a 场景 in custom_sounds: <key>.wav as up to v0.9.15, <key>-<n>.wav since."""
     from blacklist_detect.paths import custom_sound_dir
 
     folder = custom_sound_dir(store.root)
@@ -730,37 +731,116 @@ def _own_sound(store: Store, key: str) -> str:
 
 
 def test_each_effect_s_volume_and_own_sound_are_kept_and_cleared(tmp_path):
-    """场景管理: each 场景's own 音量 and the player's own sound for it, kept as set; a 场景 left as it was
-    (100%, its own sound) is not saved. 清空数据 drops them, the sounds' folder too."""
+    """场景管理: each 场景's own 音量 and the player's songs for it, one chosen, kept as set; a 场景 left as it was
+    (100%, no songs) is not saved. 清空数据 drops them, the sounds' folder too."""
     import json
 
     from blacklist_detect.paths import custom_sound_dir
 
     store = Store(tmp_path)
     assert store.scene_sounds == {} and store.scene_sound("ice") == (None, 100)
-    store.scene_sounds = {
-        "ice": {"volume": 60},
-        "classic": {"volume": 100, "file": _own_sound(store, "classic"), "name": "生日歌.mp3", "start": 12.5, "length": 5.0},
-        "stars": {"volume": 100},
-    }
-    store.save_settings()
+    store.set_scene_volume("ice", 60)
+    store.set_scene_volume("stars", 100)
+    store.add_scene_song("classic", {"file": _own_sound(store, "classic-1"), "name": "生日歌.mp3", "start": 12.5, "length": 5.0})
     saved = json.loads(store.settings_path.read_text(encoding="utf-8"))["scene_sounds"]
     assert set(saved) == {"ice", "classic"}
     again = Store(tmp_path)
     assert again.scene_sounds == {"ice": {"volume": 60}, "classic": store.scene_sounds["classic"]}
     assert again.scene_sound("ice") == (None, 60)
-    assert again.scene_sound("classic") == (custom_sound_dir(tmp_path) / "classic.wav", 100)
+    assert again.scene_sound("classic") == (custom_sound_dir(tmp_path) / "classic-1.wav", 100)
     assert again.scene_sound("stars") == (None, 100)
-    # A sound whose file is gone plays the scene's own again; its 音量 stays.
-    again.scene_sounds["ice"] = {"volume": 45, "file": _own_sound(again, "ice"), "name": "a.wav"}
-    again.save_settings()
-    (custom_sound_dir(tmp_path) / "ice.wav").unlink()
+    # A song whose file is gone is gone, 默认 playing if it was chosen; its 音量 stays.
+    again.set_scene_volume("ice", 45)
+    again.add_scene_song("ice", {"file": _own_sound(again, "ice-1"), "name": "a.wav"})
+    (custom_sound_dir(tmp_path) / "ice-1.wav").unlink()
     assert Store(tmp_path).scene_sounds["ice"] == {"volume": 45}
     again.reset()
     assert again.scene_sounds == {} and Store(tmp_path).scene_sounds == {}
     assert not custom_sound_dir(tmp_path).exists()
     # The folder kept apart from the quieter copies' (sounds/), whose files go as new ones are made.
     assert custom_sound_dir(tmp_path).name == "custom_sounds"
+
+
+def test_a_scene_keeps_up_to_three_songs_one_chosen(tmp_path):
+    """Songs are added oldest first, each the one chosen as it comes; a choice is any of them or "" (默认); one
+    deleted is gone from the list, 默认 chosen if it was; the last deleted leaves the 音量 alone. Each saved."""
+    store = Store(tmp_path)
+    store.set_scene_volume("ice", 70)
+    files = [_own_sound(store, f"ice-{n}") for n in (1, 2, 3)]
+    for number, file in enumerate(files):
+        store.add_scene_song("ice", {"file": file, "name": f"{number}.mp3", "start": 0.0, "length": 5.0})
+    assert [song["file"] for song in store.scene_songs("ice")] == files and store.scene_sounds["ice"]["chosen"] == "ice-3.wav"
+    assert store.scene_sound("ice")[0].name == "ice-3.wav" and Store(tmp_path).scene_sound("ice")[0].name == "ice-3.wav"
+    store.choose_scene_song("ice", "ice-1.wav")
+    assert store.scene_sound("ice")[1] == 70 and store.scene_sound("ice")[0].name == "ice-1.wav"
+    store.choose_scene_song("ice", "not-a-song.wav")
+    assert store.scene_sound("ice")[0] is None and Store(tmp_path).scene_sounds["ice"]["chosen"] == ""
+    store.choose_scene_song("ice", "ice-2.wav")
+    # Deleting one not chosen leaves the choice; deleting the chosen one falls back to 默认.
+    store.remove_scene_song("ice", "ice-1.wav")
+    assert store.scene_sound("ice")[0].name == "ice-2.wav"
+    store.remove_scene_song("ice", "ice-2.wav")
+    assert store.scene_sound("ice") == (None, 70) and [song["file"] for song in store.scene_songs("ice")] == ["ice-3.wav"]
+    assert Store(tmp_path).scene_sounds["ice"] == {"volume": 70, "songs": store.scene_songs("ice"), "chosen": ""}
+    store.remove_scene_song("ice", "ice-3.wav")
+    assert store.scene_sounds["ice"] == {"volume": 70} and Store(tmp_path).scene_sounds["ice"] == {"volume": 70}
+    # A scene at 100% with no songs left has no entry; choosing among none changes nothing.
+    store.add_scene_song("stars", {"file": _own_sound(store, "stars-1"), "name": "a.mp3"})
+    store.remove_scene_song("stars", "stars-1.wav")
+    store.choose_scene_song("stars", "")
+    assert "stars" not in store.scene_sounds and "stars" not in Store(tmp_path).scene_sounds
+
+
+def test_songs_are_read_checked_three_at_most_and_a_chosen_one_that_is_none_is_the_default(tmp_path):
+    import json
+
+    store = Store(tmp_path)
+    store.save_settings()
+    files = [_own_sound(store, f"lace-{n}") for n in (1, 2, 3, 4)]
+    settings = json.loads(store.settings_path.read_text(encoding="utf-8"))
+    settings["scene_sounds"] = {
+        # A fourth song is past the most, a file twice is once, one not there and one with a path are none.
+        "lace": {"volume": 80, "songs": [{"file": "gone.wav"}, *({"file": file, "name": file} for file in files), {"file": files[0]}],
+                 "chosen": files[3]},  # fmt: skip
+        "ice": {"songs": [{"file": "../" + files[0]}, "x", 3], "chosen": "../" + files[0]},
+        "stars": {"songs": "x", "chosen": files[0]},
+        "cyber": {"songs": [{"file": files[1], "name": "b", "start": 2.0, "length": 4.5}], "chosen": files[1], "file": files[0]},
+    }
+    store.settings_path.write_text(json.dumps(settings), encoding="utf-8")
+    loaded = Store(tmp_path)
+    assert loaded.load_warning == ""
+    assert [song["file"] for song in loaded.scene_songs("lace")] == files[:3] and loaded.scene_sounds["lace"]["chosen"] == ""
+    assert "ice" not in loaded.scene_sounds and "stars" not in loaded.scene_sounds
+    # The copy of the chosen one beside the songs is read from the songs, never on its own.
+    assert loaded.scene_sounds["cyber"] == {
+        "volume": 100, "songs": [{"file": files[1], "name": "b", "start": 2.0, "length": 4.5}], "chosen": files[1]
+    }  # fmt: skip
+
+
+def test_an_old_single_sound_becomes_the_chosen_song_and_the_chosen_one_is_saved_for_rollback(tmp_path):
+    """Up to v0.9.15 a 场景 had one sound of the player's, "file": it becomes its only song, chosen. Saved, the
+    chosen song's file, name, start and length are written beside the songs too, as v0.9.15 reads them; with
+    默认 chosen, none."""
+    import json
+
+    store = Store(tmp_path)
+    store.save_settings()
+    own = _own_sound(store, "angel")
+    settings = json.loads(store.settings_path.read_text(encoding="utf-8"))
+    settings["scene_sounds"] = {"angel": {"volume": 55, "file": own, "name": "生日歌.mp3", "start": 3.0, "length": 5.0}}
+    store.settings_path.write_text(json.dumps(settings), encoding="utf-8")
+    loaded = Store(tmp_path)
+    song = {"file": own, "name": "生日歌.mp3", "start": 3.0, "length": 5.0}
+    assert loaded.scene_sounds["angel"] == {"volume": 55, "songs": [song], "chosen": own}
+    assert loaded.scene_sound("angel")[0].name == "angel.wav"
+    loaded.add_scene_song("angel", {"file": _own_sound(loaded, "angel-1"), "name": "新歌.mp3", "start": 0.0, "length": 4.0})
+    saved = json.loads(loaded.settings_path.read_text(encoding="utf-8"))["scene_sounds"]["angel"]
+    assert (saved["file"], saved["name"], saved["start"], saved["length"]) == ("angel-1.wav", "新歌.mp3", 0.0, 4.0)
+    assert saved["chosen"] == "angel-1.wav" and [song["file"] for song in saved["songs"]] == ["angel.wav", "angel-1.wav"]
+    loaded.choose_scene_song("angel", "")
+    saved = json.loads(loaded.settings_path.read_text(encoding="utf-8"))["scene_sounds"]["angel"]
+    assert "file" not in saved and saved["chosen"] == "" and len(saved["songs"]) == 2 and saved["volume"] == 55
+    assert Store(tmp_path).scene_sounds == loaded.scene_sounds
 
 
 def test_bad_effect_sounds_are_dropped_and_the_other_settings_kept(tmp_path):
@@ -799,7 +879,7 @@ def test_bad_effect_sounds_are_dropped_and_the_other_settings_kept(tmp_path):
     assert (loaded.load_warning, loaded.theme) == ("", "紫色")
     assert loaded.scene_sounds == {
         "cyber": {"volume": 55},
-        "neon": {"volume": 100, "file": own, "name": ""},
+        "neon": {"volume": 100, "songs": [{"file": own, "name": ""}], "chosen": own},
         "lace": {"volume": 70},
         "fluffy": {"volume": 30},
         "claw": {"volume": 30},

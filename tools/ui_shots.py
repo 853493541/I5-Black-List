@@ -415,8 +415,9 @@ def _seed(root: Path, args, version: str) -> None:  # noqa: ANN001
         from blacklist_detect import sound_import
         from blacklist_detect.paths import custom_sound_dir
 
-        kept = sound_import.save_clip(sound_import.Decoded(_music(4), 4.0, "心动音乐"), "fluffy", custom_sound_dir(root))
-        store.scene_sounds["fluffy"] = {"volume": 80, "file": kept.path.name, "name": "心动音乐.mp3", "start": 0.0, "length": kept.length_s}
+        kept = sound_import.save_clip(sound_import.Decoded(_music(4), 4.0, "心动音乐"), "fluffy-1", custom_sound_dir(root))
+        store.set_scene_volume("fluffy", 80)
+        store.add_scene_song("fluffy", {"file": kept.path.name, "name": "心动音乐.mp3", "start": 0.0, "length": kept.length_s})
     if args.data == "stress":
         store.add_custom_tag("不尊重底牌还骂人")
         for number in range(1, 124):

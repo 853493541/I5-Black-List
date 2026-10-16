@@ -3,10 +3,11 @@
 Every scene in love_scenes.SCENES is listed by name with its dot, as in 选择场景 (ui_love_pick.SceneList).
 A click shows one: it plays beside the list over the fake-name sample lobby, as big as the page allows, and
 ▶ plays it from its start with its music. The list's ✓ is the 场景 the hotkey plays, which 快捷键放这个 makes
-the one shown; a ♪ is a 场景 with the player's own sound.
+the one shown; a ♪ is a 场景 that plays one of the player's songs.
 
-Under the preview, the shown 场景's 声音 (its own, or the player's: 上传 a file, a part of it picked in
-选择片段 when it is longer than a 场景's sound may be, and 恢复默认 to go back), its 音量, and the hotkey,
+Under the preview, the shown 场景's 声音 (SoundChoices: 默认, its own, and up to three songs of the player's, each
+上传 from a file, a part of it picked in 选择片段 when it is longer than a 场景's sound may be; one is chosen, and
+恢复默认 chooses 默认 again), its 音量, and the hotkey,
 set the way 检查's is (the window's hotkey box), with 播放, which plays the shown 场景 the way the hotkey
 plays its own: at once over the game, with no check (MainWindow.play_quick_scene).
 
@@ -21,10 +22,11 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QSize, Qt
+from PySide6.QtCore import QEvent, QSize, Qt, Signal
 from PySide6.QtGui import QFontMetrics, QGuiApplication
 from PySide6.QtWidgets import (
     QApplication,
+    QButtonGroup,
     QDialog,
     QFileDialog,
     QGridLayout,
@@ -32,6 +34,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QRadioButton,
     QSizePolicy,
     QSlider,
     QVBoxLayout,
@@ -42,10 +45,12 @@ from blacklist_detect import love_scenes, sound_import
 from blacklist_detect.love_scenes import DESIGN
 from blacklist_detect.paths import custom_sound_dir
 from blacklist_detect.sound_import import CLIP_S, SoundImportError
+from blacklist_detect.storage import MAX_SONGS
+from blacklist_detect.ui_kit import IconButton
 from blacklist_detect.ui_love_pick import SceneList, ScenePreview
 from blacklist_detect.ui_music import TUNES, VOLUME_STEP
 from blacklist_detect.ui_sound_trim import SoundTrimDialog
-from blacklist_detect.ui_theme import GAP, _page, chinese_font
+from blacklist_detect.ui_theme import CONTROL_H, GAP, _page, chinese_font
 
 
 class _Fitted(QWidget):
@@ -95,35 +100,6 @@ class _Fitted(QWidget):
         return super().eventFilter(watched, event)
 
 
-class _Elided(QLabel):
-    """One line cut in the middle when its room is too narrow for it, whole in its tooltip then."""
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.full = ""
-        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
-
-    def set_full(self, text: str) -> None:
-        self.full = text
-        self.updateGeometry()
-        self._fit()
-
-    def sizeHint(self) -> QSize:
-        return QSize(self.fontMetrics().horizontalAdvance(self.full) + 2, super().sizeHint().height())
-
-    def minimumSizeHint(self) -> QSize:
-        return QSize(self.fontMetrics().horizontalAdvance("…") * 4, super().minimumSizeHint().height())
-
-    def _fit(self) -> None:
-        shown = self.fontMetrics().elidedText(self.full, Qt.ElideMiddle, max(1, self.width()))
-        self.setText(shown)
-        self.setToolTip(self.full if shown != self.full else "")
-
-    def resizeEvent(self, event) -> None:  # noqa: ANN001
-        super().resizeEvent(event)
-        self._fit()
-
-
 def _button(text: str, action, primary: bool = False) -> QPushButton:  # noqa: ANN001
     button = QPushButton(text)
     if primary:
@@ -132,6 +108,127 @@ def _button(text: str, action, primary: bool = False) -> QPushButton:  # noqa: A
     button.setCursor(Qt.PointingHandCursor)
     button.clicked.connect(lambda: action())
     return button
+
+
+class _Choice(QRadioButton):
+    """A sound to choose, its words cut in the middle when its room is too narrow for them, whole in its
+    tooltip then."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.full = ""
+        self.setFont(chinese_font())
+        self.setCursor(Qt.PointingHandCursor)
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+
+    def set_full(self, text: str) -> None:
+        self.full = text
+        self.setAccessibleName(text)
+        self.updateGeometry()
+        self._fit()
+
+    def _room(self) -> int:
+        """How wide the words may be: the button less its circle and the gap after it."""
+        return self.width() - (super().sizeHint().width() - self.fontMetrics().horizontalAdvance(self.text()))
+
+    def sizeHint(self) -> QSize:
+        hint = super().sizeHint()
+        words = self.fontMetrics().horizontalAdvance(self.full) - self.fontMetrics().horizontalAdvance(self.text())
+        return QSize(hint.width() + words + 2, hint.height())
+
+    def minimumSizeHint(self) -> QSize:
+        return QSize(self.fontMetrics().horizontalAdvance("…") * 6, super().minimumSizeHint().height())
+
+    def _fit(self) -> None:
+        shown = self.fontMetrics().elidedText(self.full, Qt.ElideMiddle, max(1, self._room() - 2))
+        if shown != self.text():
+            self.setText(shown)
+        self.setToolTip(self.full if shown != self.full else "")
+
+    def resizeEvent(self, event) -> None:  # noqa: ANN001
+        super().resizeEvent(event)
+        self._fit()
+
+
+class SoundChoices(QWidget):
+    """场景管理's 声音: what the shown 场景 may play, one of them chosen like a radio button. 默认 first (the scene's
+    own; 经典's is none, 默认（无声）), then each of the player's songs, its name and length, up to MAX_SONGS. Each
+    has ▶ (play(file), "" for 默认) and each song ✕ (delete(file)); a click on one chooses it (chose(file)), and
+    nothing plays by itself. 上传 and 恢复默认 sit on 默认's row: 上传 is off once there are MAX_SONGS songs, 恢复默认
+    (back to 默认) shown while a song is chosen. Its rows are made once and shown as there are songs."""
+
+    chose = Signal(str)
+    play = Signal(str)
+    delete = Signal(str)
+
+    def __init__(self, upload, restore, parent: QWidget | None = None) -> None:  # noqa: ANN001
+        super().__init__(parent)
+        grid = QGridLayout(self)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setHorizontalSpacing(6)
+        grid.setVerticalSpacing(2)
+        grid.setColumnStretch(4, 1)
+        self.group = QButtonGroup(self)
+        self.group.setExclusive(True)
+        # By row: 默认, then a song in each. files[row] is the file of the song shown there, "" for 默认.
+        self.files = [""] * (1 + MAX_SONGS)
+        self.choices: list[_Choice] = []
+        self.play_buttons: list[IconButton] = []
+        self.delete_buttons: list[IconButton] = []
+        for row in range(1 + MAX_SONGS):
+            choice = _Choice()
+            choice.clicked.connect(lambda _checked=False, row=row: self.chose.emit(self.files[row]))
+            self.group.addButton(choice)
+            grid.addWidget(choice, row, 0)
+            listen = IconButton("play", "播放")
+            listen.clicked.connect(lambda _checked=False, row=row: self.play.emit(self.files[row]))
+            grid.addWidget(listen, row, 1)
+            self.choices.append(choice)
+            self.play_buttons.append(listen)
+            if row:
+                gone = IconButton("close", "删掉这首")
+                gone.clicked.connect(lambda _checked=False, row=row: self.delete.emit(self.files[row]))
+                grid.addWidget(gone, row, 2)
+                self.delete_buttons.append(gone)
+        self.upload_button = _button("上传", upload)
+        self.upload_button.setAccessibleName("上传声音")
+        self.reset_button = _button("恢复默认", restore)
+        self.reset_button.setAccessibleName("恢复默认声音")
+        reset = QHBoxLayout()
+        reset.setSpacing(10)
+        reset.addWidget(self.upload_button)
+        reset.addWidget(self.reset_button)
+        grid.addLayout(reset, 0, 2, 1, 3, Qt.AlignLeft)
+
+    def set_sounds(self, default: str, sounds: bool, songs: list[dict], chosen: str) -> None:
+        """default: what 默认 is called; sounds: whether it plays anything. songs: the 场景's, oldest first, each
+        {"file", "name", "length"}; chosen: the file of the one it plays, "" for 默认."""
+        self.files = ["", *(song["file"] for song in songs[:MAX_SONGS])] + [""] * (MAX_SONGS - min(len(songs), MAX_SONGS))
+        self.choices[0].set_full(default)
+        self.play_buttons[0].setEnabled(sounds)
+        for row, song in enumerate(songs[:MAX_SONGS], 1):
+            self.choices[row].set_full(f"{song.get('name') or Path(song['file']).stem} · {song.get('length', CLIP_S):.1f} 秒")
+        for row in range(1, 1 + MAX_SONGS):
+            shown = row <= len(songs)
+            for widget in (self.choices[row], self.play_buttons[row], self.delete_buttons[row - 1]):
+                widget.setVisible(shown)
+        picked = self.files.index(chosen) if chosen and chosen in self.files else 0
+        self.choices[picked].setChecked(True)
+        full = len(songs) >= MAX_SONGS
+        self.upload_button.setEnabled(not full)
+        self.upload_button.setToolTip(f"最多 {MAX_SONGS} 首，先删掉一首" if full else "")
+        self.reset_button.setVisible(picked != 0)
+
+    def chosen(self) -> str:
+        """The file of the one checked, "" for 默认."""
+        return self.files[self.choices.index(self.group.checkedButton())] if self.group.checkedButton() else ""
+
+    def changeEvent(self, event) -> None:  # noqa: ANN001
+        super().changeEvent(event)
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+            # The icons in the theme's colours, as the window's style changes.
+            for button in (*self.play_buttons, *self.delete_buttons):
+                button.refresh()
 
 
 class EffectsPage(QWidget):
@@ -168,21 +265,20 @@ class EffectsPage(QWidget):
         for row, name in enumerate(("声音", "音量", "快捷键")):
             label = QLabel(name)
             label.setObjectName("rowLabel")
-            rows.addWidget(label, row, 0)
-        # 声音: what it plays, its own or the player's, with 上传 (替换) and 恢复默认.
-        sound = QHBoxLayout()
-        sound.setSpacing(10)
-        self.sound_text = _Elided()
-        self.sound_text.setObjectName("rowLabel")
-        sound.addWidget(self.sound_text)
-        self.upload_button = _button("上传", self.upload)
-        self.upload_button.setAccessibleName("上传声音")
-        sound.addWidget(self.upload_button)
-        self.reset_button = _button("恢复默认", self.restore)
-        self.reset_button.setAccessibleName("恢复默认声音")
-        sound.addWidget(self.reset_button)
-        sound.addStretch(1)
-        rows.addLayout(sound, 0, 1)
+            if row == 0:
+                # Beside 默认, the first of its rows, as tall as its ▶.
+                label.setMinimumHeight(CONTROL_H - 4)
+                rows.addWidget(label, row, 0, Qt.AlignTop)
+            else:
+                rows.addWidget(label, row, 0)
+        # 声音: 默认 and the player's songs, one chosen, with 上传 and 恢复默认.
+        self.sounds = SoundChoices(self.upload, self.restore)
+        self.sounds.chose.connect(self._choose)
+        self.sounds.play.connect(self._listen)
+        self.sounds.delete.connect(self._delete)
+        self.upload_button = self.sounds.upload_button
+        self.reset_button = self.sounds.reset_button
+        rows.addWidget(self.sounds, 0, 1)
         # 音量: how loud this 场景 is, in its steps; let go, a moment of it at that.
         volume = QHBoxLayout()
         volume.setSpacing(10)
@@ -286,20 +382,10 @@ class EffectsPage(QWidget):
         self.stage.place()
 
     # The shown 场景's sound.
-    def _entry(self, key: str) -> dict:
-        return dict(self.store.scene_sounds.get(key) or {})
-
     def _own(self, key: str) -> Path | None:
-        """The player's own sound for this 场景, while it is there."""
+        """The song this 场景 plays, while it is there; None for 默认."""
         own = self.store.scene_sound(key)[0]
         return own if own is not None and own.is_file() else None
-
-    def _set_entry(self, key: str, entry: dict) -> None:
-        """A 场景's entry, or none when it is all default (100%, its own sound): as the store saves them."""
-        if entry.get("file") or entry.get("volume", 100) != 100:
-            self.store.scene_sounds[key] = entry
-        else:
-            self.store.scene_sounds.pop(key, None)
 
     def _sync_marks(self) -> None:
         owned = [key for key in self.scenes.buttons if self._own(key) is not None]
@@ -308,20 +394,15 @@ class EffectsPage(QWidget):
     def _sync_rows(self) -> None:
         """声音, 音量 and 快捷键放这个 as they are for the 场景 shown."""
         key = self.scenes.key
-        entry = self._entry(key)
-        own = self._own(key) is not None
-        if own:
-            self.sound_text.set_full(f"自定义 · {entry.get('name') or Path(entry['file']).stem} · {entry.get('length', CLIP_S):.1f} 秒")
-        else:
-            self.sound_text.set_full("默认" if key in TUNES else "默认 · 无")
-        self.upload_button.setText("替换" if own else "上传")
-        self.reset_button.setVisible(own)
+        songs = self.store.scene_songs(key)
+        own = self._own(key)
+        self.sounds.set_sounds("默认" if key in TUNES else "默认（无声）", key in TUNES, songs, own.name if own else "")
         # The 音量 as it plays: 1 to 4% (an old 声音 folded in) stands at 0 but says what is heard.
         volume = self.store.scene_sound(key)[1]
         self.volume_slider.blockSignals(True)
         self.volume_slider.setValue(volume // VOLUME_STEP)
         self.volume_slider.blockSignals(False)
-        self.volume_slider.setEnabled(own or key in TUNES)
+        self.volume_slider.setEnabled(bool(songs) or key in TUNES)
         self.volume_label.setText(f"{volume}%")
         self.volume_label.setEnabled(self.volume_slider.isEnabled())
         self.assign_button.setEnabled(key != self.store.quick_scene)
@@ -336,10 +417,8 @@ class EffectsPage(QWidget):
         """音量 moved: the shown 场景 plays this loud from now on. Dragged, it is saved and heard once let go
         (_volume_set); moved with the keys, the wheel or a click beside the handle, at once."""
         key = self.scenes.key
-        entry = self._entry(key)
-        entry["volume"] = step * VOLUME_STEP
-        self._set_entry(key, entry)
-        self.volume_label.setText(f"{entry['volume']}%")
+        self.store.set_scene_volume(key, step * VOLUME_STEP)
+        self.volume_label.setText(f"{step * VOLUME_STEP}%")
         self.sync_sound()
         if not self.volume_slider.isSliderDown():
             self._volume_set()
@@ -351,10 +430,41 @@ class EffectsPage(QWidget):
             self.sounding = False
             self.music.taste(self.scenes.key)
 
+    def _choose(self, file: str) -> None:
+        """A click on 默认 or a song: the 场景 plays it from now on. Nothing plays now: ▶ does."""
+        self.store.choose_scene_song(self.scenes.key, file)
+        self._sync_marks()
+        self._sync_rows()
+
+    def _listen(self, file: str) -> None:
+        """▶ beside 默认 or a song: it whole, at the 场景's 音量, chosen or not. It stops as the page goes."""
+        if self.music is None:
+            return
+        self.sounding = self.music.song(self.scenes.key, custom_sound_dir(self.store.root) / file if file else None)
+
+    def _delete(self, file: str) -> None:
+        """✕ beside a song: it gone, its file and its copies too, and 默认 played if it was the one chosen."""
+        own = custom_sound_dir(self.store.root) / file
+        if self.music is not None:
+            # Nothing playing holds it.
+            self.music.stop()
+            self.music.drop(own)
+        self.sounding = False
+        try:
+            own.unlink(missing_ok=True)
+        except OSError:
+            pass  # Held by something else: the next song for this 场景 takes another name.
+        self.store.remove_scene_song(self.scenes.key, file)
+        self._sync_marks()
+        self._sync_rows()
+
     def upload(self) -> None:
-        """上传 (替换): a sound or video of the player's for the shown 场景. One longer than a 场景's sound
-        may be is cut to the part picked in 选择片段; either way it is kept as the app's own, and nothing plays."""
+        """上传: a sound or video of the player's, one more song for the shown 场景 (up to MAX_SONGS), the one it
+        plays from then on. One longer than a 场景's sound may be is cut to the part picked in 选择片段; either way
+        it is kept as the app's own, and nothing plays."""
         key = self.scenes.key
+        if len(self.store.scene_songs(key)) >= MAX_SONGS:
+            return
         name = dict(love_scenes.SCENES).get(key, key)
         if sound_import.available():
             title, kinds = f"给「{name}」上传声音", f"声音或视频 ({sound_import.FILTER})"
@@ -452,47 +562,27 @@ class EffectsPage(QWidget):
         return dialog.selection() if accepted else None
 
     def _keep(self, decoded, key: str, name: str, start: float, length: float) -> None:  # noqa: ANN001
-        """The part picked kept as the 场景's sound, its 音量 as it was. Nothing plays by itself: 试听 in
+        """The part picked kept as one more of the 场景's songs, the one it plays, under a name no file has
+        (song_name: winsound may still hold one deleted), its 音量 as it was. Nothing plays by itself: ▶, 试听 in
         选择片段, or 音量's slider, plays it when the player asks."""
         folder = custom_sound_dir(self.store.root)
         if self.music is not None:
-            # Nothing playing holds the sound it replaces, and its quieter copies go with it.
             self.music.stop()
-            self.music.drop(folder / f"{key}.wav")
         self.sounding = False
         try:
-            kept = sound_import.save_clip(decoded, key, folder, start, length)
+            kept = sound_import.save_clip(decoded, sound_import.song_name(key, folder), folder, start, length)
         except SoundImportError as error:
             self._tell(str(error))
             return
-        entry = self._entry(key)
-        self._set_entry(key, {
-            "volume": entry.get("volume", 100), "file": kept.path.name, "name": name,
-            "start": round(kept.start_s, 3), "length": round(kept.length_s, 3),
-        })  # fmt: skip
-        self.store.save_settings()
+        self.store.add_scene_song(
+            key, {"file": kept.path.name, "name": name, "start": round(kept.start_s, 3), "length": round(kept.length_s, 3)}
+        )
         self._sync_marks()
         self._sync_rows()
 
     def restore(self) -> None:
-        """恢复默认: the 场景's own sound again (经典's none), the player's file and its copies gone, its 音量 kept."""
-        key = self.scenes.key
-        entry = self._entry(key)
-        if not entry.get("file"):
-            return
-        own = custom_sound_dir(self.store.root) / entry["file"]
-        if self.music is not None:
-            self.music.stop()
-            self.music.drop(own)
-        self.sounding = False
-        try:
-            own.unlink(missing_ok=True)
-        except OSError:
-            pass  # Held by something else: the next upload for this 场景 takes its place.
-        self._set_entry(key, {"volume": entry.get("volume", 100)})
-        self.store.save_settings()
-        self._sync_marks()
-        self._sync_rows()
+        """恢复默认: the 场景's own sound again (经典's none), chosen over its songs, which stay; its 音量 kept."""
+        self._choose("")
 
     def _seen(self) -> bool:
         """On screen: this page the one shown, in a window that is not minimized."""

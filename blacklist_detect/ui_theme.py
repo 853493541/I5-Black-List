@@ -702,7 +702,7 @@ def _scroll_rules() -> str:
 def _window_style(family: str) -> str:
     t = THEME
     return f"""
-            QWidget#root, QLabel, QLineEdit, QPlainTextEdit, QCheckBox,
+            QWidget#root, QLabel, QLineEdit, QPlainTextEdit, QCheckBox, QRadioButton,
             QTabWidget, QTabBar, QListWidget, QTableWidget, QHeaderView, QTableWidget QWidget {{
                 font-family: "{family}";
             }}
@@ -911,13 +911,13 @@ def _window_style(family: str) -> str:
                 padding: 0;
             }}
             """ + _card_rules() + f"""
-            QCheckBox {{
+            QCheckBox, QRadioButton {{
                 spacing: 8px;
                 min-height: 28px;
                 color: {t["text"]};
                 background: transparent;
             }}
-            QCheckBox:hover {{ color: {t["accent_line"]}; }}
+            QCheckBox:hover, QRadioButton:hover {{ color: {t["accent_line"]}; }}
             QSlider {{ background: transparent; min-height: 28px; }}
             QSlider::groove:horizontal {{
                 height: 4px;

@@ -2,7 +2,8 @@
 
 Whatever the file (FILTER), decode reads it into mono 16-bit samples at 44.1 kHz, the format of the
 built-in tunes (ui_music.TUNES), and save_clip keeps at most CLIP_S of it, about as loud as they are
-(TARGET_RMS_DBFS, peaks no higher than PEAK_DBFS), as <scene key>.wav in a folder of the app's own.
+(TARGET_RMS_DBFS, peaks no higher than PEAK_DBFS), as <scene key>-<n>.wav in a folder of the app's own
+(song_name: a 场景 keeps up to three).
 From then on it plays like any tune: winsound, a quieter copy for its 音量 (ui_music.scaled_tune).
 While the part is picked (选择片段), save_rest writes the song from a moment on, for winsound to play there:
 it cannot start a file anywhere but at its start.
@@ -17,6 +18,7 @@ the app starts: a failure there would only leave WAV, where at start it would ro
 
 from __future__ import annotations
 
+import itertools
 import logging
 import os
 import re
@@ -347,6 +349,13 @@ def save_clip(decoded: Decoded, key: str, folder: Path, start_s: float = 0.0, le
         log.warning("Could not keep the sound for %s", key, exc_info=True)
         raise SoundImportError("声音存不下来，再试一次") from error
     return Imported(target, decoded.name, decoded.seconds, begin / RATE, (end - begin) / RATE)
+
+
+def song_name(key: str, folder: Path) -> str:
+    """The name a 场景's next song is kept under (save_clip's key): <key>-<n>, n the first number with no file of
+    it in folder. Never a file there already, which winsound may still hold."""
+    folder = Path(folder)
+    return next(f"{key}-{n}" for n in itertools.count(1) if not (folder / f"{key}-{n}.wav").exists())
 
 
 def save_rest(decoded: Decoded, start_s: float, path: Path, volume: int = 100) -> Path:

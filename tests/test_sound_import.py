@@ -157,6 +157,22 @@ def test_a_new_sound_replaces_the_old_and_leaves_nothing_half_written(tmp_path):
     assert len(_read(kept.path)[0]) == 2 * 44100 and kept.name == "第二个"
 
 
+def test_each_new_song_takes_the_first_number_no_file_has(tmp_path):
+    """A 场景's songs are <key>-<n>.wav, n the first free on disk: a file still there (winsound may hold one
+    deleted) is never written over, another 场景's or the old <key>.wav do not count."""
+    folder = tmp_path / "custom_sounds"
+    assert sound_import.song_name("lace", folder) == "lace-1"
+    clip = Decoded(np.full(44100, 3000, np.int16), 1.0, "x")
+    for _ in range(3):
+        save_clip(clip, sound_import.song_name("lace", folder), folder)
+    save_clip(clip, "lace", folder)
+    save_clip(clip, sound_import.song_name("ice", folder), folder)
+    assert sorted(path.name for path in folder.iterdir()) == ["ice-1.wav", "lace-1.wav", "lace-2.wav", "lace-3.wav", "lace.wav"]
+    (folder / "lace-2.wav").unlink()
+    assert sound_import.song_name("lace", folder) == "lace-2"
+    assert sound_import.song_name("ice", folder) == "ice-2"
+
+
 def test_a_sound_that_cannot_be_written_says_so_and_leaves_no_part(tmp_path, monkeypatch):
     def refuse(*_args) -> None:  # noqa: ANN002
         raise PermissionError("in use")

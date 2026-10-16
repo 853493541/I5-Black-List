@@ -195,7 +195,7 @@ def test_the_page_fits_the_smallest_window(window):
         return widget.geometry().translated(widget.parentWidget().mapTo(page, widget.pos()) - widget.pos())
 
     assert page.rect().contains(placed(page.preview)) and page.preview.width() >= _Fitted.MIN_W
-    controls = (page.sound_text, page.upload_button, page.volume_slider, page.volume_label, page.level_note,
+    controls = (page.sounds, page.upload_button, page.volume_slider, page.volume_label, page.level_note,
                 window.effect_hotkey_edit, page.assign_button, page.play_button, page.note, page.scenes.buttons["claw"])  # fmt: skip
     for control in controls:
         assert page.rect().contains(placed(control)), control

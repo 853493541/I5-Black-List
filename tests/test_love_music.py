@@ -174,13 +174,13 @@ def test_a_blacklist_player_means_no_music(window):
 
 
 def _own_sound(store, key: str, like: str = "ice", volume: int = 100):  # noqa: ANN001, ANN202
-    """The player's own sound for a 场景 as 场景管理 keeps it: here a copy of another scene's tune."""
+    """The player's own sound for a 场景 as 场景管理 keeps it, its one song, chosen: here a copy of another scene's tune."""
     from blacklist_detect.paths import custom_sound_dir
 
-    own = custom_sound_dir(store.root) / f"{key}.wav"
+    own = custom_sound_dir(store.root) / f"{key}-1.wav"
     own.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(TUNES[like], own)
-    store.scene_sounds[key] = {"volume": volume, "file": own.name, "name": "我的声音.mp3"}
+    store.scene_sounds[key] = {"volume": volume, "songs": [{"file": own.name, "name": "我的声音.mp3"}], "chosen": own.name}
     return own
 
 
@@ -544,18 +544,37 @@ def test_a_trial_plays_at_the_effect_s_level_from_the_caller_s_folder(tmp_path):
     assert not music.trial(trial, "ice") and played[-1] is None
 
 
-def test_dropping_one_tune_s_copies_keeps_every_other(tmp_path):
-    """A player's own sound replaced or put back: its quieter copies go, the other tunes' stay."""
+def test_any_of_a_scene_s_sounds_plays_whole_at_its_level_chosen_or_not(tmp_path):
+    """▶ beside a row of 场景管理's 声音: 默认 (the scene's own, 经典's none) or a song not chosen, whole, at the
+    场景's 音量; nothing under 静音."""
     own = tmp_path / "custom_sounds"
     own.mkdir()
-    shutil.copyfile(TUNES["ice"], own / "ice.wav")
-    music, played, _clock = _managed(tmp_path, {"ice": (own / "ice.wav", 50), "stars": (None, 50)})
+    chosen, other = own / "ice-1.wav", own / "ice-2.wav"
+    shutil.copyfile(TUNES["cyber"], chosen)
+    shutil.copyfile(TUNES["fluffy"], other)
+    music, played, _clock = _managed(tmp_path, {"ice": (chosen, 40), "classic": (None, 100)})
+    assert music.song("ice", other) and played[-1].name.startswith("40-ice-2-") and not played[-1].name.endswith("ms.wav")
+    assert np.abs(_samples(played[-1])[1] - np.rint(_samples(TUNES["fluffy"])[1] * 0.4)).max() <= 1
+    assert music.song("ice") and played[-1].name.startswith(f"40-{TUNES['ice'].stem}-")
+    assert not music.song("classic") and played[-1] is None
+    music.muted = True
+    assert not music.song("ice", other) and played[-1] is None
+
+
+def test_dropping_one_tune_s_copies_keeps_every_other(tmp_path):
+    """A player's song deleted: its quieter copies go, the other tunes' stay, a song of the same 场景's too."""
+    own = tmp_path / "custom_sounds"
+    own.mkdir()
+    shutil.copyfile(TUNES["ice"], own / "ice-1.wav")
+    shutil.copyfile(TUNES["cyber"], own / "ice-2.wav")
+    music, played, _clock = _managed(tmp_path, {"ice": (own / "ice-1.wav", 50), "stars": (None, 50)})
     music.preview("ice")
     music.taste("ice")
+    music.song("ice", own / "ice-2.wav")
     music.preview("stars")
-    assert len(list((tmp_path / "sounds").iterdir())) == 3
-    music.drop(own / "ice.wav")
-    assert [copy.name for copy in (tmp_path / "sounds").iterdir()] == [played[-1].name]
+    assert len(list((tmp_path / "sounds").iterdir())) == 4
+    music.drop(own / "ice-1.wav")
+    assert sorted(copy.name for copy in (tmp_path / "sounds").iterdir()) == sorted([played[-2].name, played[-1].name])
     # Nothing made yet, nothing to drop.
     bare, _played, _clock = _managed(tmp_path / "none", {})
     bare.drop(own / "ice.wav")

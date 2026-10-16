@@ -4,7 +4,7 @@ Every scene in love_scenes.SCENES by name, each with a dot in its colour (SceneL
 (ui_guest_scenes) in three columns, each with a box to tick. A click on a name highlights it, and it plays
 over the fake-name sample lobby, with the app's own marks on it (ScenePreview).
 The 场景管理 page (ui_effects) is made of the same list, with no boxes, and preview, its list marking the
-场景 the hotkey plays with ✓ apart from the one shown, and with ♪ each 场景 given the player's own sound;
+场景 the hotkey plays with ✓ apart from the one shown, and with ♪ each 场景 that plays one of the player's songs;
 there ▶ plays the scene from its start with its music (as loud as its 音量 says).
 """
 
@@ -264,7 +264,7 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
     the mouse, the band shows faintly. In 嘉宾场景 (chosen not None) a box at its end is ticked or not, by a
     click on it or Space, apart from the band, and chose says so; on 随机 (set_box_enabled(False)) the box
     is greyed and does not tick, and the name still highlights. On the 场景管理 page a ✓ there is apart
-    from the band too (tick: the hotkey plays it), and own puts a ♪ before it (the player's own sound).
+    from the band too (tick: the hotkey plays it), and own puts a ♪ before it (it plays one of the player's songs).
     With neither, the ✓ goes with the band."""
 
     chose = Signal(bool)
@@ -432,8 +432,8 @@ class SceneList(QWidget):
     """Every scene in love_scenes.SCENES by name, one highlighted: 嘉宾场景's grid, and the 场景管理 page's
     list. key is the one highlighted, 经典 for one this version does not have; picked(key) says a click
     highlighted one. In 嘉宾场景 (chosen: the keys ticked) each has a box to tick, and chose says one was
-    ticked or unticked. On the page (marks), set_marks puts the ✓ on the hotkey's and a ♪ on each with
-    the player's own sound. In columns, row by row, the whole width shared alike among them."""
+    ticked or unticked. On the page (marks), set_marks puts the ✓ on the hotkey's and a ♪ on each that
+    plays one of the player's songs. In columns, row by row, the whole width shared alike among them."""
 
     picked = Signal(str)
     chose = Signal()

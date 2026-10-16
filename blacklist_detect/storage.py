@@ -23,6 +23,8 @@ _MAX_NAME = 64
 _MAX_NOTE = 200
 # The most scenes a 嘉宾 or a 组合 keeps ticked: far more than there are.
 _MAX_SCENES = 64
+# The most songs of the player's a 场景 keeps beside its 默认 (场景管理).
+MAX_SONGS = 3
 _MAX_SCANS = 40
 # A later check of this 12-player lobby still misreads a few seats.
 # Eight shared names is the same match, so the time is updated.
@@ -432,23 +434,54 @@ def _seconds(value: object) -> float | None:
     return float(value)
 
 
+def _scene_song(value: object, folder: Path) -> dict | None:
+    """One of a 场景's songs as saved: its file, still in folder, the name of the file it came from, and the
+    part of it kept. None when it is not one."""
+    if not isinstance(value, dict):
+        return None
+    file = value.get("file")
+    # A name in folder only, never a path elsewhere.
+    if not (isinstance(file, str) and file and file == Path(file).name and ":" not in file and (folder / file).is_file()):
+        return None
+    name = value.get("name")
+    song: dict = {"file": file, "name": name.strip()[:_MAX_NAME * 4] if isinstance(name, str) else ""}
+    for field in ("start", "length"):
+        seconds = _seconds(value.get(field))
+        if seconds is not None:
+            song[field] = seconds
+    return song
+
+
 def _scene_sound(value: object, folder: Path) -> dict | None:
-    """One 场景's sound as saved: its own 音量 and, with a file still in folder, the player's own sound. None
-    when that is the default (100%, the scene's own) or not a sound at all."""
+    """One 场景's sound as saved: its own 音量 and the player's songs (_scene_song, each file once, the first
+    MAX_SONGS), with the one chosen ("" for 默认, the scene's own; one that is not a song is 默认). Up to v0.9.15 a
+    场景 had one song, its "file", always chosen. None when all is the default (100%, no songs) or not a sound."""
     if not isinstance(value, dict):
         return None
     entry: dict = {"volume": _scene_volume(value.get("volume"))}
-    file = value.get("file")
-    # A name in folder only, never a path elsewhere.
-    if isinstance(file, str) and file and file == Path(file).name and ":" not in file and (folder / file).is_file():
-        name = value.get("name")
-        entry["file"] = file
-        entry["name"] = name.strip()[:_MAX_NAME * 4] if isinstance(name, str) else ""
-        for field in ("start", "length"):
-            seconds = _seconds(value.get(field))
-            if seconds is not None:
-                entry[field] = seconds
+    saved = value.get("songs") if "songs" in value else [value]
+    songs: list[dict] = []
+    for song in saved if isinstance(saved, list) else ():
+        song = _scene_song(song, folder)
+        if song is not None and all(song["file"] != kept["file"] for kept in songs):
+            songs.append(song)
+    if songs:
+        entry["songs"] = songs[:MAX_SONGS]
+        chosen = value.get("chosen") if "songs" in value else songs[0]["file"]
+        entry["chosen"] = chosen if any(song["file"] == chosen for song in entry["songs"]) else ""
     return entry if entry != {"volume": 100} else None
+
+
+def _scene_sound_saved(entry: dict) -> dict:
+    """A 场景's sound as settings.json keeps it: with the chosen song's file, name, start and length copied beside
+    the songs, so v0.9.15 reads the file back playing the same."""
+    saved = {"volume": entry.get("volume", 100)}
+    songs = entry.get("songs") or []
+    if songs:
+        saved.update(next((song for song in songs if song["file"] == entry.get("chosen")), {}))
+        saved["songs"] = [dict(song) for song in songs]
+        saved["chosen"] = entry.get("chosen", "")
+    return saved
 
 
 def _scene_sounds(value: object, folder: Path) -> dict[str, dict]:
@@ -517,9 +550,10 @@ class Store:
         # off, as saved: folded into what took their place as this version first opens (_fold_old_settings).
         self._old_volume = 100
         self._old_scenes_off = False
-        # 场景管理: by scene key, a 场景's own 音量 (percent of its loudness, steps of 5) and the player's own sound for
-        # it, if any: {"volume": 100, "file": "<key>.wav" in custom_sounds, "name": the file it came from,
-        # "start" and "length": the part of it kept, in seconds}. A 场景 with neither has no entry.
+        # 场景管理: by scene key, a 场景's own 音量 (percent of its loudness, steps of 5) and the player's songs for it,
+        # if any, with the one it plays: {"volume": 100, "songs": [{"file": "<key>-<n>.wav" in custom_sounds, "name":
+        # the file it came from, "start" and "length": the part of it kept, in seconds}], "chosen": a song's file, or
+        # "" for 默认, the scene's own}. A 场景 with neither has no entry.
         self.scene_sounds: dict[str, dict] = {}
         # 场景管理: the scene the 场景 hotkey plays (a love_scenes key), and that hotkey; it never equals 检查's.
         self.quick_scene = "classic"
@@ -553,10 +587,62 @@ class Store:
         self.welcomed = not value
 
     def scene_sound(self, key: str) -> tuple[Path | None, int]:
-        """A 场景's sound as 场景管理 sets it: the player's own file (None for the scene's own) and its 音量."""
+        """A 场景's sound as 场景管理 sets it: the song chosen (None for 默认, the scene's own) and its 音量."""
         entry = self.scene_sounds.get(key) or {}
-        file = entry.get("file")
+        file = entry.get("chosen")
         return (custom_sound_dir(self.root) / file if file else None), _scene_volume(entry.get("volume", 100))
+
+    def scene_songs(self, key: str) -> list[dict]:
+        """A 场景's songs, the player's, oldest first."""
+        return [dict(song) for song in (self.scene_sounds.get(key) or {}).get("songs", ())]
+
+    def _set_scene_sound(self, key: str, entry: dict) -> None:
+        """A 场景's entry, or none when it is all default (100%, no songs)."""
+        if entry.get("songs") or entry.get("volume", 100) != 100:
+            self.scene_sounds[key] = entry
+        else:
+            self.scene_sounds.pop(key, None)
+
+    def set_scene_volume(self, key: str, volume: int) -> None:
+        """A 场景's 音量, not saved yet: 场景管理's slider saves it as it is let go."""
+        entry = dict(self.scene_sounds.get(key) or {})
+        entry["volume"] = _scene_volume(volume)
+        self._set_scene_sound(key, entry)
+
+    def add_scene_song(self, key: str, song: dict) -> None:
+        """A song kept for a 场景 (its file already in custom_sounds), the one it plays from now on. Saved. The
+        page lets no more than MAX_SONGS in; one more drops the oldest from the list."""
+        entry = dict(self.scene_sounds.get(key) or {})
+        songs = [kept for kept in entry.get("songs", ()) if kept["file"] != song["file"]]
+        entry["songs"] = [*songs, dict(song)][-MAX_SONGS:]
+        entry["chosen"] = song["file"]
+        entry.setdefault("volume", 100)
+        self._set_scene_sound(key, entry)
+        self.save_settings()
+        _log.info("场景管理: a song added for %s.", key)
+
+    def remove_scene_song(self, key: str, file: str) -> None:
+        """A 场景's song gone from its list (its file is the caller's), 默认 playing if it was the one chosen. Saved."""
+        entry = dict(self.scene_sounds.get(key) or {})
+        songs = [song for song in entry.get("songs", ()) if song["file"] != file]
+        if songs:
+            entry["songs"] = songs
+            entry["chosen"] = entry.get("chosen") if entry.get("chosen") != file else ""
+        else:
+            entry.pop("songs", None)
+            entry.pop("chosen", None)
+        self._set_scene_sound(key, entry)
+        self.save_settings()
+        _log.info("场景管理: a song of %s removed.", key)
+
+    def choose_scene_song(self, key: str, file: str) -> None:
+        """The sound a 场景 plays: one of its songs by its file, or "" (or one that is none) for 默认. Saved."""
+        entry = dict(self.scene_sounds.get(key) or {})
+        if not entry.get("songs"):
+            return
+        entry["chosen"] = file if any(song["file"] == file for song in entry["songs"]) else ""
+        self._set_scene_sound(key, entry)
+        self.save_settings()
 
     def _known_tags(self) -> list[str]:
         names = [tag for tag in TAGS if tag not in self.hidden_tags]
@@ -952,7 +1038,9 @@ class Store:
                 "safe_mode": self.safe_mode,
                 "sound_muted": self.sound_muted,
                 "scene_sounds": {
-                    key: dict(entry) for key, entry in self.scene_sounds.items() if entry.get("file") or entry.get("volume", 100) != 100
+                    key: _scene_sound_saved(entry)
+                    for key, entry in self.scene_sounds.items()
+                    if entry.get("songs") or entry.get("volume", 100) != 100
                 },
                 "quick_scene": self.quick_scene,
                 "effect_hotkey": self.effect_hotkey,

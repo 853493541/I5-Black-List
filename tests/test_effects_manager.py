@@ -137,12 +137,24 @@ def test_play_plays_the_one_shown_and_the_hotkey_its_own(window):
     assert window._quick_scene == "classic"
 
 
+def _rows(page) -> list[str]:  # noqa: ANN001
+    """声音's rows as shown: 默认, then each song."""
+    return [choice.full for choice in page.sounds.choices if not choice.isHidden()]
+
+
+def _chosen(page) -> str:  # noqa: ANN001
+    """The words of the row checked."""
+    return next(choice.full for choice in page.sounds.choices if choice.isChecked())
+
+
 def test_the_rows_say_what_each_effect_plays(window):
     page = _shown(window, "classic")
-    assert page.sound_text.full == "默认 · 无" and page.upload_button.text() == "上传"
+    assert _rows(page) == ["默认（无声）"] and _chosen(page) == "默认（无声）" and page.upload_button.text() == "上传"
+    assert not page.sounds.play_buttons[0].isEnabled() and page.upload_button.isEnabled()
     assert page.reset_button.isHidden() and not page.volume_slider.isEnabled()
     _shown(window, "ice")
-    assert page.sound_text.full == "默认" and page.reset_button.isHidden() and page.volume_slider.isEnabled()
+    assert _rows(page) == ["默认"] and page.reset_button.isHidden() and page.volume_slider.isEnabled()
+    assert page.sounds.play_buttons[0].isEnabled()
     assert page.volume_slider.value() * 5 == 100 and page.volume_label.text() == "100%" and page.level_note.text() == ""
 
 
@@ -215,16 +227,18 @@ def test_a_short_sound_is_kept_whole_and_marked_and_nothing_plays(window, pick, 
     assert parent is page and "冰蓝极光" in title and folder == ""
     assert kinds in (f"声音或视频 ({sound_import.FILTER})", f"WAV 声音 ({sound_import.WAV_FILTER})")
     assert trim["opened"] == []
-    own = custom_sound_dir(window.store.root) / "ice.wav"
+    own = custom_sound_dir(window.store.root) / "ice-1.wav"
     assert own.is_file()
     entry = window.store.scene_sounds["ice"]
-    assert entry["volume"] == 70 and entry["file"] == "ice.wav" and entry["name"] == "心动音乐.wav"
-    assert entry["start"] == 0 and entry["length"] == pytest.approx(3.0)
+    assert entry["volume"] == 70 and entry["chosen"] == "ice-1.wav"
+    song = entry["songs"][0]
+    assert song["file"] == "ice-1.wav" and song["name"] == "心动音乐.wav"
+    assert song["start"] == 0 and song["length"] == pytest.approx(3.0)
     assert Store(window.store.root).scene_sounds["ice"] == entry
-    # ♪ on it, its rows its own, and nothing plays by itself: whatever played stops for the new sound.
+    # ♪ on it, it chosen under 默认, and nothing plays by itself: whatever played stops for the new sound.
     assert page.scenes.buttons["ice"].own and not page.scenes.buttons["stars"].own
-    assert page.sound_text.full == "自定义 · 心动音乐.wav · 3.0 秒"
-    assert page.upload_button.text() == "替换" and not page.reset_button.isHidden()
+    assert _rows(page) == ["默认", "心动音乐.wav · 3.0 秒"] and _chosen(page) == "心动音乐.wav · 3.0 秒"
+    assert page.upload_button.text() == "上传" and page.upload_button.isEnabled() and not page.reset_button.isHidden()
     assert window.played and all(tune is None for tune in window.played)
     assert window.music.pick("ice") == "ice" and page.note.isHidden()
 
@@ -239,7 +253,7 @@ def test_ok_after_an_upload_plays_nothing_by_itself(window, pick, trim, tmp_path
     pick["chosen"] = _wav(tmp_path / "long.wav", 9.0)
     window.played.clear()
     page.upload_button.click()
-    assert window.store.scene_sounds["stars"]["name"] == "long.wav"
+    assert [song["name"] for song in window.store.scene_songs("stars")] == ["short.wav", "long.wav"]
     assert tasted == [] and all(tune is None for tune in window.played)
 
 
@@ -265,11 +279,11 @@ def test_a_long_sound_is_cut_to_the_part_picked(window, pick, trim, tmp_path):
     assert len(trim["opened"]) == 1
     # The trial and its folder go with the dialog.
     assert not trim["trial"].exists() and not trim["trial"].parent.exists()
-    entry = window.store.scene_sounds["stars"]
+    entry = window.store.scene_songs("stars")[0]
     assert (entry["start"], entry["length"]) == (pytest.approx(4.0), pytest.approx(3.0))
-    with wave.open(str(custom_sound_dir(window.store.root) / "stars.wav")) as wav:
+    with wave.open(str(custom_sound_dir(window.store.root) / "stars-1.wav")) as wav:
         assert wav.getnframes() == round(3.0 * 44100)
-    assert page.sound_text.full == "自定义 · long.wav · 3.0 秒"
+    assert _chosen(page) == "long.wav · 3.0 秒"
 
 
 def test_a_trial_plays_at_the_effect_s_level(window, pick, trim, tmp_path):
@@ -320,7 +334,7 @@ def test_the_part_picker_plays_the_song_from_the_playhead_at_the_effect_s_level(
     trim["do"] = listen
     page.upload_button.click()
     assert not heard[-1].exists() and not heard[-1].parent.exists()
-    assert window.store.scene_sounds["stars"]["file"] == "stars.wav"
+    assert window.store.scene_sounds["stars"]["chosen"] == "stars-1.wav"
     assert window.played[-1] is None
 
 
@@ -331,7 +345,7 @@ def test_closing_the_part_picker_changes_nothing(window, pick, trim, tmp_path):
     window.played.clear()
     page.upload_button.click()
     assert len(trim["opened"]) == 1 and window.store.scene_sounds == {}
-    assert not (custom_sound_dir(window.store.root) / "stars.wav").exists() and not page.scenes.buttons["stars"].own
+    assert not (custom_sound_dir(window.store.root) / "stars-1.wav").exists() and not page.scenes.buttons["stars"].own
     assert all(tune is None for tune in window.played)
     # Nor does a file dialog closed.
     pick["chosen"] = ""
@@ -353,7 +367,7 @@ def test_under_mute_a_trial_cannot_be_played_and_nothing_is(window, pick, trim, 
     trim["do"] = muted
     window.played.clear()
     page.upload_button.click()
-    assert window.store.scene_sounds["stars"]["file"] == "stars.wav"
+    assert window.store.scene_sounds["stars"]["chosen"] == "stars-1.wav"
     assert all(tune is None for tune in window.played)
 
 
@@ -398,7 +412,7 @@ def test_nothing_changes_under_a_file_being_read(window, pick, trim, tmp_path, m
     assert len(pick["asked"]) == 1 and window.tabs.currentIndex() != window.settings_tab
     # The sound is the 场景's shown when 上传 was pressed, and the page says so.
     assert window.isEnabled() and page.scenes.key == "lace" and list(window.store.scene_sounds) == ["lace"]
-    assert page.sound_text.full == "自定义 · a.wav · 2.0 秒" and page.scenes.buttons["lace"].own
+    assert _chosen(page) == "a.wav · 2.0 秒" and page.scenes.buttons["lace"].own
 
 
 def test_a_silent_part_says_so_in_the_part_picker_and_is_not_kept(window, pick, trim, tmp_path):
@@ -432,7 +446,7 @@ def test_a_silent_part_says_so_in_the_part_picker_and_is_not_kept(window, pick, 
 
     trim["do"] = choose
     page.upload_button.click()
-    entry = window.store.scene_sounds["stars"]
+    entry = window.store.scene_songs("stars")[0]
     assert (entry["start"], entry["length"]) == (pytest.approx(6.0), pytest.approx(3.0)) and page.note.isHidden()
 
 
@@ -444,38 +458,122 @@ def test_where_only_wav_can_be_read_the_dialog_says_so(window, pick, monkeypatch
     assert "WAV" in title and kinds == f"WAV 声音 ({sound_import.WAV_FILTER})"
 
 
-def test_restoring_the_default_drops_the_file_and_its_copies_and_keeps_the_volume(window, pick, trim, tmp_path):
+def test_restoring_the_default_chooses_it_and_keeps_the_songs_and_the_volume(window, pick, trim, tmp_path):
     page = _shown(window, "ice")
     page.volume_slider.setValue(12)
     pick["chosen"] = _wav(tmp_path / "a.wav", 2.0)
     page.upload_button.click()
-    # Heard at its 音量 (as the slider plays it), it has a copy too.
+    window.played.clear()
+    page.reset_button.click()
+    own = custom_sound_dir(window.store.root) / "ice-1.wav"
+    assert own.is_file() and window.store.scene_sounds["ice"]["chosen"] == ""
+    assert Store(window.store.root).scene_sound("ice") == (None, 60)
+    assert _rows(page) == ["默认", "a.wav · 2.0 秒"] and _chosen(page) == "默认" and page.reset_button.isHidden()
+    assert not page.scenes.buttons["ice"].own and window.music.pick("ice") == "ice" and window.played == []
+
+
+def test_deleting_a_song_drops_its_file_and_copies_and_the_chosen_one_falls_back_to_the_default(window, pick, trim, tmp_path):
+    page = _shown(window, "ice")
+    page.volume_slider.setValue(12)
+    pick["chosen"] = _wav(tmp_path / "a.wav", 2.0)
+    page.upload_button.click()
+    pick["chosen"] = _wav(tmp_path / "b.wav", 2.5, pitch=660)
+    page.upload_button.click()
+    # Heard at its 音量 (as the slider plays it), b has a copy, and so has a, played with its ▶.
     window.music.taste("ice")
-    # Another 场景's copy, and this one's, are in sounds/.
+    page.sounds.play_buttons[1].click()
+    # Another 场景's copy is in sounds/ too.
     _shown(window, "stars")
     page.volume_slider.setValue(10)
-    assert [copy.name[:3] for copy in _copies("ice")] == ["60-"] and _copies(TUNES["stars"].stem)
     _shown(window, "ice")
-    page.reset_button.click()
-    assert not (custom_sound_dir(window.store.root) / "ice.wav").exists()
+    assert _copies("ice-1") and _copies("ice-2") and _copies(TUNES["stars"].stem)
+    # ✕ on a, not the chosen: b plays on.
+    page.sounds.delete_buttons[0].click()
+    folder = custom_sound_dir(window.store.root)
+    assert not (folder / "ice-1.wav").exists() and _copies("ice-1") == [] and _copies("ice-2")
+    assert _rows(page) == ["默认", "b.wav · 2.5 秒"] and _chosen(page) == "b.wav · 2.5 秒"
+    # ✕ on b, the chosen: 默认 plays, the 音量 stays.
+    page.sounds.delete_buttons[0].click()
+    assert not (folder / "ice-2.wav").exists() and _copies("ice-2") == [] and _copies(TUNES["stars"].stem)
     assert window.store.scene_sounds["ice"] == {"volume": 60} and Store(window.store.root).scene_sounds["ice"] == {"volume": 60}
-    assert _copies("ice") == [] and _copies(TUNES["stars"].stem) and _copies(TUNES["ice"].stem)
-    assert page.sound_text.full == "默认" and page.reset_button.isHidden() and page.upload_button.text() == "上传"
+    assert _rows(page) == ["默认"] and _chosen(page) == "默认" and page.reset_button.isHidden()
     assert not page.scenes.buttons["ice"].own and window.music.pick("ice") == "ice"
 
 
-def test_replacing_a_sound_drops_the_old_one_s_copies(window, pick, trim, tmp_path):
-    page = _shown(window, "ice")
-    page.volume_slider.setValue(12)
+def test_a_click_chooses_a_row_and_plays_nothing(window, pick, trim, tmp_path):
+    page = _shown(window, "lace")
+    for name in ("a.wav", "b.wav"):
+        pick["chosen"] = _wav(tmp_path / name, 2.0)
+        page.upload_button.click()
+    assert _chosen(page) == "b.wav · 2.0 秒"
+    window.played.clear()
+    page.sounds.choices[1].click()
+    assert window.store.scene_sound("lace")[0].name == "lace-1.wav" and _chosen(page) == "a.wav · 2.0 秒"
+    assert Store(window.store.root).scene_sound("lace")[0].name == "lace-1.wav"
+    # One at a time, like a radio button.
+    assert [choice.isChecked() for choice in page.sounds.choices[:3]] == [False, True, False]
+    page.sounds.choices[0].click()
+    assert window.store.scene_sound("lace")[0] is None and not page.scenes.buttons["lace"].own and window.music.pick("lace") == "lace"
+    page.sounds.choices[2].click()
+    assert window.store.scene_sound("lace")[0].name == "lace-2.wav" and page.scenes.buttons["lace"].own
+    assert window.played == []
+
+
+def test_each_row_s_play_plays_it_at_the_effect_s_volume_chosen_or_not(window, pick, trim, tmp_path):
+    page = _shown(window, "stars")
     pick["chosen"] = _wav(tmp_path / "a.wav", 2.0)
     page.upload_button.click()
-    window.music.taste("ice")
-    first = _copies("ice")
-    assert first
-    pick["chosen"] = _wav(tmp_path / "b.wav", 2.5, pitch=660)
+    page.volume_slider.setValue(10)
+    window.played.clear()
+    # 默认: the scene's own tune, whole, at 50%, though the song is chosen.
+    page.sounds.play_buttons[0].click()
+    assert window.played[-1].name.startswith(f"50-{TUNES['stars'].stem}-") and not window.played[-1].name.endswith("ms.wav")
+    page.sounds.play_buttons[1].click()
+    assert window.played[-1].name.startswith("50-stars-1-") and page.sounding
+    assert window.store.scene_sounds["stars"]["chosen"] == "stars-1.wav"
+    # 经典's 默认 has nothing to play.
+    _shown(window, "classic")
+    assert not page.sounds.play_buttons[0].isEnabled()
+    # Under 静音, nothing.
+    _shown(window, "stars")
+    window.mute_box.click()
+    window.played.clear()
+    page.sounds.play_buttons[1].click()
+    assert all(tune is None for tune in window.played) and not page.sounding
+
+
+def test_upload_is_off_at_three_songs_until_one_is_deleted(window, pick, trim, tmp_path):
+    page = _shown(window, "cyber")
+    for number in range(3):
+        pick["chosen"] = _wav(tmp_path / f"{number}.wav", 1.0 + number)
+        page.upload_button.click()
+    assert [song["file"] for song in window.store.scene_songs("cyber")] == ["cyber-1.wav", "cyber-2.wav", "cyber-3.wav"]
+    assert len(_rows(page)) == 4 and _chosen(page) == "2.wav · 3.0 秒"
+    assert not page.upload_button.isEnabled() and page.upload_button.toolTip() == "最多 3 首，先删掉一首"
+    # Asked anyway (a shortcut, a click under way), nothing is.
+    page.upload()
+    assert len(pick["asked"]) == 3
+    # ✕ on the second: its number is free again, and the next one takes it.
+    page.sounds.delete_buttons[1].click()
+    assert page.upload_button.isEnabled() and page.upload_button.toolTip() == ""
+    pick["chosen"] = _wav(tmp_path / "new.wav", 1.5)
     page.upload_button.click()
-    assert not any(copy.exists() for copy in first)
-    assert window.store.scene_sounds["ice"]["name"] == "b.wav" and page.sound_text.full == "自定义 · b.wav · 2.5 秒"
+    files = [song["file"] for song in window.store.scene_songs("cyber")]
+    assert files == ["cyber-1.wav", "cyber-3.wav", "cyber-2.wav"] and window.store.scene_sounds["cyber"]["chosen"] == "cyber-2.wav"
+    assert _rows(page)[1:] == ["0.wav · 1.0 秒", "2.wav · 3.0 秒", "new.wav · 1.5 秒"]
+
+
+def test_a_new_song_never_takes_a_file_still_there(window, pick, trim, tmp_path):
+    """A song's file that could not be deleted (winsound held it) keeps its name: the next song takes another."""
+    page = _shown(window, "ice")
+    folder = custom_sound_dir(window.store.root)
+    folder.mkdir(parents=True, exist_ok=True)
+    _wav(folder / "ice-1.wav", 1.0)
+    pick["chosen"] = _wav(tmp_path / "a.wav", 2.0)
+    page.upload_button.click()
+    assert window.store.scene_songs("ice")[0]["file"] == "ice-2.wav"
+    with wave.open(str(folder / "ice-1.wav")) as wav:
+        assert wav.getnframes() == 44100
 
 
 def test_classic_may_have_one_too(window, pick, trim, tmp_path):
@@ -483,9 +581,13 @@ def test_classic_may_have_one_too(window, pick, trim, tmp_path):
     pick["chosen"] = _wav(tmp_path / "a.wav", 2.0)
     page.upload_button.click()
     assert page.volume_slider.isEnabled() and window.music.pick("classic") == "classic"
-    assert page.scenes.buttons["classic"].own and page.sound_text.full == "自定义 · a.wav · 2.0 秒"
+    assert page.scenes.buttons["classic"].own and _chosen(page) == "a.wav · 2.0 秒"
     page.reset_button.click()
-    assert not page.volume_slider.isEnabled() and window.music.pick("classic") == "" and page.sound_text.full == "默认 · 无"
+    assert window.music.pick("classic") == "" and _chosen(page) == "默认（无声）" and not page.scenes.buttons["classic"].own
+    # Its song is there still, to be heard at its 音量.
+    assert page.volume_slider.isEnabled()
+    page.sounds.delete_buttons[0].click()
+    assert not page.volume_slider.isEnabled() and _rows(page) == ["默认（无声）"]
 
 
 def test_starting_over_takes_the_marks_and_rows_back(window, pick, trim, tmp_path, monkeypatch):
@@ -496,7 +598,7 @@ def test_starting_over_takes_the_marks_and_rows_back(window, pick, trim, tmp_pat
     monkeypatch.setattr("blacklist_detect.ui._confirm", lambda *_args: True)
     window._ask_reset()
     assert page.scenes.key == "classic" and page.scenes.buttons["classic"].tick
-    assert not page.scenes.buttons["ice"].own and page.sound_text.full == "默认 · 无"
+    assert not page.scenes.buttons["ice"].own and _rows(page) == ["默认（无声）"]
 
 
 def test_an_mp3_is_read_and_kept(window, pick, trim):
@@ -506,18 +608,20 @@ def test_an_mp3_is_read_and_kept(window, pick, trim):
     # 1.5 s of organ: kept whole.
     pick["chosen"] = os.path.join(SOUNDS, "organ.mp3")
     page.upload_button.click()
-    entry = window.store.scene_sounds["angel"]
+    entry = window.store.scene_songs("angel")[0]
     assert entry["name"] == "organ.mp3" and entry["length"] == pytest.approx(1.5, abs=0.1) and trim["opened"] == []
 
 
-def test_the_page_with_its_own_sound_fits_the_smallest_window(window, pick, trim, tmp_path):
+def test_the_page_with_three_songs_fits_the_smallest_window(window, pick, trim, tmp_path):
     window.resize(900, 560)
     window.tabs.setCurrentIndex(window.effects_tab)
     window.show()
     _wait(50)
     page = _shown(window, "fluffy")
-    pick["chosen"] = _wav(tmp_path / "一个名字很长很长很长很长很长很长很长的心动音乐.wav", 2.0)
-    page.upload_button.click()
+    for name in ("一个名字很长很长很长很长很长很长很长很长很长很长很长很长的心动音乐.wav", "b.wav", "c.wav"):
+        pick["chosen"] = _wav(tmp_path / name, 2.0)
+        page.upload_button.click()
+    page.sounds.choices[1].click()
     # 已静音 beside 音量 too.
     window.mute_box.click()
     _wait(30)
@@ -525,11 +629,13 @@ def test_the_page_with_its_own_sound_fits_the_smallest_window(window, pick, trim
     def placed(widget):  # noqa: ANN001, ANN202
         return widget.geometry().translated(widget.parentWidget().mapTo(page, widget.pos()) - widget.pos())
 
-    for control in (page.sound_text, page.upload_button, page.reset_button, page.level_note, page.play_button, page.assign_button):
+    controls = (*page.sounds.choices, *page.sounds.play_buttons, *page.sounds.delete_buttons, page.upload_button, page.reset_button)
+    for control in (*controls, page.volume_slider, page.level_note, page.play_button, page.assign_button):
         assert page.rect().contains(placed(control)), control
+    assert page.preview.width() >= page.stage.MIN_W
     # A name too long for its room is cut in the middle, whole in its tooltip.
-    assert page.sound_text.text() != page.sound_text.full and page.sound_text.toolTip() == page.sound_text.full
-    assert page.sound_text.text().endswith("2.0 秒")
+    long = page.sounds.choices[1]
+    assert long.text() != long.full and long.toolTip() == long.full and long.text().endswith("2.0 秒")
     window.hide()
 
 
@@ -537,13 +643,19 @@ def test_settings_saved_by_the_page_load_as_they_were(window, pick, trim, tmp_pa
     page = _shown(window, "cyber")
     pick["chosen"] = _wav(tmp_path / "a.wav", 2.0)
     page.upload_button.click()
+    pick["chosen"] = _wav(tmp_path / "b.wav", 2.0)
+    page.upload_button.click()
+    page.sounds.choices[1].click()
     page.volume_slider.setValue(9)
     saved = json.loads(window.store.settings_path.read_text(encoding="utf-8"))["scene_sounds"]
-    assert saved["cyber"]["volume"] == 45 and saved["cyber"]["file"] == "cyber.wav"
+    # The one chosen beside the songs, as v0.9.15 reads it.
+    assert saved["cyber"]["volume"] == 45 and saved["cyber"]["chosen"] == saved["cyber"]["file"] == "cyber-1.wav"
+    assert saved["cyber"]["name"] == "a.wav" and [song["file"] for song in saved["cyber"]["songs"]] == ["cyber-1.wav", "cyber-2.wav"]
     again = type(window)()
     assert again.effects_page.scenes.buttons["cyber"].own
+    again.effects_page.scenes.buttons["cyber"].click()
+    assert _rows(again.effects_page) == ["默认", "a.wav · 2.0 秒", "b.wav · 2.0 秒"] and _chosen(again.effects_page) == "a.wav · 2.0 秒"
     again.close()
-
 
 
 def test_the_tab_row_keeps_clear_of_the_chips_in_the_smallest_window(window):
