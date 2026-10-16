@@ -24,7 +24,7 @@ from blacklist_detect.ui import (
     _zh_clock,
     masked_name,
 )
-from blacklist_detect.ui_theme import OVERLAY_PT, SMALL_PT, THEME
+from blacklist_detect.ui_theme import OVERLAY_PT, SMALL_PT, THEME, _dialog_style, chinese_family
 
 
 @pytest.fixture(scope="module")
@@ -639,6 +639,56 @@ def test_the_header_pill_opens_the_check_settings(qapp, tmp_path, monkeypatch):
     window.tabs.setCurrentIndex(window.blacklist_tab)
     assert not panel.isVisible()
     window._watch_timer.stop()
+    window.close()
+
+
+def test_the_check_choices_are_as_wide_as_their_words(qapp, tmp_path, monkeypatch):
+    """显示, 方式 and 直播模式 in the 检查 card: each choice its words and a little room either side, alike in the
+    three rows, never stretched across the row."""
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window.resize(900, 560)
+    window.show()
+    window.check_panel.open_panel()
+    qapp.processEvents()
+    choices = (window.display_mode, window.auto_mode, window.stream_choice)
+    for control in choices:
+        for button in control.buttons.values():
+            words = button.fontMetrics().horizontalAdvance(button.text())
+            assert words + 16 <= button.width() <= words + 24, button.text()
+    left = {control.mapTo(window.check_panel, QPoint(0, 0)).x() for control in choices}
+    assert len(left) == 1, "the three rows' choices start in one column"
+    window.check_panel.close_panel()
+    window.close()
+
+
+def test_a_warning_in_words_is_underlined_and_a_good_word_is_not(qapp, tmp_path, monkeypatch):
+    """What is wrong is underlined wherever it is said in words: a hotkey's problem, 检查更新 that could not look,
+    a dialog's error. 已是最新版本 and gray hints stay plain."""
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    note = window.settings_label
+    window._set_settings_note("这个键被别的程序占了，换一个", held=True)
+    note.ensurePolished()
+    assert note.font().underline()
+    window._update_asked = True
+    window._on_update_failed("网络连不上，等会儿再试")
+    assert window.update_note.text() == "网络连不上，等会儿再试" and window.update_note.font().underline()
+    window._update_asked = True
+    window._on_update_latest()
+    assert window.update_note.text() == "已是最新版本" and not window.update_note.font().underline()
+    dialog = QDialog(window)
+    dialog.setStyleSheet(_dialog_style(chinese_family()))
+    error = QLabel("名字不能为空", dialog)
+    error.setObjectName("error")
+    error.ensurePolished()
+    assert error.font().underline()
+    hint = QLabel("提示", window)
+    hint.setObjectName("rowHint")
+    hint.ensurePolished()
+    assert not hint.font().underline()
     window.close()
 
 

@@ -1043,9 +1043,10 @@ class MainWindow(QMainWindow):
         self._sync_auto_controls()
         self.hotkey_edit = self._hotkey_box("快捷键")
         check.add_row("方式", self.auto_mode, self.hotkey_edit)
-        # Hotkey problems show right under the hotkey they are about.
+        # Hotkey problems show right under the hotkey they are about, underlined as every warning is.
         self.settings_label = QLabel("")
         self.settings_label.setObjectName("rowHint")
+        self.settings_label.setProperty("tone", "warn")
         self.settings_label.setWordWrap(True)
         self.settings_label.hide()
         check.add_widget(self.settings_label, separated=False, indent=True)
@@ -4546,7 +4547,7 @@ class MainWindow(QMainWindow):
         """检查更新: look now. A new version installs the way it does at start; otherwise the answer
         shows beside the button. Once 有更新 is up, the button installs that version."""
         if updater.app_root() is None:
-            self._show_update_note("源码运行时不能更新")
+            self._show_update_note("源码运行时不能更新", warn=True)
             return
         if self._offered is not None and not self._updating:
             self._install_offered()
@@ -4560,11 +4561,11 @@ class MainWindow(QMainWindow):
         self.update_button.setText("检查中…")
         self._show_update_note("")
 
-    def _update_answered(self, note: str) -> None:
+    def _update_answered(self, note: str, warn: bool = False) -> None:
         self.update_button.setEnabled(True)
         self._show_update_button()
         if self._update_asked:
-            self._show_update_note(note)
+            self._show_update_note(note, warn)
         self._update_asked = False
         self._update_later = False
 
@@ -4636,9 +4637,13 @@ class MainWindow(QMainWindow):
         self.update_button.style().unpolish(self.update_button)
         self.update_button.style().polish(self.update_button)
 
-    def _show_update_note(self, note: str) -> None:
-        """What 检查更新 found, in gray after it. Hidden while empty, so 使用声明 sits one gap after 检查更新."""
+    def _show_update_note(self, note: str, warn: bool = False) -> None:
+        """What 检查更新 found, in gray after it, underlined when it could not look. Hidden while empty, so
+        使用声明 sits one gap after 检查更新."""
         self.update_note.setText(note)
+        self.update_note.setProperty("tone", "warn" if warn else "")
+        self.update_note.style().unpolish(self.update_note)
+        self.update_note.style().polish(self.update_note)
         self.update_note.setVisible(bool(note))
 
     def _install_offered(self) -> None:
@@ -4652,7 +4657,7 @@ class MainWindow(QMainWindow):
 
     def _on_update_failed(self, message: str) -> None:
         log.warning("Update check failed: %s", message)
-        self._update_answered(message)
+        self._update_answered(message, warn=True)
 
     def _on_update_found(self, release: updater.Release) -> None:
         """A new version is installed before the app is used: a dialog that stays until it is done,

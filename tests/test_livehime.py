@@ -128,13 +128,14 @@ def test_the_stream_row_says_whether_livehime_shows_the_window(window):
     window.log.write_text(START + _scene_line((GAME, True)), encoding="utf-8")
     window._check_stream_setup()
     assert not label.isHidden() and label.text() == livehime.WORDS[MISSING] and label.property("tone") == "warn"
+    assert label.font().underline(), "a warning is underlined"
     with open(window.log, "a", encoding="utf-8") as log:
         log.write(_scene_line((GAME, True), (OURS, True)))
     window._check_stream_setup()
-    assert label.text().startswith("✓") and label.property("tone") == "ok"
+    assert label.text().startswith("✓") and label.property("tone") == "ok" and not label.font().underline()
     window.running["on"] = False
     window._check_stream_setup()
-    assert label.text() == livehime.WORDS[CLOSED] and label.property("tone") == "warn"
+    assert label.text() == livehime.WORDS[CLOSED] and label.property("tone") == "warn" and label.font().underline()
     # 直播模式 off: nothing to say, and no more looking.
     window._set_stream_mode(False)
     assert label.isHidden() and not window._stream_watch.isActive()

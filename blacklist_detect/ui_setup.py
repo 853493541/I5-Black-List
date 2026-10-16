@@ -160,7 +160,7 @@ class SetupCheck(QWidget):
             QFrame#setupCard QLabel {{ background: transparent; color: {t["text"]}; }}
             QFrame#setupCard QLabel#setupTitle {{ font-size: {DIALOG_TITLE_PT}pt; font-weight: 600; }}
             QFrame#setupCard QLabel#setupNote {{ color: {t["muted"]}; }}
-            QFrame#setupCard QLabel#setupMessage {{ color: {t["red"]}; }}
+            QFrame#setupCard QLabel#setupMessage {{ color: {t["red"]}; text-decoration: underline; }}
             QProgressBar#setupProgress {{
                 background: {t["surface_alt"]};
                 border: none;

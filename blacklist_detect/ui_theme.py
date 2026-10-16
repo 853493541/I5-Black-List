@@ -10,6 +10,7 @@ size or a color:
     Color     THEME, built from roles (accent, surface, border, text, muted, danger …)
               for 浅色 or 深色, with the user's accent color. Red means danger, a
               blacklist hit, or a tag (why someone is on the blacklist), and nothing else.
+              A warning said in words is underlined as well; green and gray words are not.
 """
 
 from __future__ import annotations
@@ -630,7 +631,7 @@ def _kit_rules(family: str) -> str:
             QPushButton#segment {{
                 border-radius: 0;
                 margin: 0;
-                padding: 0 14px;
+                padding: 0 10px;
             }}
             QPushButton#segment[place="first"] {{
                 border-top-left-radius: {RADIUS}px;
@@ -721,14 +722,16 @@ def _kit_rules(family: str) -> str:
                 font-size: {SMALL_PT}pt;
                 color: {t["red"]};
                 background: transparent;
+                text-decoration: underline;
             }}
-            QLabel#streamStatus[tone="ok"] {{ color: {t["green"]}; }}
+            QLabel#streamStatus[tone="ok"] {{ color: {t["green"]}; text-decoration: none; }}
             QLabel#rowHint, QLabel#rowDescription, QLabel#emptyHint {{
                 font-family: "{family}";
                 font-size: {SMALL_PT}pt;
                 color: {t["muted"]};
                 background: transparent;
             }}
+            QLabel#rowHint[tone="warn"] {{ text-decoration: underline; }}
             QLabel#emptyIcon {{ background: transparent; }}
             """
 
@@ -1096,6 +1099,7 @@ def _dialog_style(family: str) -> str:
                 font-size: {SMALL_PT}pt;
                 color: {t["red"]};
                 background: transparent;
+                text-decoration: underline;
             }}
             QCheckBox {{
                 font-family: "{family}";
