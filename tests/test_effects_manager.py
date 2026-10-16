@@ -694,6 +694,44 @@ def test_each_sound_s_play_pauses_it_with_a_wave_beside_it_one_at_a_time(window,
     assert window.played[0] is None and not any(wave.running for wave in waves) and _rows(page) == ["默认", "b.wav · 2.0 秒"]
 
 
+def test_a_wave_starts_right_after_its_play_and_moves_nothing_so_a_second_click_pauses(window, pick, trim, tmp_path, clock):
+    """The wave sits right after a row's ▶ (the player's ask), in room kept while it is still: on a song whose name
+    is cut to fit, ▶ and ✕ stay put as it starts, so a second click on the same spot pauses it, never deletes it."""
+    window.show()
+    window._show_scene_manager()
+    page = _shown(window, "stars")
+    sounds = page.sounds
+    pick["chosen"] = _wav(tmp_path / "a.wav", 2.0)
+    page.upload_button.click()
+    QApplication.processEvents()
+    one = sounds.sizeHint().height()
+    pick["chosen"] = _wav(tmp_path / f"{'a song downloaded with a very long name ' * 3}.wav", 2.0)
+    page.upload_button.click()
+    QApplication.processEvents()
+    # A row with no song takes no room, its wave's neither.
+    assert sounds.sizeHint().height() - one == sounds.song_row_height()
+    assert not sounds.waves[3].sizePolicy().retainSizeWhenHidden()
+    for row in range(3):
+        listen, wave = sounds.play_buttons[row].geometry(), sounds.waves[row].geometry()
+        assert 0 <= wave.left() - listen.right() <= 10 and abs(wave.center().y() - listen.center().y()) <= 1
+        if row:
+            assert wave.right() < sounds.delete_buttons[row - 1].geometry().left()
+    listen, gone = sounds.play_buttons[2], sounds.delete_buttons[1]
+    assert sounds.choices[2].text() != sounds.choices[2].full
+    idle = (listen.geometry(), gone.geometry(), sounds.choices[2].text())
+    spot = listen.geometry().center()
+
+    def click() -> None:
+        target = sounds.childAt(spot)
+        QTest.mouseClick(target, Qt.LeftButton, Qt.KeyboardModifier.NoModifier, target.mapFrom(sounds, spot))
+        QApplication.processEvents()
+
+    click()
+    assert listen.playing and sounds.waves[2].running and (listen.geometry(), gone.geometry(), sounds.choices[2].text()) == idle
+    click()
+    assert not listen.playing and listen.toolTip() == "接着播放" and len(_rows(page)) == 3
+
+
 def test_mute_closing_minimizing_and_the_window_s_music_put_every_play_back(window, pick, trim, tmp_path, clock):
     window.show()
     window._show_scene_manager()

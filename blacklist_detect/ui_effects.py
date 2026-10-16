@@ -275,7 +275,7 @@ class SoundChoices(QWidget):
     own; 经典's is none, 默认（无声）), then each of the player's songs, its name and length, up to MAX_SONGS. Each
     has ▶ (play(file), "" for 默认) and each song ✕ (delete(file)); a click on one, or ↑ and ↓, chooses it
     (chose(file)), and nothing plays by itself. While a row's sound plays (set_playing) its ▶ is ⏸ and a wave
-    moves at the row's right; paused, it is ▶ again, to go on. 上传 and 恢复默认 sit on 默认's row: 上传 is off
+    moves right after it; paused, it is ▶ again, to go on. 上传 and 恢复默认 sit on 默认's row: 上传 is off
     once there are MAX_SONGS songs, 恢复默认 (back to 默认) shown while a song is chosen. Its rows are made once and
     shown as there are songs, so after a ✕ the next song is under it: a second click as quick as a double-click's
     deletes nothing."""
@@ -311,7 +311,8 @@ class SoundChoices(QWidget):
         self.reset_button = _button("恢复默认", restore)
         self.reset_button.setAccessibleName("恢复默认配乐")
         for row in range(1 + MAX_SONGS):
-            # Each row packed on the left from its name, as 配乐's above; its wave at the right.
+            # Each row packed on the left from its name, as 配乐's above; its wave right after its ▶, in room kept
+            # while it is still, so nothing on the row moves as it starts: a second click to pause lands on ⏸, not ✕.
             line = QHBoxLayout()
             line.setSpacing(6)
             column.addLayout(line)
@@ -324,6 +325,9 @@ class SoundChoices(QWidget):
             listen = _Listen()
             listen.clicked.connect(lambda _checked=False, row=row: self.play.emit(self.files[row]))
             line.addWidget(listen)
+            wave = SoundWave()
+            line.addWidget(wave, 0, Qt.AlignVCenter)
+            self.waves.append(wave)
             self.choices.append(choice)
             self.play_buttons.append(listen)
             if row:
@@ -337,9 +341,6 @@ class SoundChoices(QWidget):
                 line.addSpacing(4)
                 line.addWidget(self.reset_button)
             line.addStretch(1)
-            wave = SoundWave()
-            line.addWidget(wave, 0, Qt.AlignVCenter)
-            self.waves.append(wave)
 
     def set_sounds(self, default: str, sounds: bool, songs: list[dict], chosen: str, room: int = 0) -> None:
         """default: what 默认 is called; sounds: whether it plays anything. songs: the 场景's, oldest first, each
@@ -355,6 +356,8 @@ class SoundChoices(QWidget):
             shown = row <= len(songs)
             for widget in (self.choices[row], self.play_buttons[row], self.delete_buttons[row - 1]):
                 widget.setVisible(shown)
+            # A row with no song takes no room, its wave's neither.
+            self.waves[row].keep_room(shown)
         picked = self.files.index(chosen) if chosen and chosen in self.files else 0
         self.choices[picked].setChecked(True)
         full = len(songs) >= MAX_SONGS

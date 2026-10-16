@@ -1,4 +1,4 @@
-"""场景管理's signs that a sound plays: a few bars rising and falling at the right of its row (SoundWave), and the
+"""场景管理's signs that a sound plays: a few bars rising and falling right after its ▶ (SoundWave), and the
 ⏸ its ▶ becomes meanwhile (pause_icon), drawn as ui_icons draws ▶, a ring with the sign in it."""
 
 from __future__ import annotations
@@ -51,7 +51,14 @@ class SoundWave(QWidget):
         self._timer = QTimer(self)
         self._timer.setInterval(self.FRAME_MS)
         self._timer.timeout.connect(self.update)
+        self.keep_room(True)
         self.hide()
+
+    def keep_room(self, on: bool) -> None:  # noqa: FBT001
+        """Whether its row keeps its room while it is hidden, so what sits after it does not move as it shows."""
+        policy = self.sizePolicy()
+        policy.setRetainSizeWhenHidden(on)
+        self.setSizePolicy(policy)
 
     @property
     def running(self) -> bool:
