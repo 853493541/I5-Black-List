@@ -58,6 +58,9 @@ Status as of 2026-10-15 22:37 PDT (stopped by the user's #ec): 1-47 are all merg
 | 50 | 嘉宾 / 组合 / 我 dialogs | "if the 播放场景 is not checked, but I want to check one of the actual scene, I'm allowed to. So when that is checked, 播放场景 will be active" (undoes #42's greyed boxes) | building (G2) |
 | 51 | 嘉宾 / 组合 / 我 dialogs | "add one option to the list on the top ... It says 随机 ... with a new color dot"; "remove that 不勾选场景则随机播放 text"; checking 播放场景 ticks 随机 first; clicking a scene (e.g. 经典) unticks 随机; several can be ticked, one of them at random | building (G2) |
 | 52 | Scene names | 赛博朋克·一 / 赛博朋克·二: "the dot is a little bit too small", use parentheses: 赛博朋克（一） / 赛博朋克（二） (master's reading of "Cyberpunk Apprentice one and two") | master, with G1's base |
+| 53 | 场景管理 配乐 (2026-10-15 ~23:45 local) | "the upload button should right align" | building (master) |
+| 54 | 场景管理 配乐 | "the restore to default button should no longer be needed" (恢复默认 goes; choosing 默认 does it) | building (master) |
+| 55 | 场景管理 配乐 | "for the default, it should also say how much time ... default five seconds" (the 默认 row shows its length) | building (master) |
 | — | Green 场景 | For the friend who mains 吴邪 (green + wind): border only, slow entrance, cute pandas, less middle | v2 rejected; the user wants picture ideas first. 7 concept stills sent 2026-10-16 (dist/concepts_green/: all_concepts.png + one folder per idea with its script): 1 草原风车, 2 竹风铃, 3 风筝, 4 水墨竹, 5 山雾萤火, 6 青铜门, 7 柳与燕. Waiting for the user's pick; then one concept frame of it, then the build. |
 
 "Just changing UI for now" (22:40): no 直播模式 checklist is to be built.
