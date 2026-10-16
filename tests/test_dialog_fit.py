@@ -160,23 +160,27 @@ def _guests(count: int) -> list[Entry]:
 
 @pytest.mark.parametrize("count", [0, 2, 20, 60])
 def test_the_combo_dialogs_fit_a_short_screen_however_many_guests(window, count):
-    """添加组合 and 编辑组合 list every 嘉宾 to pick, one per row: past ROWS and a half the list scrolls inside
-    them, so neither grows, and 保存 stays in view even with 至少选两位嘉宾 under the list."""
-    from blacklist_detect.ui_guest_scenes import TickBox
+    """添加组合 and 编辑组合 list every 嘉宾 to pick, one per row, in a box as tall as the column leaves it: a
+    long list scrolls inside it, so neither grows, and 保存 stays in view even with 至少选两位嘉宾 under the list."""
     from blacklist_detect.ui_guests import ComboDialog
 
-    likes = _guests(count)
-    combo = Combo((*(like.name for like in likes[:2]), "已删掉的嘉宾"), Scenes(("angel",)))
-    for dialog in (ComboDialog(likes, parent=window), ComboDialog(likes, combo, parent=window)):
+    def height(dialog: ComboDialog) -> int:
+        """With 至少选两位嘉宾 under the list, fitted to a short screen."""
         for button in dialog.people_buttons.values():
             button.setChecked(False)
         dialog._accept()
         assert dialog.result() != QDialog.Accepted and dialog.people_error.isVisibleTo(dialog)
         dialog.fit_height(SHORT)
-        assert dialog.scroll is None and _card_height(dialog) <= SHORT - 8, count
-        rows, people = len(dialog.people_buttons) * TickBox.H, dialog.people_scroll
-        assert (rows > people.height()) == (count >= 20) and people.height() <= (ComboDialog.ROWS + 1) * TickBox.H, count
+        assert dialog.scroll is None, count
         dialog.done(QDialog.Rejected)
+        return _card_height(dialog)
+
+    none = height(ComboDialog([], parent=window))
+    assert none <= SHORT - 8
+    likes = _guests(count)
+    combo = Combo((*(like.name for like in likes[:2]), "已删掉的嘉宾"), Scenes(("angel",)))
+    for dialog in (ComboDialog(likes, parent=window), ComboDialog(likes, combo, parent=window)):
+        assert height(dialog) == none, count
 
 
 def test_the_combo_dialog_opens_on_its_own_guests_however_far_down_the_list_they_are(window):
@@ -190,7 +194,7 @@ def test_the_combo_dialog_opens_on_its_own_guests_however_far_down_the_list_they
     ticked = [button.isChecked() for button in dialog.people_buttons.values()]
     assert ticked == [True] * 3 + [False] * 58
     # One per row, they are the first rows it shows.
-    assert set(list(dialog.people_buttons)[:3]) == set(combo.names) and 3 * TickBox.H <= dialog.people_scroll.height()
+    assert set(list(dialog.people_buttons)[:3]) == set(combo.names) and 3 * TickBox.H <= dialog.people_scroll.minimumSizeHint().height()
     dialog._accept()
     assert dialog.result() == QDialog.Accepted and set(dialog.combo.names) == set(combo.names)
 

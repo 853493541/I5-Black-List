@@ -3,23 +3,24 @@ one lobby, get scenes of their own (guests.lobby_choice).
 
 The 嘉宾 list says a 嘉宾's or a 组合's scenes in a word or two (scenes_said); they are ticked in the
 dialog that edits it, beside its fields (ui_guest_scenes.ScenePane). The 组合 head the 嘉宾 page's list
-(ui_likes), each a row tagged 组合 that opens ComboDialog; 添加 › 添加组合 adds one, on 随机 to begin with.
+(ui_likes), each a row tagged 组合 that opens ComboDialog; 添加组合 adds one, on 不放 to begin with.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
+from PySide6.QtCore import QSize
 from PySide6.QtGui import QPixmap
-from PySide6.QtWidgets import QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QSizePolicy, QVBoxLayout, QWidget
 
 from blacklist_detect import love_scenes
 from blacklist_detect.guests import ticked
 from blacklist_detect.match import fold
-from blacklist_detect.model import ANY_SCENE, Combo, Entry, Scenes
+from blacklist_detect.model import Combo, Entry, Scenes
 from blacklist_detect.ui_dialogs import _danger, _field, _primary, _say_error
-from blacklist_detect.ui_guest_scenes import ScenePane, TickBox, two_columns
-from blacklist_detect.ui_kit import Modal, _CardScroll
+from blacklist_detect.ui_guest_scenes import OFF, ScenePane, TickBox, two_columns
+from blacklist_detect.ui_kit import _SCROLL_BAR, Modal, _CardScroll
 from blacklist_detect.ui_theme import _pointing
 
 # Each scene at its best moment over the fake-name sample lobby, with the 嘉宾 marks in its look,
@@ -56,15 +57,32 @@ def scenes_said(scenes: Scenes) -> str:
     return scene_name(keys[0]) if len(keys) == 1 else f"{len(keys)}个场景"
 
 
+class _PeopleScroll(_CardScroll):
+    """The 嘉宾 to pick, in a box as tall as the column leaves it: however many there are, they scroll in it
+    and never make the dialog taller."""
+
+    def hasHeightForWidth(self) -> bool:  # noqa: N802
+        return False
+
+    def sizeHint(self) -> QSize:  # noqa: N802
+        return self.minimumSizeHint()
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802
+        return QSize(self.widget().minimumSizeHint().width() + _SCROLL_BAR, ComboDialog.MIN_ROWS * TickBox.H)
+
+
 class ComboDialog(Modal):
-    """One combination: on the left the 嘉宾 in it (two or more), ticked in the list of every 嘉宾, with
-    its 场景 playing under them; on the right the 场景 that greet them (ScenePane). A new one is on 随机.
+    """One combination: on the left 已添加的嘉宾, every 嘉宾 in a box, those in it (two or more) ticked, with
+    its 场景 playing at the column's foot; on the right the 场景 that greet them (ScenePane). A new one is
+    on 不放. 编辑组合 is laid out as 添加组合 is.
 
-    The 嘉宾 to pick scroll past ROWS rows and half the next, so a long list shows it goes on and the
-    dialog keeps its height however many 嘉宾 there are."""
+    The box takes the height the 场景 beside it leave, and its 嘉宾 scroll in it past that, so the dialog
+    keeps its height however many 嘉宾 there are."""
 
-    ROWS = 5
+    # Rows the box shows at the least, when the column is at its shortest.
+    MIN_ROWS = 3
     PREVIEW_W = 424
+    PAD = 4
 
     def __init__(self, likes: list[Entry], combo: Combo | None = None, parent=None) -> None:  # noqa: ANN001
         super().__init__(parent)
@@ -102,13 +120,19 @@ class ComboDialog(Modal):
             rows.addWidget(box)
             self.people_buttons[like.name] = box
         rows.addStretch(1)
-        self.people_scroll = _CardScroll(self.people)
+        self.people_scroll = _PeopleScroll(self.people)
         self.people.setAutoFillBackground(False)
-        self.people_scroll.setFixedHeight(min(len(self.people_buttons) * TickBox.H, self.ROWS * TickBox.H + TickBox.H // 2))
-        self.people_error = _field(left, "嘉宾", self.people_scroll)
-        self.pane = ScenePane(combo.scenes if combo else ANY_SCENE, self.PREVIEW_W)
+        self.people_box = QFrame()
+        self.people_box.setObjectName("section")
+        inside = QVBoxLayout(self.people_box)
+        inside.setContentsMargins(self.PAD, self.PAD, self.PAD, self.PAD)
+        inside.addWidget(self.people_scroll)
+        self.people_box.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
+        self.people_error = _field(left, "已添加的嘉宾", self.people_box)
+        # The box takes the column's free height, the preview at its foot.
+        left.setStretch(left.count() - 1, 1)
+        self.pane = ScenePane(combo.scenes if combo else OFF, self.PREVIEW_W)
         left.addWidget(self.pane.preview)
-        left.addStretch(1)
         right.addWidget(self.pane)
         remove = _danger("删除", self._delete) if combo else None
         self.footer(_primary("保存" if combo else "添加", self._accept), left=remove)

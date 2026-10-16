@@ -2,8 +2,8 @@
 添加组合 / 编辑组合 (ui_guests.ComboDialog) and 我的场景 (ui_likes.MeDialog).
 
 On top 放场景, a box: off, 不放 (the list's boxes greyed, their ticks kept while the dialog is open); on with
-none ticked, 随机 (any scene); on with ticks, those (several: one of them at random each time). A hint
-beside it says which. Under it every scene, one per row, each with its box; past ROWS rows the list scrolls
+none ticked, 随机 (any scene); on with ticks, those (several: one of them at random each time). While it is
+on, a hint beside it says that none ticked plays any. A new 嘉宾 or 组合 starts off. Under it every scene, one per row, each with its box; past ROWS rows the list scrolls
 inside the pane. A click on a name highlights it and plays it over the sample lobby, silent, in the pane's
 preview (ScenePreview), which the dialog puts in its left column; ▶ plays it again from its start.
 
@@ -85,14 +85,8 @@ def two_columns(layout: QVBoxLayout) -> tuple[QVBoxLayout, QVBoxLayout]:
     return left, right
 
 
-def hint(scenes: Scenes) -> str:
-    """What the hint beside 放场景 says of these 场景, in a few words."""
-    if scenes.off:
-        return "不放场景"
-    keys = () if scenes.random else ticked(scenes)
-    if not keys:
-        return "随机放一个场景"
-    return f"放{dict(love_scenes.SCENES)[keys[0]]}" if len(keys) == 1 else f"{len(keys)}个里随机放一个"
+# Beside 放场景 while it is on, whatever is ticked; nothing while it is off.
+HINT = "不勾选场景则随机播放"
 
 
 class ScenePane(QWidget):
@@ -176,11 +170,10 @@ class ScenePane(QWidget):
         return self._shown() != self._opened
 
     def _edited(self, _on: bool = False) -> None:
-        """放场景 or a box ticked: off greys the boxes, their ticks kept; the hint says what plays now."""
+        """放场景 or a box ticked: off greys the boxes, their ticks kept, and takes the hint away."""
         on = self.play_box.isChecked()
         self.scenes.set_boxes_enabled(on)
-        keys = self.scenes.chosen() if on else ()
-        self.hint.setText(hint(Scenes(keys) if keys else ANY_SCENE if on else OFF))
+        self.hint.setText(HINT if on else "")
 
     def show_scene(self, key: str) -> None:
         """Highlight this scene and play it over the sample lobby, silent."""
@@ -196,4 +189,4 @@ class ScenePane(QWidget):
         self.preview.stop()
 
 
-__all__ = ["ScenePane", "TickBox", "hint", "two_columns"]
+__all__ = ["HINT", "OFF", "ScenePane", "TickBox", "two_columns"]

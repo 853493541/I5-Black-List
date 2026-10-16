@@ -345,15 +345,17 @@ def test_the_guest_list_shows_each_one_s_scenes(window):
     assert page.table.horizontalHeaderItem(2).text() == "场景"
 
 
-def test_a_new_guest_starts_on_random_and_saves_the_scenes_ticked(window, monkeypatch):
+def test_a_new_guest_starts_on_no_scene_and_saves_the_scenes_ticked(window, monkeypatch):
     from blacklist_detect.ui_likes import LikeDialog
 
     opened = []
 
-    def add(name: str, *keys: str):  # noqa: ANN202
+    def add(name: str, *keys: str, on: bool = True):  # noqa: ANN202
         def answer(dialog) -> int:  # noqa: ANN001
             opened.append((dialog.pane.play_box.isChecked(), dialog.pane.scenes.chosen()))
             dialog.name_edit.setText(name)
+            if on:
+                dialog.pane.play_box.click()
             dialog.pane.scenes.set_chosen(keys)
             dialog.pane._edited()
             dialog._accept()
@@ -361,15 +363,19 @@ def test_a_new_guest_starts_on_random_and_saves_the_scenes_ticked(window, monkey
 
         return answer
 
-    monkeypatch.setattr(LikeDialog, "exec", add("小明"))
+    monkeypatch.setattr(LikeDialog, "exec", add("小明", on=False))
     window.likes_page.add_one()
-    # 放场景 on, nothing ticked: 随机.
-    assert opened == [(True, ())] and window.store.likes[0].scenes == ANY_SCENE
+    # 放场景 off, untouched: 不放.
+    assert opened == [(False, ())] and window.store.likes[0].scenes == Scenes()
+    # 放场景 ticked, nothing else: 随机.
+    monkeypatch.setattr(LikeDialog, "exec", add("小刚"))
+    window.likes_page.add_one()
+    assert window.store.likes[1].scenes == ANY_SCENE
     # Ticked as it is added: those, and saved.
     monkeypatch.setattr(LikeDialog, "exec", add("小红", "ice", "fluffy"))
     window.likes_page.add_one()
-    assert window.store.likes[1].scenes == Scenes(("ice", "fluffy"))
-    assert Store(window.store.root).likes[1].scenes == Scenes(("ice", "fluffy"))
+    assert opened[-1] == (False, ()) and window.store.likes[2].scenes == Scenes(("ice", "fluffy"))
+    assert Store(window.store.root).likes[2].scenes == Scenes(("ice", "fluffy"))
 
 
 # 场景, not 特效 ------------------------------------------------------------------------------------

@@ -204,23 +204,6 @@ def shoot(args) -> None:  # noqa: ANN001
         step("dlg_编辑组合", lambda: likes.edit_combo(0))
     step("dlg_我的场景", likes.edit_me)
 
-    def add_menu() -> None:
-        from PySide6.QtGui import QPainter
-
-        # The page with its 添加 menu open: the menu is a window of its own, laid over the page's picture.
-        likes._open_add()
-        settle(0.3)
-        shot = window.grab()
-        painter = QPainter(shot)
-        painter.drawPixmap(window.mapFromGlobal(likes.add_menu.pos()), likes.add_menu.grab())
-        painter.end()
-        path = out / f"{len(shots):02d}_menu_添加嘉宾.png"
-        shot.save(str(path))
-        shots.append(path.name)
-        likes.add_menu.hide()
-
-    step("menu_添加嘉宾", add_menu)
-
     def trim() -> None:
         from blacklist_detect.ui_sound_trim import SoundTrimDialog
 

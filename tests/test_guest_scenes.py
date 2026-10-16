@@ -1,11 +1,14 @@
 """The 场景 beside a 嘉宾's, a 组合's and 我's own fields (ScenePane): 放场景 off is 不放, on with none ticked
 随机, on with ticks those; saved by the dialog's 添加 / 保存 alone, and untouched kept exactly."""
 
+import os
+
 import pytest
 
 pytest.importorskip("PySide6")
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QPoint, Qt  # noqa: E402
+from PySide6.QtCore import QPoint, QRect, Qt  # noqa: E402
 from PySide6.QtGui import QKeyEvent  # noqa: E402
 from PySide6.QtTest import QTest  # noqa: E402
 from PySide6.QtWidgets import QAbstractButton, QApplication, QDialog, QLabel, QListWidget, QWidget  # noqa: E402
@@ -82,7 +85,7 @@ def test_the_three_states_load_in_each_dialog(store):
     ticks, anything, nothing = _like(store, 0), _like(store, 1), _like(store, 2)
     assert _opened(ticks.pane) == (True, ("stars", "fluffy")) and _opened(anything.pane) == (True, ())
     off = nothing.pane
-    assert _opened(off) == (False, ()) and not _boxes_on(off) and off.hint.text() == "不放场景"
+    assert _opened(off) == (False, ()) and not _boxes_on(off) and off.hint.text() == ""
     # 编辑组合 and 我的场景, each on its one scene.
     for dialog, key in ((_combo(store), "angel"), (_me(store), "lace")):
         pane = dialog.pane
@@ -90,30 +93,35 @@ def test_the_three_states_load_in_each_dialog(store):
         # Its ticked plays.
         assert pane.key == key and pane.preview.scene == key
         dialog.done(QDialog.Rejected)
-    # A new 嘉宾 or 组合 starts on 随机.
+    # A new 嘉宾 or 组合 starts on 不放, its boxes greyed and no hint; 放场景 ticked, 随机.
+    from blacklist_detect.ui_guest_scenes import HINT
     from blacklist_detect.ui_guests import ComboDialog
     from blacklist_detect.ui_likes import LikeDialog
 
     for dialog in (LikeDialog(), ComboDialog(store.likes)):
-        assert _opened(dialog.pane) == (True, ()) and dialog.pane.hint.text() == "随机放一个场景"
-        assert dialog.pane.value() == ANY_SCENE
+        pane = dialog.pane
+        assert _opened(pane) == (False, ()) and not _boxes_on(pane) and pane.hint.text() == "" and pane.value() == OFF
+        assert not dialog.has_changes()
+        pane.play_box.click()
+        assert _boxes_on(pane) and pane.hint.text() == HINT and pane.value() == ANY_SCENE
         dialog.done(QDialog.Rejected)
 
 
-def test_the_hint_says_what_plays_now(store):
+def test_the_hint_shows_only_while_scenes_play_whatever_is_ticked(store):
+    from blacklist_detect.ui_guest_scenes import HINT
+
+    assert HINT == "不勾选场景则随机播放"
     dialog = _like(store, 1)
     pane = dialog.pane
-    assert pane.hint.text() == "随机放一个场景"
+    assert pane.hint.text() == HINT
     _tick(pane, "ice")
-    assert pane.hint.text() == "放冰蓝极光" and pane.value() == Scenes(("ice",))
+    assert pane.hint.text() == HINT and pane.value() == Scenes(("ice",))
     _tick(pane, "claw")
-    assert pane.hint.text() == "2个里随机放一个" and pane.value() == Scenes(("ice", "claw"))
+    assert pane.hint.text() == HINT and pane.value() == Scenes(("ice", "claw"))
     pane.play_box.click()
-    assert pane.hint.text() == "不放场景" and pane.value() == OFF
-    # Short: the longest scene name in it is 8 字 all told.
-    from blacklist_detect.ui_guest_scenes import hint
-
-    assert hint(Scenes(("fluffy",))) == "放毛茸茸保护协会" and hint(Scenes(("no_such_scene",))) == "随机放一个场景"
+    assert pane.hint.text() == "" and pane.value() == OFF
+    pane.play_box.click()
+    assert pane.hint.text() == HINT and pane.value() == Scenes(("ice", "claw"))
     dialog.done(QDialog.Rejected)
 
 
@@ -237,7 +245,7 @@ def test_saved_untouched_each_keeps_exactly_what_it_had(store, tmp_path, monkeyp
     assert lobby_choice(store.likes, [], store.likes[:1], "classic") == "random"
     # As it plays: the gone one 随机, nothing ticked; 随机 with ticks 随机, its stale ticks not shown.
     shown = [_like(store, 0), _like(store, 1), _combo(store)]
-    assert _opened(shown[0].pane) == (True, ()) and shown[0].pane.hint.text() == "随机放一个场景"
+    assert _opened(shown[0].pane) == (True, ()) and shown[0].pane.hint.text() == "不勾选场景则随机播放"
     assert _opened(shown[1].pane) == (True, ("ice",)) and _opened(shown[2].pane) == (True, ())
     for dialog in shown:
         dialog.done(QDialog.Rejected)
@@ -335,3 +343,67 @@ def test_the_preview_is_silent_and_replays_from_its_start(store):
     assert not hasattr(dialog, "music") and not hasattr(pane, "music")
     dialog.done(QDialog.Rejected)
     assert not pane.preview._tick.isActive()
+
+
+def _laid_out(dialog) -> None:  # noqa: ANN001
+    """Shown (off screen) on a 1080p-at-150% screen, so its widgets have their places."""
+    dialog.fit_height(672)
+    dialog.show()
+    QApplication.processEvents()
+
+
+def _at(dialog, widget: QWidget) -> QRect:  # noqa: ANN001
+    return QRect(widget.mapTo(dialog, QPoint(0, 0)), widget.size())
+
+
+def test_a_guest_s_name_and_nickname_share_a_row_with_the_reason_and_preview_under_them(store):
+    from blacklist_detect.ui_likes import LikeDialog
+
+    places = []
+    for dialog in (LikeDialog(), _like(store, 0)):
+        _laid_out(dialog)
+        name, nickname, reason, preview = (_at(dialog, widget) for widget in (dialog.name_edit, dialog.nickname_edit, dialog.detail_edit, dialog.pane.preview))
+        # 名字 and 昵称 on one row, 名字 the wider (about 3:2); 原因 under them as wide as both; the preview under it.
+        assert name.y() == nickname.y() and name.right() < nickname.left()
+        assert 1.3 < name.width() / nickname.width() < 1.7
+        assert reason.top() > name.bottom() and (reason.left(), reason.right()) == (name.left(), nickname.right())
+        assert reason.height() >= 3 * dialog.fontMetrics().lineSpacing()
+        assert preview.top() > reason.bottom() and preview.width() == dialog.pane.PREVIEW_W
+        places.append((name, nickname, reason, preview, dialog.width()))
+        # 名字's error under it keeps 昵称 on its row.
+        dialog.name_edit.clear()
+        dialog._accept()
+        QApplication.processEvents()
+        assert dialog.name_error.isVisible() and _at(dialog, dialog.name_edit).y() == _at(dialog, dialog.nickname_edit).y()
+        assert _at(dialog, dialog.name_error).top() > name.bottom()
+        dialog.done(QDialog.Rejected)
+    # 编辑嘉宾 is laid out as 添加嘉宾 is.
+    assert places[0] == places[1]
+
+
+def test_a_combo_s_guests_are_boxed_over_the_preview_at_the_column_s_foot(store):
+    from blacklist_detect.model import Entry
+    from blacklist_detect.ui_guest_scenes import TickBox
+    from blacklist_detect.ui_guests import ComboDialog
+
+    places = []
+    for dialog in (ComboDialog(store.likes), _combo(store)):
+        _laid_out(dialog)
+        label = next(label for label in dialog.findChildren(QLabel) if label.text() == "已添加的嘉宾")
+        box, preview, pane = (_at(dialog, widget) for widget in (dialog.people_box, dialog.pane.preview, dialog.pane))
+        # The label, the box under it, the preview at the column's foot, level with the 场景 beside it.
+        assert dialog.people_box.objectName() == "section" and dialog.people_box.isAncestorOf(dialog.people_scroll)
+        assert _at(dialog, label).bottom() < box.top() and box.bottom() < preview.top()
+        assert preview.bottom() == pane.bottom() and preview.left() == box.left()
+        # The box takes the free height: more than its three 嘉宾 need, so they do not scroll.
+        assert box.height() > 3 * TickBox.H + 2 * ComboDialog.PAD
+        assert dialog.people_scroll.verticalScrollBar().maximum() == 0
+        places.append((box, preview, dialog.width(), dialog.height()))
+        dialog.done(QDialog.Rejected)
+    # 编辑组合 is laid out as 添加组合 is.
+    assert places[0] == places[1]
+    # Many 嘉宾 scroll in the box, the dialog no taller.
+    many = ComboDialog([Entry(f"心动小鹿的好朋友{index:02d}") for index in range(40)])
+    _laid_out(many)
+    assert many.people_scroll.verticalScrollBar().maximum() > 0 and _at(many, many.people_box) == places[0][0]
+    many.done(QDialog.Rejected)

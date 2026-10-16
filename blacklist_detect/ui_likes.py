@@ -8,7 +8,7 @@ there (guests.lobby_choice). A player is on one list at a time: a 黑名单 name
 a 嘉宾 name on 黑名单 asks to move it.
 
 The page is laid out like 黑名单 with a 场景 column for 标签: search, 场景管理 beside it (each 场景's sound,
-ui_effects; beside 添加 on the empty list), 添加 (添加嘉宾 or 添加组合), and under 更多, 复制名单 and
+ui_effects; beside 添加嘉宾 on the empty list), 添加组合 and 添加嘉宾, and under 更多, 复制名单 and
 清空嘉宾列表. On top is the 我 row, green: the player's own name and the 场景
 they asked for themselves. The 组合 come next, each a row tagged 组合 with its 嘉宾 and its 场景; under
 them the 嘉宾, whose rows drag into another order. A click on a row, its 场景 cell too, opens 编辑嘉宾 or
@@ -42,7 +42,7 @@ from PySide6.QtWidgets import (
 from blacklist_detect import love_scenes
 from blacklist_detect.guests import members
 from blacklist_detect.match import clean_stored_name, fold, last_seen
-from blacklist_detect.model import ANY_SCENE, Combo, Entry, Scenes
+from blacklist_detect.model import Combo, Entry, Scenes
 from blacklist_detect.ui_dialogs import (
     _danger,
     _field,
@@ -50,7 +50,7 @@ from blacklist_detect.ui_dialogs import (
     _primary,
     _say_error,
 )
-from blacklist_detect.ui_guest_scenes import ScenePane, two_columns
+from blacklist_detect.ui_guest_scenes import OFF, ScenePane, two_columns
 from blacklist_detect.ui_guests import ComboDialog, scenes_said
 from blacklist_detect.ui_icons import icon as line_icon
 from blacklist_detect.ui_kit import ConfirmDialog, EmptyState, IconButton, Modal
@@ -220,11 +220,14 @@ class _GuestTable(QTableWidget):
 
 
 class LikeDialog(Modal):
-    """One 嘉宾 player: 名字, a 昵称 to show for them, and why on the left with their 场景 playing under them;
-    on the right the 场景 that greet them (ScenePane). A new one is on 随机. scenes is theirs as saved."""
+    """One 嘉宾 player: 名字 and a 昵称 to show for them side by side, why under them, and their 场景 playing
+    under that, on the left; on the right the 场景 that greet them (ScenePane). A new one is on 不放. scenes
+    is theirs as saved. 编辑嘉宾 is laid out as 添加嘉宾 is."""
 
-    # The preview under the fields, smaller than the pane's own so the dialog fits a short screen.
-    PREVIEW_W = 400
+    # The preview under the fields, as wide as the pane's own: 名字 and 昵称 on one row leave it the room.
+    PREVIEW_W = ScenePane.PREVIEW_W
+    # Lines of 原因 shown before it scrolls.
+    REASON_LINES = 3
 
     def __init__(
         self,
@@ -235,7 +238,7 @@ class LikeDialog(Modal):
         taken: frozenset[str] | set[str] = frozenset(),
         blacklisted: frozenset[str] | set[str] = frozenset(),
         parent=None,  # noqa: ANN001
-        scenes: Scenes = ANY_SCENE,
+        scenes: Scenes = OFF,
     ) -> None:
         super().__init__(parent)
         # Folded names already on 嘉宾. Saving one of them again would make a second row.
@@ -249,16 +252,24 @@ class LikeDialog(Modal):
         self.deleted = False
         layout = _frame(self, "编辑嘉宾" if allow_delete else "添加嘉宾")
         left, right = two_columns(layout)
+        # 名字 and 昵称 on one row, 名字 the wider, each with its label over it and 名字's error under it.
+        names = QHBoxLayout()
+        names.setSpacing(12)
         self.name_edit = QLineEdit(name)
-        self.name_error = _field(left, "名字", self.name_edit)
+        self.name_error = _field(names, "名字", self.name_edit)
         self.name_edit.textChanged.connect(self._clear_name_error)
         self.nickname_edit = QLineEdit(nickname)
         self.nickname_edit.setPlaceholderText("遇到时显示的名字")
-        _field(left, "昵称", self.nickname_edit)
+        _field(names, "昵称", self.nickname_edit)
+        for index, share in enumerate((3, 2)):
+            names.setStretch(index, share)
+            # Both fields stay on one line when 名字 has an error under it.
+            names.itemAt(index).layout().addStretch(1)
+        left.addLayout(names)
         self.detail_edit = QPlainTextEdit()
         self.detail_edit.setPlainText(reason)
         self.detail_edit.setTabChangesFocus(True)
-        self.detail_edit.setFixedHeight(self.fontMetrics().lineSpacing() * 2 + 18)
+        self.detail_edit.setFixedHeight(self.fontMetrics().lineSpacing() * self.REASON_LINES + 18)
         _field(left, "原因", self.detail_edit)
         self.pane = ScenePane(scenes, self.PREVIEW_W)
         left.addWidget(self.pane.preview)
@@ -378,18 +389,15 @@ class LikesPage(QWidget):
         self.scenes_button.clicked.connect(self.manage_scenes.emit)
         toolbar.addWidget(self.scenes_button)
         toolbar.addStretch(1)
-        self.add_button = QPushButton("添加")
-        self.add_button.setObjectName("primary")
-        self.add_button.clicked.connect(self._open_add)
-        self.toolbar_buttons = (self.add_button, self.scenes_button)
-        toolbar.addWidget(self.add_button)
-        # 添加: a 嘉宾, or a 组合 of them, who all in one lobby get 场景 of their own.
-        self.add_menu = QMenu(self)
-        self.add_menu.setToolTipsVisible(True)
-        self.add_like_action = self.add_menu.addAction("添加嘉宾", self.add_one)
-        _mark_menu_item(self.add_like_action, "heart")
-        self.add_combo_action = self.add_menu.addAction("添加组合", self.add_combo)
-        _mark_menu_item(self.add_combo_action, "users")
+        # 添加组合: 嘉宾 who all in one lobby get 场景 of their own; it waits for two 嘉宾 and says so.
+        self.add_combo_button = QPushButton("添加组合")
+        self.add_combo_button.clicked.connect(self.add_combo)
+        toolbar.addWidget(self.add_combo_button)
+        self.add_like_button = QPushButton("添加嘉宾")
+        self.add_like_button.setObjectName("primary")
+        self.add_like_button.clicked.connect(self.add_one)
+        toolbar.addWidget(self.add_like_button)
+        self.toolbar_buttons = (self.add_combo_button, self.add_like_button, self.scenes_button)
         self.more_button = IconButton("more", "更多")
         self.more_menu = QMenu(self)
         self.copy_action = self.more_menu.addAction("复制名单", self.copy_list)
@@ -434,10 +442,11 @@ class LikesPage(QWidget):
         self.table.installEventFilter(self)
         outer.addWidget(self.table, 1)
         self.empty = EmptyState("heart", "嘉宾列表还是空的")
-        self.empty_add_button = self.empty.add_action(QPushButton("添加"))
+        # With no 嘉宾 yet there is no 组合 to make: 添加嘉宾 alone.
+        self.empty_add_button = self.empty.add_action(QPushButton("添加嘉宾"))
         self.empty_add_button.setObjectName("primary")
-        self.empty_add_button.clicked.connect(self._open_add)
-        # With no 嘉宾 yet the toolbar is hidden: 场景管理 sits beside 添加 instead.
+        self.empty_add_button.clicked.connect(self.add_one)
+        # With no 嘉宾 yet the toolbar is hidden: 场景管理 sits beside 添加嘉宾 instead.
         self.empty_scenes_button = self.empty.add_action(QPushButton("场景管理"))
         self.empty_scenes_button.setAccessibleName("场景管理")
         self.empty_scenes_button.clicked.connect(self.manage_scenes.emit)
@@ -559,6 +568,8 @@ class LikesPage(QWidget):
             widget.setVisible(has_any or (widget is self.search and bool(self.search.text())))
         # 复制名单 and 清空嘉宾列表 are for 嘉宾: with 组合 alone they would have nothing to do.
         self.more_button.setVisible(count > 0)
+        self.add_combo_button.setEnabled(count >= 2)
+        self.add_combo_button.setToolTip("" if count >= 2 else TOO_FEW)
         if has_any and not shown:
             self.empty.set_icon("search")
             self.empty.set_text(f"没有找到「{self.search.text().strip()}」")
@@ -765,18 +776,6 @@ class LikesPage(QWidget):
         button = self.more_button
         self.more_menu.popup(button.mapToGlobal(button.rect().bottomRight()) - QPoint(self.more_menu.sizeHint().width(), -4))
 
-    def _ready_add_menu(self) -> None:
-        """添加组合 waits for two 嘉宾 to pick from, and says so."""
-        enough = len(self.store.likes) >= 2
-        self.add_combo_action.setEnabled(enough)
-        self.add_combo_action.setToolTip("" if enough else TOO_FEW)
-
-    def _open_add(self) -> None:
-        """添加, in the toolbar or on the empty list: 添加嘉宾 or 添加组合, under the button."""
-        button = self.empty_add_button if self.add_button.isHidden() else self.add_button
-        self._ready_add_menu()
-        self.add_menu.popup(button.mapToGlobal(button.rect().bottomLeft()) + QPoint(0, 4))
-
     def _row_menu(self, pos) -> None:  # noqa: ANN001
         row = self.table.rowAt(pos.y())
         index, number = self._index_at(row), self._combo_at(row)
@@ -829,7 +828,7 @@ class LikesPage(QWidget):
         self.more_button.refresh()
         self.empty.refresh()
         self.search_icon.setIcon(line_icon("search", 16, THEME["muted"]))
-        for action in (self.copy_action, self.clear_action, self.add_like_action, self.add_combo_action):
+        for action in (self.copy_action, self.clear_action):
             _mark_menu_item(action, str(action.property("icon_name") or ""))
         self.refresh()
 

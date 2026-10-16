@@ -8,7 +8,7 @@ from PySide6.QtCore import QRect, Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication, QDialog, QLabel  # noqa: E402
 
 from blacklist_detect.importing import plan_import  # noqa: E402
-from blacklist_detect.model import ANY_SCENE, Entry, Scenes  # noqa: E402
+from blacklist_detect.model import Entry, Scenes  # noqa: E402
 from blacklist_detect.pipeline import CheckResult, Hit, NameSlot  # noqa: E402
 from blacklist_detect.storage import Store  # noqa: E402
 
@@ -420,10 +420,10 @@ def test_a_guest_picks_a_theme_and_the_page_shows_and_orders_them(window, monkey
     assert dialog.windowTitle() == "添加嘉宾" and dialog.has_changes()
     assert LikeDialog("小明", allow_delete=True, parent=window).windowTitle() == "编辑嘉宾"
     page = window.likes_page
-    # A new 嘉宾 starts on 随机 (放场景 on, nothing ticked); 编辑嘉宾 ticks theirs beside the name.
+    # A new 嘉宾 starts on 不放 (放场景 off); 编辑嘉宾 ticks theirs beside the name.
     monkeypatch.setattr(LikeDialog, "exec", lambda dialog: dialog.name_edit.setText("小明") or dialog._accept() or dialog.result())
     page.add_one()
-    assert window.store.likes[0].name == "小明" and window.store.likes[0].scenes == ANY_SCENE
+    assert window.store.likes[0].name == "小明" and window.store.likes[0].scenes == Scenes()
     seen: list = []
     monkeypatch.setattr(LikeDialog, "exec", _tick(seen, "cyber"))
     page.edit(0)
@@ -481,8 +481,8 @@ def test_a_combination_needs_two_guests_and_greets_them_with_its_theme(window):
     assert editor.combo is None and editor.people_error.text() == "至少选两位嘉宾"
     editor.people_buttons["小红"].click()
     editor._accept()
-    # A new combination starts as a new 嘉宾 does: any scene; 嘉宾场景 ticks its own.
-    assert editor.combo == Combo(("小明", "小红"), ANY_SCENE)
+    # A new combination starts as a new 嘉宾 does: no scene; 放场景 ticks it on.
+    assert editor.combo == Combo(("小明", "小红"), Scenes())
     store.set_combos([Combo(editor.combo.names, Scenes(("equation",)))])
     # Both in the lobby: the combination's 数学 dresses the marks, not 小明's own 赛博.
     names = [
@@ -699,33 +699,34 @@ def test_a_combination_has_not_met_where_a_seat_was_another_guest_of_the_same_st
     assert combos_met(store.combos, store.likes, store.scans) == {0: "2026-10-14T20:00:00+08:00"}
 
 
-def test_add_offers_a_guest_or_a_combination(window, monkeypatch):
-    from PySide6.QtWidgets import QMenu
-
+def test_the_toolbar_adds_a_guest_or_a_combination(window, monkeypatch):
     from blacklist_detect.model import Combo
     from blacklist_detect.ui_guests import ComboDialog
     from blacklist_detect.ui_likes import TOO_FEW, LikeDialog
 
     page, store = window.likes_page, window.store
-    menus, said, dialogs = [], [], []
-    monkeypatch.setattr(QMenu, "popup", lambda menu, *_args: menus.append(menu))
+    said, dialogs = [], []
     monkeypatch.setattr(page, "_say", lambda text, undo=None: said.append(text))
-    # The empty list's 添加 opens the menu too; with fewer than two 嘉宾 a 组合 waits, and says why.
-    assert page.add_button.isHidden() and not page.empty_add_button.isHidden()
+    monkeypatch.setattr(LikeDialog, "exec", lambda dialog: dialogs.append(dialog) or QDialog.Rejected)
+    # The empty list offers 添加嘉宾 alone: with no 嘉宾 there is no 组合 to make.
+    assert page.add_like_button.isHidden() and page.add_combo_button.isHidden() and not page.empty_add_button.isHidden()
+    assert page.empty_add_button.text() == "添加嘉宾"
     page.empty_add_button.click()
-    assert menus == [page.add_menu]
-    assert [action.text() for action in page.add_menu.actions()] == ["添加嘉宾", "添加组合"]
-    assert not page.add_combo_action.isEnabled() and page.add_combo_action.toolTip() == TOO_FEW
+    assert [dialog.windowTitle() for dialog in dialogs] == ["添加嘉宾"]
+    # One 嘉宾: both buttons, 添加嘉宾 the primary; 添加组合 waits for a second 嘉宾, and says why.
+    store.add_like("小明")
+    page.refresh()
+    assert page.empty_add_button.isHidden() and not page.add_like_button.isHidden() and not page.add_combo_button.isHidden()
+    assert (page.add_like_button.text(), page.add_combo_button.text()) == ("添加嘉宾", "添加组合")
+    assert page.add_like_button.objectName() == "primary" and page.add_combo_button.objectName() != "primary"
+    assert not page.add_combo_button.isEnabled() and page.add_combo_button.toolTip() == TOO_FEW
     page.add_combo()
     assert said == [TOO_FEW] and store.combos == []
-    monkeypatch.setattr(LikeDialog, "exec", lambda dialog: dialogs.append(dialog) or QDialog.Rejected)
-    page.add_like_action.trigger()
-    assert dialogs[0].windowTitle() == "添加嘉宾"
-    store.add_like("小明")
+    page.add_like_button.click()
+    assert [dialog.windowTitle() for dialog in dialogs] == ["添加嘉宾", "添加嘉宾"]
     store.add_like("小红")
     page.refresh()
-    page.add_button.click()
-    assert menus[-1] is page.add_menu and page.add_combo_action.isEnabled() and page.add_combo_action.toolTip() != TOO_FEW
+    assert page.add_combo_button.isEnabled() and page.add_combo_button.toolTip() == ""
 
     def add(dialog) -> int:  # noqa: ANN001
         dialogs.append(dialog)
@@ -735,9 +736,11 @@ def test_add_offers_a_guest_or_a_combination(window, monkeypatch):
         return dialog.result()
 
     monkeypatch.setattr(ComboDialog, "exec", add)
-    page.add_combo_action.trigger()
-    assert dialogs[-1].windowTitle() == "添加组合" and store.combos == [Combo(("小明", "小红"), ANY_SCENE)]
-    assert _rows(page)[0][:3] == ["小明 + 小红", "", "随机"]
+    page.add_combo_button.click()
+    assert dialogs[-1].windowTitle() == "添加组合" and store.combos == [Combo(("小明", "小红"), Scenes())]
+    assert _rows(page)[0][:3] == ["小明 + 小红", "", "不放"]
+    # 场景管理 stays beside the search.
+    assert page.scenes_button in page.toolbar_buttons
 
 
 def test_the_list_is_empty_only_with_no_guest_and_no_combination(window):
@@ -750,7 +753,7 @@ def test_the_list_is_empty_only_with_no_guest_and_no_combination(window):
     store.clear_likes()
     page.refresh()
     # Its 嘉宾 gone, the 组合 waits for them, in the list.
-    assert page.empty.isHidden() and not page.table.isHidden() and not page.add_button.isHidden()
+    assert page.empty.isHidden() and not page.table.isHidden() and not page.add_like_button.isHidden()
     assert page.table.item(1, 0).text() == "小明 + 小红"
     # 复制名单 and 清空嘉宾列表 have no 嘉宾 to work on, so 更多 is not offered.
     assert page.more_button.isHidden()

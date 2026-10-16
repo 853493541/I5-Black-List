@@ -20,7 +20,7 @@ class Scenes:
         return not self.random and not self.keys
 
 
-# 随机: any scene. What a new 嘉宾 or 组合 starts on.
+# 随机: any scene.
 ANY_SCENE = Scenes(random=True)
 
 
