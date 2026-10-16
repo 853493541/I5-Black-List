@@ -44,13 +44,16 @@ rerun alone before it counts as a failure.
   `tests/fixtures/reference-lobby.png` never appear in anything user-facing. Check a new asset before
   committing it.
 - Every choice in 设置 lists its default first. 设置 is laid out the way Claude's settings are (the user's ask):
-  a catalog on the left (常规, 外观, 帮助, 关于), and for the chosen section one row per setting, its name and a gray
-  line on what it does on the left, its control on the right. A new setting is a row in the section it belongs
-  to; each section fits the window at 900x560 without scrolling. 检查's own settings stay in the panel under the
-  header's 检查 pill (显示, 方式, 直播模式).
+  a catalog on the left (常规, 帮助, 关于; 主题 is a row of 常规), and for the chosen section one row per setting: its
+  name on the left, with a gray line under it only where the name alone does not say what it does (开机启动, 清空数据),
+  and its control on the right, a dropdown where the setting is a choice (the player asked for dropdowns there). A new
+  setting is a row in the section it belongs to; each section fits the window at 900x560 without scrolling. 检查's own
+  settings stay in the panel under the header's 检查 pill, which has no title: 显示 (基础模式 | 完整模式; never 安全模式,
+  which the player disliked), 方式, 直播模式 (关闭 | 开启 with 直播姬's state on the same row, so the panel keeps its size).
   Every dialog fits 672 px of usable height (1080p at 150%) with its buttons in view;
   `tests/test_dialog_fit.py` guards this. 添加嘉宾 / 编辑嘉宾 are the tallest (their fields and preview beside a list
-  of every scene), then 场景管理; a scene added makes the scene lists scroll in their column rather than grow a dialog.
+  of every scene), then 场景管理, whose left keeps room for every scene under its 快捷键 (each scene added makes it
+  taller; about 16 fit). In the 嘉宾 and 组合 dialogs a scene added makes the list scroll in its column instead.
 - `reference-lobby.png` and `assets/sample-lobby.jpg` are crops of a lobby, not whole screens. Check
   anything about where the game, border or cards sit on a whole 16:9 frame.
 - Child processes get `paths.child_env()`. Paddle sets `OMP_NUM_THREADS=1`, which made OCR in a child
@@ -60,7 +63,7 @@ rerun alone before it counts as a failure.
   20 ms at 1920x1080. 玫瑰花边 (lace, the app's first border, once 经典花边) stays exactly as it is. Shade per pixel: flat vector gradients
   read as cheap clip-art to the user.
 - Chosen on purpose, not defects: red tags everywhere except the 嘉宾 list's blue 组合 tag and green 我 row (the player
-  asked for them), 静音 a checkbox in 常规's 声音 row (the player asked for one), 检查失败 (not 无法检查).
+  asked for them), 全局声音 a 播放 / 静音 dropdown in 常规 (the player asked for dropdowns), 检查失败 (not 无法检查).
 - Only the app as the player runs it makes a sound (`run_app` calls `ui_music.allow_sound`). Tests, `tools/ui_shots.py`,
   the release check and agents' scripts stay silent; the user hears every sound played in the background. Set
   `BLACKLIST_DETECT_SOUND=1` only when a sound itself is being checked by ear, and say so.
