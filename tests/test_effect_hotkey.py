@@ -62,6 +62,15 @@ def _wait(ms: int) -> None:
         time.sleep(0.01)
 
 
+def _started(window) -> None:  # noqa: ANN001
+    """Its 场景 started, its music with it: 演说家遇袭's pictures are made off the screen's thread first."""
+    end = time.time() + 60
+    while window.love.waiting() and time.time() < end:
+        window.love._step()
+        time.sleep(0.01)
+    assert not window.love.waiting()
+
+
 def _opened_with(tmp_path, monkeypatch, **settings):  # noqa: ANN001, ANN003, ANN202
     from blacklist_detect.ui import MainWindow
 
@@ -511,7 +520,9 @@ def test_stream_mode_off_in_safe_mode_takes_a_play_down_music_and_all(window):
     window._on_display_mode("safe")
     window._set_stream_mode(True)
     window.store.quick_scene = "claw"
-    assert window.play_quick_scene() and window.played == ["claw"]
+    assert window.play_quick_scene()
+    _started(window)
+    assert window.played == ["claw"]
     window._set_stream_mode(False)
     assert window._quick_scene == "" and window._quick_area is None and window._game_box is None
     assert not window.panel.isVisible() and not window.love.playing() and window.played[-1] == "stop"

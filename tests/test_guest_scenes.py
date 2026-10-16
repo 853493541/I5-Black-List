@@ -292,8 +292,6 @@ def test_claw_s_first_click_never_stalls_the_dialog_while_its_pictures_are_made(
     while its pictures are made (it was 0.8 s at the scene's making)."""
     import time
 
-    from PySide6.QtCore import QEventLoop, QTimer
-
     from blacklist_detect.love_scenes import claw
     from blacklist_detect.ui_love_pick import ScenePreview
 
@@ -315,24 +313,27 @@ def test_claw_s_first_click_never_stalls_the_dialog_while_its_pictures_are_made(
         begun = time.perf_counter()
         step(preview)
         held.append(("step", time.perf_counter() - begun))
-        if preview._warming is None and preview._marks is not None:
-            loop.quit()
+
+    def playing() -> bool:
+        return pane.preview._marks is not None and pane.preview._warming is None
 
     monkeypatch.setattr(ScenePreview, "_make", timed_make)
     monkeypatch.setattr(ScenePreview, "_step", timed)
     start = time.perf_counter()
     pane.buttons["claw"].click()
     click = time.perf_counter() - start
-    loop = QEventLoop()
-    QTimer.singleShot(15000, loop.quit)
-    loop.exec()
+    # Events handed out by hand: a QEventLoop returns at once once a test before has asked the application to quit.
+    end = time.perf_counter() + 15
+    while not playing() and time.perf_counter() < end:
+        QApplication.processEvents()
+        time.sleep(0.005)
 
-    playing = pane.preview._marks is not None and pane.preview._warming is None
+    played = playing()
     pane.stop()
     dialog.done(QDialog.Rejected)
     assert click < 0.1, click
     # It played, its pictures made while the dialog went on, and no moment held up past a loose bound.
-    assert playing and any(kind == "make" for kind, _spent in held)
+    assert played and any(kind == "make" for kind, _spent in held), held
     assert max(spent for _kind, spent in held) < 0.08, held
 
 
