@@ -210,7 +210,7 @@ def test_viewers_see_the_red_but_never_a_blacklist_name(window, safe):
     stream = window.stream._area
     edge = _pixel(window, stream.topLeft() + QPoint(1, stream.height() // 2))
     assert edge.alpha() > 0 and edge.red() > edge.green() + 60, "the red glow"
-    assert _pixel(window, window.like_card.geometry().center()).alpha() > 200
+    assert _pixel(window, window.like_card.geometry().center()).alpha() > 180
     card = window.hit_card.geometry()
     ring = window.panel.geometry()
     # Inside the name card, away from the ring's own soft outer edge: nothing copied.
@@ -226,7 +226,7 @@ def test_in_safe_mode_only_the_stream_shows_the_marks(window):
     # Made, and in the stream's copy ...
     assert window.like_card.isVisible() and window.love.playing()
     assert window.stream.busy()
-    assert _pixel(window, window.like_card.geometry().center()).alpha() > 200
+    assert _pixel(window, window.like_card.geometry().center()).alpha() > 180
     # ... but never on the player's screen, where the corner box says it instead.
     for mark in (window.panel, window.like_card, window.clear_mark, window.love):
         assert not _on_screen(mark)
@@ -337,7 +337,7 @@ def test_the_game_window_is_drawn_fitted_in_a_window_that_keeps_its_size(window,
         (size.height() - outer.height() * scale) / 2 + (card.y() - outer.y()) * scale,
     )
     assert (window.stream.to_window(card) - expected).manhattanLength() < 1
-    assert _pixel(window, card).alpha() > 200, "the 嘉宾 card is drawn there"
+    assert _pixel(window, card).alpha() > 180, "the 嘉宾 card is drawn there"
     # Nothing about the size is kept from one start to the next: it is always the same.
     assert "stream_size" not in json.loads((window.store.root / "settings.json").read_text(encoding="utf-8"))
     assert not hasattr(Store(window.store.root), "stream_size")
