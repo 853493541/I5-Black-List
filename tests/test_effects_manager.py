@@ -537,12 +537,19 @@ def test_each_row_s_play_plays_it_at_the_effect_s_volume_chosen_or_not(window, p
     # 经典's 默认 has nothing to play.
     _shown(window, "classic")
     assert not page.sounds.play_buttons[0].isEnabled()
-    # Under 静音, nothing.
+    # Under 静音 no ▶ can be pressed, as 选择片段's 试听, and says why; nothing plays.
     _shown(window, "stars")
     window.mute_box.click()
     window.played.clear()
+    for button in page.sounds.play_buttons[:2]:
+        assert not button.isEnabled() and button.toolTip() == "已静音"
     page.sounds.play_buttons[1].click()
     assert all(tune is None for tune in window.played) and not page.sounding
+    # 静音 off: they can again, 经典's 默认 still not.
+    window.mute_box.click()
+    assert page.sounds.play_buttons[1].isEnabled() and page.sounds.play_buttons[1].toolTip() == "播放"
+    _shown(window, "classic")
+    assert not page.sounds.play_buttons[0].isEnabled()
 
 
 def test_upload_is_off_at_three_songs_until_one_is_deleted(window, pick, trim, tmp_path):

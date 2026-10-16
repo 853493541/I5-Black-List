@@ -179,6 +179,9 @@ class SoundChoices(QWidget):
         self.delete_buttons: list[IconButton] = []
         # When a ✕ last deleted a song (time.monotonic()).
         self._deleted_at = 0.0
+        # Whether 默认 plays anything, and whether 静音 is on: under it no ▶ can be pressed, as 选择片段's 试听.
+        self._sounds = True
+        self._muted = False
         for row in range(1 + MAX_SONGS):
             choice = _Choice()
             choice.clicked.connect(lambda _checked=False, row=row: self.chose.emit(self.files[row]))
@@ -210,7 +213,8 @@ class SoundChoices(QWidget):
         {"file", "name", "length"}; chosen: the file of the one it plays, "" for 默认."""
         self.files = ["", *(song["file"] for song in songs[:MAX_SONGS])] + [""] * (MAX_SONGS - min(len(songs), MAX_SONGS))
         self.choices[0].set_full(default)
-        self.play_buttons[0].setEnabled(sounds)
+        self._sounds = sounds
+        self._sync_play()
         for row, song in enumerate(songs[:MAX_SONGS], 1):
             self.choices[row].set_full(f"{song.get('name') or Path(song['file']).stem} · {song.get('length', CLIP_S):.1f} 秒")
         for row in range(1, 1 + MAX_SONGS):
@@ -223,6 +227,16 @@ class SoundChoices(QWidget):
         self.upload_button.setEnabled(not full)
         self.upload_button.setToolTip(f"最多 {MAX_SONGS} 首，先删掉一首" if full else "")
         self.reset_button.setVisible(picked != 0)
+
+    def set_muted(self, muted: bool) -> None:
+        """设置's 静音 on or off: under it every ▶ is off, saying 已静音."""
+        self._muted = muted
+        self._sync_play()
+
+    def _sync_play(self) -> None:
+        for row, button in enumerate(self.play_buttons):
+            button.setEnabled(not self._muted and (row > 0 or self._sounds))
+            button.setToolTip("已静音" if self._muted else "播放")
 
     def chosen(self) -> str:
         """The file of the one checked, "" for 默认."""
@@ -433,9 +447,10 @@ class EffectsPage(QWidget):
         self.sync_sound()
 
     def sync_sound(self) -> None:
-        """The note beside 音量 as 设置's 静音 is now: that nothing is heard."""
-        muted = self.music is not None and self.music.muted and self.volume_slider.isEnabled()
-        self.level_note.setText("已静音" if muted else "")
+        """The note beside 音量 and the ▶ of each sound as 设置's 静音 is now: that nothing is heard."""
+        muted = self.music is not None and self.music.muted
+        self.level_note.setText("已静音" if muted and self.volume_slider.isEnabled() else "")
+        self.sounds.set_muted(muted)
 
     def _on_volume(self, step: int) -> None:
         """音量 moved: the shown 场景 plays this loud from now on. Dragged, it is saved and heard once let go
