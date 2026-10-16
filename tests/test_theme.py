@@ -59,6 +59,13 @@ def test_text_meets_wcag_aa(name, dark):
     assert contrast(t["muted"], t["surface"]) >= 3.0
     assert contrast(t["red"], t["red_wash"]) >= 4.5, "red tag pills"
     assert contrast(t["green"], t["green_wash"]) >= 3.0
+    assert contrast(t["blue"], t["blue_wash"]) >= 4.5, "the 组合 pill"
+    assert contrast(t["blue"], t["surface"]) >= 4.5
+    # The 我 row on its green: its name, the hint while the name is empty, and its 我 tag on a chip
+    # of the card's color.
+    assert contrast(t["text"], t["green_wash"]) >= 4.5
+    assert contrast(t["muted"], t["green_wash"]) >= 3.0
+    assert contrast(t["green"], t["surface"]) >= 4.5, "the 我 tag"
     assert contrast(t["danger"], t["surface"]) >= 4.5
 
 

@@ -208,7 +208,7 @@ def shoot(args) -> None:  # noqa: ANN001
 
     step("menu_添加嘉宾", add_menu)
     step("dlg_选择场景", lambda: ScenePicker(Scenes(("fluffy", "stars", "lace")), "心动小鹿", parent=window).exec())
-    step("dlg_选择场景_不放", lambda: ScenePicker(Scenes(("ice",), off=True), "心动星星", parent=window).exec())
+    step("dlg_选择场景_不放", lambda: ScenePicker(Scenes(), "心动星星", parent=window).exec())
 
     def trim() -> None:
         from blacklist_detect.ui_sound_trim import SoundTrimDialog
@@ -348,11 +348,12 @@ def _seed(root: Path, args, version: str) -> None:  # noqa: ANN001
             ("小透明", ("挂机",), "全程挂机不动，一句话也不说，这是一段很长的原因，看看表格会不会把它截断"),
         ):
             store.add(name, tags=tags, reason=reason)
-        # Several 场景, none ticked (any) and one; a 组合 on 不放.
+        # Several 场景, 随机 and one; a 组合 on 不放; 我 on a 场景 of its own.
         store.add_like("心动小鹿", nickname="小鹿", reason="声音好听", scenes=Scenes(("fluffy", "stars", "lace")))
         store.add_like("心动星星")
         store.add_like("一起开黑的朋友", reason="每次都带我赢", scenes=Scenes(("cyber",)))
-        store.set_combos([Combo(("心动小鹿", "心动星星"), Scenes(("angel",))), Combo(("心动星星", "一起开黑的朋友"), Scenes(off=True))])
+        store.set_combos([Combo(("心动小鹿", "心动星星"), Scenes(("angel",))), Combo(("心动星星", "一起开黑的朋友"), Scenes())])
+        store.set_me(Scenes(("lace",)))
         store.add_scan([{"seat": i + 1, "name": n, "unclear": n == "摸鱼大师"} for i, n in enumerate(SEATS)], elapsed=0.31)
         # 场景管理: 毛茸茸保护协会 with the player's own sound, 4 s of made-up music under a made-up name.
         from blacklist_detect import sound_import

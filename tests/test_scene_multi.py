@@ -422,7 +422,8 @@ def test_the_guest_list_shows_each_one_s_scenes(window):
     store.set_combos([Combo(("小明", "小红"), Scenes(("lace", "neon", "claw"))), Combo(("小红", "阿星"), OFF)])
     page.refresh()
     cells = [page.table.item(row, 2).text() for row in range(page.table.rowCount())]
-    assert cells == ["3个场景", "不放", "金色传说", "不放", "2个场景"]
+    # 我 first, on 不放 until the player picks.
+    assert cells == ["不放", "3个场景", "不放", "金色传说", "不放", "2个场景"]
     assert page.table.horizontalHeaderItem(2).text() == "场景"
 
 

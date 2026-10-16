@@ -910,34 +910,6 @@ class Store:
         self.save_likes()
         _log.info("嘉宾: cleared.")
 
-    def import_likes(self, rows: list[tuple[str, tuple[str, ...], str, int]]) -> tuple[int, int]:
-        """Like import_rows, for 嘉宾: each (name, _, 原因, -1) is added; (…, index) folds into it."""
-        stamp = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-        taken = {fold(like.name) for like in self.likes}
-        added = merged = 0
-        for name, _tags, reason, target in rows:
-            cleaned = clean_stored_name(name)[:_MAX_NAME]
-            key = fold(cleaned)
-            if not key:
-                continue
-            if 0 <= target < len(self.likes):
-                like = self.likes[target]
-                old = fold(like.name)
-                fuller = len(key) > len(old) and key.startswith(old) and key not in taken
-                self.likes[target] = replace(like, name=cleaned if fuller else like.name, reason=merge_reason(like.reason, reason))
-                taken.add(key)
-                merged += 1
-                continue
-            if key in taken:
-                continue
-            taken.add(key)
-            self.likes.append(Entry(name=cleaned, reason=(reason or "").strip()[:_MAX_NOTE], added_at=stamp))
-            added += 1
-        if added or merged:
-            self.save_likes()
-        _log.info("嘉宾: %d imported, %d merged, %d in all.", added, merged, len(self.likes))
-        return added, merged
-
     def save_entries(self) -> None:
         _daily_backup(self.blacklist_path)
         _atomic_write(

@@ -297,17 +297,14 @@ class BatchAddDialog(Modal):
     unchecked by hand stays unchecked.
     """
 
-    def __init__(self, catalog: tuple[str, ...] = (), entries=(), parent=None, likes: bool = False, elsewhere=()) -> None:  # noqa: ANN001
+    def __init__(self, catalog: tuple[str, ...] = (), entries=(), parent=None, elsewhere=()) -> None:  # noqa: ANN001
         super().__init__(parent)
         from blacklist_detect.storage import TAGS
 
-        # Into 嘉宾 there are no 标签: the whole note is the 原因.
-        self.likes = likes
-        self.catalog = () if likes else (catalog or TAGS)
+        self.catalog = catalog or TAGS
         self.entries = list(entries)
         self.elsewhere = list(elsewhere)
-        here, there = ("嘉宾列表", "黑名单") if likes else ("黑名单", "嘉宾列表")
-        self._status = {MERGE: "合并", SAME: f"已在{here}", ODD: "可能不是名字", ELSEWHERE: f"已在{there}"}
+        self._status = {MERGE: "合并", SAME: "已在黑名单", ODD: "可能不是名字", ELSEWHERE: "已在嘉宾列表"}
         self.rows: list[ImportRow] = []
         self.chosen: list[tuple[str, tuple[str, ...], str, int]] = []
         self._picked: dict[str, bool] = {}
@@ -329,7 +326,6 @@ class BatchAddDialog(Modal):
         head.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         self.preview.setColumnWidth(0, 160)
         self.preview.setColumnWidth(1, 110)
-        self.preview.setColumnHidden(1, likes)
         self.preview.verticalHeader().setVisible(False)
         self.preview.verticalHeader().setDefaultSectionSize(30)
         self.preview.setSelectionMode(QTableWidget.NoSelection)

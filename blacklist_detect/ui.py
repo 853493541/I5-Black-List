@@ -1407,6 +1407,8 @@ class MainWindow(QMainWindow):
         self.store.player_name = name
         self.store.save_settings()
         self._show_history_scan(self._selected_scan())
+        # The 我 row on top of 嘉宾 shows the name.
+        self.likes_page.refresh()
 
     def _is_my_name(self, shown: str) -> bool:
         mine = self.store.player_name

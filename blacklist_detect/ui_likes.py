@@ -7,9 +7,10 @@ when 嘉宾 with different 场景 meet in a lobby the higher one decides, unless
 there (guests.lobby_choice). A player is on one list at a time: a 黑名单 name is refused here, and putting
 a 嘉宾 name on 黑名单 asks to move it.
 
-The page is laid out like 黑名单 with a 场景 column for 标签: search, 批量导入, 添加 (添加嘉宾 or
-添加组合), and under 更多, 复制名单 and 清空嘉宾列表. The 组合 head the list, each a row tagged 组合 with
-its 嘉宾 and its 场景; under them the 嘉宾, whose rows drag into another order. 嘉宾场景 itself, on or
+The page is laid out like 黑名单 with a 场景 column for 标签: search, 添加 (添加嘉宾 or 添加组合), and
+under 更多, 复制名单 and 清空嘉宾列表. On top is the 我 row, green: the player's own name and the 场景
+they asked for themselves. The 组合 come next, each a row tagged 组合 with its 嘉宾 and its 场景; under
+them the 嘉宾, whose rows drag into another order. 嘉宾场景 itself, on or
 off, and its music are in 设置.
 """
 
@@ -40,7 +41,6 @@ from blacklist_detect.guests import members
 from blacklist_detect.match import clean_stored_name, fold, last_seen
 from blacklist_detect.model import ANY_SCENE, Combo, Entry, Scenes
 from blacklist_detect.ui_dialogs import (
-    BatchAddDialog,
     _danger,
     _field,
     _frame,
@@ -68,8 +68,13 @@ NAME, NICKNAME, THEME_COLUMN, REASON, MET = range(5)
 # On a 组合 row's cells: its place in store.combos; on its 名字, its 嘉宾 as members() gives them.
 COMBO_ROLE = Qt.UserRole + 1
 PEOPLE_ROLE = Qt.UserRole + 2
+# On each cell of the 我 row: the player's own name, empty when they have not given it.
+ME_ROLE = Qt.UserRole + 3
 # The tag before a 组合's 嘉宾, and why 添加组合 cannot be picked yet.
 COMBO_TAG = "组合"
+# The tag before the player's own name on the 我 row, and what it says before there is one.
+ME_TAG = "我"
+NO_NAME = "点右上角填写游戏名"
 TOO_FEW = "先添加至少两位嘉宾"
 
 
@@ -94,28 +99,23 @@ def combos_met(combos: list[Combo], likes: list[Entry], scans: list[dict]) -> di
     return found
 
 
-def _paint_combo_name(painter: QPainter, rect: QRect, font: QFont, people: list[tuple[str, bool]]) -> None:
-    """A 组合's 名字: the 组合 tag, drawn as 黑名单 draws its tags, then its 嘉宾 joined by +, one since
-    taken off the list struck out in gray; cut with … where they run past the cell."""
+def _paint_tagged(painter: QPainter, rect: QRect, font: QFont, tag_text: str, colors: tuple[str, str], parts: list[tuple[str, str, bool]]) -> None:
+    """A tag, drawn as 黑名单 draws its tags but in the THEME colors (wash, ink) given, then words, each
+    (text, the THEME color of its ink, struck out or not); cut with … where they run past the cell."""
     painter.save()
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
     face = _pill_face()
     painter.setFont(face)
-    size = _pill_size(COMBO_TAG, QFontMetrics(face))
+    size = _pill_size(tag_text, QFontMetrics(face))
     tag = QRect(rect.left(), rect.top() + (rect.height() - size.height()) // 2, size.width(), size.height())
-    _draw_pill(painter, tag, COMBO_TAG, True, TagPill._pad)
+    _draw_pill(painter, tag, tag_text, True, TagPill._pad, THEME[colors[0]], THEME[colors[1]])
     x, limit = tag.right() + 1 + 6, rect.right()
-    parts: list[tuple[str, bool]] = []
-    for index, (name, present) in enumerate(people):
-        if index:
-            parts.append((" + ", True))
-        parts.append((name, present))
-    for text, present in parts:
+    for text, ink, struck in parts:
         face = QFont(font)
-        face.setStrikeOut(not present)
+        face.setStrikeOut(struck)
         metrics = QFontMetrics(face)
         painter.setFont(face)
-        painter.setPen(QColor(THEME["text" if present else "muted"]))
+        painter.setPen(QColor(THEME[ink]))
         wide = metrics.horizontalAdvance(text)
         if x + wide > limit:
             room = max(0, limit - x)
@@ -126,12 +126,30 @@ def _paint_combo_name(painter: QPainter, rect: QRect, font: QFont, people: list[
     painter.restore()
 
 
+def _paint_combo_name(painter: QPainter, rect: QRect, font: QFont, people: list[tuple[str, bool]]) -> None:
+    """A 组合's 名字: the blue 组合 tag, then its 嘉宾 joined by +, one since taken off the list struck
+    out in gray."""
+    parts: list[tuple[str, str, bool]] = []
+    for index, (name, present) in enumerate(people):
+        if index:
+            parts.append((" + ", "text", False))
+        parts.append((name, "text" if present else "muted", not present))
+    _paint_tagged(painter, rect, font, COMBO_TAG, ("blue_wash", "blue"), parts)
+
+
+def _paint_me_name(painter: QPainter, rect: QRect, font: QFont, name: str) -> None:
+    """The 我 row's 名字: the green 我 tag, then the player's own name, or where to fill it in. The row is
+    green_wash already, so the tag is a chip of the card's own color to stand out on it."""
+    _paint_tagged(painter, rect, font, ME_TAG, ("surface", "green"), [(name, "text", False) if name else (NO_NAME, "muted", False)])
+
+
 class _GuestDelegate(_PlainItemDelegate):
-    """The list's cells, a 组合 row's 名字 painted with its tag and its 嘉宾."""
+    """The list's cells: a 组合 row's 名字 painted with its tag and its 嘉宾, the 我 row on green."""
 
     def paint(self, painter, option, index) -> None:  # noqa: ANN001
         people = index.data(PEOPLE_ROLE)
-        if not people:
+        me = index.data(ME_ROLE)
+        if not people and me is None:
             super().paint(painter, option, index)
             return
         view = self.parent()
@@ -139,17 +157,33 @@ class _GuestDelegate(_PlainItemDelegate):
         self.initStyleOption(drawn, index)
         drawn.state = drawn.state & ~QStyle.State_HasFocus
         drawn.text = ""
-        view.style().drawControl(QStyle.CE_ItemViewItem, drawn, painter, view)
+        if me is None:
+            view.style().drawControl(QStyle.CE_ItemViewItem, drawn, painter, view)
+        else:
+            painter.fillRect(option.rect, QColor(THEME["green_hover" if option.state & QStyle.State_Selected else "green_wash"]))
         # Where the cell's words would start, so the tag lines up with the 嘉宾 names under it.
         words = view.style().subElementRect(QStyle.SE_ItemViewItemText, drawn, view)
-        _paint_combo_name(painter, words, drawn.font, people)
+        if people:
+            _paint_combo_name(painter, words, drawn.font, people)
+        elif index.column() == NAME:
+            _paint_me_name(painter, words, drawn.font, me)
+        elif text := str(index.data() or ""):
+            # Inset as the style insets a cell's words, so they line up with the column's.
+            margin = view.style().pixelMetric(QStyle.PM_FocusFrameHMargin, None, view) + 1
+            words.adjust(margin, 0, -margin, 0)
+            painter.save()
+            painter.setFont(drawn.font)
+            painter.setPen(QColor(THEME["text"]))
+            shown = QFontMetrics(drawn.font).elidedText(text, Qt.ElideRight, words.width())
+            painter.drawText(words, Qt.AlignLeft | Qt.AlignVCenter, shown)
+            painter.restore()
         _row_divider(painter, option.rect)
 
 
 class _GuestTable(QTableWidget):
     """The 嘉宾 list, whose 嘉宾 rows can be dragged into another order. moved(row, to) says which row
     went where, as shown; the page moves the 嘉宾 and redraws, so the table moves nothing itself.
-    The first `fixed` rows are the 组合: they don't drag, and nothing is dropped among them."""
+    The first `fixed` rows are the 我 row and the 组合: they don't drag, and nothing is dropped among them."""
 
     moved = Signal(int, int)
 
@@ -292,13 +326,10 @@ class LikesPage(QWidget):
         self.search.textChanged.connect(self.refresh)
         toolbar.addWidget(self.search, 1)
         toolbar.addStretch(1)
-        batch = QPushButton("批量导入")
-        batch.clicked.connect(self.import_many)
         self.add_button = QPushButton("添加")
         self.add_button.setObjectName("primary")
         self.add_button.clicked.connect(self._open_add)
-        self.toolbar_buttons = (batch, self.add_button)
-        toolbar.addWidget(batch)
+        self.toolbar_buttons = (self.add_button,)
         toolbar.addWidget(self.add_button)
         # 添加: a 嘉宾, or a 组合 of them, who all in one lobby get 场景 of their own.
         self.add_menu = QMenu(self)
@@ -328,7 +359,7 @@ class LikesPage(QWidget):
         # 场景 as wide as the longest scene name or word for several and the cell's padding: 毛茸茸保护协会
         # is never cut.
         metrics = QFontMetrics(chinese_font())
-        words = [name for _key, name in love_scenes.SCENES] + ["全部随机", f"{len(love_scenes.SCENES)}个场景"]
+        words = [name for _key, name in love_scenes.SCENES] + ["随机", "不放", f"{len(love_scenes.SCENES)}个场景"]
         theme_width = max(110, max(metrics.horizontalAdvance(word) for word in words) + 2 * 12 + 16)
         for column, width in ((NAME, 200), (NICKNAME, 140), (THEME_COLUMN, theme_width), (MET, 120)):
             head.setSectionResizeMode(column, QHeaderView.ResizeMode.Interactive)
@@ -351,8 +382,6 @@ class LikesPage(QWidget):
         self.table.installEventFilter(self)
         outer.addWidget(self.table, 1)
         self.empty = EmptyState("heart", "嘉宾列表还是空的")
-        self.empty_batch_button = self.empty.add_action(QPushButton("批量导入"))
-        self.empty_batch_button.clicked.connect(self.import_many)
         self.empty_add_button = self.empty.add_action(QPushButton("添加"))
         self.empty_add_button.setObjectName("primary")
         self.empty_add_button.clicked.connect(self._open_add)
@@ -385,6 +414,27 @@ class LikesPage(QWidget):
                 continue
             rows.append(index)
         return rows
+
+    def _shows_me(self) -> bool:
+        """The 我 row: on top once the list has anyone, while nothing is searched for or the search is in
+        the player's own name."""
+        if not self.store.likes and not self.store.combos:
+            return False
+        query = fold(self.search.text().strip())
+        return not query or query in fold(self.store.player_name)
+
+    def _me_row(self) -> None:
+        """The 我 row: the player's own name (or where to fill it in) under 名字 and on across 昵称, and
+        the 场景 they asked for themselves. It neither drags nor takes a drop, and has no 编辑 or 删除."""
+        name = self.store.player_name
+        self.table.setSpan(0, NAME, 1, 2)
+        for column, text in enumerate((name or NO_NAME, "", scenes_said(self.store.me), "", "")):
+            item = QTableWidgetItem(text)
+            item.setData(ME_ROLE, name)
+            item.setFlags(item.flags() & ~Qt.ItemIsDragEnabled & ~Qt.ItemIsDropEnabled)
+            if column == NAME:
+                item.setToolTip(f"{ME_TAG}：{name}" if name else NO_NAME)
+            self.table.setItem(0, column, item)
 
     def _shown_combos(self) -> list[int]:
         """The 组合 in their order, filtered by the search: any of their 嘉宾's name or 昵称."""
@@ -420,19 +470,23 @@ class LikesPage(QWidget):
             self.table.setItem(row, column, item)
 
     def refresh(self) -> None:
-        """Redraw from the store: the 组合 on top, then the 嘉宾 in the list's order (the last saved on
-        top), filtered by the search. 嘉宾 rows drag into another order while nothing is searched for."""
+        """Redraw from the store: the 我 row on top, the 组合 under it, then the 嘉宾 in the list's order
+        (the last saved on top), filtered by the search. 嘉宾 rows drag into another order while nothing
+        is searched for."""
         count = len(self.store.likes)
+        me = int(self._shows_me())
         combos = self._shown_combos()
         rows = self._shown_rows()
         met, combo_met = self._met()
         table = self.table
         table.clearSpans()
-        table.setRowCount(len(combos) + len(rows))
-        table.fixed = len(combos)
-        for row, number in enumerate(combos):
+        table.setRowCount(me + len(combos) + len(rows))
+        table.fixed = me + len(combos)
+        if me:
+            self._me_row()
+        for row, number in enumerate(combos, me):
             self._combo_row(row, number, combo_met)
-        for row, index in enumerate(rows, len(combos)):
+        for row, index in enumerate(rows, me + len(combos)):
             like = self.store.likes[index]
             cells = (like.name, like.nickname, scenes_said(like.scenes), like.reason, _zh_ago(met[index]) if index in met else NEVER_MET)
             for column, text in enumerate(cells):
@@ -444,7 +498,7 @@ class LikesPage(QWidget):
                     item.setForeground(QColor(THEME["rose"] if column == NICKNAME else THEME["muted"]))
                 table.setItem(row, column, item)
         has_any = count > 0 or bool(self.store.combos)
-        shown = bool(combos or rows)
+        shown = bool(me or combos or rows)
         for widget in (*self.toolbar_buttons, self.search):
             widget.setVisible(has_any or (widget is self.search and bool(self.search.text())))
         # 复制名单 and 清空嘉宾列表 are for 嘉宾: with 组合 alone they would have nothing to do.
@@ -455,7 +509,6 @@ class LikesPage(QWidget):
         else:
             self.empty.set_icon("heart")
             self.empty.set_text("嘉宾列表还是空的")
-        self.empty_batch_button.setVisible(not has_any)
         self.empty_add_button.setVisible(not has_any)
         table.setVisible(shown)
         self.empty.setVisible(not shown)
@@ -463,18 +516,25 @@ class LikesPage(QWidget):
         table.setDragEnabled(not self.search.text().strip() and len(rows) > 1)
 
     def _index_at(self, row: int) -> int:
-        """The 嘉宾 a row shows, by its place in the store; -1 for a 组合's row or none."""
+        """The 嘉宾 a row shows, by its place in the store; -1 for the 我 row, a 组合's row or none."""
         item = self.table.item(row, NAME)
         return int(item.data(Qt.UserRole)) if item is not None and item.data(Qt.UserRole) is not None else -1
 
     def _combo_at(self, row: int) -> int:
-        """The 组合 a row shows, by its place in the store; -1 for a 嘉宾's row or none."""
+        """The 组合 a row shows, by its place in the store; -1 for the 我 row, a 嘉宾's row or none."""
         item = self.table.item(row, NAME)
         return int(item.data(COMBO_ROLE)) if item is not None and item.data(COMBO_ROLE) is not None else -1
+
+    def _is_me(self, row: int) -> bool:
+        item = self.table.item(row, NAME)
+        return item is not None and item.data(ME_ROLE) is not None
 
     def eventFilter(self, watched, event) -> bool:  # noqa: ANN001
         if watched is self.table and event.type() == QEvent.Type.KeyPress:
             row = self.table.currentRow()
+            if self._is_me(row) and event.key() in (Qt.Key_Return, Qt.Key_Enter):
+                self.edit_me()
+                return True
             index, number = self._index_at(row), self._combo_at(row)
             edit, delete = (self.edit, self.delete) if index >= 0 else (self.edit_combo, self.delete_combo)
             if max(index, number) >= 0 and event.key() in (Qt.Key_Return, Qt.Key_Enter):
@@ -529,9 +589,15 @@ class LikesPage(QWidget):
         self.refresh()
         self.changed.emit()
 
+    def edit_me(self) -> None:
+        """The 我 row clicked: it has no 编辑嘉宾. The 场景 the player asks for themselves will be chosen
+        here."""
+
     def _edit_row(self, row: int, _column: int = 0) -> None:
         number = self._combo_at(row)
-        if number >= 0:
+        if self._is_me(row):
+            self.edit_me()
+        elif number >= 0:
             self.edit_combo(number)
         else:
             self.edit(self._index_at(row))
@@ -601,20 +667,6 @@ class LikesPage(QWidget):
         before = (self.store.snapshot_likes(), self.store.snapshot_entries())
         self.store.remove_like(index)
         self._done(f"已删除「{name}」", before)
-
-    def import_many(self) -> None:
-        dialog = BatchAddDialog(entries=self.store.likes, parent=self.window(), likes=True, elsewhere=self.store.entries)
-        if dialog.exec() != QDialog.Accepted or not dialog.chosen:
-            return
-        before = (self.store.snapshot_likes(), self.store.snapshot_entries())
-        added, merged = self.store.import_likes(dialog.chosen)
-        if not added and not merged:
-            self._say("都已经是嘉宾了")
-            return
-        parts = [f"已添加 {added} 人"] if added else []
-        if merged:
-            parts.append(f"合并 {merged} 人")
-        self._done("，".join(parts), before)
 
     def copy_list(self) -> None:
         count = len(self.store.likes)

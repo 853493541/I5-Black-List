@@ -7,7 +7,7 @@ pytest.importorskip("PySide6")
 from PySide6.QtCore import QRect, Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication, QDialog, QLabel  # noqa: E402
 
-from blacklist_detect.importing import ELSEWHERE, MERGE, plan_import  # noqa: E402
+from blacklist_detect.importing import plan_import  # noqa: E402
 from blacklist_detect.model import ANY_SCENE, Entry, Scenes  # noqa: E402
 from blacklist_detect.pipeline import CheckResult, Hit, NameSlot  # noqa: E402
 from blacklist_detect.storage import Store  # noqa: E402
@@ -37,22 +37,6 @@ def test_the_list_is_saved_on_its_own(tmp_path):
     assert [e.nickname for e in Store(tmp_path).likes] == ["明哥", ""]
     again.reset()
     assert Store(tmp_path).likes == []
-
-
-def test_importing_into_likes_keeps_the_note_whole_and_skips_blacklisted_names(tmp_path):
-    store = Store(tmp_path)
-    store.add("坑人的", reason="炸房")
-    store.add_like("小明", "明哥")
-    rows = {row.name: row for row in plan_import("小明（救人很稳）\n小红（开局就炸房也没事）\n坑人的（其实还行）", store.likes, (), store.entries)}
-    assert rows["小明"].status == MERGE
-    # No 标签 on 嘉宾: 炸房 in the note is just words.
-    assert rows["小红"].tags == () and rows["小红"].reason == "开局就炸房也没事"
-    assert rows["坑人的"].status == ELSEWHERE and not rows["坑人的"].checked
-    chosen = [(r.name, r.tags, r.reason, r.target if r.status == MERGE else -1) for r in rows.values() if r.checked]
-    assert store.import_likes(chosen) == (1, 1)
-    saved = {e.name: (e.nickname, e.reason) for e in Store(tmp_path).likes}
-    # A merge keeps one's own 昵称.
-    assert saved == {"小明": ("明哥", "救人很稳"), "小红": ("", "开局就炸房也没事")}
 
 
 @pytest.fixture(scope="module")
@@ -87,9 +71,13 @@ def test_the_page_lists_names_with_their_nicknames(window):
     window._show_list()
     assert window._tab_buttons[window.likes_tab].count() == 2
     rows = [[page.table.item(r, c).text() for c in range(5)] for r in range(page.table.rowCount())]
-    # Newest first; 昵称 beside the name; 随机 under 场景 for any scene; a dash for
-    # 最近遇到 until they are met.
-    assert rows == [["小红", "", "随机", "", "—"], ["救人很稳的小明", "明哥", "随机", "上把救了我", "—"]]
+    # The 我 row on top; then newest first; 昵称 beside the name; 随机 under 场景 for any scene; a
+    # dash for 最近遇到 until they are met.
+    assert rows == [
+        ["点右上角填写游戏名", "", "不放", "", ""],
+        ["小红", "", "随机", "", "—"],
+        ["救人很稳的小明", "明哥", "随机", "上把救了我", "—"],
+    ]
     page.search.setText("明哥")
     assert page.table.rowCount() == 1
     page.search.setText("没有这个")
@@ -414,13 +402,17 @@ def test_a_guest_picks_a_theme_and_the_page_shows_and_orders_them(window):
     window.store.add_like(dialog.name, scenes=dialog.scenes)
     window.store.add_like("小红")
     window.store.add_like("阿星", scenes=Scenes(("angel",)))
+    window.store.player_name = "测试主播"
     page.refresh()
-    shown = lambda: [(page.table.item(r, 0).text(), page.table.item(r, 2).text()) for r in range(page.table.rowCount())]  # noqa: E731
+    shown = lambda: [(page.table.item(r, 0).text(), page.table.item(r, 2).text()) for r in range(1, page.table.rowCount())]  # noqa: E731
     assert shown() == [("阿星", "金色传说"), ("小红", "随机"), ("小明", "赛博朋克·一")]
-    assert page.table.dragEnabled()
-    # A row dragged to the top decides first.
-    page.table.moved.emit(2, 0)
+    assert page.table.dragEnabled() and page.table.fixed == 1
+    # A row dragged to the top decides first, under the 我 row, which stays where it is.
+    page.table.moved.emit(3, 1)
     assert shown()[0] == ("小明", "赛博朋克·一") and window.store.likes[-1].name == "小明"
+    page._moved(1, 0)
+    page._moved(0, 2)
+    assert page.table.item(0, 0).text() == "测试主播" and window.store.likes[-1].name == "小明"
     # 置顶 from the row menu does the same.
     page.to_top(window.store.like_index("小红"))
     assert shown()[0][0] == "小红"
@@ -562,7 +554,9 @@ def test_the_picker_returns_the_scene_used_and_closing_changes_nothing(window, m
 
 
 def _rows(page) -> list[list[str]]:  # noqa: ANN001
-    return [[page.table.item(r, c).text() for c in range(5)] for r in range(page.table.rowCount())]
+    """The rows under the 我 row."""
+    start = int(page._is_me(0))
+    return [[page.table.item(r, c).text() for c in range(5)] for r in range(start, page.table.rowCount())]
 
 
 def test_combinations_head_the_list_tagged_and_open_to_edit(window, monkeypatch):
@@ -591,10 +585,12 @@ def test_combinations_head_the_list_tagged_and_open_to_edit(window, monkeypatch)
         ["小红", "", "随机", "", "—"],
         ["小明", "明哥", "随机", "", "—"],
     ]
-    assert page.table.item(0, 0).data(PEOPLE_ROLE) == [("明哥", True), ("小红", True)]
-    assert [page._combo_at(r) for r in range(5)] == [0, 1, -1, -1, -1]
-    assert [page._index_at(r) for r in range(5)] == [-1, -1, 2, 1, 0]
-    assert page.table.item(1, 3).data(COMBO_ROLE) == 1 and not page.table.grab().isNull()
+    # Under the 我 row.
+    assert page._is_me(0) and not any(page._is_me(r) for r in range(1, 6))
+    assert page.table.item(1, 0).data(PEOPLE_ROLE) == [("明哥", True), ("小红", True)]
+    assert [page._combo_at(r) for r in range(6)] == [-1, 0, 1, -1, -1, -1]
+    assert [page._index_at(r) for r in range(6)] == [-1, -1, -1, 2, 1, 0]
+    assert page.table.item(2, 3).data(COMBO_ROLE) == 1 and not page.table.grab().isNull()
     changed, said = [], []
     page.changed.connect(lambda: changed.append(1))
     monkeypatch.setattr(page, "_say", lambda text, undo=None: said.append((text, undo)))
@@ -608,19 +604,19 @@ def test_combinations_head_the_list_tagged_and_open_to_edit(window, monkeypatch)
 
     monkeypatch.setattr(ComboDialog, "exec", edit)
     # A click on a 组合 opens it to edit.
-    page.table.cellClicked.emit(1, 2)
+    page.table.cellClicked.emit(2, 2)
     assert opened[0].windowTitle() == "编辑组合" and opened[0].theme.name.text() == "冰蓝极光"
     assert {name for name, button in opened[0].people_buttons.items() if button.isChecked()} == {"小红", "阿星"}
     assert store.combos[1] == Combo(("小红", "阿星"), Scenes(("ice",))) and changed
     assert _rows(page)[1][2] == "冰蓝极光"
     # Enter on one does the same.
-    page.table.setCurrentCell(0, 0)
+    page.table.setCurrentCell(1, 0)
     QApplication.sendEvent(page.table, QKeyEvent(QEvent.Type.KeyPress, Qt.Key_Return, Qt.NoModifier))
     assert len(opened) == 2 and opened[1].combo == Combo(("小明", "小红"), Scenes(("ice",)))
     # Its menu has 编辑 and 删除; 删除 offers 撤销.
     menus = []
     monkeypatch.setattr(QMenu, "popup", lambda menu, *_args: menus.append(menu))
-    page._row_menu(page.table.visualItemRect(page.table.item(1, 0)).center())
+    page._row_menu(page.table.visualItemRect(page.table.item(2, 0)).center())
     actions = menus[0].actions()
     assert [action.text() for action in actions] == ["编辑", "", "删除"]
     actions[-1].trigger()
@@ -628,11 +624,11 @@ def test_combinations_head_the_list_tagged_and_open_to_edit(window, monkeypatch)
     said[-1][1]()
     assert store.combos[1] == Combo(("小红", "阿星"), Scenes(("ice",))) and _rows(page)[1][0] == "小红 + 阿星"
     # A 嘉宾's row keeps its own menu.
-    page._row_menu(page.table.visualItemRect(page.table.item(3, 0)).center())
+    page._row_menu(page.table.visualItemRect(page.table.item(4, 0)).center())
     assert [action.text() for action in menus[-1].actions()] == ["编辑", "复制名字", "置顶", "", "删除"]
     # A 嘉宾 since taken off the list shows struck out, and the 组合 stays to edit or delete.
     page.delete(store.like_index("阿星"))
-    assert page.table.item(1, 0).data(PEOPLE_ROLE) == [("小红", True), ("阿星", False)] and not page.table.grab().isNull()
+    assert page.table.item(2, 0).data(PEOPLE_ROLE) == [("小红", True), ("阿星", False)] and not page.table.grab().isNull()
     assert window._tab_buttons[window.likes_tab].count() == 2
 
 
@@ -651,16 +647,16 @@ def test_a_combination_is_searched_by_its_guests_and_never_dragged(window):
     page.search.setText("阿星")
     assert [row[0] for row in _rows(page)] == ["小红 + 阿星", "阿星"] and page.table.fixed == 1
     page.search.setText("")
-    # A 组合 neither drags nor takes a drop: rows that aim at one move nothing.
+    # The 我 row and a 组合 neither drag nor take a drop: rows that aim at one move nothing.
     table = page.table
-    assert table.fixed == 2 and table.dragEnabled()
-    assert not table.item(0, 0).flags() & Qt.ItemIsDragEnabled and table.item(2, 0).flags() & Qt.ItemIsDragEnabled
+    assert table.fixed == 3 and table.dragEnabled()
+    assert not any(table.item(row, 0).flags() & Qt.ItemIsDragEnabled for row in (0, 1)) and table.item(3, 0).flags() & Qt.ItemIsDragEnabled
     order = [like.name for like in store.likes]
-    table.moved.emit(0, 3)
-    table.moved.emit(4, 1)
+    for row, to in ((0, 4), (1, 4), (5, 2), (5, 0)):
+        table.moved.emit(row, to)
     assert [like.name for like in store.likes] == order
-    # 嘉宾 rows still drag among themselves, mapped past the 组合 above them.
-    table.moved.emit(4, 2)
+    # 嘉宾 rows still drag among themselves, mapped past the 我 row and the 组合 above them.
+    table.moved.emit(5, 3)
     assert [row[0] for row in _rows(page)] == ["明哥 + 小红", "小红 + 阿星", "小明", "阿星", "小红"]
     assert store.likes[-1].name == "小明"
 
@@ -763,17 +759,17 @@ def test_the_list_is_empty_only_with_no_guest_and_no_combination(window):
     page.refresh()
     # Its 嘉宾 gone, the 组合 waits for them, in the list.
     assert page.empty.isHidden() and not page.table.isHidden() and not page.add_button.isHidden()
-    assert page.table.item(0, 0).text() == "小明 + 小红"
+    assert page.table.item(1, 0).text() == "小明 + 小红"
     # 复制名单 and 清空嘉宾列表 have no 嘉宾 to work on, so 更多 is not offered.
     assert page.more_button.isHidden()
     store.add_like("阿星")
     page.refresh()
     assert not page.more_button.isHidden()
-    # A 组合's 嘉宾 run on across 昵称, which it has none of; a 嘉宾's row keeps its own 昵称.
-    assert (page.table.columnSpan(0, 0), page.table.columnSpan(1, 0)) == (2, 1)
+    # The 我 row's name and a 组合's 嘉宾 run on across 昵称, which they have none of; a 嘉宾's row keeps its own 昵称.
+    assert [page.table.columnSpan(row, 0) for row in range(3)] == [2, 2, 1]
     store.set_combos([])
     page.refresh()
-    assert page.table.columnSpan(0, 0) == 1
+    assert page.table.columnSpan(1, 0) == 1
     store.set_combos([Combo(("小明", "小红"), Scenes(("angel",)))])
     store.clear_likes()
     store.set_combos([])
@@ -787,3 +783,124 @@ def test_a_theme_with_its_own_music_plays_it(window):
     assert window._tune_for("stars") == "stars"
     window.mute_box.click()
     assert window._tune_for("claw") == "claw" and window.music.muted
+
+
+def _picture(table):  # noqa: ANN001, ANN202
+    """The list as drawn, one pixel per pixel of its viewport whatever the screen's scale."""
+    return table.viewport().grab().toImage().scaled(table.viewport().size())
+
+
+def test_the_me_row_heads_the_list_in_green_with_the_players_name(window, monkeypatch):
+    from PySide6.QtCore import QEvent
+    from PySide6.QtGui import QKeyEvent
+    from PySide6.QtWidgets import QMenu
+
+    from blacklist_detect.model import Combo
+    from blacklist_detect.ui_guests import ComboDialog
+    from blacklist_detect.ui_kit import ConfirmDialog
+    from blacklist_detect.ui_likes import ME_ROLE, MET, NAME, NO_NAME, REASON, THEME_COLUMN, LikeDialog
+    from blacklist_detect.ui_theme import THEME
+
+    page, store, table = window.likes_page, window.store, window.likes_page.table
+    store.add_like("小明", "明哥", "救人很稳")
+    store.add_like("小红")
+    store.set_combos([Combo(("小明", "小红"), Scenes(("angel",)))])
+    page.refresh()
+    window._show_list()
+    # On top, above the 组合: where to fill in the name until there is one, and 我's own 场景.
+    assert page._is_me(0) and table.item(0, NAME).data(ME_ROLE) == ""
+    assert [table.item(0, column).text() for column in range(5)] == [NO_NAME, "", "不放", "", ""]
+    assert page._combo_at(1) == 0 and page._index_at(0) == -1 and page._combo_at(0) == -1
+    # The header's name, saved, is the row's.
+    window.player_edit.setText("测试主播")
+    window._save_player_name()
+    assert table.item(0, NAME).text() == "测试主播" and table.item(0, NAME).data(ME_ROLE) == "测试主播"
+    store.set_me(Scenes(("cyber",)))
+    page.refresh()
+    assert table.item(0, THEME_COLUMN).text() == "赛博朋克·一"
+    # It neither drags nor takes a drop, and is not one of the 嘉宾 the tab counts or 复制名单 copies.
+    assert not table.item(0, NAME).flags() & (Qt.ItemIsDragEnabled | Qt.ItemIsDropEnabled) and table.fixed == 2
+    assert window._tab_buttons[window.likes_tab].count() == 2
+    page.copy_list()
+    assert "测试主播" not in QApplication.clipboard().text()
+    # Green, all across; the 组合 under it on the card.
+    table.resize(900, 400)
+    picture = _picture(table)
+    at = lambda row, column: picture.pixelColor(table.visualItemRect(table.item(row, column)).center()).name()  # noqa: E731
+    assert at(0, MET) == at(0, REASON) == THEME["green_wash"]
+    assert at(1, REASON) == THEME["surface"]
+    # A click or Enter on it opens no 编辑嘉宾 or 编辑组合, Delete deletes nothing, and it has no menu.
+    opened, asked, menus = [], [], []
+    monkeypatch.setattr(LikeDialog, "exec", lambda dialog: opened.append(dialog) or QDialog.Rejected)
+    monkeypatch.setattr(ComboDialog, "exec", lambda dialog: opened.append(dialog) or QDialog.Rejected)
+    monkeypatch.setattr(page, "edit_me", lambda: asked.append(1))
+    monkeypatch.setattr(QMenu, "popup", lambda menu, *_args: menus.append(menu))
+    table.cellClicked.emit(0, NAME)
+    table.cellClicked.emit(0, THEME_COLUMN)
+    table.setCurrentCell(0, NAME)
+    for key in (Qt.Key_Return, Qt.Key_Delete):
+        QApplication.sendEvent(table, QKeyEvent(QEvent.Type.KeyPress, key, Qt.NoModifier))
+    page._row_menu(table.visualItemRect(table.item(0, NAME)).center())
+    assert opened == [] and menus == [] and asked == [1, 1, 1]
+    assert len(store.likes) == 2 and len(store.combos) == 1
+    # Searched for: there while the search is in the player's name.
+    page.search.setText("主播")
+    assert page._is_me(0) and table.rowCount() == 1 and not table.isHidden()
+    page.search.setText("明哥")
+    assert not page._is_me(0) and [row[0] for row in _rows(page)] == ["明哥 + 小红", "小明"]
+    page.search.setText("")
+    # 清空嘉宾列表 leaves it and its 场景; with nobody on the list the page is empty again.
+    monkeypatch.setattr(ConfirmDialog, "ask", lambda *_args, **_kwargs: True)
+    page.clear()
+    assert page._is_me(0) and store.me == Scenes(("cyber",))
+    store.set_combos([])
+    page.refresh()
+    assert table.isHidden() and not page.empty.isHidden()
+
+
+def test_a_combinations_tag_is_blue_and_the_me_tag_green(window):
+    from PySide6.QtGui import QColor, QImage, QPainter
+
+    from blacklist_detect.model import Combo
+    from blacklist_detect.ui_theme import THEME
+    from blacklist_detect.ui_widgets import _draw_pill
+
+    # A pill in the ink it is given; red without one.
+    for ink, wanted in (("#0000ff", "#0000ff"), ("", THEME["red"])):
+        picture = QImage(120, 40, QImage.Format_RGB32)
+        picture.fill(QColor("#ffffff"))
+        painter = QPainter(picture)
+        painter.setFont(window.font())
+        _draw_pill(painter, QRect(0, 0, 120, 40), "组合组合组合", True, 8, "#ffffff", ink)
+        painter.end()
+        colors = {picture.pixelColor(x, y).name() for x in range(120) for y in range(40)}
+        assert wanted in colors, ink
+
+    def inks(row: int) -> set[str]:
+        rect = page.table.visualItemRect(page.table.item(row, 0))
+        picture = _picture(page.table)
+        return {picture.pixelColor(x, y).name() for x in range(rect.left(), rect.left() + 80) for y in range(rect.top(), rect.bottom())}
+
+    page, store = window.likes_page, window.store
+    store.add_like("小明")
+    store.add_like("小红")
+    store.set_combos([Combo(("小明", "小红"), Scenes(("angel",)))])
+    page.refresh()
+    window._show_list()
+    page.table.resize(900, 400)
+    assert {THEME["blue_wash"], THEME["blue"]} <= inks(1) and THEME["red"] not in inks(1)
+    # The 我 tag, a chip of the card's color on the row's green.
+    assert {THEME["green_wash"], THEME["surface"], THEME["green"]} <= inks(0) and THEME["blue"] not in inks(0)
+
+
+def test_batch_import_is_on_the_blacklist_page_only(window):
+    from PySide6.QtWidgets import QPushButton
+
+    from blacklist_detect.ui_dialogs import BatchAddDialog
+
+    page = window.likes_page
+    assert not any(button.text() == "批量导入" for button in page.findChildren(QPushButton))
+    assert not hasattr(page, "import_many") and not hasattr(window.store, "import_likes")
+    assert window.toolbar_buttons[0].text() == "批量导入" and window.empty_batch_button.text() == "批量导入"
+    with pytest.raises(TypeError):
+        BatchAddDialog(likes=True)

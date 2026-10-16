@@ -541,8 +541,9 @@ def paint_tag_row(painter: QPainter, rect: QRect, tags: tuple[str, ...] | list[s
     painter.restore()
 
 
-def _draw_pill(painter: QPainter, rect: QRect, text: str, active: bool, pad: int, wash: str = "") -> None:
-    """One pill: red wash and red words, or the outlined grey of a pill that is off or +N."""
+def _draw_pill(painter: QPainter, rect: QRect, text: str, active: bool, pad: int, wash: str = "", ink: str = "") -> None:
+    """One pill: red wash and red words (or the wash and ink given), or the outlined grey of a pill
+    that is off or +N."""
     body = QRect(rect)
     body.adjust(0, 1, -1, -1)
     radius = body.height() / 2
@@ -550,7 +551,7 @@ def _draw_pill(painter: QPainter, rect: QRect, text: str, active: bool, pad: int
         painter.setPen(Qt.NoPen)
         painter.setBrush(QColor(wash or THEME["red_wash"]))
         painter.drawRoundedRect(body, radius, radius)
-        painter.setPen(QColor(THEME["red"]))
+        painter.setPen(QColor(ink or THEME["red"]))
     else:
         painter.setPen(QPen(QColor(THEME["chip_off_line"]), 1))
         painter.setBrush(QColor(THEME["chip_off_bg"]))
