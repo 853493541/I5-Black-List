@@ -807,7 +807,7 @@ class Store:
             self.auto_capture = False
         if self.blacklist_path.exists():
             try:
-                data = json.loads(self.blacklist_path.read_text(encoding="utf-8"))
+                data = json.loads(self.blacklist_path.read_text(encoding="utf-8-sig"))
                 for item in data.get("entries", []):
                     name = clean_stored_name(str(item.get("name", "")))
                     if not name:
@@ -828,7 +828,7 @@ class Store:
                 self.entries = []
                 backup = _set_aside(self.blacklist_path)
                 _log_set_aside(exc, backup)
-                self.load_warning = "黑名单文件坏了，已备份，先用空名单"
+                self.load_warning = "；".join(part for part in (self.load_warning, "黑名单文件坏了，已备份，先用空名单") if part)
         self._load_likes()
         self._fold_old_settings()
         discovered = False
@@ -842,14 +842,17 @@ class Store:
                 if tag not in TAGS and self.add_custom_tag(tag):
                     discovered = True
             entry.tags = order_tags(entry.tags, self.tag_catalog())
-        if discovered:
-            self.save_settings()
-        if stripped:
-            self.save_entries()
+        try:
+            if discovered:
+                self.save_settings()
+            if stripped:
+                self.save_entries()
+        except OSError as exc:
+            _log.info("Tags found at open could not be saved (%s): again the next open.", exc)
         self.scans = []
         if self.history_path.exists():
             try:
-                saved = json.loads(self.history_path.read_text(encoding="utf-8"))
+                saved = json.loads(self.history_path.read_text(encoding="utf-8-sig"))
                 for item in saved.get("scans", []):
                     names = []
                     for seat in item.get("names", []):
@@ -867,8 +870,11 @@ class Store:
                             "names": names,
                         }
                     )
-            except (OSError, json.JSONDecodeError, AttributeError, TypeError, ValueError):
+            except (OSError, json.JSONDecodeError, AttributeError, TypeError, ValueError) as exc:
                 self.scans = []
+                backup = _set_aside(self.history_path)
+                _log_set_aside(exc, backup)
+                self.load_warning = "；".join(part for part in (self.load_warning, "记录文件坏了，已备份，先用空记录") if part)
         collapsed = _collapse(self.scans)
         if len(collapsed) != len(self.scans):
             self.scans = collapsed
@@ -883,7 +889,7 @@ class Store:
         if not self.likes_path.exists():
             return
         try:
-            data = json.loads(self.likes_path.read_text(encoding="utf-8"))
+            data = json.loads(self.likes_path.read_text(encoding="utf-8-sig"))
             me = data.get("me")
             if isinstance(me, dict):
                 self.me = _saved_scenes(me)
@@ -910,7 +916,7 @@ class Store:
             self.me = Scenes()
             backup = _set_aside(self.likes_path)
             _log_set_aside(exc, backup)
-            self.load_warning = "嘉宾文件坏了，已备份，先用空列表"
+            self.load_warning = "；".join(part for part in (self.load_warning, "嘉宾文件坏了，已备份，先用空列表") if part)
 
     def _fold_old_settings(self) -> None:
         """Settings saved up to v0.9.14, once, into what took their place: 声音 below 100 into every 场景's own
@@ -1108,7 +1114,7 @@ class Store:
         if not self.settings_path.exists():
             return
         try:
-            settings = json.loads(self.settings_path.read_text(encoding="utf-8"))
+            settings = json.loads(self.settings_path.read_text(encoding="utf-8-sig"))
             saved = str(settings.get("hotkey", "") or "") or DEFAULT_HOTKEY
             # Two keys at most since v0.9.0: Ctrl+Alt+F11 is kept as Ctrl+F11.
             self.hotkey = two_keys(saved)
@@ -1199,7 +1205,11 @@ class Store:
             self.load_warning = "；".join(part for part in (self.load_warning, "设置文件坏了，已备份，先用默认设置") if part)
 
     def save_scans(self) -> None:
-        _atomic_write(self.history_path, {"scans": self.scans[:_MAX_SCANS]})
+        """Never raises: 记录 are the least of the files, and one that cannot be saved must not cost a check its marks."""
+        try:
+            _atomic_write(self.history_path, {"scans": self.scans[:_MAX_SCANS]})
+        except OSError as exc:
+            _log.warning("记录 could not be saved: %s", exc)
 
     def add_scan(self, names: list[dict], elapsed: float | None = None) -> str:
         """Return added, refreshed, filled, or skipped. The same minute keeps the first record."""

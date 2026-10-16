@@ -1,3 +1,7 @@
+import json
+import os
+import stat
+
 from blacklist_detect.paths import app_dir
 from blacklist_detect.storage import Store
 
@@ -992,3 +996,89 @@ def test_a_replaced_effect_s_sound_is_its_replacement_s(tmp_path):
         settings["scene_sounds"] = both
         store.settings_path.write_text(json.dumps(settings), encoding="utf-8")
         assert Store(tmp_path).scene_sounds == {"angel": {"volume": 80}}
+
+
+def _read_only(path):
+    os.chmod(path, stat.S_IREAD)
+
+
+def _writable(path):
+    os.chmod(path, stat.S_IREAD | stat.S_IWRITE)
+
+
+def test_a_tag_found_at_open_that_cannot_be_saved_still_opens_the_app_with_the_list(tmp_path):
+    entries = {"entries": [{"name": "示例坏人", "tags": ["红名"]}]}
+    (tmp_path / "blacklist.json").write_text(json.dumps(entries, ensure_ascii=False), encoding="utf-8")
+    settings = tmp_path / "settings.json"
+    settings.write_text("{}", encoding="utf-8")
+    _read_only(settings)
+    try:
+        store = Store(tmp_path)
+    finally:
+        _writable(settings)
+    assert [(entry.name, entry.tags) for entry in store.entries] == [("示例坏人", ("红名",))]
+    assert "红名" in store.custom_tags and store.load_warning == ""
+    assert Store(tmp_path).custom_tags == ["红名"]
+
+
+def test_a_hidden_tag_that_cannot_be_dropped_from_the_list_file_still_opens_the_app(tmp_path):
+    (tmp_path / "settings.json").write_text(json.dumps({"hidden_tags": ["贴脸"]}, ensure_ascii=False), encoding="utf-8")
+    listed = tmp_path / "blacklist.json"
+    listed.write_text(json.dumps({"entries": [{"name": "示例坏人", "tags": ["贴脸"]}]}, ensure_ascii=False), encoding="utf-8")
+    _read_only(listed)
+    try:
+        store = Store(tmp_path)
+    finally:
+        _writable(listed)
+    assert [(entry.name, entry.tags) for entry in store.entries] == [("示例坏人", ())]
+    assert "贴脸" in json.loads(listed.read_text(encoding="utf-8"))["entries"][0]["tags"]
+
+
+def test_a_check_keeps_its_record_when_the_history_file_cannot_be_written(tmp_path):
+    store = Store(tmp_path)
+    store.add_scan([{"seat": 1, "name": "示例坏人", "unclear": False}])
+    history = tmp_path / "history.json"
+    store.scans[0]["at"] = "2020-01-01T00:00:00+00:00"
+    _read_only(history)
+    try:
+        assert store.add_scan([{"seat": 2, "name": "心动小鹿", "unclear": False}]) == "added"
+        assert [scan["names"][0]["name"] for scan in store.scans] == ["心动小鹿", "示例坏人"]
+        assert len(Store(tmp_path).scans) == 1
+    finally:
+        _writable(history)
+
+
+def test_two_broken_files_both_say_so(tmp_path):
+    (tmp_path / "settings.json").write_text("{", encoding="utf-8")
+    (tmp_path / "likes.json").write_text("", encoding="utf-8")
+    (tmp_path / "blacklist.json").write_text("[", encoding="utf-8")
+    warning = Store(tmp_path).load_warning
+    assert "设置文件坏了" in warning and "嘉宾文件坏了" in warning and "黑名单文件坏了" in warning
+    assert warning.count("；") == 2
+
+
+def test_a_cut_short_history_file_is_kept_aside_and_said(tmp_path):
+    history = tmp_path / "history.json"
+    history.write_text('{"scans": [{"at": "2020-01-01T00:00:00+00:00", "names": [{"seat": 1, "na', encoding="utf-8")
+    store = Store(tmp_path)
+    assert store.scans == []
+    assert store.load_warning == "记录文件坏了，已备份，先用空记录"
+    aside = list(tmp_path.glob("history.unreadable-*.json"))
+    assert len(aside) == 1 and aside[0].read_text(encoding="utf-8").startswith('{"scans"')
+    for broken in ("", '{"scans": [{"names": [{"seat": "一"}]}]}'):
+        history.write_text(broken, encoding="utf-8")
+        assert "记录文件坏了" in Store(tmp_path).load_warning, broken
+
+
+def test_files_saved_with_a_bom_are_read(tmp_path):
+    bom = b"\xef\xbb\xbf"
+    (tmp_path / "blacklist.json").write_bytes(bom + json.dumps({"entries": [{"name": "示例坏人"}]}).encode("utf-8"))
+    (tmp_path / "likes.json").write_bytes(bom + json.dumps({"likes": [{"name": "心动小鹿"}]}).encode("utf-8"))
+    (tmp_path / "settings.json").write_bytes(bom + json.dumps({"theme": "紫色"}).encode("utf-8"))
+    scans = {"scans": [{"at": "2020-01-01T00:00:00+00:00", "names": [{"seat": 1, "name": "心动星星"}]}]}
+    (tmp_path / "history.json").write_bytes(bom + json.dumps(scans).encode("utf-8"))
+    store = Store(tmp_path)
+    assert store.load_warning == ""
+    assert [entry.name for entry in store.entries] == ["示例坏人"]
+    assert [like.name for like in store.likes] == ["心动小鹿"]
+    assert store.theme == "紫色" and store.scans[0]["names"][0]["name"] == "心动星星"
