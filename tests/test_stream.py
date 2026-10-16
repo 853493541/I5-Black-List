@@ -74,6 +74,30 @@ def _on_screen(widget) -> bool:  # noqa: ANN001
     return widget.isVisible() and not widget.testAttribute(Qt.WA_DontShowOnScreen)
 
 
+def test_the_panel_takes_its_height_back_as_stream_mode_is_turned_off_in_it(window, tmp_path, monkeypatch):
+    """With 直播姬 on this PC its line shows under 直播模式 while it is on; turned off from the panel's own switch,
+    the card is as short again at once as before it was turned on, with no blank band under the row."""
+    from blacklist_detect import livehime, ui
+
+    log_file = tmp_path / "livehime.log"
+    log_file.write_text("", encoding="utf-8")
+    monkeypatch.setattr(livehime, "log_path", lambda: log_file)
+    monkeypatch.setattr(ui.single, "running", lambda _name: False)
+    state = next(key for key in livehime.WORDS if key != livehime.OK)
+    monkeypatch.setattr(livehime, "status", lambda *_args, **_kwargs: state)
+    window.show()
+    window.check_panel.open_panel()
+    QApplication.processEvents()
+    off = window.check_panel.height()
+    window.stream_switch.click()
+    QApplication.processEvents()
+    assert window.stream_status.isVisible() and window.check_panel.height() > off
+    window.stream_switch.click()
+    assert window.check_panel.height() == off and not window.stream_status.isVisible()
+    window.check_panel.close_panel()
+    window.hide()
+
+
 def test_the_panel_switch_is_remembered_and_opens_the_window(window):
     """直播模式 is a switch in the 检查 panel, after 显示 and 方式, with its ⓘ and 测试效果 beside it."""
     from blacklist_detect.storage import Store

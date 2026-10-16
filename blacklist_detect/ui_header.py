@@ -233,7 +233,12 @@ class CheckPanel(QFrame):
         self.hide()
 
     def _place(self) -> None:
-        """Its card's right edge under the pill's, kept inside the window."""
+        """Its card's right edge under the pill's, kept inside the window, as tall as its rows are now: a row
+        or a line just shown or hidden (直播模式's) counts at once, not only after Qt's next layout pass."""
+        for widget in reversed(self.findChildren(QWidget)):
+            if widget.layout() is not None:
+                widget.layout().activate()
+        self.layout().activate()
         self.adjustSize()
         host = self.parentWidget()
         corner = self.anchor.mapTo(host, QPoint(self.anchor.width(), self.anchor.height()))
