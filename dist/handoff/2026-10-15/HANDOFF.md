@@ -16,7 +16,7 @@ All 27 asks in ASKS.md are merged. Since v0.9.15, in merge order: 嘉宾 list (�
 
 ## Running
 
-Nothing. No agents, no workflows. Leftover worktree: only `feature/bamboo-frame` (parked) and the parked scene branches below.
+- **Green 场景 v3 (ask 28)**, workflow wf_a7491357-0f6 (script under this session's `workflows/scripts/genshin-wind-scene-*.js`): 3 researchers (万叶's maple + wind, 温迪's lyre + feathers, Genshin's wind visuals and the two Bilibili pages) → 1 planner writes `dist/concepts_genshin_wind/PLAN.md` with 3 directions → 3 designers render one concept still each into `dist/concepts_genshin_wind/<A|B|C>_<slug>/concept.png`. Concept pictures only, nothing in the repo. When it reports: look at each, make a numbered sheet, send the pictures; the user picks; then one concept frame, then the build. Supersedes the 7 earlier green stills (dist/concepts_green/).
 
 ## Waiting on the user
 
