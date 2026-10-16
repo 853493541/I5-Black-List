@@ -533,6 +533,8 @@ def test_the_lyre_s_birds_sit_on_its_frame_and_never_over_the_lobby(qapp, monkey
         for box in (lobby, title, stage.gap):
             r = box.toAlignedRect()
             assert alpha[max(0, r.top()) : r.bottom(), max(0, r.left()) : r.right()].max(initial=0) < 8, (t, box)
+        # Clear of the current along the top too: the lyre's bird, crest and all, sits under it.
+        assert alpha[: round(20 * stage.unit())].max() < 8, t
         if t in (0.0, 5.0):
             assert alpha.max() == 0, t
         if t == 3.0:
