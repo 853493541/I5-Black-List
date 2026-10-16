@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import math
 import random
+import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -98,40 +99,56 @@ def make(stage: Stage):  # noqa: ANN201
     u = stage.unit()
     rnd = random.Random(19)
     centre = _landing(width, height, u)
-    sprite = _slash_sprite(LENGTH * u, THICK * u, u)
-    frayed = [_frayed(sprite, k / FRAYS, seed) for seed, k in enumerate(range(1, FRAYS + 1))]
-    slashes = [_cleared(sprite, frayed, _place(centre, offset, u), gap, u) for offset, _delay in SLASHES]
-    fog = (_fog_layer(width, height, u, 11, 1.0), _fog_layer(width, height, u, 23, 0.85))
-    keep = _keep(width, height, gap, u)
     veil = QImage(max(1, round(width * SOFT)), max(1, round(height * SOFT)), QImage.Format_ARGB32_Premultiplied)
     notes = _notes(width, height, gap, u, rnd)
     seats = stage.names()
-    cloud = _cloud(u)
     unknown = _unknown(seats)
-    notice = _notice_art(u)
     notice_at = QPointF(width - 26 * u, height * 0.165)
     puff = [(rnd.uniform(0, math.tau), rnd.uniform(40, 150) * u, rnd.uniform(26, 60) * u, rnd.uniform(0.0, 0.12)) for _ in range(16)]
+    # The slashes, the fog and the notice take most of a second to make: made by warm, off the screen's thread.
+    art: dict = {}
+    lock = threading.Lock()
+
+    def warm(_ratio: float) -> None:
+        """Every picture made now, once (QImage only, so off the screen's thread): the slashes with the gap cleared
+        out of them, the fog, the cloud the names are lost in and the notice."""
+        with lock:
+            if art:
+                return
+            sprite = _slash_sprite(LENGTH * u, THICK * u, u)
+            frayed = [_frayed(sprite, k / FRAYS, seed) for seed, k in enumerate(range(1, FRAYS + 1))]
+            art.update(
+                slashes=[_cleared(sprite, frayed, _place(centre, offset, u), gap, u) for offset, _delay in SLASHES],
+                fog=(_fog_layer(width, height, u, 11, 1.0), _fog_layer(width, height, u, 23, 0.85)),
+                keep=_keep(width, height, gap, u),
+                cloud=_cloud(u),
+                notice=_notice_art(u),
+            )
 
     def paint(p: QPainter, t: float) -> None:
+        if not art:
+            # Played where nothing warmed it (直播画面): made here, as it always was.
+            warm(1.0)
         life = win(t, 0.0, 0.25) * (1 - ease_in(win(t, DURATION - 0.4, DURATION)))
         if life <= 0:
             return
         p.save()
         p.setOpacity(life)
         p.translate(_jolt(t - LANDED, u))
-        _veil(p, t, veil, fog, keep, width, height, u)
-        _lost_names(p, t, seats, cloud, unknown, u)
+        _veil(p, t, veil, art["fog"], art["keep"], width, height, u)
+        _lost_names(p, t, seats, art["cloud"], unknown, u)
         _notes_paint(p, t, notes, u)
-        _strike(p, t - STRIKE[0], slashes, u)
+        _strike(p, t - STRIKE[0], art["slashes"], u)
         _impact(p, t - LANDED, centre, u)
         _puff(p, t - LANDED, centre, puff, u)
         p.restore()
         # The notice does not shake: it is the game telling you, not the blow.
         p.save()
         p.setOpacity(life)
-        _notice(p, t - STRIKE[0], notice, notice_at, u)
+        _notice(p, t - STRIKE[0], art["notice"], notice_at, u)
         p.restore()
 
+    paint.warm = warm
     return paint
 
 

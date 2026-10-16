@@ -286,6 +286,56 @@ def test_lyre_s_first_click_shows_its_still_at_once_and_never_stalls_the_dialog(
     assert max(steps) < 0.08, max(steps)
 
 
+def test_claw_s_first_click_never_stalls_the_dialog_while_its_pictures_are_made(store, monkeypatch):
+    """演说家遇袭's slashes, fog and notice are made off the screen's thread (its paint's warm), as 竖琴清风's are:
+    the click returns at once, making the scene holds the dialog's thread for a moment only, and so does each step
+    while its pictures are made (it was 0.8 s at the scene's making)."""
+    import time
+
+    from PySide6.QtCore import QEventLoop, QTimer
+
+    from blacklist_detect.love_scenes import claw
+    from blacklist_detect.ui_love_pick import ScenePreview
+
+    monkeypatch.setattr(claw, "_MADE", {})
+    dialog = _like(store, 2)
+    pane = dialog.pane
+    dialog.show()
+    QApplication.processEvents()
+    held = []
+    make = ScenePreview._make
+    step = ScenePreview._step
+
+    def timed_make(preview) -> None:  # noqa: ANN001
+        begun = time.perf_counter()
+        make(preview)
+        held.append(("make", time.perf_counter() - begun))
+
+    def timed(preview) -> None:  # noqa: ANN001
+        begun = time.perf_counter()
+        step(preview)
+        held.append(("step", time.perf_counter() - begun))
+        if preview._warming is None and preview._marks is not None:
+            loop.quit()
+
+    monkeypatch.setattr(ScenePreview, "_make", timed_make)
+    monkeypatch.setattr(ScenePreview, "_step", timed)
+    start = time.perf_counter()
+    pane.buttons["claw"].click()
+    click = time.perf_counter() - start
+    loop = QEventLoop()
+    QTimer.singleShot(15000, loop.quit)
+    loop.exec()
+
+    playing = pane.preview._marks is not None and pane.preview._warming is None
+    pane.stop()
+    dialog.done(QDialog.Rejected)
+    assert click < 0.1, click
+    # It played, its pictures made while the dialog went on, and no moment held up past a loose bound.
+    assert playing and any(kind == "make" for kind, _spent in held)
+    assert max(spent for _kind, spent in held) < 0.08, held
+
+
 def test_play_scenes_off_empties_the_boxes_and_on_again_brings_back_what_they_said(store):
     dialog = _like(store, 1)
     pane = dialog.pane
