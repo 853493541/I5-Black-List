@@ -26,7 +26,7 @@ Status as of 2026-10-16 ~02:30 UTC. improve/quality = d6cdbba (+ handoff commits
 | 18 | 检查 | 直播模式 out of the panel: its own switch in the header with its ⓘ | released v0.9.15 |
 | 19 | 检查 | Remove 测试框 | released v0.9.15 |
 | 20 | Testing | No sound from background tests unless a sound is being checked | released v0.9.15 |
-| 21 | 记录 (2026-10-16 01:15 UTC) | On the 记录 page the hover 添加 button becomes two buttons on the right: a heart (add to 嘉宾) and a circle-with-slash 🚫 (add to 黑名单). A click adds at once; once added, it stays showing that state | not started |
+| 21 | 记录 (2026-10-16 01:15 UTC) | On the 记录 page the hover 添加 button becomes two buttons on the right: a heart (add to 嘉宾) and a circle-with-slash 🚫 (add to 黑名单). A click adds at once; once added, it stays showing that state | building (implementer on feature/record-buttons, base 13e9588, no desktop; the tester's screenshot pass waits until A frees the desktop). Decisions: one click adds with an 撤销 toast, no dialog; reason/tags later by clicking the red seat; a click on the seat body adds nothing; the menu does what the buttons do; the page stays put |
 | — | Green 场景 | For the friend who mains 吴邪 (green + wind): border only, slow entrance, cute pandas, less middle | v2 rejected; the user wants picture ideas first. 7 concept stills sent 2026-10-16 (dist/concepts_green/: all_concepts.png + one folder per idea with its script): 1 草原风车, 2 竹风铃, 3 风筝, 4 水墨竹, 5 山雾萤火, 6 青铜门, 7 柳与燕. Waiting for the user's pick; then one concept frame of it, then the build. |
 
 "Just changing UI for now" (22:40): no 直播模式 checklist is to be built.
