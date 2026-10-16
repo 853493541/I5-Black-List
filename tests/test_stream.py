@@ -178,7 +178,8 @@ def test_likes_are_copied_clear_around_and_the_border_plays(window):
     assert window.panel.mode == "liked" and window.love.playing()
     assert window.stream.busy()
     inside = _pixel(window, window.like_card.geometry().center())
-    assert inside.alpha() > 200, "the 嘉宾 card is copied where it is"
+    # Solid, or nearly: 竖琴清风's card is jade glass.
+    assert inside.alpha() > 180, "the 嘉宾 card is copied where it is"
     # Clear where nothing is drawn: no green, nothing for a 色度键 to take.
     area = window.stream._area
     assert _pixel(window, area.center()).alpha() == 0
