@@ -16,7 +16,7 @@ All 27 asks in ASKS.md are merged. Since v0.9.15, in merge order: 嘉宾 list (�
 
 ## Running
 
-- **Green 场景 v3 (ask 28)**, workflow wf_a7491357-0f6 (script under this session's `workflows/scripts/genshin-wind-scene-*.js`): 3 researchers (万叶's maple + wind, 温迪's lyre + feathers, Genshin's wind visuals and the two Bilibili pages) → 1 planner writes `dist/concepts_genshin_wind/PLAN.md` with 3 directions → 3 designers render one concept still each into `dist/concepts_genshin_wind/<A|B|C>_<slug>/concept.png`. Concept pictures only, nothing in the repo. When it reports: look at each, make a numbered sheet, send the pictures; the user picks; then one concept frame, then the build. Supersedes the 7 earlier green stills (dist/concepts_green/).
+- Nothing running. **Green 场景 v3 (ask 28)** is DONE as concepts and sent to the user (dist/concepts_genshin_wind/all_three.png; A 竖琴清风, B 红枫逐风, C 白羽风环, each folder with concept.png, concept_half.png, entrance_t0.6.png, compare.png and the script that drew it). Waiting for the user's pick; then the build from that script and PLAN.md's brief. How it was made: workflow wf_a7491357-0f6 (script under this session's `workflows/scripts/genshin-wind-scene-*.js`): 3 researchers (万叶's maple + wind, 温迪's lyre + feathers, Genshin's wind visuals and the two Bilibili pages) → 1 planner writes `dist/concepts_genshin_wind/PLAN.md` with 3 directions → 3 designers render one concept still each into `dist/concepts_genshin_wind/<A|B|C>_<slug>/concept.png`. Concept pictures only, nothing in the repo. When it reports: look at each, make a numbered sheet, send the pictures; the user picks; then one concept frame, then the build. Supersedes the 7 earlier green stills (dist/concepts_green/).
 
 ## Waiting on the user
 
