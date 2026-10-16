@@ -19,7 +19,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
-NAMES = ["小猫爆锤...", "霁玥吉尔曼", "路人甲", "", "阿强", "丙丙", "gffdsd", "丁丁", "", "戊", "己己", "庚"]
+NAMES = ["摸鱼大师...", "示例坏人", "路人甲", "", "阿强", "丙丙", "路过的猫", "丁丁", "", "戊", "己己", "庚"]
 
 
 def main() -> int:
@@ -86,9 +86,9 @@ def main() -> int:
 
     store = window.store
     store.player_name = "阿强"
-    store.add("霁玥吉尔曼", "开局就炸房，还骂人", tags=("炸房", "贴脸"))
-    store.add("小猫爆锤大王", tags=("挂机",))
-    store.add("gffdsd", "很长的原因文字" * 5, tags=("场外", "不尊重底牌", "炸房", "贴脸"))
+    store.add("示例坏人", "开局就炸房，还骂人", tags=("炸房", "贴脸"))
+    store.add("摸鱼大师", tags=("挂机",))
+    store.add("路过的猫", "很长的原因文字" * 5, tags=("场外", "不尊重底牌", "炸房", "贴脸"))
     if hasattr(store, "add_like"):
         store.add_like("庚", "", "")
         store.add_like("丙丙的猫猫头", "猫猫", "救人很稳，开局就报点")
@@ -162,7 +162,7 @@ def main() -> int:
         (
             "dialog_edit",
             lambda: ui.AddNameDialog(
-                "霁玥吉尔曼", ("炸房",), "开局就炸房", title="编辑", allow_delete=True,
+                "示例坏人", ("炸房",), "开局就炸房", title="编辑", allow_delete=True,
                 catalog=store.tag_catalog(), parent=window,
             ),
         ),
@@ -234,14 +234,14 @@ def _import_dialog(ui, store, window):  # noqa: ANN001, ANN202
     dialog = ui.BatchAddDialog(store.tag_catalog(), store.entries, parent=window)
     pasted = [
         "这游戏有这么多神人吗",
-        "霁玥吉尔曼（开局就炸房，这把又炸）",
-        "挖野菜养你吖（纯粹的傻逼）",
-        "好知知这就来帮（好人帮狼炸房）",
-        "西西zo（挂机占麦）",
-        "小小丑不会输，少主薇（狼能赢的送双排顾问）",
-        "翻箱震慑是北城（讲了行为狼、轨迹狼、身份撞了，还给狼弃",
-        "票，弱智来着）",
-        "誘之（轨迹差表水差被踩就情绪贴脸）",
+        "示例坏人（开局就炸房，这把又炸）",
+        "晚风吹过（纯粹捣乱）",
+        "柠檬汽水（好人帮狼炸房）",
+        "一只团子（挂机占麦）",
+        "夏天的风，棉花糖（狼能赢的送双排）",
+        "白日梦想家（讲了行为狼、轨迹狼、身份撞了，还给狼弃",
+        "票，乱投来着）",
+        "小林同学（轨迹差表水差被踩就情绪贴脸）",
     ]
     dialog.edit.setPlainText("\n".join(pasted))
     dialog._refresh()
@@ -318,9 +318,9 @@ def _overlay_scenes(window, snap) -> None:  # noqa: ANN001
         return canvas
 
     snap("overlay_checking", picture=scene("checking", "检查中"))
-    window.hit_card.set_people([("霁玥吉尔曼", ("炸房", "贴脸")), ("gffdsd", ("挂机",))], button.height())
+    window.hit_card.set_people([("示例坏人", ("炸房", "贴脸")), ("路过的猫", ("挂机",))], button.height())
     snap("overlay_hit", picture=scene("hit", "", window.hit_card))
-    many = [("霁玥吉尔曼", ("炸房", "贴脸")), ("gffdsd", ("挂机",)), ("EluElu", ("演员",)), ("玩的很菜了", ("挂机",))]
+    many = [("示例坏人", ("炸房", "贴脸")), ("路过的猫", ("挂机",)), ("心动星星", ("演员",)), ("柠檬汽水", ("挂机",))]
     window.hit_card.set_people(many, button.height())
     snap("overlay_hit_many", picture=scene("hit", "", window.hit_card))
     window.clear_mark.set_size(button.height() + outset * 2)
@@ -331,7 +331,7 @@ def _overlay_scenes(window, snap) -> None:  # noqa: ANN001
         window.clear_mark.set_heart(True)
         snap("overlay_clear_likes", picture=scene("liked", "没有黑名单", window.clear_mark, like_card))
         window.clear_mark.set_heart(False)
-        window.hit_card.set_people([("霁玥吉尔曼", ("炸房", "贴脸"))], button.height())
+        window.hit_card.set_people([("示例坏人", ("炸房", "贴脸"))], button.height())
         snap("overlay_hit_likes", picture=scene("both", "", window.hit_card, like_card))
     if hasattr(window, "love"):
         # The border for two or more 心动 players, over the whole lobby, two seconds in.
@@ -494,7 +494,7 @@ def _kit_scenes(window, snap) -> None:  # noqa: ANN001
     column.addWidget(empty, 1)
     toast = ui_kit.Toast(board)
     board.show()
-    toast.show_message("已删除「霁玥吉尔曼」", "撤销", lambda: None, ms=60000)
+    toast.show_message("已删除「示例坏人」", "撤销", lambda: None, ms=60000)
     toast._fade.setOpacity(1.0)
     snap("kit", board)
     board.close()
