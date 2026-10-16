@@ -3034,7 +3034,7 @@ class MainWindow(QMainWindow):
         self.stream.enable(self.store.stream_mode)
         self._sync_stream_controls()
         if self._overlay_target() == "":
-            # 基础模式 without 直播模式 draws nothing: a 场景 hotkey play is over, music and all.
+            # 基础模式 without 直播模式 draws no check's marks: a 场景 hotkey play is over too, music and all.
             self._end_quick_play()
         self._sync_overlay_target()
         self._sync_name_hiding()
@@ -4195,12 +4195,11 @@ class MainWindow(QMainWindow):
     def play_quick_scene(self) -> bool:
         """The 场景 hotkey: the 场景 it plays (store.quick_scene, ticked on 场景管理), at once, with no check (no
         screen copy, no recognition), as a 嘉宾 lobby would get it: the rose ring and the badge on 准备案件还原,
-        the scene over the game and its music (the 场景's own 音量, none with 静音), on the screen, or only in
-        直播画面 when 基础模式 puts the marks there. It
-        plays with every 嘉宾 on 不放 too, and pressed again it starts over. It plays nothing when _quick_refusal
-        says why not: before 使用声明 is agreed to, in 基础模式 without 直播模式 (nothing is drawn over the
-        game there), and while a real lobby is checked or its marks show, since that comes first; a check
-        takes the play down.
+        the scene over the game and its music (the 场景's own 音量, none with 静音), on the screen in either 显示,
+        基础模式 too (the player pressed it to see it), and in 直播画面 with 直播模式 on. It plays with every 嘉宾 on
+        不放 too, and pressed again it starts over. It plays nothing when _quick_refusal says why not: before 使用声明
+        is agreed to, and while a real lobby is checked or its marks show, since that comes first; a check takes the
+        play down.
 
         Where: the last lobby's game, as a check found it; with none yet, in the window 直播姬 shows
         the game with (直播模式), else in the window under the pointer, else on its screen as a
@@ -4212,6 +4211,10 @@ class MainWindow(QMainWindow):
         # The music is the play's now, not 场景管理's preview's.
         self.effects_page.sounding = False
         self._end_quick_play()
+        # On the screen, 基础模式's marks for the stream alone too; they go back to the stream once it is over
+        # (_end_quick_play). Nothing shows now: a check's marks refuse the play.
+        for mark in (self.panel, self.hit_card, self.like_card, self.clear_mark, self.love, self.alert):
+            mark.setAttribute(Qt.WA_DontShowOnScreen, False)
         scene = self.store.quick_scene
         self._quick_saved = (
             self._game_box, self._game_screen, self._game_windows,
@@ -4266,8 +4269,6 @@ class MainWindow(QMainWindow):
             return "正在退出"
         if not self.store.disclaimer_accepted:
             return "先同意使用声明"
-        if self._overlay_target() == "":
-            return "基础模式下不显示场景"
         if self._check_started is not None or (self.panel.isVisible() and not self._quick_scene):
             return "正在检查，稍后再试"
         return ""
@@ -4327,6 +4328,8 @@ class MainWindow(QMainWindow):
             self.music.stop()
         self._quick_scene = ""
         self._quick_area = None
+        # 基础模式's marks back where a check puts them: only into 直播画面, or nowhere.
+        self._sync_overlay_target()
         if self._quick_saved is not None:
             saved = self._quick_saved
             self._game_box, self._game_screen, self._game_windows, frame, self._lobby_choice, self._lobby_seats = saved

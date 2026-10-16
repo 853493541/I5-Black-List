@@ -437,7 +437,8 @@ def test_a_real_lobby_comes_first(window, monkeypatch):
 def test_in_stream_mode_it_reaches_the_stream_window(window, monkeypatch):
     from blacklist_detect import ui
 
-    # 基础模式 with 直播模式: the marks only in 直播画面, never on the streamer's screen.
+    # 基础模式 with 直播模式: a check's marks go only into 直播画面; the hotkey's play is on the screen too, the
+    # player pressed it to see it.
     window._on_display_mode("safe")
     window._set_stream_mode(True)
     assert window._overlay_target() == "stream"
@@ -455,12 +456,15 @@ def test_in_stream_mode_it_reaches_the_stream_window(window, monkeypatch):
     assert window.stream._frame == captured
     assert captured.contains(window.love.geometry()) and window.love.geometry().width() == 800
     for mark in (window.panel, window.clear_mark, window.love):
-        assert mark.testAttribute(Qt.WA_DontShowOnScreen)
+        assert not mark.testAttribute(Qt.WA_DontShowOnScreen) and mark.isVisible()
     assert window.panel in window.stream._marks() and window.clear_mark in window.stream._marks()
     assert window.stream._borders() == [window.love] and window.stream.busy()
     assert not window.stream.grab().isNull()
     window._end_quick_play()
     assert window.stream._frame == QRect() and not window.stream.busy()
+    # Over: a check's marks only for the stream again.
+    marks = (window.panel, window.hit_card, window.like_card, window.clear_mark, window.love, window.alert)
+    assert all(mark.testAttribute(Qt.WA_DontShowOnScreen) for mark in marks)
 
 
 def test_in_full_mode_without_stream_mode_it_plays_on_the_screen(window):
@@ -482,13 +486,17 @@ def test_the_play_is_logged(window, caplog):
     assert "场景 hotkey shown: 嘉宾场景 (angel" in said and "场景 hotkey: done." in said
 
 
-def test_in_safe_mode_without_stream_mode_nothing_is_drawn_over_the_game(window):
-    # 基础模式, as every player starts: nothing over the game from the hotkey.
+def test_in_safe_mode_without_stream_mode_it_plays_on_the_screen_all_the_same(window):
+    # 基础模式, as every player starts: a check draws nothing over the game, but the hotkey, pressed to see its
+    # 场景, plays it on the screen, under the pointer, music and all.
     window._on_display_mode("safe")
     assert window._overlay_target() == "" and not window.store.stream_mode
-    assert not window.effect_hotkey.callback()
-    assert not window.panel.isVisible() and not window.clear_mark.isVisible() and not window.love.playing()
-    assert window._quick_scene == "" and window.played == []
+    assert window.effect_hotkey.callback()
+    for mark in (window.panel, window.clear_mark, window.love):
+        assert not mark.testAttribute(Qt.WA_DontShowOnScreen) and mark.isVisible()
+    assert window.love.playing() and window._quick_scene and window.played and window.played[-1] != "stop"
+    window._end_quick_play()
+    assert not window.panel.isVisible() and not window.love.playing() and window._quick_scene == ""
 
 
 def test_safe_mode_takes_a_play_down_music_and_all(window):
