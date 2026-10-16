@@ -705,3 +705,81 @@ def test_the_first_box_ticked_is_in_sight_though_the_list_scrolls_past_it(store)
     assert in_sight(pane, "lyre")
     pane.stop()
     pane.close()
+
+
+def _until(check, seconds: float = 15.0) -> None:  # noqa: ANN001
+    """The event loop run until check() is true, or for this long."""
+    import time
+
+    end = time.perf_counter() + seconds
+    while not check() and time.perf_counter() < end:
+        QApplication.processEvents()
+        time.sleep(0.005)
+
+
+def test_lyre_put_to_rest_while_it_is_made_plays_with_its_own_marks_when_back(store, monkeypatch):  # noqa: ARG001
+    from blacklist_detect.love_scenes import lyre
+    from blacklist_detect.ui_love_pick import ScenePreview
+
+    monkeypatch.setattr(lyre, "_made", {})
+    monkeypatch.setattr(lyre, "_MARKS", {})
+    preview = ScenePreview()
+    preview.show()
+    preview.show_scene("classic", now=True)
+    QApplication.processEvents()
+    assert preview._marks is preview._looks["classic"]
+    preview.show_scene("lyre", now=True)
+    # Another scene's marks never draw over it.
+    assert preview._marks is None and preview._warming is not None
+    preview.rest()
+    preview.resume(True)
+    _until(lambda: preview._marks is not None)
+    assert preview._marks is preview._looks["lyre"] and preview._warming is None
+    preview.stop()
+    preview.close()
+
+
+def test_lyre_picked_again_once_made_still_makes_its_marks_off_the_screen_s_thread(store, monkeypatch):  # noqa: ARG001
+    from blacklist_detect import ui_love_pick
+    from blacklist_detect.love_scenes import lyre
+
+    monkeypatch.setattr(lyre, "_made", {})
+    monkeypatch.setattr(lyre, "_MARKS", {})
+    preview = ui_love_pick.ScenePreview()
+    preview.show()
+    preview.show_scene("lyre", now=True)
+    warming = preview._warming
+    # Left while its pictures are made, and picked again once they are.
+    preview.show_scene("classic", now=True)
+    warming.join(15)
+    made = []
+    real = ui_love_pick.SampleMarks
+    monkeypatch.setattr(ui_love_pick, "SampleMarks", lambda scene, *rest: made.append(scene) or real(scene, *rest))
+    preview.show_scene("lyre")
+    assert made == [] and preview._warming is not None and preview._marks is None
+    _until(lambda: preview._marks is not None)
+    assert made == ["lyre"] and preview._marks is preview._looks["lyre"]
+    preview.stop()
+    preview.close()
+
+
+def test_focus_back_with_the_window_leaves_the_list_where_it_was_scrolled(store):  # noqa: ARG001
+    from blacklist_detect.ui_guest_scenes import ScenePane
+
+    pane = ScenePane(OFF)
+    pane.show()
+    QApplication.processEvents()
+    bar = pane.scroll.verticalScrollBar()
+    top = pane.buttons["random"]
+    for reason in (Qt.ActiveWindowFocusReason, Qt.PopupFocusReason, Qt.MouseFocusReason):
+        bar.setValue(bar.maximum())
+        top.clearFocus()
+        top.setFocus(reason)
+        assert bar.value() == bar.maximum() > 0, reason
+    for reason in (Qt.TabFocusReason, Qt.OtherFocusReason):
+        bar.setValue(bar.maximum())
+        top.clearFocus()
+        top.setFocus(reason)
+        assert bar.value() == 0, reason
+    pane.stop()
+    pane.close()

@@ -62,9 +62,10 @@ READY_S = 0.01
 
 
 def in_sight(widget: QWidget, event) -> None:  # noqa: ANN001
-    """A row focused from the keyboard (an arrow, Tab) scrolled into sight in the list it scrolls in; one focused by
-    a click is in sight already and stays where it is under the mouse."""
-    if event.reason() == Qt.FocusReason.MouseFocusReason:
+    """A row focused from the keyboard (an arrow, Tab) scrolled into sight in the list it scrolls in. One focused by a
+    click is in sight already and stays where it is under the mouse, and focus coming back with the window or after a
+    popup leaves the list where the player scrolled it."""
+    if event.reason() not in (Qt.FocusReason.TabFocusReason, Qt.FocusReason.BacktabFocusReason, Qt.FocusReason.OtherFocusReason):
         return
     scroll = widget.parentWidget()
     while scroll is not None and not isinstance(scroll, QScrollArea):
@@ -261,6 +262,7 @@ class ScenePreview(QWidget):
         for one whose pictures are made off the screen's thread, its still showing at once)."""
         self.scene = self._known(scene)
         self._still = None
+        self._marks = None
         self._undress()
         self._paint = self._made.get(self.scene)
         self._waiting = self._paint is None
@@ -276,6 +278,7 @@ class ScenePreview(QWidget):
         """This scene still, at its best moment; nothing plays until show_scene."""
         self.scene = self._known(scene)
         self._still = poster(self.scene)
+        self._marks = None
         self._paint = None
         self._waiting = False
         self._undress()
@@ -313,7 +316,8 @@ class ScenePreview(QWidget):
             thread = threading.Thread(target=warm, args=(sharp,), name="preview-warm", daemon=True)
             thread.start()
             thread.join(READY_S)
-            if thread.is_alive():
+            # Its pictures made already, its marks may not be: they are made as while it was, off the screen's thread.
+            if thread.is_alive() or self.scene not in self._looks:
                 self._warming = thread
                 self._tick.start()
                 self.update()
@@ -347,6 +351,10 @@ class ScenePreview(QWidget):
         """The scene played before pause, from its start again, without making it again. from_start=False:
         where it would be had it played on, in step with its music still playing. A still stays still."""
         if self._paint is None:
+            return
+        if self._marks is None and self._warming is None:
+            # Put to rest while it was being made: made again (its pictures kept), its still showing meanwhile.
+            self._ready()
             return
         if self._warming is not None:
             # Still being made: it starts from its start once it is.
