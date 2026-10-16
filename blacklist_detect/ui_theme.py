@@ -409,32 +409,37 @@ def _input_rules(family: str) -> str:
             """
 
 
-def _choice_rules(family: str) -> str:
-    """ChoiceBox, 设置's dropdowns: a field like QLineEdit's, its list under it like a menu. The chevron is
-    painted by the box itself."""
+def choice_colors() -> dict[str, str]:
+    """ChoiceBox's colors. The soft fill under its words on hover is the fill under a choice in the list it opens,
+    so the two read as one control; the list itself is a panel a shade off the page, with no hard line round it."""
     t = THEME
+    return {
+        "hover": t["hover"],
+        "panel": t["surface"],
+        "edge": _mix(t["surface"], t["border"], 0.55).name(),
+        "text": t["text"],
+        "chevron": t["muted"],
+        "disabled": t["muted"],
+    }
+
+
+def _choice_rules(family: str) -> str:
+    """ChoiceBox, 设置's dropdowns: only its words and a chevron until it is clicked, the way Claude's settings show
+    one. The box paints itself and the panel its list sits on; this sets their font and the list's rows."""
+    c = choice_colors()
     return f"""
             QComboBox#choice {{
                 font-family: "{family}";
                 font-size: {BODY_PT}pt;
-                background: {t["surface"]};
-                color: {t["text"]};
-                border: 1px solid {t["field_line"]};
-                border-radius: {RADIUS}px;
-                padding: 0 32px 0 10px;
-                min-height: {CONTROL_H - 2}px;
+                background: transparent;
+                color: {c["text"]};
+                border: none;
+                padding: 0;
+                min-height: {CONTROL_H}px;
                 combobox-popup: 0;
             }}
-            QComboBox#choice:hover {{
-                border: 1px solid {t["accent_line"]};
-            }}
-            QComboBox#choice:focus, QComboBox#choice:on {{
-                border: 1px solid {t["accent"]};
-            }}
             QComboBox#choice:disabled {{
-                color: {t["muted"]};
-                background: {t["surface_alt"]};
-                border: 1px solid {t["border"]};
+                color: {c["disabled"]};
             }}
             QComboBox#choice::drop-down {{
                 border: none;
@@ -446,22 +451,23 @@ def _choice_rules(family: str) -> str:
             QComboBox#choice QAbstractItemView {{
                 font-family: "{family}";
                 font-size: {BODY_PT}pt;
-                background: {t["surface"]};
-                color: {t["text"]};
-                border: 1px solid {t["border"]};
+                background: transparent;
+                color: {c["text"]};
+                border: none;
                 padding: 4px;
                 outline: 0;
             }}
             QComboBox#choice QAbstractItemView::item {{
-                min-height: 28px;
-                padding: 0 10px;
+                min-height: 30px;
+                padding: 0 32px 0 10px;
+                border: none;
                 border-radius: {RADIUS}px;
-                color: {t["text"]};
+                color: {c["text"]};
             }}
             QComboBox#choice QAbstractItemView::item:hover,
             QComboBox#choice QAbstractItemView::item:selected {{
-                background: {t["selected"]};
-                color: {t["text"]};
+                background: {c["hover"]};
+                color: {c["text"]};
             }}
             """
 

@@ -9,12 +9,14 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 pytest.importorskip("PySide6")
 
 from PySide6.QtCore import QPoint, Qt  # noqa: E402
-from PySide6.QtGui import QKeyEvent  # noqa: E402
+from PySide6.QtGui import QColor, QFontMetrics, QImage, QKeyEvent, QPixmap  # noqa: E402
+from PySide6.QtTest import QTest  # noqa: E402
 from PySide6.QtWidgets import QApplication, QDialog, QLabel, QPushButton, QWidget  # noqa: E402
 from test_theme import contrast  # noqa: E402
 
 from blacklist_detect import ui_icons  # noqa: E402
 from blacklist_detect.ui_kit import (  # noqa: E402
+    ChoiceBox,
     ConfirmDialog,
     EmptyState,
     IconButton,
@@ -24,7 +26,7 @@ from blacklist_detect.ui_kit import (  # noqa: E402
     TabButton,
     Toast,
 )
-from blacklist_detect.ui_theme import THEME, _palette  # noqa: E402
+from blacklist_detect.ui_theme import THEME, _choice_rules, _palette, _window_style, chinese_family, choice_colors  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -238,3 +240,109 @@ def test_a_switch_set_quietly_is_drawn_where_it_is(qapp):
     switch.setChecked(False)
     switch.blockSignals(False)
     assert switch._pos == 0.0
+
+
+def _choice_host(qapp):  # noqa: ANN001, ANN202
+    """A ChoiceBox near the right of a styled window, the way 设置 holds one."""
+    host = QWidget()
+    host.setStyleSheet(_window_style(chinese_family()))
+    host.resize(360, 200)
+    host.move(40, 40)
+    box = ChoiceBox([("light", "浅色"), ("dark", "深色"), ("system", "跟随系统")], "light", host)
+    host.show()
+    _settle(qapp)
+    box.resize(box.sizeHint())
+    box.move(host.width() - box.width() - 20, 20)
+    _settle(qapp)
+    return host, box
+
+
+def _drawn(box: ChoiceBox) -> QImage:
+    """The box drawn alone on a page of one color, so whatever it paints of its own shows against it."""
+    page = QPixmap(box.size())
+    page.fill(QColor("#123456"))
+    box.render(page)
+    return page.toImage()
+
+
+def test_a_choice_box_is_only_its_words_until_hovered(qapp):
+    host, box = _choice_host(qapp)
+    image = _drawn(box)
+    middle = box.height() // 2
+    # No border and no fill: its edges, and the room left of its right-aligned words, are the page.
+    for x, y in ((0, 0), (box.width() - 1, 0), (0, box.height() - 1), (1, middle), (box.width() - 2, middle), (box.width() // 2, 1)):
+        assert image.pixelColor(x, y) == QColor("#123456"), (x, y)
+    # On hover a soft fill comes under the words, the fill the open list's rows take.
+    box.setAttribute(Qt.WA_UnderMouse, True)
+    image = _drawn(box)
+    assert image.pixelColor(3, middle) == QColor(choice_colors()["hover"])
+    assert image.pixelColor(box.width() - 4, middle) == QColor(choice_colors()["hover"])
+    box.setEnabled(False)
+    assert not box.is_lit()
+    host.close()
+
+
+def test_a_choice_box_is_as_wide_as_its_words(qapp):
+    host, box = _choice_host(qapp)
+    assert not hasattr(ChoiceBox, "WIDTH")
+    short = box.sizeHint().width()
+    words = QFontMetrics(box.font()).horizontalAdvance("跟随系统") - QFontMetrics(box.font()).horizontalAdvance("浅色")
+    box.set_current("system")
+    assert box.sizeHint().width() == short + words
+    host.close()
+
+
+def test_a_click_opens_the_list_right_aligned_under_the_words(qapp):
+    host, box = _choice_host(qapp)
+    view = box.view()
+    assert not view.isVisible()
+    QTest.mouseClick(box, Qt.LeftButton)
+    _settle(qapp)
+    assert view.isVisible() and box.is_lit()
+    panel = view.window()
+    side = box._SHADOW
+    corner = box.mapToGlobal(QPoint(box.width(), box.height()))
+    geometry = panel.geometry()
+    assert geometry.right() + 1 - side == corner.x()
+    assert geometry.top() + side == corner.y() + box._DROP
+    # As wide as its longest choice, the default first.
+    assert geometry.width() - 2 * side == box.list_width() > box.width()
+    assert [box.itemText(row) for row in range(box.count())] == ["浅色", "深色", "跟随系统"]
+    # A panel with no hard line round it, its chosen row in the hover's fill.
+    image = panel.grab().toImage()
+    colors = choice_colors()
+    chosen = view.mapTo(panel, view.visualRect(box.model().index(0, 0)).center())
+    assert image.pixelColor(view.x() + 2, view.y() + view.height() // 2) == QColor(colors["panel"])
+    assert image.pixelColor(view.x() + 6, chosen.y()) == QColor(colors["hover"])
+    rules = _choice_rules("x")
+    assert f"background: {colors['hover']};" in rules.split("::item:selected")[1]
+    assert "border: 1px" not in rules
+    box.hidePopup()
+    _settle(qapp)
+    assert not view.isVisible() and not box.is_lit()
+    host.close()
+
+
+def test_the_keyboard_still_works_a_choice_box(qapp):
+    host, box = _choice_host(qapp)
+    picked: list[str] = []
+    box.changed.connect(picked.append)
+    # The window gives it focus as it opens, with no ring; Tab onto it shows one.
+    assert not box.show_ring()
+    box.clearFocus()
+    _settle(qapp)
+    box.setFocus(Qt.FocusReason.TabFocusReason)
+    _settle(qapp)
+    assert box.show_ring() is box.hasFocus()
+    for key in (Qt.Key_Down, Qt.Key_Down, Qt.Key_Up):
+        QApplication.sendEvent(box, QKeyEvent(QKeyEvent.Type.KeyPress, key, Qt.KeyboardModifier.NoModifier))
+    assert picked == ["dark", "system", "dark"] and box.current() == "dark"
+    for key in (Qt.Key_Space, Qt.Key_Return):
+        QApplication.sendEvent(box, QKeyEvent(QKeyEvent.Type.KeyPress, key, Qt.KeyboardModifier.NoModifier))
+        _settle(qapp)
+        assert box.view().isVisible(), key
+        box.hidePopup()
+        _settle(qapp)
+        # Back from its list, the ring the keyboard put there stays.
+        assert box.show_ring() is box.hasFocus()
+    host.close()

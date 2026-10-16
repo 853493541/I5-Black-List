@@ -131,7 +131,7 @@ def test_each_section_has_its_rows_in_order_with_a_line_only_where_the_name_need
         "使用声明": (opened.disclaimer_button,),
         "清空数据": (opened.reset_button,),
     }
-    # 常规's choices are dropdowns of one width, each listing its default first.
+    # 常规's choices are dropdowns shown as their words, each as wide as its words, each listing its default first.
     choices = {
         opened.autostart_box: ["关闭", "开启"],
         opened.close_mode: ["最小化到托盘", "退出程序"],
@@ -139,7 +139,7 @@ def test_each_section_has_its_rows_in_order_with_a_line_only_where_the_name_need
         opened.appearance_control: ["浅色", "深色", "跟随系统"],
     }
     for box, labels in choices.items():
-        assert isinstance(box, ChoiceBox) and box.width() == ChoiceBox.WIDTH
+        assert isinstance(box, ChoiceBox) and box.width() == box.sizeHint().width()
         assert [box.itemText(index) for index in range(box.count())] == labels
     assert opened.close_mode.keys() == ["tray", "quit"]
     assert opened.appearance_control.keys() == ["light", "dark", "system"]
@@ -179,6 +179,19 @@ def test_names_and_lines_on_the_left_and_controls_on_the_right(opened):
     middle = lambda widget: widget.mapTo(opened, widget.rect().center()).y()  # noqa: E731
     tops = [middle(box) for box in (opened.autostart_box, opened.close_mode, opened.mute_box, opened.appearance_control)]
     assert all(lower - upper > 30 for upper, lower in zip(tops, tops[1:], strict=False)), "常规's dropdowns are a row each, in order"
+
+
+def test_a_dropdown_keeps_its_right_edge_as_its_words_change(opened):
+    opened._show_settings_section("general")
+    _settle()
+    box = opened.appearance_control
+    right = box.mapTo(opened, box.rect().topRight()).x()
+    for key in ("system", "light"):
+        _pick(box, key)
+        _settle()
+        assert box.width() == box.sizeHint().width()
+        assert box.mapTo(opened, box.rect().topRight()).x() == right
+    assert opened.settings_scroll.verticalScrollBar().maximum() == 0
 
 
 def test_every_control_still_does_what_it_did(opened, monkeypatch, tmp_path):

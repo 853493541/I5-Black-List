@@ -28,6 +28,7 @@ from PySide6.QtCore import (
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen
 from PySide6.QtWidgets import (
     QAbstractButton,
+    QApplication,
     QButtonGroup,
     QComboBox,
     QDialog,
@@ -51,10 +52,12 @@ from blacklist_detect.ui_icons import icon as line_icon
 from blacklist_detect.ui_icons import pixmap as line_pixmap
 from blacklist_detect.ui_theme import (
     BODY_PT,
+    CARD_RADIUS,
     CONTROL_H,
     DIALOG_PAD,
     DIALOG_TITLE_PT,
     KEYBOARD_FOCUS,
+    RADIUS,
     SECTION_PT,
     SMALL_PT,
     THEME,
@@ -63,6 +66,7 @@ from blacklist_detect.ui_theme import (
     _pointing,
     chinese_family,
     chinese_font,
+    choice_colors,
 )
 
 
@@ -344,25 +348,62 @@ class SegmentedControl(QWidget):
             button.setChecked(name == key)
 
 
-class ChoiceBox(QComboBox):
-    """A dropdown with one choice shown, like 浅色 / 深色 / 跟随系统, and a chevron on its right."""
+class _ChoiceRow(QStyledItemDelegate):
+    """A row of ChoiceBox's list in the app's style, a check on the right of the choice now made."""
+
+    def __init__(self, box: QComboBox) -> None:
+        super().__init__(box)
+        self._box = box
+
+    def paint(self, painter: QPainter, option: QStyleOptionViewItem, index) -> None:  # noqa: ANN001
+        super().paint(painter, option, index)
+        if index.row() == self._box.currentIndex():
+            side = 14
+            rect = option.rect
+            painter.drawPixmap(
+                rect.right() - side - 10, rect.top() + (rect.height() - side) // 2, line_pixmap("check", side, THEME["text"])
+            )
+
+
+class ChoiceBox(_KeyboardRing, QComboBox):
+    """A dropdown shown as its choice's words and a thin chevron, the way Claude's settings show one: no box, no
+    border, sized to the words. A soft fill comes under them on hover, and a click opens the list under them,
+    right-aligned, on a panel whose rows take that same fill.
+    """
 
     changed = Signal(str)
 
-    WIDTH = 160
+    _PAD = 8  # words to the edge of the hover fill
+    _CHEVRON = 12
+    _GAP = 6  # words to chevron
+    _DROP = 4  # box to its list
+    _SHADOW = 10  # the list's soft shadow, around its panel
 
     def __init__(self, options: list[tuple[str, str]], current: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("choice")
-        self.setFixedWidth(self.WIDTH)
         self.setFocusPolicy(Qt.StrongFocus)
         self.setCursor(Qt.PointingHandCursor)
+        self.setAttribute(Qt.WA_Hover, True)
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         # The list's rows take the app's style, not the system's.
-        self.setItemDelegate(QStyledItemDelegate(self))
+        self.setItemDelegate(_ChoiceRow(self))
+        # The list sits on a rounded panel with a soft shadow, painted here: no window frame or system shadow.
+        panel = self.view().window()
+        panel.setWindowFlags(panel.windowFlags() | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
+        panel.setAttribute(Qt.WA_TranslucentBackground, True)
+        panel.installEventFilter(self)
+        self.view().viewport().setAutoFillBackground(False)
+        self._ring_before_list = False
         for key, label in options:
             self.addItem(label, key)
         self.set_current(current)
-        self.currentIndexChanged.connect(lambda index: self.changed.emit(str(self.itemData(index))))
+        self.currentIndexChanged.connect(self._on_index)
+
+    def _on_index(self, index: int) -> None:
+        self.updateGeometry()
+        self.update()
+        self.changed.emit(str(self.itemData(index)))
 
     def keys(self) -> list[str]:
         return [str(self.itemData(index)) for index in range(self.count())]
@@ -375,6 +416,24 @@ class ChoiceBox(QComboBox):
         self.blockSignals(True)
         self.setCurrentIndex(max(0, self.findData(key)))
         self.blockSignals(False)
+        self.updateGeometry()
+        self.update()
+
+    def sizeHint(self) -> QSize:
+        words = QFontMetrics(self.font()).horizontalAdvance(self.currentText())
+        return QSize(self._PAD + words + self._GAP + self._CHEVRON + self._PAD, CONTROL_H)
+
+    def minimumSizeHint(self) -> QSize:
+        return self.sizeHint()
+
+    def changeEvent(self, event) -> None:  # noqa: ANN001
+        super().changeEvent(event)
+        if event.type() in (QEvent.Type.FontChange, QEvent.Type.StyleChange):
+            self.updateGeometry()
+
+    def is_lit(self) -> bool:
+        """The soft fill shows under the words while the pointer is on them or their list is open."""
+        return self.isEnabled() and (self.underMouse() or self.view().isVisible())
 
     def wheelEvent(self, event) -> None:  # noqa: ANN001
         # A wheel turned over the page scrolls it; only a box being used changes with the wheel.
@@ -383,11 +442,129 @@ class ChoiceBox(QComboBox):
             return
         super().wheelEvent(event)
 
+    def keyPressEvent(self, event) -> None:  # noqa: ANN001
+        # Enter opens the list as Space does; the arrows still step through the choices with it closed.
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter) and activates(event):
+            self.showPopup()
+            return
+        super().keyPressEvent(event)
+
+    def focusInEvent(self, event) -> None:  # noqa: ANN001
+        super().focusInEvent(event)
+        if event.reason() == Qt.FocusReason.PopupFocusReason:
+            # Back from its own list: a ring the keyboard put there stays.
+            self._ring = self._ring_before_list
+            self.update()
+
+    def focusOutEvent(self, event) -> None:  # noqa: ANN001
+        if event.reason() == Qt.FocusReason.PopupFocusReason:
+            self._ring_before_list = self._ring
+        super().focusOutEvent(event)
+
+    def enterEvent(self, event) -> None:  # noqa: ANN001
+        super().enterEvent(event)
+        self.update()
+
+    def leaveEvent(self, event) -> None:  # noqa: ANN001
+        super().leaveEvent(event)
+        self.update()
+
     def paintEvent(self, event) -> None:  # noqa: ANN001
-        super().paintEvent(event)
-        side = 16
+        colors = choice_colors()
         painter = QPainter(self)
-        painter.drawPixmap(self.width() - side - 10, (self.height() - side) // 2, line_pixmap("chevron_down", side, THEME["muted"]))
+        painter.setRenderHint(QPainter.Antialiasing)
+        box = QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5)
+        if self.is_lit():
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(colors["hover"]))
+            painter.drawRoundedRect(box, RADIUS, RADIUS)
+        if self.show_ring():
+            painter.setBrush(Qt.NoBrush)
+            painter.setPen(QPen(QColor(THEME["accent_line"]), 1.5))
+            painter.drawRoundedRect(box.adjusted(0.75, 0.75, -0.75, -0.75), RADIUS, RADIUS)
+        enabled = self.isEnabled()
+        chevron_x = self.width() - self._PAD - self._CHEVRON
+        words = QRect(self._PAD, 0, chevron_x - self._GAP - self._PAD, self.height())
+        painter.setFont(self.font())
+        painter.setPen(QColor(colors["text"] if enabled else colors["disabled"]))
+        text = painter.fontMetrics().elidedText(self.currentText(), Qt.ElideRight, words.width())
+        painter.drawText(words, Qt.AlignRight | Qt.AlignVCenter, text)
+        chevron = colors["text"] if self.is_lit() else colors["chevron"]
+        if not enabled:
+            painter.setOpacity(0.5)
+        painter.drawPixmap(
+            chevron_x, (self.height() - self._CHEVRON) // 2, line_pixmap("chevron_down", self._CHEVRON, chevron, stroke=1.2)
+        )
+
+    def showPopup(self) -> None:
+        panel = self.view().window()
+        panel.setFrameShape(QFrame.NoFrame)
+        side = self._SHADOW
+        panel.setContentsMargins(side, side, side, side)
+        # The system's roll-down would play the list where Qt first puts it, before it moves under the words.
+        animate = QApplication.isEffectEnabled(Qt.UIEffect.UI_AnimateCombo)
+        QApplication.setEffectEnabled(Qt.UIEffect.UI_AnimateCombo, False)
+        try:
+            super().showPopup()
+        finally:
+            QApplication.setEffectEnabled(Qt.UIEffect.UI_AnimateCombo, animate)
+        self.update()
+
+    def hidePopup(self) -> None:
+        super().hidePopup()
+        self.update()
+
+    def list_width(self) -> int:
+        """The list's panel: as wide as its longest choice with the check beside it, and no narrower than the box."""
+        # The list has the box's font before it is first shown and styled.
+        metrics = QFontMetrics(self.font())
+        longest = max((metrics.horizontalAdvance(self.itemText(index)) for index in range(self.count())), default=0)
+        # The rows' padding (10 + 32), the list's own (4 each side) and the style's margins round the words.
+        return max(self.width(), longest + 10 + 32 + 8 + 16)
+
+    def _place_list(self, panel: QWidget) -> None:
+        """Right-aligned under the words, or over them where the screen has no room below."""
+        side = self._SHADOW
+        width = self.list_width() + 2 * side
+        height = panel.height()
+        right = self.mapToGlobal(QPoint(self.width(), 0)).x()
+        top = self.mapToGlobal(QPoint(0, 0)).y()
+        x = right - width + side
+        y = top + self.height() + self._DROP - side
+        screen = self.screen().availableGeometry() if self.screen() is not None else None
+        if screen is not None:
+            if y + height - side > screen.bottom() and top - self._DROP - height + side >= screen.top():
+                y = top - self._DROP - height + side
+            x = max(screen.left() - side, min(x, screen.right() + side - width))
+        panel.setGeometry(x, y, width, height)
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if watched is self.view().window():
+            if event.type() == QEvent.Type.Show:
+                # Placed as it shows, before the system draws it anywhere.
+                self._place_list(watched)
+            elif event.type() == QEvent.Type.Paint:
+                self._paint_panel(watched)
+        return super().eventFilter(watched, event)
+
+    def _paint_panel(self, panel: QWidget) -> None:
+        colors = choice_colors()
+        side = self._SHADOW
+        painter = QPainter(panel)
+        painter.setRenderHint(QPainter.Antialiasing)
+        body = QRectF(panel.rect()).adjusted(side, side, -side, -side)
+        painter.setPen(Qt.NoPen)
+        # A soft shadow, a little lower than the panel, fading out to its edge.
+        shadow = QColor("#000000")
+        for step in range(side, 0, -1):
+            shadow.setAlphaF(0.022 * (1 - step / side) ** 1.5 + 0.004)
+            painter.setBrush(shadow)
+            grow = step * 0.9
+            painter.drawRoundedRect(body.adjusted(-grow, -grow + 2, grow, grow + 2), CARD_RADIUS + grow, CARD_RADIUS + grow)
+        painter.setBrush(QColor(colors["panel"]))
+        painter.setPen(QPen(QColor(colors["edge"]), 1))
+        painter.drawRoundedRect(body.adjusted(0.5, 0.5, -0.5, -0.5), CARD_RADIUS, CARD_RADIUS)
+        painter.end()
 
 
 class OnOffBox(ChoiceBox):
