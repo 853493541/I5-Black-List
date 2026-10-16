@@ -737,7 +737,7 @@ class ThemeSwatch(_KeyboardRing, QWidget):
     _square = 28
     _badge = 16
     # How far the ✓ badge stands above the square. Less than half the badge, so the swatch fits a
-    # row of 设置 › 外观 whole, with its rounded bottom.
+    # row of 设置 › 常规 whole, with its rounded bottom.
     _hang = 6
 
     def __init__(self, name: str, color: str) -> None:

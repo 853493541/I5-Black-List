@@ -76,7 +76,7 @@ def _on_screen(widget) -> bool:  # noqa: ANN001
 
 def test_the_panel_keeps_its_size_as_stream_mode_is_turned_on_and_off_in_it(window, tmp_path, monkeypatch):
     """With 直播姬 on this PC its words show on 直播模式's own row, right of 关闭 / 开启, while it is on: the card
-    is the same size on and off, its longest words cut short with … and all of them in the tooltip."""
+    is the same size on and off, what is wrong read whole on the row, and how to set it right in the tooltip."""
     from blacklist_detect import livehime, ui
 
     log_file = tmp_path / "livehime.log"
@@ -94,7 +94,10 @@ def test_the_panel_keeps_its_size_as_stream_mode_is_turned_on_and_off_in_it(wind
     assert not status.isVisible()
     window.stream_on.click()
     QApplication.processEvents()
-    assert status.isVisible() and status.text() == words and status.toolTip() == words and panel.size() == off
+    assert status.isVisible() and status.text() == words.split("，")[0] and status.toolTip() == words and panel.size() == off
+    # Every state's words fit, none cut short.
+    for said in livehime.WORDS.values():
+        assert status.fontMetrics().horizontalAdvance(said.split("，")[0]) <= status.width(), said
     # On the row, after the two, up to the card's right edge.
     assert abs(status.mapTo(panel, status.rect().center()).y() - choice.mapTo(panel, choice.rect().center()).y()) <= 2
     assert status.mapTo(panel, QPoint(0, 0)).x() > choice.mapTo(panel, QPoint(choice.width(), 0)).x()

@@ -232,7 +232,7 @@ QUICK_HOLD_MS = 1_200
 UPDATE_EVERY_MS = 30 * 60 * 1000
 UPDATE_AGAIN_MS = 10 * 60 * 1000
 
-# 主题色, the accent picker in 设置 › 外观, is hidden for now. True brings the row back. While it is
+# 主题色, the accent picker in 设置 › 常规, is hidden for now. True brings the row back. While it is
 # hidden every window wears the default accent; a choice saved before waits in the settings.
 THEME_PICKER = False
 
@@ -402,6 +402,11 @@ class CheckWorker(QThread):
 def _known_scene(key: str) -> bool:
     """Whether this version plays a scene ticked for a 嘉宾 or a combination (a scene it dropped is skipped)."""
     return love_scenes.shown(key) in love_scenes.KEYS
+
+
+def _said_first(words: str) -> str:
+    """What 直播姬's state says is wrong, without how to set it right after the comma: what fits 直播模式's row."""
+    return words.split("，")[0]
 
 
 class MainWindow(QMainWindow):
@@ -1053,12 +1058,15 @@ class MainWindow(QMainWindow):
         self.stream_guide.clicked.connect(self._show_stream_guide)
         # Whether 直播姬 shows the window, after the two while it is on: green when it does, in red until
         # it does (see livehime). Nothing for a streamer without 直播姬. Its room is kept when it says
-        # nothing, so the card keeps its size; cut short with … where the card is narrow, all of it on hover.
+        # nothing, so the card keeps its size: room for the longest of what is wrong, read whole, and how
+        # to set it right on hover.
         self.stream_status = ElidedLabel("")
         self.stream_status.setObjectName("streamStatus")
         room = self.stream_status.sizePolicy()
         room.setRetainSizeWhenHidden(True)
         self.stream_status.setSizePolicy(room)
+        small = QFontMetrics(chinese_font(SMALL_PT))
+        self.stream_status.setMinimumWidth(max(small.horizontalAdvance(_said_first(words)) for words in livehime.WORDS.values()) + 4)
         self.stream_status.hide()
         stream_row = check.add_row("直播模式", self.stream_choice, self.stream_status, info=self.stream_guide, stretch=False)
         stream_row.setStretchFactor(self.stream_status, 1)
@@ -3025,7 +3033,9 @@ class MainWindow(QMainWindow):
             if state:
                 log.info("直播模式 in 直播姬: %s.", state)
             self._stream_state = state
-            self.stream_status.setText(livehime.WORDS.get(state, ""))
+            words = livehime.WORDS.get(state, "")
+            self.stream_status.setText(_said_first(words))
+            self.stream_status.setToolTip(words)
             self.stream_status.setProperty("tone", "ok" if state == livehime.OK else "warn")
             self.stream_status.style().unpolish(self.stream_status)
             self.stream_status.style().polish(self.stream_status)
