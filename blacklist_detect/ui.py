@@ -3587,6 +3587,11 @@ class MainWindow(QMainWindow):
         return self.love.playing() and not self.love.testAttribute(Qt.WA_DontShowOnScreen)
 
     def _start(self, fn, live: bool = False) -> bool:
+        # Nothing is checked before 使用声明 is agreed to, nor while a check or a glance runs: a press then
+        # changes nothing, the result shown stays. Asked before request: the marks come down before the screen copy starts.
+        if not self.store.disclaimer_accepted or self.worker.running_job:
+            self._unlock_foreground()
+            return False
         if live:
             # A real lobby comes first: the 场景 hotkey's play gives way.
             self._end_quick_play()
@@ -3600,10 +3605,7 @@ class MainWindow(QMainWindow):
             self.clear_mark.hide()
             self.love.stop()
             self.alert.leave()
-        # Nothing is checked before 使用声明 is agreed to.
-        if not self.store.disclaimer_accepted or not self.worker.request(fn):
-            self._unlock_foreground()
-            return False
+        self.worker.request(fn)
         self._check_started = time.perf_counter()
         if live and self.store.safe_mode and not quiet:
             self._notice_screen = QApplication.screenAt(QCursor.pos())

@@ -341,6 +341,19 @@ def test_checked_again_with_the_whole_combination_read_now_its_scene_greets_it(w
     assert _sounds(window) == ["theme-cyber.wav", TUNES["lace"].name]
 
 
+def test_a_press_while_a_check_or_a_glance_runs_leaves_the_result_shown(window):
+    window.store.add_like("小明", scenes=_one("cyber"))
+    _check(window, "小明", bad="坏人")
+    marks = (window.panel, window.hit_card, window.like_card, window.alert)
+    assert all(mark.isVisible() for mark in marks) and window.love.playing() and window.panel.mode == "both"
+    window.worker.running_job = True
+    try:
+        assert not window._start(lambda: None, live=True)
+    finally:
+        window.worker.running_job = False
+    assert all(mark.isVisible() for mark in marks) and window.love.playing() and window.panel.mode == "both"
+
+
 def test_the_same_guest_checked_again_keeps_the_one_scene_it_had(window):
     from blacklist_detect.ui_overlay import love_look
 
