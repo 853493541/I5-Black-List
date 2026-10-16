@@ -41,6 +41,13 @@ each stands, are in ASKS.md beside it: that list is what "done" means; report ag
   黑名单 names and stops the 直播姬 watch; an unreadable settings.json is set aside and the uploaded songs recovered.
 - CLAUDE.md: a new scene is SCENES + TUNES + LOOKS (or its own LOOK) + a poster.
 
+## Next cycle (master started ~23:00 PDT by Commander 2)
+
+- F2 **merged** (`4210731`, built by the master): a-d as listed below, f renamed, and e found real: an open
+  场景管理 did not follow a theme switch at all (跟随系统 while it is open); it restyles now. 794 passed, 5 skipped,
+  ruff clean. Not installed yet.
+- F1: implementer on `fix/lyre-timing` from `4ab8161` (running; rebase over `4210731` before merging).
+
 ## Not built (stopped at #ec; the next master's first package, from improve/quality)
 
 F1, 竖琴清风's timing (the user has not seen these yet; they come from the implementer's own report):
