@@ -8,9 +8,9 @@ each stands, are in ASKS.md beside it: that list is what "done" means; report ag
 | What | Where |
 |---|---|
 | Released | **v0.9.17** = `main` = `origin/main` = `origin/improve/quality` = `a290763` (GitHub + 6 proxies checked, ~01:35 PDT). Notes: 嘉宾列表显示场景色点 / 场景可选「随机」，勾选即播放 / 场景快捷键在基础模式也能看到. Release check by the master (5-hour window at 94 %): 815 tests, check_functions 22/22, ui_shots light+dark 100/150/200 (dist/release_check/v0.9.17/). |
-| `improve/quality` | **`f6a7f18`** (+ this handoff), local, NOT pushed past `a290763` (v0.9.17). 828 passed, 5 skipped, ruff clean. Includes 竖琴清风's birds cut out of the friend's picture (re-cut closer in f6a7f18, ask #66) (assets/birds/, build/lyre_birds.py; fan art by Weibo @子沐子_, used at the user's decision). |
+| `improve/quality` | **`0d39360`** (+ this handoff), local, NOT pushed past `a290763` (v0.9.17). 828 passed, 5 skipped, ruff clean. Includes 竖琴清风's birds cut out of the friend's picture (re-cut closer in f6a7f18, ask #66; the flyer is bird F facing us, flapping both wings, 0d39360, ask #67) (assets/birds/, build/lyre_birds.py; fan art by Weibo @子沐子_, used at the user's decision). |
 | `__version__` | `v0.9.17` |
-| On the user's PC | `f6a7f18` installed (--verify) at ~13:50 PDT. |
+| On the user's PC | `0d39360` installed (--verify) at ~15:10 PDT. |
 | Running | nothing. |
 
 ## Done this cycle (in ASKS.md terms)
