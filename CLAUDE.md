@@ -43,12 +43,14 @@ rerun alone before it counts as a failure.
   示例坏人, 心动小鹿, 心动星星, or the `SEATS` in `tools/ui_shots.py`. The real names in
   `tests/fixtures/reference-lobby.png` never appear in anything user-facing. Check a new asset before
   committing it.
-- Every choice in 设置 lists its default first. 设置 fits 900x760 without scrolling, so it gets no new rows
-  (常规's 声音 row, now only 静音 for every sound, came in by putting 开机启动 and 关闭窗口时 on one row; each 场景's
-  音量 is set in 场景管理).
+- Every choice in 设置 lists its default first. 设置 is laid out the way Claude's settings are (the user's ask):
+  a catalog on the left (常规, 外观, 帮助, 关于), and for the chosen section one row per setting, its name and a gray
+  line on what it does on the left, its control on the right. A new setting is a row in the section it belongs
+  to; each section fits the window at 900x560 without scrolling. 检查's own settings stay in the panel under the
+  header's 检查 pill (显示, 方式, 直播模式).
   Every dialog fits 672 px of usable height (1080p at 150%) with its buttons in view;
-  `tests/test_dialog_fit.py` guards this. 选择场景 is the tallest (a list of every scene), then 添加嘉宾 /
-  编辑嘉宾, so a scene or a row added there is paid for elsewhere.
+  `tests/test_dialog_fit.py` guards this. 添加嘉宾 / 编辑嘉宾 are the tallest (their fields and preview beside a list
+  of every scene), then 场景管理; a scene added makes the scene lists scroll in their column rather than grow a dialog.
 - `reference-lobby.png` and `assets/sample-lobby.jpg` are crops of a lobby, not whole screens. Check
   anything about where the game, border or cards sit on a whole 16:9 frame.
 - Child processes get `paths.child_env()`. Paddle sets `OMP_NUM_THREADS=1`, which made OCR in a child
