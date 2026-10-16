@@ -1,4 +1,4 @@
-"""Dialogs: add and edit names, batch import, picture results, the first-run guide and 直播模式's guide."""
+"""Dialogs: add and edit names, batch import, the first-run guide and 直播模式's guide."""
 
 from __future__ import annotations
 
@@ -13,7 +13,6 @@ from PySide6.QtGui import (
     QPixmap,
 )
 from PySide6.QtWidgets import (
-    QGridLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -28,23 +27,18 @@ from PySide6.QtWidgets import (
 )
 
 from blacklist_detect.importing import ELSEWHERE, MERGE, ODD, SAME, ImportRow, TagSuggestion, plan_import
-from blacklist_detect.match import clean_stored_name, fold, listed_tail, split_ellipsis
+from blacklist_detect.match import clean_stored_name, fold
 from blacklist_detect.names import APP_NAME
-from blacklist_detect.pipeline import CheckResult
 from blacklist_detect.ui_icons import pixmap as line_pixmap
 from blacklist_detect.ui_kit import Modal
 from blacklist_detect.ui_theme import (
     GAP,
-    SMALL_PT,
     THEME,
     _pointing,
-    chinese_family,
-    seat_line,
 )
 from blacklist_detect.ui_widgets import (
     TagPill,
     _FlowHost,
-    masked_name,
     paint_tag_row,
 )
 
@@ -554,136 +548,6 @@ class TagSuggestDialog(Modal):
 
 
 SAMPLE_LOBBY = Path(__file__).resolve().parent / "assets" / "sample-lobby.jpg"
-
-
-def _is_me(slot, me: str) -> bool:
-    """Whether this seat is the player's own 游戏名. The same rule as 记录."""
-    from blacklist_detect.match import NameLabel, match_label
-    from blacklist_detect.model import Entry
-
-    if slot.unclear or not me:
-        return False
-    shown = split_ellipsis(slot.visible)[0] or slot.visible
-    return bool(match_label(NameLabel(raw=shown, visible=shown, truncated=False), [Entry(me)]))
-
-
-def _liked(slot, likes):  # noqa: ANN001, ANN202
-    """The 嘉宾 entry this seat is, or None. The same rule as the lobby check."""
-    from blacklist_detect.match import NameLabel, match_label
-
-    if slot.unclear or not likes:
-        return None
-    found = match_label(NameLabel(raw=slot.raw, visible=slot.visible, truncated=slot.truncated), list(likes))
-    return found[0].entry if found else None
-
-
-class PictureResultDialog(Modal):
-    """What one picture check read: the twelve seats, blacklist matches in red, 嘉宾 in rose."""
-
-    def __init__(  # noqa: ANN001
-        self, title: str, result: CheckResult | None = None, error: str = "", parent=None, likes=(), hide_hits: bool = False, me: str = ""
-    ) -> None:
-        super().__init__(parent)
-        layout = _frame(self, title)
-        self.summary = QLabel()
-        self.summary.setWordWrap(True)
-        layout.addWidget(self.summary)
-        self.seats: list[QLabel] = []
-        if error:
-            self.summary.setText(f"检查失败：{error}")
-        elif result is None or not result.header_found:
-            reason = result.message if result is not None else ""
-            self.summary.setText(f"{reason}\n请用「推演成功」大厅的完整截图".strip())
-        else:
-            # The seats say it: red ones are on the list, grey ones were not read.
-            self.summary.hide()
-            hits = {}
-            for hit in result.hits:
-                hits.setdefault(hit.index, hit)
-            grid = QGridLayout()
-            grid.setHorizontalSpacing(8)
-            grid.setVerticalSpacing(8)
-            for slot in result.names:
-                tile = QWidget()
-                tile.setObjectName("seatTile")
-                tile.setAttribute(Qt.WA_StyledBackground, True)
-                tile.setMinimumWidth(200)
-                line = QHBoxLayout(tile)
-                line.setContentsMargins(12, 8, 12, 8)
-                line.setSpacing(8)
-                cell = QLabel()
-                base = f'font-family: "{chinese_family()}"; background: transparent;'
-                wash = ""
-                # Marks that go after the name, such as 我.
-                after: list[QWidget] = []
-                if slot.unclear:
-                    cell.setText("未识别")
-                    cell.setStyleSheet(base + f' color: {THEME["gray"]};')
-                elif slot.index in hits:
-                    hit = hits[slot.index]
-                    shown = split_ellipsis(slot.visible)[0] or slot.visible
-                    tail = listed_tail(shown, hit.entry_name)
-                    if hide_hits:
-                        # 直播模式: the dialog may be on stream; the name is masked.
-                        cell.setText(masked_name(shown))
-                    elif tail:
-                        # Cut short by the game: the name once, in full as the list has it.
-                        cell.setText(hit.entry_name)
-                        cell.setToolTip(f"读到「{shown}」，是黑名单里的「{hit.entry_name}」")
-                    else:
-                        listed = "" if tail == "" else f"　黑名单：{hit.entry_name}"
-                        cell.setText(shown + listed)
-                    cell.setStyleSheet(base + f' color: {THEME["red"]};')
-                    wash = THEME["red_wash"]
-                    # Red is not the only sign of a hit: the warning mark says it too.
-                    warn = QLabel()
-                    warn.setObjectName("seatWarn")
-                    warn.setPixmap(line_pixmap("warning", 16, THEME["red"]))
-                    warn.setStyleSheet("background: transparent;")
-                    line.addWidget(warn)
-                elif (liked := _liked(slot, likes)) is not None:
-                    shown = split_ellipsis(slot.visible)[0] or slot.visible
-                    # 嘉宾 shows the 昵称, or the full name as the list has it.
-                    cell.setText(liked.shown())
-                    cell.setToolTip(f"读到「{shown}」，是嘉宾「{liked.name}」")
-                    cell.setStyleSheet(base + f' color: {THEME["rose"]};')
-                    wash = THEME["rose_wash"]
-                    heart = QLabel()
-                    heart.setObjectName("seatHeart")
-                    heart.setPixmap(line_pixmap("heart", 16, THEME["rose"]))
-                    heart.setStyleSheet("background: transparent;")
-                    line.addWidget(heart)
-                elif _is_me(slot, me):
-                    # The player's own seat: green, with 我 after the name, as on 记录.
-                    cell.setText(split_ellipsis(slot.visible)[0] or slot.visible)
-                    cell.setStyleSheet(base + f' color: {THEME["green"]};')
-                    wash = THEME["green_wash"]
-                    mine = QLabel("我")
-                    mine.setObjectName("seatMe")
-                    mine.setStyleSheet(
-                        f'color: {THEME["chip_text"]}; background: {THEME["chip_bg"]}; border: 1px solid {THEME["chip_bg"]};'
-                        f' border-radius: 9px; padding: 1px 8px;'
-                        f' font-family: "{chinese_family()}"; font-size: {SMALL_PT}pt;'
-                    )
-                    after.append(mine)
-                else:
-                    cell.setText(split_ellipsis(slot.visible)[0] or slot.visible)
-                    cell.setStyleSheet(base + f' color: {THEME["text"]};')
-                # As on 记录: white with a thin gray outline, filled only when the seat means something.
-                line_color = wash or seat_line()
-                tile.setStyleSheet(
-                    f"QWidget#seatTile {{ background: {wash or THEME['surface']}; border: 1px solid {line_color}; border-radius: 6px; }}"
-                )
-                line.addWidget(cell, 1)
-                for mark in after:
-                    line.addWidget(mark, 0, Qt.AlignVCenter)
-                grid.addWidget(tile, slot.index // 2, slot.index % 2)
-                self.seats.append(cell)
-            layout.addLayout(grid)
-        close = _primary("关闭", self.accept)
-        _footer(self, close)
-        self.card.setMinimumWidth(480)
-        _pointing(self)
 
 
 # 使用声明: what the app is and is not, and who answers for using it.

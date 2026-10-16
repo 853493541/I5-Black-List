@@ -3002,26 +3002,6 @@ def test_settings_show_whole_swatches_and_mute(qapp, tmp_path, monkeypatch):
     window.close()
 
 
-def test_a_record_says_what_it_found_and_a_picture_marks_me(qapp, tmp_path, monkeypatch):
-    from blacklist_detect.ui_dialogs import PictureResultDialog
-
-    monkeypatch.setenv("APPDATA", str(tmp_path))
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
-    window = MainWindow()
-    window._watch_timer.stop()
-    window.store.add("坏人")
-    window.store.add_like("小红")
-    window.store.player_name = "我自己"
-    names = ["坏人", "小红", "", "我自己"]
-    window.store.add_scan([{"seat": i + 1, "name": n, "unclear": not n} for i, n in enumerate(names)], 1.0)
-    window._reload_history()
-    slots = [NameSlot(i, (0, 0, 1, 1), n, n, False, 0.9, not n) for i, n in enumerate(names)]
-    dialog = PictureResultDialog("截图检查", result=CheckResult(True, "", names=slots, hits=[]), me="我自己", parent=window)
-    assert [label.text() for label in dialog.findChildren(QLabel, "seatMe")] == ["我"]
-    dialog.close()
-    window.close()
-
-
 def test_the_welcome_says_how_a_check_starts(qapp, tmp_path, monkeypatch):
     from blacklist_detect.ui_dialogs import GuideDialog
 

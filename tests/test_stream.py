@@ -271,8 +271,6 @@ def test_display_has_its_own_picture_guide(window):
 
 
 def test_in_stream_mode_no_page_shows_a_blacklist_name(window):
-    from blacklist_detect.ui_dialogs import PictureResultDialog
-
     window.store.add("坏人")
     window.store.add_scan([{"name": "坏人"}, {"name": "小红"}])
     window._set_stream_mode(True)
@@ -284,12 +282,6 @@ def test_in_stream_mode_no_page_shows_a_blacklist_name(window):
     window._show_history_scan(0)
     seats = [window.history_table.cellWidget(0, c) for c in range(2)]
     assert "坏人" in [label.text() for seat in seats if seat for label in seat.findChildren(type(window.history_empty.hint))]
-    names = [NameSlot(0, (0, 0, 1, 1), "坏人", "坏人", False, 0.9, False), NameSlot(1, (0, 0, 1, 1), "小红", "小红", False, 0.9, False)]
-    result = CheckResult(True, "", names=names, hits=[Hit(0, "坏人", "坏人", "", False, "", ())])
-    shown = PictureResultDialog("截图检查", result=result, parent=window, hide_hits=True)
-    texts = [label.text() for label in shown.findChildren(type(shown.summary))]
-    assert "坏人" not in texts and "坏*" in texts and "小红" in texts
-    shown.close()
 
 
 def test_the_game_window_is_drawn_fitted_in_a_window_that_keeps_its_size(window, monkeypatch):

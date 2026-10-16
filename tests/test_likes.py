@@ -8,7 +8,7 @@ from PySide6.QtCore import QRect, Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication, QDialog, QLabel  # noqa: E402
 
 from blacklist_detect.importing import plan_import  # noqa: E402
-from blacklist_detect.model import Entry, Scenes  # noqa: E402
+from blacklist_detect.model import Scenes  # noqa: E402
 from blacklist_detect.pipeline import CheckResult, Hit, NameSlot  # noqa: E402
 from blacklist_detect.storage import Store  # noqa: E402
 
@@ -408,16 +408,6 @@ def test_copying_likes_reads_back_in_the_import(window):
     assert [(r.name, r.reason) for r in rows] == [("小明", "救人很稳"), ("小红", "")]
 
 
-def test_a_picture_check_marks_likes(window):
-    from blacklist_detect.ui import PictureResultDialog
-
-    names = [NameSlot(i, (0, 0, 1, 1), n, n, False, 0.9, False) for i, n in enumerate(["救人很稳", "路人"])]
-    dialog = PictureResultDialog("截图检查", result=CheckResult(True, "", names=names), likes=[Entry("救人很稳的小明", nickname="明哥")])
-    assert dialog.seats[0].text() == "明哥" and dialog.seats[1].text() == "路人"
-    assert dialog.seats[0].parentWidget().findChild(QLabel, "seatHeart") is not None
-    dialog.close()
-
-
 def test_a_like_is_moved_to_the_blacklist_when_asked(window, monkeypatch):
     from blacklist_detect import ui
 
@@ -461,6 +451,7 @@ def test_every_check_tells_about_both_lists(window):
     settings = json.loads(window.store.settings_path.read_text(encoding="utf-8"))
     window.store.settings_path.write_text(json.dumps({**settings, "check_blacklist": False, "check_likes": False}), encoding="utf-8")
     window.store = Store(window.store.root)
+    # Read back in 完整模式 (safe_mode is 基础模式), so the cards show on the game.
     assert window.store.safe_mode is False
     window.store.add("坏人", tags=("炸房",))
     window.store.add_like("小明")

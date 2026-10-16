@@ -59,7 +59,7 @@ def _dialogs(window, monkeypatch) -> dict[str, Modal]:
         monkeypatch.setattr(kind, "exec", keep)
         monkeypatch.setattr(kind, "open", keep)
     from blacklist_detect.diagnostics import FlowTest
-    from blacklist_detect.ui_dialogs import FlowReportDialog, PictureResultDialog
+    from blacklist_detect.ui_dialogs import FlowReportDialog
     from blacklist_detect.ui_sound_trim import SoundTrimDialog
 
     song = (np.sin(np.arange(20 * 44100) / 44100 * 2 * np.pi * 440) * 12000).astype(np.int16)
@@ -79,7 +79,6 @@ def _dialogs(window, monkeypatch) -> dict[str, Modal]:
         "显示说明": window._show_display_guide,
         "直播模式说明": window._show_stream_guide,
         "使用声明": window._show_disclaimer,
-        "截图检查": lambda: PictureResultDialog("截图检查", error="这张图打不开", parent=window).open(),
         "环境测试": lambda: FlowReportDialog(FlowTest(size=(1920, 1080), runs=runs, right=12), lambda: None, window).open(),
     }
     for title, opener in openers.items():

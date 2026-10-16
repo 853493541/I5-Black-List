@@ -36,7 +36,6 @@ def main() -> int:
     from PySide6.QtWidgets import QApplication
 
     from blacklist_detect import ui
-    from blacklist_detect.pipeline import CheckResult, Hit, NameSlot
 
     app = QApplication([])
     window_store = None
@@ -174,11 +173,6 @@ def main() -> int:
         ("dialog_guide", lambda: ui.GuideDialog(window)),
         ("dialog_like", lambda: _like_dialog(window)),
     ]
-    slots = [NameSlot(i, (0, 0, 1, 1), n, n, False, 0.9, not n) for i, n in enumerate(NAMES)]
-    hits = [Hit(1, "霁玥吉尔曼", "霁玥吉尔曼", "", False, ""), Hit(6, "gffdsd", "gffdsd", "", False, "")]
-    dialogs.append(
-        ("dialog_picture", lambda: ui.PictureResultDialog("识别测试", result=CheckResult(True, "", names=slots, hits=hits), parent=window))
-    )
     window.resize(1100, 760)
     for name, make in dialogs:
         dialog = make()

@@ -28,8 +28,8 @@ ANY_SCENE = Scenes(random=True)
 class Entry:
     """One listed player: when it was added, the name, tags, and a written reason.
 
-    A 嘉宾 entry has no tags; its nickname, when set, is what a lobby shows for it, and its scenes the
-    嘉宾场景 that greet it (none ticked: any scene).
+    A 嘉宾 entry has no tags; its nickname, when set, is what a lobby shows for it, and its scenes the 场景
+    that greet it: 随机 until others are chosen, or 不放 (see Scenes).
     """
 
     name: str
