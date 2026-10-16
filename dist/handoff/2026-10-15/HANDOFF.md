@@ -13,6 +13,17 @@ each stands, are in ASKS.md beside it: that list is what "done" means; report ag
   posters at 960 px and 演说家遇袭's first-click warm-up. Next: tester, merge, release check v0.9.16, ask the user.
 - Notes draft for v0.9.16 (needs the user's OK): 新场景「竖琴清风」 / 嘉宾和组合可直接选场景，可传配乐 / 设置改版，记录可一键加入名单
 
+## Update, ~22:40 local
+
+- Merged on improve/quality d02c185 (full tests 775 passed): #35/#38 竖琴清风 (80b48fa), #47 plain dropdowns (d0dfe3b), the
+  review fixes (re-check winner 我→嘉宾 gets its own 场景/music/look, busy hotkey press keeps marks, 清空数据 with 直播模式,
+  corrupt settings.json kept aside with songs recovered) and the stream tests' alpha for the jade card.
+- Running (workflow wf_e59f5ab5-67f): A fix/check-panel-warnings (#39-40), B fix/play-scene-box (#41-43), C
+  feature/scene-sound-rows (#44-46), each built + tested, worktrees .claude/worktrees/wf_e59f5ab5-67f-1..3.
+- Next after A/B/C merge: one package = lyre music in step with its strums on a cold start, preview warm, its dot
+  vs 毛茸茸's, and the review's small leftovers (duplicate 组合 allowed, 选择片段 at 0% 音量, 检查 panel not growing for a
+  hotkey note). Then one tester full pass with the desktop, install locally, release check v0.9.16, ask the user.
+
 ## Code
 
 | What | Where |
