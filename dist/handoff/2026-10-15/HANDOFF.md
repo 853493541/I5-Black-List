@@ -46,7 +46,12 @@ each stands, are in ASKS.md beside it: that list is what "done" means; report ag
 - F2 **merged** (`4210731`, built by the master): a-d as listed below, f renamed, and e found real: an open
   场景管理 did not follow a theme switch at all (跟随系统 while it is open); it restyles now. 794 passed, 5 skipped,
   ruff clean. Not installed yet.
-- F1: implementer on `fix/lyre-timing` from `4ab8161` (running; rebase over `4210731` before merging).
+- F1 **merged** (`7eb7930` build, `baf72fa` the master's fixes from review wf_8bd27d86-a7f: a 场景 stopped before it
+  shows gives its lobby back; ▶ on 场景管理 keeps its music over a 场景 that shows later; `c5daa64`/`09eee29` tests).
+  improve/quality = `09eee29`: 806 passed, 5 skipped, ruff clean. Not installed yet.
+- The user (23:20): "Finish F1's review, merge it, run the release check, then release v0.9.16 with those notes"
+  (notes: 新场景「竖琴清风」 / 嘉宾和组合可直接选场景，可传配乐 / 设置改版，记录可一键加入名单). Release check: one tester
+  with the desktop on `09eee29`, then bump, make_release, sign, push, publish, check --each.
 
 ## Not built (stopped at #ec; the next master's first package, from improve/quality)
 
