@@ -212,38 +212,39 @@ class ThemeMusic:
     def audible(self) -> bool:
         return not self.muted
 
-    def lobby(self, likes: list[str], scene: str) -> str:
+    def lobby(self, likes: list[str], scene: str, now: bool = True) -> str:
         """A lobby with these 嘉宾 players, greeted by this scene: play its sound, unless one just
         greeted them. A scene with no sound (经典, or at 0%) greets them too: checked again, the lobby
-        gets no other scene's."""
+        gets no other scene's. now=False: the tune that greets them, heard as greeting them, for the caller
+        to play (preview) as its scene starts."""
         if not likes or not self.audible():
             return ""
         players = frozenset(likes)
-        now = self._clock()
-        if players == self._last_lobby and now - self._last_at < SAME_LOBBY_S:
+        at = self._clock()
+        if players == self._last_lobby and at - self._last_at < SAME_LOBBY_S:
             return ""
-        self._last_lobby, self._last_at = players, now
-        return self._greet(scene)
+        self._last_lobby, self._last_at = players, at
+        return self._greet(scene, now)
 
-    def mine(self, names: list[str], scene: str) -> str:
+    def mine(self, names: list[str], scene: str, now: bool = True) -> str:
         """A lobby with nobody listed asking, greeted by 我's own 场景, with these names read in it: play its
         sound, unless 我's greeted the same lobby within SAME_LOBBY_S. The same lobby: at least half the
         names read last time are read again, or either check read none, so a player joining, a name misread
-        or one turning unclear is no new lobby."""
+        or one turning unclear is no new lobby. now=False: as lobby has it."""
         if not self.audible():
             return ""
         players = frozenset(names)
-        now = self._clock()
+        at = self._clock()
         before, self._last_mine = self._last_mine, players
-        if now - self._last_mine_at < SAME_LOBBY_S and (not before or not players or 2 * len(before & players) >= len(before)):
+        if at - self._last_mine_at < SAME_LOBBY_S and (not before or not players or 2 * len(before & players) >= len(before)):
             return ""
-        self._last_mine_at = now
-        return self._greet(scene)
+        self._last_mine_at = at
+        return self._greet(scene, now)
 
-    def _greet(self, scene: str) -> str:
+    def _greet(self, scene: str, now: bool) -> str:
         if not self.pick(scene) or self.level(scene) <= 0:
             return ""
-        return self.preview(scene)
+        return self.preview(scene) if now else self.pick(scene)
 
     def preview(self, scene: str, at: float = 0.0) -> str:
         """Play a scene's sound now, with at from that many seconds on (场景管理's ▶ 播放 paused, played on);

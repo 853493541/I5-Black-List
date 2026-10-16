@@ -12,7 +12,7 @@ from __future__ import annotations
 import random
 import threading
 
-from PySide6.QtCore import QElapsedTimer, QPoint, QPointF, QRect, QRectF, Qt, QTimer
+from PySide6.QtCore import QElapsedTimer, QPoint, QPointF, QRect, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QImage, QPainter
 from PySide6.QtWidgets import QApplication, QWidget
 
@@ -20,9 +20,15 @@ from blacklist_detect import love_scenes
 from blacklist_detect.love_scenes import Stage
 from blacklist_detect.ui_overlay import _pin_topmost
 
+# How long play waits for a scene's pictures made already (found made, or nearly): this soon, it starts at once.
+READY_S = 0.02
+
 
 class LoveBorder(QWidget):
-    """A click-through window over the game's screen that plays one scene once."""
+    """A click-through window over the game's screen that plays one scene once. started: its clock started, its
+    first frame shows now (its music hangs on it); a scene stopped or played again before that never sends it."""
+
+    started = Signal()
 
     def __init__(self, rng: random.Random | None = None) -> None:
         super().__init__(
@@ -54,6 +60,8 @@ class LoveBorder(QWidget):
         self._clock = QElapsedTimer()
         # A scene's pictures being made before it starts (its paint's warm), off the screen's thread.
         self._warming: threading.Thread | None = None
+        # A scene's pictures made ahead (warm_ahead), before a lobby asks for it.
+        self._ahead: threading.Thread | None = None
         self._tick = QTimer(self)
         self._tick.setInterval(33)
         self._tick.timeout.connect(self._step)
@@ -90,8 +98,28 @@ class LoveBorder(QWidget):
             ratio = screen.devicePixelRatio() if screen is not None else 1.0
             self._warming = threading.Thread(target=warm, args=(ratio,), name="scene-warm", daemon=True)
             self._warming.start()
+            # Made already (warm_ahead, or the last play here): it starts now, its music with it.
+            self._warming.join(READY_S)
+            if not self._warming.is_alive():
+                self._begin()
         else:
             self._begin()
+        return True
+
+    def waiting(self) -> bool:
+        """Its scene's pictures are being made: it starts (started) once they are."""
+        return self._warming is not None and self._tick.isActive()
+
+    def warm_ahead(self, scene: str, width: float, height: float, ratio: float) -> bool:
+        """Make a scene's pictures for a game screen this size ahead, off the screen's thread, so a lobby that
+        plays it there starts at once: only a scene whose pictures take a while (warm in love_scenes), one at a
+        time. Whether it started making them."""
+        module = love_scenes.load(scene)
+        warm = getattr(module, "warm", None)
+        if warm is None or width < 1 or height < 1 or (self._ahead is not None and self._ahead.is_alive()):
+            return False
+        self._ahead = threading.Thread(target=warm, args=(width, height, round(ratio, 2)), name="scene-ahead", daemon=True)
+        self._ahead.start()
         return True
 
     def _begin(self) -> None:
@@ -100,6 +128,7 @@ class LoveBorder(QWidget):
         self.show()
         _pin_topmost(self)
         self.update()
+        self.started.emit()
 
     def pick(self) -> str:
         """The scene this lobby's play() plays ("" for 无), settled now, 随机 too, so the 嘉宾 marks can

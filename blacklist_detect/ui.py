@@ -227,6 +227,9 @@ DEBUG_KEEP = 30
 LAYOUT_MS = 1_000
 # The 场景 hotkey: how long its ring and badge stay once its scene has played, then all goes.
 QUICK_HOLD_MS = 1_200
+# A 场景 whose pictures take a while (竖琴清风) is made ahead this long after the app opens and after each check, for
+# the game screen as the check found it; while a check runs or a 场景 plays, a while after.
+AHEAD_MS = 3_000
 # While the app is open it looks again every half hour, and as soon as the window is brought up
 # when its last look was ten minutes ago or more; what it finds then waits for the player (有更新).
 UPDATE_EVERY_MS = 30 * 60 * 1000
@@ -266,6 +269,7 @@ def run_app(background: bool = False) -> int:
     _apply_theme(app)
     try:
         window = MainWindow()
+        window.warm_ahead_soon()
     except Exception:
         log.critical("The window could not open", exc_info=True)
         from PySide6.QtWidgets import QMessageBox
@@ -460,6 +464,15 @@ class MainWindow(QMainWindow):
         # Two or more 嘉宾 players and no 黑名单: a border of silk and flowers, once per lobby.
         self.love = LoveBorder()
         self._love_played = False
+        # The music of the 场景 about to play (a tune's scene, "" for none: what plays stops), started as its clock
+        # starts (love.started): a 场景 whose pictures take a while is not heard ahead of it. None: nothing waits.
+        self._tune_waiting: str | None = None
+        self._tune_since = 0.0
+        self.love.started.connect(self._love_started)
+        self._ahead_timer = QTimer(self)
+        self._ahead_timer.setSingleShot(True)
+        self._ahead_timer.setInterval(AHEAD_MS)
+        self._ahead_timer.timeout.connect(self._warm_ahead)
         # Who the scene that played was for and its choice (_lobby_who, _lobby_choice): checked again, the
         # lobby keeps it while the same one greets it.
         self._love_played_for: tuple[str, str | tuple[str, ...]] = ("", "")
@@ -3849,6 +3862,71 @@ class MainWindow(QMainWindow):
         self.alert.leave()
 
     def _show_panel(self, result: CheckResult) -> None:
+        """The result over the game, and the 场景 and music greeting the lobby: the music starts with its 场景,
+        at once when none is being made."""
+        self._tune_waiting, self._tune_since = None, 0.0
+        try:
+            self._show_result(result)
+        finally:
+            self._start_tune()
+        self.warm_ahead_soon()
+
+    def _start_tune(self) -> None:
+        """The music waiting starts now, unless its 场景 is being made: then as it starts (_love_started)."""
+        if self._tune_waiting is None:
+            return
+        if self.love.waiting():
+            self._tune_since = time.perf_counter()
+            return
+        tune, self._tune_waiting = self._tune_waiting, None
+        self.music.preview(tune)
+
+    def _love_started(self) -> None:
+        """The 场景 started: its music with it."""
+        if self._tune_waiting is None:
+            return
+        tune, self._tune_waiting = self._tune_waiting, None
+        self.music.preview(tune)
+        if self._tune_since:
+            log.info("%s was made first: it and its music started %.2f s late.", self.love.scene, time.perf_counter() - self._tune_since)
+            self._tune_since = 0.0
+
+    def warm_ahead_soon(self) -> None:
+        """A 场景 whose pictures take a while made ahead in a moment (_warm_ahead)."""
+        self._ahead_timer.start()
+
+    def _warm_ahead(self) -> None:
+        """竖琴清风's pictures (any 场景's that take a while) made ahead, off the screen's thread, for the game screen
+        as the last check found it, or the screen before any: once it can play, ticked or 随机 for a 嘉宾, a 组合 or
+        我, or the 场景 hotkey's. Not while a check runs or a 场景 plays, which it would slow: a while after."""
+        if self._closing:
+            return
+        if self.worker.running_job or self.love.playing():
+            self._ahead_timer.start()
+            return
+        screen = None
+        if self._game_box is not None:
+            left, top, right, bottom = self._game_box
+            origin_x, origin_y = virtual_origin()
+            x, y, _ratio = native_to_logical((left + right) / 2 + origin_x, (top + bottom) / 2 + origin_y)
+            screen = QApplication.screenAt(QPoint(int(x), int(y)))
+        screen = screen or QApplication.primaryScreen()
+        if screen is None:
+            return
+        area = self._game_area(screen)
+        for scene in self._scenes_that_may_play():
+            self.love.warm_ahead(scene, area.width(), area.height(), screen.devicePixelRatio())
+
+    def _scenes_that_may_play(self) -> list[str]:
+        """Every 场景 a lobby or the 场景 hotkey may play now: all of them with 随机 anywhere."""
+        store = self.store
+        asks = [store.me, *(like.scenes for like in store.likes), *(combo.scenes for combo in store.combos)]
+        if any(scenes.random for scenes in asks):
+            return list(love_scenes.KEYS)
+        keys = {love_scenes.shown(key) for scenes in asks for key in scenes.keys} | {store.quick_scene}
+        return [key for key in love_scenes.KEYS if key in keys]
+
+    def _show_result(self, result: CheckResult) -> None:
         if not self._live_check or not result.header_found:
             self._hide_panel_after_title()
             return
@@ -3873,13 +3951,15 @@ class MainWindow(QMainWindow):
             if self._lobby_who == "me":
                 # 我's 场景: the same lobby checked again within a minute hears it once, a player joining
                 # or a name misread or unclear too (ThemeMusic.mine).
-                started = self.music.mine([slot.visible for slot in result.names if not slot.unclear], tune)
+                started = self.music.mine([slot.visible for slot in result.names if not slot.unclear], tune, now=False)
             else:
-                started = self.music.lobby([like.name for like in likes], tune)
+                started = self.music.lobby([like.name for like in likes], tune, now=False)
             if started:
-                # The lobby's music now, not ▶'s on 场景管理: closing it or picking there leaves it on.
+                # The lobby's music, not ▶'s on 场景管理: closing it or picking there leaves it on. It starts with
+                # the 场景, once it is up (_show_panel).
                 self.effects_page.sounding = False
                 self.love.heard(tune)
+                self._tune_waiting = started
         if self.store.safe_mode:
             self._show_notice(result)
             log.info("Check %d shown: the corner message (基础模式).", self._check_number)
@@ -4140,7 +4220,7 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(LAYOUT_MS, lambda: self.stream.note_layout("场景 hotkey"))
         self._lobby_choice = scene
         self._lobby_seats = ()
-        self.music.preview(self._tune_for(scene))
+        tune = self._tune_for(scene)
         self.hit_card.hide()
         # No names to show: no 嘉宾 card.
         self.like_card.hide()
@@ -4152,7 +4232,10 @@ class MainWindow(QMainWindow):
         self._panel_hide_timer.stop()
         self._show_panel_at(self._game_box, "liked", "")
         self._show_clear_mark(heart=True)
+        # Its music starts with it: at once, or once its pictures are made.
+        self._tune_waiting, self._tune_since = tune, 0.0
         self._play_love()
+        self._start_tune()
         shown = round(self.love.duration() * 1000) if self.love.playing() else 0
         QTimer.singleShot(shown + QUICK_HOLD_MS, lambda: self._end_quick_play(turn))
         return True

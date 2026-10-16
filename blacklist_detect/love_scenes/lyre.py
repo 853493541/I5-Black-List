@@ -22,19 +22,15 @@ import os
 import random
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from typing import TYPE_CHECKING
 
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QPainterPathStroker, QPen, QPixmap, QPolygonF
 
-from blacklist_detect.love_scenes import DESIGN
+from blacklist_detect.love_scenes import DESIGN, Stage
 from blacklist_detect.love_scenes.draw import ease_out, soft_dot, win
 from blacklist_detect.love_scenes.light import blur, mask, noise, rgb, smooth
 from blacklist_detect.love_scenes.light import picture as _picture
-
-if TYPE_CHECKING:
-    from blacklist_detect.love_scenes import Stage
 
 DURATION = 5.0
 # The frame: deep pine at the edge, jade, meadow and anemo green inward; the wind mint with a white core.
@@ -45,7 +41,8 @@ VERMILION, DEEP_MAPLE, EMBER = "#e2452b", "#8a1420", "#ec7a35"
 FEATHER, FEATHER_SHADE = "#f7fbf8", "#c5d8d0"
 HEART = "#e3f0b4"
 LOOK = {
-    "glow": (79, 209, 160),
+    # Its dot in the scene lists too: a jade green, well clear of 毛茸茸保护协会's teal beside it.
+    "glow": (56, 182, 106),
     "rim": MINT,
     "band": (ANEMO, MINT),
     "card": ("#1d7a58", PINE),
@@ -138,8 +135,8 @@ def make(stage: Stage):  # noqa: ANN201
         d = u * scale  # pixels per design point
         ss = 2 * d  # sprites are drawn twice too big and made small
         out = [
-            (0.0, "band", lambda: _band(width, height, gap, lyre_at, u, scale)),
-            (0.2, "border", lambda: _border(route, run, normals, width, height, gap, xy, u, scale)),
+            (0.0, "band", lambda: _band(width, height, lyre_at, u, scale)),
+            (0.2, "border", lambda: _border(route, run, normals, width, height, xy, u, scale)),
             (0.2, "strands", lambda: [_strokes_image([line], scale, d) for line in strands]),
             (0.2, "glint", lambda: _glint(scale)),
             (0.3, "curls", lambda: _curls(xy, u, scale)),
@@ -165,15 +162,16 @@ def make(stage: Stage):  # noqa: ANN201
         out.append((0.85, "seed", lambda: _seed(18, ss)))
         return sorted(out, key=lambda job: job[0])
 
-    # What the pictures hang on: the stage's size and the gap round the button, not the names or the badge.
-    shape = (round(width), round(height), *(round(v, 1) for v in (gap.x(), gap.y(), gap.width(), gap.height())))
+    # What the pictures hang on: the stage's size alone. The gap round the button (the cards' size with it) is
+    # cut out of the band and the current as they are laid on (_Pictures.bared), so a new card size makes none again.
+    shape = (round(width), round(height))
 
     def paint(p: QPainter, t: float) -> None:
         want = _sharpness(p)
         made = _made_near(shape, want) or _pictures(shape, want, jobs)
         # Drawn from pictures made for another sharpness (直播画面 from the screen's), sized by theirs.
         scale = made.scale
-        art = made.upto(t)
+        art = made.bared(made.upto(t), gap, u)
         px = 2 * scale  # sprite pixels per point
         leave = smooth(0.0, 1.0, win(t, 4.4, 5.0))
         fade = 1 - leave
@@ -310,12 +308,20 @@ def make(stage: Stage):  # noqa: ANN201
         p.restore()
 
     def warm(scale: float) -> None:
-        """Every picture for scale pixels a point made now, off the screen's thread: the border starts the
-        scene once they are, so its entrance plays from its first frame."""
-        _pictures(shape, round(scale, 2), jobs).finish()
+        """Every picture for scale pixels a point made now, off the screen's thread, and the gap cut out of them:
+        the border starts the scene once they are, so its entrance plays from its first frame."""
+        made = _pictures(shape, round(scale, 2), jobs)
+        made.finish()
+        made.bared(made.art, gap, u)
 
     paint.warm = warm
     return paint
+
+
+def warm(width: float, height: float, scale: float) -> None:
+    """The pictures for a stage this size at scale pixels a point made ahead, off the screen's thread, before a
+    lobby asks for the scene: they do not hang on the gap, so a play there starts at once."""
+    make(Stage(width, height, QRectF())).warm(scale)
 
 
 class _Pictures:
@@ -327,6 +333,26 @@ class _Pictures:
         self.waiting = jobs
         self.done = False
         self.lock = threading.Lock()
+        # The band's and the current's squares near a gap, faded into it, by the gap: the last few kept.
+        self._cut: dict[tuple, list] = {}
+
+    def bared(self, art: dict, gap: QRectF, u: float) -> dict:
+        """art with the gap round the button bare: the band's and the current's squares near it faded into it,
+        as _bare fades them, made once for each gap."""
+        if gap.isEmpty() or not ("band" in art or "border" in art):
+            return art
+        out = dict(art)
+        for name in ("band", "border"):
+            if name not in art:
+                continue
+            key = (name, gap.x(), gap.y(), gap.width(), gap.height(), u)
+            cut = self._cut.get(key)
+            if cut is None:
+                cut = self._cut[key] = _cut_gap(art[name], gap, u, self.scale)
+                while len(self._cut) > 8:
+                    del self._cut[next(iter(self._cut))]
+            out[name] = cut
+        return out
 
     def upto(self, t: float) -> dict:
         """The pictures wanted t seconds in, made at once, and one more a frame ahead of time, so no frame waits long."""
@@ -375,6 +401,36 @@ def _made_near(shape: tuple, scale: float) -> _Pictures | None:
     with _made_lock:
         done = [made for key, made in _made.items() if key[:-1] == shape and made.done]
     return min(done, key=lambda made: abs(made.scale - scale), default=None)
+
+
+def _cut_gap(tiles: list, gap: QRectF, u: float, scale: float) -> list:
+    """Squares (where, picture, ...) with the gap bare: those near it faded as _bare has it, those in it left out,
+    the rest as they are."""
+    reach = 46 * u
+    out = []
+    for tile in tiles:
+        rect, image = tile[0], tile[1]
+        if rect.right() < gap.left() - reach or rect.left() > gap.right() + reach or rect.bottom() < gap.top() - reach:
+            out.append(tile)
+            continue
+        xs = rect.left() + np.arange(image.width(), dtype=np.float32) / scale
+        ys = rect.top() + np.arange(image.height(), dtype=np.float32) / scale
+        keep = _bare(xs[None, :], ys[:, None], gap, u)
+        if keep.max() <= 0:
+            continue
+        if keep.min() >= 1:
+            out.append(tile)
+            continue
+        level = np.ascontiguousarray((keep * 255 + 0.5).astype(np.uint8))
+        mask = QImage(level.data, level.shape[1], level.shape[0], level.shape[1], QImage.Format_Alpha8)
+        mask.setDevicePixelRatio(image.devicePixelRatio())
+        faded = image.copy()
+        p = QPainter(faded)
+        p.setCompositionMode(QPainter.CompositionMode_DestinationIn)
+        p.drawImage(0, 0, mask)
+        p.end()
+        out.append((rect, faded, *tile[2:]))
+    return out
 
 
 def _sharpness(p: QPainter) -> float:
@@ -654,16 +710,16 @@ def _ramp(stops: list[tuple[float, str]], k: np.ndarray) -> np.ndarray:
     return np.stack([np.interp(k, at, colors[:, channel]).astype(np.float32) for channel in range(3)], axis=-1)
 
 
-def _band(width: float, height: float, gap: QRectF, lyre: QPointF, u: float, scale: float) -> list[tuple[QRectF, QImage]]:
+def _band(width: float, height: float, lyre: QPointF, u: float, scale: float) -> list[tuple[QRectF, QImage]]:
     """The green air from every edge inward, strong at the edge and gone well before the names, thinner
-    over the title, streaked along each edge so it reads as moving air, a meadow glow behind the lyre."""
+    over the title, streaked along each edge so it reads as moving air, a meadow glow behind the lyre. The gap
+    round the button is cut out as it is laid on (_cut_gap)."""
     w, h = math.ceil(width * scale), math.ceil(height * scale)
     d = u * scale
     xs, ys = _grid(w, h)
     xs, ys = xs / scale, ys / scale
     title = np.exp(-(((xs - width * 890 / DESIGN[0]) / (230 * u)) ** 4))
-    near = np.clip(1 - np.maximum(gap.left() - xs, xs - gap.right()) / (60 * u), 0, 1)
-    sides = [(xs, 190.0, 1.0), (width - xs, 110.0, 1.0), (ys, 210.0 - 70 * title, 1.0 - 0.3 * title), (height - ys, 120.0 - 40 * near, 1.0 - 0.35 * near)]
+    sides = [(xs, 190.0, 1.0), (width - xs, 110.0, 1.0), (ys, 210.0 - 70 * title, 1.0 - 0.3 * title), (height - ys, 120.0, 1.0)]
     keep = np.ones((h, w), dtype=np.float32)
     depth = np.full((h, w), 9.0, dtype=np.float32)
     for dist, reach, strength in sides:
@@ -688,35 +744,30 @@ def _band(width: float, height: float, gap: QRectF, lyre: QPointF, u: float, sca
     g = (1 - smooth(0, 270 * u, np.hypot(xs - lyre.x(), ys - lyre.y()))) ** 1.6
     color = color * (1 - 0.6 * g[..., None]) + rgb(MEADOW) * (0.6 * g[..., None]) + rgb("#bff5dc") * (0.18 * g ** 3)[..., None]
     alpha = np.maximum(alpha, 0.8 * g)
-    alpha = np.clip(alpha, 0, 0.9) * _bare(xs, ys, gap, u)
+    alpha = np.clip(alpha, 0, 0.9)
     return _tiles(color, alpha, scale)
 
 
-def _border(route, run, normals, width, height, gap, xy, u, scale) -> list[tuple[QRectF, QImage]]:  # noqa: ANN001
+def _border(route, run, normals, width, height, xy, u, scale) -> list[tuple[QRectF, QImage]]:  # noqa: ANN001
     """The current round the edge, as at the still: swelling and thinning in long waves, a thinner strand
-    braiding inside it, and twice a side a ribbon peeling off in one loose open turn; it thins away into
-    the gap round the button."""
+    braiding inside it, and twice a side a ribbon peeling off in one loose open turn. It fades into the gap
+    round the button as it is laid on (_cut_gap)."""
     d = u * scale
     phase = (STILL - 1.3) * 2.2
     s = run
     line = route + normals * (2.0 * u * np.sin(2 * np.pi * s / (360 * u) - phase * 0.8 + 0.7))[:, None]
     wide = (3.9 + 1.0 * np.sin(2 * np.pi * s / (420 * u) - phase) + 0.3 * np.sin(2 * np.pi * s / (170 * u) + 1.3)) * u
     level = 0.72 + 0.28 * (0.5 + 0.5 * np.sin(2 * np.pi * s / (520 * u) - phase * 1.2))
-    bottom = route[:, 1] > height - 40 * u
-    out = np.maximum(gap.left() - route[:, 0], route[:, 0] - gap.right())
-    wide = np.where(bottom, wide * np.clip(out / (70 * u), 0, 1) ** 0.7, wide)
     lines = [(line, wide, level)]
     envelope = np.clip(np.sin(2 * np.pi * s / (760 * u) - phase * 0.5 + 1.0), 0, 1) ** 1.5
     braid = route + normals * ((7 + 3.5 * np.sin(2 * np.pi * s / (240 * u) - phase * 1.3)) * u)[:, None]
     thin = 1.6 * u * envelope
-    lines.append((braid, np.where(bottom, thin * np.clip(out / (70 * u), 0, 1), thin), 0.6))
+    lines.append((braid, thin, 0.6))
     tang = _tangents(route)
     peels = [((428, 14, False), 22), ((1298, 14, False), 20), ((1621, 325, True), 17), ((1621, 565, True), 17),
              ((1243, 834, False), 20), ((293, 834, False), 22), ((14, 489, True), 18), ((14, 189, True), 18)]  # fmt: skip
     for (x, y, side), r in peels:
         px, py = xy(x, y, side)
-        if py > height / 2 and gap.left() - 90 * u < px < gap.right() + 90 * u:
-            continue
         i = int(np.argmin(np.hypot(route[:, 0] - px, route[:, 1] - py)))
         r = r * u
         psi = np.linspace(0, 2 * np.pi, 160)
@@ -734,8 +785,6 @@ def _border(route, run, normals, width, height, gap, xy, u, scale) -> list[tuple
         color, alpha = _lit_strokes(lines, grown, scale, d)
         cut = round(room * scale)
         color, alpha = color[cut:-cut, cut:-cut], alpha[cut:-cut, cut:-cut]
-        xs, ys = _grid(alpha.shape[1], alpha.shape[0])
-        alpha = alpha * _bare(strip.left() + xs / scale, strip.top() + ys / scale, gap, u)
         tiles += _tiles(color, alpha, scale, origin=strip.topLeft())
     # For each square, the points of the current near it, to show it as the current is drawn.
     out = []

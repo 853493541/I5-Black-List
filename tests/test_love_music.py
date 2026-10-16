@@ -695,3 +695,119 @@ def test_only_the_app_running_for_the_player_makes_a_sound(monkeypatch):
     ui_music.allow_sound()
     ui_music.play_tune(TUNES["lace"])
     assert len(calls) == 1
+
+
+def _full(window) -> None:  # noqa: ANN001
+    window.store.consented = ["full"]
+    window._on_display_mode("full")
+
+
+def _until_started(window) -> None:  # noqa: ANN001
+    import time
+
+    deadline = time.monotonic() + 60
+    while window.love.waiting() and time.monotonic() < deadline:
+        window.love._step()
+        time.sleep(0.01)
+    assert not window.love.waiting()
+
+
+def test_later_music_is_heard_once_as_lobby_has_it():
+    music, played, _clock = _music()
+    assert music.lobby(["小红"], "lace", now=False) == "lace" and played == []
+    assert music.lobby(["小红"], "lace", now=False) == "", "the same lobby again: heard once"
+
+
+def test_a_scene_made_first_is_heard_as_it_starts_and_never_late(window):
+    """竖琴清风's strums are timed to its music: on a cold start its pictures take a while, and its music waits for
+    them, starting with its clock; a lobby that goes before then never hears it late."""
+    from blacklist_detect.love_scenes import lyre
+
+    _full(window)
+    for index, name in enumerate(("小红", "小明")):
+        window.store.update_like(index, name, "", "", Scenes(("lyre",)))
+    lyre._made.clear()
+    window._show_panel(_lobby())
+    assert window.love.scene == "lyre" and window.love.waiting() and window.tunes == []
+    _until_started(window)
+    assert window.tunes == [TUNES["lyre"]] and window.love.elapsed() < 0.2
+    window._hide_panel_after_title()
+    window.music._last_lobby = frozenset()
+    window.tunes.clear()
+    lyre._made.clear()
+    window._show_panel(_lobby())
+    warming = window.love._warming
+    assert warming is not None and window.tunes == []
+    window._hide_panel_after_title()
+    warming.join(60)
+    window.love._step()
+    assert window.tunes == [] and not window.love.playing()
+
+
+def test_the_lyre_is_made_ahead_so_a_lobby_starts_it_and_its_music_at_once(window):
+    from blacklist_detect.love_scenes import lyre
+
+    _full(window)
+    window._warm_ahead()
+    assert window.love._ahead is None, "nothing asks for it: nothing made"
+    for index, name in enumerate(("小红", "小明")):
+        window.store.update_like(index, name, "", "", Scenes(("lyre",)))
+    assert "lyre" in window._scenes_that_may_play()
+    lyre._made.clear()
+    window._warm_ahead()
+    window.love._ahead.join(60)
+    window._show_panel(_lobby())
+    assert window.love.scene == "lyre" and window.love.playing() and not window.love.waiting()
+    assert window.tunes == [TUNES["lyre"]]
+
+
+def test_the_lyres_pictures_do_not_hang_on_the_gap(window):  # noqa: ARG001
+    """A new card size (another gap round the button) makes no pictures again, and the gap stays bare."""
+    from PySide6.QtCore import QRectF, Qt
+    from PySide6.QtGui import QImage, QPainter
+
+    from blacklist_detect.love_scenes import Stage, lyre
+
+    lyre._made.clear()
+    for gap in (QRectF(380, 440, 200, 100), QRectF(300, 420, 360, 120)):
+        paint = lyre.make(Stage(960, 540, gap))
+        paint.warm(1.0)
+        image = QImage(960, 540, QImage.Format_ARGB32_Premultiplied)
+        image.fill(Qt.transparent)
+        p = QPainter(image)
+        paint(p, 2.5)
+        p.end()
+        assert image.pixelColor(round(gap.center().x()), 535).alpha() == 0
+    assert len(lyre._made) == 1
+
+
+def test_the_lyres_dot_is_no_teal_like_the_fluffy_scenes(window):  # noqa: ARG001
+    import colorsys
+
+    from blacklist_detect.ui_overlay import love_look
+
+    hue = {key: colorsys.rgb_to_hls(*(c / 255 for c in love_look(key).glow))[0] * 360 for key in ("lyre", "fluffy")}
+    assert hue["fluffy"] - hue["lyre"] > 25
+
+
+def test_the_preview_shows_the_still_while_the_lyre_is_made(window):  # noqa: ARG001
+    import time
+
+    from blacklist_detect.love_scenes import lyre
+    from blacklist_detect.ui_love_pick import ScenePreview
+
+    lyre._made.clear()
+    preview = ScenePreview()
+    began: list = []
+    preview.started.connect(lambda: began.append(time.monotonic()))
+    start = time.monotonic()
+    preview.show_scene("lyre", now=True)
+    assert time.monotonic() - start < 0.5, "the dialog never waits for it"
+    assert preview._warming is not None and began == []
+    preview.grab()
+    deadline = time.monotonic() + 60
+    while not began and time.monotonic() < deadline:
+        preview._step()
+        time.sleep(0.01)
+    assert began and preview._warming is None
+    preview.stop()

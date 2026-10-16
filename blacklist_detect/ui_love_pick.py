@@ -10,6 +10,7 @@ from the one shown, and with ♪ each 场景 that plays one of the player's song
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
 from PySide6.QtCore import QElapsedTimer, QEvent, QPoint, QPointF, QRectF, QSize, Qt, QTimer, Signal
@@ -42,6 +43,9 @@ def poster(key: str) -> QPixmap:
 
 # A moment of the bare lobby between one play of the scene and the next.
 PAUSE_S = 0.7
+# How long a scene whose pictures take a while (竖琴清风) is waited for, made already or nearly: this soon, it plays at
+# once; else its still shows while they are made off the screen's thread.
+READY_S = 0.02
 
 
 class SampleMarks:
@@ -123,9 +127,12 @@ class ScenePreview(QWidget):
     """The sample lobby with a scene playing over it, over and over, in a rounded frame, or the scene still at
     its best moment (show_still, its poster), which takes no time to show: a dialog opens on that, and a scene
     is made to play only when the player asks (a scene takes up to a second to make). One asked for by a click
-    shows the bare lobby for a frame and is made just after, so the click is seen at once. With play, a ▶ in
-    its corner calls it (to play the scene from its start with its music)."""
+    shows the bare lobby for a frame and is made just after, so the click is seen at once; one whose pictures take
+    a while (竖琴清风) shows its still while they are made off the screen's thread, so the dialog never stalls. With
+    play, a ▶ in its corner calls it (to play the scene from its start with its music). started: a scene started
+    from its start, its first frame showing now (▶ 播放's music hangs on it)."""
 
+    started = Signal()
     WIDTH = 600
     RADIUS = 10
 
@@ -165,10 +172,12 @@ class ScenePreview(QWidget):
         # A scene asked for and not made yet: made after the frame that shows the click.
         self._waiting = False
         self._still: QPixmap | None = None
+        # The pictures of the scene asked for being made, off the screen's thread: it starts once they are.
+        self._warming: threading.Thread | None = None
         self._clock = QElapsedTimer()
         self._tick = QTimer(self)
         self._tick.setInterval(33)
-        self._tick.timeout.connect(self.update)
+        self._tick.timeout.connect(self._step)
         self._place_play()
 
     @property
@@ -190,10 +199,11 @@ class ScenePreview(QWidget):
         made yet is made after the frame that shows it was asked for, or now (for ▶, its music starting with it)."""
         self.scene = self._known(scene)
         self._still = None
+        self._warming = None
         self._paint = self._made.get(self.scene)
         self._waiting = self._paint is None
         if not self._waiting:
-            self._start()
+            self._ready()
         elif now:
             self._make()
         else:
@@ -206,6 +216,7 @@ class ScenePreview(QWidget):
         self._still = poster(self.scene)
         self._paint = None
         self._waiting = False
+        self._warming = None
         self._tick.stop()
         self.update()
 
@@ -222,13 +233,36 @@ class ScenePreview(QWidget):
         if self.scene not in self._made:
             self._made[self.scene] = love_scenes.load(self.scene).make(self._stage)
         self._paint = self._made[self.scene]
+        self._ready()
+
+    def _ready(self) -> None:
+        """The scene made: it starts now, or, its pictures taking a while, once they are made off the screen's
+        thread, its still showing meanwhile."""
+        warm = getattr(self._paint, "warm", None)
+        if warm is not None:
+            sharp = round(self.devicePixelRatioF() * self.width() / DESIGN[0], 2)
+            thread = threading.Thread(target=warm, args=(sharp,), name="preview-warm", daemon=True)
+            thread.start()
+            thread.join(READY_S)
+            if thread.is_alive():
+                self._warming = thread
+                self._tick.start()
+                self.update()
+                return
         self._start()
+
+    def _step(self) -> None:
+        if self._warming is not None and not self._warming.is_alive():
+            self._warming = None
+            self._start()
+        self.update()
 
     def _start(self) -> None:
         self._marks = self._marks_for(self.scene)
         self._clock.start()
         self._tick.start()
         self.update()
+        self.started.emit()
 
     def pause(self) -> None:
         """Stop playing until show_scene or resume, while it is out of sight."""
@@ -239,6 +273,10 @@ class ScenePreview(QWidget):
         where it would be had it played on, in step with its music still playing. A still stays still."""
         if self._paint is None:
             return
+        if self._warming is not None:
+            # Still being made: it starts from its start once it is.
+            self._tick.start()
+            return
         if from_start or not self._clock.isValid():
             self._clock.start()
         self._tick.start()
@@ -247,11 +285,13 @@ class ScenePreview(QWidget):
         """Out of sight for a while: nothing plays, and of the scenes made only the one shown is kept."""
         self._tick.stop()
         self._waiting = False
+        self._warming = None
         self._made = {key: paint for key, paint in self._made.items() if key == self.scene}
 
     def stop(self) -> None:
         self._tick.stop()
         self._waiting = False
+        self._warming = None
         self._made.clear()
         for marks in self._looks.values():
             marks.close()
@@ -292,8 +332,10 @@ class ScenePreview(QWidget):
         frame = QPainterPath()
         frame.addRoundedRect(box, self.RADIUS, self.RADIUS)
         painter.setClipPath(frame)
-        if self._still is not None:
-            painter.drawPixmap(box, self._still, QRectF(self._still.rect()))
+        if self._still is not None or self._warming is not None:
+            # Its still, or while its pictures are being made, the scene's.
+            still = self._still or poster(self.scene)
+            painter.drawPixmap(box, still, QRectF(still.rect()))
         else:
             self._paint_scene(painter, box)
         painter.resetTransform()

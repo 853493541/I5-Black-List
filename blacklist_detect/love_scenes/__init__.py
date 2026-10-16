@@ -8,7 +8,9 @@ small part that must stay crisp (a jewel) gives paint a `sharp` attribute, paint
 that part alone, and takes paint(painter, t, sharp=False) to draw the rest; the part is then drawn
 on top at the screen's own sharpness. A scene whose pictures take seconds to make gives paint a `warm`
 attribute, warm(ratio), which makes them all for that many pixels per point, safe off the screen's thread
-(QImage only); the border plays it once they are made, so its first frame is its start.
+(QImage only); the border plays it once they are made, so its first frame is its start. Such a scene whose
+pictures hang on the stage's size alone (the gap cut out as they are laid on) also has a module-level
+warm(width, height, ratio), which makes them ahead for a stage that size, before a lobby asks for it.
 
 Scenes are drawn for a lobby about 1635 by 848 points and scale with the stage.
 

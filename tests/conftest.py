@@ -126,6 +126,32 @@ def _no_startup_entry(monkeypatch):
     yield
 
 
+class _SteadyDraw:
+    """A 随机 draw that is the same every run, and never 竖琴清风 by chance: its pictures take seconds to make,
+    so it and its music start once they are, and a test would pass or fail by the draw and by what an earlier
+    test left made. A test about it asks for it by name."""
+
+    def __init__(self) -> None:
+        import random
+
+        self._rng = random.Random(0)
+
+    def choice(self, pool):  # noqa: ANN001, ANN201
+        return self._rng.choice([key for key in pool if key != "lyre"] or pool)
+
+
+@pytest.fixture(autouse=True)
+def _steady_scene_draws(monkeypatch):
+    try:
+        from blacklist_detect import ui_love
+    except ImportError:
+        yield
+        return
+    real = ui_love.LoveBorder.__init__
+    monkeypatch.setattr(ui_love.LoveBorder, "__init__", lambda border, rng=None: real(border, rng or _SteadyDraw()))
+    yield
+
+
 @pytest.fixture(autouse=True)
 def _keep_windows():
     yield

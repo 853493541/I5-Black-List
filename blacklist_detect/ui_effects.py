@@ -455,6 +455,8 @@ class EffectsPage(QWidget):
         self._length = 0.0
         self._music_s = 0.0
         self._sounding = False
+        # ▶ 播放 pressed, its scene not started yet (its pictures being made): its music starts as it does.
+        self._starting = False
         # Its end, timed from its length: winsound says nothing as a sound ends.
         self._end = QTimer(self)
         self._end.setSingleShot(True)
@@ -479,6 +481,7 @@ class EffectsPage(QWidget):
         side.setSpacing(16)
         body.addLayout(side)
         self.preview = _Preview(self.PREVIEW_W)
+        self.preview.started.connect(self._scene_started)
         side.addWidget(self.preview)
         # The shown 场景's 配乐 right under the preview: its 音量 and ▶ 播放, then its choices.
         below = QWidget()
@@ -581,8 +584,15 @@ class EffectsPage(QWidget):
             self._toggle()
             return
         self._settle()
+        self._starting = True
+        self.preview.show_scene(self.scenes.key, now=True)
+
+    def _scene_started(self) -> None:
+        """The preview's scene started: ▶ 播放's music with it, unless it is a click's, which plays quietly."""
+        if not self._starting:
+            return
+        self._starting = False
         key = self.scenes.key
-        self.preview.show_scene(key, now=True)
         started = self.music is not None and bool(self.music.preview(key))
         self._music_s = tune_seconds(self.music.tune_of(key)) if started else 0.0
         self._run(_SCENE, 0.0, max(love_scenes.load(self.preview.scene).DURATION, self._music_s), started)
@@ -639,7 +649,7 @@ class EffectsPage(QWidget):
         if stop and self._sounding and self.music is not None:
             self.music.stop()
         held = self.preview.held
-        self._what, self._paused_at, self._sounding = None, None, False
+        self._what, self._paused_at, self._sounding, self._starting = None, None, False, False
         self._end.stop()
         if held:
             self.preview.go(run=self._seen())
