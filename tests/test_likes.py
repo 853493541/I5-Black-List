@@ -434,11 +434,11 @@ def test_a_guest_picks_a_theme_and_the_page_shows_and_orders_them(window, monkey
     window.store.player_name = "测试主播"
     page.refresh()
     shown = lambda: [(page.table.item(r, 0).text(), page.table.item(r, 2).text()) for r in range(1, page.table.rowCount())]  # noqa: E731
-    assert shown() == [("阿星", "金色传说"), ("小红", "随机"), ("小明", "赛博朋克·一")]
+    assert shown() == [("阿星", "金色传说"), ("小红", "随机"), ("小明", "赛博朋克（一）")]
     assert page.table.dragEnabled() and page.table.fixed == 1
     # A row dragged to the top decides first, under the 我 row, which stays where it is.
     page.table.moved.emit(3, 1)
-    assert shown()[0] == ("小明", "赛博朋克·一") and window.store.likes[-1].name == "小明"
+    assert shown()[0] == ("小明", "赛博朋克（一）") and window.store.likes[-1].name == "小明"
     page._moved(1, 0)
     page._moved(0, 2)
     assert page.table.item(0, 0).text() == "测试主播" and window.store.likes[-1].name == "小明"
@@ -561,7 +561,7 @@ def test_combinations_head_the_list_tagged_and_open_to_edit(window, monkeypatch)
     assert _rows(page) == [
         ["明哥 + 小红", "", "金色传说", "", "—"],
         ["小红 + 阿星", "", "毛茸茸保护协会", "", "—"],
-        ["阿星", "", "赛博朋克·一", "", "—"],
+        ["阿星", "", "赛博朋克（一）", "", "—"],
         ["小红", "", "随机", "", "—"],
         ["小明", "明哥", "随机", "", "—"],
     ]
@@ -812,7 +812,7 @@ def test_the_me_row_heads_the_list_in_green_with_the_players_name(window, monkey
     assert table.item(0, NAME).text() == "测试主播" and table.item(0, NAME).data(ME_ROLE) == "测试主播"
     store.set_me(Scenes(("cyber",)))
     page.refresh()
-    assert table.item(0, THEME_COLUMN).text() == "赛博朋克·一"
+    assert table.item(0, THEME_COLUMN).text() == "赛博朋克（一）"
     # It neither drags nor takes a drop, and is not one of the 嘉宾 the tab counts or 复制名单 copies.
     assert not table.item(0, NAME).flags() & (Qt.ItemIsDragEnabled | Qt.ItemIsDropEnabled) and table.fixed == 2
     assert window._tab_buttons[window.likes_tab].count() == 2

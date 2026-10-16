@@ -23,6 +23,9 @@ from blacklist_detect.ui_icons import pixmap as line_pixmap
 from blacklist_detect.ui_kit import _KeyboardRing
 from blacklist_detect.ui_theme import THEME, chinese_font, is_dark
 
+# 随机's dot, where the 场景 are listed with theirs: a colour none of them has.
+RANDOM_DOT = (160, 210, 60)
+
 SAMPLE_LOBBY = Path(__file__).resolve().parent / "assets" / "sample-lobby.jpg"
 # Each scene at its best moment over the fake-name sample lobby, with the 嘉宾 marks in its look,
 # drawn by build/theme_posters.py.
@@ -46,6 +49,13 @@ PAUSE_S = 0.7
 # How long a scene whose pictures take a while (竖琴清风) is waited for, made already or nearly: this soon, it plays at
 # once; else its still shows while they are made off the screen's thread.
 READY_S = 0.02
+
+
+def scene_dot(key: str) -> QColor:
+    """A 场景's dot in the lists, its look's glow; "random" is 随机's."""
+    from blacklist_detect.ui_overlay import love_look
+
+    return QColor(*RANDOM_DOT) if key == "random" else QColor(*love_look(key).glow)
 
 
 class SampleMarks:
@@ -414,8 +424,6 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
     BOX_END = 32 + 12
 
     def __init__(self, key: str, name: str, parent: QWidget | None = None) -> None:
-        from blacklist_detect.ui_overlay import love_look
-
         super().__init__(parent)
         self.key = key
         self.setText(name)
@@ -424,7 +432,7 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         self.setCursor(Qt.PointingHandCursor)
         self.setFocusPolicy(Qt.StrongFocus)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        self.dot = QColor(*love_look(key).glow)
+        self.dot = scene_dot(key)
         self._hover = False
         # None: the ✓ goes with the band.
         self.tick: bool | None = None
