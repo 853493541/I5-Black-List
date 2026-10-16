@@ -3668,9 +3668,11 @@ class MainWindow(QMainWindow):
             self.alert.leave()
         self.worker.request(fn)
         self._check_started = time.perf_counter()
-        if live and self.store.safe_mode and not quiet:
+        if live and not quiet:
+            # The corner notice comes up on the screen the press was made on, 没有找到大厅 in 完整模式 too.
             self._notice_screen = QApplication.screenAt(QCursor.pos())
-            self.notice.show_checking(self._notice_screen)
+            if self.store.safe_mode:
+                self.notice.show_checking(self._notice_screen)
         return True
 
     def _unlock_foreground(self) -> None:
