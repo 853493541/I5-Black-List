@@ -116,7 +116,7 @@ The master's rules:
 
 ### Cost
 
-Measured on 2026-10-15; the same numbers are in the user's other project (ZPS `AGENTS.md`, "Token cost"). Agents
+Measured on 2026-10-15; the same numbers are in the user's other project (ZPS `AGENTS.md` section 2 for the agent lines, `docs/netcode/PLANNER.md` section 7 for the rest). Agents
 are most of the spend, and a session's 5 longest agents were 84% of its agent spend. Every turn re-reads the
 whole conversation, and command output and file reads are almost all of what fills an agent.
 
