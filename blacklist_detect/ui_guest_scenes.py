@@ -5,7 +5,8 @@ On top 放场景, a box: off, 不放 (the list's boxes greyed, their ticks kept 
 none ticked, 随机 (any scene); on with ticks, those (several: one of them at random each time). While it is
 on, a hint beside it says that none ticked plays any. A new 嘉宾 or 组合 starts off. Under it every scene, one per row, each with its box; past ROWS rows the list scrolls
 inside the pane. A click on a name highlights it and plays it over the sample lobby, silent, in the pane's
-preview (ScenePreview), which the dialog puts in its left column; ▶ plays it again from its start.
+preview (ScenePreview), which the dialog puts in its left column; ▶ plays it again from its start. The dialog
+opens on the scene still, at its best moment: a scene takes up to a second to make, so one plays only when asked.
 
 One saved on scenes this version all lacks opens as 随机, as it plays. Opened and saved without its 场景
 touched, any one keeps exactly what it had: value() is what was saved until the boxes say otherwise.
@@ -136,9 +137,10 @@ class ScenePane(QWidget):
         self.scenes.set_chosen(keys)
         self._opened = self._shown()
         self._edited()
-        # The first ticked in the list plays; with none, 经典.
-        self.key = (*self.scenes.chosen(), self.scenes.key)[0]
-        self.show_scene(self.key)
+        # The first ticked in the list shows, still, with none 经典: a click on a name, or ▶, plays.
+        self.scenes.select((*self.scenes.chosen(), self.scenes.key)[0])
+        self.key = self.scenes.key
+        self.preview.show_still(self.key)
 
     @staticmethod
     def list_width() -> int:
@@ -182,8 +184,8 @@ class ScenePane(QWidget):
         self.preview.show_scene(self.key)
 
     def replay(self) -> None:
-        """▶: the highlighted scene again from its start, silent still."""
-        self.preview.show_scene(self.key)
+        """▶: the highlighted scene from its start at once, silent still."""
+        self.preview.show_scene(self.key, now=True)
 
     def stop(self) -> None:
         self.preview.stop()

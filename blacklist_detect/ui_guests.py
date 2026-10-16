@@ -8,10 +8,7 @@ dialog that edits it, beside its fields (ui_guest_scenes.ScenePane). The 组合 
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from PySide6.QtCore import QSize
-from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QFrame, QSizePolicy, QVBoxLayout, QWidget
 
 from blacklist_detect import love_scenes
@@ -21,23 +18,8 @@ from blacklist_detect.model import Combo, Entry, Scenes
 from blacklist_detect.ui_dialogs import _danger, _field, _primary, _say_error
 from blacklist_detect.ui_guest_scenes import OFF, ScenePane, TickBox, two_columns
 from blacklist_detect.ui_kit import _SCROLL_BAR, Modal, _CardScroll
+from blacklist_detect.ui_love_pick import POSTERS, poster
 from blacklist_detect.ui_theme import _pointing
-
-# Each scene at its best moment over the fake-name sample lobby, with the 嘉宾 marks in its look,
-# drawn by build/theme_posters.py.
-POSTERS = Path(__file__).resolve().parent / "assets" / "posters"
-
-_pictures: dict[str, QPixmap] = {}
-
-
-def poster(key: str) -> QPixmap:
-    """A scene's picture, at the size it was drawn; 经典's for one this version does not have."""
-    key = love_scenes.shown(key)
-    if key not in love_scenes.KEYS:
-        key = love_scenes.KEYS[0]
-    if key not in _pictures:
-        _pictures[key] = QPixmap(str(POSTERS / f"{key}.jpg"))
-    return _pictures[key]
 
 
 def scene_name(key: str) -> str:
@@ -166,4 +148,4 @@ class ComboDialog(Modal):
         super().done(result)
 
 
-__all__ = ["ComboDialog", "poster", "scene_name", "scenes_said"]
+__all__ = ["POSTERS", "ComboDialog", "poster", "scene_name", "scenes_said"]

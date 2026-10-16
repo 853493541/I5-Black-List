@@ -154,7 +154,8 @@ def test_the_page_lists_every_scene_and_saves_the_one_given_the_hotkey(window):
     window.show()
     window._show_scene_manager()
     QApplication.processEvents()
-    assert page.preview.scene == "classic" and page.preview._tick.isActive()
+    # It opens on the scene still: nothing made, nothing playing.
+    assert page.preview.scene == "classic" and page.preview.is_still and not page.preview._tick.isActive()
     # A click on a name shows a scene; one on its spot gives it the hotkey.
     page.scenes.buttons["fluffy"].click()
     assert window.store.quick_scene == "classic"
@@ -832,15 +833,26 @@ def test_the_dialog_opens_on_the_scene_list_and_closes_with_esc_or_its_x(window)
     window.hide()
 
 
-def test_coming_back_to_the_dialog_does_not_make_the_scene_again(window):
+def test_the_dialog_opens_on_a_still_and_a_click_plays(window):
+    """A scene takes up to a second to make: 场景管理 opens on the shown one still, a click in the list plays one
+    (made just after the click is seen), ▶ plays at once, and coming back opens on a still again."""
     page = window.effects_page
     window.show()
     window._show_scene_manager()
     QApplication.processEvents()
+    assert page.preview.is_still and page.preview._paint is None and not page.preview._tick.isActive()
+    page.scenes.buttons["ice"].click()
+    assert page.preview.scene == "ice" and not page.preview.is_still
+    _wait(60)
     made = page.preview._paint
+    assert made is not None and page.preview._tick.isActive() and window.played == []
     window.scenes_dialog.reject()
     window._show_scene_manager()
-    assert page.preview._paint is made and page.preview._tick.isActive()
+    QApplication.processEvents()
+    assert page.preview.is_still and page.preview.scene == "ice" and not page.preview._tick.isActive()
+    # ▶ plays it with its music, not made again.
+    page.play_button.click()
+    assert page.preview._paint is made and page.preview._tick.isActive() and window.played[-1] == "ice"
     # With another app in front, it rests; it plays again as the app comes back.
     page._app_state(Qt.ApplicationState.ApplicationInactive)
     assert not page.preview._tick.isActive()

@@ -23,6 +23,21 @@ from blacklist_detect.ui_kit import _KeyboardRing
 from blacklist_detect.ui_theme import THEME, chinese_font, is_dark
 
 SAMPLE_LOBBY = Path(__file__).resolve().parent / "assets" / "sample-lobby.jpg"
+# Each scene at its best moment over the fake-name sample lobby, with the 嘉宾 marks in its look,
+# drawn by build/theme_posters.py.
+POSTERS = Path(__file__).resolve().parent / "assets" / "posters"
+
+_pictures: dict[str, QPixmap] = {}
+
+
+def poster(key: str) -> QPixmap:
+    """A scene's picture, at the size it was drawn; 经典's for one this version does not have."""
+    key = love_scenes.shown(key)
+    if key not in love_scenes.KEYS:
+        key = love_scenes.KEYS[0]
+    if key not in _pictures:
+        _pictures[key] = QPixmap(str(POSTERS / f"{key}.jpg"))
+    return _pictures[key]
 
 
 # A moment of the bare lobby between one play of the scene and the next.
@@ -105,8 +120,11 @@ def _triangle(side: int, color: str = "#ffffff") -> QIcon:
 
 
 class ScenePreview(QWidget):
-    """The sample lobby with a scene playing over it, over and over, in a rounded frame. With play, a ▶
-    in its corner calls it (to play the scene from its start with its music)."""
+    """The sample lobby with a scene playing over it, over and over, in a rounded frame, or the scene still at
+    its best moment (show_still, its poster), which takes no time to show: a dialog opens on that, and a scene
+    is made to play only when the player asks (a scene takes up to a second to make). One asked for by a click
+    shows the bare lobby for a frame and is made just after, so the click is seen at once. With play, a ▶ in
+    its corner calls it (to play the scene from its start with its music)."""
 
     WIDTH = 600
     RADIUS = 10
@@ -138,15 +156,25 @@ class ScenePreview(QWidget):
         self._lobby = QPixmap(str(SAMPLE_LOBBY))
         # The marks in each scene's look, made as each first plays.
         self._looks: dict[str, SampleMarks] = {}
-        self._marks = self._marks_for("classic")
+        self._marks: SampleMarks | None = None
         self._stage = sample_stage()
         self.scene = ""
         self._paint = None
+        # Each scene made while it is open, played again at once; rest keeps the one shown.
+        self._made: dict = {}
+        # A scene asked for and not made yet: made after the frame that shows the click.
+        self._waiting = False
+        self._still: QPixmap | None = None
         self._clock = QElapsedTimer()
         self._tick = QTimer(self)
         self._tick.setInterval(33)
         self._tick.timeout.connect(self.update)
         self._place_play()
+
+    @property
+    def is_still(self) -> bool:
+        """Showing a scene's still, nothing playing."""
+        return self._still is not None
 
     def set_width(self, width: int) -> None:
         """As wide as this, the lobby's shape kept, ▶ staying in its corner."""
@@ -157,31 +185,74 @@ class ScenePreview(QWidget):
         if self.play_button is not None:
             self.play_button.move(self.width() - 36 - 10, self.height() - 36 - 10)
 
-    def show_scene(self, scene: str) -> None:
-        """Play this scene from its start; one this version no longer has plays what replaced it, or 经典."""
+    def show_scene(self, scene: str, now: bool = False) -> None:
+        """Play this scene from its start; one this version no longer has plays what replaced it, or 经典. One not
+        made yet is made after the frame that shows it was asked for, or now (for ▶, its music starting with it)."""
+        self.scene = self._known(scene)
+        self._still = None
+        self._paint = self._made.get(self.scene)
+        self._waiting = self._paint is None
+        if not self._waiting:
+            self._start()
+        elif now:
+            self._make()
+        else:
+            self._tick.stop()
+            self.update()
+
+    def show_still(self, scene: str) -> None:
+        """This scene still, at its best moment; nothing plays until show_scene."""
+        self.scene = self._known(scene)
+        self._still = poster(self.scene)
+        self._paint = None
+        self._waiting = False
+        self._tick.stop()
+        self.update()
+
+    @staticmethod
+    def _known(scene: str) -> str:
         scene = love_scenes.shown(scene)
-        self.scene = scene if scene in love_scenes.KEYS else love_scenes.KEYS[0]
-        self._paint = love_scenes.load(self.scene).make(self._stage)
+        return scene if scene in love_scenes.KEYS else love_scenes.KEYS[0]
+
+    def _make(self) -> None:
+        """The scene asked for, made (演说家遇袭 takes nearly a second) and played from its start."""
+        if not self._waiting:
+            return
+        self._waiting = False
+        if self.scene not in self._made:
+            self._made[self.scene] = love_scenes.load(self.scene).make(self._stage)
+        self._paint = self._made[self.scene]
+        self._start()
+
+    def _start(self) -> None:
         self._marks = self._marks_for(self.scene)
         self._clock.start()
         self._tick.start()
+        self.update()
 
     def pause(self) -> None:
         """Stop playing until show_scene or resume, while it is out of sight."""
         self._tick.stop()
 
     def resume(self, from_start: bool = True) -> None:
-        """The scene shown before pause, from its start again, without making it again (演说家遇袭
-        takes over a second to make). from_start=False: where it would be had it played on, in step
-        with its music still playing."""
+        """The scene played before pause, from its start again, without making it again. from_start=False:
+        where it would be had it played on, in step with its music still playing. A still stays still."""
         if self._paint is None:
             return
         if from_start or not self._clock.isValid():
             self._clock.start()
         self._tick.start()
 
+    def rest(self) -> None:
+        """Out of sight for a while: nothing plays, and of the scenes made only the one shown is kept."""
+        self._tick.stop()
+        self._waiting = False
+        self._made = {key: paint for key, paint in self._made.items() if key == self.scene}
+
     def stop(self) -> None:
         self._tick.stop()
+        self._waiting = False
+        self._made.clear()
         for marks in self._looks.values():
             marks.close()
 
@@ -194,15 +265,12 @@ class ScenePreview(QWidget):
             self._looks[scene] = marks
         return self._looks[scene]
 
-    def paintEvent(self, _event) -> None:  # noqa: ANN001
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        painter.setRenderHint(QPainter.SmoothPixmapTransform)
-        box = QRectF(self.rect())
-        frame = QPainterPath()
-        frame.addRoundedRect(box, self.RADIUS, self.RADIUS)
-        painter.setClipPath(frame)
+    def _paint_scene(self, painter: QPainter, box: QRectF) -> None:
         painter.drawPixmap(box, self._lobby, QRectF(self._lobby.rect()))
+        if self._waiting:
+            # This frame shows the click; the scene is made just after it.
+            QTimer.singleShot(0, self._make)
+            return
         painter.scale(self.width() / DESIGN[0], self.height() / DESIGN[1])
         t = self._clock.elapsed() / 1000 if self._clock.isValid() else 0.0
         if self._paint is not None:
@@ -213,8 +281,21 @@ class ScenePreview(QWidget):
             if t <= duration:
                 self._paint(painter, t)
         # Marks the scene draws moving move with it, from its start.
-        for pixmap, at in self._marks.at(t):
+        for pixmap, at in self._marks.at(t) if self._marks is not None else ():
             painter.drawPixmap(QPointF(at), pixmap)
+
+    def paintEvent(self, _event) -> None:  # noqa: ANN001
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform)
+        box = QRectF(self.rect())
+        frame = QPainterPath()
+        frame.addRoundedRect(box, self.RADIUS, self.RADIUS)
+        painter.setClipPath(frame)
+        if self._still is not None:
+            painter.drawPixmap(box, self._still, QRectF(self._still.rect()))
+        else:
+            self._paint_scene(painter, box)
         painter.resetTransform()
         painter.setClipping(False)
         painter.setPen(QPen(QColor(255, 255, 255, 40) if is_dark() else QColor(THEME["border"]), 1))

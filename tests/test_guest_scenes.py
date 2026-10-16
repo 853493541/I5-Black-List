@@ -335,10 +335,12 @@ def test_the_preview_is_silent_and_replays_from_its_start(store):
     dialog = _like(store, 0)
     pane = dialog.pane
     assert dialog.isAncestorOf(pane.preview) and pane.play_button.toolTip() == "从头播放"
-    QTest.qWait(80)
-    before = pane.preview._clock.elapsed()
+    # It opens on the scene still, nothing made; ▶ plays it from its start, a click on a name plays that one.
+    assert pane.preview.scene == "stars" and pane.preview.is_still and not pane.preview._tick.isActive()
     pane.play_button.click()
-    assert pane.preview.scene == "stars" and pane.preview._clock.elapsed() < before
+    assert not pane.preview.is_still and pane.preview._tick.isActive() and pane.preview._clock.elapsed() < 80
+    pane.buttons["ice"].click()
+    assert pane.preview.scene == "ice" and not pane.preview.is_still
     # No music anywhere in it.
     assert not hasattr(dialog, "music") and not hasattr(pane, "music")
     dialog.done(QDialog.Rejected)

@@ -3,7 +3,8 @@
 On the left, the hotkey, set the way 检查's is (the window's hotkey box), what it does under it, and what is
 wrong with a key pressed for it; then every scene in love_scenes.SCENES by name with its dot, the list
 嘉宾场景 (ui_guest_scenes) has in a grid; past the height of what is beside it, the list scrolls. A click on a
-name shows one: it plays beside the list over the fake-name sample lobby. The spot at a scene's end is the
+name shows one: it plays beside the list over the fake-name sample lobby; the dialog opens on the one shown
+last, still, at its best moment, as a scene takes up to a second to make. The spot at a scene's end is the
 hotkey's: ✓ on the 场景 it plays (at once over the game, with no check: MainWindow.play_quick_scene), and a
 click on another's gives it the hotkey. A ♪ is a 场景 that plays one of the player's songs.
 
@@ -415,16 +416,17 @@ class EffectsPage(QWidget):
         QGuiApplication.instance().applicationStateChanged.connect(self._app_state)
 
     def select(self, key: str) -> None:
-        """Show this scene, ✓ and ♪ as the store has them (after 清空数据), without saving."""
+        """Show this scene, still, ✓ and ♪ as the store has them (after 清空数据), without saving."""
         self.scenes.select(key)
         self._sync_marks()
         self._sync_rows()
         if self.isVisible():
-            self.preview.show_scene(self.scenes.key)
+            self.preview.show_still(self.scenes.key)
 
     def _pick(self, key: str) -> None:
         """A click on a scene: it is shown, and plays quietly, the music ▶ started stopped. A play over the
-        game keeps its music; the hotkey's 场景 stays as it was."""
+        game keeps its music; the hotkey's 场景 stays as it was. One not made yet is made just after the click
+        is seen."""
         self.preview.show_scene(self.scenes.key)
         if self.sounding and self.music is not None:
             self.music.stop()
@@ -442,7 +444,7 @@ class EffectsPage(QWidget):
     def play_preview(self) -> None:
         """▶ 播放: the scene from its start in the preview, with its music, which takes over from a play's
         over the game."""
-        self.preview.show_scene(self.scenes.key)
+        self.preview.show_scene(self.scenes.key, now=True)
         if self.music is not None:
             self.music.preview(self.scenes.key)
             self.sounding = True
@@ -692,12 +694,9 @@ class EffectsPage(QWidget):
         return self.isVisible() and not window.isMinimized() and not (host is not None and host.window().isMinimized())
 
     def _show(self) -> None:
-        """The shown scene from its start; made again only when it changed (演说家遇袭 takes over a second).
-        While ▶'s music plays on, it goes on where the music is instead."""
-        if self.preview.scene == self.scenes.key:
-            self.preview.resume(from_start=not self.sounding)
-        else:
-            self.preview.show_scene(self.scenes.key)
+        """Back in sight: a scene playing plays again from its start, or, while ▶'s music plays on, where the
+        music is; a still stays still."""
+        self.preview.resume(from_start=not self.sounding)
 
     def _app_state(self, state) -> None:  # noqa: ANN001
         """With the game in front, the preview rests; it plays again as the app comes back."""
@@ -707,8 +706,12 @@ class EffectsPage(QWidget):
             self._show()
 
     def showEvent(self, event) -> None:  # noqa: ANN001
+        """Opened: the shown scene still, at its best moment, nothing made (a scene takes up to a second to make);
+        a click on one in the list, or ▶, plays it. Its window back from minimized, it goes on as it was."""
         super().showEvent(event)
-        if self._seen():
+        if not event.spontaneous():
+            self.preview.show_still(self.scenes.key)
+        elif self._seen():
             self._show()
 
     def changeEvent(self, event) -> None:  # noqa: ANN001
@@ -717,7 +720,7 @@ class EffectsPage(QWidget):
             self._paint_play()
 
     def hideEvent(self, event) -> None:  # noqa: ANN001
-        self.preview.pause()
+        self.preview.rest()
         if self.sounding and self.music is not None:
             self.music.stop()
         self.sounding = False
@@ -748,8 +751,11 @@ class EffectsDialog(Modal):
 
     def setVisible(self, visible: bool) -> None:  # noqa: FBT001
         if visible and not self.isVisible():
-            # In the theme as it is now: 浅色 or 深色 may have changed since it was made.
-            self.setStyleSheet(_dialog_style(chinese_family()))
+            # In the theme as it is now: 浅色 or 深色 may have changed since it was made. The same one is not
+            # set again, which would style every widget in it anew.
+            style = _dialog_style(chinese_family())
+            if style != self.styleSheet():
+                self.setStyleSheet(style)
             self.page.forget_said()
             # Room for every scene in the theme's fonts, before the card is measured to fit the screen.
             self.page.left.keep_room()

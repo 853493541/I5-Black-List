@@ -241,12 +241,12 @@ def test_the_preview_shows_each_scenes_marks(qapp):
     from blacklist_detect.ui_love_pick import ScenePreview
 
     preview = ScenePreview()
-    preview.show_scene("ice")
+    preview.show_scene("ice", now=True)
     ice = preview._marks
-    preview.show_scene("angel")
+    preview.show_scene("angel", now=True)
     assert preview._marks is not ice
     # One this version no longer has plays 经典, in its look.
-    preview.show_scene("ribbon")
+    preview.show_scene("ribbon", now=True)
     assert preview.scene == "classic" and preview._marks is preview._marks_for("classic")
     preview.stop()
 

@@ -94,7 +94,7 @@ def test_scene_manager_opens_from_beside_the_search_and_from_the_empty_list(wind
     assert page.empty_scenes_button.isVisible() and not page.scenes_button.isVisible()
     page.empty_scenes_button.click()
     QApplication.processEvents()
-    assert dialog.isVisible() and window.effects_page.preview._tick.isActive()
+    assert dialog.isVisible() and window.effects_page.preview.is_still
     dialog.reject()
     window.store.add_like("心动小鹿")
     page.refresh()
