@@ -425,7 +425,7 @@ def test_ticking_mute_stops_the_sound_playing(window):
 
 
 def test_every_sound_goes_through_the_sound_control(window):
-    """A lobby's, ▶ on 场景管理, the 场景 hotkey and 播放: each at the 场景's own 音量, the player's own sound
+    """A lobby's, ▶ 播放 on 场景管理 and the 场景 hotkey: each at the 场景's own 音量, the player's own sound
     for it if any, none with 静音. 编辑嘉宾's preview is silent."""
     from blacklist_detect.ui_guest_scenes import ScenePane
     from blacklist_detect.ui_music import sound_dir
@@ -440,7 +440,7 @@ def test_every_sound_goes_through_the_sound_control(window):
 
     def every_path() -> list:
         window.tunes.clear()
-        assert window.play_quick_scene(under_pointer=False)
+        assert window.play_quick_scene()
         window._end_quick_play()
         window.effects_page.play_preview()
         picker.show_scene("fluffy")

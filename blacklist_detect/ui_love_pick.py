@@ -3,18 +3,18 @@
 Every scene in love_scenes.SCENES by name, each with a dot in its colour (SceneList); beside a 嘉宾's,
 a 组合's or 我's fields (ui_guest_scenes.ScenePane) one per row, each with a box to tick. A click on a name highlights it, and it plays
 over the fake-name sample lobby, with the app's own marks on it (ScenePreview).
-The 场景管理 page (ui_effects) is made of the same list, with no boxes, and preview, its list marking the
-场景 the hotkey plays with ✓ apart from the one shown, and with ♪ each 场景 that plays one of the player's songs;
-there ▶ plays the scene from its start with its music (as loud as its 音量 says).
+The 场景管理 page (ui_effects) is made of the same list, with no boxes, and preview, each scene in its list with a
+round spot at its end, ✓ on the 场景 the hotkey plays, a click on another's (or Space) giving it the hotkey apart
+from the one shown, and with ♪ each 场景 that plays one of the player's songs.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QElapsedTimer, QPoint, QPointF, QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QElapsedTimer, QEvent, QPoint, QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QPainter, QPainterPath, QPen, QPixmap, QPolygonF
-from PySide6.QtWidgets import QAbstractButton, QButtonGroup, QGridLayout, QPushButton, QSizePolicy, QWidget
+from PySide6.QtWidgets import QAbstractButton, QButtonGroup, QGridLayout, QPushButton, QSizePolicy, QToolTip, QWidget
 
 from blacklist_detect import love_scenes
 from blacklist_detect.love_scenes import DESIGN, sample_stage
@@ -263,16 +263,19 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
     """One scene in a list: a dot in its colour and its name. Highlighted, it sits in a ringed band; under
     the mouse, the band shows faintly. In ScenePane (chosen not None) a box at its end is ticked or not, by a
     click on it or Space, apart from the band, and chose says so; 放场景 off (set_box_enabled(False)) the box
-    is greyed and does not tick, and the name still highlights. On the 场景管理 page a ✓ there is apart
-    from the band too (tick: the hotkey plays it), and own puts a ♪ before it (it plays one of the player's songs).
-    With neither, the ✓ goes with the band."""
+    is greyed and does not tick, and the name still highlights. On the 场景管理 page (tick not None) a round
+    spot there is apart from the band too: ✓ when the hotkey plays it (tick), empty when not, and a click on an
+    empty one or Space says ticked, for the hotkey to play it; own puts a ♪ before it (it plays one of the
+    player's songs). With neither, the ✓ goes with the band."""
 
     chose = Signal(bool)
+    ticked = Signal()
 
     H = 34
     RADIUS = 8
     DOT = 6
     BOX = 16
+    SPOT = 18
     # Where the name starts, after the dot.
     TEXT_X = 16 + 2 * DOT + 12
     # Kept clear at the row's end: for the ✓, and for ScenePane's box with a gap before it.
@@ -299,11 +302,14 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         self.chosen: bool | None = None
         self.box_enabled = True
         self._box_press = False
+        # The mouse on the 场景管理 page's spot.
+        self._spot_hover = False
 
     def set_marks(self, tick: bool, own: bool) -> None:
         self.tick, self.own = tick, own
-        said = ["快捷键播放这个"] * tick + ["自定义声音"] * own
+        said = ["快捷键播放这个"] * tick + ["自定义配乐"] * own
         self.setAccessibleDescription("，".join(said))
+        self.setMouseTracking(True)
         self.update()
 
     def set_chosen(self, on: bool) -> None:
@@ -318,15 +324,38 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         self.update()
 
     def _ticks(self) -> bool:
-        return self.chosen is not None and self.box_enabled
+        """Whether the row's end takes a click of its own: ScenePane's box, or the page's spot."""
+        return (self.chosen is not None and self.box_enabled) or self.tick is not None
 
     def _toggle_chosen(self) -> None:
+        if self.chosen is None:
+            # The page's spot: one at a time, like a radio button, so a ✓ is not taken off.
+            if not self.tick:
+                self.ticked.emit()
+            return
         self.set_chosen(not self.chosen)
         self.chose.emit(self.chosen)
 
+    def _at_end(self, x: float) -> bool:
+        return x >= self.width() - 40
+
     def _on_box(self, event) -> bool:  # noqa: ANN001
-        """Whether the mouse is on the box: the end of the row, where it sits."""
-        return self._ticks() and event.position().x() >= self.width() - 40
+        """Whether the mouse is on the box or the spot: the end of the row, where it sits."""
+        return self._ticks() and self._at_end(event.position().x())
+
+    def mouseMoveEvent(self, event) -> None:  # noqa: ANN001
+        over = self.tick is not None and self._at_end(event.position().x())
+        if over != self._spot_hover:
+            self._spot_hover = over
+            self.update()
+        super().mouseMoveEvent(event)
+
+    def event(self, event) -> bool:  # noqa: ANN001
+        # The spot says what it does when the mouse rests on it.
+        if event.type() == QEvent.Type.ToolTip and self.tick is not None and self._at_end(event.pos().x()):
+            QToolTip.showText(event.globalPos(), "按快捷键时播放这个" if self.tick else "点一下，按快捷键时播放这个", self)
+            return True
+        return super().event(event)
 
     def mousePressEvent(self, event) -> None:  # noqa: ANN001
         # A press on the box ticks it and leaves the highlight where it is.
@@ -377,7 +406,7 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         super().enterEvent(event)
 
     def leaveEvent(self, event) -> None:  # noqa: ANN001
-        self._hover = False
+        self._hover = self._spot_hover = False
         self.update()
         super().leaveEvent(event)
 
@@ -414,11 +443,29 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
             self._paint_box(p)
             p.end()
             return
-        ticked = self.isChecked() if self.tick is None else self.tick
-        if ticked:
+        if self.tick is not None:
+            self._paint_spot(p)
+        elif self.isChecked():
             tick = line_pixmap("check", 16, THEME["accent_line"], stroke=2.0)
             p.drawPixmap(QRectF(self.width() - 32, (self.height() - 16) / 2, 16, 16), tick, QRectF(tick.rect()))
         p.end()
+
+    def _paint_spot(self, p: QPainter) -> None:
+        """The page's spot at the row's end: filled, with a ✓, for the hotkey's; an empty ring for the others,
+        stronger under the mouse."""
+        spot = QRectF(self.width() - 33, (self.height() - self.SPOT) / 2, self.SPOT, self.SPOT)
+        p.save()
+        if self.tick:
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(THEME["accent"]))
+            p.drawEllipse(spot)
+            tick = line_pixmap("check", 12, THEME["on_accent"], stroke=2.0)
+            p.drawPixmap(spot.adjusted(3, 3, -3, -3), tick, QRectF(tick.rect()))
+        else:
+            p.setPen(QPen(QColor(THEME["accent_line" if self._spot_hover else "field_line"]), 1.4))
+            p.setBrush(Qt.NoBrush)
+            p.drawEllipse(spot.adjusted(1, 1, -1, -1))
+        p.restore()
 
     def _paint_box(self, p: QPainter) -> None:
         """ScenePane's box at the row's end; with 放场景 off greyed, its tick kept."""
@@ -432,11 +479,13 @@ class SceneList(QWidget):
     """Every scene in love_scenes.SCENES by name, one highlighted: ScenePane's list, and the 场景管理 page's
     list. key is the one highlighted, 经典 for one this version does not have; picked(key) says a click
     highlighted one. In ScenePane (chosen: the keys ticked) each has a box to tick, and chose says one was
-    ticked or unticked. On the page (marks), set_marks puts the ✓ on the hotkey's and a ♪ on each that
-    plays one of the player's songs. In columns, row by row, the whole width shared alike among them."""
+    ticked or unticked. On the page (marks) each has a spot, and ticked(key) says a click on one's (or Space)
+    asked for the hotkey to play it; set_marks puts the ✓ on the hotkey's and a ♪ on each that plays one of the
+    player's songs. In columns, row by row, the whole width shared alike among them."""
 
     picked = Signal(str)
     chose = Signal()
+    ticked = Signal(str)
     W = 200
     GAP = 2
 
@@ -467,6 +516,7 @@ class SceneList(QWidget):
                 button.setToolTip(title)
             button.clicked.connect(lambda _checked=False, key=key: self._click(key))
             button.chose.connect(lambda _on: self.chose.emit())
+            button.ticked.connect(lambda key=key: self.ticked.emit(key))
             group.addButton(button)
             grid.addWidget(button, *divmod(place, columns))
             self.buttons[key] = button

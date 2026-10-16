@@ -155,25 +155,24 @@ def test_the_page_lists_every_scene_and_saves_the_one_given_the_hotkey(window):
     window._show_scene_manager()
     QApplication.processEvents()
     assert page.preview.scene == "classic" and page.preview._tick.isActive()
-    # A click shows a scene; 快捷键放这个 gives it the hotkey.
+    # A click on a name shows a scene; one on its spot gives it the hotkey.
     page.scenes.buttons["fluffy"].click()
-    assert window.store.quick_scene == "classic" and page.assign_button.isEnabled()
-    page.assign_button.click()
+    assert window.store.quick_scene == "classic"
+    page.scenes.ticked.emit("fluffy")
     assert window.store.quick_scene == "fluffy" and Store(window.store.root).quick_scene == "fluffy"
     assert [key for key, button in page.scenes.buttons.items() if button.isChecked()] == ["fluffy"]
-    assert not page.assign_button.isEnabled()
-    # It plays quietly; ▶ plays it with its music, which the next pick stops.
+    assert [key for key, button in page.scenes.buttons.items() if button.tick] == ["fluffy"]
+    # It plays quietly; ▶ 播放 plays it with its music, which the next pick stops.
     assert page.preview.scene == "fluffy" and window.played == []
-    page.preview.play_button.click()
+    page.play_button.click()
     assert window.played[-1] == "fluffy"
     page.scenes.buttons["fluffy"].click()
     assert window.played[-1] == "stop"
     # Closed, the preview rests.
     window.scenes_dialog.reject()
     assert not page.preview._tick.isActive()
-    # Labels only: the hotkey, 快捷键放这个 and 播放, in one row.
+    # Labels only: the hotkey, and 播放 beside 音量.
     assert window.effect_hotkey_edit.text() == "Alt+F12" and page.play_button.text() == "播放"
-    assert page.assign_button.text() == "快捷键放这个"
     assert page.note.isHidden()
     window.hide()
 
@@ -193,15 +192,23 @@ def test_the_dialog_shows_every_control_over_the_smallest_window(window):
         return widget.geometry().translated(widget.parentWidget().mapTo(page, widget.pos()) - widget.pos())
 
     assert page.rect().contains(placed(page.preview)) and page.preview.width() == page.PREVIEW_W
-    controls = (page.sounds, page.upload_button, page.volume_slider, page.volume_label, page.level_note,
-                window.effect_hotkey_edit, page.assign_button, page.play_button, page.note)  # fmt: skip
-    for control in controls:
-        assert page.rect().contains(placed(control)), control
-    assert not placed(page.note).intersects(placed(page.play_button))
-    # Every scene in view, the list as tall as what is beside it: it scrolls only past that.
+    # Every scene in view, the list down to the page's foot.
     claw = page.scenes.buttons["claw"]
     assert page.scene_scroll.viewport().rect().contains(claw.geometry().translated(0, -page.scene_scroll.verticalScrollBar().value()))
-    assert page.scene_scroll.height() == page.height()
+    assert placed(page.scene_scroll).bottom() == page.rect().bottom()
+    card = window.scenes_dialog.card.size()
+    page.say("这个键被别的程序占了，换一个", held=True)
+    _wait(20)
+    controls = (page.sounds, page.upload_button, page.volume_slider, page.volume_label, page.level_note, page.play_button,
+                page.sound_note, window.effect_hotkey_edit, page.hotkey_hint, page.note)  # fmt: skip
+    for control in controls:
+        assert page.rect().contains(placed(control)), control
+    # The hotkey's note under it, over the list, which gives it the room; the 配乐's under the songs.
+    assert placed(window.effect_hotkey_edit).bottom() < placed(page.note).top()
+    assert placed(page.note).bottom() < placed(page.scene_scroll).top()
+    assert placed(page.sounds).bottom() < placed(page.sound_note).top()
+    assert window.scenes_dialog.card.size() == card and placed(page.scene_scroll).bottom() == page.rect().bottom()
+    page.say("")
     window.scenes_dialog.reject()
     window.hide()
 
@@ -486,16 +493,12 @@ def test_the_play_is_logged(window, caplog):
 
 
 def test_in_safe_mode_without_stream_mode_nothing_is_drawn_over_the_game(window):
-    # 安全模式, as every player starts: nothing over the game, from the hotkey or from 播放.
+    # 安全模式, as every player starts: nothing over the game from the hotkey.
     window._on_display_mode("safe")
     assert window._overlay_target() == "" and not window.store.stream_mode
     assert not window.effect_hotkey.callback()
     assert not window.panel.isVisible() and not window.clear_mark.isVisible() and not window.love.playing()
     assert window._quick_scene == "" and window.played == []
-    window._show_scene_manager()
-    window.effects_page.play_button.click()
-    assert window._quick_scene == "" and window.effects_page.note.text() == "安全模式下不显示场景"
-    assert not window.effects_page.note.isHidden()
 
 
 def test_safe_mode_takes_a_play_down_music_and_all(window):
@@ -527,13 +530,13 @@ def test_picking_a_scene_mid_play_leaves_the_plays_music(window):
     window.show()
     window._show_scene_manager()
     QApplication.processEvents()
-    page.scenes.buttons["stars"].click()
-    page.play_button.click()
+    window.store.quick_scene = "stars"
+    assert window.play_quick_scene()
     assert window.played == ["stars"]
     page.scenes.buttons["fluffy"].click()
     assert window.played == ["stars"] and window.love.scene == "stars"
-    # ▶ takes the music over; the play cut short then leaves it, and a pick stops it.
-    page.preview.play_button.click()
+    # ▶ 播放 takes the music over; the play cut short then leaves it, and a pick stops it.
+    page.play_button.click()
     assert window.played[-1] == "fluffy" and page.sounding
     window._end_quick_play()
     assert window.played[-1] == "fluffy"
@@ -545,20 +548,6 @@ def test_picking_a_scene_mid_play_leaves_the_plays_music(window):
 def test_nothing_plays_before_the_disclaimer_is_agreed_to(window):
     window.store.disclaimer_accepted = False
     assert not window.play_quick_scene() and not window.love.playing() and not window.panel.isVisible()
-
-
-def test_play_on_the_page_plays_it_or_says_why_not(window):
-    page = window.effects_page
-    page.play_button.click()
-    assert window._quick_scene == "classic" and window.love.playing() and page.note.isHidden()
-    window._end_quick_play()
-    # A check running: nothing plays, and the page says so.
-    window._check_started = time.perf_counter()
-    page.play_button.click()
-    assert window._quick_scene == "" and page.note.text() == "正在检查，稍后再试"
-    window._check_started = None
-    page.play_button.click()
-    assert window._quick_scene == "classic" and page.note.isHidden()
 
 
 def _native(window, rect: QRect) -> tuple[int, int, int, int]:  # noqa: ANN001
@@ -618,18 +607,11 @@ def test_with_no_lobby_yet_it_plays_on_the_window_under_the_pointer(window, monk
     assert window.love.geometry().width() > 640
 
 
-def test_play_on_the_page_plays_on_the_game_not_on_the_window_behind_the_app(window, monkeypatch):
+def test_in_stream_mode_the_hotkey_plays_on_mumus_game(window, monkeypatch):
     from blacklist_detect import ui
 
     screen = window.screen().geometry()
-    # The pointer is on 播放; behind the app, a browser, not the game.
-    behind = QRect(screen.x() + 40, screen.y() + 30, 640, 360)
-    monkeypatch.setattr(ui, "window_rect_at", lambda _x, _y, _order=(), innermost=True: _native(window, behind))
-    window.effects_page.play_button.click()
-    assert window._quick_scene == "classic"
-    assert window.love.geometry() == window._sixteen_nine(screen) and window.love.geometry() != behind
-    window._end_quick_play()
-    # In 直播模式, MuMu's game, found as the hotkey finds it.
+    # In 直播模式, MuMu's game, not the window under the pointer.
     window._set_stream_mode(True)
     game_window = livehime.Capture("MuMu安卓设备", "Qt5QWindowIcon", "MuMuNxDevice.exe", True)
     whole = QRect(screen.x() + 100, screen.y() + 80, 800, 499)
@@ -638,7 +620,7 @@ def test_play_on_the_page_plays_on_the_game_not_on_the_window_behind_the_app(win
     monkeypatch.setattr(livehime, "client_rect", lambda capture: _native(window, whole))
     monkeypatch.setattr(livehime, "window_of", lambda capture: 77)
     monkeypatch.setattr(ui, "inner_rect_of", lambda hwnd, _x, _y: _native(window, game))
-    window.effects_page.play_button.click()
+    assert window.play_quick_scene()
     assert window.love.geometry() == game and window.stream._frame == whole
     window._end_quick_play()
     window._set_stream_mode(False)
@@ -801,7 +783,7 @@ def test_the_note_that_checks_key_did_not_register_goes_once_it_does(window, mon
 def test_starting_over_puts_the_effect_hotkey_and_page_back(window, monkeypatch):
     page = window.effects_page
     page.scenes.buttons["claw"].click()
-    page.assign_button.click()
+    page.scenes.ticked.emit("claw")
     _press(window.effect_hotkey_edit, Qt.Key_9, Qt.KeyboardModifier.ControlModifier)
     QApplication.instance().sendEvent(window.effect_hotkey_edit, QFocusEvent(QEvent.Type.FocusOut))
     page.say("最多两个键，比如 Alt+1")
@@ -883,7 +865,7 @@ def test_the_preview_keeps_in_step_with_its_music_and_rests_while_minimized(wind
     window.show()
     window._show_scene_manager()
     QApplication.processEvents()
-    page.preview.play_button.click()
+    page.play_button.click()
     _wait(120)
     # Another app in front and back: ▶'s music played on, and the scene goes on with it.
     page._app_state(Qt.ApplicationState.ApplicationInactive)
@@ -912,13 +894,13 @@ def test_music_from_the_preview_stops_as_the_dialog_closes(window):
     window.show()
     window._show_scene_manager()
     QApplication.processEvents()
-    page.preview.play_button.click()
+    page.play_button.click()
     assert window.played == ["classic"]
     window.scenes_dialog.reject()
     assert window.played == ["classic", "stop"]
-    # The play's music, though, plays on.
+    # The hotkey's play's music, though, plays on.
     window._show_scene_manager()
-    page.play_button.click()
+    assert window.play_quick_scene()
     window.scenes_dialog.reject()
     assert window.played[-1] == "classic"
     window.hide()
@@ -931,7 +913,7 @@ def test_a_real_lobbys_music_plays_on_whatever_the_page_does(window, monkeypatch
     window.show()
     window._show_scene_manager()
     QApplication.processEvents()
-    page.preview.play_button.click()
+    page.play_button.click()
     assert page.sounding and window.played == ["classic"]
     # A real lobby with a 嘉宾 in it, its music after ▶'s.
     monkeypatch.setattr(window, "_likes_in", lambda _result: [ui.Entry("心动小鹿")])

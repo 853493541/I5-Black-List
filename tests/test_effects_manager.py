@@ -16,7 +16,17 @@ pytest.importorskip("PySide6")
 
 from PySide6.QtCore import QPoint, Qt  # noqa: E402
 from PySide6.QtTest import QTest  # noqa: E402
-from PySide6.QtWidgets import QApplication, QDialog, QFileDialog, QRadioButton, QStyleFactory, QVBoxLayout, QWidget  # noqa: E402
+from PySide6.QtWidgets import (  # noqa: E402
+    QApplication,
+    QDialog,
+    QFileDialog,
+    QLabel,
+    QPushButton,
+    QRadioButton,
+    QStyleFactory,
+    QVBoxLayout,
+    QWidget,
+)
 
 from blacklist_detect import sound_import  # noqa: E402
 from blacklist_detect.paths import custom_sound_dir  # noqa: E402
@@ -106,20 +116,35 @@ def _shown(window, key: str):  # noqa: ANN001, ANN202
     return page
 
 
-def test_a_click_shows_a_scene_and_only_its_button_gives_it_the_hotkey(window):
+def _tick(page, key: str) -> None:  # noqa: ANN001
+    """A click on the spot at a scene's end."""
+    button = page.scenes.buttons[key]
+    QTest.mouseClick(button, Qt.LeftButton, Qt.KeyboardModifier.NoModifier, QPoint(button.width() - 24, button.height() // 2))
+
+
+def test_a_click_on_a_name_shows_a_scene_and_only_its_spot_gives_it_the_hotkey(window):
+    window.show()
+    window._show_scene_manager()
     page = _shown(window, "stars")
     store = window.store
     assert page.scenes.key == "stars" and store.quick_scene == "classic"
     # ✓ on the hotkey's, the band on the one shown.
     assert page.scenes.buttons["classic"].tick and not page.scenes.buttons["stars"].tick
     assert page.scenes.buttons["stars"].isChecked() and not page.scenes.buttons["classic"].isChecked()
-    assert page.assign_button.isEnabled()
-    page.assign_button.click()
-    assert store.quick_scene == "stars" and Store(store.root).quick_scene == "stars"
-    assert page.scenes.buttons["stars"].tick and not page.scenes.buttons["classic"].tick
-    assert not page.assign_button.isEnabled()
-    _shown(window, "ice")
-    assert page.assign_button.isEnabled() and store.quick_scene == "stars"
+    # A click on another's spot gives it the hotkey, saved, and moves the ✓; the one shown stays.
+    _tick(page, "ice")
+    assert store.quick_scene == "ice" and Store(store.root).quick_scene == "ice" and page.scenes.key == "stars"
+    assert page.scenes.buttons["ice"].tick and not page.scenes.buttons["classic"].tick
+    assert page.preview.scene == "stars" and page.scenes.buttons["stars"].isChecked()
+    # One at a time: a click on the ✓ itself leaves it there.
+    _tick(page, "ice")
+    assert store.quick_scene == "ice" and page.scenes.buttons["ice"].tick
+    # Space on a scene gives it the hotkey, as a click on its spot does.
+    QTest.keyClick(page.scenes.buttons["stars"], Qt.Key_Space)
+    assert store.quick_scene == "stars" and page.scenes.key == "stars"
+    assert [key for key, button in page.scenes.buttons.items() if button.tick] == ["stars"]
+    window.scenes_dialog.reject()
+    window.hide()
 
 
 def test_the_picker_dialog_keeps_its_tick_on_the_one_picked():
@@ -130,13 +155,43 @@ def test_the_picker_dialog_keeps_its_tick_on_the_one_picked():
     assert scenes.key == "stars" and all(button.tick is None and not button.own for button in scenes.buttons.values())
 
 
-def test_play_plays_the_one_shown_and_the_hotkey_its_own(window):
+def test_the_hotkey_sits_over_the_list_and_the_right_side_has_no_button_for_it(window):
+    page = window.effects_page
+    edit = window.effect_hotkey_edit
+    window.show()
+    window._show_scene_manager()
+    _wait(20)
+    # On the left, over the list: 快捷键, its box, and what it does.
+    assert page.isAncestorOf(edit) and not page.below.isAncestorOf(edit)
+    assert edit.mapTo(page, QPoint(0, 0)).x() < page.scene_scroll.mapTo(page, QPoint(0, 0)).x() + page.scene_scroll.width()
+    assert edit.mapTo(page, QPoint(0, 0)).y() < page.scene_scroll.mapTo(page, QPoint(0, 0)).y()
+    assert page.hotkey_hint.text() == "按快捷键，在当前窗口播放勾选的场景"
+    assert not hasattr(page, "assign_button") and page.preview.play_button is None
+    texts = [button.text() for button in page.findChildren(QPushButton)]
+    assert "快捷键放这个" not in texts and texts.count("播放") == 1
+    # 配乐, not 声音, in what the player sees.
+    labels = [label.text() for label in page.findChildren(QLabel)]
+    assert "配乐" in labels and "声音" not in labels and "快捷键" in labels
+    assert page.upload_button.accessibleName() == "上传配乐" and page.volume_slider.accessibleName() == "配乐音量"
+    window.scenes_dialog.reject()
+    window.hide()
+
+
+def test_play_plays_the_one_shown_with_its_music_and_the_hotkey_its_own(window):
     page = _shown(window, "fluffy")
+    window.played.clear()
     page.play_button.click()
-    assert window._quick_scene == "fluffy" and window.love.scene == "fluffy" and window.store.quick_scene == "classic"
-    window._end_quick_play()
+    # In the preview, from its start, with its music: nothing over the game.
+    assert page.sounding and TUNES["fluffy"].stem in window.played[-1].name and page.preview.scene == "fluffy"
+    assert window._quick_scene == "" and window.store.quick_scene == "classic"
     assert window.effect_hotkey.callback()
-    assert window._quick_scene == "classic"
+    assert window._quick_scene == "classic" and not page.sounding
+    window._end_quick_play()
+    # Under 静音 it is off, saying so, as each song's ▶ is.
+    window.mute_box.click()
+    assert not page.play_button.isEnabled() and page.play_button.toolTip() == "已静音"
+    window.mute_box.click()
+    assert page.play_button.isEnabled() and page.play_button.toolTip() == "从头播放，带配乐"
 
 
 def _rows(page) -> list[str]:  # noqa: ANN001
@@ -242,7 +297,7 @@ def test_a_short_sound_is_kept_whole_and_marked_and_nothing_plays(window, pick, 
     assert _rows(page) == ["默认", "心动音乐.wav · 3.0 秒"] and _chosen(page) == "心动音乐.wav · 3.0 秒"
     assert page.upload_button.text() == "上传" and page.upload_button.isEnabled() and not page.reset_button.isHidden()
     assert window.played and all(tune is None for tune in window.played)
-    assert window.music.pick("ice") == "ice" and page.note.isHidden()
+    assert window.music.pick("ice") == "ice" and page.sound_note.isHidden()
 
 
 def test_ok_after_an_upload_plays_nothing_by_itself(window, pick, trim, tmp_path, monkeypatch):
@@ -379,17 +434,17 @@ def test_a_file_that_cannot_be_used_says_why_until_another_is_shown(window, pick
     empty.write_bytes(b"")
     pick["chosen"] = empty
     page.upload_button.click()
-    assert page.note.text() == "这个文件是空的" and not page.note.isHidden()
+    assert page.sound_note.text() == "这个文件是空的" and not page.sound_note.isHidden()
     assert window.store.scene_sounds == {} and trim["opened"] == []
     assert QApplication.overrideCursor() is None and window.isEnabled()
     _shown(window, "ice")
-    assert page.note.isHidden()
-    # A note about the hotkey as it stands comes back after one about a sound.
+    assert page.sound_note.isHidden()
+    # A note about the hotkey as it stands is the left's, under the hotkey: one about a 配乐 leaves it be.
     page.say("这个键被别的程序占了，换一个", held=True)
     page.upload_button.click()
-    assert page.note.text() == "这个文件是空的"
+    assert page.sound_note.text() == "这个文件是空的" and page.note.text() == "这个键被别的程序占了，换一个"
     _shown(window, "stars")
-    assert page.note.text() == "这个键被别的程序占了，换一个" and page.held
+    assert page.sound_note.isHidden() and page.note.text() == "这个键被别的程序占了，换一个" and page.held
 
 
 def test_nothing_changes_under_a_file_being_read(window, pick, trim, tmp_path, monkeypatch):
@@ -406,7 +461,7 @@ def test_nothing_changes_under_a_file_being_read(window, pick, trim, tmp_path, m
         page.upload_button.click()
         page.reset_button.click()
         page.window().close_button.click()
-        seen["note"] = page.note.text()
+        seen["note"] = page.sound_note.text()
         return read(path)
 
     monkeypatch.setattr(sound_import, "decode", slow)
@@ -451,7 +506,7 @@ def test_a_silent_part_says_so_in_the_part_picker_and_is_not_kept(window, pick, 
     trim["do"] = choose
     page.upload_button.click()
     entry = window.store.scene_songs("stars")[0]
-    assert (entry["start"], entry["length"]) == (pytest.approx(6.0), pytest.approx(3.0)) and page.note.isHidden()
+    assert (entry["start"], entry["length"]) == (pytest.approx(6.0), pytest.approx(3.0)) and page.sound_note.isHidden()
 
 
 def test_where_only_wav_can_be_read_the_dialog_says_so(window, pick, monkeypatch):
@@ -667,7 +722,8 @@ def test_starting_over_takes_the_marks_and_rows_back(window, pick, trim, tmp_pat
     page = _shown(window, "ice")
     pick["chosen"] = _wav(tmp_path / "a.wav", 2.0)
     page.upload_button.click()
-    page.assign_button.click()
+    page.scenes.ticked.emit("ice")
+    assert window.store.quick_scene == "ice"
     monkeypatch.setattr("blacklist_detect.ui._confirm", lambda *_args: True)
     window._ask_reset()
     assert page.scenes.key == "classic" and page.scenes.buttons["classic"].tick
@@ -704,7 +760,7 @@ def test_the_dialog_with_three_songs_shows_every_control(window, pick, trim, tmp
         return widget.geometry().translated(widget.parentWidget().mapTo(page, widget.pos()) - widget.pos())
 
     controls = (*page.sounds.choices, *page.sounds.play_buttons, *page.sounds.delete_buttons, page.upload_button, page.reset_button)
-    for control in (*controls, page.volume_slider, page.level_note, page.play_button, page.assign_button):
+    for control in (*controls, page.volume_slider, page.level_note, page.play_button, window.effect_hotkey_edit):
         assert page.rect().contains(placed(control)), control
     assert page.preview.width() == page.PREVIEW_W
     # A name too long for its room is cut in the middle, whole in its tooltip.
@@ -716,7 +772,7 @@ def test_the_dialog_with_three_songs_shows_every_control(window, pick, trim, tmp
 
 def test_the_dialog_keeps_its_size_from_scene_to_scene(window, pick, trim, tmp_path):
     """The page keeps room for as many songs as any 场景 has, at its foot: the dialog keeps its size as another is
-    shown, while 音量 sits right under the songs that one has, with no empty rows between."""
+    shown, while the 配乐 row and the songs sit where they did, and a note right under the songs that one has."""
     window.show()
     window._show_scene_manager()
     page = _shown(window, "fluffy")
@@ -725,23 +781,21 @@ def test_the_dialog_keeps_its_size_from_scene_to_scene(window, pick, trim, tmp_p
         page.upload_button.click()
     _wait(30)
 
-    def gap() -> int:
-        """From the foot of 声音's rows (默认 and the songs shown) to 音量's top."""
-        sounds = page.sounds
-        return page.volume_slider.mapTo(page, QPoint(0, 0)).y() - sounds.mapTo(page, QPoint(0, sounds.height())).y()
+    def top(widget) -> int:  # noqa: ANN001
+        return widget.mapTo(page, QPoint(0, 0)).y()
 
     # Measured once it has settled from the uploads' own dialogs.
     _shown(window, "fluffy")
     _wait(20)
-    card, with_songs = window.scenes_dialog.card.size(), gap()
-    slider = page.volume_slider.mapTo(page, QPoint(0, 0)).y()
+    card, row, songs, note = window.scenes_dialog.card.size(), top(page.volume_slider), top(page.sounds), top(page.sound_note)
+    assert top(page.play_button) < songs
     for key in ("classic", "ice", "fluffy"):
         _shown(window, key)
         _wait(20)
-        assert window.scenes_dialog.card.size() == card and gap() == with_songs
+        assert window.scenes_dialog.card.size() == card and top(page.volume_slider) == row and top(page.sounds) == songs
         if key != "fluffy":
-            # No songs: 音量 two rows higher than under fluffy's two, the room left at the foot.
-            assert page.volume_slider.mapTo(page, QPoint(0, 0)).y() < slider
+            # No songs: the note two rows higher than under fluffy's two, the room left at the foot.
+            assert top(page.sound_note) < note and page.spare.height() > 0
     assert [choice.isVisibleTo(page) for choice in page.sounds.choices] == [True, True, True, False]
     window.scenes_dialog.reject()
     window.hide()

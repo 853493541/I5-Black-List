@@ -1,19 +1,20 @@
-"""场景管理: every 场景's sound, and which one the 场景 hotkey plays, in a dialog opened from the 嘉宾 page.
+"""场景管理: every 场景's 配乐, and which one the 场景 hotkey plays, in a dialog opened from the 嘉宾 page.
 
-Every scene in love_scenes.SCENES is listed by name with its dot, the list 嘉宾场景 (ui_guest_scenes) has in
-a grid; past the height of what is beside it, the list scrolls. A click shows one: it plays beside the list
-over the fake-name sample lobby, and ▶ plays it from its start with its music. The list's ✓ is the 场景 the
-hotkey plays, which 快捷键放这个 makes the one shown; a ♪ is a 场景 that plays one of the player's songs.
+On the left, the hotkey, set the way 检查's is (the window's hotkey box), what it does under it, and what is
+wrong with a key pressed for it; then every scene in love_scenes.SCENES by name with its dot, the list
+嘉宾场景 (ui_guest_scenes) has in a grid; past the height of what is beside it, the list scrolls. A click on a
+name shows one: it plays beside the list over the fake-name sample lobby. The spot at a scene's end is the
+hotkey's: ✓ on the 场景 it plays (at once over the game, with no check: MainWindow.play_quick_scene), and a
+click on another's gives it the hotkey. A ♪ is a 场景 that plays one of the player's songs.
 
-Under the preview, the shown 场景's 声音 (SoundChoices: 默认, its own, and up to three songs of the player's, each
-上传 from a file, a part of it picked in 选择片段 when it is longer than a 场景's sound may be; one is chosen, and
-恢复默认 chooses 默认 again), its 音量, and the hotkey,
-set the way 检查's is (the window's hotkey box), with 播放, which plays the shown 场景 the way the hotkey
-plays its own: at once over the game, with no check (MainWindow.play_quick_scene).
+Under the preview, the shown 场景's 配乐: its 音量 and ▶ 播放 (the scene from its start with its music), then
+its choices (SoundChoices: 默认, its own, and up to three songs of the player's, each 上传 from a file, a part
+of it picked in 选择片段 when it is longer than a 场景's sound may be; one is chosen, and 恢复默认 chooses 默认
+again).
 
 The preview plays only while it can be seen, its window not minimized, and the app is in front: behind the
 game it would paint 30 times a second for nothing. The page lives on in EffectsDialog, made once with the
-window: × and Esc close it, which rests the preview and stops a sound its ▶ started.
+window: × and Esc close it, which rests the preview and stops a sound ▶ started.
 """
 
 from __future__ import annotations
@@ -52,13 +53,13 @@ from blacklist_detect.storage import MAX_SONGS
 from blacklist_detect.ui_kit import _SCROLL_BAR, IconButton, Modal
 from blacklist_detect.ui_love_pick import SceneList, ScenePreview
 from blacklist_detect.ui_music import TUNES, VOLUME_STEP
-from blacklist_detect.ui_sound_trim import SoundTrimDialog
-from blacklist_detect.ui_theme import CONTROL_H, _dialog_style, chinese_family, chinese_font
+from blacklist_detect.ui_sound_trim import SoundTrimDialog, _glyph
+from blacklist_detect.ui_theme import THEME, _dialog_style, chinese_family, chinese_font
 
 
 class _ListScroll(QScrollArea):
-    """The scene list, as tall as what stands beside it and no taller: past that it scrolls, so more
-    scenes never make the dialog taller. Its scroll bar's room is kept beside the names."""
+    """The scene list, as tall as the room it is given (_HotkeySide keeps room for every scene): past that,
+    while a note under the hotkey shows, it scrolls. Its scroll bar's room is kept beside the names."""
 
     def __init__(self, scenes: SceneList) -> None:
         super().__init__()
@@ -78,6 +79,63 @@ class _ListScroll(QScrollArea):
 
     def minimumSizeHint(self) -> QSize:
         return QSize(self.width(), 0)
+
+
+class _HotkeySide(QWidget):
+    """The page's left: 快捷键 and its box, what the hotkey does, a note about it while there is one, and the
+    scene list. At least as tall as the hotkey's rows and every scene, so no scene is scrolled away; a note
+    takes its room from the list, and the dialog keeps its size as one comes and goes."""
+
+    # Between the hotkey's rows, and from them to the list.
+    GAP = 4
+    LIST_GAP = 12
+
+    def __init__(self, hotkey_box: QLineEdit, scroll: _ListScroll) -> None:
+        super().__init__()
+        self.scroll = scroll
+        column = QVBoxLayout(self)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(self.LIST_GAP)
+        rows = QVBoxLayout()
+        rows.setSpacing(self.GAP)
+        column.addLayout(rows)
+        row = QHBoxLayout()
+        row.setSpacing(10)
+        self.label = QLabel("快捷键")
+        self.label.setObjectName("rowLabel")
+        row.addWidget(self.label)
+        self.box = hotkey_box
+        row.addWidget(hotkey_box)
+        row.addStretch(1)
+        rows.addLayout(row)
+        self.hint = QLabel("按快捷键，在当前窗口播放勾选的场景")
+        self.hint.setObjectName("rowHint")
+        self.hint.setWordWrap(True)
+        self.hint.setFixedWidth(scroll.width())
+        rows.addWidget(self.hint)
+        # What is wrong with a key pressed for the hotkey, as 检查 says it.
+        self.note = QLabel("")
+        self.note.setObjectName("rowHint")
+        self.note.setWordWrap(True)
+        self.note.setFixedWidth(scroll.width())
+        self.note.hide()
+        rows.addWidget(self.note)
+        column.addWidget(scroll, 1)
+        self.keep_room()
+
+    def keep_room(self) -> None:
+        """A minimum of its own, which the layouts hold to also when they measure height for width (its notes
+        wrap): the hotkey's row, the line under it, the gaps and every scene, in the style's sizes."""
+        self.ensurePolished()
+        row = max(self.label.sizeHint().height(), self.box.sizeHint().height())
+        hint = self.hint.heightForWidth(self.hint.width())
+        room = row + self.GAP + hint + self.LIST_GAP + self.scroll.widget().minimumSizeHint().height()
+        if room != self.minimumHeight():
+            self.setMinimumHeight(room)
+
+    def showEvent(self, event) -> None:  # noqa: ANN001
+        super().showEvent(event)
+        self.keep_room()
 
 
 def _button(text: str, action, primary: bool = False) -> QPushButton:  # noqa: ANN001
@@ -131,7 +189,7 @@ class _Choice(QRadioButton):
 
 
 class SoundChoices(QWidget):
-    """场景管理's 声音: what the shown 场景 may play, one of them chosen like a radio button. 默认 first (the scene's
+    """场景管理's 配乐: what the shown 场景 may play, one of them chosen like a radio button. 默认 first (the scene's
     own; 经典's is none, 默认（无声）), then each of the player's songs, its name and length, up to MAX_SONGS. Each
     has ▶ (play(file), "" for 默认) and each song ✕ (delete(file)); a click on one, or ↑ and ↓, chooses it
     (chose(file)), and nothing plays by itself. 上传 and 恢复默认 sit on 默认's row: 上传 is off once there are
@@ -178,9 +236,9 @@ class SoundChoices(QWidget):
                 grid.addWidget(gone, row, 2)
                 self.delete_buttons.append(gone)
         self.upload_button = _button("上传", upload)
-        self.upload_button.setAccessibleName("上传声音")
+        self.upload_button.setAccessibleName("上传配乐")
         self.reset_button = _button("恢复默认", restore)
-        self.reset_button.setAccessibleName("恢复默认声音")
+        self.reset_button.setAccessibleName("恢复默认配乐")
         reset = QHBoxLayout()
         reset.setSpacing(10)
         reset.addWidget(self.upload_button)
@@ -209,7 +267,7 @@ class SoundChoices(QWidget):
         self.reset_button.setVisible(picked != 0)
 
     def song_row_height(self) -> int:
-        """How much taller a song's row makes 声音: the tallest of its choice, ▶ and ✕, and the gap above it."""
+        """How much taller a song's row makes 配乐: the tallest of its choice, ▶ and ✕, and the gap above it."""
         parts = (self.choices[1], self.play_buttons[1], self.delete_buttons[0])
         return max(part.sizeHint().height() for part in parts) + self.layout().verticalSpacing()
 
@@ -256,36 +314,39 @@ class SoundChoices(QWidget):
 
 class EffectsPage(QWidget):
     """What 场景管理 shows. scenes.key is the 场景 shown, store.quick_scene the hotkey's; hotkey_box is the
-    window's box for the 场景 hotkey, and play(key) what 播放 does with the one shown. sounding: the music
-    playing is the one ▶ started, which stops as the page goes out of sight."""
+    window's box for the 场景 hotkey. sounding: the music playing is the one ▶ started, which stops as the page
+    goes out of sight."""
 
     # The preview's width, the sample lobby's shape kept: as wide as 嘉宾场景's.
     PREVIEW_W = 448
 
-    def __init__(self, store, music, hotkey_box: QLineEdit, play, parent: QWidget | None = None) -> None:  # noqa: ANN001
+    def __init__(self, store, music, hotkey_box: QLineEdit, parent: QWidget | None = None) -> None:  # noqa: ANN001
         super().__init__(parent)
         self.store = store
         self.music = music
         self.sounding = False
         self.held = False
-        # The 场景 a note about its sound was said for: it goes as another is shown, and a note about the
-        # hotkey as it stands (held) comes back.
+        # The 场景 a note about its 配乐 was said for: it goes as another is shown.
         self._told = ""
         self._held_text = ""
         body = QHBoxLayout(self)
         body.setContentsMargins(0, 0, 0, 0)
         body.setSpacing(20)
+        # On the left the hotkey, shared by every 场景, over the list whose spots say which one it plays.
         self.scenes = SceneList(store.quick_scene, marks=True)
         self.scenes.picked.connect(self._pick)
+        self.scenes.ticked.connect(self.give_hotkey)
         self.scene_scroll = _ListScroll(self.scenes)
-        body.addWidget(self.scene_scroll)
+        self.left = _HotkeySide(hotkey_box, self.scene_scroll)
+        self.hotkey_hint = self.left.hint
+        self.note = self.left.note
+        body.addWidget(self.left)
         side = QVBoxLayout()
         side.setSpacing(16)
         body.addLayout(side)
-        self.preview = ScenePreview(width=self.PREVIEW_W, play=self.play_preview)
+        self.preview = ScenePreview(width=self.PREVIEW_W)
         side.addWidget(self.preview)
-        # The shown 场景's 声音 and 音量, then the hotkey and 播放, right under the preview, the names in a
-        # column of their own.
+        # The shown 场景's 配乐 right under the preview: its 音量 and ▶ 播放, then its choices.
         below = QWidget()
         below.setFixedWidth(self.PREVIEW_W)
         rows = QGridLayout(below)
@@ -293,23 +354,9 @@ class EffectsPage(QWidget):
         rows.setHorizontalSpacing(16)
         rows.setVerticalSpacing(12)
         rows.setColumnStretch(1, 1)
-        for row, name in enumerate(("声音", "音量", "快捷键")):
-            label = QLabel(name)
-            label.setObjectName("rowLabel")
-            if row == 0:
-                # Beside 默认, the first of its rows, as tall as its ▶.
-                label.setMinimumHeight(CONTROL_H - 4)
-                rows.addWidget(label, row, 0, Qt.AlignTop)
-            else:
-                rows.addWidget(label, row, 0)
-        # 声音: 默认 and the player's songs, one chosen, with 上传 and 恢复默认.
-        self.sounds = SoundChoices(self.upload, self.restore)
-        self.sounds.chose.connect(self._choose)
-        self.sounds.play.connect(self._listen)
-        self.sounds.delete.connect(self._delete)
-        self.upload_button = self.sounds.upload_button
-        self.reset_button = self.sounds.reset_button
-        rows.addWidget(self.sounds, 0, 1)
+        label = QLabel("配乐")
+        label.setObjectName("rowLabel")
+        rows.addWidget(label, 0, 0)
         # 音量: how loud this 场景 is, in its steps; let go, a moment of it at that.
         volume = QHBoxLayout()
         volume.setSpacing(10)
@@ -318,7 +365,8 @@ class EffectsPage(QWidget):
         self.volume_slider.setPageStep(2)
         self.volume_slider.setFixedWidth(180)
         self.volume_slider.setCursor(Qt.PointingHandCursor)
-        self.volume_slider.setAccessibleName("场景音量")
+        self.volume_slider.setAccessibleName("配乐音量")
+        self.volume_slider.setToolTip("音量")
         self.volume_slider.valueChanged.connect(self._on_volume)
         self.volume_slider.sliderReleased.connect(self._volume_set)
         volume.addWidget(self.volume_slider)
@@ -331,31 +379,34 @@ class EffectsPage(QWidget):
         self.level_note.setObjectName("rowHint")
         volume.addWidget(self.level_note)
         volume.addStretch(1)
-        rows.addLayout(volume, 1, 1)
-        hotkey = QHBoxLayout()
-        hotkey.setSpacing(10)
-        hotkey.addWidget(hotkey_box)
-        self.assign_button = _button("快捷键放这个", self.assign)
-        self.assign_button.setToolTip("按快捷键时放这个场景")
-        hotkey.addWidget(self.assign_button)
-        self.play_button = _button("播放", lambda: play(self.scenes.key), primary=True)
-        hotkey.addWidget(self.play_button)
-        hotkey.addStretch(1)
-        rows.addLayout(hotkey, 2, 1)
-        # What is wrong with a key pressed for the hotkey, as 检查 says it, why 播放 played nothing, or what
-        # became of a sound uploaded, under them. Its room is kept while it is hidden.
-        self.note = QLabel(" ")
-        self.note.setObjectName("rowHint")
-        self.note.setWordWrap(True)
-        policy = self.note.sizePolicy()
+        # ▶ 播放: the scene from its start in the preview, with its music.
+        self.play_button = _button("播放", self.play_preview, primary=True)
+        self.play_button.setAccessibleName("播放场景和配乐")
+        self.play_button.setIconSize(QSize(12, 12))
+        self._paint_play()
+        volume.addWidget(self.play_button)
+        rows.addLayout(volume, 0, 1)
+        # 默认 and the player's songs, one chosen, with 上传 and 恢复默认.
+        self.sounds = SoundChoices(self.upload, self.restore)
+        self.sounds.chose.connect(self._choose)
+        self.sounds.play.connect(self._listen)
+        self.sounds.delete.connect(self._delete)
+        self.upload_button = self.sounds.upload_button
+        self.reset_button = self.sounds.reset_button
+        rows.addWidget(self.sounds, 1, 1)
+        # What became of a 配乐 uploaded, under them. Its room is kept while it is hidden.
+        self.sound_note = QLabel(" ")
+        self.sound_note.setObjectName("rowHint")
+        self.sound_note.setWordWrap(True)
+        policy = self.sound_note.sizePolicy()
         policy.setRetainSizeWhenHidden(True)
-        self.note.setSizePolicy(policy)
-        self.note.hide()
-        rows.addWidget(self.note, 3, 1)
-        # The room kept for songs another 场景 has (_sync_rows): here at the foot, not between 声音's rows.
+        self.sound_note.setSizePolicy(policy)
+        self.sound_note.hide()
+        rows.addWidget(self.sound_note, 2, 1)
+        # The room kept for songs another 场景 has (_sync_rows): here at the foot, not between the songs.
         self.spare = QWidget()
         self.spare.setFixedHeight(0)
-        rows.addWidget(self.spare, 4, 0, 1, 2)
+        rows.addWidget(self.spare, 3, 0, 1, 2)
         self.below = below
         side.addWidget(below)
         side.addStretch(1)
@@ -382,15 +433,14 @@ class EffectsPage(QWidget):
             self._tell("")
         self._sync_rows()
 
-    def assign(self) -> None:
-        """快捷键放这个: the hotkey plays the shown 场景 from now on."""
-        self.store.quick_scene = self.scenes.key
+    def give_hotkey(self, key: str) -> None:
+        """A click on a scene's spot: the hotkey plays that 场景 from now on; the one shown stays."""
+        self.store.quick_scene = key
         self.store.save_settings()
         self._sync_marks()
-        self._sync_rows()
 
     def play_preview(self) -> None:
-        """▶: the scene from its start in the preview, with its music, which takes over from a play's
+        """▶ 播放: the scene from its start in the preview, with its music, which takes over from a play's
         over the game."""
         self.preview.show_scene(self.scenes.key)
         if self.music is not None:
@@ -398,29 +448,25 @@ class EffectsPage(QWidget):
             self.sounding = True
 
     def say(self, text: str, held: bool = False) -> None:
-        """held: the note is about the hotkey as it stands (another program has its key, 检查 the one it
-        would have), and goes once that is no longer so; one about a key just pressed, or 播放's, stays."""
+        """A note under the hotkey. held: it is about the hotkey as it stands (another program has its key,
+        检查 the one it would have), and goes once that is no longer so; one about a key just pressed stays."""
         self.held = held
-        self._told = ""
         self._held_text = text if held else ""
-        self._note(text)
+        self.note.setText(text)
+        self.note.setVisible(bool(text))
 
     def _tell(self, text: str) -> None:
-        """A note about the shown 场景's sound, over one about the hotkey as it stands: it goes as another
-        场景 is shown, and that one comes back."""
+        """A note about the shown 场景's 配乐: it goes as another 场景 is shown."""
         self._told = self.scenes.key if text else ""
-        self._note(text or self._held_text)
+        # Hidden, a line's room is kept, so the dialog keeps its height as a note comes and goes.
+        self.sound_note.setText(text or " ")
+        self.sound_note.setVisible(bool(text))
 
     def forget_said(self) -> None:
-        """Opened again: a note about a key once pressed or a sound once uploaded is old news and goes; one about
+        """Opened again: a note about a key once pressed or a 配乐 once uploaded is old news and goes; one about
         the hotkey as it stands (held) stays."""
-        self._told = ""
-        self._note(self._held_text)
-
-    def _note(self, text: str) -> None:
-        # Hidden, a line's room is kept, so the dialog keeps its height as a note comes and goes.
-        self.note.setText(text or " ")
-        self.note.setVisible(bool(text))
+        self._tell("")
+        self.say(self._held_text, held=self.held)
 
     # The shown 场景's sound.
     def _own(self, key: str) -> Path | None:
@@ -433,9 +479,9 @@ class EffectsPage(QWidget):
         self.scenes.set_marks(self.store.quick_scene, owned)
 
     def _sync_rows(self) -> None:
-        """声音, 音量 and 快捷键放这个 as they are for the 场景 shown. The page keeps room for as many songs as any
-        场景 has, at its foot, so the dialog keeps its size as one after another is shown while 音量 and 快捷键
-        stay right under the songs this one has."""
+        """配乐 and its 音量 as they are for the 场景 shown. The page keeps room for as many songs as any 场景 has,
+        at its foot, so the dialog keeps its size as one after another is shown while a note about a 配乐 stays
+        right under the songs this one has."""
         key = self.scenes.key
         songs = self.store.scene_songs(key)
         own = self._own(key)
@@ -454,14 +500,19 @@ class EffectsPage(QWidget):
         self.volume_slider.setEnabled(bool(songs) or key in TUNES)
         self.volume_label.setText(f"{volume}%")
         self.volume_label.setEnabled(self.volume_slider.isEnabled())
-        self.assign_button.setEnabled(key != self.store.quick_scene)
         self.sync_sound()
 
     def sync_sound(self) -> None:
-        """The note beside 音量 and the ▶ of each sound as 设置's 静音 is now: that nothing is heard."""
+        """The note beside 音量, ▶ 播放 and the ▶ of each sound as 设置's 静音 is now: that nothing is heard."""
         muted = self.music is not None and self.music.muted
         self.level_note.setText("已静音" if muted and self.volume_slider.isEnabled() else "")
+        self.play_button.setEnabled(not muted)
+        self.play_button.setToolTip("已静音" if muted else "从头播放，带配乐")
         self.sounds.set_muted(muted)
+
+    def _paint_play(self) -> None:
+        """▶ on 播放 in the colour of its words, as the theme has it."""
+        self.play_button.setIcon(_glyph("play", 12, THEME["on_accent"]))
 
     def _on_volume(self, step: int) -> None:
         """音量 moved: the shown 场景 plays this loud from now on. Dragged, it is saved and heard once let go
@@ -517,15 +568,15 @@ class EffectsPage(QWidget):
             return
         name = dict(love_scenes.SCENES).get(key, key)
         if sound_import.available():
-            title, kinds = f"给「{name}」上传声音", f"声音或视频 ({sound_import.FILTER})"
+            title, kinds = f"给「{name}」上传配乐", f"声音或视频 ({sound_import.FILTER})"
         else:
-            title, kinds = f"给「{name}」上传声音（这台电脑只能用 WAV）", f"WAV 声音 ({sound_import.WAV_FILTER})"
+            title, kinds = f"给「{name}」上传配乐（这台电脑只能用 WAV）", f"WAV 声音 ({sound_import.WAV_FILTER})"
         path, _kind = QFileDialog.getOpenFileName(self, title, "", kinds)
         if not path:
             return
         source = Path(path)
         self._tell("正在读取…")
-        self.note.repaint()
+        self.sound_note.repaint()
         # The window paints on while a video is read, seconds maybe, but takes no clicks: the sound is the
         # shown 场景's, and nothing (another 场景, 上传 again, 清空数据) may change under it meanwhile.
         window = self.window()
@@ -660,6 +711,11 @@ class EffectsPage(QWidget):
         if self._seen():
             self._show()
 
+    def changeEvent(self, event) -> None:  # noqa: ANN001
+        super().changeEvent(event)
+        if event.type() in (QEvent.Type.StyleChange, QEvent.Type.PaletteChange):
+            self._paint_play()
+
     def hideEvent(self, event) -> None:  # noqa: ANN001
         self.preview.pause()
         if self.sounding and self.music is not None:
@@ -695,5 +751,7 @@ class EffectsDialog(Modal):
             # In the theme as it is now: 浅色 or 深色 may have changed since it was made.
             self.setStyleSheet(_dialog_style(chinese_family()))
             self.page.forget_said()
+            # Room for every scene in the theme's fonts, before the card is measured to fit the screen.
+            self.page.left.keep_room()
             self.page.scenes.buttons[self.page.scenes.key].setFocus(Qt.FocusReason.OtherFocusReason)
         super().setVisible(visible)

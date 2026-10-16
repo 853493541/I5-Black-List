@@ -616,7 +616,7 @@ class MainWindow(QMainWindow):
         self.settings_tab = self.tabs.addTab(self._settings_page(), "设置")
         # 场景管理, opened from the 嘉宾 page: made once, so what it shows stays between openings.
         self.effect_hotkey_edit = self._hotkey_box("场景快捷键", none="未设置")
-        self.effects_page = EffectsPage(self.store, self.music, self.effect_hotkey_edit, self._play_from_page)
+        self.effects_page = EffectsPage(self.store, self.music, self.effect_hotkey_edit)
         self.scenes_dialog = EffectsDialog(self.effects_page, self)
         self.tabs.tabBar().hide()
         self.tabs.currentChanged.connect(self._sync_tab_buttons)
@@ -4179,10 +4179,9 @@ class MainWindow(QMainWindow):
         self._glance_pause_until = 0.0
         log.info("测试效果: done.")
 
-    def play_quick_scene(self, under_pointer: bool = True, scene: str = "") -> bool:
-        """The 场景 hotkey, and 播放 on 场景管理: the hotkey's 场景 (store.quick_scene), or for 播放 the one shown
-        there (scene), at once, with no check (no screen copy, no recognition), as a 嘉宾 lobby would get
-        it: the rose ring and the badge on 准备案件还原, the scene over the game and its music (the 场景's own
+    def play_quick_scene(self) -> bool:
+        """The 场景 hotkey: the 场景 it plays (store.quick_scene, ticked on 场景管理), at once, with no check (no
+        screen copy, no recognition), as a 嘉宾 lobby would get it: the rose ring and the badge on 准备案件还原, the scene over the game and its music (the 场景's own
         音量, none with 静音), on the screen, or only in 直播画面 when 安全模式 puts the marks there. It
         plays with every 嘉宾 on 不放 too, and pressed again it starts over. It plays nothing when _quick_refusal
         says why not: before 使用声明 is agreed to, in 安全模式 without 直播模式 (nothing is drawn over the
@@ -4191,9 +4190,7 @@ class MainWindow(QMainWindow):
 
         Where: the last lobby's game, as a check found it; with none yet, in the window 直播姬 shows
         the game with (直播模式), else in the window under the pointer, else on its screen as a
-        full-screen game. The button sits where the lobby puts it on a 16:9 game screen there.
-        under_pointer=False (播放, clicked on this window): no window under the pointer is looked for,
-        since the one behind this window is not the game; this window's screen it is."""
+        full-screen game. The button sits where the lobby puts it on a 16:9 game screen there."""
         why = self._quick_refusal()
         if why:
             log.info("场景 hotkey: nothing played (%s).", why)
@@ -4202,7 +4199,7 @@ class MainWindow(QMainWindow):
         # The music is the play's now, not 场景管理's preview's.
         self.effects_page.sounding = False
         self._end_quick_play()
-        scene = scene or self.store.quick_scene
+        scene = self.store.quick_scene
         self._quick_saved = (
             self._game_box, self._game_screen, self._game_windows,
             QRect(self.stream._frame), self._lobby_choice, self._lobby_seats,
@@ -4210,7 +4207,7 @@ class MainWindow(QMainWindow):
         if self._game_box is not None:
             where = "the last lobby's game"
         else:
-            picture, window, where = self._quick_place(under_pointer)
+            picture, window, where = self._quick_place()
             self._quick_area = picture
             self._game_box, self._game_screen = self._demo_boxes(picture)
             self._game_windows = ()
@@ -4248,7 +4245,7 @@ class MainWindow(QMainWindow):
         return True
 
     def _quick_refusal(self) -> str:
-        """Why the 场景 hotkey and 播放 would play nothing now, as 场景管理 says it; "" when they play."""
+        """Why the 场景 hotkey would play nothing now, as the log says it; "" when it plays."""
         if self._closing:
             return "正在退出"
         if not self.store.disclaimer_accepted:
@@ -4259,24 +4256,13 @@ class MainWindow(QMainWindow):
             return "正在检查，稍后再试"
         return ""
 
-    def _play_from_page(self, scene: str) -> None:
-        """播放 on 场景管理: the 场景 shown there played as the hotkey plays its own, or why not, under it."""
-        why = self._quick_refusal()
-        self.effects_page.say(why)
-        if not why:
-            self.play_quick_scene(under_pointer=False, scene=scene)
-
-    def _quick_place(self, under_pointer: bool = True) -> tuple[QRect, QRect, str]:
+    def _quick_place(self) -> tuple[QRect, QRect, str]:
         """Where the 场景 hotkey plays when no lobby was checked yet: the game's screen, the window it
-        is in (what a 窗口捕捉 captures), and what that is, for the log. under_pointer=False: 播放's
-        pointer is on this window, so this window's screen, not whatever is behind it."""
+        is in (what a 窗口捕捉 captures), and what that is, for the log."""
         found = self._livehime_game() if self.store.stream_mode else None
         if found is not None:
             # MuMu's own bar is in the window 直播姬 captures: the game is its window drawing in its middle.
             window, game, where = found
-        elif not under_pointer:
-            window = (self.screen() or QApplication.primaryScreen()).geometry()
-            game, where = window, "this window's screen"
         else:
             screen = QApplication.screenAt(QCursor.pos()) or QApplication.primaryScreen()
             window = screen.geometry()
