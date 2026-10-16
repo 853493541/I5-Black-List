@@ -987,7 +987,7 @@ def _dialog_style(family: str) -> str:
                 color: {t["text"]};
             }}
             QDialog#modal {{ background: transparent; }}
-            QScrollArea#dialogScroll, QWidget#dialogContent {{ background: transparent; border: none; }}
+            QScrollArea#dialogScroll, QScrollArea#sceneScroll, QWidget#sceneList, QWidget#dialogContent {{ background: transparent; border: none; }}
             QFrame#dialogCard {{
                 background: {t["surface"]};
                 border: 1px solid {t["border"]};

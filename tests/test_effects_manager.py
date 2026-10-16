@@ -714,6 +714,25 @@ def test_the_dialog_with_three_songs_shows_every_control(window, pick, trim, tmp
     window.hide()
 
 
+def test_the_dialog_keeps_its_size_from_scene_to_scene(window, pick, trim, tmp_path):
+    """声音 keeps room for as many songs as any 场景 has: 音量 and the hotkey stay put as another is shown."""
+    window.show()
+    window._show_scene_manager()
+    page = _shown(window, "fluffy")
+    for name in ("a.wav", "b.wav"):
+        pick["chosen"] = _wav(tmp_path / name, 2.0)
+        page.upload_button.click()
+    _wait(30)
+    card, slider = window.scenes_dialog.card.size(), page.volume_slider.mapTo(page, page.volume_slider.rect().topLeft())
+    for key in ("classic", "ice", "fluffy"):
+        _shown(window, key)
+        _wait(20)
+        assert window.scenes_dialog.card.size() == card and page.volume_slider.mapTo(page, page.volume_slider.rect().topLeft()) == slider
+    assert [choice.isVisibleTo(page) for choice in page.sounds.choices] == [True, True, True, False]
+    window.scenes_dialog.reject()
+    window.hide()
+
+
 def test_settings_saved_by_the_page_load_as_they_were(window, pick, trim, tmp_path):
     page = _shown(window, "cyber")
     pick["chosen"] = _wav(tmp_path / "a.wav", 2.0)

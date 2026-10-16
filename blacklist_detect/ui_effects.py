@@ -66,8 +66,9 @@ class _ListScroll(QScrollArea):
         self.setFrameShape(QFrame.NoFrame)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.setWidgetResizable(True)
+        # On the card's own colour, as 嘉宾场景's grid (ui_theme's rule for these names).
         self.viewport().setAutoFillBackground(False)
-        scenes.setAutoFillBackground(False)
+        scenes.setObjectName("sceneList")
         self.setWidget(scenes)
         self.setFixedWidth(scenes.minimumWidth() + _SCROLL_BAR + 4)
         self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Ignored)
@@ -186,9 +187,10 @@ class SoundChoices(QWidget):
         reset.addWidget(self.reset_button)
         grid.addLayout(reset, 0, 2, 1, 3, Qt.AlignLeft)
 
-    def set_sounds(self, default: str, sounds: bool, songs: list[dict], chosen: str) -> None:
+    def set_sounds(self, default: str, sounds: bool, songs: list[dict], chosen: str, room: int = 0) -> None:
         """default: what 默认 is called; sounds: whether it plays anything. songs: the 场景's, oldest first, each
-        {"file", "name", "length"}; chosen: the file of the one it plays, "" for 默认."""
+        {"file", "name", "length"}; chosen: the file of the one it plays, "" for 默认. room: how many songs' rows
+        are kept, empty, below fewer songs, so what is under them stays where it is."""
         self.files = ["", *(song["file"] for song in songs[:MAX_SONGS])] + [""] * (MAX_SONGS - min(len(songs), MAX_SONGS))
         self.choices[0].set_full(default)
         self._sounds = sounds
@@ -198,6 +200,9 @@ class SoundChoices(QWidget):
         for row in range(1, 1 + MAX_SONGS):
             shown = row <= len(songs)
             for widget in (self.choices[row], self.play_buttons[row], self.delete_buttons[row - 1]):
+                policy = widget.sizePolicy()
+                policy.setRetainSizeWhenHidden(row <= room)
+                widget.setSizePolicy(policy)
                 widget.setVisible(shown)
         picked = self.files.index(chosen) if chosen and chosen in self.files else 0
         self.choices[picked].setChecked(True)
@@ -415,11 +420,13 @@ class EffectsPage(QWidget):
         self.scenes.set_marks(self.store.quick_scene, owned)
 
     def _sync_rows(self) -> None:
-        """声音, 音量 and 快捷键放这个 as they are for the 场景 shown."""
+        """声音, 音量 and 快捷键放这个 as they are for the 场景 shown. 声音 keeps room for as many songs as any 场景
+        has, so the dialog keeps its size as one after another is shown."""
         key = self.scenes.key
         songs = self.store.scene_songs(key)
         own = self._own(key)
-        self.sounds.set_sounds("默认" if key in TUNES else "默认（无声）", key in TUNES, songs, own.name if own else "")
+        room = max(len(self.store.scene_songs(scene)) for scene in self.scenes.buttons)
+        self.sounds.set_sounds("默认" if key in TUNES else "默认（无声）", key in TUNES, songs, own.name if own else "", room)
         # The 音量 as it plays: 1 to 4% (an old 声音 folded in) stands at 0 but says what is heard.
         volume = self.store.scene_sound(key)[1]
         self.volume_slider.blockSignals(True)
