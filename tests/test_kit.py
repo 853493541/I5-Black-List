@@ -21,6 +21,7 @@ from blacklist_detect.ui_kit import (  # noqa: E402
     EmptyState,
     IconButton,
     SegmentedControl,
+    SettingsPane,
     SettingsSection,
     Switch,
     TabButton,
@@ -196,6 +197,31 @@ def test_a_settings_section_lays_out_rows(qapp):
     assert labels[0] == "常规"
     assert "开机启动" in labels and "快捷键" in labels and "开机后在右下角托盘里运行" in labels
     assert len([w for w in section.findChildren(QWidget) if w.objectName() == "sectionLine"]) == 1
+
+
+def test_the_lines_between_settings_are_one_device_pixel_at_every_scale(qapp):
+    """A styled QFrame came out 1 or 2 px by where it fell at 125 and 150 %: the lines are hairlines now."""
+    from blacklist_detect.ui_kit import _Hairline
+
+    pane = SettingsPane("常规")
+    for name in ("开机启动", "快捷键", "全局声音"):
+        pane.add_row(name, None, QPushButton("x"))
+    section = SettingsSection(80)
+    section.add_row("显示", QPushButton("基础模式"))
+    section.add_row("方式", QPushButton("自动"))
+    lines = [w for w in pane.findChildren(QWidget) if w.objectName() == "settingsLine"]
+    lines += [w for w in section.findChildren(QWidget) if w.objectName() == "sectionLine"]
+    assert len(lines) == 3 and all(isinstance(line, _Hairline) and line.height() == 1 for line in lines)
+    line = lines[0]
+    line.resize(200, 1)
+    border = QColor(THEME["border"]).rgb()
+    for ratio in (1.0, 1.25, 1.5, 2.0):
+        picture = QImage(round(200 * ratio), 4, QImage.Format_RGB32)
+        picture.setDevicePixelRatio(ratio)
+        picture.fill(QColor("#ffffff"))
+        line.render(picture)
+        rows = [y for y in range(picture.height()) if picture.pixel(100, y) == border]
+        assert rows == [0], ratio
 
 
 def test_a_settings_section_without_a_title_starts_with_its_rows(qapp):

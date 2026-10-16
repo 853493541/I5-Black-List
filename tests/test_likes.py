@@ -84,6 +84,35 @@ def test_the_page_lists_names_with_their_nicknames(window):
     assert page.table.isHidden() and "没有找到" in page.empty.title.text()
 
 
+def test_the_empty_list_puts_scene_manager_left_of_add(window):
+    """As on 黑名单 and every dialog footer: the secondary button left, the primary 添加嘉宾 right."""
+    page = window.likes_page
+    actions = page.empty._actions
+    assert actions.indexOf(page.empty_scenes_button) < actions.indexOf(page.empty_add_button)
+    assert page.empty_add_button.objectName() == "primary"
+
+
+def test_the_guest_header_has_column_dividers_and_no_eye(window):
+    from PySide6.QtCore import QPointF
+    from PySide6.QtGui import QMouseEvent
+
+    from blacklist_detect.ui_widgets import _ColumnHeader
+
+    head = window.likes_page.table.horizontalHeader()
+    assert isinstance(head, _ColumnHeader) and head.eye is False
+    assert window.blacklist_table.horizontalHeader().eye is True
+    seen = []
+    head.on_eye = seen.append
+    window.show()
+    window._show_likes_page()
+    QApplication.processEvents()
+    box = head._eye_box(QRect(head.sectionViewportPosition(0), 0, head.sectionSize(0), head.height()))
+    point = QPointF(box.center())
+    head.mousePressEvent(QMouseEvent(QMouseEvent.Type.MouseButtonPress, point, point, Qt.LeftButton, Qt.LeftButton, Qt.NoModifier))
+    assert seen == [] and head.names_hidden is False
+    assert head._cursor_at(int(point.x())) != Qt.OpenHandCursor, "嘉宾's columns do not move"
+
+
 def test_scene_manager_opens_from_beside_the_search_and_from_the_empty_list(window):
     """场景管理 is no tab: it opens from the 嘉宾 page, right of the search, or beside 添加 while the list is
     empty, whose toolbar is hidden then. A search that finds nobody keeps it beside the search."""

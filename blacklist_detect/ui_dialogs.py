@@ -669,6 +669,10 @@ DISPLAY_DIFF = (
     ("display-diff-1.jpg", "发现黑名单", "基础模式只在右下角提示，完整模式直接标在游戏上"),
     ("display-diff-2.jpg", "遇到嘉宾", "完整模式还有花边"),
 )
+# A two-half picture (TWO_HALVES wide) has a gutter between its halves, from x GUTTER[0] up to GUTTER[1]. It is
+# painted in the dialog's own surface, so it is no white bar in 深色.
+TWO_HALVES = 930
+GUTTER = (460, 470)
 GUIDE_PICTURES = Path(__file__).resolve().parent / "assets"
 # Each picture fits in this box, in logical pixels; the files are made at twice the size.
 PICTURE_BOX = (465, 150)
@@ -762,6 +766,10 @@ class PictureGuideDialog(Modal):
         picture = QLabel()
         picture.setAlignment(Qt.AlignLeft | Qt.AlignTop)
         image = QPixmap(str(GUIDE_PICTURES / name))
+        if image.width() == TWO_HALVES:
+            painter = QPainter(image)
+            painter.fillRect(GUTTER[0], 0, GUTTER[1] - GUTTER[0], image.height(), QColor(THEME["surface"]))
+            painter.end()
         if not image.isNull():
             ratio = self.devicePixelRatioF()
             box_w, box_h = PICTURE_BOX

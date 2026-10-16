@@ -1092,6 +1092,23 @@ class _InlineHint(ElidedLabel):
         self.setObjectName("rowHint")
 
 
+class _Hairline(QWidget):
+    """A 1 px line between settings rows. A styled QFrame came out 1 or 2 px by where it fell at 125 and 150 %;
+    a cosmetic pen is one device pixel wherever it lands."""
+
+    def __init__(self, name: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName(name)
+        self.setFixedHeight(1)
+
+    def paintEvent(self, event) -> None:  # noqa: ANN001, ARG002
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing, False)
+        painter.setPen(QPen(QColor(THEME["border"]), 0))
+        painter.drawLine(0, 0, self.width() - 1, 0)
+        painter.end()
+
+
 class SettingsSection(QFrame):
     """A card of settings, as the 检查 card under the header's pill, with a heading when it is given a
     title. Each row is a label in a fixed column with its controls after it. Content stays at the top when
@@ -1134,10 +1151,7 @@ class SettingsSection(QFrame):
         return widget
 
     def _line(self) -> None:
-        line = QFrame()
-        line.setObjectName("sectionLine")
-        line.setFixedHeight(1)
-        self._add(line)
+        self._add(_Hairline("sectionLine"))
 
     def add_row(
         self, label: str, *widgets: QWidget, hint: str = "", stretch: bool = True, info: QWidget | None = None
@@ -1326,10 +1340,7 @@ class SettingsPane(QWidget):
 
     def add_row(self, name: str, description: str | QWidget | None, *controls: QWidget) -> SettingsRow:
         if self.rows:
-            line = QFrame()
-            line.setObjectName("settingsLine")
-            line.setFixedHeight(1)
-            self._column.addWidget(line)
+            self._column.addWidget(_Hairline("settingsLine"))
         row = SettingsRow(name, description, *controls)
         self._column.addWidget(row)
         self.rows.append(row)

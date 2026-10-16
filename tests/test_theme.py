@@ -117,6 +117,43 @@ def test_dark_switches_the_window_and_back(qapp, tmp_path, monkeypatch):
     window.close()
 
 
+def test_radio_buttons_take_the_app_accent_not_the_windows_one(qapp):
+    from PySide6.QtGui import QPalette
+
+    try:
+        for appearance in ("light", "dark"):
+            ui_theme.use_theme("蓝色", appearance)
+            ui_theme._apply_theme()
+            assert qapp.palette().color(QPalette.ColorRole.Accent).name() == ui_theme.THEME["accent"].lower()
+    finally:
+        ui_theme.use_theme("蓝色", "light")
+        ui_theme._apply_theme()
+
+
+def test_a_dialog_open_while_the_theme_follows_windows_turns_dark_too(qapp, tmp_path, monkeypatch):
+    from blacklist_detect.ui import MainWindow
+    from blacklist_detect.ui_likes import LikeDialog
+    from blacklist_detect.ui_theme import _dialog_style, chinese_family
+
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    dark_system = [False]
+    monkeypatch.setattr(ui_theme, "system_is_dark", lambda: dark_system[0])
+    window = MainWindow()
+    window._watch_timer.stop()
+    _choose_appearance(window, "system")
+    dialog = LikeDialog(parent=window)
+    dialog.show()
+    light = dialog.styleSheet()
+    dark_system[0] = True
+    window._follow_system()
+    assert ui_theme.is_dark() is True
+    assert dialog.styleSheet() == _dialog_style(chinese_family()) != light
+    dialog.close()
+    _choose_appearance(window, "light")
+    window.close()
+
+
 def test_follow_system_reads_windows(qapp, tmp_path, monkeypatch):
     from blacklist_detect.ui import MainWindow
 

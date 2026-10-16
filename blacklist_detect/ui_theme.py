@@ -300,6 +300,8 @@ def _apply_theme(app: QApplication | None = None) -> None:
     palette.setColor(QPalette.ColorRole.ToolTipText, QColor(t["text"]))
     palette.setColor(QPalette.ColorRole.PlaceholderText, QColor(t["muted"]))
     palette.setColor(QPalette.ColorRole.Mid, QColor(t["border"]))
+    # Radio buttons and checks take the app's accent, not the Windows one.
+    palette.setColor(QPalette.ColorRole.Accent, QColor(t["accent"]))
     app.setPalette(palette)
 
 
@@ -700,7 +702,6 @@ def _kit_rules(family: str) -> str:
                 background: transparent;
             }}
             QWidget#settingsPane, QWidget#settingsRow {{ background: transparent; }}
-            QFrame#settingsLine {{ background: {t["border"]}; border: none; }}
             QLabel#dialogTitle {{
                 font-family: "{family}";
                 font-size: {DIALOG_TITLE_PT}pt;
@@ -708,7 +709,6 @@ def _kit_rules(family: str) -> str:
                 color: {t["text"]};
                 background: transparent;
             }}
-            QFrame#sectionLine {{ background: {t["border"]}; border: none; }}
             QWidget#sectionRow {{ background: transparent; }}
             QLabel#rowLabel {{
                 font-family: "{family}";

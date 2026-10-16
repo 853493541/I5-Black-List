@@ -205,6 +205,23 @@ def test_an_automatic_check_that_finds_no_lobby_goes_quiet(window):
     assert not window.notice.isVisible()
 
 
+def test_a_hotkey_check_in_full_mode_with_no_lobby_says_so_in_the_corner(window):
+    window.store.consented = ["full"]
+    window.full_on.click()
+    assert window.store.safe_mode is False
+    window._live_check = True
+    window._manual_check = True
+    window._rescan_active = True
+    window._on_checked("ok", CheckResult(False, "没有找到"))
+    assert window.notice.isVisible() and window.notice.kind == "missing"
+    window.notice.hide()
+    # 自动 checks stay quiet.
+    window._manual_check = False
+    window._rescan_active = True
+    window._on_checked("ok", CheckResult(False, "没有找到"))
+    assert not window.notice.isVisible()
+
+
 def test_full_mode_brings_the_marks_back(window):
     window.store.consented = ["full"]
     window.full_on.click()

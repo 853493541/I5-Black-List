@@ -270,6 +270,25 @@ def test_display_has_its_own_picture_guide(window):
     assert shown == [1] and StreamGuideDialog.shown == []
 
 
+def test_the_gutter_between_two_halves_is_the_dialog_surface_in_dark(window):
+    from blacklist_detect import ui_theme
+    from blacklist_detect.ui_dialogs import GUTTER, TWO_HALVES, DisplayGuideDialog, StreamGuideDialog
+
+    try:
+        ui_theme.use_theme("蓝色", "dark")
+        surface = ui_theme.THEME["surface"].lower()
+        for kind in (DisplayGuideDialog, StreamGuideDialog):
+            guide = kind(window)
+            image = guide.pictures[0].pixmap().toImage()
+            scale = image.width() / TWO_HALVES
+            middle = round((GUTTER[0] + GUTTER[1]) / 2 * scale)
+            for y in (5, image.height() // 2, image.height() - 5):
+                assert image.pixelColor(middle, y).name() == surface, (kind.__name__, y)
+            guide.close()
+    finally:
+        ui_theme.use_theme("蓝色", "light")
+
+
 def test_in_stream_mode_no_page_shows_a_blacklist_name(window):
     window.store.add("坏人")
     window.store.add_scan([{"name": "坏人"}, {"name": "小红"}])

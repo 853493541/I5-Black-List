@@ -113,6 +113,7 @@ from blacklist_detect.ui_kit import (
     ElidedLabel,
     EmptyState,
     IconButton,
+    Modal,
     OnOffBox,
     SegmentedControl,
     SettingsCatalog,
@@ -152,6 +153,7 @@ from blacklist_detect.ui_theme import (
     THEMES,
     _apply_theme,
     _caption_color,
+    _dialog_style,
     _menu_style,
     _page,
     _pointing,
@@ -1561,6 +1563,14 @@ class MainWindow(QMainWindow):
             self.tray_menu.setStyleSheet(_menu_style(chinese_family()))
         self._reload_history(max(0, self._selected_scan()))
         self._show_list()
+        # A dialog open while 跟随系统 switches 浅色/深色 takes the new theme too.
+        for top in QApplication.topLevelWidgets():
+            if not isinstance(top, Modal) or not top.isVisible():
+                continue
+            if hasattr(top, "restyle"):
+                top.restyle()
+            else:
+                top.setStyleSheet(_dialog_style(chinese_family()))
 
     def eventFilter(self, watched, event) -> bool:  # noqa: ANN001
         if getattr(self, "_closing", False):
@@ -3784,7 +3794,7 @@ class MainWindow(QMainWindow):
             if self.store.auto_capture:
                 self.watch.retry_after(time.perf_counter())
             self._hide_panel_after_title()
-            if self.store.safe_mode and self._live_check and manual:
+            if self._live_check and manual:
                 self.notice.show_missing(self._notice_screen)
             elif self.notice.kind == "checking":
                 self.notice.hide()

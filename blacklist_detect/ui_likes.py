@@ -59,6 +59,7 @@ from blacklist_detect.ui_theme import ROW_H, THEME, _page, _pointing, chinese_fo
 from blacklist_detect.ui_widgets import (
     NEVER_MET,
     TagPill,
+    _ColumnHeader,
     _draw_pill,
     _mark_menu_item,
     _pill_face,
@@ -451,8 +452,10 @@ class LikesPage(QWidget):
         self.table.moved.connect(self._moved)
         self.table.setObjectName("likes")
         self.table.setAccessibleName("嘉宾列表")
+        # 黑名单's header, its dividers between the titles, without the eye that hides names.
+        head = _ColumnHeader(self.table, eye=False)
+        self.table.setHorizontalHeader(head)
         self.table.setHorizontalHeaderLabels(["名字", "昵称", "场景", "原因", "最近遇到"])
-        head = self.table.horizontalHeader()
         head.setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         head.setHighlightSections(False)
         # 场景 as wide as the longest scene name after its dot, or every scene's dot, as close as _paint_dotted puts
@@ -485,14 +488,14 @@ class LikesPage(QWidget):
         self.table.installEventFilter(self)
         outer.addWidget(self.table, 1)
         self.empty = EmptyState("heart", "嘉宾列表还是空的")
+        # With no 嘉宾 yet the toolbar is hidden: 场景管理 sits left of 添加嘉宾 instead, as on 黑名单.
+        self.empty_scenes_button = self.empty.add_action(QPushButton("场景管理"))
+        self.empty_scenes_button.setAccessibleName("场景管理")
+        self.empty_scenes_button.clicked.connect(self.manage_scenes.emit)
         # With no 嘉宾 yet there is no 组合 to make: 添加嘉宾 alone.
         self.empty_add_button = self.empty.add_action(QPushButton("添加嘉宾"))
         self.empty_add_button.setObjectName("primary")
         self.empty_add_button.clicked.connect(self.add_one)
-        # With no 嘉宾 yet the toolbar is hidden: 场景管理 sits beside 添加嘉宾 instead.
-        self.empty_scenes_button = self.empty.add_action(QPushButton("场景管理"))
-        self.empty_scenes_button.setAccessibleName("场景管理")
-        self.empty_scenes_button.clicked.connect(self.manage_scenes.emit)
         outer.addWidget(self.empty, 1)
         self.refresh()
 

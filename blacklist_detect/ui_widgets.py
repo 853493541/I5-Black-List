@@ -184,9 +184,11 @@ def masked_name(name: str) -> str:
 class _ColumnHeader(QHeaderView):
     """Arrow on a title means drag to reorder. A left-right arrow on the edge means resize."""
 
-    def __init__(self, parent=None) -> None:
+    def __init__(self, parent=None, eye: bool = True) -> None:
         super().__init__(Qt.Horizontal, parent)
         self.setMouseTracking(True)
+        # 黑名单's header has the eye that hides names; 嘉宾's has only the titles and their dividers.
+        self.eye = eye
         self.names_hidden = False
         # 直播模式: the names stay hidden and the eye does nothing.
         self.locked = False
@@ -204,7 +206,7 @@ class _ColumnHeader(QHeaderView):
 
     def _eye_at(self, pos: QPoint) -> bool:
         left = self.sectionViewportPosition(0)
-        if self.sectionSize(0) <= 0:
+        if not self.eye or self.sectionSize(0) <= 0:
             return False
         rect = QRect(left, 0, self.sectionSize(0), self.height())
         return self._eye_box(rect).contains(pos)
@@ -219,7 +221,7 @@ class _ColumnHeader(QHeaderView):
         right = left + self.sectionSize(logical)
         if pos - left <= 8 or right - pos <= 8:
             return Qt.SplitHCursor
-        return Qt.OpenHandCursor
+        return Qt.OpenHandCursor if self.sectionsMovable() else Qt.ArrowCursor
 
     def mouseMoveEvent(self, event) -> None:  # noqa: ANN001
         super().mouseMoveEvent(event)
@@ -235,7 +237,7 @@ class _ColumnHeader(QHeaderView):
             self.setToolTip("显示名字" if self.names_hidden else "隐藏名字")
         else:
             self.setToolTip("")
-        if event.buttons() & Qt.LeftButton and self._cursor_at(pos) != Qt.SplitHCursor:
+        if event.buttons() & Qt.LeftButton and self.sectionsMovable() and self._cursor_at(pos) != Qt.SplitHCursor:
             self.setCursor(Qt.ClosedHandCursor)
             return
         self.setCursor(self._cursor_at(pos))
@@ -262,7 +264,7 @@ class _ColumnHeader(QHeaderView):
 
     def paintSection(self, painter, rect, logicalIndex) -> None:  # noqa: ANN001
         super().paintSection(painter, rect, logicalIndex)
-        if logicalIndex == 0:
+        if logicalIndex == 0 and self.eye:
             self._paint_eye(painter, self._eye_box(rect))
         if self.visualIndex(logicalIndex) == self.count() - 1:
             return
@@ -927,8 +929,9 @@ def _row_divider(painter: QPainter, rect: QRect) -> None:
     painter.save()
     color = QColor(THEME["border"])
     color.setAlphaF(0.6)
-    painter.setPen(QPen(color, 1))
-    painter.drawLine(rect.left(), rect.bottom(), rect.right(), rect.bottom())
+    # The cell's full width, unsmoothed: a line drawn to rect.right() left a 1 px gap between cells at 150 and 200 %.
+    painter.setRenderHint(QPainter.Antialiasing, False)
+    painter.fillRect(QRect(rect.left(), rect.bottom(), rect.width(), 1), color)
     painter.restore()
 
 
