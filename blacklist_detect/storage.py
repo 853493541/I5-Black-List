@@ -358,7 +358,7 @@ def _daily_backup(path: Path) -> None:
 def _log_set_aside(exc: Exception, backup: Path) -> None:
     from blacklist_detect.logs import log
 
-    log.warning("The blacklist file could not be read (%s); kept as %s", exc, backup)
+    log.warning("A file could not be read (%s); kept as %s", exc, backup)
 
 
 def _set_aside(path: Path) -> Path:
@@ -1189,8 +1189,14 @@ class Store:
             # from a file read whole only, for _fold_old_settings.
             self._old_volume = _volume(settings.get("sound_volume"))
             self._old_scenes_off = settings.get("love_scene") == "off"
-        except (OSError, ValueError, AttributeError, TypeError):
-            self.load_warning = "；".join(part for part in (self.load_warning, "设置文件坏了，已恢复默认") if part)
+        except (OSError, ValueError, AttributeError, TypeError) as exc:
+            backup = _set_aside(self.settings_path)
+            _log_set_aside(exc, backup)
+            # The songs uploaded in 场景管理 are still in their folder: back in their 场景's, as for a file of v0.9.15's.
+            # Saved without them, they would be gone for good.
+            unlisted = _scene_sounds(None, custom_sound_dir(self.root), unlisted=True)
+            self.scene_sounds = {**unlisted, **self.scene_sounds}
+            self.load_warning = "；".join(part for part in (self.load_warning, "设置文件坏了，已备份，先用默认设置") if part)
 
     def save_scans(self) -> None:
         _atomic_write(self.history_path, {"scans": self.scans[:_MAX_SCANS]})

@@ -312,6 +312,26 @@ def test_settings_of_the_wrong_shape_keep_the_defaults(tmp_path):
     assert "设置文件坏了" in store.load_warning
 
 
+def test_settings_that_cannot_be_read_are_kept_aside_and_the_uploaded_songs_come_back(tmp_path):
+    store = Store(tmp_path)
+    store.add_scene_song("ice", {"file": _song_wav(store, "ice-1.wav", 1.0), "name": "冰.mp3", "length": 1.0})
+    store.add_scene_song("stars", {"file": _song_wav(store, "stars-1.wav", 2.0), "name": "星.mp3", "length": 2.0})
+    store.player_name = "心动小鹿"
+    store.save_settings()
+    whole = store.settings_path.read_text(encoding="utf-8")
+    store.settings_path.write_text(whole[: len(whole) // 2], encoding="utf-8")
+    back = Store(tmp_path)
+    assert "设置文件坏了" in back.load_warning and back.player_name == ""
+    aside = list(tmp_path.glob("settings.unreadable-*.json"))
+    assert len(aside) == 1 and aside[0].read_text(encoding="utf-8") == whole[: len(whole) // 2]
+    assert [song["file"] for song in back.scene_songs("ice")] == ["ice-1.wav"]
+    assert [song["file"] for song in back.scene_songs("stars")] == ["stars-1.wav"]
+    # Saved again, they stay: the next open lists them from the file.
+    back.save_settings()
+    again = Store(tmp_path)
+    assert again.load_warning == "" and [song["file"] for song in again.scene_songs("stars")] == ["stars-1.wav"]
+
+
 def test_the_list_is_copied_once_a_day_before_it_changes(tmp_path):
     store = Store(tmp_path)
     store.add("甲")
@@ -666,7 +686,8 @@ def test_old_settings_that_cannot_be_saved_are_folded_again_the_next_open(tmp_pa
 
 
 def test_a_broken_settings_file_folds_nothing_in(tmp_path):
-    """A settings file that cannot be read whole is not written over for the old 声音 or 嘉宾 › 场景."""
+    """A settings file that cannot be read whole is set aside as it was, not written over for the old 声音 or
+    嘉宾 › 场景."""
     from blacklist_detect.model import Scenes
 
     Store(tmp_path).add_like("心动小鹿", scenes=Scenes(("ice",)))
@@ -675,7 +696,9 @@ def test_a_broken_settings_file_folds_nothing_in(tmp_path):
     saved = _files(tmp_path)
     loaded = Store(tmp_path)
     assert loaded.load_warning and loaded.likes[0].scenes == Scenes(("ice",)) and loaded.scene_sound("ice")[1] == 100
-    assert _files(tmp_path) == saved
+    files = _files(tmp_path)
+    aside = [name for name in files if name.startswith("settings.unreadable-")]
+    assert len(aside) == 1 and files.pop(aside[0]) == saved.pop("settings.json") and files == saved
 
 
 def test_a_saved_hotkey_of_three_keys_keeps_two(tmp_path):
