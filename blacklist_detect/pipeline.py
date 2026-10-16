@@ -16,6 +16,7 @@ from blacklist_detect.layout import (
     find_anchor,
     game_screen,
     ready_in,
+    ready_strip,
     snap_button_box,
 )
 from blacklist_detect.match import (
@@ -179,16 +180,41 @@ def _locate(engine, rgb: np.ndarray) -> tuple[Anchor, list[OcrLine]]:
         lines = scale_lines(lines, factor)
         anchor = find_anchor(lines, width, height)
         if anchor.found:
-            return anchor, lines
+            return _with_ready(engine, rgb, anchor, lines)
         if factor > 1.0 and contains_title(lines):
             # The title is there, but the lines under it were too small to read once the screen was
             # shrunk (a game window on a big screen): read them again, sharp, from the full copy.
             sharp = _under_title(engine, rgb, lines)
             anchor = find_anchor(sharp, width, height)
             if anchor.found:
-                return anchor, sharp
+                return _with_ready(engine, rgb, anchor, sharp)
     lines = scale_lines(engine.read_bgr(bgr), factor)
-    return find_anchor(lines, width, height), lines
+    return _with_ready(engine, rgb, find_anchor(lines, width, height), lines)
+
+
+def _with_ready(engine, rgb: np.ndarray, anchor: Anchor, lines: list[OcrLine]) -> tuple[Anchor, list[OcrLine]]:  # noqa: ANN001
+    """The lobby found without 准备就绪 among its lines, read again with it from the full copy, only where it
+    must be: sized from the countdown alone, a game window on a big screen had its names cut low. A read that
+    has 准备就绪 already, as a full-screen game's does, costs nothing more."""
+    strip = ready_strip(anchor)
+    if strip is None or any(ready_in(line.text) is not None for line in lines):
+        return anchor, lines
+    height, width = rgb.shape[:2]
+    x0, y0 = max(0, int(strip[0])), max(0, int(strip[1]))
+    x1, y1 = min(width, int(strip[2])), min(height, int(strip[3]))
+    if x1 - x0 < 8 or y1 - y0 < 8:
+        return anchor, lines
+    found = engine.read_bgr(rgb_to_bgr(rgb[y0:y1, x0:x1]))
+    ready = [
+        OcrLine(line.text, line.confidence, (line.box[0] + x0, line.box[1] + y0, line.box[2] + x0, line.box[3] + y0))
+        for line in found
+        if ready_in(line.text) is not None
+    ]
+    if not ready:
+        return anchor, lines
+    lines = [*lines, *ready]
+    sized = find_anchor(lines, width, height)
+    return (sized, lines) if sized.found else (anchor, lines)
 
 
 # The title as a small gray picture, to tell whether the lobby is still where it was: the same window

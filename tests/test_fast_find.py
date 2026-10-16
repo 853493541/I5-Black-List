@@ -4,7 +4,7 @@ lines under it; read again sharp from the full copy when the screen was shrunk t
 import numpy as np
 
 from blacklist_detect import pipeline
-from blacklist_detect.layout import COUNTDOWN_BOX, MODE_BOX, TITLE_BOX
+from blacklist_detect.layout import COUNTDOWN_BOX, MODE_BOX, REF_READY_DY, TITLE_BOX, find_anchor, ready_strip
 from blacklist_detect.model import OcrLine
 
 
@@ -71,7 +71,30 @@ def test_lines_too_small_on_a_shrunk_screen_are_read_again_sharp():
     engine.crop = [OcrLine(line.text, line.confidence, (line.box[0] - left, line.box[1] - top, line.box[2] - left, line.box[3] - top)) for line in full]
     anchor, _lines = pipeline._locate(engine, rgb)
     assert anchor.found and anchor.countdown_seconds == 10
-    assert len(engine.crops) == 1 and engine.full_reads == 0
+    # The second crop is the strip where 准备就绪 must be, since it did not come back either.
+    assert len(engine.crops) == 2 and engine.full_reads == 0
     height, width = engine.crops[0]
     assert width * height < 0.6 * 3840 * 2160, "only the part under the title, at full size"
     assert abs(anchor.title_box[0] - full[0].box[0]) < 2
+
+
+def test_a_lobby_found_without_its_ready_line_reads_it_again_where_it_must_be():
+    # A game window on a 4K screen: the header was read shrunk, 准备就绪 was not among its lines.
+    rgb = np.zeros((2160, 3840, 3), dtype=np.uint8)
+    engine = _Engine(_header(1280, 720))
+    first = find_anchor(_header(3840, 2160), 3840, 2160)
+    strip = ready_strip(first)
+    middle = (first.title_box[1] + first.title_box[3]) / 2 + REF_READY_DY * first.scale * 0.99
+    left, top = int(strip[0]), int(strip[1])
+    engine.crop = [OcrLine("准备就绪：11/12", 0.99, (400.0, middle - 20 - top, 700.0, middle + 20 - top))]
+    anchor, lines = pipeline._locate(engine, rgb)
+    assert anchor.found and anchor.ready_count == 11
+    assert abs(anchor.scale / first.scale - 0.99) < 1e-6, "sized from 准备就绪, not from the countdown"
+    assert any(line.box[0] == 400.0 + left for line in lines), "the line is placed on the whole screen"
+    height, width = engine.crops[0]
+    assert len(engine.crops) == 1 and width * height < 0.15 * 3840 * 2160, "only the strip, at full size"
+    # A read that has 准备就绪 already reads nothing more.
+    ready = OcrLine("准备就绪：11/12", 0.99, tuple(value / 3 for value in lines[-1].box))
+    engine = _Engine([*_header(1280, 720), ready])
+    anchor, _lines = pipeline._locate(engine, rgb)
+    assert anchor.found and anchor.ready_count == 11 and engine.crops == [] and engine.full_reads == 0

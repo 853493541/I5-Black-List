@@ -20,6 +20,9 @@ COUNTDOWN_BOX = (0.466, 0.253, 0.604, 0.296)
 # 准备就绪's middle is this many reference px under the title's (1229 and 1246 on the reference and the sample,
 # against 244 to the countdown), so the lobby's size measured to it is five times as fine.
 REF_READY_DY = 1238.0
+# How far the size measured to 准备就绪 may be from the countdown's: at most 3 % on games 960 to 3840 wide, full
+# screen or in a window on screens up to 7680x2160 (about 100 reads of the reference and the sample), so twice that.
+READY_GATE = 0.06
 # The light 准备案件还原 control at the bottom of the reference shot.
 BUTTON_BOX = (0.458, 0.896, 0.614, 0.980)
 
@@ -228,18 +231,36 @@ def contains_title(lines: list[OcrLine]) -> bool:
 
 
 def _ready_scale(lines: list[OcrLine], title: tuple[float, float, float, float], scale: float) -> float:
-    """The lobby's size from the title down to 准备就绪, when it was read under the title within 8% of where
-    the countdown puts it; else the countdown's. A game window on a shrunk screen reads the countdown a few
-    pixels off, and sized from it alone the names were cut a quarter-line low."""
+    """The lobby's size from the title down to 准备就绪, when it was read under the title within READY_GATE of
+    where the countdown puts it (of two, the nearer); else the countdown's. A game window on a shrunk screen
+    reads the countdown a few pixels off, and sized from it alone the names were cut a quarter-line low."""
     title_x, title_y = _center(title)
+    best: tuple[float, float] | None = None
     for line in lines:
         if _READY_RE.search(unicodedata.normalize("NFKC", line.text or "")) is None:
             continue
         ready_x, ready_y = _center(line.box)
         sized = (ready_y - title_y) / REF_READY_DY
-        if abs(sized / scale - 1) <= 0.08 and abs(ready_x - title_x) <= title[2] - title[0]:
-            return sized
-    return scale
+        off = abs(sized / scale - 1)
+        if off <= READY_GATE and abs(ready_x - title_x) <= title[2] - title[0] and (best is None or off < best[0]):
+            best = (off, sized)
+    return scale if best is None else best[1]
+
+
+def ready_strip(anchor: Anchor) -> tuple[float, float, float, float] | None:
+    """Where 准备就绪 must be under the anchor's title: the band _ready_scale takes it from, a title-height
+    more above and below for the line itself, and a title-width either side."""
+    if not anchor.found or anchor.title_box is None:
+        return None
+    left, top, right, bottom = anchor.title_box
+    middle, title_y = _center(anchor.title_box)
+    reach = REF_READY_DY * anchor.scale
+    return (
+        middle - (right - left),
+        title_y + (1 - READY_GATE) * reach - (bottom - top),
+        middle + (right - left),
+        title_y + (1 + READY_GATE) * reach + (bottom - top),
+    )
 
 
 def find_anchor(lines: list[OcrLine], image_width: int, image_height: int) -> Anchor:

@@ -10,7 +10,9 @@ from blacklist_detect.layout import (
     COUNTDOWN_BOX,
     MODE_BOX,
     NAME_BOXES,
+    READY_GATE,
     REF_H,
+    REF_READY_DY,
     REF_W,
     TITLE_BOX,
     find_anchor,
@@ -170,6 +172,21 @@ def test_ready_count_is_not_a_thirteenth_name():
     assert anchor.countdown_seconds == 6
     assert anchor.ready_count == 8
     assert len(anchor.name_boxes) == 12
+
+
+def test_the_lobby_is_sized_from_the_ready_line_nearest_the_countdowns_estimate():
+    title_y = (TITLE_BOX[1] + TITLE_BOX[3]) / 2 * REF_H
+
+    def ready(off: float) -> OcrLine:
+        middle = title_y + REF_READY_DY * (1 + off)
+        return OcrLine("准备就绪：11/12", 0.99, (0.461 * REF_W, middle - 35, 0.609 * REF_W, middle + 35))
+
+    # The header alone puts the reference lobby at its own size; 准备就绪 nearer that than another is the one used.
+    anchor = find_anchor(_header("6", [ready(0.04), ready(0.01)]), REF_W, REF_H)
+    assert abs(anchor.scale - 1.01) < 1e-6
+    # One farther off than READY_GATE is not this lobby's: the countdown's size stays.
+    anchor = find_anchor(_header("6", [ready(READY_GATE + 0.02)]), REF_W, REF_H)
+    assert abs(anchor.scale - 1.0) < 1e-6
 
 
 def test_a_stray_symbol_on_the_countdown_is_not_part_of_it():

@@ -172,6 +172,7 @@ def whole_sample_game():
         ((2560, 1440), (1280, 720), (426, 240)),  # MuMu in a window on a 1440p screen
         ((1920, 1080), (960, 540), (320, 180)),
         ((3840, 1080), (1920, 1080), (1920, 0)),  # two 1080p screens side by side, the game full screen on one
+        ((3840, 2160), (2560, 1440), (640, 360)),  # 准备就绪 not among the quick read's lines: read again, sharp
     ],
 )
 def test_a_game_window_on_a_bigger_screen_reads_every_name(whole_sample_game, screen, window, at):
