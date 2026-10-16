@@ -78,7 +78,7 @@ SHARP = 1.5
 # The birds (see _bird). One sits on the lyre's crossbar right of its pegs (in ref from the lyre's middle), facing
 # right, and bobs on every strum. One flies in from off the right edge on the entrance's gust, from FLY[0] to FLY[1]
 # seconds in, a flap every FLAP seconds, and lands on the curl in the top right facing left (its way in design points,
-# a curve whose last point is the curl). One sits among the cecilias in the bottom left facing right, and puffs up on
+# a curve whose last point is the curl). One sits among the cecilias in the bottom left facing us, and puffs up on
 # the music's downbeat, the first strum. Sitting, each breathes, sways a little, blinks and flicks a wing now and then.
 PERCH = (53.0, -129.0)
 FLY, FLAP = (0.25, 1.35), 0.24
@@ -1756,8 +1756,9 @@ def _seed(length: float, ss: float) -> QImage:
 
 # The birds, cut out of the friend's picture: fan art by the Weibo artist @子沐子_, used at the user's decision
 # (build/lyre_birds.py cuts them). perch.png faces right, lily.png the front, each with a copy with its eyes shut;
-# wing.png is a raised wing alone. The flyer is the perch bird turned round, the wing at its back. birds.json has,
-# in the pictures' pixels, where the wing grows from the perch bird's back and from its own root.
+# wing.png is a raised wing alone, all at twice the picture's pixels. The flyer is the perch bird turned round, the
+# wing at its back. birds.json has, in the files' pixels, where the wing grows from the perch bird's back and from its
+# own root.
 BIRDS_DIR = Path(__file__).resolve().parent.parent / "assets" / "birds"
 # How wide each is across, in design points: the one on the lyre as wide as keeps its ears under the top border once
 # BIRD_TALL makes it taller.
