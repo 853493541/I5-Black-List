@@ -8,9 +8,9 @@ each stands, are in ASKS.md beside it: that list is what "done" means; report ag
 | What | Where |
 |---|---|
 | Released | **v0.9.17** = `main` = `origin/main` = `origin/improve/quality` = `a290763` (GitHub + 6 proxies checked, ~01:35 PDT). Notes: 嘉宾列表显示场景色点 / 场景可选「随机」，勾选即播放 / 场景快捷键在基础模式也能看到. Release check by the master (5-hour window at 94 %): 815 tests, check_functions 22/22, ui_shots light+dark 100/150/200 (dist/release_check/v0.9.17/). |
-| `improve/quality` | **`b8ea66b`** (+ this handoff), local, NOT pushed past `a290763` (v0.9.17). 826 passed, 5 skipped, ruff clean. Polish A, B, C all merged. |
+| `improve/quality` | **`b58fefe`** (+ this handoff), local, NOT pushed past `a290763` (v0.9.17). 827 passed, 5 skipped, ruff clean. Polish A-C + 选择片段 rolling loudness (desktop pass dist/polish/desktop/REPORT.md). |
 | `__version__` | `v0.9.17` |
-| On the user's PC | `b8ea66b` installed with `build/install_local.py --verify` at ~03:35 PDT (app restarted). |
+| On the user's PC | `b58fefe` installed (--verify, 12 names) at ~04:00 PDT. |
 | Running | nothing. |
 
 ## Done this cycle (in ASKS.md terms)
