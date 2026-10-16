@@ -58,7 +58,8 @@ rerun alone before it counts as a failure.
   anything about where the game, border or cards sit on a whole 16:9 frame.
 - Child processes get `paths.child_env()`. Paddle sets `OMP_NUM_THREADS=1`, which made OCR in a child
   3-14x slower.
-- A new 嘉宾 scene is a `love_scenes` module plus entries in `SCENES` and `ui_overlay.LOOKS`. Render it at
+- A new 嘉宾 scene is a `love_scenes` module plus entries in `SCENES`, `ui_music.TUNES` and `ui_overlay.LOOKS` (a scene that
+  draws its own marks brings its own `LOOK` instead, as 演说家遇袭 and 竖琴清风 do), and a poster (`build/theme_posters.py`). Render it at
   full size over the sample lobby and look at it (small tiles hide flaws); its median frame stays under
   20 ms at 1920x1080. 玫瑰花边 (lace, the app's first border, once 经典花边) stays exactly as it is. Shade per pixel: flat vector gradients
   read as cheap clip-art to the user.
