@@ -4,10 +4,13 @@ each stands, are in ASKS.md beside it: that list is what "done" means; report ag
 # Update 2026-10-16 16:20 PDT: ask #69, the v1.0 full check, now fixing (no release: "Don't release yet.")
 
 - Findings: dist/release_check/v1.0/ALL_PROBLEMS.md (check) and verify/VERIFY.md (confirmed, with fix plans and tests).
-- `improve/quality` = `a364f18` (+ this note): small fixes merged (0f07f19, a364f18). 829 passed, 5 skipped, ruff clean. Not installed.
-- Implementers running, all from a364f18, files disjoint: fix/v1-ocr-window (layout.py, the blocker), fix/v1-storage
-  (storage.py + updater.py), fix/v1-perf (claw.py warm, sound_import gains), fix/v1-stream-lists (ui.py, ui_dialogs.py,
-  ui_widgets.py; has the desktop for one ui_shots run at its end).
+- `improve/quality` = `2c1be0e` (+ notes): small fixes, fix/v1-storage (storage.py + updater.py) and fix/v1-ocr-window
+  (layout.py _ready_scale) merged after a tester said merge for both. 841 passed, 5 skipped, ruff clean. Not installed.
+- Running: fix/v1-ocr-ready from 2c1be0e (pipeline.py sharp re-read when 准备就绪 is missed; gate measured; storage
+  false 已备份 when a file is held); testers on fix/v1-stream-lists (461c0d6, has the desktop) and fix/v1-perf
+  (e823f5d..957a49c), both from a364f18.
+- Tester notes left for later: the joined load warning is cut in the header chip with no tooltip (depends on ask #71,
+  hovers); 清空记录/清空数据 say done when history.json cannot be written (post-1.0).
 - Next: tester per branch, merge one at a time; then fix/v1-polish (VERIFY.md 199-261: radio accent, hairlines,
   separators, 嘉宾 header, empty order, dialog restyle, dark gutter, display-diff re-shoot on the desktop) from the
   merged stream-lists; then the final check (full tests, shots light+dark 150, ice timing idle), install --verify, report.
