@@ -65,6 +65,7 @@ SCENES: tuple[tuple[str, str], ...] = (
     ("equation", "数学公式"),
     ("fluffy", "毛茸茸保护协会"),
     ("claw", "演说家遇袭"),
+    ("sheep", "喜羊羊"),
 )
 KEYS = tuple(key for key, _name in SCENES)
 # A scene that is gone, and the one a player who chose it gets now: 天使 took 香槟's place.
