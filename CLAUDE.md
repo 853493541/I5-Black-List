@@ -103,6 +103,10 @@ maximum: no extra high, no max (the user's rule, 2026-10-15; the same in ZPS `AG
 call: an agent call without one inherits the master's. The master itself runs on Opus with Ultracode on. No Fable
 anywhere: it was unstable and too expensive (Fable masters burned about 26 % of the 5-hour window per hour, against
 about 15 % for Opus masters).
+Masters (planners) run Opus at effort xhigh with Ultracode, never max; agents stay at high at most, enforced by a user-level
+PreToolUse hook (`~/.claude/hooks/effort_guard.py`: an unset, xhigh or max Agent effort becomes high, Fable becomes opus, forks
+are denied, and a workflow that sets xhigh / max / Fable or has an agent() call without effort is denied), so keep passing
+model "opus" and effort "high" on every call (the user's ruling, 2026-10-16).
 
 The master's rules:
 
@@ -144,8 +148,9 @@ whole conversation, and command output and file reads are almost all of what fil
   one full pass; the master re-shoots only what the tester flagged. Light theme at `--scale 150`; 100 and 200 only
   when the change is about layout or scale. Dark theme (`--dark`) only in the final release check before
   publishing. Never two screenshot runs at once: the desktop is one agent at a time (rule 5 above).
-- The master's own conversation: once it passes about 300k tokens, or when a batch of work is done, the master
-  writes a handoff to `dist/handoff/<date>/HANDOFF.md` and the work continues in a fresh session that reads it.
+- The master's own conversation: the master keeps one session; Claude Code compacts it at about 300k tokens. It
+  writes a handoff to `dist/handoff/<date>/HANDOFF.md`, and a new session starts only on the user's word or #ec;
+  it keeps that handoff current at each merge (the user's rule, 2026-10-16).
   The handoff holds state only (branches, commits, what is running, next steps); the rules stay in this file.
   The master updates it after each merge, so a session that runs out of usage loses nothing.
 - The user's asks are state, so every handoff carries them: each ask in the user's own words with its status (not
