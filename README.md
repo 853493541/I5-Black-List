@@ -1,129 +1,83 @@
-# Black List Detect
+# 模仿者小工具
 
-Windows desktop app for one lobby: **推演成功** / **模仿者狂欢（12人狂欢）** / a **倒计时** line. You set a hotkey. The app copies the display, reads the twelve names under the character cards, and warns you when one of them is on a local blacklist.
+Version 1.0.0 · Windows desktop app for the 第五人格 模仿者 mode lobby.
 
-It does not click **准备案件还原**, does not read game memory, and does not send the hotkey into the lobby.
+When you sit in the **推演成功** / **模仿者狂欢（12人狂欢）** lobby, press a hotkey (or let it check by itself). The app copies
+the screen, reads the twelve names under the character cards on your own PC, and tells you when one of them is on
+your blacklist or is one of your 嘉宾.
 
-Any machine can edit the list and check a screenshot. The live screen copy (one GDI BitBlt) and the global hotkey exist only on Windows; elsewhere the window says so.
+It does not click **准备案件还原**, does not read game memory, does not send keys into the game, and sends no player
+names anywhere.
 
-## Run
+![基础模式 shows a note in the corner, 完整模式 marks the lobby itself](blacklist_detect/assets/display-diff-1.jpg)
 
-Python 3.12.
+![A 嘉宾 in 完整模式 gets a lace frame](blacklist_detect/assets/display-diff-2.jpg)
+
+## Features
+
+- **黑名单** - check the lobby with a hotkey (default Alt+1). Names are read locally with PaddleOCR; the list, backups
+  and logs stay in your own app data folder.
+- **基础模式 / 完整模式** - a note in the bottom-right corner, or marks drawn right on the game screen.
+- **自动检查** - checks by itself when the lobby appears (完整模式 only).
+- **嘉宾 and 组合** - people you want to play with again; a lobby with them plays a 心动 scene (场景) with music, and
+  several 嘉宾 can be grouped as a 组合. Scenes, tunes and hotkeys are set in 场景管理.
+- **直播模式** - a separate stream window (「模仿者小工具·直播画面」) for 直播姬 window capture: viewers see 嘉宾 but
+  never the blacklist.
+- **Share a list** - 复制名单 on the 黑名单 page, then 批量导入 on a friend's copy.
+- **记录** - every check's result.
+- **声音** - one volume slider with 静音 for every sound.
+- **环境测试 and 导出日志** - a full self-check with a report, and a log file (without player names) to send for help.
+- **检查更新** - the app checks for a new version when it opens, downloads it, and restarts; list, records and
+  settings are kept.
+
+## Install (for friends)
+
+1. Open the [latest release](https://github.com/853493541/I5-Black-List/releases/latest) and download
+   `BlackListDetect-v1.0.0-full.zip`. If GitHub does not open, the release notes list two mirror links.
+2. Right-click the zip, **Extract All**, and open the extracted folder. Do not run the exe from inside the zip and do
+   not drag the exe out on its own.
+3. Double-click **模仿者小工具.exe**. If Windows shows 「Windows 已保护你的电脑」, click 「更多信息」 then 「仍要运行」.
+4. The first start checks the reading setup (a few seconds) and shows the 使用声明.
+
+Nothing else needs to be installed; the folder carries its own Python and models. The `使用说明.txt` in the folder
+explains the rest in Chinese.
+
+## Update
+
+- v0.4.0 or newer: just open the app. It finds the new version, downloads it and restarts by itself.
+- Older copies, or no connection to GitHub: download `BlackListDetect-<version>-update.zip` from the release (or get it
+  from a friend) and extract it over the old folder.
+
+## For developers
+
+Python 3.12, Windows for the live screen copy and global hotkey (elsewhere only pictures can be checked).
 
 ```bash
-python3.12 -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-python -m pip install -U pip
+python -m venv .venv
+.venv\Scripts\activate
 python -m pip install paddlepaddle==3.2.0 -i https://www.paddlepaddle.org.cn/packages/stable/cpu/
 python -m pip install -r requirements.txt
-PYTHONPATH=. python -m blacklist_detect
-```
-
-The blacklist is `%APPDATA%\BlackListDetect\blacklist.json` on Windows, and `$XDG_CONFIG_HOME/BlackListDetect/blacklist.json` (or `~/.config/BlackListDetect/blacklist.json`) elsewhere. The hotkey, check mode, theme, and debug-frame switch are in `settings.json` in that same folder.
-
-That folder also holds:
-
-- `backups\` — a copy of the list from each of the last 7 days it changed.
-- `logs\app.log` — what the app did and any error, without player names. `logs\crash.log` catches a hard crash.
-- `blacklist.unreadable-<time>.json` — a list file that could not be read, set aside instead of overwritten.
-
-## Check a screenshot
-
-The live check copies the screen with one GDI BitBlt on Windows; elsewhere only pictures can be checked, from a terminal, with no window:
-
-```bash
-PYTHONPATH=. python -m blacklist_detect check tests/fixtures/reference-lobby.png
-```
-
-On the included reference shot this prints twelve names. Ten of them match the lobby labels, including the three cut-off names. Two cards, the third and the one in Latin letters, are read a letter off from their labels; the app shows such text as read and does not rewrite it to the label.
-
-## OCR model
-
-The header is found with PaddleOCR `PP-OCRv5_mobile_det` and `PP-OCRv5_mobile_rec`. Each name strip is read once with `PP-OCRv6_medium_rec` (Chinese, local). Both run as one GPU batch on the RTX 5080 through the CUDA 12.9 Paddle build; without that build they stay on the CPU. Weights are not in this repo. The first check downloads them into the PaddleX cache (`~/.paddlex/official_models`) when the network is available.
-
-To fetch them before opening the window:
-
-```bash
-PYTHONPATH=. python -m blacklist_detect download-models
-```
-
-If you already have the model folders, set `BLACKLIST_DETECT_MODEL_DIR` to the directory that contains the detection and recognition folders. The app still opens when the model is missing; a check then says the reader is not ready. There is no separate mock reader that invents names.
-
-## Tests
-
-```bash
-PYTHONPATH=. python -m pytest
-```
-
-The match-rule tests do not open a window. The reference-lobby tests run anchor detection and OCR on `tests/fixtures/reference-lobby.png` and on the bundled 测试一下 picture; they skip when PaddleOCR is not installed.
-
-Lint with ruff (rules in `pyproject.toml`):
-
-```bash
+python -m blacklist_detect                                           # the window
+python -m blacklist_detect check tests/fixtures/reference-lobby.png  # read one picture, no window
+python -m pytest                                                     # tests (OCR tests skip without Paddle)
 python -m ruff check .
 ```
 
-GitHub Actions runs both on every push (`.github/workflows/tests.yml`), on Windows, without Paddle.
+- OCR weights are not in the repo; the first check downloads them (`python -m blacklist_detect download-models` does it
+  ahead of time, `BLACKLIST_DETECT_MODEL_DIR` points at a local copy).
+- Data folder: `%APPDATA%\BlackListDetect` (list, settings, daily backups, logs).
+- Release: `python build/build_launcher.py`, then `python build/make_release.py` builds the full and update zips from
+  `dist\黑名单检测`; `python build/release.py` signs `version.json`, which the updater reads from the latest GitHub
+  release. `python build/install_local.py` installs the newest code on this PC.
+- CI (`.github/workflows/tests.yml`) runs the tests and ruff on Windows on every push.
+- Old development notes and handoffs are in `docs/dev/`.
 
-The window code is split by job: `ui.py` (main window and check loop), `ui_dialogs.py`, `ui_overlay.py` (the marks over the game), `ui_widgets.py`, and `ui_theme.py`.
+## Credits / third-party content
 
-## Release
+This is a non-commercial fan project made for fun among friends. It is not affiliated with or endorsed by NetEase.
 
-Friends get a folder with its own Python, so they do not install anything:
-
-```
-BlackListDetect\
-  模仿者小工具.exe        launcher (build/launcher/Launcher.cs, 17 KB), starts runtime\模仿者小工具.exe
-  runtime\               embeddable Python 3.12 with the packages installed;
-                         模仿者小工具.exe is its pythonw.exe with the app's name and icon (build/app_exe.py)
-  blacklist_detect\      the app, plus models\ with the three PaddleOCR folders
-```
-
-Make the zips from an assembled `dist\黑名单检测\runtime`:
-
-```bash
-python build/build_launcher.py
-python build/make_release.py
-```
-
-`build_launcher.py` compiles the launcher with the C# compiler that is part of
-Windows; .NET Framework 4.8, also part of Windows 10 and 11, runs it.
-
-It copies the runtime without the files the app never loads (unused Qt modules,
-pip, test suites, headers, dxcam, and other PaddleX extras), runs the copy once
-on the reference lobby, and writes two zips to `dist\release\`:
-
-- `BlackListDetect-<version>-full.zip` for a first install. Right-click, Extract All, then run `模仿者小工具.exe` in the folder.
-- `BlackListDetect-<version>-update.zip` with only the app code. Extract it over the old folder.
-
-## Run the newest code on this PC
-
-```bash
-python build/install_local.py
-```
-
-The first run installs the app to `%LOCALAPPDATA%\Programs\BlackListDetect` and
-puts a 模仿者小工具 shortcut on the Desktop and in the Start menu. Every later run
-asks the open app to quit, copies only the files that changed (a few seconds),
-and starts it again, so the shortcut always opens the newest version. Add
-`--verify` to read the reference lobby with the installed copy. Only one copy of
-the app runs at a time; if another unzipped copy is open, the script says which
-one to close.
-
-## Lobby glance
-
-Auto check copies the top 40% of the screen about twice a second and looks for
-「推演成功」. It finds every text line (cheap), keeps lines shaped like a
-four-character title, and reads only the four tallest; reading every line of a
-text-heavy desktop took five seconds a glance on a CPU. A screen that has not
-changed since the last glance is not read again. Measured on the CPU build for
-30 seconds: 64 glances, half of one CPU core, 770 MB of memory (before: 6
-glances, four and a half cores, 1.35 GB). The full lobby check and the name
-reading are unchanged.
-
-Paddle cannot open model files under a path with Chinese characters. The app
-reaches such a folder by its Windows short name, or copies the models once to
-`%LOCALAPPDATA%\BlackListDetect\models`. The release folder is still named in
-English letters so neither is usually needed.
-
-Other lobby layouts are not part of this first slice.
+- 第五人格, its icons, game screens and the game sound recordings used for some effects belong to NetEase. The app icon
+  is the 模仿者 「导演」 icon (source: BWiki 第五人格WIKI).
+- The little birds in 竖琴清风 are cut from fan art by the Weibo artist @子沐子_.
+- All third-party content stays the property of its owners. If you own something here and want it removed, open an
+  issue.
