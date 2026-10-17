@@ -1,26 +1,24 @@
 Read CLAUDE.md first (team rules, cost rules, release rules). This file is state only. The user's asks, with where
 each stands, are in ASKS.md beside it: that list is what "done" means; report against it.
 
-# Update 2026-10-16 ~17:50 local: v1.0 final check passed; ask #71 (no hover) finishing; ask #72: release v1.0.0 after it
+# Update 2026-10-16 ~18:35 local: v1.0.0 released; asks #69, #71, #72 done; stopped (commander: no new work)
 
-- `improve/quality` = `122cda3` (6b7c415 + CLAUDE.md ffa1b3e + notes). Final check (v1-final, scratchpad v1final/): ready
-  for v1.0: 866 passed, ruff clean, ice median 17.3-17.6 ms idle, shots light150/dark150/light125/empty150/stream150 fine,
-  the 编辑 eye works in a real window. Master checked pair.png, empty150_02, light125_03.
-- Ask #71 (no hover text anywhere): branch fix/v1-no-hover in .claude/worktrees/wf_70b2636e-d77-1. The first builder ran
-  out of turns; its work is the WIP commit 4ea3338 (tooltips removed in 14 files, app-wide NoHoverText guard in
-  ui_theme._apply_theme, _DetailTip card gone, tray tooltip gone, load warning said in full in the 检查 panel's
-  problem_label). Workflow wf_af562f6a-81f (task wkll9ctq6) finishes it (leftovers, 直播姬 state words fit with no …,
-  tests incl. tests/test_no_hover.py, squash to one commit on 122cda3), then a static and a runtime sweep (the runtime
-  tester has the desktop), then a fix if they find anything.
-- Ask #72 (the user, ~17:35: "after remove hover, um, we will release"): after #71 merges: bump to v1.0.0, notes
-  build/notes/v1.0.0.txt (draft in the master's scratchpad notes-v1.0.0.txt: 窗口里的游戏也能准确识别 / 竖琴清风加入三只小鸟 /
-  直播模式多处隐藏名字，去掉悬停提示), make_release, sign, push improve/quality + HEAD:main, publish --with-full, check --each
-  (see memory release-process). origin/main = a290763 (v0.9.17); local main is stale at b9b35dd (v0.9.15), push from
-  improve/quality. 关于 shows 0.9.17 until the bump.
-- Leftover folders: .claude/worktrees/v1-final (remove), agent-ae38f53789760ac49, agent-ab2cab4534a0724a8 (empty, held).
+- v1.0.0 published: https://github.com/853493541/I5-Black-List/releases/tag/v1.0.0 (main = improve/quality = 69eca95,
+  full + update zips, check --each OK on GitHub and all 6 proxies). make_release verified 12 names.
+- Ask #71: merged ee73fee, removal only (the user: "Don't add any more stuff ... Remove the hover."): every setToolTip,
+  QToolTip.showText, the 详情 hover card (_DetailTip) and the tray tooltip gone; ui_theme.NoHoverText eats Qt's own
+  tooltips app-wide (installed from _apply_theme); tests/test_no_hover.py walks every page and dialog. 868 passed.
+- Follow-up list (not in v1.0, the commander's item 5 and the user's removal-only word): cut texts that only a hover
+  showed whole: the joined load warning in the header pill, a 检查失败 reason (_watch_tip, now shown nowhere), 直播姬's
+  HIDDEN/BEHIND state (cut after the comma), 添加组合 disabled with no reason shown, 选择片段 under mute; _watch_tip and
+  _set_result's tip are now write-only. The first builder's versions are in the run wf_af562f6a-81f journal.
 - Post-1.0 notes: runtime-save excepthook, launcher mid-Apply, 经典/cyber/neon warm, claw warm_ahead, 分享 comma,
   清空记录/清空数据 say done when a file cannot be written or was held, toasts after an unsaved change while a file is
   held, make_release relative/8.3 --out (VERIFY.md:319).
+- Leftover empty folders: .claude/worktrees/agent-ae38f53789760ac49, agent-ab2cab4534a0724a8; v1-final may remain as a
+  folder (its worktree entry is pruned). Not installed locally: the user's app updates itself to v1.0.0.
+- Waiting on the user: CLAUDE.md lines relayed by Commander 2 (message the commander only for decisions, merges, the
+  release, blockers, big estimate changes; no hover text anywhere) go in only on the user's OK.
 
 # Handoff, 2026-10-16 ~00:55 PDT (master "BLA master", started ~23:00 by Commander 2; context ~335k, rotating)
 
