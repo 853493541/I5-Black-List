@@ -194,8 +194,8 @@ def test_a_row_on_no_scene_shows_nothing_under_scene(window):
 
 
 def test_the_scene_cell_has_each_scene_s_dot_before_its_words(window):
-    """One 场景: its dot and its name; 随机: 随机's dot; several: each one's dot side by side, then N个场景, their
-    names in the tooltip. The dots are painted in scene_dot's colour, left of the words."""
+    """One 场景: its dot and its name; 随机: 随机's dot; several: each one's dot side by side, then N个场景, with no
+    tooltip. The dots are painted in scene_dot's colour, left of the words."""
     from blacklist_detect.ui_likes import SCENES_ROLE, THEME_COLUMN
     from blacklist_detect.ui_love_pick import SceneChoice, scene_dot
 
@@ -209,7 +209,7 @@ def test_the_scene_cell_has_each_scene_s_dot_before_its_words(window):
         ("随机", ["random"]),
         ("3个场景", ["ice", "fluffy", "claw"]),
     ]
-    assert said["阿星"].toolTip() == "冰蓝极光、毛茸茸保护协会、演说家遇袭" and not said["心动小鹿"].toolTip()
+    assert not said["阿星"].toolTip() and not said["心动小鹿"].toolTip()
     assert table.item(0, THEME_COLUMN).text() == "金色传说" and list(table.item(0, THEME_COLUMN).data(SCENES_ROLE)) == ["angel"]
     table.resize(900, 400)
     picture = _picture(table)
@@ -271,7 +271,7 @@ def test_a_record_shows_a_like_in_rose_with_its_nickname(window):
     assert wrap.findChild(QLabel, "rowName").text() == "明哥"
     item = window.history_table.item(0, 0)
     assert item.foreground().color().name() == THEME["rose"]
-    assert "是嘉宾「救人很稳的小明」" in item.toolTip()
+    assert item.toolTip() == ""
     # A seat no one listed offers both lists.
     assert [a.text() for a in window._seat_menu(0, 1).actions() if a.text()] == ["加入黑名单", "加入嘉宾列表", "复制名字"]
     assert [a.text() for a in window._seat_menu(0, 0).actions() if a.text()] == ["编辑", "复制名字"]
@@ -506,7 +506,7 @@ def test_every_check_tells_about_both_lists(window):
     window._hide_panel_after_title()
     window._on_lobby_placed(button)
     window._show_panel(CheckResult(True, "", names=names[1:], button_box=button))
-    assert window.panel.mode == "clear" and window.panel.toolTip() == "未发现黑名单"
+    assert window.panel.mode == "clear" and window.panel.toolTip() == ""
     window._hide_panel_after_title()
     # Saved again, the old keys are gone.
     window.store.save_settings()
@@ -821,13 +821,13 @@ def test_the_toolbar_adds_a_guest_or_a_combination(window, monkeypatch):
     assert page.empty_add_button.text() == "添加嘉宾"
     page.empty_add_button.click()
     assert [dialog.windowTitle() for dialog in dialogs] == ["添加嘉宾"]
-    # One 嘉宾: both buttons, 添加嘉宾 the primary; 添加组合 waits for a second 嘉宾, and says why.
+    # One 嘉宾: both buttons, 添加嘉宾 the primary; 添加组合 waits for a second 嘉宾.
     store.add_like("小明")
     page.refresh()
     assert page.empty_add_button.isHidden() and not page.add_like_button.isHidden() and not page.add_combo_button.isHidden()
     assert (page.add_like_button.text(), page.add_combo_button.text()) == ("添加嘉宾", "添加组合")
     assert page.add_like_button.objectName() == "primary" and page.add_combo_button.objectName() != "primary"
-    assert not page.add_combo_button.isEnabled() and page.add_combo_button.toolTip() == TOO_FEW
+    assert not page.add_combo_button.isEnabled() and page.add_combo_button.toolTip() == ""
     page.add_combo()
     assert said == [TOO_FEW] and store.combos == []
     page.add_like_button.click()

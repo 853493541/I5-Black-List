@@ -81,8 +81,8 @@ def test_only_a_seat_on_neither_list_has_the_buttons_and_only_on_hover(window):
         assert buttons is not None and buttons.isHidden()
         assert window.history_table.cellWidget(row, column).findChild(QLabel, "rowAction") is None
     like, ban = _button(window, 2, 0, "seatLike"), _button(window, 2, 0, "seatBan")
-    assert (like.toolTip(), like.accessibleName()) == ("加入嘉宾", "加入嘉宾")
-    assert (ban.toolTip(), ban.accessibleName()) == ("加入黑名单", "加入黑名单")
+    assert (like.toolTip(), like.accessibleName()) == ("", "加入嘉宾")
+    assert (ban.toolTip(), ban.accessibleName()) == ("", "加入黑名单")
     assert THEME["rose_wash"] in like.styleSheet() and THEME["red_wash"] in ban.styleSheet()
     # They fit in the seat: the row is no taller.
     assert like.height() <= ROW_H - 6 and ban.height() <= ROW_H - 6

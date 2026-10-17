@@ -76,7 +76,7 @@ def _on_screen(widget) -> bool:  # noqa: ANN001
 
 def test_the_panel_keeps_its_size_as_stream_mode_is_turned_on_and_off_in_it(window, tmp_path, monkeypatch):
     """With 直播姬 on this PC its words show on 直播模式's own row, right of 关闭 / 开启, while it is on: the card
-    is the same size on and off, what is wrong read whole on the row, and how to set it right in the tooltip."""
+    is the same size on and off, and what is wrong read whole on the row, nothing on hover."""
     from blacklist_detect import livehime, ui
 
     log_file = tmp_path / "livehime.log"
@@ -94,7 +94,7 @@ def test_the_panel_keeps_its_size_as_stream_mode_is_turned_on_and_off_in_it(wind
     assert not status.isVisible()
     window.stream_on.click()
     QApplication.processEvents()
-    assert status.isVisible() and status.text() == words.split("，")[0] and status.toolTip() == words and panel.size() == off
+    assert status.isVisible() and status.text() == words.split("，")[0] and status.toolTip() == "" and panel.size() == off
     # Every state's words fit, none cut short.
     for said in livehime.WORDS.values():
         assert status.fontMetrics().horizontalAdvance(said.split("，")[0]) <= status.width(), said
@@ -344,7 +344,7 @@ def test_in_stream_mode_the_edit_dialog_masks_the_name_until_the_eye_shows_it(wi
 
     dialog = AddNameDialog("坏人", (), "", title="编辑", allow_delete=True, masked=True)
     assert dialog.name_edit.text() == "坏*" and dialog.name_edit.isReadOnly()
-    assert dialog.reveal_action.toolTip() == "显示名字" and dialog.reveal_action in dialog.name_edit.actions()
+    assert dialog.reveal_action in dialog.name_edit.actions()
     # The first focus is not moved to 原因: as unmasked, Enter in the (read-only) name saves.
     assert dialog.focusWidget() is not dialog.detail_edit and not dialog.has_changes()
     dialog._toggle_tag("炸房")

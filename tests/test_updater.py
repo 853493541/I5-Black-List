@@ -457,7 +457,7 @@ def test_a_version_found_while_open_waits_as_you_geng_xin(window, tmp_path, monk
     _settle()
     assert started == [] and window.findChild(UpdateDialog) is None and not window._updating
     assert not window.update_pill.isHidden() and window.update_button.text() == "有更新"
-    assert window.update_pill.toolTip() == "新版本 v9.0.0，点一下看看" and window.update_button.objectName() == "primary"
+    assert window.update_pill.toolTip() == "" and window.update_button.objectName() == "primary"
     assert window.update_title.text() == "发现新版本 v9.0.0" and window.update_notes.text() == "· 嘉宾列表\n· 更新更快"
     if in_tray:
         assert not window.update_panel.isVisible()

@@ -222,8 +222,7 @@ def _button(text: str, action, primary: bool = False) -> QPushButton:  # noqa: A
 
 
 class _Choice(QRadioButton):
-    """A sound to choose, its words cut in the middle when its room is too narrow for them, whole in its
-    tooltip then."""
+    """A sound to choose, its words cut in the middle when its room is too narrow for them."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -256,7 +255,6 @@ class _Choice(QRadioButton):
         shown = self.fontMetrics().elidedText(self.full, Qt.ElideMiddle, max(1, self._room() - 2))
         if shown != self.text():
             self.setText(shown)
-        self.setToolTip(self.full if shown != self.full else "")
 
     def resizeEvent(self, event) -> None:  # noqa: ANN001
         super().resizeEvent(event)
@@ -371,7 +369,6 @@ class SoundChoices(QWidget):
         self.choices[picked].setChecked(True)
         full = len(songs) >= MAX_SONGS
         self.upload_button.setEnabled(not full)
-        self.upload_button.setToolTip(f"最多 {MAX_SONGS} 首，先删掉一首" if full else "")
         # Each row's own layout measured anew now, not once it is next laid out: the page keeps its size by
         # what this says it needs (EffectsPage._sync_rows), and a row's layout keeps its last measure until then.
         for line in self._lines:
@@ -401,9 +398,7 @@ class SoundChoices(QWidget):
             playing = mine and not self._paused
             button.setEnabled(not self._muted and (row > 0 or self._sounds))
             button.set_playing(playing)
-            tip = "已静音" if self._muted else "暂停" if playing else "接着播放" if mine else "播放"
-            button.setToolTip(tip)
-            button.setAccessibleName(tip)
+            button.setAccessibleName("已静音" if self._muted else "暂停" if playing else "接着播放" if mine else "播放")
             self.waves[row].run(playing)
 
     def chosen(self) -> str:
@@ -510,7 +505,6 @@ class EffectsPage(QWidget):
         self.volume_slider.setFixedWidth(180)
         self.volume_slider.setCursor(Qt.PointingHandCursor)
         self.volume_slider.setAccessibleName("配乐音量")
-        self.volume_slider.setToolTip("音量")
         self.volume_slider.valueChanged.connect(self._on_volume)
         self.volume_slider.sliderReleased.connect(self._volume_set)
         volume.addWidget(self.volume_slider)
@@ -663,17 +657,9 @@ class EffectsPage(QWidget):
 
     def _show_playing(self) -> None:
         """播放 and each row's ▶ as what a ▶ started is now: ⏸ 暂停 on the one playing, ▶ on the rest."""
-        muted = self.music is not None and self.music.muted
         playing = self._what == _SCENE and self._paused_at is None
         self.play_button.setText("暂停" if playing else "播放")
         self.play_button.setAccessibleName("暂停场景和配乐" if playing else "播放场景和配乐")
-        if muted:
-            tip = "已静音"
-        elif playing:
-            tip = "暂停"
-        else:
-            tip = "接着播放" if self._what == _SCENE else "从头播放，带配乐"
-        self.play_button.setToolTip(tip)
         self._paint_play()
         self.sounds.set_playing(None if self._what in (None, _SCENE) else self._what, self._paused_at is not None)
 

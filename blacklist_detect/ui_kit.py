@@ -589,14 +589,13 @@ class OnOffBox(ChoiceBox):
 
 
 class IconButton(QPushButton):
-    """A square button that shows only an icon. The tooltip names what it does."""
+    """A square button that shows only an icon. tip names what it does, for screen readers."""
 
     def __init__(self, name: str, tip: str, parent: QWidget | None = None, *, tone: str = "muted") -> None:
         super().__init__(parent)
         self.setObjectName("iconButton")
         self._name = name
         self._tone = tone
-        self.setToolTip(tip)
         self.setAccessibleName(tip)
         self.setCursor(Qt.PointingHandCursor)
         self.setAutoDefault(False)
@@ -1063,16 +1062,11 @@ class EmptyState(QWidget):
 
 class ElidedLabel(QLabel):
     """One line that takes the room its row leaves it, never more. Cut short with … when the row is
-    narrow; the whole text is in its tooltip."""
+    narrow."""
 
     def __init__(self, text: str = "") -> None:
         super().__init__(text)
-        self.setToolTip(text)
         self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-
-    def setText(self, text: str) -> None:  # noqa: N802
-        super().setText(text)
-        self.setToolTip(text)
 
     def minimumSizeHint(self) -> QSize:
         return QSize(0, super().minimumSizeHint().height())
@@ -1300,7 +1294,7 @@ class SettingsRow(QWidget):
         self.name = QLabel(name)
         self.name.setObjectName("rowLabel")
         if isinstance(description, str):
-            # Cut short with … on a narrow window; the whole line is in its tooltip.
+            # Cut short with … on a narrow window.
             description = _InlineHint(description)
             description.setObjectName("rowDescription")
         self.description = description

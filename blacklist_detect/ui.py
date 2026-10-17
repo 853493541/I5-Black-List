@@ -176,7 +176,6 @@ from blacklist_detect.ui_widgets import (
     TagPill,
     ThemeSwatch,
     _ColumnHeader,
-    _DetailTip,
     _icon,
     _local_moment,
     _mark_menu_item,
@@ -645,7 +644,6 @@ class MainWindow(QMainWindow):
         self._tab_group.setExclusive(True)
         for index in range(self.tabs.count()):
             button = TabButton(self.tabs.tabText(index))
-            button.setToolTip(f"Ctrl+{index + 1}")
             self._tab_group.addButton(button, index)
             self._tab_buttons.append(button)
             header_row.addWidget(button, 0, Qt.AlignBottom)
@@ -710,7 +708,6 @@ class MainWindow(QMainWindow):
             from PySide6.QtWidgets import QSystemTrayIcon
 
             self.tray = QSystemTrayIcon(_icon(), self)
-            self.tray.setToolTip(f"{APP_NAME} {__version__}")
             self.tray_menu = QMenu()
             self.tray_menu.setFont(chinese_font())
             self.tray_menu.setStyleSheet(_menu_style(chinese_family()))
@@ -742,16 +739,13 @@ class MainWindow(QMainWindow):
         self.search_icon = self.list_search.addAction(
             line_icon("search", 16, THEME["muted"]), QLineEdit.ActionPosition.LeadingPosition
         )
-        self.list_search.setToolTip("Ctrl+F")
         self.list_search.textChanged.connect(self._on_search_text)
         toolbar.addWidget(self.list_search, 1)
         toolbar.addStretch(1)
         batch = QPushButton("批量导入")
-        batch.setToolTip("Ctrl+I")
         batch.clicked.connect(self._add_many_by_dialog)
         add = QPushButton("添加")
         add.setObjectName("primary")
-        add.setToolTip("Ctrl+N")
         add.clicked.connect(self._add_by_dialog)
         self.toolbar_buttons = (batch, add)
         toolbar.addWidget(batch)
@@ -815,12 +809,6 @@ class MainWindow(QMainWindow):
         self.blacklist_table.cellClicked.connect(self._edit_row)
         self.blacklist_table.setContextMenuPolicy(Qt.CustomContextMenu)
         self.blacklist_table.customContextMenuRequested.connect(self._blacklist_menu)
-        self.detail_tip = _DetailTip()
-        self.detail_tip.installEventFilter(self)
-        self._detail_tip_timer = QTimer(self)
-        self._detail_tip_timer.setSingleShot(True)
-        self._detail_tip_timer.setInterval(160)
-        self._detail_tip_timer.timeout.connect(self._hide_detail_tip)
         self.list_empty = EmptyState("users", "黑名单还是空的")
         self.list_hint = self.list_empty.title
         self.empty_batch_button = self.list_empty.add_action(QPushButton("批量导入"))
@@ -1080,8 +1068,7 @@ class MainWindow(QMainWindow):
         self.stream_guide.clicked.connect(self._show_stream_guide)
         # Whether 直播姬 shows the window, after the two while it is on: green when it does, in red until
         # it does (see livehime). Nothing for a streamer without 直播姬. Its room is kept when it says
-        # nothing, so the card keeps its size: room for the longest of what is wrong, read whole, and how
-        # to set it right on hover.
+        # nothing, so the card keeps its size: room for the longest of what is wrong, read whole.
         self.stream_status = ElidedLabel("")
         self.stream_status.setObjectName("streamStatus")
         room = self.stream_status.sizePolicy()
@@ -1171,7 +1158,7 @@ class MainWindow(QMainWindow):
         version_line.addWidget(self.version_label)
         version_line.addStretch(1)
         # A waiting version turns 检查更新 into the 有更新 button. A long note (a network error) is cut short
-        # with … before the button, whole in its tooltip, so the button stays in the window.
+        # with … before the button, so the button stays in the window.
         self.update_note = ElidedLabel("")
         self.update_note.setObjectName("rowHint")
         self.update_note.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
@@ -1490,8 +1477,6 @@ class MainWindow(QMainWindow):
             self.stream_guide.refresh()
             self.display_guide.refresh()
             self.profile_chip.update()
-        if hasattr(self, "detail_tip"):
-            self.detail_tip.apply_theme()
         if hasattr(self, "list_empty"):
             self.list_empty.refresh()
             self.more_button.refresh()
@@ -1633,11 +1618,6 @@ class MainWindow(QMainWindow):
         if names is not None and watched is names.viewport():
             if event.type() == QEvent.Type.Leave:
                 self._clear_blacklist_hover()
-                self._schedule_detail_tip_hide()
-            elif event.type() == QEvent.Type.MouseMove:
-                index = names.indexAt(event.position().toPoint())
-                if index.isValid():
-                    self._sync_detail_tip(index.row(), index.column())
             elif event.type() == QEvent.Type.Resize:
                 self._fit_blacklist_columns()
         tags = getattr(self, "tag_list", None)
@@ -1649,12 +1629,6 @@ class MainWindow(QMainWindow):
                 self._hover_tag_row(-1)
             elif kind in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease) and self._on_tag_pencil(event):
                 return True
-        tip = getattr(self, "detail_tip", None)
-        if tip is not None and watched is tip:
-            if event.type() == QEvent.Type.Enter:
-                self._detail_tip_timer.stop()
-            elif event.type() == QEvent.Type.Leave:
-                self._schedule_detail_tip_hide()
         if watched.property("scanRow") is not None:
             button = watched.findChild(QPushButton, "rowDelete")
             badge = [watched.findChild(QLabel, name) for name in ("recordHits", "recordHitCount")]
@@ -1917,7 +1891,6 @@ class MainWindow(QMainWindow):
             table.setItem(row, 0, self._list_cell(shown, index, font, ink))
             tags = tag_text(entry)
             tags_item = self._list_cell(tags, None, font, ink)
-            tags_item.setToolTip(tags)
             # The table paints these as pills; a widget per row made a long list slow.
             tags_item.setData(Qt.UserRole + 3, tuple(entry.tags))
             table.setItem(row, 1, tags_item)
@@ -1931,7 +1904,6 @@ class MainWindow(QMainWindow):
         self._blacklist_hover = -1
         self.blacklist_table.setCurrentCell(-1, -1)
         bar.setValue(position)
-        self._hide_detail_tip()
         self._refresh_blacklist_tab()
         count = len(self.store.entries)
         self.list_search.setVisible(count > 0 or bool(self._search_text()))
@@ -1957,15 +1929,6 @@ class MainWindow(QMainWindow):
             self.list_empty.show()
             self.blacklist_table.setVisible(False)
 
-    def _reason_for_row(self, row: int) -> str:
-        item = self.blacklist_table.item(row, 0)
-        if item is None or item.data(Qt.UserRole) is None:
-            return ""
-        index = int(item.data(Qt.UserRole))
-        if not 0 <= index < len(self.store.entries):
-            return ""
-        return self.store.entries[index].reason
-
     def _names_hidden(self) -> bool:
         """黑名单's names masked: by the eye, or always while 直播模式 is on, the page may be on stream."""
         return self.store.names_hidden or bool(self.store.stream_mode)
@@ -1990,35 +1953,7 @@ class MainWindow(QMainWindow):
         if hasattr(self, "history_table"):
             self._show_history_scan(self._selected_scan())
 
-    def _sync_detail_tip(self, row: int, column: int) -> None:
-        text = self._reason_for_row(row) if column == 2 else ""
-        if not text.strip():
-            self._hide_detail_tip()
-            return
-        self._detail_tip_timer.stop()
-        rect = self.blacklist_table.visualRect(self.blacklist_table.model().index(row, 2))
-        anchor = self.blacklist_table.viewport().mapToGlobal(rect.bottomLeft())
-        self.detail_tip.show_reason(text, anchor)
-
-    def _schedule_detail_tip_hide(self) -> None:
-        tip = getattr(self, "detail_tip", None)
-        if tip is None or not tip.isVisible():
-            return
-        if tip.geometry().contains(QCursor.pos()):
-            self._detail_tip_timer.stop()
-            return
-        self._detail_tip_timer.start()
-
-    def _hide_detail_tip(self) -> None:
-        tip = getattr(self, "detail_tip", None)
-        if tip is None:
-            return
-        self._detail_tip_timer.stop()
-        tip.hide()
-
     def _hover_blacklist_row(self, row: int, column: int = 0) -> None:
-        if row >= 0:
-            self._sync_detail_tip(row, column)
         if row < 0:
             return
         if row == self._blacklist_hover:
@@ -2481,7 +2416,6 @@ class MainWindow(QMainWindow):
             line.addSpacing(3)
             line.addWidget(count, 0, Qt.AlignVCenter)
             line.addSpacing(6)
-            wrap.setToolTip(f"{hits} 名黑名单玩家")
         else:
             line.addStretch(1)
         remove = QPushButton("×")
@@ -2742,12 +2676,6 @@ class MainWindow(QMainWindow):
         with_listed = bool(listed) and tail is None
         # Beside 黑名单：…, the name read keeps its full width and the list's name gives way.
         line.addWidget(name_label, 0 if with_listed else 1)
-        if tail and not hide:
-            name_item.setToolTip(f"读到「{title}」，是黑名单里的「{listed}」")
-        if like is not None:
-            name_item.setToolTip(f"读到「{title}」，是嘉宾「{like.name}」")
-        if not unclear and not name_item.toolTip():
-            name_item.setToolTip(label)
         if with_listed:
             listed_label = _ListedLabel(f"黑名单：{listed}")
             listed_label.setObjectName("rowListed")
@@ -2756,7 +2684,6 @@ class MainWindow(QMainWindow):
             listed_label.setStyleSheet(
                 f'color: {THEME["red"]}; background: transparent; font-family: "{chinese_family()}";'
             )
-            name_item.setToolTip(f"读到「{title}」，是黑名单里的「{listed}」")
             line.addWidget(listed_label, 1, Qt.AlignVCenter)
         if action == "我":
             action_label = QLabel(action)
@@ -3099,7 +3026,6 @@ class MainWindow(QMainWindow):
             self._stream_state = state
             words = livehime.WORDS.get(state, "")
             self.stream_status.setText(_said_first(words))
-            self.stream_status.setToolTip(words)
             self.stream_status.setProperty("tone", "ok" if state == livehime.OK else "warn")
             self.stream_status.style().unpolish(self.stream_status)
             self.stream_status.style().polish(self.stream_status)
@@ -4582,11 +4508,10 @@ class MainWindow(QMainWindow):
         _pin_topmost(widget)
 
     def _sync_status_tip(self) -> None:
-        """The pill's tooltip: what went wrong, when something did."""
+        """After the pill changes."""
         chip = getattr(self, "status_chip", None)
         if chip is None:
             return
-        chip.setToolTip(self._watch_tip)
         # 记录's empty page says how a check starts.
         empty = getattr(self, "history_empty", None)
         if empty is not None:
@@ -4615,7 +4540,6 @@ class MainWindow(QMainWindow):
         spec = parse_hotkey(self.store.hotkey)
         self.status_chip.set_state(text, tone, spec.display if kind == "idle" and spec is not None else "")
         self._sync_status_tip()
-        self._set_tray(text)
 
     def _remember_size(self) -> None:
         """Save the window's size and place now. A move or a resize waits for the drag to end."""
@@ -4661,10 +4585,6 @@ class MainWindow(QMainWindow):
                 old.unlink()
             except OSError:
                 pass
-
-    def _set_tray(self, text: str) -> None:
-        if self.tray is not None:
-            self.tray.setToolTip(text[:120])
 
     # --- Updates ---------------------------------------------------------------------------
 
@@ -4721,7 +4641,6 @@ class MainWindow(QMainWindow):
         """有更新 in the header, and on 设置's button, until it is installed or the app restarts. The
         first time a version is found, 发现新版本 opens under 有更新 to say what is new."""
         self._offered = release
-        self.update_pill.setToolTip(f"新版本 {release.version}，点一下看看")
         self.update_pill.show()
         self._show_update_button()
         self._show_update_note("")
@@ -4916,8 +4835,6 @@ class MainWindow(QMainWindow):
         self._closing = True
         self._panel_hide_timer.stop()
         self._watch_timer.stop()
-        if hasattr(self, "detail_tip"):
-            self.detail_tip.close()
         self.panel.close()
         self.hit_card.close()
         self.like_card.close()
@@ -4969,8 +4886,8 @@ class _ElidedLabel(QLabel):
 
 class _ListedLabel(QLabel):
     """黑名单：<the listed name>, after a name read that differs from it, on the seat's right. It takes
-    the room the name read leaves: cut short first, and left out when not even 黑名单：… fits (the
-    seat's tooltip still says it)."""
+    the room the name read leaves: cut short first, and left out when not even 黑名单：… fits (the name read
+    still says who it is)."""
 
     def __init__(self, text: str) -> None:
         super().__init__(text)

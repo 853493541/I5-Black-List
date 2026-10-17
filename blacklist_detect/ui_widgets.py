@@ -18,18 +18,13 @@ from PySide6.QtGui import (
     QPolygon,
 )
 from PySide6.QtWidgets import (
-    QApplication,
-    QFrame,
     QHeaderView,
-    QLabel,
     QLayout,
-    QScrollArea,
     QSizePolicy,
     QStyle,
     QStyledItemDelegate,
     QStyleOptionViewItem,
     QTableWidget,
-    QVBoxLayout,
     QWidget,
 )
 
@@ -41,7 +36,6 @@ from blacklist_detect.ui_theme import (
     SMALL_PT,
     THEME,
     _mix,
-    chinese_family,
     chinese_font,
 )
 
@@ -231,12 +225,6 @@ class _ColumnHeader(QHeaderView):
         if hot != self._eye_hot:
             self._eye_hot = hot
             self.viewport().update()
-        if hot and self.locked:
-            self.setToolTip("直播模式下名字始终隐藏")
-        elif hot:
-            self.setToolTip("显示名字" if self.names_hidden else "隐藏名字")
-        else:
-            self.setToolTip("")
         if event.buttons() & Qt.LeftButton and self.sectionsMovable() and self._cursor_at(pos) != Qt.SplitHCursor:
             self.setCursor(Qt.ClosedHandCursor)
             return
@@ -750,7 +738,6 @@ class ThemeSwatch(_KeyboardRing, QWidget):
         self.setFixedSize(self._square + self._badge // 2, self._square + self._hang)
         self.setCursor(Qt.PointingHandCursor)
         self.setFocusPolicy(Qt.TabFocus)
-        self.setToolTip(name)
         self.setAccessibleName(name)
         self.setAttribute(Qt.WA_NoSystemBackground, True)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
@@ -814,115 +801,6 @@ def _icon() -> QIcon:
     painter.drawRoundedRect(16, 42, 20, 6, 2, 2)
     painter.end()
     return QIcon(pixmap)
-
-
-class _DetailTip(QWidget):
-    """Small hover card for the full 详情. It does not take the click."""
-
-    def __init__(self) -> None:
-        super().__init__(
-            None,
-            Qt.Tool | Qt.FramelessWindowHint | Qt.WindowDoesNotAcceptFocus,
-        )
-        self.setAttribute(Qt.WA_ShowWithoutActivating, True)
-        self.setAttribute(Qt.WA_TranslucentBackground, True)
-        self.setFocusPolicy(Qt.NoFocus)
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
-        # The card inside a see-through window, so its corners are round on the desktop too.
-        self.card = QFrame()
-        self.card.setObjectName("detailTip")
-        outer.addWidget(self.card)
-        layout = QVBoxLayout(self.card)
-        layout.setContentsMargins(12, 10, 6, 10)
-        layout.setSpacing(0)
-        self.label = QLabel()
-        self.label.setObjectName("detailTipText")
-        self.label.setWordWrap(True)
-        self.label.setTextFormat(Qt.TextFormat.PlainText)
-        self.label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-        self.label.setFont(chinese_font(SMALL_PT))
-        # A very long reason scrolls inside the card; the card stays open while the pointer is on it.
-        self.scroll = QScrollArea()
-        self.scroll.setObjectName("detailTipScroll")
-        self.scroll.setFrameShape(QFrame.NoFrame)
-        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.scroll.setWidgetResizable(False)
-        self.scroll.setWidget(self.label)
-        layout.addWidget(self.scroll)
-        self.apply_theme()
-
-    def apply_theme(self) -> None:
-        family = chinese_family()
-        t = THEME
-        self.setStyleSheet(
-            f"""
-            QFrame#detailTip {{
-                background: {t["surface"]};
-                color: {t["text"]};
-                border: 1px solid {t["border"]};
-                border-radius: 8px;
-            }}
-            QScrollArea#detailTipScroll, QScrollArea#detailTipScroll > QWidget > QWidget {{
-                background: transparent;
-                border: none;
-            }}
-            QScrollArea#detailTipScroll QScrollBar:vertical {{
-                background: transparent;
-                width: 6px;
-            }}
-            QScrollArea#detailTipScroll QScrollBar::handle:vertical {{
-                background: {t["border"]};
-                border-radius: 3px;
-                min-height: 24px;
-            }}
-            QLabel#detailTipText {{
-                background: transparent;
-                color: {t["text"]};
-                font-family: "{family}";
-                font-size: {SMALL_PT}pt;
-                border: none;
-            }}
-            """
-        )
-
-    _WIDTH = 400
-    _HEIGHT = 320
-
-    def show_reason(self, text: str, anchor: QPoint) -> None:
-        self.apply_theme()
-        self.label.setFont(chinese_font(SMALL_PT))
-        lines = text.split("\n")
-        self.text = text
-        # Qt wraps only between words; a run like 1111 or a long English word has none.
-        # A zero-width space between characters lets every line wrap, and shows nothing.
-        self.label.setText("\n".join("\u200b".join(line) for line in lines))
-        metrics = QFontMetrics(self.label.font())
-        longest = max((metrics.horizontalAdvance(line) for line in lines), default=0)
-        width = min(self._WIDTH, max(longest + 4, 48))
-        self.label.setFixedWidth(width)
-        height = self.label.heightForWidth(width)
-        self.label.setFixedHeight(height)
-        scrolls = height > self._HEIGHT
-        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded if scrolls else Qt.ScrollBarAlwaysOff)
-        self.scroll.setFixedSize(width + (10 if scrolls else 0), min(height, self._HEIGHT))
-        self.scroll.verticalScrollBar().setValue(0)
-        # Exactly the text's size: adjustSize gives a window whose content can grow at least 200 × 100.
-        self.layout().activate()
-        self.resize(self.layout().sizeHint())
-        self._place(anchor)
-        self.show()
-
-    def _place(self, anchor: QPoint) -> None:
-        screen = QApplication.screenAt(anchor) or QApplication.primaryScreen()
-        area = screen.availableGeometry() if screen is not None else QRect(0, 0, 1920, 1080)
-        x = anchor.x()
-        y = anchor.y() + 6
-        if y + self.height() > area.bottom() - 8:
-            y = anchor.y() - self.height() - 6
-        if x + self.width() > area.right() - 8:
-            x = area.right() - self.width() - 8
-        self.move(max(area.left() + 8, x), max(area.top() + 8, y))
 
 
 def _row_divider(painter: QPainter, rect: QRect) -> None:

@@ -142,11 +142,6 @@ def main() -> int:
         window._create_tag()
         snap("blacklist_tag_new")
         window._finish_tag_new(keep=False)
-    from PySide6.QtCore import QPoint
-
-    window.detail_tip.show_reason("1" * 120 + "\n第二行：很长的原因文字" * 3, QPoint(40, 40))
-    snap("reason_tip", window.detail_tip)
-    window.detail_tip.hide()
     _focus_scene(app, window, snap)
     window.tabs.setCurrentIndex(window.history_tab)
     window._clear_history_hover()

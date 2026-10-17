@@ -125,7 +125,6 @@ class ScenePane(QWidget):
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(6)
         self.play_box = TickBox("播放场景")
-        self.play_box.setToolTip("不勾：不播放；勾选任一场景即开启")
         column.addWidget(self.play_box, 0, Qt.AlignLeft)
         self.scenes = SceneList(chosen=(), columns=1, width=self.list_width())
         self.scenes.picked.connect(self.show_scene)
@@ -142,7 +141,6 @@ class ScenePane(QWidget):
         column.addStretch(1)
         self.preview = ScenePreview(None, preview_width, play=self.replay)
         self.play_button = self.preview.play_button
-        self.play_button.setToolTip("从头播放")
         # As it opened: 播放场景 on or off and the scenes ticked, those this version has; kept while it is off.
         self._kept = () if scenes.random else ticked(scenes)
         self.play_box.setChecked(not scenes.off)

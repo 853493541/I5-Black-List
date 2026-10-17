@@ -102,9 +102,6 @@ class ComboDialog(Modal):
                 face = box.font()
                 face.setStrikeOut(True)
                 box.setFont(face)
-                box.setToolTip("已不在嘉宾里")
-            elif like.nickname:
-                box.setToolTip(like.name)
             box.setChecked(fold(like.name) in chosen)
             box.toggled.connect(self._clear_error)
             rows.addWidget(box)

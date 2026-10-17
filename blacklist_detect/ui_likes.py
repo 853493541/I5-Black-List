@@ -51,7 +51,7 @@ from blacklist_detect.ui_dialogs import (
     _say_error,
 )
 from blacklist_detect.ui_guest_scenes import OFF, ScenePane, two_columns
-from blacklist_detect.ui_guests import ComboDialog, scene_dots, scene_name, scenes_said
+from blacklist_detect.ui_guests import ComboDialog, scene_dots, scenes_said
 from blacklist_detect.ui_icons import icon as line_icon
 from blacklist_detect.ui_kit import ConfirmDialog, EmptyState, IconButton, Modal
 from blacklist_detect.ui_love_pick import SceneChoice, scene_dot
@@ -217,11 +217,9 @@ class _GuestDelegate(_PlainItemDelegate):
 
 
 def _scenes_cell(item: QTableWidgetItem, scenes: Scenes) -> None:
-    """A row's 场景: the dots before its words (SCENES_ROLE), and for several, their names in its tooltip."""
+    """A row's 场景: the dots before its words (SCENES_ROLE); for several, their names are in 编辑嘉宾."""
     dots = scene_dots(scenes)
     item.setData(SCENES_ROLE, dots)
-    if len(dots) > 1:
-        item.setToolTip("、".join(scene_name(key) for key in dots))
 
 
 class _GuestTable(QTableWidget):
@@ -425,11 +423,10 @@ class LikesPage(QWidget):
         # 场景管理: each 场景's sound, and the 场景 hotkey's, in a dialog of its own (manage_scenes).
         self.scenes_button = QPushButton("场景管理")
         self.scenes_button.setAccessibleName("场景管理")
-        self.scenes_button.setToolTip("每个场景的声音和音量，场景快捷键")
         self.scenes_button.clicked.connect(self.manage_scenes.emit)
         toolbar.addWidget(self.scenes_button)
         toolbar.addStretch(1)
-        # 添加组合: 嘉宾 who all in one lobby get 场景 of their own; it waits for two 嘉宾 and says so.
+        # 添加组合: 嘉宾 who all in one lobby get 场景 of their own; it waits for two 嘉宾.
         self.add_combo_button = QPushButton("添加组合")
         self.add_combo_button.clicked.connect(self.add_combo)
         toolbar.addWidget(self.add_combo_button)
@@ -543,8 +540,6 @@ class LikesPage(QWidget):
             item = QTableWidgetItem(text)
             item.setData(ME_ROLE, name)
             item.setFlags(item.flags() & ~Qt.ItemIsDragEnabled & ~Qt.ItemIsDropEnabled)
-            if column == NAME:
-                item.setToolTip(f"{ME_TAG}：{name}" if name else NO_NAME)
             if column == THEME_COLUMN:
                 _scenes_cell(item, self.store.me)
             self.table.setItem(0, column, item)
@@ -577,7 +572,6 @@ class LikesPage(QWidget):
             item.setFlags(item.flags() & ~Qt.ItemIsDragEnabled & ~Qt.ItemIsDropEnabled)
             if column == NAME:
                 item.setData(PEOPLE_ROLE, people)
-                item.setToolTip(f"{COMBO_TAG}：{who}")
             if column == THEME_COLUMN:
                 _scenes_cell(item, combo.scenes)
             if column == MET:
@@ -607,8 +601,6 @@ class LikesPage(QWidget):
             for column, text in enumerate(cells):
                 item = QTableWidgetItem(" ".join(text.split()) if column == REASON else text)
                 item.setData(Qt.UserRole, index)
-                if column == REASON and text:
-                    item.setToolTip(text)
                 if column == THEME_COLUMN:
                     _scenes_cell(item, like.scenes)
                 if column in (NICKNAME, MET):
@@ -621,7 +613,6 @@ class LikesPage(QWidget):
         # 复制名单 and 清空嘉宾列表 are for 嘉宾: with 组合 alone they would have nothing to do.
         self.more_button.setVisible(count > 0)
         self.add_combo_button.setEnabled(count >= 2)
-        self.add_combo_button.setToolTip("" if count >= 2 else TOO_FEW)
         if has_any and not shown:
             self.empty.set_icon("search")
             self.empty.set_text(f"没有找到「{self.search.text().strip()}」")

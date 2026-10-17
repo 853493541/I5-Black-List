@@ -121,7 +121,7 @@ def test_a_section_is_always_chosen(opened):
 
 
 def test_a_long_update_note_keeps_the_about_section_in_the_window(opened):
-    """A long answer from 检查更新 (a network error) is cut short with … before the button and whole in its
+    """A long answer from 检查更新 (a network error) is cut short with … before the button, with no
     tooltip: 检查更新, 当前版本 and every row of 关于 stay in the window at 900x560."""
     from PySide6.QtCore import QPoint, QRect
 
@@ -134,7 +134,7 @@ def test_a_long_update_note_keeps_the_about_section_in_the_window(opened):
         assert widget.isVisible() and shown.contains(QRect(widget.mapTo(opened.settings_scroll.viewport(), QPoint(0, 0)), widget.size()))
     assert opened.settings_scroll.horizontalScrollBar().maximum() == 0
     assert opened.version_label.width() >= opened.version_label.sizeHint().width()
-    assert opened.update_note.text() == opened.update_note.toolTip() == note
+    assert opened.update_note.text() == note and opened.update_note.toolTip() == ""
     assert 0 < opened.update_note.width() < opened.update_note.fontMetrics().horizontalAdvance(note)
     # A short one is shown whole, right before the button.
     opened._show_update_note("已是最新版本")
@@ -362,4 +362,4 @@ def test_a_pane_draws_lines_between_rows_only(qapp):
     assert pane.heading.text() == "常规" and len(pane.findChildren(QWidget, "settingsLine")) == 1
     assert [row.description_text() for row in pane.rows] == ["Windows 启动时自动打开", ""]
     assert pane.rows[1].description is None
-    assert pane.rows[0].description.toolTip() == "Windows 启动时自动打开", "a line cut short is whole on hover"
+    assert pane.rows[0].description.toolTip() == "", "no text on hover"

@@ -130,7 +130,7 @@ def test_a_segmented_control_keeps_one_choice(qapp):
 
 def test_an_icon_button_is_named_for_screen_readers(qapp):
     button = IconButton("edit", "修改")
-    assert button.toolTip() == "修改"
+    assert button.toolTip() == ""
     assert button.accessibleName() == "修改"
     assert not button.icon().isNull()
 
@@ -268,12 +268,12 @@ def test_a_settings_section_without_a_title_starts_with_its_rows(qapp):
     section.add_row("直播模式", QPushButton("开启"), words, info=info)
     assert section.findChild(QLabel, "sectionTitle") is None
     assert [label.text() for label in section.findChildren(QLabel)][0] == "直播模式"
-    # The mark sits in the names' column, right after the name; the words, cut short, say all of it on hover.
+    # The mark sits in the names' column, right after the name; the words, cut short, say nothing on hover.
     name = next(label for label in section.findChildren(QLabel) if label.text() == "直播模式")
     assert name.parentWidget() is info.parentWidget() and name.parentWidget().width() == 80
-    assert words.toolTip() == words.text() and words.minimumSizeHint().width() == 0
+    assert words.toolTip() == "" and words.minimumSizeHint().width() == 0
     words.setText("短")
-    assert words.toolTip() == "短"
+    assert words.toolTip() == ""
 
 
 @pytest.mark.parametrize("dark", [False, True])

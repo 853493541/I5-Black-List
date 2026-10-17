@@ -279,11 +279,26 @@ def accent_of(name: str) -> str:
     return _palette(name if name in _LIGHT else "蓝色", is_dark())["accent"]
 
 
+class NoHoverText(QObject):
+    """Eats every tooltip and What's This before Qt shows its box, Qt's own ones too (a tool button's action, a tab
+    bar's): the user wants no box of text on hover anywhere (ask #71, 2026-10-16)."""
+
+    def eventFilter(self, _watched: QObject, event: QEvent) -> bool:
+        return event.type() in (QEvent.Type.ToolTip, QEvent.Type.WhatsThis)
+
+
+def _no_hover_text(app: QApplication) -> None:
+    """NoHoverText on the whole app, once."""
+    if app.findChild(NoHoverText) is None:
+        app.installEventFilter(NoHoverText(app))
+
+
 def _apply_theme(app: QApplication | None = None) -> None:
-    """Keep every native control on the same palette as the stylesheet."""
+    """Keep every native control on the same palette as the stylesheet, and no hover text over any of them."""
     app = app or QApplication.instance()
     if app is None:
         return
+    _no_hover_text(app)
     app.styleHints().setColorScheme(Qt.ColorScheme.Dark if is_dark() else Qt.ColorScheme.Light)
     t = THEME
     palette = app.palette()
@@ -296,8 +311,6 @@ def _apply_theme(app: QApplication | None = None) -> None:
     palette.setColor(QPalette.ColorRole.ButtonText, QColor(t["text"]))
     palette.setColor(QPalette.ColorRole.Highlight, QColor(t["selected"]))
     palette.setColor(QPalette.ColorRole.HighlightedText, QColor(t["text"]))
-    palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(t["surface"]))
-    palette.setColor(QPalette.ColorRole.ToolTipText, QColor(t["text"]))
     palette.setColor(QPalette.ColorRole.PlaceholderText, QColor(t["muted"]))
     palette.setColor(QPalette.ColorRole.Mid, QColor(t["border"]))
     # Radio buttons and checks take the app's accent, not the Windows one.
@@ -1006,14 +1019,6 @@ def _window_style(family: str) -> str:
             QSlider::handle:horizontal:hover {{ border-color: {t["accent_line"]}; }}
             QSlider::sub-page:horizontal:disabled {{ background: {t["field_line"]}; }}
             QSlider::handle:horizontal:disabled {{ background: {t["surface_alt"]}; border-color: {t["border"]}; }}
-            QToolTip {{
-                font-family: "{family}";
-                font-size: {SMALL_PT}pt;
-                color: {t["text"]};
-                background: {t["surface"]};
-                border: 1px solid {t["border"]};
-                padding: 4px 8px;
-            }}
             """ + _button_rules(family) + f"""
             QPushButton#rowDelete {{
                 background: transparent;
@@ -1112,14 +1117,6 @@ def _dialog_style(family: str) -> str:
             QCheckBox:hover {{
                 background: {t["hover"]};
                 color: {t["text"]};
-            }}
-            QToolTip {{
-                font-family: "{family}";
-                font-size: {SMALL_PT}pt;
-                color: {t["text"]};
-                background: {t["surface"]};
-                border: 1px solid {t["border"]};
-                padding: 4px 8px;
             }}
             """ + _scroll_rules() + _input_rules(family) + _button_rules(family) + _kit_rules(family)
 

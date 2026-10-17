@@ -314,7 +314,6 @@ class ProfileChip(_KeyboardRing, QAbstractButton):
 
     def set_name(self, name: str) -> None:
         self._name = name.strip()
-        self.setToolTip(self._name or "游戏名")
         self.updateGeometry()
         self.update()
 
@@ -338,7 +337,7 @@ class ProfileChip(_KeyboardRing, QAbstractButton):
 
     def minimumSizeHint(self) -> QSize:
         """In a header with no room left (the window at its narrowest, with everything in it), the name gives
-        way first, down to the round initial alone; its tooltip still says it."""
+        way first, down to the round initial alone."""
         return QSize(self._PAD_L * 2 + self._AVATAR, _CHIP_H)
 
     def enterEvent(self, event) -> None:  # noqa: ANN001

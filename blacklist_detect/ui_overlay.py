@@ -988,7 +988,6 @@ class LobbyPanel(QWidget):
 
     def set_mode(self, mode: str, text: str) -> None:
         self.mode = mode
-        self.setToolTip(text)
         self._text = text if mode == "checking" else ""
         if mode == "checking":
             if not self.shining():

@@ -492,7 +492,7 @@ def test_it_fits_a_short_screen_and_the_window(qapp, player):
 def test_a_long_name_is_cut_in_the_middle(qapp, player):
     name = "一首名字特别特别特别特别特别特别特别特别特别特别特别特别特别特别长的心动音乐.mp3"
     dialog = SoundTrimDialog(_sound(20), RATE, name, player.preview, player.stop)
-    assert dialog.name.text() != name and dialog.name.text().endswith(".mp3") and dialog.name.toolTip() == name
+    assert dialog.name.text() != name and dialog.name.text().endswith(".mp3") and dialog.name.toolTip() == ""
     assert dialog.name.sizeHint().width() <= dialog.wave.width() + 8
 
 
@@ -537,7 +537,7 @@ def test_outside_the_window_is_plainly_dimmer_in_every_accent(qapp, player, sche
 def test_under_mute_nothing_plays_but_the_playhead_moves_and_cut_takes(qapp, player):
     dialog = _dialog(player, muted=True)
     for button in (dialog.play_button, dialog.pause_button):
-        assert not button.isEnabled() and button.toolTip() == "已静音"
+        assert not button.isEnabled() and button.toolTip() == ""
     dialog.show()
     try:
         assert player.songs == [] and not dialog.running

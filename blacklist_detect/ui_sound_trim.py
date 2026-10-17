@@ -282,7 +282,7 @@ class SoundTrimDialog(Modal):
     """选择片段: the part of a sound longer than limit_s that a 场景 plays. samples: the sound, mono int16
     at rate; name: its file's name. play(at) plays the sound from at to its end, or returns why it cannot;
     preview(start, length) plays that part, or returns why it cannot; stop() stops either; check(start,
-    length) is why a part cannot be kept, or "". muted: nothing would be heard (muted_tip, their tooltip, says why), so
+    length) is why a part cannot be kept, or "". muted: nothing would be heard, so
     neither can be pressed.
     now: the time in seconds (time.monotonic). selection() is (start, length) in seconds; 确定 accepts it."""
 
@@ -326,7 +326,6 @@ class SoundTrimDialog(Modal):
         title.setWeight(QFont.DemiBold)
         self.name = QLabel(QFontMetrics(title).elidedText(name, Qt.ElideMiddle, Waveform.W))
         self.name.setFont(title)
-        self.name.setToolTip(name)
         layout.addWidget(self.name)
         layout.addWidget(self.wave)
         # 暂停 / 播放 and 截取, which says what it takes; why a part cannot be heard or kept, in red, beside
@@ -362,7 +361,6 @@ class SoundTrimDialog(Modal):
         if muted:
             for button in (self.pause_button, self.play_button):
                 button.setEnabled(False)
-                button.setToolTip(muted_tip)
         self.ok_button = _primary("确定", self.accept)
         self.footer(self.ok_button)
         _pointing(self)
@@ -384,7 +382,6 @@ class SoundTrimDialog(Modal):
             button.setIcon(_glyph(glyph, 12, THEME["text"]))
         if name:
             button.setAccessibleName(name)
-            button.setToolTip(name)
         button.clicked.connect(action)
         return button
 

@@ -113,9 +113,9 @@ def test_random_is_the_first_row_with_a_dot_of_its_own_and_no_hint(store):
     assert list(pane.buttons)[0] == "random" and pane.buttons["random"].text() == "随机"
     others = [scene_dot(key) for key in list(pane.buttons)[1:]]
     assert pane.buttons["random"].dot == scene_dot("random") and scene_dot("random") not in others
-    # No line of words beside 播放场景 any more; its tooltip says what off does and that a 场景 ticked turns it on.
+    # No line of words beside 播放场景, and nothing on hover.
     assert not [label for label in pane.findChildren(QLabel) if label.text() == "不勾选场景则随机播放"]
-    assert pane.play_box.toolTip() == "不勾：不播放；勾选任一场景即开启"
+    assert pane.play_box.toolTip() == ""
     dialog.done(QDialog.Rejected)
 
 
@@ -594,7 +594,7 @@ def test_one_scene_per_row_a_box_ticks_and_a_name_plays(store):
 
 def test_the_box_says_play_scenes_in_every_dialog(store):
     for dialog in (_like(store, 0), _combo(store), _me(store)):
-        assert dialog.pane.play_box.text() == "播放场景" and "播放" in dialog.pane.play_box.toolTip()
+        assert dialog.pane.play_box.text() == "播放场景" and dialog.pane.play_box.toolTip() == ""
         dialog.done(QDialog.Rejected)
 
 
@@ -659,7 +659,7 @@ def test_no_dialog_lists_other_guests_but_the_combo_its_members(store):
 def test_the_preview_is_silent_and_replays_from_its_start(store):
     dialog = _like(store, 0)
     pane = dialog.pane
-    assert dialog.isAncestorOf(pane.preview) and pane.play_button.toolTip() == "从头播放"
+    assert dialog.isAncestorOf(pane.preview) and pane.play_button.toolTip() == ""
     # It opens on the scene still, nothing made; ▶ plays it from its start, a click on a name plays that one.
     assert pane.preview.scene == "stars" and pane.preview.is_still and not pane.preview._tick.isActive()
     pane.play_button.click()

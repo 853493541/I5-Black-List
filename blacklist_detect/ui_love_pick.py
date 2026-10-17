@@ -13,7 +13,7 @@ from __future__ import annotations
 import threading
 from pathlib import Path
 
-from PySide6.QtCore import QElapsedTimer, QEvent, QPoint, QPointF, QRectF, QSize, Qt, QTimer, Signal
+from PySide6.QtCore import QElapsedTimer, QPoint, QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QIcon, QImage, QPainter, QPainterPath, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import (
     QAbstractButton,
@@ -22,7 +22,6 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
-    QToolTip,
     QWidget,
 )
 
@@ -204,7 +203,6 @@ class ScenePreview(QWidget):
         if play is not None:
             button = QPushButton(self)
             button.setObjectName("previewPlay")
-            button.setToolTip("从头播放，带配乐")
             button.setAccessibleName("播放")
             button.setCursor(Qt.PointingHandCursor)
             button.setAutoDefault(False)
@@ -553,13 +551,6 @@ class SceneChoice(_KeyboardRing, QAbstractButton):
         super().focusInEvent(event)
         in_sight(self, event)
 
-    def event(self, event) -> bool:  # noqa: ANN001
-        # The spot says what it does when the mouse rests on it.
-        if event.type() == QEvent.Type.ToolTip and self.tick is not None and self._at_end(event.pos().x()):
-            QToolTip.showText(event.globalPos(), "按快捷键时播放这个" if self.tick else "点一下，按快捷键时播放这个", self)
-            return True
-        return super().event(event)
-
     def mousePressEvent(self, event) -> None:  # noqa: ANN001
         # A press on the box ticks it and leaves the highlight where it is.
         self._box_press = event.button() == Qt.LeftButton and self._on_box(event)
@@ -711,9 +702,8 @@ class SceneList(QWidget):
         for place, (key, title) in enumerate([RANDOM] * (chosen is not None) + list(love_scenes.SCENES)):
             button = SceneChoice(key, title)
             if columns > 1:
-                # Alike, wide enough for every name whole; the name again when the mouse rests on it.
+                # Alike, wide enough for every name whole.
                 button.setFixedWidth(cell)
-                button.setToolTip(title)
             button.clicked.connect(lambda _checked=False, key=key: self._click(key))
             button.chose.connect(lambda on, key=key: self.chose.emit(key, on))
             button.ticked.connect(lambda key=key: self.ticked.emit(key))

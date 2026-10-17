@@ -271,7 +271,7 @@ def test_blacklist_columns_can_be_dragged(qapp, tmp_path, monkeypatch):
     kept.close()
 
 
-def test_blacklist_detail_elides_and_explains_on_hover(qapp, tmp_path, monkeypatch):
+def test_blacklist_detail_elides_and_is_whole_in_edit(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
     window = MainWindow()
@@ -304,12 +304,9 @@ def test_blacklist_detail_elides_and_explains_on_hover(qapp, tmp_path, monkeypat
     assert dialog.detail_edit.toPlainText() == stored
     assert "\n" in dialog.detail_edit.toPlainText()
     dialog.close()
-    assert window._reason_for_row(0) == stored
+    # Nothing shows it on hover: the whole 详情 is read in 编辑.
     window._hover_blacklist_row(0, 2)
-    assert window.detail_tip.isVisible() is True
-    assert window.detail_tip.text == stored
-    window._hover_blacklist_row(1, 2)
-    assert window.detail_tip.isVisible() is False
+    assert cell.toolTip() == "" and not window.findChildren(QWidget, "detailTip")
     window.close()
 
 
@@ -753,7 +750,7 @@ def test_the_header_fits_the_smallest_window(qapp, tmp_path, monkeypatch):
     for _ in range(3):
         qapp.processEvents()
     fits((*tabs, *right, chip))
-    assert chip.width() < chip.sizeHint().width() and chip.toolTip() == window.store.player_name
+    assert chip.width() < chip.sizeHint().width() and chip.toolTip() == ""
     # A wider window has room: the name is whole, and the box is as wide as it gets.
     window.resize(1200, 560)
     for _ in range(3):
@@ -854,7 +851,7 @@ def test_clean_lobby_shows_a_green_clear(qapp, tmp_path, monkeypatch):
     assert window.panel.text() == ""
     assert window.panel.shining() is False
     assert window.panel.ring() == "#2f9e5e"
-    assert window.panel.toolTip() == "未发现黑名单"
+    assert window.panel.toolTip() == ""
     assert window.clear_mark.isVisible() is True
     cover = window.panel.cover_geometry()
     margin = window.clear_mark.margin
@@ -1075,9 +1072,6 @@ def test_titlebar_close_hides_to_the_tray_and_says_so_once(qapp, tmp_path, monke
         def showMessage(self, title, text, *args):
             self.messages.append(title)
 
-        def setToolTip(self, text):
-            pass
-
         def hide(self):
             pass
 
@@ -1121,7 +1115,7 @@ def test_a_cut_name_shows_once_with_the_rest_from_the_list(qapp, tmp_path, monke
     seat = window.history_table.cellWidget(0, 0)
     assert seat.findChild(QLabel, "rowListed") is None
     assert seat.findChild(QLabel, "rowName").text() == "无害虎皮吉尔曼"
-    assert window.history_table.item(0, 0).toolTip() == "读到「无害虎皮」，是黑名单里的「无害虎皮吉尔曼」"
+    assert window.history_table.item(0, 0).toolTip() == ""
     assert seat.findChild(QLabel, "rowAction") is None
     # A cut name that differs in more than the cut may be someone else: the list's spelling stays beside it.
     other = window.history_table.cellWidget(0, 1)
@@ -1394,11 +1388,8 @@ def test_a_failed_check_is_shown_and_clears_when_checks_work(qapp, tmp_path, mon
     window._on_worker(("glance", "err", OcrUnavailable("识别功能没装好，重新解压一遍安装包")))
     assert window.status_chip.text() == "识别还没准备好"
     assert window.status_chip.tone() == "hit"
-    # What went wrong, in full, under the pointer.
-    assert window.status_chip.toolTip() == "识别功能没装好，重新解压一遍安装包"
-    # No file path, library name or command: those go to the log, not to the user.
-    assert "app.log" not in window.status_chip.toolTip()
-    assert "PaddleOCR" not in window.status_chip.toolTip()
+    # Nothing on hover.
+    assert window.status_chip.toolTip() == ""
     assert window._glance_pause_until > 0
     window._on_worker(("check", "err", RuntimeError("坏了")))
     assert window.status_chip.text() == "检查失败"
@@ -1954,7 +1945,7 @@ def test_keyboard_reaches_every_page_and_list(qapp, tmp_path, monkeypatch):
     window._watch_timer.stop()
     # Ctrl+1 to Ctrl+4 open the pages in their order, 场景管理 none (it opens from 嘉宾); Ctrl+F lands on 黑名单.
     assert [tab.name() for tab in window._tab_buttons] == ["记录", "黑名单", "嘉宾", "设置"]
-    assert [tab.toolTip() for tab in window._tab_buttons] == ["Ctrl+1", "Ctrl+2", "Ctrl+3", "Ctrl+4"]
+    assert [tab.toolTip() for tab in window._tab_buttons] == ["", "", "", ""]
     assert "Ctrl+5" not in window.shortcuts
     window.shortcuts["Ctrl+4"].activated.emit()
     assert window.tabs.currentIndex() == window.settings_tab == 3
@@ -2178,25 +2169,6 @@ def test_the_record_card_fits_its_seats_and_has_a_menu(qapp, tmp_path, monkeypat
     window.close()
 
 
-def test_the_reason_card_wraps_any_text_and_shows_all_of_it(qapp):
-    from PySide6.QtCore import QPoint
-
-    from blacklist_detect.ui_widgets import _DetailTip
-
-    tip = _DetailTip()
-    tip.show_reason("1" * 160, QPoint(100, 100))
-    line = QFontMetrics(tip.label.font()).lineSpacing()
-    assert tip.label.width() <= 400
-    assert tip.label.height() >= line * 3, "an unbroken run wraps onto several lines"
-    assert tip.scroll.verticalScrollBarPolicy() == Qt.ScrollBarAlwaysOff
-    tip.show_reason("很长的原因" * 200, QPoint(100, 100))
-    assert tip.scroll.height() <= 320
-    assert tip.scroll.verticalScrollBarPolicy() == Qt.ScrollBarAsNeeded, "a very long reason scrolls"
-    tip.show_reason("短", QPoint(100, 100))
-    assert tip.label.width() < 100
-    tip.hide()
-
-
 def test_last_seen_matches_checking_every_name(qapp, tmp_path, monkeypatch):
     import random
 
@@ -2273,7 +2245,7 @@ def test_a_record_says_what_it_found_and_shortens_long_names(qapp, tmp_path, mon
         ]
     )
     window._reload_history()
-    assert window.history_table.item(1, 0).toolTip() == long_name
+    assert window.history_table.item(1, 0).toolTip() == ""
     label = window.history_table.cellWidget(1, 0).findChild(QLabel)
     assert label.minimumSizeHint().width() < 100, "a long name can shrink to fit its seat"
     window.store.remove_scan(0)
@@ -2554,9 +2526,6 @@ def test_closing_quits_or_goes_to_the_tray_as_set(qapp, tmp_path, monkeypatch):
         def hide(self):
             pass
 
-        def setToolTip(self, text):
-            pass
-
     class TitleBarClose:
         ignored = False
 
@@ -2637,7 +2606,7 @@ def test_records_with_a_hit_are_marked_in_the_list(qapp, tmp_path, monkeypatch):
         if item.data(Qt.UserRole + 1) == "time":
             rows[item.data(Qt.UserRole)] = window.history_list.itemWidget(item)
     assert rows[0].findChild(QLabel, "recordHitCount").text() == "2"
-    assert rows[0].toolTip() == "2 名黑名单玩家"
+    assert rows[0].toolTip() == ""
     assert rows[1].findChild(QLabel, "recordHitCount") is None
     # The ⚠ count sits at the right end of its row, away from the time.
     window.resize(900, 560)
@@ -2689,7 +2658,7 @@ def test_the_window_opens_on_records(qapp, tmp_path, monkeypatch):
     window = MainWindow()
     window._watch_timer.stop()
     assert window.history_tab == 0 and window.tabs.currentIndex() == window.history_tab
-    assert window._tab_buttons[0].isChecked() and window._tab_buttons[0].toolTip() == "Ctrl+1"
+    assert window._tab_buttons[0].isChecked() and window._tab_buttons[0].toolTip() == ""
     # A new list still shows where to put 角色名称 and the tags.
     assert window.list_empty.isHidden() is False
     assert window.list_side.isHidden() is False

@@ -199,9 +199,9 @@ def test_play_plays_the_one_shown_with_its_music_and_the_hotkey_its_own(window):
     window._end_quick_play()
     # Under 静音 it is off, saying so, as each song's ▶ is.
     window.mute_box.click()
-    assert not page.play_button.isEnabled() and page.play_button.toolTip() == "已静音"
+    assert not page.play_button.isEnabled() and page.play_button.toolTip() == ""
     window.mute_box.click()
-    assert page.play_button.isEnabled() and page.play_button.toolTip() == "从头播放，带配乐"
+    assert page.play_button.isEnabled() and page.play_button.toolTip() == ""
 
 
 def _rows(page) -> list[str]:  # noqa: ANN001
@@ -454,7 +454,7 @@ def test_under_mute_a_trial_cannot_be_played_and_nothing_is(window, pick, trim, 
     pick["chosen"] = _wav(tmp_path / "long.wav", 8.0)
 
     def muted(dialog) -> bool:  # noqa: ANN001
-        assert not dialog.play_button.isEnabled() and dialog.play_button.toolTip() == "已静音"
+        assert not dialog.play_button.isEnabled() and dialog.play_button.toolTip() == ""
         dialog.toggle_preview()
         assert not dialog.playing
         return True
@@ -473,7 +473,7 @@ def test_at_volume_0_a_trial_cannot_be_played_either(window, pick, trim, tmp_pat
 
     def quiet(dialog) -> bool:  # noqa: ANN001
         assert not dialog.play_button.isEnabled() and not dialog.pause_button.isEnabled()
-        assert dialog.play_button.toolTip() == "音量为 0%"
+        assert dialog.play_button.toolTip() == ""
         dialog.toggle_preview()
         assert not dialog.playing
         return True
@@ -671,12 +671,12 @@ def test_each_row_s_play_plays_it_at_the_effect_s_volume_chosen_or_not(window, p
     window.mute_box.click()
     window.played.clear()
     for button in page.sounds.play_buttons[:2]:
-        assert not button.isEnabled() and button.toolTip() == "已静音"
+        assert not button.isEnabled() and button.accessibleName() == "已静音"
     page.sounds.play_buttons[1].click()
     assert all(tune is None for tune in window.played) and not page.sounding
     # 静音 off: they can again, 经典's 默认 still not.
     window.mute_box.click()
-    assert page.sounds.play_buttons[1].isEnabled() and page.sounds.play_buttons[1].toolTip() == "播放"
+    assert page.sounds.play_buttons[1].isEnabled() and page.sounds.play_buttons[1].accessibleName() == "播放"
     _shown(window, "classic")
     assert not page.sounds.play_buttons[0].isEnabled()
 
@@ -706,11 +706,11 @@ def test_play_becomes_pause_and_goes_on_from_where_it_was(window, clock):
     page = _shown(window, "ice")
     window.played.clear()
     page.play_button.click()
-    assert page.play_button.text() == "暂停" and page.play_button.toolTip() == "暂停" and page.sounding
+    assert page.play_button.text() == "暂停" and page.play_button.toolTip() == "" and page.sounding
     assert window.played[-1] == TUNES["ice"] and page._end.isActive() and page._end.interval() == 5000
     clock.now += 1.2
     page.play_button.click()
-    assert page.play_button.text() == "播放" and page.play_button.toolTip() == "接着播放" and not page.sounding
+    assert page.play_button.text() == "播放" and page.play_button.toolTip() == "" and not page.sounding
     assert window.played[-1] is None and page.preview.held and not page.preview._tick.isActive() and not page._end.isActive()
     # Paused as long as the player likes: the scene stays where it was.
     clock.now += 30
@@ -720,7 +720,7 @@ def test_play_becomes_pause_and_goes_on_from_where_it_was(window, clock):
     assert not page.preview.held and page.preview._clock.elapsed() == 1200 and page._end.interval() == 3800
     # Over by itself: ▶ 播放 again, and the next play is from the start.
     page._end.timeout.emit()
-    assert page.play_button.text() == "播放" and page.play_button.toolTip() == "从头播放，带配乐" and not page.sounding
+    assert page.play_button.text() == "播放" and page.play_button.toolTip() == "" and not page.sounding
     page.play_button.click()
     assert window.played[-1] == TUNES["ice"] and page.preview._clock.elapsed() == 0
     # Another 场景 shown: ▶ 播放 again, nothing playing.
@@ -737,19 +737,19 @@ def test_each_sound_s_play_pauses_it_with_a_wave_beside_it_one_at_a_time(window,
     rows, waves = page.sounds.play_buttons, page.sounds.waves
     window.played.clear()
     rows[1].click()
-    assert rows[1].playing and rows[1].toolTip() == "暂停" and window.played[-1].name == "stars-1.wav"
+    assert rows[1].playing and rows[1].accessibleName() == "暂停" and window.played[-1].name == "stars-1.wav"
     assert [wave.running for wave in waves] == [False, True, False, False] and not waves[1].isHidden()
     assert page._end.interval() == 2000 and page.play_button.text() == "播放"
     # ⏸: stopped where it is, its wave gone; ▶: on from there.
     clock.now += 0.5
     rows[1].click()
-    assert not rows[1].playing and rows[1].toolTip() == "接着播放" and window.played[-1] is None
+    assert not rows[1].playing and rows[1].accessibleName() == "接着播放" and window.played[-1] is None
     assert not waves[1].running and waves[1].isHidden() and not page._end.isActive()
     rows[1].click()
     assert window.played[-1].name.endswith("-at500ms.wav") and waves[1].running and page._end.interval() == 1500
     # One at a time: another row, 默认 or ▶ 播放 stops the last, and its wave.
     rows[2].click()
-    assert [wave.running for wave in waves] == [False, False, True, False] and rows[1].toolTip() == "播放"
+    assert [wave.running for wave in waves] == [False, False, True, False] and rows[1].accessibleName() == "播放"
     rows[0].click()
     assert [wave.running for wave in waves] == [True, False, False, False] and window.played[-1] == TUNES["stars"]
     page.play_button.click()
@@ -801,7 +801,7 @@ def test_a_wave_starts_right_after_its_play_and_moves_nothing_so_a_second_click_
     click()
     assert listen.playing and sounds.waves[2].running and (listen.geometry(), gone.geometry(), sounds.choices[2].text()) == idle
     click()
-    assert not listen.playing and listen.toolTip() == "接着播放" and len(_rows(page)) == 3
+    assert not listen.playing and listen.accessibleName() == "接着播放" and len(_rows(page)) == 3
 
 
 def test_mute_closing_minimizing_and_the_window_s_music_put_every_play_back(window, pick, trim, tmp_path, clock):
@@ -815,9 +815,9 @@ def test_mute_closing_minimizing_and_the_window_s_music_put_every_play_back(wind
     rows[1].click()
     window.mute_box.click()
     assert not any(wave.running or not wave.isHidden() for wave in waves) and window.played[-1] is None
-    assert rows[1].toolTip() == "已静音" and not rows[1].playing and not page.sounding
+    assert rows[1].accessibleName() == "已静音" and not rows[1].playing and not page.sounding
     window.mute_box.click()
-    assert rows[1].toolTip() == "播放"
+    assert rows[1].accessibleName() == "播放"
     # The window's music taking over (a lobby's, the 场景 hotkey's): ▶ 播放 again.
     page.play_button.click()
     page.sounding = False
@@ -850,7 +850,7 @@ def test_upload_is_off_at_three_songs_until_one_is_deleted(window, pick, trim, t
         page.upload_button.click()
     assert [song["file"] for song in window.store.scene_songs("cyber")] == ["cyber-1.wav", "cyber-2.wav", "cyber-3.wav"]
     assert len(_rows(page)) == 4 and _chosen(page) == "2.wav · 3.0 秒"
-    assert not page.upload_button.isEnabled() and page.upload_button.toolTip() == "最多 3 首，先删掉一首"
+    assert not page.upload_button.isEnabled() and page.upload_button.toolTip() == ""
     # Asked anyway (a shortcut, a click under way), nothing is.
     page.upload()
     assert len(pick["asked"]) == 3
@@ -997,9 +997,9 @@ def test_the_dialog_with_three_songs_shows_every_control(window, pick, trim, tmp
     for control in (*controls, page.volume_slider, page.level_note, page.play_button, window.effect_hotkey_edit):
         assert page.rect().contains(placed(control)), control
     assert page.preview.width() == page.PREVIEW_W
-    # A name too long for its room is cut in the middle, whole in its tooltip.
+    # A name too long for its room is cut in the middle, with no tooltip.
     long = page.sounds.choices[1]
-    assert long.text() != long.full and long.toolTip() == long.full and long.text().endswith("2.0 秒")
+    assert long.text() != long.full and long.toolTip() == "" and long.text().endswith("2.0 秒")
     window.scenes_dialog.reject()
     window.hide()
 

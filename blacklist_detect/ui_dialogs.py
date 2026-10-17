@@ -155,7 +155,6 @@ class AddNameDialog(Modal):
             self.reveal_action = self.name_edit.addAction(
                 line_icon("eye", 16, THEME["muted"]), QLineEdit.ActionPosition.TrailingPosition
             )
-            self.reveal_action.setToolTip("显示名字")
             self.reveal_action.triggered.connect(self._reveal_name)
         self.tag_host = _FlowHost(gap=8)
         _field(layout, "标签", self.tag_host)
@@ -393,15 +392,10 @@ class BatchAddDialog(Modal):
         table.setRowCount(len(self.rows))
         for index, row in enumerate(self.rows):
             name = QTableWidgetItem(row.name)
-            name.setToolTip(row.name)
             reason = QTableWidgetItem(row.reason)
-            reason.setToolTip(row.reason)
             status = QTableWidgetItem(self._status.get(row.status, ""))
-            if row.status == MERGE and 0 <= row.target < len(self.entries):
-                status.setToolTip(f"合并到「{self.entries[row.target].name}」")
             tags = QTableWidgetItem("")
             tags.setData(Qt.UserRole + 3, row.tags)
-            tags.setToolTip("、".join(row.tags))
             status.setData(Qt.UserRole + 4, (THEME["accent_line"] if THEME.get("scheme") == "dark" else THEME["accent"]) if row.status == MERGE else THEME["muted"])
             for column, item in enumerate((name, tags, reason, status)):
                 item.setFlags(Qt.ItemIsEnabled)
@@ -530,11 +524,9 @@ class TagSuggestDialog(Modal):
         table.setItemDelegateForColumn(2, _PreviewDelegate(table))
         for index, (name, _tags, reason, _target) in enumerate(self.rows):
             who = QTableWidgetItem(name)
-            who.setToolTip(name)
             who.setData(Qt.UserRole, True)
             gets = QTableWidgetItem("")
             why = QTableWidgetItem(reason)
-            why.setToolTip(reason)
             why.setData(Qt.UserRole + 4, THEME["muted"])
             for column, item in enumerate((who, gets, why)):
                 item.setFlags(Qt.ItemIsEnabled)
@@ -569,7 +561,6 @@ class TagSuggestDialog(Modal):
         for index, (_name, tags, _reason, _target) in enumerate(with_tags(self.rows, self.picked())):
             item = self.people.item(index, 1)
             item.setData(Qt.UserRole + 3, tuple(tags))
-            item.setToolTip("、".join(tags))
         self.people.viewport().update()
 
     def _back(self) -> None:
