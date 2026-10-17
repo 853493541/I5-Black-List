@@ -1,25 +1,26 @@
 Read CLAUDE.md first (team rules, cost rules, release rules). This file is state only. The user's asks, with where
 each stands, are in ASKS.md beside it: that list is what "done" means; report against it.
 
-# Update 2026-10-16 ~19:00 PDT: ask #69, the v1.0 full check, final check running (no release: "Don't release yet.")
+# Update 2026-10-16 ~17:50 local: v1.0 final check passed; ask #71 (no hover) finishing; ask #72: release v1.0.0 after it
 
-- Findings: dist/release_check/v1.0/ALL_PROBLEMS.md (check) and verify/VERIFY.md (confirmed, with fix plans and tests).
-- `improve/quality` = `6b7c415` (+ notes). Merged, each after its tests (and a tester, except polish, whose shots are in
-  the final check): small fixes, fix/v1-storage (+updater), fix/v1-ocr-window (_ready_scale), fix/v1-stream-lists
-  (82241f8), fix/v1-perf (936a944), fix/v1-polish (9ded293), fix/v1-ocr-ready (0e26095..6b7c415: 准备就绪 strip re-read,
-  grid 97/13/0 misread; a held list/设置/记录 file is not said 已备份 and is never saved over that run). 866 passed, ruff
-  clean. Not installed.
-- Running: the final check (tester with the desktop) in worktree .claude/worktrees/v1-final (detached at 6b7c415): full
-  tests, ice median frame idle, shots light150/dark150/light125/empty150/stream150, the 编辑 eye in 直播模式 by real
-  window. Output: scratchpad v1final/.
-- Leftover empty folders (held by a shell): .claude/worktrees/agent-ae38f53789760ac49, agent-ab2cab4534a0724a8; remove later.
+- `improve/quality` = `122cda3` (6b7c415 + CLAUDE.md ffa1b3e + notes). Final check (v1-final, scratchpad v1final/): ready
+  for v1.0: 866 passed, ruff clean, ice median 17.3-17.6 ms idle, shots light150/dark150/light125/empty150/stream150 fine,
+  the 编辑 eye works in a real window. Master checked pair.png, empty150_02, light125_03.
+- Ask #71 (no hover text anywhere): branch fix/v1-no-hover in .claude/worktrees/wf_70b2636e-d77-1. The first builder ran
+  out of turns; its work is the WIP commit 4ea3338 (tooltips removed in 14 files, app-wide NoHoverText guard in
+  ui_theme._apply_theme, _DetailTip card gone, tray tooltip gone, load warning said in full in the 检查 panel's
+  problem_label). Workflow wf_af562f6a-81f (task wkll9ctq6) finishes it (leftovers, 直播姬 state words fit with no …,
+  tests incl. tests/test_no_hover.py, squash to one commit on 122cda3), then a static and a runtime sweep (the runtime
+  tester has the desktop), then a fix if they find anything.
+- Ask #72 (the user, ~17:35: "after remove hover, um, we will release"): after #71 merges: bump to v1.0.0, notes
+  build/notes/v1.0.0.txt (draft in the master's scratchpad notes-v1.0.0.txt: 窗口里的游戏也能准确识别 / 竖琴清风加入三只小鸟 /
+  直播模式多处隐藏名字，去掉悬停提示), make_release, sign, push improve/quality + HEAD:main, publish --with-full, check --each
+  (see memory release-process). origin/main = a290763 (v0.9.17); local main is stale at b9b35dd (v0.9.15), push from
+  improve/quality. 关于 shows 0.9.17 until the bump.
+- Leftover folders: .claude/worktrees/v1-final (remove), agent-ae38f53789760ac49, agent-ab2cab4534a0724a8 (empty, held).
 - Post-1.0 notes: runtime-save excepthook, launcher mid-Apply, 经典/cyber/neon warm, claw warm_ahead, 分享 comma,
   清空记录/清空数据 say done when a file cannot be written or was held, toasts after an unsaved change while a file is
-  held, the joined load warning cut in the header chip (depends on ask #71), 批量导入 合并到 tooltip unmasked in 直播模式.
-- Waiting on the user: ask #71 (which hover texts go). CLAUDE.md got Commander 2's two lines on the user's OK (ffa1b3e:
-  masters xhigh, agents high via the effort_guard hook; one master session, a new one only on the user's word).
-- Next: the final check's verdict; fix anything it blocks on; install --verify (master); report against ask #69.
-- v1.0 is published as exactly `v1.0.0` (__version__, tag, build/notes/v1.0.0.txt) when the user says so.
+  held, make_release relative/8.3 --out (VERIFY.md:319).
 
 # Handoff, 2026-10-16 ~00:55 PDT (master "BLA master", started ~23:00 by Commander 2; context ~335k, rotating)
 
