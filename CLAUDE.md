@@ -34,8 +34,29 @@ PYTHONPATH=. ../../../.venv/Scripts/python.exe -m pytest -q
 Inside an agent worktree, run commands one per call and as written: a command whose program is a variable
 (`"$PY"`), a quoted path with spaces, or a chain of steps is refused there. pytest prints its own time.
 
-The full run is about 400 tests in under a minute. The OCR reference tests use every core. A timing test that fails while another test run is going is
-rerun alone before it counts as a failure.
+The suite is 873 tests (`pytest --collect-only -q`, 2026-10-16) and a full run takes about 2.5 minutes; the OCR reference
+tests use every core. A timing test that fails while another test run is going is rerun alone before it counts as a failure.
+
+## Testing
+
+The user's rule, 2026-10-16: the quality floor stays (every change has its own tests, one full run before merge, the full
+check before a release), and every run or check past it is cut.
+
+- One owner for the full suite: the implementer runs it once, on its final commit, and reports the counts. The tester and
+  the master do not run it again on that commit. The master runs it once more only after a merge that combined branches
+  (the merged code is not the commit that was tested).
+- While fixing, run only the affected tests: the touched test files, or `pytest -k`. Find related tests with grep or
+  `pytest --collect-only -q -k <word>`, never by running the full suite.
+- A finding goes straight to a fixer, and the fixer's own test proves the fix. No agent re-checks a finding or a check.
+  After fixes, only the failed items are re-run, not a second full check.
+- A tester (the live / UI check) only when the player would see the behaviour change; deletions, wording and internal
+  changes get none. One tester per round of changes, not one per fix.
+- Build once: no competing builds, no best-of-N, no judge agents. The user's feedback drives the next round.
+- A "must not come back" guard is one small test in the normal suite, not a sweep agent.
+- Slow tests (video, full-app runs) carry the `slow` marker and run only at release; the normal full run is
+  `pytest -q -m "not slow"`. (Not set up yet: no test carries the marker, so today the normal run is the whole suite.)
+- The multi-agent full check (several testers, review, rules audit, dark theme) runs only before a release.
+- Unasked extras are never built: they go to the user as a follow-up list.
 
 ## Rules
 
@@ -96,7 +117,8 @@ agent needs. Agent worktrees are under `.claude/worktrees/`; a worktree with com
 - `researcher`: answers one question with evidence (file:line, measurements). Read-only.
 - `implementer`: builds one package on its own branch in its own worktree, tests it, commits. Never
   merges or pushes.
-- `tester`: tests one branch in its worktree and tries to break it. Never edits code.
+- `tester`: checks one round of changes the player would see, live (UI, behaviour), and tries to break it. It does
+  not re-run the full suite. Never edits code.
 
 Every agent, the four above and any workflow or one-off agent, runs on Opus at effort high, and high is the
 maximum: no extra high, no max (the user's rule, 2026-10-15; the same in ZPS `AGENTS.md`). Name the model on every
@@ -117,11 +139,13 @@ The master's rules:
    worktree: commit first, or leave packages that need uncommitted work for later.
 3. Implementers run side by side only when their file lists do not overlap. Packages that touch the same
    file (usually `ui.py`) run one after another, each from the previous merge.
-4. One merge at a time: bring the branch up to the current `improve/quality`, run the full tests and
-   ruff on the result, then fast-forward `improve/quality`. Remove the worktree and branch afterwards.
+4. One merge at a time: bring the branch up to the current `improve/quality` and fast-forward it. Run the full tests
+   and ruff on the result only when that brought in other work (the merged code differs from the tested commit); a
+   branch that fast-forwards as tested needs no new run. Remove the worktree and branch afterwards.
 5. The desktop is one agent at a time, granted by name in the brief: anything that opens real windows,
    takes screenshots, presses hotkeys, or drives MuMu or 直播姬, `tools/ui_shots.py` included.
-6. An agent's "done" is checked, not trusted: the master reads the diff and runs the tests itself.
+6. An agent's "done" is checked, not trusted: the master reads the diff and the agent's test counts and failures. It
+   does not re-run the suite on the same commit (Testing).
 7. Pushing, releasing and publishing are the master's, after the user says so.
 
 ### Cost
@@ -139,13 +163,14 @@ whole conversation, and command output and file reads are almost all of what fil
   checks go into one turn, never one small read per turn.
 - No tiny agents: a step shorter than about 10 turns does not get its own agent. Fold it into the brief of the agent
   that needs it, or continue a running or just-finished agent with SendMessage instead of starting a fresh one.
-- A package is sized to finish in about 50 agent turns. An agent that gets there unfinished commits what works,
-  reports what is done, what is next and the commit to continue from, and stops; the master starts a fresh agent
-  from that commit.
+- A package is sized to finish in about 40 implementer turns. Each brief's stop point sits below the role's cap
+  (`maxTurns` in `.claude/agents/`): implementer 60, stop at about 45; tester, planner and researcher 40, stop at
+  about 30. An agent at its stop point unfinished commits what works (before any test run), reports what is done,
+  what is next and the commit to continue from, and stops; the master starts a fresh agent from that commit.
 - Agent reports are about 30 lines: verdict, commits, files, open items.
 - Screenshots (`tools/ui_shots.py`) open real windows on the user's screen and were the most repeated check (51
-  runs in 75 minutes on 2026-10-15). Per package: the implementer shoots once, at the end; the tester makes the
-  one full pass; the master re-shoots only what the tester flagged. Light theme at `--scale 150`; 100 and 200 only
+  runs in 75 minutes on 2026-10-15). Per round: the implementer shoots once, at the end; the round's tester, when
+  there is one (Testing), makes the one full pass; the master re-shoots only what the tester flagged. Light theme at `--scale 150`; 100 and 200 only
   when the change is about layout or scale. Dark theme (`--dark`) only in the final release check before
   publishing. Never two screenshot runs at once: the desktop is one agent at a time (rule 5 above).
 - The master's own conversation: the master keeps one session; Claude Code compacts it at about 300k tokens. It

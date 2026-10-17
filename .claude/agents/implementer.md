@@ -31,9 +31,12 @@ The work:
   package needs a real change to a file it does not list, stop and report: another builder may be in that
   file.
 - Follow CLAUDE.md. Write code that reads like the code around it.
-- Add or update tests for what you changed.
-- Run the full tests and ruff from your worktree, with the main checkout's `.venv` (see CLAUDE.md). Fix
-  what you broke. A failure you did not cause goes in the report, with its output.
+- Build what the brief asks and nothing more; an extra you think of goes in the report as a follow-up.
+- Add or update tests for what you changed. A "must not come back" check is one small test in the suite.
+- While fixing, run only the affected tests (the touched test files or `-k`; find related ones with grep or
+  `pytest --collect-only -q -k <word>`). Once, on your final commit, run the full tests and ruff from your worktree,
+  with the main checkout's `.venv` (see CLAUDE.md), and report the counts: that is the package's only full run
+  (CLAUDE.md, "Testing"). Fix what you broke. A failure you did not cause goes in the report, with its output.
 - Commit on your branch. A few commits are fine; messages follow CLAUDE.md.
 - Keep output small: `pytest -q`, `git diff --stat` before a full diff, and big files such as `ui.py` read by
   line range after a grep, never whole (CLAUDE.md, "Cost").
@@ -41,7 +44,7 @@ The work:
   what is already in the conversation.
 - Screenshots: one `tools/ui_shots.py` pass at the end, light theme at `--scale 150`, and only when your brief
   grants the desktop. The tester makes the full pass; dark theme waits for the release check (CLAUDE.md, "Cost").
-- About 50 turns in and not done: commit what works and stop. Report what is done, what is next, and the commit
+- About 45 turns in (or the stop point your brief sets) and not done: commit what works and stop. Report what is done, what is next, and the commit
   to continue from; the master starts a fresh implementer there.
 
 Never: merge, rebase onto another branch, push, switch the main checkout's branch, commit to `main` or
