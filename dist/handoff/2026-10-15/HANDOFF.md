@@ -1,23 +1,24 @@
 Read CLAUDE.md first (team rules, cost rules, release rules). This file is state only. The user's asks, with where
 each stands, are in ASKS.md beside it: that list is what "done" means; report against it.
 
-# Update 2026-10-16 ~17:40 PDT: ask #69, the v1.0 full check, now fixing (no release: "Don't release yet.")
+# Update 2026-10-16 ~18:30 PDT: ask #69, the v1.0 full check, now fixing (no release: "Don't release yet.")
 
 - Findings: dist/release_check/v1.0/ALL_PROBLEMS.md (check) and verify/VERIFY.md (confirmed, with fix plans and tests).
-- `improve/quality` = `936a944` (+ notes): small fixes, fix/v1-storage (storage.py + updater.py), fix/v1-ocr-window
-  (layout.py _ready_scale), fix/v1-stream-lists (直播模式 masks, 撤销 retired on edit/rename/delete, 82241f8) and
-  fix/v1-perf (演说家遇袭 pictures off the GUI thread, 选择片段 gains once, 936a944) merged, each after a tester said
-  merge. 851 passed, 5 skipped, ruff clean. Not installed.
-- Running: fix/v1-ocr-ready from 2c1be0e (pipeline.py sharp re-read when 准备就绪 is missed; gate measured; storage
-  false 已备份 when a file is held); fix/v1-polish from 82241f8 (implementer, has the desktop: VERIFY.md 199-261 radio
-  accent, hairlines, separators, 嘉宾 header, empty order, dialog restyle, dark gutter, display-diff re-shoot, and
-  没有找到大厅 in 完整模式 for a manual press, ask #70).
+- `improve/quality` = `9ded293` (+ notes). Merged, each after its tests: small fixes, fix/v1-storage (+updater),
+  fix/v1-ocr-window (_ready_scale), fix/v1-stream-lists (82241f8), fix/v1-perf (936a944), fix/v1-polish (4458d02..9ded293:
+  radio accent, row/设置 hairlines, 嘉宾 header dividers, empty order, dialogs follow 跟随系统, dark gutter, 没有找到大厅 in
+  完整模式 on the pressed screen, display-diff pictures re-made by build/display_diff.py). 861 passed, ruff clean. Not installed.
+- Testing: fix/v1-ocr-ready (worktree agent-ab2cab4534a0724a8, d428c8b..fcd388d on 02cfdf5: 准备就绪 strip re-read,
+  READY_GATE 0.06; a held list/设置/记录 file is not said 已备份 and is never saved over that run, Store._unread/_saves).
+  Tester running (grid, real recording frames, break probes, held-file guard). Rebase onto 9ded293 before merging.
+- Not yet re-shot: 03 设置 at 125/150 (the hairline was fixed after the implementer's shots), the empty 嘉宾 page, the
+  直播模式 guide in dark. All go in the final check.
 - Tester notes left for later: the joined load warning is cut in the header chip with no tooltip (depends on ask #71,
   hovers); 清空记录/清空数据 say done when history.json cannot be written (post-1.0); 批量导入's 合并到 tooltip is
-  unmasked in 直播模式 (moot if hovers go); a real-click check of the 编辑 eye is for the final check.
+  unmasked in 直播模式 (moot if hovers go).
 - Waiting on the user: ask #71, which hover texts go (listed, about 55).
-- Next: ocr-ready and polish, one at a time (tester each); then the final check (full tests, shots
-  light+dark 150, ice timing idle, the 编辑 eye by real clicks), install --verify, report against ask #69.
+- Next: merge ocr-ready; then the final check (one tester with the desktop: full tests, shots light+dark 150 and 设置 at
+  125, ice timing idle, the 编辑 eye by real clicks), install --verify (master), report against ask #69.
 - Post-1.0: runtime-save excepthook, launcher mid-Apply, 经典/cyber/neon warm, claw warm_ahead, 分享 comma.
 - v1.0 is published as exactly `v1.0.0` (__version__, tag, build/notes/v1.0.0.txt) when the user says so.
 
