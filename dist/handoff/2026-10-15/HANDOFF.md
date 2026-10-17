@@ -16,8 +16,8 @@ each stands, are in ASKS.md beside it: that list is what "done" means; report ag
 - Post-1.0 notes: runtime-save excepthook, launcher mid-Apply, 经典/cyber/neon warm, claw warm_ahead, 分享 comma,
   清空记录/清空数据 say done when a file cannot be written or was held, toasts after an unsaved change while a file is
   held, the joined load warning cut in the header chip (depends on ask #71), 批量导入 合并到 tooltip unmasked in 直播模式.
-- Waiting on the user: ask #71 (which hover texts go); and whether CLAUDE.md gets Commander 2's effort line (masters
-  xhigh, agents high, effort_guard hook): the commit was blocked by the permission check, the edit reverted.
+- Waiting on the user: ask #71 (which hover texts go). CLAUDE.md got Commander 2's two lines on the user's OK (ffa1b3e:
+  masters xhigh, agents high via the effort_guard hook; one master session, a new one only on the user's word).
 - Next: the final check's verdict; fix anything it blocks on; install --verify (master); report against ask #69.
 - v1.0 is published as exactly `v1.0.0` (__version__, tag, build/notes/v1.0.0.txt) when the user says so.
 
