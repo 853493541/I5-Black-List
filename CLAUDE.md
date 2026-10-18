@@ -94,6 +94,24 @@ check before a release), and every run or check past it is cut.
 - The user's own list, settings and running copy of the app are never touched. Tests and tools run in a
   data folder of their own (`APPDATA` pointed elsewhere, as `ui_shots.py` does).
 - Update notes: at most 3 lines of about 15 字, saying what changed for the player. No how-to, no reasons.
+- Replies to the user are key-point bullets, one point each, with the evidence (a hash or a path). They end with
+  **TLDR**: one or two short lines, about 25 words in all, in plain words: the answer, and what the user must do, if
+  anything. No hashes, paths, code names or sub-bullets in it. No Summary section and no closing table; a table in the
+  body only when a comparison needs one (the user's rule, 2026-10-18; the same in ZPS `AGENTS.md` section 15).
+- Technical choices never go to the user (the user, 2026-10-17: "I'm not supposed to know ... I cannot make correct
+  judgment, and you are supposed to do that"). Which option, go or no-go after a failed check, how to split, which fix:
+  the master decides with the recommended option and tells the user the result in plain words. The user is asked only
+  for what only the user can do or decide: pushing, releasing, deleting, money and accounts, and how a new thing looks
+  to the player (`docs/dev/PLANNER.md` section 4).
+- Full-chain ownership: when a fix is asked for or a problem repeats, the agent owns the whole chain and never hands
+  testing back to the user. Reproduce it first (a test or a script, in a data folder of its own), fix against that,
+  then prove it with the same reproduction, before and after: "should be fixed" is not an outcome. What cannot be
+  reproduced is reported with exactly what evidence is missing and the next probe; never "try again and tell me".
+- Waits are bounded: no blind sleep over about 60 s. Poll a log, file or process every few seconds up to a stated
+  budget, stop as soon as the event happens, and past the budget report and stop. A long-lived process (the app, a
+  watcher) starts with the tool's background option, never `Start-Process` from the tool shell: `.venv`'s python is a
+  redirector, and a timed-out call's orphaned child can hold the shell's pipes and block every later command (ZPS,
+  2026-10-04: 58 minutes).
 - Code reads like the code around it. Ruff, line length 130. Commit messages are one sentence on what
   changed for the player (see `git log`); release commits start with `vX.Y.Z:`.
 
@@ -106,21 +124,33 @@ check before a release), and every run or check past it is cut.
 
 ## Working as a team
 
-The session talking to the user is the master. It plans with the user, hands work to the agents in
-`.claude/agents/`, checks what comes back, merges, and reports. Agents see this file and the prompt
-they are given, nothing of the conversation or the master's memory, so a brief carries everything the
-agent needs. Agent worktrees are under `.claude/worktrees/`; a worktree with commits stays until
-`git worktree remove <path>`.
+The session talking to the user is the master (the commander calls it `[Planner] I5`). It plans with the user, hands
+work to the agents in `.claude/agents/`, checks what comes back, merges, and reports. Its own rules (merging, launching,
+checks, pace, messages, handoffs) are in `docs/dev/PLANNER.md`, which the master reads before it plans or launches
+anything. Above it, one commander session in the ZPS folder relays the user's decisions for both projects. Agents see
+this file and the prompt they are given, nothing of the conversation or the master's memory, so a brief carries
+everything the agent needs. Agent worktrees are under `.claude/worktrees/` and start from the main checkout's HEAD
+(`.claude/settings.json`); a worktree with commits stays until `git worktree remove <path>`.
 
 - `planner`: splits a request into work packages, each with its branch, the files it touches, how it
   is tested, and whether it needs the desktop. Read-only.
 - `researcher`: answers one question with evidence (file:line, measurements). Read-only.
 - `implementer`: builds one package on its own branch in its own worktree, tests it, commits. Never
   merges or pushes.
+- `fixer`: closes a list of confirmed findings in its own worktree, each with a test that proves the fix. No second
+  review. Never merges or pushes.
+- `reviewer`: finds defects for the release check through one lens (correctness with the regression questions, or the
+  rules here), and tries to prove each one wrong before reporting it. Read-only.
 - `tester`: checks one round of changes the player would see, live (UI, behaviour), and tries to break it. It does
   not re-run the full suite. Never edits code.
 
-Every agent, the four above and any workflow or one-off agent, runs on Opus at effort high, and high is the
+The desktop is one agent at a time, granted by name in the brief: anything that opens real windows, takes screenshots,
+presses hotkeys, or drives MuMu or 直播姬, `tools/ui_shots.py` included.
+
+Commands the user types: `#nc` (or `/nc`) starts the commander, `#ec` (or `/ec`) ends the cycle, and `#ho` (or `/ho`)
+writes a handoff now (`.claude/commands/`, `docs/dev/PLANNER.md` section 8).
+
+Every agent, the six above and any workflow or one-off agent, runs on Opus at effort high, and high is the
 maximum: no extra high, no max (the user's rule, 2026-10-15; the same in ZPS `AGENTS.md`). Name the model on every
 call: an agent call without one inherits the master's. The master itself runs on Opus with Ultracode on. No Fable
 anywhere: it was unstable and too expensive (Fable masters burned about 26 % of the 5-hour window per hour, against
@@ -130,27 +160,10 @@ PreToolUse hook (`~/.claude/hooks/effort_guard.py`: an unset, xhigh or max Agent
 are denied, and a workflow that sets xhigh / max / Fable or has an agent() call without effort is denied), so keep passing
 model "opus" and effort "high" on every call (the user's ruling, 2026-10-16).
 
-The master's rules:
-
-1. Small or back-and-forth changes (UI polish, wording) the master makes itself. The team is for work
-   big enough to plan.
-2. Give each implementer its base as a commit hash (`git rev-parse improve/quality`); an agent's
-   worktree starts from `origin/main` and the implementer moves it there. Only committed work is in a
-   worktree: commit first, or leave packages that need uncommitted work for later.
-3. Implementers run side by side only when their file lists do not overlap. Packages that touch the same
-   file (usually `ui.py`) run one after another, each from the previous merge.
-4. One merge at a time: bring the branch up to the current `improve/quality` and fast-forward it. Run the full tests
-   and ruff on the result only when that brought in other work (the merged code differs from the tested commit); a
-   branch that fast-forwards as tested needs no new run. Remove the worktree and branch afterwards.
-5. The desktop is one agent at a time, granted by name in the brief: anything that opens real windows,
-   takes screenshots, presses hotkeys, or drives MuMu or 直播姬, `tools/ui_shots.py` included.
-6. An agent's "done" is checked, not trusted: the master reads the diff and the agent's test counts and failures. It
-   does not re-run the suite on the same commit (Testing).
-7. Pushing, releasing and publishing are the master's, after the user says so.
-
 ### Cost
 
-Measured on 2026-10-15; the same numbers are in the user's other project (ZPS `AGENTS.md` section 2 for the agent lines, `docs/netcode/PLANNER.md` section 7 for the rest). Agents
+Measured on 2026-10-15; the same numbers are in the user's other project (ZPS `AGENTS.md` section 2 for the agent
+lines, `docs/netcode/PLANNER.md` section 7 for the rest; the master's lines here are in `docs/dev/PLANNER.md`). Agents
 are most of the spend, and a session's 5 longest agents were 84% of its agent spend. Every turn re-reads the
 whole conversation, and command output and file reads are almost all of what fills an agent.
 
@@ -163,23 +176,18 @@ whole conversation, and command output and file reads are almost all of what fil
   checks go into one turn, never one small read per turn.
 - No tiny agents: a step shorter than about 10 turns does not get its own agent. Fold it into the brief of the agent
   that needs it, or continue a running or just-finished agent with SendMessage instead of starting a fresh one.
-- A package is sized to finish in about 40 implementer turns. Each brief's stop point sits below the role's cap
-  (`maxTurns` in `.claude/agents/`): implementer 60, stop at about 45; tester, planner and researcher 40, stop at
-  about 30. An agent at its stop point unfinished commits what works (before any test run), reports what is done,
-  what is next and the commit to continue from, and stops; the master starts a fresh agent from that commit.
+- A package is sized to finish in about 35 implementer tool calls; a bigger one is split before launch. Agents cannot
+  see their turn number (they reach 60 turns in 11-12 minutes), so each brief's hand-back point is a tool-call count
+  below the role's cap (`maxTurns` in `.claude/agents/`): implementer and fixer 60, hand back at about 40 calls;
+  tester, reviewer, planner and researcher 40, at about 25. An agent at its hand-back point unfinished commits what
+  works (before any test run), reports what is done, what is next and the commit to continue from, and stops; the
+  master starts a fresh agent from that commit. Agents commit after every finished point: one cut off by a usage limit
+  loses what it did not commit.
+- No single tool call blocks longer than about 270 s: an agent's prompt cache lives 5 minutes, and after a longer gap
+  it pays for its whole context again. Longer work runs in the background, polled in steps of at most 240 s.
 - Agent reports are about 30 lines: verdict, commits, files, open items.
 - Screenshots (`tools/ui_shots.py`) open real windows on the user's screen and were the most repeated check (51
   runs in 75 minutes on 2026-10-15). Per round: the implementer shoots once, at the end; the round's tester, when
   there is one (Testing), makes the one full pass; the master re-shoots only what the tester flagged. Light theme at `--scale 150`; 100 and 200 only
   when the change is about layout or scale. Dark theme (`--dark`) only in the final release check before
-  publishing. Never two screenshot runs at once: the desktop is one agent at a time (rule 5 above).
-- The master's own conversation: the master keeps one session; Claude Code compacts it at about 300k tokens. It
-  writes a handoff to `dist/handoff/<date>/HANDOFF.md`, and a new session starts only on the user's word or #ec;
-  it keeps that handoff current at each merge (the user's rule, 2026-10-16).
-  The handoff holds state only (branches, commits, what is running, next steps); the rules stay in this file.
-  The master updates it after each merge, so a session that runs out of usage loses nothing.
-- The user's asks are state, so every handoff carries them: each ask in the user's own words with its status (not
-  started, building, merged, released), in the handoff or in an `ASKS.md` beside it. A new ask goes on the list the
-  moment it arrives. That list is what "done" means: the master reports progress against it, never in package names
-  alone. (2026-10-15: a handoff that carried only the packages lost the user's 20 asks, and an hour of real work,
-  a release included, read to the user as nothing done.)
+  publishing. Never two screenshot runs at once: the desktop is one agent at a time (Working as a team).
