@@ -26,10 +26,16 @@ def custom_sound_dir(root: Path | None = None) -> Path:
 
 # OMP_NUM_THREADS as this copy found it when it started, before it dropped it (see __main__).
 inherited_threads: str | None = None
-# Set in this process for this process (Paddle: OMP_NUM_THREADS=1, Intel OpenMP: its marker),
-# wrong for a program it starts: inherited, OMP_NUM_THREADS=1 leaves the OCR one core.
+# Set in this process for this process (the OCR's thread count, Intel OpenMP: its marker), wrong for a
+# program it starts: inherited, Paddle's OMP_NUM_THREADS=1 left the OCR one core.
 _NOT_INHERITED = ("OMP_NUM_THREADS",)
 _NOT_INHERITED_PREFIX = "__KMP_REGISTERED_LIB_"
+
+
+def ocr_threads(cpus: int | None = None) -> str:
+    """Threads the OCR reads names on. Unset, it took one per CPU (12 on a 6-core laptop), kept the whole
+    CPU busy for a check and slowed a game beside it; 4 read faster on a third of the work, 2 on a small PC."""
+    return "2" if (cpus or os.cpu_count() or 1) <= 4 else "4"
 
 
 def child_env() -> dict[str, str]:

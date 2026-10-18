@@ -8,11 +8,12 @@ import sys
 
 # Paddle sets OMP_NUM_THREADS=1 in the app's process when it is unset, and a program the app starts
 # inherits it. The copy the app restarted into for an update then read names on one core, 3 to 5
-# times slower (11 s on a laptop), until it was next started fresh. So it goes before Paddle loads;
-# paths.child_env keeps it out of what the app starts.
+# times slower (11 s on a laptop), until it was next started fresh. So it goes before Paddle loads,
+# for a count of the app's own (paths.ocr_threads); paths.child_env keeps it out of what the app starts.
 from blacklist_detect import paths  # noqa: E402
 
 paths.inherited_threads = os.environ.pop("OMP_NUM_THREADS", None)
+os.environ["OMP_NUM_THREADS"] = paths.ocr_threads()
 
 
 def main(argv: list[str] | None = None) -> int:

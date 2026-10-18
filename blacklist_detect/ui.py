@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import queue
 import sys
 import threading
@@ -281,6 +282,7 @@ def run_app(background: bool = False) -> int:
         log.info("Settings: %s", window.settings_line())
         if paths.inherited_threads is not None:
             log.info("Started with OMP_NUM_THREADS=%s from the program that started it; dropped.", paths.inherited_threads)
+        log.info("OCR threads: %s", os.environ.get("OMP_NUM_THREADS", "one per CPU"))
     except Exception:  # noqa: BLE001 - the summary must never stop the app
         log.info("Computer: unknown")
     if mark_running():

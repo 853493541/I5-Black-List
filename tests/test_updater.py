@@ -763,10 +763,20 @@ def test_the_next_copy_does_not_inherit_one_thread(monkeypatch, tmp_path):
         patch.setattr(ui_update.subprocess, "Popen", lambda *args, **kwargs: started.append(kwargs))
         assert ui_update.restart_into_update(tmp_path)
     assert "OMP_NUM_THREADS" not in started[0]["env"] and started[0]["env"]["BLACKLIST_TEST_KEPT"] == "yes"
-    # A copy started with it anyway (by v0.8.4 or older) drops it before Paddle loads.
+    # A copy started with it anyway (by v0.8.4 or older) drops it before Paddle loads, for its own count.
     probe = (
         "import os; import blacklist_detect.__main__; from blacklist_detect import paths; "
         "print(os.environ.get('OMP_NUM_THREADS'), paths.inherited_threads)"
     )
     out = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True, env={**__import__("os").environ, "OMP_NUM_THREADS": "1"}, check=True)
-    assert out.stdout.split() == ["None", "1"]
+    assert out.stdout.split() == [paths.ocr_threads(), "1"]
+
+
+def test_a_check_reads_on_a_few_threads_not_one_per_cpu():
+    """With no count, the OCR ran one thread per CPU: 12 on her 6-core laptop, the whole CPU busy for a check and the
+    game beside it slowed. 4 read the same names faster on a third of the work, 2 on a PC of 4 CPUs or fewer
+    (docs/dev/research/check-cpu-2026-10-18.md); never 1, which read 5 times slower."""
+    from blacklist_detect import paths
+
+    assert [paths.ocr_threads(cpus) for cpus in (2, 4, 6, 12, 24)] == ["2", "2", "4", "4", "4"]
+    assert paths.ocr_threads() in ("2", "4")
