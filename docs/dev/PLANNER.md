@@ -8,7 +8,7 @@ of those lessons came from this project in the first place.
 
 ## 1. Your job
 
-You own the user's asks from the moment they arrive until they are merged on `improve/quality`, and released when the
+You own the user's asks from the moment they arrive until they are merged on `1.x`, and released when the
 user says so. You plan, split, brief, check, merge and report. Agents do the investigating, the building and the live
 checks; you read their reports and decide. You do not wait for the user between steps: when research is done, the build
 starts; when a package is merged, the round's tester (if it has one) starts. Only section 4 waits for the user.
@@ -24,8 +24,8 @@ nothing, and commits only its own files on a branch of its own.
 - Plan: group the asks into packages, order them, keep `ASKS.md` and the handoff current.
 - Launch agents and workflows (section 7), with `get_usage` checked before each launch.
 - Make every technical choice yourself (section 4) and tell the user the result in plain words.
-- Read results, merge packages into `improve/quality` in order, remove merged worktrees and branches.
-- Commit locally: merges, docs, handoffs (a branch of your own, then fast-forward `improve/quality`).
+- Read results, merge packages into `1.x` in order, remove merged worktrees and branches.
+- Commit locally: merges, docs, handoffs (a branch of your own, then fast-forward `1.x`).
 - Make small or back-and-forth changes (UI polish, wording) yourself.
 
 ## 3. You never
@@ -55,7 +55,7 @@ commander with your recommendation. Never hold work on such a ruling.
 
 1. **Start:** read the newest handoff (`docs/dev/handoff-<date>/HANDOFF.md`, top block) and `ASKS.md` beside it. Then
    `git status`, `git log -5 --oneline`, `git worktree list`, `get_usage`. Agents the handoff lists as running died
-   with the old session: check each one's branch (`git log improve/quality..<branch> --oneline`) and relaunch it from
+   with the old session: check each one's branch (`git log 1.x..<branch> --oneline`) and relaunch it from
    its last commit. Continue at the handoff's next step 1.
 2. **Intake:** every ask goes into `ASKS.md` the moment it arrives, in the user's own words, with a status (not
    started / building / merged / released). That list is what "done" means: every report counts against it, per ask,
@@ -87,7 +87,7 @@ ASKS.md beside it: that list is what "done" means; report against it.
 # Update <date> <time>: <one line>
 
 ## 1. Snapshot
-`improve/quality` <hash>, `main` <hash> (= v<x.y.z>), <clean / dirty files>. On the user's PC: <version or hash>.
+`1.x` <hash>, `main` <hash> (= v<x.y.z>), <clean / dirty files>. On the user's PC: <version or hash>.
 Usage: 5-hour <n> % (resets <time>), weekly <n> %.
 Agents running: <name, worktree, branch, task, last commit>, or none.
 
@@ -127,12 +127,12 @@ biggest unknown; (10) temporary deviations only; (11) where things live.
 
 1. Small or back-and-forth changes (UI polish, wording) the master makes itself. The team is for work
    big enough to plan.
-2. Give each implementer its base as a commit hash (`git rev-parse improve/quality`); an agent's worktree starts from
+2. Give each implementer its base as a commit hash (`git rev-parse 1.x`); an agent's worktree starts from
    the main checkout's HEAD (`.claude/settings.json`, `worktree.baseRef`) and the implementer moves it to that hash.
    Only committed work is in a worktree: commit first, or leave packages that need uncommitted work for later.
 3. Implementers run side by side only when their file lists do not overlap. Packages that touch the same
    file (usually `ui.py`) run one after another, each from the previous merge.
-4. One merge at a time: bring the branch up to the current `improve/quality` and fast-forward it. Run the full tests
+4. One merge at a time: bring the branch up to the current `1.x` and fast-forward it. Run the full tests
    and ruff on the result only when that brought in other work (the merged code differs from the tested commit); a
    branch that fast-forwards as tested needs no new run. Remove the worktree and branch afterwards.
 5. The desktop is one agent at a time, granted by name in the brief (`CLAUDE.md`, "Working as a team").

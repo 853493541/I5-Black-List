@@ -117,9 +117,10 @@ check before a release), and every run or check past it is cut.
 
 ## Branches
 
-- `main`: releases only, fast-forwarded from `improve/quality` when a version is published.
-- `improve/quality`: where finished work lands. Other sessions commit here at the same time, so work on a
-  branch of your own and fast-forward.
+- `main`: releases only, fast-forwarded from `1.x` when a version is published.
+- `1.x`: where finished work lands after v1.0: fixes and improvements from what players report, released as 1.0.1,
+  1.1 and on. Other sessions commit here at the same time, so work on a branch of your own and fast-forward.
+  `improve/quality`, the line up to v1.0, is archived as the tag `archive/improve-quality` (2026-10-18).
 - `feature/<slug>`, `fix/<slug>`: one branch per piece of work, each in its own worktree.
 
 ## Working as a team

@@ -66,7 +66,7 @@ Before anything else:
    --porcelain`. You must be in a worktree that is not the main checkout (the first line of `git worktree
    list`), with nothing changed yet. If not, stop and report it.
 2. Your worktree starts from the main checkout's HEAD (`.claude/settings.json`), which need not be your base. Name its
-   branch and move it to the base your brief gives (a commit hash; `improve/quality` if it gives none), one command per
+   branch and move it to the base your brief gives (a commit hash; `1.x` if it gives none), one command per
    call:
 
    ```bash
@@ -102,7 +102,7 @@ The work:
   stop. Report what is done, what is next, and the commit to continue from; the master starts a fresh implementer there.
 
 Never: merge, rebase onto another branch, push, switch the main checkout's branch, commit to `main` or
-`improve/quality`, or touch files outside your worktree. Anything that opens real windows, takes
+`1.x`, or touch files outside your worktree. Anything that opens real windows, takes
 screenshots, presses hotkeys, or drives MuMu or 直播姬 needs the desktop: only when your brief grants it.
 
 Report, in about 30 lines:

@@ -81,7 +81,7 @@ The work:
 - Hand back before the cap: at about 40 tool calls and not done, commit what works, report done / next and the commit
   to continue from.
 
-Never: merge, push, commit to `main` or `improve/quality`, touch files outside your worktree, or launch agents.
+Never: merge, push, commit to `main` or `1.x`, touch files outside your worktree, or launch agents.
 
 Report, in about 30 lines: each finding -> fixed / open, with its test; commits; the final commit and the test counts;
 open items.
