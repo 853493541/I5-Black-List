@@ -25,7 +25,7 @@ names anywhere.
   never the blacklist.
 - **Share a list** - 复制名单 on the 黑名单 page, then 批量导入 on a friend's copy.
 - **记录** - every check's result.
-- **声音** - one volume slider with 静音 for every sound.
+- **声音** - 全局声音 (播放 / 静音) in 设置 for every sound; each 场景's own 音量 in 场景管理.
 - **环境测试 and 导出日志** - a full self-check with a report, and a log file (without player names) to send for help.
 - **检查更新** - the app checks for a new version when it opens, downloads it, and restarts; list, records and
   settings are kept.

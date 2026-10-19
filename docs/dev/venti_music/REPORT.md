@@ -123,7 +123,7 @@ The friend's two GMVs don't use Genshin music. 霍宝Moira, the uploader of both
 - **Song timestamps.** The peaks above are in video time. I did not listen to anything and did not download audio, so I can't say which part of each song (chorus or bridge) they fall on, or where the climax of the official tracks is. To settle it, someone listens to the GMVs at 1:12–1:35 and 0:39/1:01, and to the NetEase pages for the official tracks (song ids 1817410055, 1913532412 and 1913533270). The ids come from the wiki's citations; I did not open those pages.
 - **Licensing.** Both GMV songs are commercial releases from a TV drama and a film. The HoYoMiX tracks belong to miHoYo. I did not check whether any of them may ship inside the app.
 
-Scratch files (danmaku counts, track text) are in `C:\Users\ZHIBIN~1\AppData\Local\Temp\claude\C--Users-Zhibin-Ren-Desktop-Black-List-App\4e73d4f5-e751-4fc2-9a63-5de144d4da0e\scratchpad\`. Nothing in the repo was changed.
+Scratch files (danmaku counts, track text) are in that session's scratch folder (`<scratchpad>\`, not kept). Nothing in the repo was changed.
 
 ---
 
@@ -155,7 +155,7 @@ Scratch files (danmaku counts, track text) are in `C:\Users\ZHIBIN~1\AppData\Loc
 - **EN demo TSsWsCdiiPI:** the peak is 36.5 to 44.5 s (top at 39.9 s). This roughly matches the OST, but replays of the demo also reflect what is on screen.
 - I fetched the demo's Bilibili danmaku: 600 comments, almost all in the first 15 s, with none about the music.
 
-The script is in my scratchpad at `C:\Users\ZHIBIN~1\AppData\Local\Temp\claude\C--Users-Zhibin-Ren-Desktop-Black-List-App\4e73d4f5-e751-4fc2-9a63-5de144d4da0e\scratchpad\scripts\yt.py`, and its outputs are `yt1.out` and `yt2.out` in the `dm` folder next to it.
+The script is in my scratchpad at `<scratchpad>\scripts\yt.py`, and its outputs are `yt1.out` and `yt2.out` in the `dm` folder next to it.
 
 **Could not settle**
 - **Key, tempo, notes and instrument of the hook.** I did not listen to the track and downloaded no audio. MuseScore, Tunebat, Musicstax and Sheet Music Plus all refused my requests (HTTP 403), and Everyonepiano's free sheet (Piano-14732) is images only. How to settle: someone listens to APFVfv9klmg from 0:36 to 0:50 and 1:03 to 1:10, or reads a free score such as musescore.com/user/36860648/scores/7448756 in a browser.
@@ -223,6 +223,6 @@ The script is in my scratchpad at `C:\Users\ZHIBIN~1\AppData\Local\Temp\claude\C
 - Whether 0:40–0:45 of APFVfv9klmg is a clean 5 s phrase, and which instrument plays the hook. Someone has to listen to 0:36–0:50 and 1:04–1:10 by ear.
 - Licensing for shipping any of these tracks inside the app.
 
-The Bilibili API gave my machine HTTP 412, so I read it through WebFetch. Fandom gave WebFetch HTTP 402, so I read it from a script. My scripts are in `C:\Users\ZHIBIN~1\AppData\Local\Temp\claude\C--Users-Zhibin-Ren-Desktop-Black-List-App\4e73d4f5-e751-4fc2-9a63-5de144d4da0e\scratchpad\verify\` (v1.py to v8.py, with the saved wiki texts). Nothing was downloaded or played, and the repo is unchanged.
+The Bilibili API gave my machine HTTP 412, so I read it through WebFetch. Fandom gave WebFetch HTTP 402, so I read it from a script. My scripts are in `<scratchpad>\verify\` (v1.py to v8.py, with the saved wiki texts). Nothing was downloaded or played, and the repo is unchanged.
 
 ---
