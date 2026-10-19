@@ -125,7 +125,9 @@ reads a picture, not the game.
 ## Recommended
 
 - Speed: `tools/slow_pc.py`, two versions side by side, then her next log.
-- Windows 10 behaviour: the rebuilt virtual machine.
+- Windows 10 behaviour: her laptop. The rebuilt virtual machine never started the app (its unzip hung twice under
+  memory integrity's hypervisor mode) and was deleted on 2026-10-18 with the old one, the disc and the shared folder
+  (`her-flow-2026-10-18.md`).
 - Her laptop: the real device. A used laptop of her class would be the only exact copy; that is a purchase, the user's
   call.
 - Not recommended: a cloud Windows machine (server processors, paid), a paid compatibility lab, turning memory integrity
