@@ -1124,6 +1124,22 @@ def test_a_check_with_the_record_list_on_screen_rebuilds_it_after_the_marks(qapp
     window.close()
 
 
+def test_a_check_while_minimized_rebuilds_the_record_list_when_the_window_is_restored(qapp, tmp_path, monkeypatch):
+    # Restoring a minimized window sends no showEvent: the window never stopped being visible.
+    window, calls = _order_window(tmp_path, monkeypatch)
+    window.show()
+    window.tabs.setCurrentIndex(window.history_tab)
+    window.showMinimized()
+    _check_with(window, "甲")
+    QTest.qWait(250)
+    assert calls == ["panel"]
+    assert _record_rows(window) == []
+    window.showNormal()
+    assert calls == ["panel", "history"]
+    assert _record_rows(window) == [0]
+    window.close()
+
+
 def test_titlebar_close_hides_to_the_tray_and_says_so_once(qapp, tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
