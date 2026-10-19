@@ -110,3 +110,36 @@ def test_a_dump_in_the_export_does_not_name_the_windows_account(tmp_path, monkey
     assert len(dump) == len(raw), "the same size, so it still opens"
     assert "示例用户".encode("utf-16-le") not in dump and "示例用户".encode("utf-8") not in dump
     assert "C:\\Users\\xxxx\\Videos\\app.exe".encode("utf-16-le") in dump
+
+
+def test_every_dump_in_an_export_reads_back(tmp_path):
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    raws = {f"stuck-{pid}.dmp": b"MDMP" + bytes([pid]) * (300 + pid) for pid in (100, 101, 102)}
+    for index, (name, raw) in enumerate(raws.items()):
+        (logs / name).write_bytes(raw)
+        os.utime(logs / name, (1_000_000 + index, 1_000_000 + index))
+    target = export_logs(tmp_path, "cpu", tmp_path / "out")
+    assert diagnostics.dumps_in(target.read_text(encoding="utf-8")) == raws
+
+
+def test_a_dump_hides_the_account_in_any_case_and_by_its_short_name(tmp_path, monkeypatch):
+    # Windows writes C:\Users in any case, and TEMP often by the folder's 8.3 name.
+    monkeypatch.setenv("USERNAME", "示例用户")
+    monkeypatch.setenv("USERPROFILE", "C:\\Users\\示例用户")
+    monkeypatch.setattr(diagnostics, "_short_name", lambda folder: "SHILIY~1")
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    raw = (
+        b"MDMP"
+        + "c:\\users\\示例用户\\y".encode("utf-16-le")
+        + "C:\\USERS\\SHILIY~1\\AppData\\Local\\Temp".encode("utf-16-le")
+        + "C:/Users/shiliy~1/a".encode("utf-8")
+    )
+    (logs / "stuck-8.dmp").write_bytes(raw)
+    target = export_logs(tmp_path, "cpu", tmp_path / "out")
+    dump = diagnostics.dumps_in(target.read_text(encoding="utf-8"))["stuck-8.dmp"]
+    assert len(dump) == len(raw), "the same size, so it still opens"
+    assert "示例用户".encode("utf-16-le") not in dump
+    assert "shiliy~1".encode("utf-16-le") not in dump.lower() and b"shiliy~1" not in dump.lower()
+    assert "c:\\users\\xxxx\\y".encode("utf-16-le") in dump

@@ -420,25 +420,41 @@ def _dumps_text(logs: Path) -> str:
 
 def _dump_without_user(data: bytes) -> bytes:
     """A dump lists the files the copy had loaded, and their paths name the Windows account, as the
-    logs' do: the account's folder becomes x's of the same length, so the dump keeps its size and opens."""
-    names = {os.environ.get("USERNAME", ""), Path(os.path.expanduser("~")).name} - {""}
+    logs' do: the account's folder becomes x's of the same length, so the dump keeps its size and opens.
+    Windows writes that folder in any case, and by its 8.3 name too (TEMP is often C:\\Users\\ZHANGS~1)."""
+    home = os.path.expanduser("~")
+    names = {os.environ.get("USERNAME", ""), Path(home).name, _short_name(home)} - {""}
     for name in names:
         for sep in ("\\", "/"):
             for encoding in ("utf-16-le", "utf-8", "mbcs"):
                 try:
                     found = f"Users{sep}{name}".encode(encoding)
-                    hidden = f"Users{sep}".encode(encoding)
+                    keep = len(f"Users{sep}".encode(encoding))
                 except (LookupError, UnicodeEncodeError):
                     continue
-                pad = "x".encode(encoding) * len(name) if encoding == "utf-16-le" else b"x" * (len(found) - len(hidden))
-                data = data.replace(found, hidden + pad)
+                pad = "x".encode(encoding) * len(name) if encoding == "utf-16-le" else b"x" * (len(found) - keep)
+                data = re.sub(re.escape(found), lambda match, keep=keep, pad=pad: match.group()[:keep] + pad, data,
+                              flags=re.IGNORECASE)
     return data
+
+
+def _short_name(folder: str) -> str:
+    """The 8.3 name Windows keeps for a folder (ZHANGS~1 for 张三), or "" when it has none."""
+    if sys.platform != "win32":
+        return ""
+    import ctypes
+
+    buffer = ctypes.create_unicode_buffer(1024)
+    if not ctypes.windll.kernel32.GetShortPathNameW(folder, buffer, len(buffer)):
+        return ""
+    return Path(buffer.value).name
 
 
 def dumps_in(text: str) -> dict[str, bytes]:
     """The dumps an export carries, by file name, as they were written (to open in WinDbg or Visual Studio)."""
     found: dict[str, bytes] = {}
-    for match in re.finditer(r"^==== (stuck-\d+\.dmp) \(zlib, base64\) ====\n([A-Za-z0-9+/=\n]+)", text, re.MULTILINE):
+    pattern = r"^==== (stuck-\d+\.dmp) \(zlib, base64\) ====\n([A-Za-z0-9+/=]+(?:\n[A-Za-z0-9+/=]+)*)"
+    for match in re.finditer(pattern, text, re.MULTILINE):
         found[match.group(1)] = zlib.decompress(base64.b64decode(match.group(2).replace("\n", "")))
     return found
 
