@@ -43,8 +43,14 @@ def test_a_main_thread_that_stops_answering_leaves_its_stack(tmp_path, said):
         try:
             loop = QEventLoop()
             QTimer.singleShot(300, _blocks_the_main_thread)
-            QTimer.singleShot(3000, loop.quit)
+            # Until the watch has said the thread answers again: on a busy PC (the full suite) that
+            # comes later than right after the stall. 10 s at most.
+            done = QTimer()
+            done.timeout.connect(lambda: any("answering again" in line for line in said) and loop.quit())
+            done.start(100)
+            QTimer.singleShot(10_000, loop.quit)
             loop.exec()
+            done.stop()
         finally:
             dog.stop()
             dog.timer.stop()
