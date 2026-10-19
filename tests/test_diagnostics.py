@@ -83,3 +83,16 @@ def test_a_slow_check_says_why_in_the_log(window):
     window._cpu = CpuWindow()
     note = window._timing_note(result)
     assert "started 1.50 s after it" in note and "recognition idle 10 min before" in note
+
+
+def test_the_export_carries_the_dumps_of_stuck_copies(tmp_path):
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    (logs / "app.log").write_text("2026 WARNING A copy was open but its pipe did not answer\n", encoding="utf-8")
+    raw = b"MDMP" + bytes(range(256)) * 40
+    (logs / "stuck-4242.dmp").write_bytes(raw)
+    target = export_logs(tmp_path, "cpu", tmp_path / "out")
+    assert list((tmp_path / "out").iterdir()) == [target], "still one file to send"
+    text = target.read_text(encoding="utf-8")
+    assert text.index("pipe did not answer") < text.index("==== stuck-4242.dmp")
+    assert diagnostics.dumps_in(text) == {"stuck-4242.dmp": raw}
