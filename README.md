@@ -1,6 +1,6 @@
 # 模仿者小工具
 
-Version 1.0.0 · Windows desktop app for the 第五人格 模仿者 mode lobby.
+Version 1.0.1 · Windows desktop app for the 第五人格 模仿者 mode lobby.
 
 When you sit in the **推演成功** / **模仿者狂欢（12人狂欢）** lobby, press a hotkey (or let it check by itself). The app copies
 the screen, reads the twelve names under the character cards on your own PC, and tells you when one of them is on
@@ -33,7 +33,7 @@ names anywhere.
 ## Install (for friends)
 
 1. Open the [latest release](https://github.com/853493541/I5-Black-List/releases/latest) and download
-   `BlackListDetect-v1.0.0-full.zip`. If GitHub does not open, the release notes list two mirror links.
+   `BlackListDetect-v1.0.1-full.zip`. If GitHub does not open, the release notes list two mirror links.
 2. Right-click the zip, **Extract All**, and open the extracted folder. Do not run the exe from inside the zip and do
    not drag the exe out on its own.
 3. Double-click **模仿者小工具.exe**. If Windows shows 「Windows 已保护你的电脑」, click 「更多信息」 then 「仍要运行」.
