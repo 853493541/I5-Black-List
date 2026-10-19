@@ -83,3 +83,30 @@ def test_a_slow_check_says_why_in_the_log(window):
     window._cpu = CpuWindow()
     note = window._timing_note(result)
     assert "started 1.50 s after it" in note and "recognition idle 10 min before" in note
+
+
+def test_the_export_carries_the_dumps_of_stuck_copies(tmp_path):
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    (logs / "app.log").write_text("2026 WARNING A copy was open but its pipe did not answer\n", encoding="utf-8")
+    raw = b"MDMP" + bytes(range(256)) * 40
+    (logs / "stuck-4242.dmp").write_bytes(raw)
+    target = export_logs(tmp_path, "cpu", tmp_path / "out")
+    assert list((tmp_path / "out").iterdir()) == [target], "still one file to send"
+    text = target.read_text(encoding="utf-8")
+    assert text.index("pipe did not answer") < text.index("==== stuck-4242.dmp")
+    assert diagnostics.dumps_in(text) == {"stuck-4242.dmp": raw}
+
+
+def test_a_dump_in_the_export_does_not_name_the_windows_account(tmp_path, monkeypatch):
+    monkeypatch.setenv("USERNAME", "示例用户")
+    monkeypatch.setenv("USERPROFILE", "C:\\Users\\示例用户")
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    raw = b"MDMP" + "C:\\Users\\示例用户\\Videos\\app.exe".encode("utf-16-le") + b"\0" + "C:/Users/示例用户/a".encode("utf-8")
+    (logs / "stuck-7.dmp").write_bytes(raw)
+    target = export_logs(tmp_path, "cpu", tmp_path / "out")
+    dump = diagnostics.dumps_in(target.read_text(encoding="utf-8"))["stuck-7.dmp"]
+    assert len(dump) == len(raw), "the same size, so it still opens"
+    assert "示例用户".encode("utf-16-le") not in dump and "示例用户".encode("utf-8") not in dump
+    assert "C:\\Users\\xxxx\\Videos\\app.exe".encode("utf-16-le") in dump

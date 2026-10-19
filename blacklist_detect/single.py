@@ -7,7 +7,8 @@ answering yet, and only the first of two starts at once owns it.
 
 A copy can be left open without a window, a tray icon or a pipe: it answers nobody, and it holds
 the app's files, so the launcher will not lay an update over them and the update starts over at
-every restart. A start that finds such a copy from its own folder ends it. Only processes whose
+every restart. A start that finds such a copy from its own folder writes a small dump of it
+(logs/stuck-<pid>.dmp, its threads' stacks, for 导出日志) and ends it. Only processes whose
 program is this folder's runtime are ever ended, never anything else on the PC.
 """
 
@@ -20,6 +21,7 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
+from blacklist_detect.logs import log_dir
 from blacklist_detect.names import PROCESSES
 
 log = logging.getLogger(__name__)
@@ -171,9 +173,56 @@ def settle(root: Path | None, first: bool, answers: Callable[[], bool], wait: fl
             return True
     stuck = copies_in(root) if root is not None else []
     if stuck:
+        # Where it was stuck, for its log: each thread's stack, written before it is ended.
+        dumps = []
+        for pid in stuck:
+            try:
+                dumps.append(write_dump(pid, log_dir()).name)
+            except Exception as error:  # noqa: BLE001 - a copy that cannot be looked at is still ended
+                log.warning("Could not write a dump of the copy %s that does not answer: %s", pid, error)
         ended = end(stuck)
-        log.warning("A copy was open but not answering (no window, tray or pipe); ended it: %s", ended)
+        log.warning("A copy was open but its pipe did not answer; wrote %s; ended it: %s", ", ".join(dumps) or "no dump", ended)
     return False
+
+
+DUMPS_KEPT = 3
+
+
+def write_dump(pid: int, folder: Path, keep: int = DUMPS_KEPT) -> Path:
+    """A small minidump of a process (folder/stuck-<pid>.dmp): its threads and their stacks, none of
+    its other memory. Only the newest keep dumps stay. Raises OSError when Windows will not write it."""
+    if sys.platform != "win32":
+        raise OSError("minidumps are written on Windows only")
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    dbghelp = ctypes.WinDLL("dbghelp", use_last_error=True)
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+    dbghelp.MiniDumpWriteDump.argtypes = (
+        wintypes.HANDLE, wintypes.DWORD, wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p,
+    )  # fmt: skip
+    dbghelp.MiniDumpWriteDump.restype = wintypes.BOOL
+    folder.mkdir(parents=True, exist_ok=True)
+    target = folder / f"stuck-{pid}.dmp"
+    process = kernel32.OpenProcess(0x0400 | 0x0010, False, pid)  # PROCESS_QUERY_INFORMATION | PROCESS_VM_READ
+    if not process:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        with open(target, "wb") as out:
+            # MiniDumpNormal | MiniDumpWithThreadInfo: the stacks and each thread's times, no heap.
+            if not dbghelp.MiniDumpWriteDump(process, pid, msvcrt.get_osfhandle(out.fileno()), 0x0000 | 0x1000, None, None, None):
+                error = ctypes.WinError(ctypes.get_last_error())
+                out.close()
+                target.unlink(missing_ok=True)
+                raise error
+    finally:
+        kernel32.CloseHandle(process)
+    for old in sorted(folder.glob("stuck-*.dmp"), key=lambda path: path.stat().st_mtime)[:-keep]:
+        old.unlink(missing_ok=True)
+    return target
 
 
 def exit_now(code: int) -> None:

@@ -10,10 +10,13 @@ player's name or the lists.
 
 from __future__ import annotations
 
+import base64
 import os
 import platform
+import re
 import sys
 import time
+import zlib
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -367,7 +370,7 @@ def summary_text(store, device: str) -> str:  # noqa: ANN001
 
 def export_logs(root: Path, summary: str, folder: Path | None = None, report: str = "") -> Path:
     """One text file on the Desktop (unless told where): the computer, the last 环境测试, then the
-    logs, oldest first. Returns its path."""
+    logs, oldest first, and the dumps of copies found stuck (dumps_in reads them back). Returns its path."""
     folder = folder or desktop()
     folder.mkdir(parents=True, exist_ok=True)
     target = folder / f"模仿者小工具_日志_{time.strftime('%Y%m%d-%H%M')}.txt"
@@ -388,8 +391,56 @@ def export_logs(root: Path, summary: str, folder: Path | None = None, report: st
             continue
         if text:
             parts += [f"==== {path.name} ====", text, ""]
-    target.write_text(_without_user("\n".join(parts)) + "\n", encoding="utf-8")
+    # Last, outside _without_user: a dump is bytes, so its account name is hidden byte for byte instead.
+    target.write_text(_without_user("\n".join(parts)) + "\n" + _dumps_text(logs), encoding="utf-8")
     return target
+
+
+# A stuck copy's dump in the export (single.write_dump), compressed and written as text: one file to send.
+DUMP_HEADER = "==== {name} (zlib, base64) ===="
+DUMP_LINE = 100
+DUMP_MAX = 8_000_000
+
+
+def _dumps_text(logs: Path) -> str:
+    parts: list[str] = []
+    dumps = sorted(logs.glob("stuck-*.dmp"), key=lambda path: path.stat().st_mtime) if logs.is_dir() else []
+    for path in dumps:
+        try:
+            coded = base64.b64encode(zlib.compress(_dump_without_user(path.read_bytes()), 9)).decode("ascii")
+        except OSError:
+            continue
+        if len(coded) > DUMP_MAX:
+            parts += [f"==== {path.name} ====", f"(left out: {len(coded):,} characters)", ""]
+            continue
+        lines = [coded[start : start + DUMP_LINE] for start in range(0, len(coded), DUMP_LINE)]
+        parts += [DUMP_HEADER.format(name=path.name), *lines, ""]
+    return "\n".join(parts)
+
+
+def _dump_without_user(data: bytes) -> bytes:
+    """A dump lists the files the copy had loaded, and their paths name the Windows account, as the
+    logs' do: the account's folder becomes x's of the same length, so the dump keeps its size and opens."""
+    names = {os.environ.get("USERNAME", ""), Path(os.path.expanduser("~")).name} - {""}
+    for name in names:
+        for sep in ("\\", "/"):
+            for encoding in ("utf-16-le", "utf-8", "mbcs"):
+                try:
+                    found = f"Users{sep}{name}".encode(encoding)
+                    hidden = f"Users{sep}".encode(encoding)
+                except (LookupError, UnicodeEncodeError):
+                    continue
+                pad = "x".encode(encoding) * len(name) if encoding == "utf-16-le" else b"x" * (len(found) - len(hidden))
+                data = data.replace(found, hidden + pad)
+    return data
+
+
+def dumps_in(text: str) -> dict[str, bytes]:
+    """The dumps an export carries, by file name, as they were written (to open in WinDbg or Visual Studio)."""
+    found: dict[str, bytes] = {}
+    for match in re.finditer(r"^==== (stuck-\d+\.dmp) \(zlib, base64\) ====\n([A-Za-z0-9+/=\n]+)", text, re.MULTILINE):
+        found[match.group(1)] = zlib.decompress(base64.b64decode(match.group(2).replace("\n", "")))
+    return found
 
 
 def _without_user(text: str) -> str:
