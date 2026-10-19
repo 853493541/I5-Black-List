@@ -32,10 +32,30 @@ _NOT_INHERITED = ("OMP_NUM_THREADS",)
 _NOT_INHERITED_PREFIX = "__KMP_REGISTERED_LIB_"
 
 
-def ocr_threads(cpus: int | None = None) -> str:
-    """Threads the OCR reads names on. Unset, it took one per CPU (12 on a 6-core laptop), kept the whole
-    CPU busy for a check and slowed a game beside it; 4 read faster on a third of the work, 2 on a small PC."""
-    return "2" if (cpus or os.cpu_count() or 1) <= 4 else "4"
+def ocr_threads(cores: int | None = None) -> str:
+    """Threads the OCR reads names on: one per core, as Intel advises for oneDNN, 2 to 8. Unset, it took one per
+    CPU: 12 on a 6-core laptop with hyperthreading, the whole CPU busy for a check and the game beside it slowed.
+    Never 1, which read 5 times slower; past 8, a check beside a game got slower (docs/dev/research)."""
+    return str(max(2, min(8, cores or physical_cores())))
+
+
+def physical_cores() -> int:
+    """Cores, not the CPUs Windows shows: a 6-core laptop with hyperthreading shows 12."""
+    if sys.platform == "win32":
+        import ctypes
+        from ctypes import wintypes
+
+        size = wintypes.DWORD(0)
+        get_info = ctypes.windll.kernel32.GetLogicalProcessorInformationEx
+        get_info(0, None, ctypes.byref(size))  # 0: one record per core
+        records = ctypes.create_string_buffer(size.value)
+        if size.value and get_info(0, records, ctypes.byref(size)):
+            count = offset = 0
+            while offset < size.value:
+                count += 1
+                offset += int.from_bytes(records.raw[offset + 4:offset + 8], "little")  # each record's size
+            return count
+    return os.cpu_count() or 1
 
 
 def child_env() -> dict[str, str]:

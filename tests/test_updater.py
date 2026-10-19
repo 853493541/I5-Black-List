@@ -772,11 +772,16 @@ def test_the_next_copy_does_not_inherit_one_thread(monkeypatch, tmp_path):
     assert out.stdout.split() == [paths.ocr_threads(), "1"]
 
 
-def test_a_check_reads_on_a_few_threads_not_one_per_cpu():
-    """With no count, the OCR ran one thread per CPU: 12 on her 6-core laptop, the whole CPU busy for a check and the
-    game beside it slowed. 4 read the same names faster on a third of the work, 2 on a PC of 4 CPUs or fewer
-    (docs/dev/research/check-cpu-2026-10-18.md); never 1, which read 5 times slower."""
+def test_a_check_reads_on_one_thread_per_core_not_one_per_cpu():
+    """With no count, the OCR ran one thread per CPU: 12 on her 6-core laptop with hyperthreading, the whole CPU busy
+    for a check and the game beside it slowed. One per core, as Intel advises for oneDNN, 2 to 8
+    (docs/dev/research/check-cpu-2026-10-18.md): 4 threads read slower than 6 or 8 on cores of one speed, 1 read 5
+    times slower, and past 8 a check beside a game got slower."""
+    import os
+
     from blacklist_detect import paths
 
-    assert [paths.ocr_threads(cpus) for cpus in (2, 4, 6, 12, 24)] == ["2", "2", "4", "4", "4"]
-    assert paths.ocr_threads() in ("2", "4")
+    assert [paths.ocr_threads(cores) for cores in (1, 2, 4, 6, 8, 12, 24)] == ["2", "2", "4", "6", "8", "8", "8"]
+    assert 1 <= paths.physical_cores() <= (os.cpu_count() or 1)
+    psutil = pytest.importorskip("psutil")
+    assert paths.physical_cores() == psutil.cpu_count(logical=False)
