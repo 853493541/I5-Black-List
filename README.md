@@ -68,7 +68,11 @@ python -m ruff check .
 - Data folder: `%APPDATA%\BlackListDetect` (list, settings, daily backups, logs).
 - Release: `python build/build_launcher.py`, then `python build/make_release.py` builds the full and update zips from
   `dist\黑名单检测`; `python build/release.py` signs `version.json`, which the updater reads from the latest GitHub
-  release. `python build/install_local.py` installs the newest code on this PC.
+  release. `python build/install_local.py` installs the newest code on this PC. The build needs
+  `python -m pip install pyinstaller` (it stamps the app exe's name and icon). Without `dist\黑名单检测`, unpack the last
+  full zip with Python's `zipfile` (`unzip` garbles the Chinese file names) into a short folder such as `dist\rt`, copy
+  its `blacklist_detect\qtmedia` files back to `runtime\Lib\site-packages\PySide6` (the `multimedia` folder under
+  `plugins`), and pass `--runtime dist\rt\BlackListDetect\runtime --models dist\rt\BlackListDetect\blacklist_detect\models`.
 - CI (`.github/workflows/tests.yml`) runs the tests and ruff on Windows on every push.
 - Old development notes and handoffs are in `docs/dev/`.
 
