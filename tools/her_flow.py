@@ -225,6 +225,12 @@ def her_share(cpu_seconds: float, span: float, cap: float, cpu_count: int, cpus:
     return 100.0 * cpu_seconds / have if have > 0 else float("nan")
 
 
+def of_used(app: float, others: float) -> float:
+    """The app's share of her PC when the capped run used more than the cap (a job's cap lets short bursts through):
+    of what the app and the game together had, as her log's share is of a PC at 98-100 %. Under the cap, as it is."""
+    return app * 100.0 / max(100.0, app + others)
+
+
 def summarize(rows: list[dict]) -> dict:
     """One run's checks in a few numbers: the idle one is the last, the rest are the short gaps. CPU between checks
     is over each gap's quiet part only (after the result panel's lobby lookups stop); a gap without one is left out."""
@@ -434,11 +440,13 @@ def run_one(args, cpus: list[int]) -> None:  # noqa: ANN001, C901, PLR0915
         row["frames_check"] = on_time(log, row["pressed"], row["shown"]) if log else float("nan")
         row["frames_scene"] = on_time(log, row["shown"], row["ended"]) if log else float("nan")
         row["stall_ms"] = 1000 * longest_stall(ticks, row["pressed"], row["ended"])
-        row["check_cpu"] = share(row["check_cpu_s"], row["shown"] - row["pressed"])
-        row["idle_cpu"] = share(cpu, until - since) if until - since >= 0.5 else float("nan")
-        row["quiet_s"] = max(0.0, until - since) if until - since >= 0.5 else 0.0
         row["game_cpu"] = share(sum(cpu_between(each, row["pressed"], row["shown"]) for each in shown),
                                 row["shown"] - row["pressed"])
+        row["check_cpu"] = of_used(share(row["check_cpu_s"], row["shown"] - row["pressed"]), row["game_cpu"])
+        quiet = until - since if until - since >= 0.5 else 0.0
+        game_quiet = share(sum(cpu_between(each, since, until) for each in shown), quiet) if quiet else 0.0
+        row["idle_cpu"] = of_used(share(cpu, quiet), game_quiet) if quiet else float("nan")
+        row["quiet_s"] = quiet
         row["gap"] = until - since
     summary = summarize(rows)
     name = Path(args.one).name

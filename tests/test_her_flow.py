@@ -53,6 +53,14 @@ def test_her_share_is_of_the_capped_pc():
     assert abs(her_flow.her_share(6.0, 1.0, 0, 20, 12) - 50.0) < 1e-9
 
 
+def test_app_share_is_of_what_the_capped_pc_really_gave():
+    # The job's cap lets bursts through: app 80 % and game 30 % of the nominal cap is a PC at 110 %, which hers cannot
+    # be; the app had 80 / 110 of it. Under the cap, nothing changes.
+    assert abs(her_flow.of_used(80.0, 30.0) - 100 * 80 / 110) < 1e-9
+    assert her_flow.of_used(60.0, 30.0) == 60.0
+    assert her_flow.of_used(1.0, 0.0) == 1.0
+
+
 def test_seed_store_is_her_setup(tmp_path):
     store = Store(tmp_path)
     her_flow.seed_store(store, "classic", filler=20)
