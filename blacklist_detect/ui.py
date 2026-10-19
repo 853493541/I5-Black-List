@@ -648,6 +648,13 @@ class MainWindow(QMainWindow):
         self.scenes_dialog = EffectsDialog(self.effects_page, self)
         self.tabs.tabBar().hide()
         self.tabs.currentChanged.connect(self._sync_tab_buttons)
+        # A check's record, left out of date while no page showing it was in view (_history_after_check).
+        self._history_stale = False
+        self._history_timer = QTimer(self)
+        self._history_timer.setSingleShot(True)
+        self._history_timer.setInterval(100)
+        self._history_timer.timeout.connect(lambda: self._reload_history_if_stale())
+        self.tabs.currentChanged.connect(lambda _index: self._reload_history_if_stale())
         header = QWidget()
         header.setObjectName("tabHeader")
         header.setAttribute(Qt.WA_StyledBackground, True)
@@ -1669,11 +1676,15 @@ class MainWindow(QMainWindow):
         self._remember_geometry_soon()
         # A version found while the window was in the tray is told about now.
         self._announce_update()
+        # And the records checked while it was there.
+        self._reload_history_if_stale()
 
     def changeEvent(self, event) -> None:  # noqa: ANN001
         super().changeEvent(event)
         if event.type() == QEvent.Type.ActivationChange and self.isActiveWindow():
             self._check_updates_on_return()
+        if event.type() == QEvent.Type.WindowStateChange and not self.isMinimized():
+            self._reload_history_if_stale()
 
     def _list_cell(self, text: str, store_index: int | None = None, font=None, ink=None) -> QTableWidgetItem:  # noqa: ANN001
         item = QTableWidgetItem(text)
@@ -2327,6 +2338,8 @@ class MainWindow(QMainWindow):
         self._list_changed()
 
     def _reload_history(self, select: int = 0) -> None:
+        self._history_stale = False
+        self._history_timer.stop()
         if hasattr(self, "likes_page"):
             self.likes_page.refresh()
         self.history_list.blockSignals(True)
@@ -3761,10 +3774,30 @@ class MainWindow(QMainWindow):
             )
             if outcome == "filled":
                 self._apply_filled(result)
-            self._reload_history()
         self._show_panel(result)
+        if result.header_found and result.names:
+            self._history_after_check()
         if self.store.save_debug_frames and result.preview_rgb is not None:
             self._save_debug(result)
+
+    def _history_on_screen(self) -> bool:
+        """Whether a page that shows the records is in view: 记录, or 黑名单's and 嘉宾's 最后遇到."""
+        return self.isVisible() and not self.isMinimized() and self.tabs.currentIndex() != self.settings_tab
+
+    def _history_after_check(self) -> None:
+        """A check's record reaches the lists after its marks, and only where it can be seen.
+
+        Rebuilding them took about 50 ms of the screen thread, which the marks used to wait for. In the tray,
+        or on 设置, they are left out of date until shown. In view they are rebuilt 100 ms on: a 0 ms timer
+        could run before the marks' paint, which Qt posts at low priority, and 100 ms is past it.
+        """
+        self._history_stale = True
+        if self._history_on_screen():
+            self._history_timer.start()
+
+    def _reload_history_if_stale(self) -> None:
+        if getattr(self, "_history_stale", False) and self._history_on_screen():
+            self._reload_history()
 
     def _rescan_now(self) -> bool:
         if self._closing:

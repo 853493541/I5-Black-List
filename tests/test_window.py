@@ -11,6 +11,7 @@ pytest.importorskip("PySide6")
 
 from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, Qt
 from PySide6.QtGui import QEnterEvent, QFocusEvent, QFontMetrics, QKeyEvent, QMouseEvent
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QDialog, QHBoxLayout, QLabel, QPushButton, QWidget
 
 from blacklist_detect import __version__
@@ -1050,6 +1051,76 @@ def test_auto_check_does_not_leave_the_current_tab(qapp, tmp_path, monkeypatch):
     assert window.status_chip.text() == "自动检查中"
     window._start(window._capture_job, live=True)
     assert window.tabs.currentIndex() == settings
+    window.close()
+
+
+def _order_window(tmp_path, monkeypatch) -> tuple[MainWindow, list[str]]:
+    """A window that notes, in order, when the marks are drawn and when the 记录 list is rebuilt."""
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    window = MainWindow()
+    window._watch_timer.stop()
+    calls: list[str] = []
+    show_panel, reload_history = window._show_panel, window._reload_history
+    window._show_panel = lambda result: calls.append("panel") or show_panel(result)
+    window._reload_history = lambda *args, **kwargs: calls.append("history") or reload_history(*args, **kwargs)
+    return window, calls
+
+
+def _check_with(window: MainWindow, name: str) -> None:
+    names = [NameSlot(0, (0, 0, 1, 1), name, name, False, 0.9, False)]
+    window._on_checked("ok", CheckResult(True, "", names=names))
+
+
+def _record_rows(window: MainWindow) -> list[int]:
+    return [
+        window.history_list.item(row).data(Qt.UserRole)
+        for row in range(window.history_list.count())
+        if window.history_list.item(row).data(Qt.UserRole) >= 0
+    ]
+
+
+def test_a_check_in_the_tray_draws_the_marks_and_leaves_the_record_list_until_it_is_shown(qapp, tmp_path, monkeypatch):
+    window, calls = _order_window(tmp_path, monkeypatch)
+    assert not window.isVisible()
+    _check_with(window, "甲")
+    assert calls == ["panel"]
+    assert len(window.store.scans) == 1
+    assert _record_rows(window) == []
+    window.show()
+    assert calls == ["panel", "history"]
+    assert _record_rows(window) == [0]
+    QTest.qWait(250)
+    assert calls == ["panel", "history"]
+    window.close()
+
+
+def test_a_check_on_another_tab_rebuilds_the_record_list_once_when_it_is_opened(qapp, tmp_path, monkeypatch):
+    window, calls = _order_window(tmp_path, monkeypatch)
+    window.show()
+    window.tabs.setCurrentIndex(window.settings_tab)
+    _check_with(window, "甲")
+    QTest.qWait(250)
+    assert calls == ["panel"]
+    assert _record_rows(window) == []
+    window.tabs.setCurrentIndex(window.history_tab)
+    assert calls == ["panel", "history"]
+    assert _record_rows(window) == [0]
+    window.tabs.setCurrentIndex(window.blacklist_tab)
+    window.tabs.setCurrentIndex(window.history_tab)
+    assert calls == ["panel", "history"]
+    window.close()
+
+
+def test_a_check_with_the_record_list_on_screen_rebuilds_it_after_the_marks(qapp, tmp_path, monkeypatch):
+    window, calls = _order_window(tmp_path, monkeypatch)
+    window.show()
+    window.tabs.setCurrentIndex(window.history_tab)
+    _check_with(window, "甲")
+    assert calls == ["panel"]
+    QTest.qWait(250)
+    assert calls == ["panel", "history"]
+    assert _record_rows(window) == [0]
     window.close()
 
 
