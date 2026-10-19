@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import statistics
 import subprocess
@@ -35,8 +36,8 @@ SCREEN = (1920, 1080)  # her screen, in pixels
 SCALE = 1.25  # at 125 %
 GAME = (191, 107, 1729, 972)  # her MuMu window's game, 1538x865, in the middle of the screen
 BAR = 49  # MuMu's own bar over the game: its window is 1538x914
-CANVAS = (1280, 720)  # 直播姬's canvas, and where her「Scene 1」draws the game's window on it
-ON_CANVAS = (0, -63, 1890, 1123)
+CANVAS = (1280, 720)  # 直播姬's canvas, and where her「Scene 1」draws the game's window on it: dragged to the left
+ON_CANVAS = (0, -42, 1.04 * 720 / 914)  # edge, 42 up and 4 % bigger than 直播姬's fit (her scene file, test_stream)
 GAP, SCENE_S = 5.0, 5.0  # seconds between checks, and a 嘉宾 scene's length
 FILLER = 350
 BLACK, GUESTS = "示例坏人", ("心动小鹿", "心动星星")  # made-up names in assets/sample-lobby.jpg
@@ -170,11 +171,10 @@ def livehime_files(local: Path, mirror: str) -> None:
     (folder / "bililive_debug.log").write_text(
         "--- Application Startup ---\n[0000/000000.000:INFO] game_and_widnow_info : " + json.dumps(scene) + "\n",
         encoding="utf-8")
-    width, height = mumu_window()[2] - mumu_window()[0], mumu_window()[3] - mumu_window()[1]
-    x, y, w, h = ON_CANVAS
+    x, y, zoom = ON_CANVAS
     collection = {"current_scene": "Scene 1", "sources": [
         {"id": "scene", "name": "Scene 1", "settings": {"items": [
-            {"name": "MuMu", "pos": {"x": x, "y": y}, "scale": {"x": w / width, "y": h / height}, "align": 5,
+            {"name": "MuMu", "pos": {"x": x, "y": y}, "scale": {"x": zoom, "y": zoom}, "align": 5,
              "bounds_type": 0, "visible": True},
             {"name": "直播画面", "pos": {"x": 0, "y": 0}, "scale": {"x": 1, "y": 1}, "align": 5, "bounds_type": 2,
              "bounds": {"x": CANVAS[0], "y": CANVAS[1]}, "bounds_align": 0, "visible": True}]}},
@@ -225,9 +225,11 @@ def her_share(cpu_seconds: float, span: float, cap: float, cpu_count: int, cpus:
 
 
 def summarize(rows: list[dict]) -> dict:
-    """One run's checks in a few numbers: the idle one is the last, the rest are the short gaps."""
+    """One run's checks in a few numbers: the idle one is the last, the rest are the short gaps. CPU between checks
+    is over each gap's quiet part only (after the result panel's lobby lookups stop); a gap without one is left out."""
     short, last = rows[:-1] or rows, rows[-1]
     median = lambda key, of=short: statistics.median(row[key] for row in of)  # noqa: E731
+    quiet = [row for row in rows if row["quiet_s"] > 0 and not math.isnan(row["idle_cpu"])]
     rss = [row["rss_mb"] for row in rows]
     return {
         "marks": median("marks"),
@@ -236,11 +238,25 @@ def summarize(rows: list[dict]) -> dict:
         "frames_scene": median("frames_scene", rows),
         "stall_ms": max(row["stall_ms"] for row in rows),
         "check_cpu": median("check_cpu", rows),
-        "idle_cpu": median("idle_cpu", rows),
+        "idle_cpu": median("idle_cpu", quiet) if quiet else float("nan"),
+        "quiet_s": median("quiet_s", [row for row in quiet if row is not last] or [{"quiet_s": 0.0}]),
+        "quiet_idle_s": last["quiet_s"],
         "memory_mb": rss[-1] - rss[min(2, len(rss) - 1)],
         "names": min(row["names"] for row in rows),
         "mirror": ",".join(sorted({row["mirror"] for row in rows})),
     }
+
+
+def summary_line(label: str, threads: str, first: dict, summary: dict, idle: float, screen: tuple) -> str:
+    """One run in one line, named by its code's folder (versions under work all say the last release's number)."""
+    (_x, _y, width, height), ratio = screen
+    return (f"her_flow: {label} on {threads} threads, screen {width}x{height} at {ratio:g}: first check "
+            f"{first['marks']:.2f} s | F1 to marks {summary['marks']:.2f} s, {summary['marks_idle']:.2f} s after {idle:g} s "
+            f"idle ({summary['names']} names) | frames on time {summary['frames_check']:.0f} % in checks, "
+            f"{summary['frames_scene']:.0f} % in scenes | longest stall {summary['stall_ms']:.0f} ms | app "
+            f"{summary['check_cpu']:.0f} % of her PC in checks, {summary['idle_cpu']:.1f} % between (over the last "
+            f"{summary['quiet_s']:.1f} s of each {GAP:g} s gap and {summary['quiet_idle_s']:.0f} s of the idle one, after the "
+            f"lobby lookups stop) | memory {summary['memory_mb']:+.0f} MB from check 3 | mirror {summary['mirror']}")
 
 
 def verdicts(summary: dict) -> list[str]:
@@ -398,8 +414,11 @@ def run_one(args, cpus: list[int]) -> None:  # noqa: ANN001, C901, PLR0915
     rows, gaps = [], []
     for number in range(args.checks):
         wait = args.idle if number == args.checks - 1 else GAP
+        end = time.time() + wait
+        # The result panel looks for the lobby every 400 ms until it is gone; CPU between checks is what follows.
+        pump(wait, lambda: not window._watch_timer.isActive())
         cpu0, since = sum(proc.cpu_times()[:2]), time.time()
-        pump(wait)
+        pump(end - since)
         gaps.append((since, time.time(), sum(proc.cpu_times()[:2]) - cpu0))
         rows.append(check())
     stop.set()
@@ -415,7 +434,8 @@ def run_one(args, cpus: list[int]) -> None:  # noqa: ANN001, C901, PLR0915
         row["frames_scene"] = on_time(log, row["shown"], row["ended"]) if log else float("nan")
         row["stall_ms"] = 1000 * longest_stall(ticks, row["pressed"], row["ended"])
         row["check_cpu"] = share(row["check_cpu_s"], row["shown"] - row["pressed"])
-        row["idle_cpu"] = share(cpu, until - since)
+        row["idle_cpu"] = share(cpu, until - since) if until - since >= 0.5 else float("nan")
+        row["quiet_s"] = max(0.0, until - since) if until - since >= 0.5 else 0.0
         row["game_cpu"] = share(sum(cpu_between(each, row["pressed"], row["shown"]) for each in shown),
                                 row["shown"] - row["pressed"])
         row["gap"] = until - since
@@ -423,16 +443,15 @@ def run_one(args, cpus: list[int]) -> None:  # noqa: ANN001, C901, PLR0915
     name = Path(args.one).name
     with open(args.table, "a", encoding="utf-8") as table:
         for number, row in enumerate(rows, 1):
-            table.write(json.dumps({"code": name, "version": __version__, "round": os.environ.get("HER_FLOW_ROUND"),
+            table.write(json.dumps({"code": name, "package": __version__, "round": os.environ.get("HER_FLOW_ROUND"),
                                     "check": number, **{k: round(v, 3) if isinstance(v, float) else v
                                                         for k, v in row.items()}}) + "\n")
-    print(f"her_flow: {name} ({__version__}) on {threads} threads: first check {first['marks']:.2f} s | "
-          f"F1 to marks {summary['marks']:.2f} s, {summary['marks_idle']:.2f} s after {args.idle:g} s idle "
-          f"({summary['names']} names) | frames on time {summary['frames_check']:.0f} % in checks, "
-          f"{summary['frames_scene']:.0f} % in scenes | longest stall {summary['stall_ms']:.0f} ms | app "
-          f"{summary['check_cpu']:.0f} % of her PC in checks, {summary['idle_cpu']:.1f} % between | memory "
-          f"{summary['memory_mb']:+.0f} MB from check 3 | mirror {summary['mirror']}", flush=True)
+    shown_on = app.primaryScreen()
+    geometry = shown_on.geometry()
+    screen = ((geometry.x(), geometry.y(), geometry.width(), geometry.height()), shown_on.devicePixelRatio())
+    print(summary_line(name, threads, first, summary, args.idle, screen), flush=True)
     print(f"her_flow:   targets: {', '.join(verdicts(summary))}", flush=True)
+    print(f"her_flow:   直播画面: {window.stream._follow_note}", flush=True)
     window._closing = True
     window.stream.enable("")
     app.quit()

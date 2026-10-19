@@ -73,13 +73,19 @@ def test_livehime_copy_reads_back_as_her_layout(tmp_path):
     assert current == "Scene 1"
     game, mirror = placed
     width, height = 1538, 914
-    assert [round(v) for v in game.on_canvas(width, height)] == [0, -63, 1890, 1123]
+    # Her「Scene 1」: MuMu dragged to (0, -42) on the 1280x720 canvas, 4 % bigger than 直播姬's fit; in the
+    # 1920x1080 直播画面 that is (0, -63) 1890x1123, and most of the game is on the canvas, so the app follows it.
+    x, y, w, h = game.on_canvas(width, height)
+    assert [round(v) for v in (x, y, w, h)] == [0, -42, 1260, 749]
+    assert [round(v * 1920 / 1280) for v in (x, y, w, h)] == [0, -63, 1890, 1123]
+    seen = (min(x + w, 1280) - max(x, 0)) * (min(y + h, 720) - max(y, 0))
+    assert seen >= 0.5 * w * h
     assert [round(v) for v in mirror.on_canvas(1920, 1080)] == [0, 0, 1280, 720]
 
 
 def test_summarize_and_targets():
     row = {"marks": 1.2, "frames_check": 92.0, "frames_scene": 96.0, "stall_ms": 80.0, "check_cpu": 60.0,
-           "idle_cpu": 1.0, "names": 12, "mirror": "follows"}
+           "idle_cpu": 1.0, "quiet_s": 3.0, "names": 12, "mirror": "follows"}
     rows = [{**row, "rss_mb": 500.0 + n} for n in range(5)] + [{**row, "marks": 2.0, "rss_mb": 510.0}]
     summary = her_flow.summarize(rows)
     assert summary["marks"] == 1.2 and summary["marks_idle"] == 2.0
@@ -87,3 +93,24 @@ def test_summarize_and_targets():
     assert summary["names"] == 12 and summary["mirror"] == "follows"
     assert all(said.endswith("PASS") for said in her_flow.verdicts(summary))
     assert "stall_ms FAIL" in her_flow.verdicts({**summary, "stall_ms": 101.0})
+
+
+def test_cpu_between_checks_is_only_the_quiet_part_of_each_gap():
+    # A gap whose lobby lookups never stopped has no quiet part: it is left out, not counted as 0 or as the lookups.
+    row = {"marks": 1.2, "frames_check": 92.0, "frames_scene": 96.0, "stall_ms": 80.0, "check_cpu": 60.0,
+           "names": 12, "mirror": "follows", "rss_mb": 500.0}
+    rows = [{**row, "idle_cpu": cpu, "quiet_s": quiet} for cpu, quiet in ((1.0, 3.0), (float("nan"), 0.0), (3.0, 2.5),
+                                                                          (2.0, 58.0))]
+    summary = her_flow.summarize(rows)
+    assert summary["idle_cpu"] == 2.0
+    assert summary["quiet_s"] == 2.75 and summary["quiet_idle_s"] == 58.0
+
+
+def test_summary_line_is_labelled_by_folder_and_says_its_windows():
+    row = {"marks": 1.2, "frames_check": 92.0, "frames_scene": 96.0, "stall_ms": 80.0, "check_cpu": 60.0,
+           "idle_cpu": 1.0, "quiet_s": 3.0, "names": 12, "mirror": "follows", "rss_mb": 500.0}
+    summary = her_flow.summarize([row] * 4)
+    line = her_flow.summary_line("today", "6", {"marks": 3.0}, summary, 60, ((0, 0, 1536, 864), 1.25))
+    assert line.startswith("her_flow: today on 6 threads, screen 1536x864 at 1.25:")
+    assert "1.0.0" not in line
+    assert "after the lobby lookups stop" in line
