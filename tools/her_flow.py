@@ -174,12 +174,13 @@ def livehime_files(local: Path, mirror: str) -> None:
     x, y, zoom = ON_CANVAS
     collection = {"current_scene": "Scene 1", "sources": [
         {"id": "scene", "name": "Scene 1", "settings": {"items": [
-            {"name": "MuMu", "pos": {"x": x, "y": y}, "scale": {"x": zoom, "y": zoom}, "align": 5,
-             "bounds_type": 0, "visible": True},
-            {"name": "直播画面", "pos": {"x": 0, "y": 0}, "scale": {"x": 1, "y": 1}, "align": 5, "bounds_type": 2,
-             "bounds": {"x": CANVAS[0], "y": CANVAS[1]}, "bounds_align": 0, "visible": True}]}},
-        {"id": "window_capture", "name": "MuMu", "settings": {"window": mumu, "client_area": False}},
-        {"id": "window_capture", "name": "直播画面", "settings": {"window": ours, "client_area": True}}]}
+            {"name": "MuMu", "source_uuid": "game", "pos": {"x": x, "y": y}, "scale": {"x": zoom, "y": zoom},
+             "align": 5, "bounds_type": 0, "visible": True},
+            {"name": "直播画面", "source_uuid": "mirror", "pos": {"x": 0, "y": 0}, "scale": {"x": 1, "y": 1}, "align": 5,
+             "bounds_type": 2, "bounds": {"x": CANVAS[0], "y": CANVAS[1]}, "bounds_align": 0, "visible": True}]}},
+        # Every source has its uuid, as 直播姬 writes them: without, every item would find the last source.
+        {"id": "window_capture", "name": "MuMu", "uuid": "game", "settings": {"window": mumu, "client_area": False}},
+        {"id": "window_capture", "name": "直播画面", "uuid": "mirror", "settings": {"window": ours, "client_area": True}}]}
     (folder / "10001" / "Scene Collection" / "her.json").write_text(json.dumps(collection, ensure_ascii=False),
                                                                     encoding="utf-8")
 

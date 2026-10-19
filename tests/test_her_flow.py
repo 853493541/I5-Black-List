@@ -72,6 +72,7 @@ def test_livehime_copy_reads_back_as_her_layout(tmp_path):
     current, placed = livehime_layout.placements(livehime_layout.collection_path(root))
     assert current == "Scene 1"
     game, mirror = placed
+    assert (game.title, mirror.title) == ("MuMu模拟器12", "模仿者·直播画面")  # each item finds its own capture
     width, height = 1538, 914
     # Her「Scene 1」: MuMu dragged to (0, -42) on the 1280x720 canvas, 4 % bigger than 直播姬's fit; in the
     # 1920x1080 直播画面 that is (0, -63) 1890x1123, and most of the game is on the canvas, so the app follows it.
