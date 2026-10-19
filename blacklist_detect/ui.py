@@ -63,7 +63,16 @@ from blacklist_detect.game_area import exclusive_fullscreen, game_rect, inner_re
 from blacklist_detect.guests import lobby_scene
 from blacklist_detect.hotkey import GlobalHotkey, everyday, parse_hotkey
 from blacklist_detect.importing import suggest_tags, with_tags
-from blacklist_detect.logs import log, mark_closed, mark_running, masked, on_uncaught, setup_logging
+from blacklist_detect.logs import (
+    log,
+    mark_closed,
+    mark_running,
+    masked,
+    on_uncaught,
+    setup_logging,
+    tray_heartbeat,
+    watch_main_thread,
+)
 from blacklist_detect.match import (
     NameLabel,
     clean_stored_name,
@@ -288,6 +297,10 @@ def run_app(background: bool = False) -> int:
     if mark_running():
         log.warning("The last run ended without closing: it was ended from outside (Task Manager, a tool, or a power loss).")
     window.instance_server = listen_for_instances(key, window._show_from_tray, window.quit_app)
+    # A window that stops answering says so in the log and leaves its stack in crash.log; in the
+    # tray it says it is alive once an hour, so a freeze there is known to within the hour.
+    window._watchdog = watch_main_thread()
+    window._tray_alive = tray_heartbeat(window, lambda: not window.isVisible())
     on_uncaught(window.report_uncaught)
     # Started with Windows: stay in the tray, unless a first open or an environment check needs the window.
     quiet = (
