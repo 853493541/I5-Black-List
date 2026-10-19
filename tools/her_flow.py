@@ -69,28 +69,29 @@ def main() -> None:
     parser.add_argument("--frame", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args()
     cpus = parse_cpus(args.cpus) if args.cpus else slowest_cpus(args.her_cpus)
-    if args.frame:
-        make_frame(args.frame)
-        return
     if args.one:
         run_one(args, cpus)
+        return
+    if args.frame:
+        make_frame(args.frame)
         return
     if not args.code:
         parser.error("name at least one code folder")
     data = Path(tempfile.mkdtemp(prefix="her_flow_"))
-    table = args.table or data / "checks.jsonl"
+    table = (args.table or data / "checks.jsonl").resolve()
     print(f"her PC on this one: CPUs {args.cpus or cpus}, held to {args.cap:g} % of this PC, "
           f"game {args.game} x {args.frame_ms:g} ms a frame; every check in {table}", flush=True)
     env = {k: v for k, v in os.environ.items()
            if k not in ("OMP_NUM_THREADS", "QT_SCALE_FACTOR", "QT_SCREEN_SCALE_FACTORS", "QT_ENABLE_HIGHDPI_SCALING",
                         "BLACKLIST_DETECT_SOUND") and not k.startswith("__KMP_REGISTERED_LIB_")}
     local = data / "local"
-    screen_file = data / "screen.json"
+    (data / "screen.json").write_text(json.dumps(offscreen_config()), encoding="utf-8")
+    # Qt splits the platform's arguments at ":", so C:\... would end at the drive: the runs start in data, and
+    # the file is named from there. Cut short, Qt stops the run with exit 0xC0000409 and nothing on stderr.
     env.update(LOCALAPPDATA=str(local), XDG_CONFIG_HOME=str(data), PYTHONIOENCODING="utf-8",
-               QT_QPA_PLATFORM=f"offscreen:configfile={screen_file}")
-    screen_file.write_text(json.dumps(offscreen_config()), encoding="utf-8")
-    frame = data / "lobby.npy"
-    done = subprocess.run([sys.executable, __file__, "--frame", str(frame)], env={**env, "APPDATA": str(data / "frame")},
+               QT_QPA_PLATFORM="offscreen:configfile=screen.json")
+    script, frame = str(Path(__file__).resolve()), data / "lobby.npy"
+    done = subprocess.run([sys.executable, script, "--frame", str(frame)], env={**env, "APPDATA": str(data / "frame")},
                           check=False, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if not frame.is_file():
         print(f"the screen copy could not be made:\n{done.stderr[-2000:]}", flush=True)
@@ -98,12 +99,14 @@ def main() -> None:
     for turn in range(args.rounds):
         for code in args.code:
             run_env = {**env, "APPDATA": tempfile.mkdtemp(prefix="appdata_", dir=data)}
-            command = [sys.executable, __file__, *sys.argv[1:], "--table", str(table), "--frame", str(frame),
+            command = [sys.executable, script, *sys.argv[1:], "--table", str(table), "--frame", str(frame),
                        "--one", str(code.resolve())]
-            done = subprocess.run(command, env={**run_env, "HER_FLOW_ROUND": str(turn + 1)}, check=False,
+            done = subprocess.run(command, env={**run_env, "HER_FLOW_ROUND": str(turn + 1)}, cwd=data, check=False,
                                   capture_output=True, text=True, encoding="utf-8", errors="replace")
             lines = [line for line in done.stdout.strip().splitlines() if line.startswith("her_flow: ")]
-            print("\n".join(line[10:] for line in lines) if lines else f"{code}: no output\n{done.stderr[-3000:]}",
+            said = data / f"{code.resolve().name}-{turn + 1}.txt"
+            said.write_text(done.stdout + "\n" + done.stderr, encoding="utf-8")
+            print("\n".join(line[10:] for line in lines) if lines else f"{code}: no result (exit {done.returncode}), see {said}",
                   flush=True)
 
 
@@ -300,9 +303,12 @@ def stub(ui, state, local: Path) -> None:  # noqa: ANN001
 
 
 def run_one(args, cpus: list[int]) -> None:  # noqa: ANN001, C901, PLR0915
+    import faulthandler
+
     import numpy as np
     import psutil
 
+    faulthandler.enable()  # a crash in Paddle or Qt says where, in the run's own output
     proc = psutil.Process()
     proc.cpu_affinity(cpus)
     sys.path.insert(0, args.one)
