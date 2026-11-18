@@ -61,6 +61,7 @@ pub struct Shower {
     size: Vec<f64>,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn shower(at: Pt, aim: f64, count: usize, u: f64, seed: u32, width: f64, height: f64, keep: &[[f64; 4]]) -> Shower {
     let mut rng = Rng::new(seed);
     let embers = count / 6;

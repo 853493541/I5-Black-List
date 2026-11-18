@@ -43,10 +43,7 @@ pub fn bolt_points(start: Pt, end: Pt, rnd: &mut PyRandom, rough: f64, levels: u
         for pair in points.windows(2) {
             let (a, b) = (pair[0], pair[1]);
             let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
-            let length = match dx.hypot(dy) {
-                l if l == 0.0 => 1.0,
-                l => l,
-            };
+            let length = if dx.hypot(dy) == 0.0 { 1.0 } else { dx.hypot(dy) };
             let push = rnd.gauss(0.0, spread);
             out.push([(a[0] + b[0]) / 2.0 - dy / length * push, (a[1] + b[1]) / 2.0 + dx / length * push]);
             out.push(b);

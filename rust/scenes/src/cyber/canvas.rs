@@ -139,7 +139,9 @@ impl Canvas {
         let n = self.prims.len() as u32;
         let same = self.runs.last().is_some_and(|r| r.target == self.target && r.blend == self.blend && r.end == n) && !self.clear;
         if same {
-            self.runs.last_mut().map(|r| r.end += 1);
+            if let Some(r) = self.runs.last_mut() {
+                r.end += 1;
+            }
         } else {
             self.runs.push(Run { target: self.target, clear: self.clear, blend: self.blend, start: n, end: n + 1 });
             self.clear = false;
