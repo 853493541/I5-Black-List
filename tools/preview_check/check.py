@@ -36,6 +36,31 @@ def _env(extra: dict[str, str] | None = None) -> dict[str, str]:
     return env
 
 
+def _hash(text: str, size: int = 8) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()[:size]
+
+
+def _norm(text: str) -> str:
+    """NFKC, case folded, without spaces, punctuation or symbols."""
+    import unicodedata
+
+    text = unicodedata.normalize("NFKC", text).casefold()
+    return "".join(c for c in text if not unicodedata.category(c)[0] in "PZS" and not c.isspace())
+
+
+def pick(private: Path, out_list: Path, out_json: Path, count: int = 30, seed: int = 20261118) -> None:
+    """The made-up 黑名单: `count` seats v1.0.1 read, chosen with a fixed seed. The names stay on the runner
+    (out_list is in the private folder); out_json keeps only which lobby and seat each came from."""
+    import random
+
+    reads = json.loads((private / "python.json").read_text(encoding="utf-8"))
+    seats = [(f, i) for f, names in enumerate(reads) for i, n in enumerate(names) if len(n.strip()) >= 2]
+    chosen = sorted(random.Random(seed).sample(seats, min(count, len(seats))))
+    out_list.write_text("\n".join(reads[f][i] for f, i in chosen) + "\n", encoding="utf-8")
+    out_json.write_text(json.dumps({"seed": seed, "seats": chosen}), encoding="utf-8")
+    print(f"picked {len(chosen)} seats")
+
+
 def _tree_rss(proc: psutil.Process) -> int:
     total = 0
     for p in [proc, *proc.children(recursive=True)]:
@@ -62,7 +87,7 @@ def bench(name: str, out: Path, command: list[str]) -> None:
     proc = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=sys.stderr, env=_env(),
                             text=True, encoding="utf-8", errors="replace")
     ps = psutil.Process(proc.pid)
-    frames, rss10, cpu_start, rss_ready, peak = [], None, None, None, 0
+    frames, raw, rss10, cpu_start, rss_ready, peak = [], [], None, None, None, 0
     started = time.perf_counter()
     for line in proc.stdout:
         line = line.rstrip("\n")
@@ -74,14 +99,16 @@ def bench(name: str, out: Path, command: list[str]) -> None:
         if line == "DONE":
             break
         parts = line.split("\t")
-        if len(parts) < 2 or not re.fullmatch(r"[\d.]+", parts[0]):
+        if len(parts) < 3 or not re.fullmatch(r"[\d.]+", parts[0]):
             continue
-        names = parts[2:]
+        names = parts[3:]
+        raw.append(names)
         frames.append({
             "ms": float(parts[0]),
             "header": parts[1] == "1",
-            "names": hashlib.sha256("\t".join(names).encode()).hexdigest()[:16],
-            "seats": [hashlib.sha256(n.encode()).hexdigest()[:8] for n in names],
+            "hits": [int(i) for i in parts[2].split(",") if i.strip().isdigit()],
+            "names": _hash("\t".join(names), 16),
+            "seats": [{"h": _hash(n), "n": _hash(_norm(n)), "len": len(n.strip()), "empty": not n.strip()} for n in names],
             "read": sum(1 for n in names if n.strip()),
         })
         if len(frames) == 10:
@@ -104,6 +131,11 @@ def bench(name: str, out: Path, command: list[str]) -> None:
         "rss_end_mb": round(rss_end / 2**20, 1), "rss_peak_mb": round(peak / 2**20, 1),
     }
     out.write_text(json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8")
+    private = os.environ.get("CHECK_PRIVATE")
+    if private:
+        # The names read, for the made-up 黑名单 only: a folder on the runner that is never uploaded.
+        Path(private).mkdir(parents=True, exist_ok=True)
+        (Path(private) / f"{name}.json").write_text(json.dumps(raw, ensure_ascii=False), encoding="utf-8")
     print({k: v for k, v in result.items() if k != "frames"})
 
 
@@ -224,10 +256,25 @@ def sides(py_dir: Path, rust_dir: Path, out: Path) -> None:
         canvas.save(out / f"{name}.png", optimize=True)
     listing = {"both": sorted(rust.keys() & python.keys()), "python_only": sorted(python.keys() - rust.keys()),
                "rust_only": sorted(rust.keys() - python.keys()), "diff": {}}
+    listing["framing"] = {}
     for name in listing["both"]:
-        listing["diff"][name] = _difference(Image.open(python[name]).convert("RGB"), Image.open(rust[name]).convert("RGB"))
+        left, right = Image.open(python[name]).convert("RGB"), Image.open(rust[name]).convert("RGB")
+        if name.startswith("dlg_"):
+            # Each side's dialog card alone: ui_shots grabs the dialog widget with its own backdrop, the Rust shot
+            # draws the card over a backdrop of its own, so the full frames differ by framing, not by the card.
+            lbox, rbox = _card_box(left), _card_box(right)
+            listing["framing"][name] = {"python": {"card": lbox, "backdrop": left.getpixel((2, 2))},
+                                        "rust": {"card": rbox, "backdrop": right.getpixel((2, 2))}}
+            left, right = left.crop(lbox), right.crop(rbox)
+        listing["diff"][name] = _difference(left, right)
     (out / "index.json").write_text(json.dumps(listing, ensure_ascii=False, indent=1), encoding="utf-8")
     print(listing)
+
+
+def _card_box(img) -> tuple[int, int, int, int]:
+    """The dialog card: the box round the near-white pixels (light theme), the backdrop being darker."""
+    box = img.convert("L").point(lambda v: 255 if v >= 238 else 0).getbbox()
+    return tuple(box) if box else (0, 0, *img.size)
 
 
 def _difference(left, right) -> dict:
@@ -258,7 +305,7 @@ def _same(a: dict, b: dict) -> tuple[int, int, int, int]:
     for x, y in zip(af, bf, strict=True):
         xs, ys = x.get("seats", []), y.get("seats", [])
         total += max(len(xs), len(ys))
-        seats += sum(p == q for p, q in zip(xs, ys, strict=False))
+        seats += sum(p["h"] == q["h"] for p, q in zip(xs, ys, strict=False))
     return frames, len(af), seats, total
 
 
@@ -274,6 +321,58 @@ def _names_rows(label: str, base: dict, rust: dict) -> list[str]:
         shown = ", ".join(f"{i}:{base['frames'][i]['read']}/{rust['frames'][i]['read']}" for i in diff[:20])
         rows.append(f"| Lobbies that differ (index: seats read other/Rust) | {shown}{' ...' if len(diff) > 20 else ''} | |")
     return rows
+
+
+def _seat_breakdown(py: dict, rust: dict, picked: dict, py_list: dict, rust_list: dict) -> list[str]:
+    """Rust against v1.0.1 seat by seat, and whether both mark the same players on a made-up 黑名单."""
+    pf, rf = py.get("frames", []), rust.get("frames", [])
+    if not pf or len(pf) != len(rf):
+        return []
+    same = norm = empty = 0
+    real = []
+    total = 0
+    for f, (a, b) in enumerate(zip(pf, rf, strict=True)):
+        for i in range(max(len(a["seats"]), len(b["seats"]))):
+            x = a["seats"][i] if i < len(a["seats"]) else {"h": "", "n": "", "len": 0, "empty": True}
+            y = b["seats"][i] if i < len(b["seats"]) else {"h": "", "n": "", "len": 0, "empty": True}
+            if x["empty"] and y["empty"]:
+                continue
+            total += 1
+            if x["h"] == y["h"]:
+                same += 1
+            elif x["empty"] != y["empty"]:
+                empty += 1
+            elif x["n"] == y["n"]:
+                norm += 1
+            else:
+                real.append((f, i, x["h"], y["h"], y["len"] - x["len"]))
+    pct = lambda n: f"{n} ({100 * n / total:.1f} %)" if total else str(n)  # noqa: E731
+    lines = ["", "## Seat by seat, Rust vs v1.0.1 (names compared by hash, none shown)", "",
+             f"Seats either app read: {total}", "",
+             f"- (a) same name: {pct(same)}",
+             f"- (b) same after NFKC, case, spaces and punctuation: {pct(norm)}",
+             f"- (c) really different: {pct(len(real))}",
+             f"- (d) read by one app, empty in the other: {pct(empty)}"]
+    if real:
+        lines.append("- (c) examples (lobby:seat, v1.0.1 hash / Rust hash, length Rust minus v1.0.1): " + ", ".join(
+            f"{f}:{i} {a}/{b} {d:+d}" for f, i, a, b, d in real[:10]))
+    for f in (20, 32):
+        if f < len(pf):
+            lines.append(f"- lobby #{f}: v1.0.1 found the lobby {pf[f]['header']}, read {pf[f]['read']} seats; "
+                         f"Rust found it {rf[f]['header']}, read {rf[f]['read']}")
+    seats = [tuple(x) for x in picked.get("seats", [])]
+    plf, rlf = py_list.get("frames", []), rust_list.get("frames", [])
+    if seats and plf and rlf:
+        flagged = lambda frames: sum(1 for f, i in seats if f < len(frames) and i in frames[f].get("hits", []))  # noqa: E731
+        extra = lambda frames: sum(len(fr.get("hits", [])) for fr in frames) - flagged(frames)  # noqa: E731
+        lines += ["", f"## 黑名单 marks: a made-up list of {len(seats)} names v1.0.1 read (seed {picked.get('seed')})", "",
+                  "| | v1.0.1 | Rust |", "|---|---|---|",
+                  f"| Listed seats marked | {flagged(plf)} of {len(seats)} | {flagged(rlf)} of {len(seats)} |",
+                  f"| Other seats marked (the same name elsewhere, or a near match) | {extra(plf)} | {extra(rlf)} |",
+                  f"| Lobbies where both mark exactly the same seats | "
+                  f"{sum(sorted(a.get('hits', [])) == sorted(b.get('hits', [])) for a, b in zip(plf, rlf, strict=False))} "
+                  f"of {len(plf)} | |"]
+    return lines
 
 
 def _load(path: Path) -> dict:
@@ -308,6 +407,8 @@ def report(results: Path, out: Path) -> None:
     ob = _load(results / "bench-python-onnx.json")
     if ob:
         lines += _names_rows("current Python on ONNX Runtime, same models (the engine Rust ports)", ob, rb)
+    lines += _seat_breakdown(pb, rb, _load(results / "picked.json"), _load(results / "bench-python-list.json"),
+                             _load(results / "bench-rust-list.json"))
     sc = _load(results / "scenes.json")
     lines += ["", f"## Scene frame time at 1920x1080 (budget {BUDGET_MS:.0f} ms)", "",
               f"Rust adapter: `{sc.get('adapter')}`. The runner has no GPU: WARP (Direct3D 12 in software) stands in, so these "
@@ -332,6 +433,14 @@ def report(results: Path, out: Path) -> None:
             for name, d in sorted(index.get("diff", {}).items()):
                 high = d["mean"] > 20 or d["over24"] > 30
                 lines.append(f"| {name} | {d['size']} | {d['mean']} | {d['over24']} % | {'**high**' if high else ''} |")
+            framing = index.get("framing", {})
+            if framing:
+                lines += ["", "Dialogs are compared card to card (each side cropped to its own near-white card; size column "
+                          "is the cropped card). Framing, Python (ui_shots grabs the dialog widget) vs Rust (headless window):",
+                          ""]
+                for name, f in sorted(framing.items()):
+                    lines.append(f"- {name}: card {f['python']['card']} on backdrop {tuple(f['python']['backdrop'])} vs "
+                                 f"card {f['rust']['card']} on backdrop {tuple(f['rust']['backdrop'])}")
     lines += ["", "## What this runner cannot test", "",
               "- No graphics chip: scenes run on WARP (software); the overlay's real frame time is not measured here.",
               f"- Windows Server ({runner}), not Windows 10 Home 22H2; no real 125 % monitor (scale is set per process: "
@@ -394,6 +503,8 @@ def main() -> None:
         scenes(Path(head[1]), head[2], head[3], Path(head[4]))
     elif what == "sides":
         sides(Path(head[1]), Path(head[2]), Path(head[3]))
+    elif what == "pick":
+        pick(Path(head[1]), Path(head[2]), Path(head[3]))
     elif what == "report":
         report(Path(head[1]), Path(head[2]))
     elif what == "gate":

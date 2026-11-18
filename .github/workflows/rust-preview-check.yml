@@ -246,6 +246,7 @@ jobs:
           frames="$RUNNER_TEMP/corpus/tests/lobby_corpus"
           echo "CORPUS_FRAMES=$(ls "$frames"/*.jpg | wc -l)" >> "$GITHUB_ENV"
           echo "corpus: $(ls "$frames"/*.jpg | wc -l) frames, sha256 of the list $(cd "$frames" && sha256sum *.jpg | sha256sum | cut -c1-16)" | tee "$RESULTS/corpus.txt"
+          export CHECK_PRIVATE="$RUNNER_TEMP/private"
           APPDATA="$RUNNER_TEMP/rust-bench-home" python tools/preview_check/check.py bench rust "$RESULTS/bench-rust.json" \
             -- "$EXE" --bench-check "$frames"
           APPDATA="$RUNNER_TEMP/py-bench-home" PYTHONPATH="$V101" timeout 3600 python tools/preview_check/check.py bench python \
@@ -254,6 +255,15 @@ jobs:
           APPDATA="$RUNNER_TEMP/py-onnx-home" PYTHONPATH="$GITHUB_WORKSPACE" BLACKLIST_DETECT_ENGINE=onnxruntime \
             BLACKLIST_DETECT_MODEL_DIR="$RUNNER_TEMP/models" timeout 3600 python tools/preview_check/check.py bench python-onnx \
             "$RESULTS/bench-python-onnx.json" -- python tools/preview_check/py_bench.py "$frames"
+          # The made-up 黑名单: 30 seats v1.0.1 read (seeded), the names kept in a folder that is never uploaded; then
+          # both apps read the corpus again with it, to see whether they mark the same players.
+          CHECK_PRIVATE="$RUNNER_TEMP/private" python tools/preview_check/check.py pick "$RUNNER_TEMP/private" \
+            "$RUNNER_TEMP/private/list.txt" "$RESULTS/picked.json"
+          APPDATA="$RUNNER_TEMP/rust-list-home" python tools/preview_check/check.py bench rust-list "$RESULTS/bench-rust-list.json" \
+            -- "$EXE" --bench-check "$frames" "$RUNNER_TEMP/private/list.txt"
+          APPDATA="$RUNNER_TEMP/py-list-home" PYTHONPATH="$V101" timeout 3600 python tools/preview_check/check.py bench \
+            python-list "$RESULTS/bench-python-list.json" -- python tools/preview_check/py_bench.py "$frames" \
+            "$RUNNER_TEMP/private/list.txt"
 
       # 3. Each scene at 1920x1080: Rust on the runner's adapter (WARP), Python's love_frames.py (QPainter).
       - name: Scenes

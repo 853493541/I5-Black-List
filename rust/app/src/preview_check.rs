@@ -4,8 +4,8 @@
 //! - `--shots <dir>`: every page and dialog drawn without a display, with ui_shots' made-up data, at the Windows
 //!   scale in `BLACKLIST_DETECT_SCALE` (1.25 for 125 %, default 1.5), saved as `<dir>/<name>.png` under
 //!   tools/ui_shots.py's names (page_记录, dlg_添加黑名单, ...), so the check can put each beside Python's.
-//! - `--bench-check <dir>`: every .jpg in `<dir>` read by one checker, in name order, one line each on stdout
-//!   (`<ms>\t<header 0/1>\t<seat names, tab-separated>`), then `DONE`; the process waits for a line on stdin before it
+//! - `--bench-check <dir> [<list>]`: every .jpg in `<dir>` read by one checker, in name order, one line each on stdout
+//!   (`<ms>\t<header 0/1>\t<seats flagged, comma-separated>\t<seat names, tab-separated>`), then `DONE`; the process waits for a line on stdin before it
 //!   ends, so the harness can read its CPU time and memory first.
 
 use std::cell::RefCell;
@@ -96,7 +96,16 @@ pub fn shots(dir: &Path) -> Result<usize, Box<dyn std::error::Error>> {
     Ok(saved)
 }
 
-pub fn bench(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+pub fn bench(dir: &Path, list: Option<&Path>) -> Result<(), Box<dyn std::error::Error>> {
+    // A made-up 黑名单, one name a line (the check's own list, built on the runner; never shipped).
+    let blacklist: Vec<lobby::Entry> = match list {
+        Some(path) => std::fs::read_to_string(path)?
+            .lines()
+            .filter(|line| !line.trim().is_empty())
+            .map(|name| lobby::Entry { name: name.to_string(), ..lobby::Entry::default() })
+            .collect(),
+        None => Vec::new(),
+    };
     let mut images: Vec<_> = std::fs::read_dir(dir)?
         .filter_map(Result::ok)
         .map(|entry| entry.path())
@@ -114,10 +123,11 @@ pub fn bench(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
         let mut rgb = opencv::core::Mat::default();
         opencv::imgproc::cvt_color_def(&bgr, &mut rgb, opencv::imgproc::COLOR_BGR2RGB)?;
         let start = Instant::now();
-        let result = checker.check(&[rgb], &[], &[], None).map_err(|e| e.to_string())?;
+        let result = checker.check(&[rgb], &blacklist, &[], None).map_err(|e| e.to_string())?;
         let ms = start.elapsed().as_secs_f64() * 1000.0;
         let names: Vec<String> = result.names.iter().map(|slot| slot.raw.replace(['\t', '\n'], " ")).collect();
-        println!("{ms:.1}\t{}\t{}", u8::from(result.header_found), names.join("\t"));
+        let hits: Vec<String> = result.hits.iter().map(|hit| hit.index.to_string()).collect();
+        println!("{ms:.1}\t{}\t{}\t{}", u8::from(result.header_found), hits.join(","), names.join("\t"));
     }
     println!("DONE");
     let _ = std::io::stdin().lock().lines().next();

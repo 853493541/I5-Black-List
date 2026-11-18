@@ -59,7 +59,9 @@ fn main() -> ExitCode {
     // The preview check's hooks (preview_check.rs): no window, no sound.
     match (args.first().map(String::as_str), args.get(1)) {
         (Some("--shots"), Some(dir)) => return hook(preview_check::shots(std::path::Path::new(dir)).map(|n| println!("{n} pictures"))),
-        (Some("--bench-check"), Some(dir)) => return hook(preview_check::bench(std::path::Path::new(dir))),
+        (Some("--bench-check"), Some(dir)) => {
+            return hook(preview_check::bench(std::path::Path::new(dir), args.get(2).map(std::path::Path::new)))
+        }
         _ => {}
     }
     match cli::parse(&args) {
