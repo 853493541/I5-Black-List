@@ -4,9 +4,8 @@ version = "0.1.0"
 edition.workspace = true
 
 [dependencies]
-caseless = "0.2"
+common = { path = "../common" }
 unicode-general-category = "1"
-unicode-normalization = "0.1"
 
 [dev-dependencies]
 proptest = "1"
