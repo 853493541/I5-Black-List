@@ -1,0 +1,799 @@
+{
+ "flow": [
+  {
+   "input": {},
+   "text": "环境测试：检查一次约 0.0 秒，正常\n  手动检查（快捷键）：0.00 s = \n  自动检查：0.00 s = 发现大厅 0.00\n  每次手动检查： s\n  示例大厅的 12 个名字读对 0 个；识别用 cpu；屏幕 0x0",
+   "verdict": "正常",
+   "causes": [],
+   "hotkey": [],
+   "hotkey_total": 0,
+   "auto_total": 0.0,
+   "first_total": 0.0
+  },
+  {
+   "input": {
+    "error": "无法截屏：no display"
+   },
+   "text": "环境测试：没完成，无法截屏：no display",
+   "verdict": "正常",
+   "causes": [
+    "无法截屏：no display"
+   ],
+   "hotkey": [],
+   "hotkey_total": 0,
+   "auto_total": 0.0,
+   "first_total": 0.0
+  },
+  {
+   "input": {
+    "size": [
+     1920,
+     1080
+    ],
+    "device": "cpu",
+    "glance": 0.123,
+    "auto": {
+     "find": 0.5,
+     "read": 1.25
+    },
+    "runs": [
+     {
+      "capture": 0.05,
+      "find": 2.0,
+      "read": 1.2
+     },
+     {
+      "capture": 0.04,
+      "find": 0.1,
+      "read": 1.0
+     },
+     {
+      "capture": 0.06,
+      "find": 0.12,
+      "read": 0.9
+     }
+    ],
+    "right": 12
+   },
+   "text": "环境测试：检查一次约 1.1 秒，正常\n  手动检查（快捷键）：1.14 s = 截屏 0.04 + 找名单 0.10 + 读名字 1.00\n  自动检查：1.87 s = 发现大厅 0.12 + 找名单 0.50 + 读名字 1.25\n  每次手动检查：3.25, 1.14, 1.08 s\n  示例大厅的 12 个名字读对 12 个；识别用 cpu；屏幕 1920x1080\n  · 第一次检查要先找大厅（3.2 秒）；窗口不动，之后每次约 1.1 秒",
+   "verdict": "正常",
+   "causes": [
+    "第一次检查要先找大厅（3.2 秒）；窗口不动，之后每次约 1.1 秒"
+   ],
+   "hotkey": [
+    [
+     "capture",
+     0.04
+    ],
+    [
+     "find",
+     0.1
+    ],
+    [
+     "read",
+     1.0
+    ]
+   ],
+   "hotkey_total": 1.14,
+   "auto_total": 1.873,
+   "first_total": 3.25
+  },
+  {
+   "input": {
+    "size": [
+     2560,
+     1440
+    ],
+    "screens": 2,
+    "device": "gpu",
+    "glance": 0.2,
+    "auto": {
+     "find": 2.5,
+     "read": 3.75
+    },
+    "runs": [
+     {
+      "capture": 0.1,
+      "find": 4.0,
+      "read": 3.0
+     },
+     {
+      "capture": 0.1,
+      "find": 1.0,
+      "read": 3.5
+     },
+     {
+      "capture": 0.2,
+      "find": 1.0,
+      "read": 3.0
+     },
+     {
+      "capture": 0.1,
+      "find": 1.1,
+      "read": 3.2
+     }
+    ],
+    "right": 11,
+    "cpu_busy": 92.5,
+    "cpu_own": 20.4,
+    "power": "on battery 40%, battery saver"
+   },
+   "text": "环境测试：检查一次约 4.4 秒，有点慢\n  手动检查（快捷键）：4.40 s = 截屏 0.10 + 找名单 1.10 + 读名字 3.20\n  自动检查：6.45 s = 发现大厅 0.20 + 找名单 2.50 + 读名字 3.75\n  每次手动检查：7.10, 4.60, 4.20, 4.40 s\n  示例大厅的 12 个名字读对 11 个；识别用 gpu；屏幕 2560x1440，2 块\n  CPU 92%（本工具 20%）；on battery 40%, battery saver\n  · 电脑很忙：CPU 用了 92%，其中别的程序占 72%（比如游戏），关掉一些会更快\n  · 笔记本在用电池，接上电源会更快\n  · 最慢的一步是「读名字」：3.2 秒\n  · 第一次检查要先找大厅（7.1 秒）；窗口不动，之后每次约 4.4 秒",
+   "verdict": "有点慢",
+   "causes": [
+    "电脑很忙：CPU 用了 92%，其中别的程序占 72%（比如游戏），关掉一些会更快",
+    "笔记本在用电池，接上电源会更快",
+    "最慢的一步是「读名字」：3.2 秒",
+    "第一次检查要先找大厅（7.1 秒）；窗口不动，之后每次约 4.4 秒"
+   ],
+   "hotkey": [
+    [
+     "capture",
+     0.1
+    ],
+    [
+     "find",
+     1.1
+    ],
+    [
+     "read",
+     3.2
+    ]
+   ],
+   "hotkey_total": 4.4,
+   "auto_total": 6.45,
+   "first_total": 7.1
+  },
+  {
+   "input": {
+    "size": [
+     1366,
+     768
+    ],
+    "glance": 0.05,
+    "auto": {
+     "read": 9.0
+    },
+    "runs": [
+     {
+      "capture": 0.3,
+      "find": 3.0,
+      "read": 5.0
+     }
+    ],
+    "right": 3,
+    "cpu_busy": 50.0,
+    "cpu_own": 0.0
+   },
+   "text": "环境测试：检查一次约 8.3 秒，很慢\n  手动检查（快捷键）：8.30 s = 截屏 0.30 + 找名单 3.00 + 读名字 5.00\n  自动检查：9.05 s = 发现大厅 0.05 + 读名字 9.00\n  每次手动检查：8.30 s\n  示例大厅的 12 个名字读对 3 个；识别用 cpu；屏幕 1366x768\n  CPU 50%（本工具 0%）\n  · 电脑很忙：CPU 用了 50%，其中别的程序占 50%（比如游戏），关掉一些会更快\n  · 最慢的一步是「读名字」：5.0 秒",
+   "verdict": "很慢",
+   "causes": [
+    "电脑很忙：CPU 用了 50%，其中别的程序占 50%（比如游戏），关掉一些会更快",
+    "最慢的一步是「读名字」：5.0 秒"
+   ],
+   "hotkey": [
+    [
+     "capture",
+     0.3
+    ],
+    [
+     "find",
+     3.0
+    ],
+    [
+     "read",
+     5.0
+    ]
+   ],
+   "hotkey_total": 8.3,
+   "auto_total": 9.05,
+   "first_total": 8.3
+  },
+  {
+   "input": {
+    "size": [
+     3840,
+     2160
+    ],
+    "screens": 3,
+    "glance": 0.025,
+    "auto": {
+     "find": 0.125,
+     "read": 0.375
+    },
+    "runs": [
+     {
+      "capture": 0.5,
+      "find": 1.0,
+      "read": 1.0
+     },
+     {
+      "capture": 0.5,
+      "find": 1.5,
+      "read": 1.0
+     },
+     {
+      "capture": 0.5,
+      "find": 1.5,
+      "read": 1.0
+     }
+    ],
+    "right": 0,
+    "cpu_busy": 41.0,
+    "cpu_own": null,
+    "power": "on battery 99%"
+   },
+   "text": "环境测试：检查一次约 3.0 秒，正常\n  手动检查（快捷键）：3.00 s = 截屏 0.50 + 找名单 1.50 + 读名字 1.00\n  自动检查：0.53 s = 发现大厅 0.03 + 找名单 0.12 + 读名字 0.38\n  每次手动检查：2.50, 3.00, 3.00 s\n  示例大厅的 12 个名字读对 0 个；识别用 cpu；屏幕 3840x2160，3 块\n  CPU 41%（本工具 0%）；on battery 99%\n  · 笔记本在用电池，接上电源会更快",
+   "verdict": "正常",
+   "causes": [
+    "笔记本在用电池，接上电源会更快"
+   ],
+   "hotkey": [
+    [
+     "capture",
+     0.5
+    ],
+    [
+     "find",
+     1.5
+    ],
+    [
+     "read",
+     1.0
+    ]
+   ],
+   "hotkey_total": 3.0,
+   "auto_total": 0.525,
+   "first_total": 2.5
+  },
+  {
+   "input": {
+    "size": [
+     1920,
+     1080
+    ],
+    "glance": 0.0,
+    "auto": {},
+    "runs": [
+     {
+      "capture": 0.01,
+      "find": 0.02,
+      "read": 0.03
+     },
+     {
+      "capture": 0.025,
+      "find": 0.035,
+      "read": 0.045
+     }
+    ]
+   },
+   "text": "环境测试：检查一次约 0.1 秒，正常\n  手动检查（快捷键）：0.11 s = 截屏 0.03 + 找名单 0.04 + 读名字 0.04\n  自动检查：0.00 s = 发现大厅 0.00\n  每次手动检查：0.06, 0.11 s\n  示例大厅的 12 个名字读对 0 个；识别用 cpu；屏幕 1920x1080",
+   "verdict": "正常",
+   "causes": [],
+   "hotkey": [
+    [
+     "capture",
+     0.025
+    ],
+    [
+     "find",
+     0.035
+    ],
+    [
+     "read",
+     0.045
+    ]
+   ],
+   "hotkey_total": 0.10500000000000001,
+   "auto_total": 0.0,
+   "first_total": 0.06
+  }
+ ],
+ "machine": [
+  {
+   "input": {
+    "cpu": "13th Gen Intel(R) Core(TM) i7-13700H",
+    "threads": 20,
+    "memory": [
+     31.69,
+     12.345
+    ],
+    "gpus": [
+     "Intel(R) Iris(R) Xe Graphics",
+     "NVIDIA GeForce RTX 4060 Laptop GPU"
+    ],
+    "product": "Windows 10 Home China",
+    "display": "23H2",
+    "build": 22631,
+    "version": "10.0.22631",
+    "power": "on battery 57%"
+   },
+   "line": "CPU 13th Gen Intel(R) Core(TM) i7-13700H (20 threads); RAM 31.7 GB (12.3 GB free); GPU Intel(R) Iris(R) Xe Graphics / NVIDIA GeForce RTX 4060 Laptop GPU; Windows 11 Home China 23H2 build 10.0.22631; on battery 57%"
+  },
+  {
+   "input": {
+    "cpu": "AMD Ryzen 5 5600X 6-Core Processor",
+    "threads": 12,
+    "memory": [
+     15.95,
+     7.05
+    ],
+    "gpus": [],
+    "product": "Windows 10 Pro",
+    "display": "22H2",
+    "build": 19045,
+    "version": "10.0.19045",
+    "power": ""
+   },
+   "line": "CPU AMD Ryzen 5 5600X 6-Core Processor (12 threads); RAM 15.9 GB (7.0 GB free); GPU ?; Windows 10 Pro 22H2 build 10.0.19045"
+  },
+  {
+   "input": {
+    "cpu": "",
+    "threads": 4,
+    "memory": [
+     0.0,
+     0.0
+    ],
+    "gpus": [
+     "Microsoft Basic Display Adapter"
+    ],
+    "product": "",
+    "display": "",
+    "build": 0,
+    "version": "10.0.17763",
+    "power": "battery saver",
+    "processor": "Intel64 Family 6 Model 158 Stepping 10, GenuineIntel"
+   },
+   "line": "CPU Intel64 Family 6 Model 158 Stepping 10, GenuineIntel (4 threads); RAM 0.0 GB (0.0 GB free); GPU Microsoft Basic Display Adapter; build 10.0.17763; battery saver"
+  }
+ ],
+ "screens": [
+  {
+   "input": [],
+   "line": ""
+  },
+  {
+   "input": [
+    [
+     1920,
+     1080,
+     1.0
+    ]
+   ],
+   "line": "1920x1080 at 100%"
+  },
+  {
+   "input": [
+    [
+     1280,
+     720,
+     1.5
+    ],
+    [
+     2560,
+     1440,
+     1.0
+    ]
+   ],
+   "line": "1920x1080 at 150%, 2560x1440 at 100%"
+  },
+  {
+   "input": [
+    [
+     1536,
+     864,
+     1.25
+    ],
+    [
+     1707,
+     960,
+     2.25
+    ]
+   ],
+   "line": "1920x1080 at 125%, 3841x2160 at 225%"
+  },
+  {
+   "input": [
+    [
+     1745.4545,
+     981.8181,
+     1.1
+    ]
+   ],
+   "line": "1920x1080 at 110%"
+  }
+ ],
+ "power": [
+  {
+   "ac": 1,
+   "percent": 100,
+   "saver": 0,
+   "note": ""
+  },
+  {
+   "ac": 0,
+   "percent": 57,
+   "saver": 0,
+   "note": "on battery 57%"
+  },
+  {
+   "ac": 0,
+   "percent": 12,
+   "saver": 1,
+   "note": "on battery 12%, battery saver"
+  },
+  {
+   "ac": 1,
+   "percent": 80,
+   "saver": 1,
+   "note": "battery saver"
+  },
+  {
+   "ac": 255,
+   "percent": 255,
+   "saver": 0,
+   "note": ""
+  }
+ ],
+ "ocr_threads": [
+  [
+   1,
+   "2"
+  ],
+  [
+   2,
+   "2"
+  ],
+  [
+   4,
+   "4"
+  ],
+  [
+   6,
+   "6"
+  ],
+  [
+   8,
+   "8"
+  ],
+  [
+   12,
+   "8"
+  ],
+  [
+   16,
+   "8"
+  ],
+  [
+   64,
+   "8"
+  ]
+ ],
+ "child_env": [
+  {
+   "input": [
+    [
+     "PATH",
+     "C:\\Windows"
+    ],
+    [
+     "OMP_NUM_THREADS",
+     "1"
+    ],
+    [
+     "omp_num_threads",
+     "2"
+    ],
+    [
+     "__KMP_REGISTERED_LIB_1234",
+     "x"
+    ],
+    [
+     "__kmp_registered_lib_9",
+     "y"
+    ],
+    [
+     "KMP_AFFINITY",
+     "keep"
+    ],
+    [
+     "APPDATA",
+     "C:\\data"
+    ],
+    [
+     "名字",
+     "心动小鹿"
+    ]
+   ],
+   "output": [
+    [
+     "PATH",
+     "C:\\Windows"
+    ],
+    [
+     "KMP_AFFINITY",
+     "keep"
+    ],
+    [
+     "APPDATA",
+     "C:\\data"
+    ],
+    [
+     "名字",
+     "心动小鹿"
+    ]
+   ]
+  },
+  {
+   "input": [],
+   "output": []
+  },
+  {
+   "input": [
+    [
+     "OMP_NUM_THREADSX",
+     "keep"
+    ],
+    [
+     "X__KMP_REGISTERED_LIB_",
+     "keep"
+    ]
+   ],
+   "output": [
+    [
+     "OMP_NUM_THREADSX",
+     "keep"
+    ],
+    [
+     "X__KMP_REGISTERED_LIB_",
+     "keep"
+    ]
+   ]
+  }
+ ],
+ "cli": [
+  {
+   "args": [],
+   "way": [
+    "window",
+    false
+   ],
+   "code": 0,
+   "stderr": ""
+  },
+  {
+   "args": [
+    "--background"
+   ],
+   "way": [
+    "window",
+    true
+   ],
+   "code": 0,
+   "stderr": ""
+  },
+  {
+   "args": [
+    "foo",
+    "--background"
+   ],
+   "way": [
+    "window",
+    true
+   ],
+   "code": 0,
+   "stderr": ""
+  },
+  {
+   "args": [
+    "--Background"
+   ],
+   "way": [
+    "window",
+    false
+   ],
+   "code": 0,
+   "stderr": ""
+  },
+  {
+   "args": [
+    "check"
+   ],
+   "way": null,
+   "code": 2,
+   "stderr": "用法: python -m blacklist_detect check <图片.png>\n"
+  },
+  {
+   "args": [
+    "check",
+    "a.png"
+   ],
+   "way": [
+    "check",
+    "a.png"
+   ],
+   "code": 0,
+   "stderr": ""
+  },
+  {
+   "args": [
+    "check",
+    "a.png",
+    "b.png"
+   ],
+   "way": null,
+   "code": 2,
+   "stderr": "用法: python -m blacklist_detect check <图片.png>\n"
+  },
+  {
+   "args": [
+    "download-models"
+   ],
+   "way": [
+    "download-models"
+   ],
+   "code": 0,
+   "stderr": ""
+  },
+  {
+   "args": [
+    "download-models",
+    "x"
+   ],
+   "way": [
+    "download-models"
+   ],
+   "code": 0,
+   "stderr": ""
+  },
+  {
+   "args": [
+    "Check",
+    "a.png"
+   ],
+   "way": [
+    "window",
+    false
+   ],
+   "code": 0,
+   "stderr": ""
+  },
+  {
+   "args": [
+    "x",
+    "check",
+    "a.png"
+   ],
+   "way": [
+    "window",
+    false
+   ],
+   "code": 0,
+   "stderr": ""
+  },
+  {
+   "args": [
+    "--help"
+   ],
+   "way": [
+    "window",
+    false
+   ],
+   "code": 0,
+   "stderr": ""
+  },
+  {
+   "args": [
+    "check",
+    "--background"
+   ],
+   "way": [
+    "check",
+    "--background"
+   ],
+   "code": 0,
+   "stderr": ""
+  }
+ ],
+ "slot_lines": [
+  {
+   "index": 0,
+   "state": "完整",
+   "confidence": 0.987,
+   "raw": "示例坏人",
+   "line": " 1  完整    0.99  示例坏人"
+  },
+  {
+   "index": 11,
+   "state": "截断",
+   "confidence": 0.5,
+   "raw": "心动小",
+   "line": "12  截断    0.50  心动小"
+  },
+  {
+   "index": 4,
+   "state": "未识别",
+   "confidence": 0.0,
+   "raw": "",
+   "line": " 5  未识别   0.00  "
+  },
+  {
+   "index": 9,
+   "state": "完整",
+   "confidence": 0.125,
+   "raw": "心动星星",
+   "line": "10  完整    0.12  心动星星"
+  },
+  {
+   "index": 2,
+   "state": "完整",
+   "confidence": 0.995,
+   "raw": "x",
+   "line": " 3  完整    0.99  x"
+  }
+ ],
+ "summary": [
+  {
+   "input": {
+    "safe_mode": true,
+    "auto_capture": false,
+    "stream_mode": "obs",
+    "hotkey": "ctrl+alt+b",
+    "entries": 3,
+    "likes": 1,
+    "scans": 2,
+    "device": "cpu"
+   },
+   "text": "模仿者小工具 v9.9.9\n导出于 2026-11-18 09:05:07\n\nCPU 示例 CPU (8 threads); RAM 16.0 GB (8.0 GB free); GPU ?; Windows 11 Home 23H2 build 10.0.22631\nScreens: 1920x1080 at 150%\nRecognition on cpu\n基础模式 True, 自动检查 False, 直播模式 True, hotkey ctrl+alt+b\n黑名单 3 people, 嘉宾 1 people, 记录 2 lobbies\n"
+  },
+  {
+   "input": {
+    "safe_mode": false,
+    "auto_capture": true,
+    "stream_mode": "",
+    "hotkey": "F8",
+    "entries": 0,
+    "likes": 0,
+    "scans": 0,
+    "device": "gpu"
+   },
+   "text": "模仿者小工具 v9.9.9\n导出于 2026-11-18 09:05:07\n\nCPU 示例 CPU (8 threads); RAM 16.0 GB (8.0 GB free); GPU ?; Windows 11 Home 23H2 build 10.0.22631\nScreens: 1920x1080 at 150%\nRecognition on gpu\n基础模式 False, 自动检查 True, 直播模式 False, hotkey F8\n黑名单 0 people, 嘉宾 0 people, 记录 0 lobbies\n"
+  }
+ ],
+ "export": {
+  "files": {
+   "app.log.2": "old line\n",
+   "app.log.1": "mid line at /home/xiaolu/x\n",
+   "app.log.10": "oldest\n",
+   "app.log": "  newest 心动小鹿 xiaolu \n",
+   "crash.log": "Traceback in /home/xiaolu/a.py\n",
+   "app.log.bak": "skipped\n",
+   "app.log.": "skipped too\n"
+  },
+  "home": "/home/xiaolu",
+  "user": "xiaolu",
+  "report": "环境测试：检查一次约 1.1 秒，正常\n  手动检查（快捷键）：1.14 s = 截屏 0.04 + 找名单 0.10 + 读名字 1.00\n  自动检查：1.87 s = 发现大厅 0.12 + 找名单 0.50 + 读名字 1.25\n  每次手动检查：3.25, 1.14, 1.08 s\n  示例大厅的 12 个名字读对 12 个；识别用 cpu；屏幕 1920x1080\n  · 第一次检查要先找大厅（3.2 秒）；窗口不动，之后每次约 1.1 秒",
+  "name": "模仿者小工具_日志_20261118-0905.txt",
+  "text": "==== 电脑和设置 ====\n模仿者小工具 v9.9.9\n导出于 2026-11-18 09:05:07\n\nCPU 示例 CPU (8 threads); RAM 16.0 GB (8.0 GB free); GPU ?; Windows 11 Home 23H2 build 10.0.22631\nScreens: 1920x1080 at 150%\nRecognition on cpu\n基础模式 True, 自动检查 False, 直播模式 True, hotkey ctrl+alt+b\n黑名单 3 people, 嘉宾 1 people, 记录 2 lobbies\n\n==== 最近一次环境测试 ====\n环境测试：检查一次约 1.1 秒，正常\n  手动检查（快捷键）：1.14 s = 截屏 0.04 + 找名单 0.10 + 读名字 1.00\n  自动检查：1.87 s = 发现大厅 0.12 + 找名单 0.50 + 读名字 1.25\n  每次手动检查：3.25, 1.14, 1.08 s\n  示例大厅的 12 个名字读对 12 个；识别用 cpu；屏幕 1920x1080\n  · 第一次检查要先找大厅（3.2 秒）；窗口不动，之后每次约 1.1 秒\n\n==== app.log.10 ====\noldest\n\n==== app.log.2 ====\nold line\n\n==== app.log.1 ====\nmid line at ~/x\n\n==== app.log ====\nnewest 心动小鹿 <user>\n\n==== crash.log ====\nTraceback in ~/a.py\n\n"
+ },
+ "sample_names": [
+  "小林同学",
+  "白日梦想家",
+  "路过的猫",
+  "一只团子",
+  "夏天的风",
+  "心动小鹿",
+  "晚风吹过",
+  "摸鱼大师",
+  "示例坏人",
+  "心动星星",
+  "柠檬汽水",
+  "棉花糖"
+ ],
+ "constants": {
+  "speed_fine": 3.0,
+  "speed_slow": 6.0,
+  "lobby_share": 0.64
+ }
+}

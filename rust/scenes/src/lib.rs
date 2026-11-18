@@ -8,6 +8,7 @@
 pub mod draw;
 pub mod equation;
 pub mod gpu;
+pub mod ice;
 pub mod prim;
 pub mod pyrand;
 pub mod stars;
