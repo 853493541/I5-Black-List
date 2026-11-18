@@ -980,8 +980,8 @@ name = "data"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
- "caseless",
  "chrono",
+ "common",
  "ed25519-dalek",
  "flate2",
  "proptest",
@@ -990,7 +990,6 @@ dependencies = [
  "sha2",
  "tempfile",
  "unicode-general-category",
- "unicode-normalization",
  "zip",
 ]
 
