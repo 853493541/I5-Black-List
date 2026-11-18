@@ -202,7 +202,10 @@ def find_lobbies(scan: Source, duration: float, full: Source | None = None, step
             start = max(0.0, min(span) - step)
             shots, got = frames(scan, 1.0, start, max(span) - start + step, width_to=DETECT_WIDTH)
             fetched += got
-            seconds = [t for t, ok in pool.map(_check, shots) if ok]
+            # the 1 s pass can come back empty (a stalled read); the probe hits still show the lobby
+            seconds = [t for t, ok in pool.map(_check, shots) if ok] or span
+            print(f"  lobby near {lobby.seconds:.0f} s: probe hits {[round(t) for t in span]}, "
+                  f"{len(shots)} refine frames, {len(seconds)} show it", flush=True)
             chosen = sorted({seconds[round(i * (len(seconds) - 1) / max(1, picks - 1))]
                              for i in range(min(picks, len(seconds)))})
             best = None
