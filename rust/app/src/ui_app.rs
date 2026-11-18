@@ -16,6 +16,7 @@ use crate::history::{self, HistoryAction};
 use crate::list::{bind, ops, ListAction};
 use crate::settings::rows::SettingsState;
 use crate::shell::{ShellAction, ShellModel};
+use crate::ui_dialogs::{self, About, Opened};
 use crate::ui_events::{dialog_for, Bus, Dialog, UiEvent, Yes};
 use crate::{ConfirmDialog, DisclaimerDialog, MainWindow};
 
@@ -46,6 +47,8 @@ pub struct MainUi {
     history: RefCell<history::View>,
     /// The dialogs open now, kept alive while they show.
     dialogs: RefCell<Vec<Box<dyn std::any::Any>>>,
+    /// The dialog open now that answers on the bus (添加, 批量导入, 嘉宾, 组合, 场景管理, the guides).
+    current: RefCell<Option<Opened>>,
     /// What the yes of the question open now does.
     asking: Rc<RefCell<Option<Yes>>>,
     version: String,
@@ -83,6 +86,7 @@ impl MainUi {
             guests,
             history: RefCell::default(),
             dialogs: RefCell::default(),
+            current: RefCell::default(),
             asking: Rc::default(),
             version: version.to_string(),
         };
@@ -121,10 +125,16 @@ impl MainUi {
             let store = self.store.clone();
             let questions = move |yes: &Yes| question(&store.borrow(), yes);
             if let Some(dialog) = dialog_for(&event, &questions) {
-                self.open(dialog);
+                // 发现新版本 needs the release the runner holds.
+                if dialog == Dialog::Update {
+                    left.push(event);
+                } else {
+                    self.open(dialog);
+                }
                 continue;
             }
-            match self.apply(&event) {
+            let answered = self.answer(&event);
+            match answered.or_else(|| self.apply(&event)) {
                 Some(true) => changed = true,
                 Some(false) => {}
                 None => left.push(event),
@@ -148,7 +158,7 @@ impl MainUi {
                 }
             }
             UiEvent::History(HistoryAction::Delete(scan)) => store.remove_scan(*scan),
-            UiEvent::List(action @ (ListAction::Clear | ListAction::RemoveTag(_))) => {
+            UiEvent::List(action @ (ListAction::Clear | ListAction::RemoveTag(_) | ListAction::Delete(_))) => {
                 let outcome = self.list.apply(&mut store, &mut self.undo.borrow_mut(), action).ok()?;
                 if let Some(outcome) = outcome {
                     bind::Page::say(&self.window, &outcome);
@@ -208,15 +218,132 @@ impl MainUi {
                 card.show()?;
                 Ok(Box::new(card) as Box<dyn std::any::Any>)
             })(),
-            // stub: assemble-ui (the other dialogs open from the runner's next round; logged until then)
             other => {
-                eprintln!("dialog not wired yet: {other:?}");
+                let made = {
+                    let store = self.store.borrow();
+                    let dark = self.window.get_dark();
+                    match other {
+                        Dialog::AddName { tag } => ui_dialogs::add_name(&store, &self.bus, &tag, None),
+                        Dialog::EditName(index) => ui_dialogs::add_name(&store, &self.bus, "", Some(index)),
+                        Dialog::BatchAdd => ui_dialogs::batch(&store, &self.bus, ""),
+                        Dialog::Guest(index) => ui_dialogs::guest(&store, &self.bus, index, false),
+                        Dialog::EditMe => ui_dialogs::guest(&store, &self.bus, None, true),
+                        Dialog::Combo(index) => ui_dialogs::combo(&store, &self.bus, index),
+                        Dialog::SceneManager => ui_dialogs::scenes(&store, &self.bus),
+                        Dialog::DisplayGuide => ui_dialogs::display_guide(&self.bus),
+                        Dialog::StreamGuide => ui_dialogs::stream_guide(&self.bus, dark),
+                        _ => return,
+                    }
+                };
+                self.show_current(made);
                 return;
             }
         };
         match shown {
             Ok(dialog) => self.dialogs.borrow_mut().push(dialog),
             Err(error) => eprintln!("dialog: {error}"),
+        }
+    }
+}
+
+impl MainUi {
+    /// Puts `made` in place of the dialog open now.
+    fn show_current(&self, made: Result<Opened, slint::PlatformError>) {
+        self.close_current();
+        match made {
+            Ok(opened) => *self.current.borrow_mut() = Some(opened),
+            Err(error) => eprintln!("dialog: {error}"),
+        }
+    }
+
+    fn close_current(&self) {
+        if let Some(opened) = self.current.borrow_mut().take() {
+            (opened.close)();
+        }
+    }
+
+    /// What the open dialog is about, if any.
+    pub fn about(&self) -> Option<About> {
+        self.current.borrow().as_ref().map(|opened| opened.about.clone())
+    }
+
+    /// A dialog's answer: Some(changed) when done here, None for the runner (sounds, hotkeys) or not an answer.
+    fn answer(&self, event: &UiEvent) -> Option<bool> {
+        use crate::dialogs::DialogAction as D;
+        use crate::guestedit::{ComboAction as C, GuestAction as G, SceneAction as S};
+        let about = self.about()?;
+        let saved = |result: std::io::Result<()>| {
+            if let Err(error) = result {
+                eprintln!("save: {error}");
+            }
+        };
+        match (event, about) {
+            (UiEvent::Dialog(D::SaveName { name, tags, detail }), About::Name(edit)) => {
+                let mut store = self.store.borrow_mut();
+                saved(match edit {
+                    None => store.add(name, detail, tags).map(drop),
+                    Some(index) => store.update_at(index, name, tags, detail).map(drop),
+                });
+            }
+            (UiEvent::Dialog(D::DeleteName), About::Name(Some(index))) => {
+                self.close_current();
+                return self.apply(&UiEvent::List(ListAction::Delete(index)));
+            }
+            (UiEvent::Dialog(D::ImportChecked(records)), About::Batch(..)) => {
+                let found = ui_dialogs::suggestions(&self.store.borrow(), records);
+                if let Some(found) = found {
+                    self.show_current(ui_dialogs::suggest(&self.bus, records.clone(), found));
+                    return Some(false);
+                }
+                self.import(records);
+            }
+            (UiEvent::Dialog(D::ImportWithTags(records)), About::Suggest(..)) => self.import(records),
+            (UiEvent::Dialog(D::BackToPaste), About::Suggest(records, _)) => {
+                let text = records.iter().map(|record| record.0.clone()).collect::<Vec<_>>().join("\n");
+                let made = ui_dialogs::batch(&self.store.borrow(), &self.bus, &text);
+                self.show_current(made);
+                return Some(false);
+            }
+            (UiEvent::Dialog(D::Closed), _) | (UiEvent::GuestEdit(G::Close), _) | (UiEvent::Combo(C::Close), _) => {}
+            (UiEvent::Scenes(S::Close), _) => {}
+            (UiEvent::GuestEdit(G::Save { name, nickname, reason, scenes }), about) => {
+                let mut store = self.store.borrow_mut();
+                let scenes = &ui_dialogs::to_store(scenes);
+                saved(match about {
+                    About::Me => store.set_me(scenes),
+                    About::Guest(Some(index)) => store.update_like(index, name, nickname, reason, scenes).map(drop),
+                    _ => store.add_like(name, nickname, reason, scenes).map(drop),
+                });
+            }
+            (UiEvent::GuestEdit(G::Delete), About::Guest(Some(index))) => saved(self.store.borrow_mut().remove_like(index)),
+            (UiEvent::Combo(action @ (C::Save { .. } | C::Delete)), About::Combo(index)) => {
+                let mut store = self.store.borrow_mut();
+                let mut combos = store.combos.clone();
+                match (action, index) {
+                    (C::Save { names, scenes }, None) => combos.push(data::store::Combo { names: names.clone(), scenes: ui_dialogs::to_store(scenes) }),
+                    (C::Save { names, scenes }, Some(at)) if at < combos.len() => {
+                        combos[at] = data::store::Combo { names: names.clone(), scenes: ui_dialogs::to_store(scenes) };
+                    }
+                    (C::Delete, Some(at)) if at < combos.len() => drop(combos.remove(at)),
+                    _ => {}
+                }
+                saved(store.set_combos(combos));
+            }
+            _ => return None,
+        }
+        self.close_current();
+        Some(true)
+    }
+
+    fn import(&self, records: &[data::import::Record]) {
+        let rows: Vec<(String, Vec<String>, String, Option<usize>)> = records
+            .iter()
+            .map(|(name, tags, reason, target)| (name.clone(), tags.clone(), reason.clone(), usize::try_from(*target).ok()))
+            .collect();
+        let outcome = ops::import(&mut self.store.borrow_mut(), &mut self.undo.borrow_mut(), &rows);
+        match outcome {
+            Ok(outcome) => bind::Page::say(&self.window, &outcome),
+            Err(error) => eprintln!("import: {error}"),
         }
     }
 }
@@ -233,42 +360,5 @@ pub fn question(store: &Store, yes: &Yes) -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::list::ListAction;
-
-    /// Each tab shows its own page in the main window (pictures in $BLACKLIST_SHOTS/main), and an action that
-    /// asks first opens its question; a yes comes back as the area's action.
-    #[test]
-    fn the_main_window_shows_each_page_and_opens_the_questions() {
-        crate::shots::init();
-        let mut seeded = crate::list::render::seeded("normal");
-        seeded.likes = crate::history::tests_seed_likes();
-        let store = Rc::new(RefCell::new(seeded));
-        let ui = MainUi::new(store.clone(), "1.2.0").unwrap();
-        let dir = std::env::var_os("BLACKLIST_SHOTS").map(std::path::PathBuf::from).map(|d| d.join("main"));
-        let mut pictures = Vec::new();
-        for (page, name) in ["记录", "黑名单", "嘉宾", "设置"].iter().enumerate() {
-            ui.window.set_page(page as i32);
-            ui.refresh();
-            let picture = crate::shots::draw(&ui.window, (900.0, 560.0), 1.5).unwrap();
-            if let Some(dir) = &dir {
-                crate::shots::save(&dir.join(format!("page_{name}.png")), &picture).unwrap();
-            }
-            pictures.push(picture);
-        }
-        for (i, a) in pictures.iter().enumerate() {
-            for b in &pictures[i + 1..] {
-                assert_ne!(a.rgb, b.rgb, "every page draws differently");
-            }
-        }
-        ui.bus.send(UiEvent::List(ListAction::AskClear));
-        assert!(ui.pump().is_empty());
-        assert_eq!(ui.dialogs.borrow().len(), 1, "清空黑名单 asks first");
-        assert_eq!(*ui.asking.borrow(), Some(Yes::ClearList));
-        ui.bus.send(UiEvent::Shell(ShellAction::BeginHotkey));
-        assert_eq!(ui.pump(), vec![UiEvent::Shell(ShellAction::BeginHotkey)], "the runner's own");
-        let root = store.borrow().root.clone();
-        let _ = std::fs::remove_dir_all(root);
-    }
-}
+#[path = "ui_app_tests.rs"]
+mod tests;

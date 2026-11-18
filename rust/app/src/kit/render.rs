@@ -34,6 +34,9 @@ pub fn draw(
 
 /// Save RGB pixels as a PNG.
 pub fn save(path: &Path, buffer: &[Rgb8Pixel], width: u32, height: u32) -> Result<(), Box<dyn std::error::Error>> {
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
     let file = std::io::BufWriter::new(std::fs::File::create(path)?);
     let mut encoder = png::Encoder::new(file, width, height);
     encoder.set_color(png::ColorType::Rgb);
