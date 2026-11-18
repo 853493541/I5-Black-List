@@ -141,7 +141,10 @@ def frames(source: Source, step: float, start: float, length: float, width_to: i
         scale = f",scale={width}:{height}"
     cmd = ["ffmpeg", "-v", "verbose", *_input(source), "-ss", f"{start:.3f}", "-t", f"{length:.3f}", "-i", source.where,
            "-vf", f"fps=1/{step}{scale}", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
-    done = subprocess.run(cmd, capture_output=True, timeout=240)
+    try:
+        done = subprocess.run(cmd, capture_output=True, timeout=240)
+    except subprocess.TimeoutExpired:
+        return [], 0
     size = width * height * 3
     raw = done.stdout
     shots = [(start + i * step, np.frombuffer(raw[i * size:(i + 1) * size], np.uint8).reshape(height, width, 3))
@@ -153,7 +156,14 @@ def grab(source: Source, seconds: float) -> tuple[np.ndarray | None, int]:
     """One whole frame at `seconds` by seeking, so a stream sends only the part around it; and the bytes fetched."""
     cmd = ["ffmpeg", "-v", "verbose", *_input(source), "-ss", f"{seconds:.3f}", "-i", source.where, "-frames:v", "1",
            "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
-    done = subprocess.run(cmd, capture_output=True, timeout=120)
+    for _ in range(3):  # a seek on a stream now and then stalls; ask again
+        try:
+            done = subprocess.run(cmd, capture_output=True, timeout=45)
+            break
+        except subprocess.TimeoutExpired:
+            continue
+    else:
+        return None, 0
     raw, size = done.stdout, source.width * source.height * 3
     rgb = np.frombuffer(raw[:size], np.uint8).reshape(source.height, source.width, 3) if len(raw) >= size else None
     return rgb, _read_bytes(done.stderr.decode(errors="replace"))
@@ -348,7 +358,7 @@ def main() -> None:
         for part in parts(video):
             try:
                 total += process(part, args.per_video)
-            except RuntimeError as error:
+            except (RuntimeError, OSError, subprocess.SubprocessError) as error:
                 print(f"{part['id']}: failed: {error}", flush=True)
     print(f"{total} lobbies saved")
 
