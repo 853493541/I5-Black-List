@@ -4,6 +4,16 @@ version = "0.1.0"
 edition.workspace = true
 
 [dependencies]
+clipper-sys = "0.8"
+opencv = { version = "0.102", default-features = false, features = ["imgproc"] }
+ort = { version = "=2.0.0-rc.15", default-features = false, features = ["load-dynamic", "std"] }
+serde_yaml = "0.9"
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+opencv = { version = "0.102", default-features = false, features = ["imgproc", "imgcodecs"] }
+png = "0.17"
+serde_json = { version = "1", features = ["float_roundtrip"] }
+sha2 = "0.10"
