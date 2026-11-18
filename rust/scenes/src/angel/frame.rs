@@ -10,6 +10,7 @@ pub const SECOND: u32 = 8;
 pub const MASK: u32 = 16;
 pub const BAND: u32 = 32;
 pub const CLIP: u32 = 64;
+pub const WINDOW: u32 = 128;
 
 /// A picture laid on: screen = m * picture pixel + t, at an opacity (clamped as Qt's setOpacity).
 pub struct Lay {

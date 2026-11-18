@@ -51,6 +51,21 @@ fn image(pr: Prim, p: vec2<f32>) -> vec4<f32> {
     }
     let flags = pr.kind.w;
     let nearest = (flags & 1u) != 0u;
+    if (flags & 128u) != 0u {
+        // The window's glass and gold added again at an opacity, as Qt's Plus does it: each pass
+        // lerps toward the clamped sum, dst + a * min(src, 1 - dst), over the gold just laid under
+        // it (the second picture, colors[2].x pixels lower, at opacity colors[2].y).
+        let a = pr.s1.w;
+        let fimg = img - vec2(0.0, pr.colors[2].x);
+        var fg = vec4(0.0);
+        if fimg.y >= 0.0 && fimg.y <= wh.y {
+            fg = sample(pr.s2.xy, wh, fimg, false);
+        }
+        let d0 = fg * pr.colors[2].y;
+        let d1 = d0 + a * min(sample(pr.s1.xy, wh, img, false), vec4(1.0) - d0);
+        let d2 = d1 + a * min(fg, vec4(1.0) - d1);
+        return vec4((d2 - d0).rgb, 0.0);
+    }
     var c = sample(pr.s1.xy, wh, img, nearest) * pr.s1.z;
     if (flags & 8u) != 0u {
         c = min(c + sample(pr.s2.xy, wh, img, nearest) * pr.s2.z, vec4(1.0));
@@ -66,7 +81,8 @@ fn image(pr: Prim, p: vec2<f32>) -> vec4<f32> {
         let n = pr.colors[0].y;
         let a = pr.colors[0].x - 0.07 * n;
         let k = clamp(dot(img - vec2(a), vec2(1.0)) / (0.28 * n), 0.0, 1.0);
-        c *= 1.0 - abs(2.0 * k - 1.0);
+        // White light let through only where the gold shines (DestinationIn keeps the band's own white).
+        c = vec4(c.a) * (1.0 - abs(2.0 * k - 1.0));
     }
     if (flags & 64u) != 0u {
         c *= clamp(pr.colors[1].z + 0.5 - distance(p, pr.colors[1].xy), 0.0, 1.0);

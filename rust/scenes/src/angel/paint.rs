@@ -5,7 +5,7 @@
 use std::f64::consts::PI;
 
 use super::atlas::Region;
-use super::frame::{Lay, BAND, CLIP, MASK, NEAREST, PLUS, SECOND, TIMED};
+use super::frame::{Lay, BAND, CLIP, MASK, NEAREST, PLUS, SECOND, TIMED, WINDOW};
 use super::gild::pen_speed;
 use super::lines::point_at;
 use super::{Angel, Art};
@@ -179,8 +179,11 @@ impl Angel {
             Lay::rect(figure, rise, base * a * come, 0).put(f, self.size(), |_| {});
             let candle = ((0.12 + 0.1 * after) * flicker(t, 5) + 0.04 * swell) * (1.0 - 0.5 * hush) + 0.08 * after + 0.5 * flash;
             cur = base * a * come * clamp(candle);
-            Lay::rect(back, rect, cur, PLUS).put(f, self.size(), |_| {});
-            Lay::rect(figure, rise, cur, PLUS).put(f, self.size(), |_| {});
+            let (lower, under) = ((dy * f64::from(back[3]) / rect[3]) as f32, clamp(base * a * come) as f32);
+            Lay::rect(back, rect, cur, PLUS | WINDOW).put(f, self.size(), |p| {
+                p.s2 = [figure[0], figure[1], 1.0, 0.0];
+                p.colors[2] = [lower, under, 0.0, 0.0];
+            });
             let top = base * a * come;
             for (when, span, strength) in SWEEPS {
                 let k = win(t, when, when + span);
