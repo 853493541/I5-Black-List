@@ -5,6 +5,8 @@
 //! light in `fx`) and laid on each frame from one atlas; the rest (rain, trails, tubes, lightning) is
 //! shaded per pixel in `neon.wgsl` every frame.
 
+#[cfg(test)]
+mod check;
 pub mod frame;
 pub mod fx;
 pub mod gpu;

@@ -96,6 +96,7 @@ impl Rng {
     }
 
     /// rng.standard_normal(): numpy's ziggurat.
+    #[allow(clippy::excessive_precision)]
     pub fn normal(&mut self) -> f64 {
         const R: f64 = 3.654_152_885_361_008_8;
         const INV_R: f64 = 0.273_661_237_329_758_3;
@@ -160,6 +161,7 @@ mod tests {
     use super::Rng;
 
     #[test]
+    #[allow(clippy::excessive_precision)]
     fn matches_numpy() {
         // numpy.random.default_rng(31).random() and .random(dtype=np.float32) twice after it.
         let mut r = Rng::new(31);

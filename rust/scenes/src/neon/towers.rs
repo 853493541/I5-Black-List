@@ -253,7 +253,7 @@ fn axpy(c: &mut [f32; 3], t: [f32; 3], k: f32) {
 pub fn art(t: &Tower, o: &Outline, wins: &[(Rect, &str, f64)], height: f64, u: f64) -> (Rect, Img, Img) {
     let b = bounds(&o.path);
     let area = [b[0] - 5.0 * u, b[1] - 5.0 * u, b[2] + 10.0 * u, height - (b[1] - 5.0 * u)];
-    let m = over(area, &[o.path.clone()]);
+    let m = over(area, std::slice::from_ref(&o.path));
     let (w, h) = (m.w, m.h);
     let (sx, sy) = (area[2] as f32 / w as f32, area[3] as f32 / h as f32);
     let px = |i: usize| area[0] as f32 + (i as f32 + 0.5) * sx;
