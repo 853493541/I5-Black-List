@@ -1,0 +1,61 @@
+name: rust-switchover
+
+# The one-shot move from the Python app (v1.0.1) to the Rust app (docs/dev/research/rust-switchover.md):
+# v1.0.1's own updater (from the tag) takes the Rust release, the launcher lays it over and starts the
+# Rust exe, the data folder is kept, and a failed start rolls back. On Windows with the real launcher
+# exe, built from v1.0.1's Launcher.cs, and a probe exe linked the way the app must be (+crt-static).
+on:
+  push:
+    branches: ["feature/rust*"]
+  pull_request:
+    paths: ["rust/data/**", "build/make_rust_release.py", "tools/rust_golden_switchover.py", ".github/workflows/rust-switchover.yml"]
+
+jobs:
+  switchover:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      CARGO_TERM_COLOR: always
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v5
+      - name: Fetch the v1.0.1 tag
+        shell: bash
+        run: |
+          git fetch origin tag v1.0.1 --no-tags --depth=1
+          git diff --exit-code v1.0.1 HEAD -- build/launcher/Launcher.cs blacklist_detect/updater.py blacklist_detect/names.py
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install cryptography requests pytest
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: switchover-${{ matrix.os }}-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: switchover-${{ matrix.os }}-
+      - name: Build the probe (static C runtime, as the app)
+        working-directory: rust
+        shell: bash
+        env:
+          RUSTFLAGS: ${{ matrix.os == 'windows-latest' && '-C target-feature=+crt-static' || '' }}
+        run: cargo build -p data --example switchover_probe
+      - name: Release script tests
+        run: python -m pytest -q -p no:cacheprovider tests/test_rust_switchover.py -k "not end_to_end"
+      - name: Switch-over (Launcher.cs port)
+        if: matrix.os == 'ubuntu-latest'
+        run: python tools/rust_golden_switchover.py --probe rust/target/debug/examples/switchover_probe
+      - name: Build the real launcher
+        if: matrix.os == 'windows-latest'
+        run: python build/build_launcher.py
+      - name: Switch-over (real launcher exe)
+        if: matrix.os == 'windows-latest'
+        run: python tools/rust_golden_switchover.py --probe rust/target/debug/examples/switchover_probe.exe --launcher dist/exe/模仿者小工具.exe

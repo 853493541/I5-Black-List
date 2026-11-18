@@ -7,6 +7,7 @@
 // deny, not forbid: the code Slint generates from ui/ allows unsafe in its own items.
 #![deny(unsafe_code)]
 
+mod guestedit;
 mod headless;
 mod list;
 
