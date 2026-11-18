@@ -231,7 +231,7 @@ fn per_pixel(window: HWND, at: (i32, i32, i32, i32), pixel: [u8; 4]) {
             return;
         };
         let old = SelectObject(memory, bitmap.into());
-        std::slice::from_raw_parts_mut(bits as *mut u8, (w * h * 4) as usize).chunks_exact_mut(4).for_each(|p| p.copy_from_slice(&pixel));
+        std::slice::from_raw_parts_mut(bits as *mut u8, (w * h * 4) as usize).as_chunks_mut::<4>().0.iter_mut().for_each(|p| *p = pixel);
         let blend = BLENDFUNCTION { BlendOp: AC_SRC_OVER as u8, BlendFlags: 0, SourceConstantAlpha: 255, AlphaFormat: AC_SRC_ALPHA as u8 };
         let (place, size, origin) = (POINT { x, y }, SIZE { cx: w, cy: h }, POINT::default());
         let _ = UpdateLayeredWindow(window, Some(screen), Some(&place), Some(&size), Some(memory), Some(&origin), COLORREF(0), Some(&blend), ULW_ALPHA);

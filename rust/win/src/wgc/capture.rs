@@ -150,7 +150,7 @@ fn read_texture(d3d: &ID3D11Device, texture: &ID3D11Texture2D) -> windows::core:
     for row in 0..height {
         // SAFETY: the mapped copy holds `height` rows of `pitch` bytes, each with `width` BGRA pixels.
         let line = unsafe { std::slice::from_raw_parts((mapped.pData as *const u8).add(row * pitch), width * 4) };
-        rgba.extend(line.chunks_exact(4).flat_map(|p| [p[2], p[1], p[0], p[3]]));
+        rgba.extend(line.as_chunks::<4>().0.iter().flat_map(|p| [p[2], p[1], p[0], p[3]]));
     }
     // SAFETY: mapped above.
     unsafe { context.Unmap(&staging, 0) };
