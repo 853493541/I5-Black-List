@@ -4,6 +4,7 @@
 
 pub mod files;
 mod ops;
+mod scene_ops;
 pub mod py;
 pub mod scans;
 pub mod settings;
