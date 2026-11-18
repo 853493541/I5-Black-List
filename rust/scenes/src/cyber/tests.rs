@@ -24,8 +24,8 @@ fn frames_match_python() {
     let scene = Cyber::sample(1920.0, 1080.0);
     let Ok(gpu) = Renderer::new(1920, 1080, lobby.to_rgba8().as_raw(), scene.atlas()) else { return };
     gpu.render(&scene.wash());
-    // The floors reached; what is left is Qt's Plus with opacity (see README).
-    for (t, floor) in [(0.5, 50.0), (1.5, 33.0), (3.0, 32.5)] {
+    // The floors reached; see README for what is left.
+    for (t, floor) in [(0.5, 50.0), (1.5, 34.5), (3.0, 35.0)] {
         let Ok(theirs) = image::open(dir.join(format!("py_t{t:.1}.png"))) else { continue };
         gpu.render(&scene.paint(t));
         let got = psnr(&gpu.read(), theirs.to_rgba8().as_raw());
