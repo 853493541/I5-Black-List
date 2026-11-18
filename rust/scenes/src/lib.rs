@@ -6,6 +6,7 @@
 #![forbid(unsafe_code)]
 
 pub mod draw;
+pub mod lyre;
 pub mod gpu;
 pub mod prim;
 pub mod pyrand;
