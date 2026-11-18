@@ -1,0 +1,651 @@
+{
+ "frame": 34,
+ "width": 1920,
+ "height": 1080,
+ "lines": [
+  {
+   "text": "美团淘宝闪购码:",
+   "confidence": 0.9400692582130432,
+   "box": [
+    0.0,
+    9.0,
+    403.5,
+    70.5
+   ]
+  },
+  {
+   "text": "662233",
+   "confidence": 0.9999799728393555,
+   "box": [
+    429.0,
+    9.0,
+    633.0,
+    66.0
+   ]
+  },
+  {
+   "text": "干饭口羊口羊",
+   "confidence": 0.9953531622886658,
+   "box": [
+    1501.5,
+    48.0,
+    1741.5,
+    94.5
+   ]
+  },
+  {
+   "text": "BiliDili",
+   "confidence": 0.690750002861023,
+   "box": [
+    1734.0,
+    39.0,
+    1888.5,
+    97.5
+   ]
+  },
+  {
+   "text": "推演成功",
+   "confidence": 0.9925129413604736,
+   "box": [
+    780.0,
+    94.5,
+    1140.0,
+    202.5
+   ]
+  },
+  {
+   "text": "模仿者狂欢（12人狂欢）",
+   "confidence": 0.9876329302787781,
+   "box": [
+    718.5,
+    207.0,
+    1173.0,
+    255.0
+   ]
+  },
+  {
+   "text": "的指引",
+   "confidence": 0.9998456835746765,
+   "box": [
+    1690.5,
+    222.0,
+    1797.0,
+    256.5
+   ]
+  },
+  {
+   "text": "倒计时秒",
+   "confidence": 0.9963603019714355,
+   "box": [
+    846.0,
+    258.0,
+    1077.0,
+    300.0
+   ]
+  },
+  {
+   "text": "他验）",
+   "confidence": 0.6572213768959045,
+   "box": [
+    1737.0,
+    253.5,
+    1807.5,
+    286.5
+   ]
+  },
+  {
+   "text": "遗照YYDS",
+   "confidence": 0.9982588887214661,
+   "box": [
+    276.0,
+    471.0,
+    420.0,
+    514.5
+   ]
+  },
+  {
+   "text": "雨时0725",
+   "confidence": 0.9981173872947693,
+   "box": [
+    520.5,
+    469.5,
+    664.5,
+    513.0
+   ]
+  },
+  {
+   "text": "致首黎的诗",
+   "confidence": 0.9878309965133667,
+   "box": [
+    748.5,
+    474.0,
+    924.0,
+    511.5
+   ]
+  },
+  {
+   "text": "喜提穆修拉",
+   "confidence": 0.996196448802948,
+   "box": [
+    996.0,
+    471.0,
+    1170.0,
+    510.0
+   ]
+  },
+  {
+   "text": "美人加油",
+   "confidence": 0.9997144341468811,
+   "box": [
+    1252.5,
+    469.5,
+    1399.5,
+    516.0
+   ]
+  },
+  {
+   "text": "24k暴躁.",
+   "confidence": 0.9585115909576416,
+   "box": [
+    1480.5,
+    469.5,
+    1617.0,
+    516.0
+   ]
+  },
+  {
+   "text": "拿铁住了",
+   "confidence": 0.9961936473846436,
+   "box": [
+    277.5,
+    741.0,
+    414.0,
+    778.5
+   ]
+  },
+  {
+   "text": "压轴配角",
+   "confidence": 0.9995800256729126,
+   "box": [
+    517.5,
+    736.5,
+    664.5,
+    781.5
+   ]
+  },
+  {
+   "text": "情话成书..",
+   "confidence": 0.9448964595794678,
+   "box": [
+    741.0,
+    739.5,
+    916.5,
+    778.5
+   ]
+  },
+  {
+   "text": "封锁宫心",
+   "confidence": 0.9951536655426025,
+   "box": [
+    1006.5,
+    736.5,
+    1155.0,
+    783.0
+   ]
+  },
+  {
+   "text": "南梨南宮雅",
+   "confidence": 0.9797455072402954,
+   "box": [
+    1239.0,
+    739.5,
+    1414.5,
+    778.5
+   ]
+  },
+  {
+   "text": "别",
+   "confidence": 0.9797149300575256,
+   "box": [
+    1506.0,
+    742.5,
+    1536.0,
+    771.0
+   ]
+  },
+  {
+   "text": "准备就绪：11/12",
+   "confidence": 0.9923933744430542,
+   "box": [
+    829.5,
+    796.5,
+    1092.0,
+    832.5
+   ]
+  },
+  {
+   "text": "准备案件还原",
+   "confidence": 0.9526512026786804,
+   "box": [
+    855.0,
+    874.5,
+    1063.5,
+    912.0
+   ]
+  },
+  {
+   "text": "厚幅恨：【表情]打招呼-园",
+   "confidence": 0.7989817261695862,
+   "box": [
+    673.5,
+    990.0,
+    1150.5,
+    1024.5
+   ]
+  },
+  {
+   "text": "包焦：祝莉莉生日快乐",
+   "confidence": 0.9879039525985718,
+   "box": [
+    658.5,
+    1036.5,
+    1006.5,
+    1069.5
+   ]
+  }
+ ],
+ "anchor": {
+  "found": false,
+  "reason": "没找到「推演成功」大厅",
+  "countdown_seconds": null,
+  "ready_count": 11,
+  "scale": 0.0,
+  "name_boxes": [],
+  "button_box": null,
+  "title_box": null,
+  "mode_box": null,
+  "countdown_box": null
+ },
+ "contains_title": true,
+ "ready_strip": null,
+ "game_screen": null,
+ "texts": [
+  {
+   "text": "美团淘宝闪购码:",
+   "normalize_text": "美团淘宝闪购码:",
+   "split_ellipsis": [
+    "美团淘宝闪购码:",
+    false
+   ],
+   "with_game_ellipsis": "美团淘宝闪购码:",
+   "strip_noise": "美团淘宝闪购码",
+   "fold": "美团淘宝闪购码",
+   "clean_stored_name": "美团淘宝闪购码",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "662233",
+   "normalize_text": "662233",
+   "split_ellipsis": [
+    "662233",
+    false
+   ],
+   "with_game_ellipsis": "662233",
+   "strip_noise": "662233",
+   "fold": "662233",
+   "clean_stored_name": "662233",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "干饭口羊口羊",
+   "normalize_text": "干饭口羊口羊",
+   "split_ellipsis": [
+    "干饭口羊口羊",
+    false
+   ],
+   "with_game_ellipsis": "干饭口羊口羊",
+   "strip_noise": "干饭口羊口羊",
+   "fold": "干饭口羊口羊",
+   "clean_stored_name": "干饭口羊口羊",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "BiliDili",
+   "normalize_text": "BiliDili",
+   "split_ellipsis": [
+    "BiliDili",
+    false
+   ],
+   "with_game_ellipsis": "BiliDili",
+   "strip_noise": "BiliDili",
+   "fold": "bilidili",
+   "clean_stored_name": "BiliDili",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "推演成功",
+   "normalize_text": "推演成功",
+   "split_ellipsis": [
+    "推演成功",
+    false
+   ],
+   "with_game_ellipsis": "推演成功",
+   "strip_noise": "推演成功",
+   "fold": "推演成功",
+   "clean_stored_name": "推演成功",
+   "is_lobby_chrome": true,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "模仿者狂欢（12人狂欢）",
+   "normalize_text": "模仿者狂欢(12人狂欢)",
+   "split_ellipsis": [
+    "模仿者狂欢(12人狂欢)",
+    false
+   ],
+   "with_game_ellipsis": "模仿者狂欢(12人狂欢)",
+   "strip_noise": "模仿者狂欢12人狂欢",
+   "fold": "模仿者狂欢12人狂欢",
+   "clean_stored_name": "模仿者狂欢12人狂欢",
+   "is_lobby_chrome": true,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "的指引",
+   "normalize_text": "的指引",
+   "split_ellipsis": [
+    "的指引",
+    false
+   ],
+   "with_game_ellipsis": "的指引",
+   "strip_noise": "的指引",
+   "fold": "的指引",
+   "clean_stored_name": "的指引",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "倒计时秒",
+   "normalize_text": "倒计时秒",
+   "split_ellipsis": [
+    "倒计时秒",
+    false
+   ],
+   "with_game_ellipsis": "倒计时秒",
+   "strip_noise": "倒计时秒",
+   "fold": "倒计时秒",
+   "clean_stored_name": "倒计时秒",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "他验）",
+   "normalize_text": "他验)",
+   "split_ellipsis": [
+    "他验)",
+    false
+   ],
+   "with_game_ellipsis": "他验)",
+   "strip_noise": "他验",
+   "fold": "他验",
+   "clean_stored_name": "他验",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "遗照YYDS",
+   "normalize_text": "遗照YYDS",
+   "split_ellipsis": [
+    "遗照YYDS",
+    false
+   ],
+   "with_game_ellipsis": "遗照YYDS",
+   "strip_noise": "遗照YYDS",
+   "fold": "遗照yyds",
+   "clean_stored_name": "遗照YYDS",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "雨时0725",
+   "normalize_text": "雨时0725",
+   "split_ellipsis": [
+    "雨时0725",
+    false
+   ],
+   "with_game_ellipsis": "雨时0725",
+   "strip_noise": "雨时0725",
+   "fold": "雨时0725",
+   "clean_stored_name": "雨时0725",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "致首黎的诗",
+   "normalize_text": "致首黎的诗",
+   "split_ellipsis": [
+    "致首黎的诗",
+    false
+   ],
+   "with_game_ellipsis": "致首黎的诗",
+   "strip_noise": "致首黎的诗",
+   "fold": "致首黎的诗",
+   "clean_stored_name": "致首黎的诗",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "喜提穆修拉",
+   "normalize_text": "喜提穆修拉",
+   "split_ellipsis": [
+    "喜提穆修拉",
+    false
+   ],
+   "with_game_ellipsis": "喜提穆修拉",
+   "strip_noise": "喜提穆修拉",
+   "fold": "喜提穆修拉",
+   "clean_stored_name": "喜提穆修拉",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "美人加油",
+   "normalize_text": "美人加油",
+   "split_ellipsis": [
+    "美人加油",
+    false
+   ],
+   "with_game_ellipsis": "美人加油",
+   "strip_noise": "美人加油",
+   "fold": "美人加油",
+   "clean_stored_name": "美人加油",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "24k暴躁.",
+   "normalize_text": "24k暴躁.",
+   "split_ellipsis": [
+    "24k暴躁",
+    true
+   ],
+   "with_game_ellipsis": "24k暴躁...",
+   "strip_noise": "24k暴躁",
+   "fold": "24k暴躁",
+   "clean_stored_name": "24k暴躁",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "拿铁住了",
+   "normalize_text": "拿铁住了",
+   "split_ellipsis": [
+    "拿铁住了",
+    false
+   ],
+   "with_game_ellipsis": "拿铁住了",
+   "strip_noise": "拿铁住了",
+   "fold": "拿铁住了",
+   "clean_stored_name": "拿铁住了",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "压轴配角",
+   "normalize_text": "压轴配角",
+   "split_ellipsis": [
+    "压轴配角",
+    false
+   ],
+   "with_game_ellipsis": "压轴配角",
+   "strip_noise": "压轴配角",
+   "fold": "压轴配角",
+   "clean_stored_name": "压轴配角",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "情话成书..",
+   "normalize_text": "情话成书..",
+   "split_ellipsis": [
+    "情话成书",
+    true
+   ],
+   "with_game_ellipsis": "情话成书...",
+   "strip_noise": "情话成书",
+   "fold": "情话成书",
+   "clean_stored_name": "情话成书",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "封锁宫心",
+   "normalize_text": "封锁宫心",
+   "split_ellipsis": [
+    "封锁宫心",
+    false
+   ],
+   "with_game_ellipsis": "封锁宫心",
+   "strip_noise": "封锁宫心",
+   "fold": "封锁宫心",
+   "clean_stored_name": "封锁宫心",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "南梨南宮雅",
+   "normalize_text": "南梨南宮雅",
+   "split_ellipsis": [
+    "南梨南宮雅",
+    false
+   ],
+   "with_game_ellipsis": "南梨南宮雅",
+   "strip_noise": "南梨南宮雅",
+   "fold": "南梨南宮雅",
+   "clean_stored_name": "南梨南宮雅",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "别",
+   "normalize_text": "别",
+   "split_ellipsis": [
+    "别",
+    false
+   ],
+   "with_game_ellipsis": "别",
+   "strip_noise": "别",
+   "fold": "别",
+   "clean_stored_name": "别",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "准备就绪：11/12",
+   "normalize_text": "准备就绪:11/12",
+   "split_ellipsis": [
+    "准备就绪:11/12",
+    false
+   ],
+   "with_game_ellipsis": "准备就绪:11/12",
+   "strip_noise": "准备就绪1112",
+   "fold": "准备就绪1112",
+   "clean_stored_name": "准备就绪1112",
+   "is_lobby_chrome": true,
+   "countdown_in": null,
+   "ready_in": 11
+  },
+  {
+   "text": "准备案件还原",
+   "normalize_text": "准备案件还原",
+   "split_ellipsis": [
+    "准备案件还原",
+    false
+   ],
+   "with_game_ellipsis": "准备案件还原",
+   "strip_noise": "准备案件还原",
+   "fold": "准备案件还原",
+   "clean_stored_name": "准备案件还原",
+   "is_lobby_chrome": true,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "厚幅恨：【表情]打招呼-园",
+   "normalize_text": "厚幅恨:【表情]打招呼-园",
+   "split_ellipsis": [
+    "厚幅恨:【表情]打招呼-园",
+    false
+   ],
+   "with_game_ellipsis": "厚幅恨:【表情]打招呼-园",
+   "strip_noise": "厚幅恨表情打招呼园",
+   "fold": "厚幅恨表情打招呼园",
+   "clean_stored_name": "厚幅恨表情打招呼园",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "包焦：祝莉莉生日快乐",
+   "normalize_text": "包焦:祝莉莉生日快乐",
+   "split_ellipsis": [
+    "包焦:祝莉莉生日快乐",
+    false
+   ],
+   "with_game_ellipsis": "包焦:祝莉莉生日快乐",
+   "strip_noise": "包焦祝莉莉生日快乐",
+   "fold": "包焦祝莉莉生日快乐",
+   "clean_stored_name": "包焦祝莉莉生日快乐",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  }
+ ],
+ "seats": [],
+ "entries": []
+}

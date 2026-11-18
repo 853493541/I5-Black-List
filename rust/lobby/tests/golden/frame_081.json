@@ -1,0 +1,651 @@
+{
+ "frame": 81,
+ "width": 1920,
+ "height": 1080,
+ "lines": [
+  {
+   "text": "美团淘宝闪购码：",
+   "confidence": 0.9663265943527222,
+   "box": [
+    3.0,
+    15.0,
+    402.0,
+    67.5
+   ]
+  },
+  {
+   "text": "662233",
+   "confidence": 0.9999751448631287,
+   "box": [
+    429.0,
+    9.0,
+    634.5,
+    66.0
+   ]
+  },
+  {
+   "text": "山",
+   "confidence": 0.262358158826828,
+   "box": [
+    981.0,
+    24.0,
+    997.5,
+    39.0
+   ]
+  },
+  {
+   "text": "干饭口羊口羊",
+   "confidence": 0.9930479526519775,
+   "box": [
+    1500.0,
+    45.0,
+    1738.5,
+    94.5
+   ]
+  },
+  {
+   "text": "Bilibili",
+   "confidence": 0.6555740833282471,
+   "box": [
+    1735.5,
+    37.5,
+    1890.0,
+    97.5
+   ]
+  },
+  {
+   "text": "推演成功",
+   "confidence": 0.9948872327804565,
+   "box": [
+    778.5,
+    91.5,
+    1138.5,
+    205.5
+   ]
+  },
+  {
+   "text": "模仿者狂欢（12人狂欢）",
+   "confidence": 0.9850842952728271,
+   "box": [
+    721.5,
+    207.0,
+    1173.0,
+    255.0
+   ]
+  },
+  {
+   "text": "倒计田19秒",
+   "confidence": 0.9596496224403381,
+   "box": [
+    837.0,
+    258.0,
+    1083.0,
+    298.5
+   ]
+  },
+  {
+   "text": "2002",
+   "confidence": 0.9463749527931213,
+   "box": [
+    1077.0,
+    301.5,
+    1155.0,
+    343.5
+   ]
+  },
+  {
+   "text": "+",
+   "confidence": 0.10875008255243301,
+   "box": [
+    262.5,
+    310.5,
+    315.0,
+    360.0
+   ]
+  },
+  {
+   "text": "虾仁不wi.",
+   "confidence": 0.8922233581542969,
+   "box": [
+    250.5,
+    475.5,
+    411.0,
+    513.0
+   ]
+  },
+  {
+   "text": "上岸就贴贴",
+   "confidence": 0.9974930882453918,
+   "box": [
+    510.0,
+    472.5,
+    679.5,
+    511.5
+   ]
+  },
+  {
+   "text": "绵朵咩",
+   "confidence": 0.8918343186378479,
+   "box": [
+    781.5,
+    472.5,
+    891.0,
+    513.0
+   ]
+  },
+  {
+   "text": "胡萝卜兔",
+   "confidence": 0.9640222191810608,
+   "box": [
+    985.5,
+    474.0,
+    1165.5,
+    513.0
+   ]
+  },
+  {
+   "text": "误拂山海弦",
+   "confidence": 0.9937875866889954,
+   "box": [
+    1240.5,
+    474.0,
+    1413.0,
+    513.0
+   ]
+  },
+  {
+   "text": "ong肿别..",
+   "confidence": 0.9489413499832153,
+   "box": [
+    1482.0,
+    474.0,
+    1639.5,
+    513.0
+   ]
+  },
+  {
+   "text": "烈性rxz..",
+   "confidence": 0.9622393846511841,
+   "box": [
+    258.0,
+    736.5,
+    412.5,
+    784.5
+   ]
+  },
+  {
+   "text": "易只小鸽子",
+   "confidence": 0.9987065196037292,
+   "box": [
+    507.0,
+    741.0,
+    679.5,
+    780.0
+   ]
+  },
+  {
+   "text": "名殿下小北",
+   "confidence": 0.9999216794967651,
+   "box": [
+    750.0,
+    739.5,
+    925.5,
+    778.5
+   ]
+  },
+  {
+   "text": "古社夜话",
+   "confidence": 0.9997031688690186,
+   "box": [
+    1012.5,
+    741.0,
+    1153.5,
+    778.5
+   ]
+  },
+  {
+   "text": "往北97另",
+   "confidence": 0.9693207740783691,
+   "box": [
+    1255.5,
+    739.5,
+    1396.5,
+    778.5
+   ]
+  },
+  {
+   "text": "外星",
+   "confidence": 0.9888783097267151,
+   "box": [
+    1473.0,
+    730.5,
+    1579.5,
+    787.5
+   ]
+  },
+  {
+   "text": "准备就绪：0/12",
+   "confidence": 0.9881499409675598,
+   "box": [
+    837.0,
+    798.0,
+    1083.0,
+    840.0
+   ]
+  },
+  {
+   "text": "准备案件还原",
+   "confidence": 0.9671689867973328,
+   "box": [
+    853.5,
+    871.5,
+    1066.5,
+    916.5
+   ]
+  },
+  {
+   "text": "笙毛猫熊酱[作曲家]：退出了聊天",
+   "confidence": 0.9335576295852661,
+   "box": [
+    658.5,
+    939.0,
+    1213.5,
+    984.0
+   ]
+  }
+ ],
+ "anchor": {
+  "found": false,
+  "reason": "没找到「推演成功」大厅",
+  "countdown_seconds": null,
+  "ready_count": 0,
+  "scale": 0.0,
+  "name_boxes": [],
+  "button_box": null,
+  "title_box": null,
+  "mode_box": null,
+  "countdown_box": null
+ },
+ "contains_title": true,
+ "ready_strip": null,
+ "game_screen": null,
+ "texts": [
+  {
+   "text": "美团淘宝闪购码：",
+   "normalize_text": "美团淘宝闪购码:",
+   "split_ellipsis": [
+    "美团淘宝闪购码:",
+    false
+   ],
+   "with_game_ellipsis": "美团淘宝闪购码:",
+   "strip_noise": "美团淘宝闪购码",
+   "fold": "美团淘宝闪购码",
+   "clean_stored_name": "美团淘宝闪购码",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "662233",
+   "normalize_text": "662233",
+   "split_ellipsis": [
+    "662233",
+    false
+   ],
+   "with_game_ellipsis": "662233",
+   "strip_noise": "662233",
+   "fold": "662233",
+   "clean_stored_name": "662233",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "山",
+   "normalize_text": "山",
+   "split_ellipsis": [
+    "山",
+    false
+   ],
+   "with_game_ellipsis": "山",
+   "strip_noise": "山",
+   "fold": "山",
+   "clean_stored_name": "山",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "干饭口羊口羊",
+   "normalize_text": "干饭口羊口羊",
+   "split_ellipsis": [
+    "干饭口羊口羊",
+    false
+   ],
+   "with_game_ellipsis": "干饭口羊口羊",
+   "strip_noise": "干饭口羊口羊",
+   "fold": "干饭口羊口羊",
+   "clean_stored_name": "干饭口羊口羊",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "Bilibili",
+   "normalize_text": "Bilibili",
+   "split_ellipsis": [
+    "Bilibili",
+    false
+   ],
+   "with_game_ellipsis": "Bilibili",
+   "strip_noise": "Bilibili",
+   "fold": "bilibili",
+   "clean_stored_name": "Bilibili",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "推演成功",
+   "normalize_text": "推演成功",
+   "split_ellipsis": [
+    "推演成功",
+    false
+   ],
+   "with_game_ellipsis": "推演成功",
+   "strip_noise": "推演成功",
+   "fold": "推演成功",
+   "clean_stored_name": "推演成功",
+   "is_lobby_chrome": true,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "模仿者狂欢（12人狂欢）",
+   "normalize_text": "模仿者狂欢(12人狂欢)",
+   "split_ellipsis": [
+    "模仿者狂欢(12人狂欢)",
+    false
+   ],
+   "with_game_ellipsis": "模仿者狂欢(12人狂欢)",
+   "strip_noise": "模仿者狂欢12人狂欢",
+   "fold": "模仿者狂欢12人狂欢",
+   "clean_stored_name": "模仿者狂欢12人狂欢",
+   "is_lobby_chrome": true,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "倒计田19秒",
+   "normalize_text": "倒计田19秒",
+   "split_ellipsis": [
+    "倒计田19秒",
+    false
+   ],
+   "with_game_ellipsis": "倒计田19秒",
+   "strip_noise": "倒计田19秒",
+   "fold": "倒计田19秒",
+   "clean_stored_name": "倒计田19秒",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "2002",
+   "normalize_text": "2002",
+   "split_ellipsis": [
+    "2002",
+    false
+   ],
+   "with_game_ellipsis": "2002",
+   "strip_noise": "2002",
+   "fold": "2002",
+   "clean_stored_name": "2002",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "+",
+   "normalize_text": "+",
+   "split_ellipsis": [
+    "+",
+    false
+   ],
+   "with_game_ellipsis": "+",
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": "",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "虾仁不wi.",
+   "normalize_text": "虾仁不wi.",
+   "split_ellipsis": [
+    "虾仁不wi",
+    true
+   ],
+   "with_game_ellipsis": "虾仁不wi...",
+   "strip_noise": "虾仁不wi",
+   "fold": "虾仁不wi",
+   "clean_stored_name": "虾仁不wi",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "上岸就贴贴",
+   "normalize_text": "上岸就贴贴",
+   "split_ellipsis": [
+    "上岸就贴贴",
+    false
+   ],
+   "with_game_ellipsis": "上岸就贴贴",
+   "strip_noise": "上岸就贴贴",
+   "fold": "上岸就贴贴",
+   "clean_stored_name": "上岸就贴贴",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "绵朵咩",
+   "normalize_text": "绵朵咩",
+   "split_ellipsis": [
+    "绵朵咩",
+    false
+   ],
+   "with_game_ellipsis": "绵朵咩",
+   "strip_noise": "绵朵咩",
+   "fold": "绵朵咩",
+   "clean_stored_name": "绵朵咩",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "胡萝卜兔",
+   "normalize_text": "胡萝卜兔",
+   "split_ellipsis": [
+    "胡萝卜兔",
+    false
+   ],
+   "with_game_ellipsis": "胡萝卜兔",
+   "strip_noise": "胡萝卜兔",
+   "fold": "胡萝卜兔",
+   "clean_stored_name": "胡萝卜兔",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "误拂山海弦",
+   "normalize_text": "误拂山海弦",
+   "split_ellipsis": [
+    "误拂山海弦",
+    false
+   ],
+   "with_game_ellipsis": "误拂山海弦",
+   "strip_noise": "误拂山海弦",
+   "fold": "误拂山海弦",
+   "clean_stored_name": "误拂山海弦",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "ong肿别..",
+   "normalize_text": "ong肿别..",
+   "split_ellipsis": [
+    "ong肿别",
+    true
+   ],
+   "with_game_ellipsis": "ong肿别...",
+   "strip_noise": "ong肿别",
+   "fold": "ong肿别",
+   "clean_stored_name": "ong肿别",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "烈性rxz..",
+   "normalize_text": "烈性rxz..",
+   "split_ellipsis": [
+    "烈性rxz",
+    true
+   ],
+   "with_game_ellipsis": "烈性rxz...",
+   "strip_noise": "烈性rxz",
+   "fold": "烈性rxz",
+   "clean_stored_name": "烈性rxz",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "易只小鸽子",
+   "normalize_text": "易只小鸽子",
+   "split_ellipsis": [
+    "易只小鸽子",
+    false
+   ],
+   "with_game_ellipsis": "易只小鸽子",
+   "strip_noise": "易只小鸽子",
+   "fold": "易只小鸽子",
+   "clean_stored_name": "易只小鸽子",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "名殿下小北",
+   "normalize_text": "名殿下小北",
+   "split_ellipsis": [
+    "名殿下小北",
+    false
+   ],
+   "with_game_ellipsis": "名殿下小北",
+   "strip_noise": "名殿下小北",
+   "fold": "名殿下小北",
+   "clean_stored_name": "名殿下小北",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "古社夜话",
+   "normalize_text": "古社夜话",
+   "split_ellipsis": [
+    "古社夜话",
+    false
+   ],
+   "with_game_ellipsis": "古社夜话",
+   "strip_noise": "古社夜话",
+   "fold": "古社夜话",
+   "clean_stored_name": "古社夜话",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "往北97另",
+   "normalize_text": "往北97另",
+   "split_ellipsis": [
+    "往北97另",
+    false
+   ],
+   "with_game_ellipsis": "往北97另",
+   "strip_noise": "往北97另",
+   "fold": "往北97另",
+   "clean_stored_name": "往北97另",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "外星",
+   "normalize_text": "外星",
+   "split_ellipsis": [
+    "外星",
+    false
+   ],
+   "with_game_ellipsis": "外星",
+   "strip_noise": "外星",
+   "fold": "外星",
+   "clean_stored_name": "外星",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "准备就绪：0/12",
+   "normalize_text": "准备就绪:0/12",
+   "split_ellipsis": [
+    "准备就绪:0/12",
+    false
+   ],
+   "with_game_ellipsis": "准备就绪:0/12",
+   "strip_noise": "准备就绪012",
+   "fold": "准备就绪012",
+   "clean_stored_name": "准备就绪012",
+   "is_lobby_chrome": true,
+   "countdown_in": null,
+   "ready_in": 0
+  },
+  {
+   "text": "准备案件还原",
+   "normalize_text": "准备案件还原",
+   "split_ellipsis": [
+    "准备案件还原",
+    false
+   ],
+   "with_game_ellipsis": "准备案件还原",
+   "strip_noise": "准备案件还原",
+   "fold": "准备案件还原",
+   "clean_stored_name": "准备案件还原",
+   "is_lobby_chrome": true,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "笙毛猫熊酱[作曲家]：退出了聊天",
+   "normalize_text": "笙毛猫熊酱[作曲家]:退出了聊天",
+   "split_ellipsis": [
+    "笙毛猫熊酱[作曲家]:退出了聊天",
+    false
+   ],
+   "with_game_ellipsis": "笙毛猫熊酱[作曲家]:退出了聊天",
+   "strip_noise": "笙毛猫熊酱作曲家退出了聊天",
+   "fold": "笙毛猫熊酱作曲家退出了聊天",
+   "clean_stored_name": "笙毛猫熊酱作曲家退出了聊天",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  }
+ ],
+ "seats": [],
+ "entries": []
+}

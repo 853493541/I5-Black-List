@@ -1,0 +1,351 @@
+{
+ "frame": 2,
+ "width": 1920,
+ "height": 1080,
+ "lines": [
+  {
+   "text": "美团淘宝闪购码：",
+   "confidence": 0.9438473582267761,
+   "box": [
+    1.5,
+    10.5,
+    406.5,
+    69.0
+   ]
+  },
+  {
+   "text": "662233",
+   "confidence": 0.9999730587005615,
+   "box": [
+    432.0,
+    13.5,
+    631.5,
+    63.0
+   ]
+  },
+  {
+   "text": "干饭口羊口羊bilibii",
+   "confidence": 0.8163477182388306,
+   "box": [
+    1494.0,
+    31.5,
+    1891.5,
+    99.0
+   ]
+  },
+  {
+   "text": "推演成功",
+   "confidence": 0.9940140843391418,
+   "box": [
+    778.5,
+    90.0,
+    1141.5,
+    204.0
+   ]
+  },
+  {
+   "text": "自由假面",
+   "confidence": 0.989120364189148,
+   "box": [
+    873.0,
+    205.5,
+    1048.5,
+    255.0
+   ]
+  },
+  {
+   "text": "全”",
+   "confidence": 0.41016969084739685,
+   "box": [
+    1638.0,
+    225.0,
+    1693.5,
+    247.5
+   ]
+  },
+  {
+   "text": "的指引",
+   "confidence": 0.9999448657035828,
+   "box": [
+    1686.0,
+    219.0,
+    1798.5,
+    258.0
+   ]
+  },
+  {
+   "text": "倒计时17秒",
+   "confidence": 0.9959630966186523,
+   "box": [
+    834.0,
+    255.0,
+    1084.5,
+    301.5
+   ]
+  },
+  {
+   "text": "信国险）",
+   "confidence": 0.4965738356113434,
+   "box": [
+    1740.0,
+    259.5,
+    1806.0,
+    282.0
+   ]
+  },
+  {
+   "text": "自由假面匹配中",
+   "confidence": 0.9088238477706909,
+   "box": [
+    13.5,
+    285.0,
+    237.0,
+    322.5
+   ]
+  },
+  {
+   "text": "准备就绪：8/12",
+   "confidence": 0.9912738800048828,
+   "box": [
+    835.5,
+    792.0,
+    1084.5,
+    837.0
+   ]
+  },
+  {
+   "text": "准备案件还原",
+   "confidence": 0.9267087578773499,
+   "box": [
+    852.0,
+    870.0,
+    1066.5,
+    916.5
+   ]
+  },
+  {
+   "text": "laliliar：有人自定义练角色吗",
+   "confidence": 0.9720702767372131,
+   "box": [
+    661.5,
+    1032.0,
+    1143.0,
+    1072.5
+   ]
+  }
+ ],
+ "anchor": {
+  "found": false,
+  "reason": "没找到「推演成功」大厅",
+  "countdown_seconds": null,
+  "ready_count": 8,
+  "scale": 0.0,
+  "name_boxes": [],
+  "button_box": null,
+  "title_box": null,
+  "mode_box": null,
+  "countdown_box": null
+ },
+ "contains_title": true,
+ "ready_strip": null,
+ "game_screen": null,
+ "texts": [
+  {
+   "text": "美团淘宝闪购码：",
+   "normalize_text": "美团淘宝闪购码:",
+   "split_ellipsis": [
+    "美团淘宝闪购码:",
+    false
+   ],
+   "with_game_ellipsis": "美团淘宝闪购码:",
+   "strip_noise": "美团淘宝闪购码",
+   "fold": "美团淘宝闪购码",
+   "clean_stored_name": "美团淘宝闪购码",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "662233",
+   "normalize_text": "662233",
+   "split_ellipsis": [
+    "662233",
+    false
+   ],
+   "with_game_ellipsis": "662233",
+   "strip_noise": "662233",
+   "fold": "662233",
+   "clean_stored_name": "662233",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "干饭口羊口羊bilibii",
+   "normalize_text": "干饭口羊口羊bilibii",
+   "split_ellipsis": [
+    "干饭口羊口羊bilibii",
+    false
+   ],
+   "with_game_ellipsis": "干饭口羊口羊bilibii",
+   "strip_noise": "干饭口羊口羊bilibii",
+   "fold": "干饭口羊口羊bilibii",
+   "clean_stored_name": "干饭口羊口羊bilibii",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "推演成功",
+   "normalize_text": "推演成功",
+   "split_ellipsis": [
+    "推演成功",
+    false
+   ],
+   "with_game_ellipsis": "推演成功",
+   "strip_noise": "推演成功",
+   "fold": "推演成功",
+   "clean_stored_name": "推演成功",
+   "is_lobby_chrome": true,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "自由假面",
+   "normalize_text": "自由假面",
+   "split_ellipsis": [
+    "自由假面",
+    false
+   ],
+   "with_game_ellipsis": "自由假面",
+   "strip_noise": "自由假面",
+   "fold": "自由假面",
+   "clean_stored_name": "自由假面",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "全”",
+   "normalize_text": "全”",
+   "split_ellipsis": [
+    "全”",
+    false
+   ],
+   "with_game_ellipsis": "全”",
+   "strip_noise": "全",
+   "fold": "全",
+   "clean_stored_name": "全",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "的指引",
+   "normalize_text": "的指引",
+   "split_ellipsis": [
+    "的指引",
+    false
+   ],
+   "with_game_ellipsis": "的指引",
+   "strip_noise": "的指引",
+   "fold": "的指引",
+   "clean_stored_name": "的指引",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "倒计时17秒",
+   "normalize_text": "倒计时17秒",
+   "split_ellipsis": [
+    "倒计时17秒",
+    false
+   ],
+   "with_game_ellipsis": "倒计时17秒",
+   "strip_noise": "倒计时17秒",
+   "fold": "倒计时17秒",
+   "clean_stored_name": "倒计时17秒",
+   "is_lobby_chrome": true,
+   "countdown_in": 17,
+   "ready_in": null
+  },
+  {
+   "text": "信国险）",
+   "normalize_text": "信国险)",
+   "split_ellipsis": [
+    "信国险)",
+    false
+   ],
+   "with_game_ellipsis": "信国险)",
+   "strip_noise": "信国险",
+   "fold": "信国险",
+   "clean_stored_name": "信国险",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "自由假面匹配中",
+   "normalize_text": "自由假面匹配中",
+   "split_ellipsis": [
+    "自由假面匹配中",
+    false
+   ],
+   "with_game_ellipsis": "自由假面匹配中",
+   "strip_noise": "自由假面匹配中",
+   "fold": "自由假面匹配中",
+   "clean_stored_name": "自由假面匹配中",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "准备就绪：8/12",
+   "normalize_text": "准备就绪:8/12",
+   "split_ellipsis": [
+    "准备就绪:8/12",
+    false
+   ],
+   "with_game_ellipsis": "准备就绪:8/12",
+   "strip_noise": "准备就绪812",
+   "fold": "准备就绪812",
+   "clean_stored_name": "准备就绪812",
+   "is_lobby_chrome": true,
+   "countdown_in": null,
+   "ready_in": 8
+  },
+  {
+   "text": "准备案件还原",
+   "normalize_text": "准备案件还原",
+   "split_ellipsis": [
+    "准备案件还原",
+    false
+   ],
+   "with_game_ellipsis": "准备案件还原",
+   "strip_noise": "准备案件还原",
+   "fold": "准备案件还原",
+   "clean_stored_name": "准备案件还原",
+   "is_lobby_chrome": true,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "laliliar：有人自定义练角色吗",
+   "normalize_text": "laliliar:有人自定义练角色吗",
+   "split_ellipsis": [
+    "laliliar:有人自定义练角色吗",
+    false
+   ],
+   "with_game_ellipsis": "laliliar:有人自定义练角色吗",
+   "strip_noise": "laliliar有人自定义练角色吗",
+   "fold": "laliliar有人自定义练角色吗",
+   "clean_stored_name": "laliliar有人自定义练角色吗",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  }
+ ],
+ "seats": [],
+ "entries": []
+}

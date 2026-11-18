@@ -1,0 +1,476 @@
+{
+ "frame": 83,
+ "width": 1920,
+ "height": 1080,
+ "lines": [
+  {
+   "text": "美团淘宝闪购码：",
+   "confidence": 0.9661871194839478,
+   "box": [
+    1.5,
+    12.0,
+    415.5,
+    69.0
+   ]
+  },
+  {
+   "text": "662233",
+   "confidence": 0.999952495098114,
+   "box": [
+    426.0,
+    9.0,
+    631.5,
+    63.0
+   ]
+  },
+  {
+   "text": "干饭口羊口羊biibili",
+   "confidence": 0.7880290150642395,
+   "box": [
+    1495.5,
+    31.5,
+    1893.0,
+    102.0
+   ]
+  },
+  {
+   "text": "推演成功",
+   "confidence": 0.9944539666175842,
+   "box": [
+    780.0,
+    91.5,
+    1140.0,
+    201.0
+   ]
+  },
+  {
+   "text": "个人档案",
+   "confidence": 0.9312959313392639,
+   "box": [
+    19.5,
+    202.5,
+    165.0,
+    246.0
+   ]
+  },
+  {
+   "text": "自由假面",
+   "confidence": 0.9902974367141724,
+   "box": [
+    873.0,
+    205.5,
+    1047.0,
+    255.0
+   ]
+  },
+  {
+   "text": "倒计时15秒",
+   "confidence": 0.9961299300193787,
+   "box": [
+    834.0,
+    255.0,
+    1084.5,
+    303.0
+   ]
+  },
+  {
+   "text": "我的战斗",
+   "confidence": 0.9984831809997559,
+   "box": [
+    16.5,
+    298.5,
+    168.0,
+    349.5
+   ]
+  },
+  {
+   "text": "我的收景",
+   "confidence": 0.8283017873764038,
+   "box": [
+    19.5,
+    405.0,
+    163.5,
+    450.0
+   ]
+  },
+  {
+   "text": "角色认乐",
+   "confidence": 0.8655120134353638,
+   "box": [
+    24.0,
+    609.0,
+    151.5,
+    648.0
+   ]
+  },
+  {
+   "text": "我的成",
+   "confidence": 0.9954900145530701,
+   "box": [
+    19.5,
+    706.5,
+    151.5,
+    750.0
+   ]
+  },
+  {
+   "text": "准备就绪：11/12",
+   "confidence": 0.9917680621147156,
+   "box": [
+    826.5,
+    790.5,
+    1093.5,
+    834.0
+   ]
+  },
+  {
+   "text": "我的关系",
+   "confidence": 0.9992660284042358,
+   "box": [
+    21.0,
+    808.5,
+    163.5,
+    852.0
+   ]
+  },
+  {
+   "text": "准备案件还原",
+   "confidence": 0.9378196597099304,
+   "box": [
+    855.0,
+    873.0,
+    1066.5,
+    915.0
+   ]
+  },
+  {
+   "text": "你憋给我哇哇叫",
+   "confidence": 0.940277099609375,
+   "box": [
+    664.5,
+    960.0,
+    868.5,
+    997.5
+   ]
+  },
+  {
+   "text": "失败",
+   "confidence": 0.9897541999816895,
+   "box": [
+    940.5,
+    987.0,
+    1012.5,
+    1027.5
+   ]
+  },
+  {
+   "text": "分享",
+   "confidence": 0.9998471736907959,
+   "box": [
+    57.0,
+    1009.5,
+    132.0,
+    1054.5
+   ]
+  },
+  {
+   "text": "130",
+   "confidence": 0.9925200343132019,
+   "box": [
+    681.0,
+    1012.5,
+    726.0,
+    1042.5
+   ]
+  }
+ ],
+ "anchor": {
+  "found": false,
+  "reason": "没找到「推演成功」大厅",
+  "countdown_seconds": null,
+  "ready_count": 11,
+  "scale": 0.0,
+  "name_boxes": [],
+  "button_box": null,
+  "title_box": null,
+  "mode_box": null,
+  "countdown_box": null
+ },
+ "contains_title": true,
+ "ready_strip": null,
+ "game_screen": null,
+ "texts": [
+  {
+   "text": "美团淘宝闪购码：",
+   "normalize_text": "美团淘宝闪购码:",
+   "split_ellipsis": [
+    "美团淘宝闪购码:",
+    false
+   ],
+   "with_game_ellipsis": "美团淘宝闪购码:",
+   "strip_noise": "美团淘宝闪购码",
+   "fold": "美团淘宝闪购码",
+   "clean_stored_name": "美团淘宝闪购码",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "662233",
+   "normalize_text": "662233",
+   "split_ellipsis": [
+    "662233",
+    false
+   ],
+   "with_game_ellipsis": "662233",
+   "strip_noise": "662233",
+   "fold": "662233",
+   "clean_stored_name": "662233",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "干饭口羊口羊biibili",
+   "normalize_text": "干饭口羊口羊biibili",
+   "split_ellipsis": [
+    "干饭口羊口羊biibili",
+    false
+   ],
+   "with_game_ellipsis": "干饭口羊口羊biibili",
+   "strip_noise": "干饭口羊口羊biibili",
+   "fold": "干饭口羊口羊biibili",
+   "clean_stored_name": "干饭口羊口羊biibili",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "推演成功",
+   "normalize_text": "推演成功",
+   "split_ellipsis": [
+    "推演成功",
+    false
+   ],
+   "with_game_ellipsis": "推演成功",
+   "strip_noise": "推演成功",
+   "fold": "推演成功",
+   "clean_stored_name": "推演成功",
+   "is_lobby_chrome": true,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "个人档案",
+   "normalize_text": "个人档案",
+   "split_ellipsis": [
+    "个人档案",
+    false
+   ],
+   "with_game_ellipsis": "个人档案",
+   "strip_noise": "个人档案",
+   "fold": "个人档案",
+   "clean_stored_name": "个人档案",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "自由假面",
+   "normalize_text": "自由假面",
+   "split_ellipsis": [
+    "自由假面",
+    false
+   ],
+   "with_game_ellipsis": "自由假面",
+   "strip_noise": "自由假面",
+   "fold": "自由假面",
+   "clean_stored_name": "自由假面",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "倒计时15秒",
+   "normalize_text": "倒计时15秒",
+   "split_ellipsis": [
+    "倒计时15秒",
+    false
+   ],
+   "with_game_ellipsis": "倒计时15秒",
+   "strip_noise": "倒计时15秒",
+   "fold": "倒计时15秒",
+   "clean_stored_name": "倒计时15秒",
+   "is_lobby_chrome": true,
+   "countdown_in": 15,
+   "ready_in": null
+  },
+  {
+   "text": "我的战斗",
+   "normalize_text": "我的战斗",
+   "split_ellipsis": [
+    "我的战斗",
+    false
+   ],
+   "with_game_ellipsis": "我的战斗",
+   "strip_noise": "我的战斗",
+   "fold": "我的战斗",
+   "clean_stored_name": "我的战斗",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "我的收景",
+   "normalize_text": "我的收景",
+   "split_ellipsis": [
+    "我的收景",
+    false
+   ],
+   "with_game_ellipsis": "我的收景",
+   "strip_noise": "我的收景",
+   "fold": "我的收景",
+   "clean_stored_name": "我的收景",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "角色认乐",
+   "normalize_text": "角色认乐",
+   "split_ellipsis": [
+    "角色认乐",
+    false
+   ],
+   "with_game_ellipsis": "角色认乐",
+   "strip_noise": "角色认乐",
+   "fold": "角色认乐",
+   "clean_stored_name": "角色认乐",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "我的成",
+   "normalize_text": "我的成",
+   "split_ellipsis": [
+    "我的成",
+    false
+   ],
+   "with_game_ellipsis": "我的成",
+   "strip_noise": "我的成",
+   "fold": "我的成",
+   "clean_stored_name": "我的成",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "准备就绪：11/12",
+   "normalize_text": "准备就绪:11/12",
+   "split_ellipsis": [
+    "准备就绪:11/12",
+    false
+   ],
+   "with_game_ellipsis": "准备就绪:11/12",
+   "strip_noise": "准备就绪1112",
+   "fold": "准备就绪1112",
+   "clean_stored_name": "准备就绪1112",
+   "is_lobby_chrome": true,
+   "countdown_in": null,
+   "ready_in": 11
+  },
+  {
+   "text": "我的关系",
+   "normalize_text": "我的关系",
+   "split_ellipsis": [
+    "我的关系",
+    false
+   ],
+   "with_game_ellipsis": "我的关系",
+   "strip_noise": "我的关系",
+   "fold": "我的关系",
+   "clean_stored_name": "我的关系",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "准备案件还原",
+   "normalize_text": "准备案件还原",
+   "split_ellipsis": [
+    "准备案件还原",
+    false
+   ],
+   "with_game_ellipsis": "准备案件还原",
+   "strip_noise": "准备案件还原",
+   "fold": "准备案件还原",
+   "clean_stored_name": "准备案件还原",
+   "is_lobby_chrome": true,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "你憋给我哇哇叫",
+   "normalize_text": "你憋给我哇哇叫",
+   "split_ellipsis": [
+    "你憋给我哇哇叫",
+    false
+   ],
+   "with_game_ellipsis": "你憋给我哇哇叫",
+   "strip_noise": "你憋给我哇哇叫",
+   "fold": "你憋给我哇哇叫",
+   "clean_stored_name": "你憋给我哇哇叫",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "失败",
+   "normalize_text": "失败",
+   "split_ellipsis": [
+    "失败",
+    false
+   ],
+   "with_game_ellipsis": "失败",
+   "strip_noise": "失败",
+   "fold": "失败",
+   "clean_stored_name": "失败",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "分享",
+   "normalize_text": "分享",
+   "split_ellipsis": [
+    "分享",
+    false
+   ],
+   "with_game_ellipsis": "分享",
+   "strip_noise": "分享",
+   "fold": "分享",
+   "clean_stored_name": "分享",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "130",
+   "normalize_text": "130",
+   "split_ellipsis": [
+    "130",
+    false
+   ],
+   "with_game_ellipsis": "130",
+   "strip_noise": "130",
+   "fold": "130",
+   "clean_stored_name": "130",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  }
+ ],
+ "seats": [],
+ "entries": []
+}

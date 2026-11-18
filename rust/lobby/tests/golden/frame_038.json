@@ -1,0 +1,226 @@
+{
+ "frame": 38,
+ "width": 1920,
+ "height": 1080,
+ "lines": [
+  {
+   "text": "美团淘宝闪购码：662233",
+   "confidence": 0.9938271641731262,
+   "box": [
+    0.0,
+    7.5,
+    636.0,
+    72.0
+   ]
+  },
+  {
+   "text": "干饭口羊口羊bilibii",
+   "confidence": 0.8200040459632874,
+   "box": [
+    1495.5,
+    31.5,
+    1891.5,
+    99.0
+   ]
+  },
+  {
+   "text": "推演成功",
+   "confidence": 0.9964070916175842,
+   "box": [
+    780.0,
+    91.5,
+    1140.0,
+    201.0
+   ]
+  },
+  {
+   "text": "自由假面",
+   "confidence": 0.9920827746391296,
+   "box": [
+    871.5,
+    205.5,
+    1048.5,
+    255.0
+   ]
+  },
+  {
+   "text": "倒计时18秒",
+   "confidence": 0.9947050213813782,
+   "box": [
+    834.0,
+    255.0,
+    1084.5,
+    303.0
+   ]
+  },
+  {
+   "text": "准备就绪：9/12",
+   "confidence": 0.9872000217437744,
+   "box": [
+    835.5,
+    790.5,
+    1084.5,
+    837.0
+   ]
+  },
+  {
+   "text": "准备案件还原",
+   "confidence": 0.9213003516197205,
+   "box": [
+    852.0,
+    870.0,
+    1066.5,
+    916.5
+   ]
+  },
+  {
+   "text": "鱼镒：祝莉莉生日快乐",
+   "confidence": 0.8869861364364624,
+   "box": [
+    657.0,
+    1036.5,
+    1006.5,
+    1069.5
+   ]
+  }
+ ],
+ "anchor": {
+  "found": false,
+  "reason": "没找到「推演成功」大厅",
+  "countdown_seconds": null,
+  "ready_count": 9,
+  "scale": 0.0,
+  "name_boxes": [],
+  "button_box": null,
+  "title_box": null,
+  "mode_box": null,
+  "countdown_box": null
+ },
+ "contains_title": true,
+ "ready_strip": null,
+ "game_screen": null,
+ "texts": [
+  {
+   "text": "美团淘宝闪购码：662233",
+   "normalize_text": "美团淘宝闪购码:662233",
+   "split_ellipsis": [
+    "美团淘宝闪购码:662233",
+    false
+   ],
+   "with_game_ellipsis": "美团淘宝闪购码:662233",
+   "strip_noise": "美团淘宝闪购码662233",
+   "fold": "美团淘宝闪购码662233",
+   "clean_stored_name": "美团淘宝闪购码662233",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "干饭口羊口羊bilibii",
+   "normalize_text": "干饭口羊口羊bilibii",
+   "split_ellipsis": [
+    "干饭口羊口羊bilibii",
+    false
+   ],
+   "with_game_ellipsis": "干饭口羊口羊bilibii",
+   "strip_noise": "干饭口羊口羊bilibii",
+   "fold": "干饭口羊口羊bilibii",
+   "clean_stored_name": "干饭口羊口羊bilibii",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "推演成功",
+   "normalize_text": "推演成功",
+   "split_ellipsis": [
+    "推演成功",
+    false
+   ],
+   "with_game_ellipsis": "推演成功",
+   "strip_noise": "推演成功",
+   "fold": "推演成功",
+   "clean_stored_name": "推演成功",
+   "is_lobby_chrome": true,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "自由假面",
+   "normalize_text": "自由假面",
+   "split_ellipsis": [
+    "自由假面",
+    false
+   ],
+   "with_game_ellipsis": "自由假面",
+   "strip_noise": "自由假面",
+   "fold": "自由假面",
+   "clean_stored_name": "自由假面",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "倒计时18秒",
+   "normalize_text": "倒计时18秒",
+   "split_ellipsis": [
+    "倒计时18秒",
+    false
+   ],
+   "with_game_ellipsis": "倒计时18秒",
+   "strip_noise": "倒计时18秒",
+   "fold": "倒计时18秒",
+   "clean_stored_name": "倒计时18秒",
+   "is_lobby_chrome": true,
+   "countdown_in": 18,
+   "ready_in": null
+  },
+  {
+   "text": "准备就绪：9/12",
+   "normalize_text": "准备就绪:9/12",
+   "split_ellipsis": [
+    "准备就绪:9/12",
+    false
+   ],
+   "with_game_ellipsis": "准备就绪:9/12",
+   "strip_noise": "准备就绪912",
+   "fold": "准备就绪912",
+   "clean_stored_name": "准备就绪912",
+   "is_lobby_chrome": true,
+   "countdown_in": null,
+   "ready_in": 9
+  },
+  {
+   "text": "准备案件还原",
+   "normalize_text": "准备案件还原",
+   "split_ellipsis": [
+    "准备案件还原",
+    false
+   ],
+   "with_game_ellipsis": "准备案件还原",
+   "strip_noise": "准备案件还原",
+   "fold": "准备案件还原",
+   "clean_stored_name": "准备案件还原",
+   "is_lobby_chrome": true,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "鱼镒：祝莉莉生日快乐",
+   "normalize_text": "鱼镒:祝莉莉生日快乐",
+   "split_ellipsis": [
+    "鱼镒:祝莉莉生日快乐",
+    false
+   ],
+   "with_game_ellipsis": "鱼镒:祝莉莉生日快乐",
+   "strip_noise": "鱼镒祝莉莉生日快乐",
+   "fold": "鱼镒祝莉莉生日快乐",
+   "clean_stored_name": "鱼镒祝莉莉生日快乐",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  }
+ ],
+ "seats": [],
+ "entries": []
+}
