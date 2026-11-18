@@ -2,9 +2,9 @@
 
     python tools/lobby_corpus.py <video, space or list URL> [--max-videos N] [--per-video N]
 
-One video at a time: download it with yt-dlp (no login, best quality offered), sample a frame every few seconds,
-keep the frames where the lobby title 推演成功 is on screen, keep the sharpest frame of each distinct lobby, save it
-whole as JPEG into tests/lobby_corpus/<video-id>_<seconds>.jpg, add it to index.json, and delete the video.
+One video part at a time, streamed and never saved (no login, best quality offered): read a 480p stream every few
+seconds for the lobby title 推演成功, then take the frames around each lobby from the best stream by seeking, keep the
+sharpest, and save it whole as JPEG into tests/lobby_corpus/<video-id>_<seconds>.jpg with a line in index.json.
 
 Needs yt-dlp, opencv-python-headless, rapidocr-onnxruntime and ffmpeg. RapidOCR only decides whether a frame shows a
 lobby; the reference reading of the names is Paddle's, made elsewhere. Real player names in these frames stay in
@@ -15,10 +15,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -29,6 +29,7 @@ CORPUS = ROOT / "tests" / "lobby_corpus"
 STEP_S = 3.0  # the lobby countdown shows for 10 s or more, so a 3 s step sees each lobby several times
 GAP_S = 20.0  # hits closer than this are the same lobby
 DETECT_WIDTH = 640
+WORKERS = 3
 TITLE = "推演成功"
 TITLE_HINTS = ("模仿者狂欢", "准备就绪", "12人狂欢")
 
@@ -57,15 +58,19 @@ def lobby_texts(texts: list[str]) -> bool:
 
 
 def shows_lobby(rgb: np.ndarray) -> bool:
-    """Read the top half of a whole frame, small, and look for the lobby's title lines."""
+    """Read the top of a whole frame, small, and look for the lobby's title lines."""
     import cv2
 
     height, width = rgb.shape[:2]
-    scale = DETECT_WIDTH / width
-    small = cv2.resize(rgb, (DETECT_WIDTH, max(1, round(height * scale))), interpolation=cv2.INTER_AREA)
-    top = small[: int(small.shape[0] * 0.6)]
+    if width != DETECT_WIDTH:
+        rgb = cv2.resize(rgb, (DETECT_WIDTH, max(1, round(height * DETECT_WIDTH / width))), interpolation=cv2.INTER_AREA)
+    top = rgb[: int(rgb.shape[0] * 0.6)]
     result, _ = _engine()(cv2.cvtColor(top, cv2.COLOR_RGB2BGR))
     return lobby_texts([line[1] for line in result or []])
+
+
+def _check(item: tuple[float, np.ndarray]) -> tuple[float, bool]:
+    return item[0], shows_lobby(item[1])
 
 
 def sharpness(rgb: np.ndarray) -> float:
@@ -96,24 +101,43 @@ def group_hits(hits: list[Hit], gap: float = GAP_S) -> list[Hit]:
     return best
 
 
-def _probe(path: Path) -> tuple[int, int, float]:
+@dataclass
+class Source:
+    where: str  # a local file or a stream URL
+    width: int
+    height: int
+
+
+def local(path: Path) -> Source:
     out = subprocess.run(
-        ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height:format=duration",
-         "-of", "json", str(path)],
+        ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "json",
+         str(path)],
         capture_output=True, text=True, check=True,
     ).stdout
-    info = json.loads(out)
-    stream = info["streams"][0]
-    return int(stream["width"]), int(stream["height"]), float(info["format"]["duration"])
+    stream = json.loads(out)["streams"][0]
+    return Source(str(path), int(stream["width"]), int(stream["height"]))
 
 
-def frames(path: Path, step: float, start: float = 0.0, length: float | None = None):
-    """Yield (seconds, rgb) every `step` seconds, decoded by ffmpeg at full resolution."""
-    width, height, _ = _probe(path)
-    cmd = ["ffmpeg", "-v", "error", "-ss", f"{start:.3f}"]
+def _input(source: Source) -> list[str]:
+    """ffmpeg's input options: a Bilibili stream needs the Referer, and ffmpeg takes the proxy only when told."""
+    if not source.where.startswith("http"):
+        return []
+    args = ["-headers", "Referer: https://www.bilibili.com/\r\n", "-user_agent", "Mozilla/5.0", "-reconnect", "1"]
+    proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
+    return args + (["-http_proxy", proxy] if proxy else [])
+
+
+def frames(source: Source, step: float, start: float = 0.0, length: float | None = None, width_to: int = 0):
+    """Yield (seconds, rgb) every `step` seconds, decoded by ffmpeg at full resolution or `width_to` wide."""
+    width, height, scale = source.width, source.height, ""
+    if width_to:
+        height = round(height * width_to / width / 2) * 2
+        width = width_to
+        scale = f",scale={width}:{height}"
+    cmd = ["ffmpeg", "-v", "error", *_input(source), "-ss", f"{start:.3f}"]
     if length is not None:
         cmd += ["-t", f"{length:.3f}"]
-    cmd += ["-i", str(path), "-vf", f"fps=1/{step}", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
+    cmd += ["-i", source.where, "-vf", f"fps=1/{step}{scale}", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
     size = width * height * 3
     with subprocess.Popen(cmd, stdout=subprocess.PIPE) as proc:
         index = 0
@@ -125,18 +149,43 @@ def frames(path: Path, step: float, start: float = 0.0, length: float | None = N
             index += 1
 
 
-def find_lobbies(path: Path, step: float = STEP_S) -> list[Hit]:
-    """Coarse pass every `step` s, then a 1 s pass around each lobby to pick its sharpest frame."""
-    coarse = [Hit(t, 0.0, np.empty(0)) for t, rgb in frames(path, step) if shows_lobby(rgb)]
-    lobbies = group_hits(coarse)
-    found = []
-    for lobby in lobbies:
-        span = [h.seconds for h in coarse if abs(h.seconds - lobby.seconds) <= GAP_S * 2]
-        start = max(0.0, min(span) - step)
-        fine = [Hit(t, sharpness(rgb), rgb.copy()) for t, rgb in frames(path, 1.0, start, max(span) - start + step)
-                if shows_lobby(rgb)]
-        if fine:
-            found.append(max(fine, key=lambda h: h.sharp))
+def grab(source: Source, seconds: float) -> np.ndarray | None:
+    """One whole frame at `seconds`: a seek, so a stream sends only the part around it."""
+    cmd = ["ffmpeg", "-v", "error", *_input(source), "-ss", f"{seconds:.3f}", "-i", source.where, "-frames:v", "1",
+           "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
+    raw = subprocess.run(cmd, capture_output=True, timeout=120).stdout
+    size = source.width * source.height * 3
+    return np.frombuffer(raw[:size], np.uint8).reshape(source.height, source.width, 3) if len(raw) >= size else None
+
+
+def find_lobbies(scan: Source, full: Source | None = None, step: float = STEP_S, picks: int = 8) -> list[Hit]:
+    """Find lobbies on `scan` (small) every `step` s, then every 1 s around each; take up to `picks` of those
+    seconds from `full` (the best quality) and keep the sharpest that still shows the lobby."""
+    from multiprocessing import Pool
+
+    full = full or scan
+    with Pool(WORKERS) as pool:
+        checked = pool.imap(_check, frames(scan, step, width_to=DETECT_WIDTH), chunksize=4)
+        coarse = [Hit(t, 0.0, np.empty(0)) for t, hit in checked if hit]
+        found = []
+        for lobby in group_hits(coarse):
+            span = [h.seconds for h in coarse if abs(h.seconds - lobby.seconds) <= GAP_S * 2]
+            start = max(0.0, min(span) - step)
+            fine = pool.map(_check, frames(scan, 1.0, start, max(span) - start + step, width_to=DETECT_WIDTH))
+            seconds = [t for t, hit in fine if hit]
+            if not seconds:
+                continue
+            chosen = [seconds[round(i * (len(seconds) - 1) / max(1, picks - 1))] for i in range(min(picks, len(seconds)))]
+            best = None
+            for t in sorted(set(chosen)):
+                rgb = grab(full, t)
+                if rgb is None or not shows_lobby(rgb):
+                    continue
+                hit = Hit(t, sharpness(rgb), rgb)
+                if best is None or hit.sharp > best.sharp:
+                    best = hit
+            if best is not None:
+                found.append(best)
     return found
 
 
@@ -162,7 +211,50 @@ def _ytdlp(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run([exe, *args], capture_output=True, text=True)
 
 
+def _series(url: str) -> list[dict] | None:
+    """A space series list (space.bilibili.com/<mid>/lists/<id>?type=series), newest first as the page shows it,
+    read from api.bilibili.com: yt-dlp would fetch space.bilibili.com, which the network may not allow."""
+    import re
+
+    found = re.search(r"space\.bilibili\.com/(\d+)/lists/(\d+)", url)
+    if not found or "type=season" in url:
+        return None
+    mid, series = found.groups()
+    api = f"https://api.bilibili.com/x/series/archives?mid={mid}&series_id={series}&pn=1&ps=100&sort=desc"
+    archives = _get_json(api)["data"]["archives"]
+    return [{"id": a["bvid"], "url": f"https://www.bilibili.com/video/{a['bvid']}", "title": a["title"]}
+            for a in archives]
+
+
+def _get_json(url: str) -> dict:
+    import urllib.request
+
+    request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return json.load(response)
+
+
+def parts(video: dict) -> list[dict]:
+    """A stream replay is one BV with several parts (p=1, 2, ...): one entry per part."""
+    import re
+
+    found = re.search(r"(BV[0-9A-Za-z]{10})", video["url"])
+    if not found:
+        return [video]
+    out = _ytdlp("--flat-playlist", "-J", f"https://www.bilibili.com/video/{found.group(1)}")
+    if out.returncode:
+        raise RuntimeError(out.stderr.strip()[-800:])
+    pages = json.loads(out.stdout).get("entries") or []
+    if len(pages) <= 1:
+        return [video]
+    return [{"id": f"{video['id']}_p{n}", "url": f"https://www.bilibili.com/video/{found.group(1)}?p={n}",
+             "title": f"{video['title']} P{n}"} for n in range(1, len(pages) + 1)]
+
+
 def list_videos(url: str) -> list[dict]:
+    series = _series(url)
+    if series is not None:
+        return series
     out = _ytdlp("--flat-playlist", "-J", url)
     if out.returncode:
         raise SystemExit(out.stderr.strip()[-800:])
@@ -172,37 +264,46 @@ def list_videos(url: str) -> list[dict]:
             for e in entries]
 
 
-def download(url: str, folder: Path) -> tuple[Path, dict]:
-    out = _ytdlp("-f", "bv*", "--no-playlist", "--print-json", "--no-simulate", "-o", str(folder / "%(id)s.%(ext)s"),
-                 url)
-    if out.returncode:
-        raise RuntimeError(out.stderr.strip()[-800:])
-    info = json.loads(out.stdout.strip().splitlines()[-1])
-    return Path(info.get("_filename") or info["filename"]), info
+def streams(url: str, tries: int = 8) -> tuple[Source, Source, dict]:
+    """The scan stream (the smallest H.264 at 480p or more) and the full one (the largest H.264), both on a CDN
+    host that serves them: the akamaized mirror refuses with 403, so ask again until both are elsewhere."""
+    for _ in range(tries):
+        out = _ytdlp("-J", "--no-playlist", url)
+        if out.returncode:
+            raise RuntimeError(out.stderr.strip()[-800:])
+        info = json.loads(out.stdout)
+        videos = [f for f in info.get("formats", []) if f.get("vcodec", "none").startswith("avc1") and f.get("height")]
+        if not videos:
+            raise RuntimeError("no H.264 video stream")
+        full = max(videos, key=lambda f: (f["height"], f.get("tbr") or 0))
+        scan = min((f for f in videos if f["height"] >= 480), key=lambda f: f["height"], default=full)
+        if not any("akamaized" in f["url"] for f in (full, scan)):
+            info["full_format"] = full
+            return (Source(scan["url"], scan["width"], scan["height"]), Source(full["url"], full["width"], full["height"]),
+                    info)
+    raise RuntimeError("only the akamaized mirror was offered")
 
 
-def process(url: str, per_video: int) -> int:
+def process(video: dict, per_video: int) -> int:
+    url, vid = video["url"], video["id"]
     entries = load_index()
-    done_ids = {e["video_id"] for e in entries}
-    with tempfile.TemporaryDirectory(prefix="lobby_dl_") as tmp:
-        video, info = download(url, Path(tmp))
-        vid = info["id"]
-        if vid in done_ids:
-            print(f"{vid}: already in the corpus")
-            return 0
-        width, height, duration = _probe(video)
-        print(f"{vid}: {width}x{height}, {duration / 60:.0f} min, {info.get('title')}", flush=True)
-        lobbies = find_lobbies(video)
-        lobbies = sorted(lobbies, key=lambda h: h.seconds)[:per_video] if per_video else lobbies
-        CORPUS.mkdir(parents=True, exist_ok=True)
-        for hit in lobbies:
-            name = f"{vid}_{int(hit.seconds)}.jpg"
-            save_jpeg(hit.frame, CORPUS / name)
-            entries.append({"file": name, "video_id": vid, "source_url": info.get("webpage_url") or url,
-                            "title": info.get("title"), "seconds": int(hit.seconds),
-                            "resolution": f"{width}x{height}", "format": info.get("format_id")})
-            print(f"  lobby at {int(hit.seconds)} s -> {name}", flush=True)
-        save_index(entries)
+    if vid in {e["video_id"] for e in entries}:
+        print(f"{vid}: already in the corpus")
+        return 0
+    scan, full, info = streams(url)
+    print(f"{vid}: {full.width}x{full.height}, {(info.get('duration') or 0) / 60:.0f} min, {video.get('title')}",
+          flush=True)
+    lobbies = find_lobbies(scan, full)
+    lobbies = sorted(lobbies, key=lambda h: h.seconds)[:per_video] if per_video else lobbies
+    CORPUS.mkdir(parents=True, exist_ok=True)
+    for hit in lobbies:
+        name = f"{vid}_{int(hit.seconds)}.jpg"
+        save_jpeg(hit.frame, CORPUS / name)
+        entries.append({"file": name, "video_id": vid, "source_url": url, "title": video.get("title") or info.get("title"),
+                        "seconds": int(hit.seconds), "resolution": f"{full.width}x{full.height}",
+                        "format": info["full_format"].get("format_id")})
+        print(f"  lobby at {int(hit.seconds)} s -> {name}", flush=True)
+    save_index(entries)
     return len(lobbies)
 
 
@@ -214,10 +315,11 @@ def main() -> None:
     args = parser.parse_args()
     total = 0
     for video in list_videos(args.url)[: args.max_videos]:
-        try:
-            total += process(video["url"], args.per_video)
-        except RuntimeError as error:
-            print(f"{video['id']}: failed: {error}", flush=True)
+        for part in parts(video):
+            try:
+                total += process(part, args.per_video)
+            except RuntimeError as error:
+                print(f"{part['id']}: failed: {error}", flush=True)
     print(f"{total} lobbies saved")
 
 
