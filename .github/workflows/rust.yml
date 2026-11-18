@@ -48,7 +48,7 @@ jobs:
       - name: Cache OpenCV (Windows)
         if: runner.os == 'Windows'
         id: opencv-cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: C:\opencv-static
           key: opencv-${{ env.OPENCV_VERSION }}-static-ipp-mt-v1
@@ -73,6 +73,11 @@ jobs:
           grep -iE 'IPP|Parallel framework|CPU/HW|Linker flags \(Release\)|C\+\+ flags \(Release\)' cmake.log
           cmake --build cvbuild --target install
           find /c/opencv-static -name '*.lib' | xargs ls -la
+      - uses: actions/cache/save@v4
+        if: runner.os == 'Windows' && steps.opencv-cache.outputs.cache-hit != 'true'
+        with:
+          path: C:\opencv-static
+          key: opencv-${{ env.OPENCV_VERSION }}-static-ipp-mt-v1
       - name: Point the opencv crate at it (Windows)
         if: runner.os == 'Windows'
         run: |
@@ -84,6 +89,9 @@ jobs:
             echo 'OPENCV_INCLUDE_PATHS=C:\opencv-static\include'
             echo 'LIBCLANG_PATH=C:\Program Files\LLVM\bin'
             echo 'RUSTFLAGS=-C target-feature=+crt-static'
+            # Images with Visual Studio 18 (MSVC 14.52) ship an STL that rejects the runner's older libclang, which
+            # the opencv crate parses the headers with: "STL1000: Unexpected compiler version, expected Clang 22".
+            echo 'OPENCV_CLANG_ARGS=-D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH'
           } | tee -a "$GITHUB_ENV"
 
       # Golden data from the Python side (opencv-python 4.10 with IPP), and onnxruntime.dll for ort's load-dynamic.
