@@ -163,6 +163,10 @@ pub enum NoticeKind {
 
 /// The corner message (app/src/notices).
 pub trait Notice {
+    /// The 黑名单 players and 嘉宾 of the result about to be shown (the cards name them).
+    fn people(&mut self, _result: &CheckResult, _likes: &[String]) {}
+    /// One turn of the window's timer.
+    fn tick(&mut self) {}
     fn show(&mut self, kind: NoticeKind);
     fn hide(&mut self);
 }

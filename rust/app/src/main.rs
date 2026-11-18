@@ -15,6 +15,7 @@ use std::rc::Rc;
 use std::time::Duration;
 
 mod cli;
+mod corner_port;
 
 // The UI areas, each its own package's; the shell's MainWindow takes their pages.
 // stub: shell (the pages are put into MainWindow by the next wiring round)
@@ -155,7 +156,8 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
     let keys = keys(&store, &log);
     let first_run = store.first_run();
     let store = Rc::new(RefCell::new(store));
-    let parts = assemble(&store, install.as_deref(), &log, seed());
+    let mut parts = assemble(&store, install.as_deref(), &log, seed());
+    parts.ports.notice = Box::new(corner_port::CornerPort::new());
     let tray_visible = parts.tray.visible();
     // The real app's run is the only one that makes a sound (ui_music.allow_sound).
     sound::allow_sound();

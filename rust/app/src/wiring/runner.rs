@@ -163,6 +163,7 @@ impl Runner {
         }
         self.flow.ports.scenes.tick();
         self.flow.ports.overlay.tick();
+        self.flow.ports.notice.tick();
         let mut asks = Vec::new();
         while let Ok(action) = self.tray_actions.try_recv() {
             match life::on_tray(action) {

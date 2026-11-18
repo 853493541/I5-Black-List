@@ -311,6 +311,7 @@ impl Flow {
         }
         let unclear = result.names.iter().filter(|slot| slot.unclear).count();
         if self.mode.safe {
+            self.ports.notice.people(result, &likes);
             self.ports.notice.show(NoticeKind::Result { hits: result.hits.len(), unclear });
             self.say(format!("Check {} shown: the corner message (基础模式).", self.check_number));
         }
