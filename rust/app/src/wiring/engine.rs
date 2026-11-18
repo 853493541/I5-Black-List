@@ -59,12 +59,14 @@ pub struct PipelineChecker {
     pub lists: SharedLists,
     /// Where the screen copy's (0, 0) is on the virtual desktop.
     pub origin: fn() -> (i32, i32),
+    /// Hears the button's box as soon as a check finds the lobby, before it reads the names.
+    pub placed: Option<std::sync::mpsc::Sender<Rect>>,
     loaded: Option<pipeline::Checker>,
 }
 
 impl PipelineChecker {
     pub fn new(library: PathBuf, models: Option<pipeline::ModelDirs>, threads: usize, lists: SharedLists) -> Self {
-        PipelineChecker { library, models, threads, lists, origin: desktop_origin, loaded: None }
+        PipelineChecker { library, models, threads, lists, origin: desktop_origin, placed: None, loaded: None }
     }
 
     fn checker(&mut self) -> Result<&mut pipeline::Checker, CheckError> {
@@ -113,7 +115,13 @@ impl Checker for PipelineChecker {
         let lists = self.lists.lock().unwrap_or_else(PoisonError::into_inner).clone();
         let mats = frames.iter().map(mat).collect::<Result<Vec<_>, _>>()?;
         let origin = (self.origin)();
-        let found = self.checker()?.check(&mats, &lists.blacklist, &lists.likes, None).map_err(failed)?;
+        let placed = self.placed.clone();
+        let mut tell = move |button: lobby::PxBox| {
+            if let Some(placed) = &placed {
+                let _ = placed.send(desktop_rect(px(button), origin));
+            }
+        };
+        let found = self.checker()?.check(&mats, &lists.blacklist, &lists.likes, Some(&mut tell)).map_err(failed)?;
         Ok(convert(&found, &lists, origin))
     }
 

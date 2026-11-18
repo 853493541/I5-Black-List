@@ -161,6 +161,9 @@ impl Flow {
         if self.quick_until.is_some_and(|until| now >= until) {
             self.end_quick();
         }
+        if self.panel_shown {
+            self.ports.overlay.follow();
+        }
         if !self.watching() || now < self.glance_pause_until || self.ports.scenes.covers_screen() || self.busy {
             return None;
         }
@@ -180,6 +183,10 @@ impl Flow {
         self.busy = true;
         self.check_started = Some(now);
         if !self.rescan {
+            if let (true, Some((_, button))) = (self.panel_shown, self.last_game) {
+                // The marks up turn into 检查中 at once.
+                self.ports.overlay.checking(button);
+            }
             self.status = Status::Checking;
             if self.mode.safe {
                 self.ports.notice.show(NoticeKind::Checking);
@@ -354,6 +361,14 @@ impl Flow {
             self.played = Some(greeting);
         }
         self.say(format!("Check {} shown: {look:?}.", self.check_number));
+    }
+
+    /// The check found the lobby and its button, before reading the names (_on_lobby_placed): 检查中 on it.
+    pub fn lobby_placed(&mut self, button: Rect) {
+        if !self.live || !self.busy || self.mode.target().is_none() {
+            return;
+        }
+        self.ports.overlay.checking(button);
     }
 
     /// Everything over the game comes down (_hide_panel_after_title).

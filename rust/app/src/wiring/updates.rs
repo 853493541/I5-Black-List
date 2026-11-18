@@ -93,6 +93,16 @@ mod tests {
     }
 
     #[test]
+    fn a_download_that_fails_says_so_and_stages_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let release = Release { version: "9.9.9".into(), url: "a.zip".into(), size: 10, ..Release::default() };
+        let events = install(release, dir.path().join("data"), dir.path().join("app"), Box::new(|| Box::new(Missing)));
+        let said: Vec<Install> = events.iter().collect();
+        assert!(matches!(said.last(), Some(Install::Failed(_))), "{said:?}");
+        assert!(!dir.path().join("app").join("update.new").exists());
+    }
+
+    #[test]
     fn one_look_at_a_time_and_no_release_is_no_offer() {
         let dir = tempfile::tempdir().unwrap();
         let mut update = NetUpdate::new("1.0.0", dir.path().to_path_buf(), Box::new(|| Box::new(Missing)));
@@ -103,4 +113,45 @@ mod tests {
         assert!(update.check(), "done: the next look may start");
         assert_eq!(wait(&mut update), Ok(None));
     }
+}
+
+/// What the download of an update says as it goes (ui_update's worker signals).
+#[derive(Debug, Clone, PartialEq)]
+pub enum Install {
+    /// Bytes got of the whole.
+    Progress(i64, i64),
+    /// Downloaded and laid out in the install folder's update.new: restart into it.
+    Staged,
+    Failed(UpdateError),
+}
+
+/// Downloads `release` into `<data>/updates` and stages it in the release folder, on a thread of its own.
+pub fn install(release: Release, data_root: PathBuf, install_root: PathBuf, connect: Connect) -> Receiver<Install> {
+    let (sender, events) = channel();
+    let _ = std::thread::Builder::new().name("UpdateDownload".into()).spawn(move || {
+        let mut http = connect();
+        let progress_to = sender.clone();
+        let mut progress = move |got: i64, total: i64| {
+            let _ = progress_to.send(Install::Progress(got, total));
+        };
+        let folder = data_root.join("updates");
+        let done = data::update::fetch::download(&release, &folder, Some(&mut progress), http.as_mut(), &data_root)
+            .and_then(|zip| data::update::stage::stage(&zip, &install_root, &release.version));
+        let _ = sender.send(match done {
+            Ok(_) => Install::Staged,
+            Err(error) => Install::Failed(error),
+        });
+    });
+    events
+}
+
+/// Starts the launcher, which waits for this app to end, lays the update over and opens it (restart_into_update).
+pub fn restart_into_update(install_root: &std::path::Path, background: bool) -> bool {
+    let Some(launcher) = common::names::launcher_in(install_root) else { return false };
+    let mut command = std::process::Command::new(launcher);
+    command.args(["--wait-pid", &std::process::id().to_string()]).current_dir(install_root);
+    if background {
+        command.arg("--background");
+    }
+    command.env_clear().envs(common::paths::child_env()).spawn().is_ok()
 }

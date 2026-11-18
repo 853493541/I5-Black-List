@@ -143,6 +143,10 @@ fn summary_and_export_match_python_byte_for_byte() {
     let logs = data::logs::log_dir(&dir.path().join("root"));
     std::fs::create_dir_all(&logs).unwrap();
     for (name, text) in export["files"].as_object().unwrap() {
+        // Windows drops a name's trailing dot: "app.log." would overwrite app.log. It cannot exist there.
+        if cfg!(windows) && name.ends_with('.') {
+            continue;
+        }
         std::fs::write(logs.join(name), text.as_str().unwrap()).unwrap();
     }
     let account = Account { home: export["home"].as_str().unwrap().into(), user: export["user"].as_str().unwrap().into(), short: String::new() };
