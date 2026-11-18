@@ -10,9 +10,10 @@ dictionary. A challenger changes only the step that runs the network: inside eac
 runs the same weights converted to ONNX (paddle2onnx). Everything before and after it is PaddleX's
 own code, so a difference in a name can only come from the engine.
 
-app-onnxruntime is the app's own switch (BLACKLIST_DETECT_ENGINE=onnxruntime): PaddleX builds the
-predictors on its ONNX Runtime runner, with no paddlepaddle needed. Where Paddle is not installed, give
-it --reference (paddle.json from a run where it was) and --onnx-models (the onnx_models folder that run made).
+app-onnxruntime is the app's own switch (BLACKLIST_DETECT_ENGINE=onnxruntime): blacklist_detect/onnx_ocr.py,
+PaddleX's steps ported, on ONNX Runtime, with no Paddle, PaddleX or PaddleOCR needed. Where Paddle is not
+installed, give it --reference (paddle.json from a run where it was) and --onnx-models (the onnx_models
+folder that run made).
 
 Pass rule: an engine passes only if every name on every image is identical to Paddle's. One
 difference is a fail.
@@ -43,8 +44,10 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".bmp", ".webp")
 CHALLENGERS = ("onnxruntime", "openvino")
-# The app's own ONNX Runtime mode (BLACKLIST_DETECT_ENGINE=onnxruntime): PaddleX's runner, no Paddle needed.
+# The app's own ONNX Runtime reader (BLACKLIST_DETECT_ENGINE=onnxruntime): no Paddle, PaddleX or PaddleOCR.
 APP_ONNX = "app-onnxruntime"
+# How far a name's confidence may be from Paddle's; reported beside the verdict.
+CONFIDENCE_TOLERANCE = 1e-4
 PASS_RULE = "An engine passes only if every name on every image is identical to Paddle's. One difference = fail."
 # The Windows wheels each engine adds, for the size table (Python 3.12, win_amd64, without dependencies).
 WHEELS = {
@@ -421,7 +424,8 @@ def summary(report: dict) -> str:
                          f"vs {diff['other']!r} ({diff['other_confidence']}): {'; '.join(diff['edits'])}")
         drift = [abs(a - b) for image in entry["confidence"] for _text, a, b in image]
         if drift:
-            lines.append(f"  confidence: largest difference from paddle {max(drift):.6f}")
+            within = "within" if max(drift) <= CONFIDENCE_TOLERANCE else "OUTSIDE"
+            lines.append(f"  confidence: largest difference from paddle {max(drift):.6f}, {within} {CONFIDENCE_TOLERANCE:g}")
     return "\n".join(lines)
 
 

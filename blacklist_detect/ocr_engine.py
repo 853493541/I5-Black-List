@@ -93,47 +93,18 @@ ENGINES = ("paddle", "onnxruntime")
 def ocr_backend() -> str:
     """What runs the models: Paddle (the default), or ONNX Runtime when BLACKLIST_DETECT_ENGINE says so.
 
-    ONNX Runtime runs the same models converted with paddle2onnx (an inference.onnx beside each
-    model's inference.yml) through PaddleX's own pre- and post-processing, with no paddlepaddle
+    ONNX Runtime runs the same models converted with paddle2onnx (an inference.onnx beside each model's
+    inference.yml) through onnx_ocr, a port of PaddleX's own steps, with no Paddle, PaddleX or PaddleOCR
     installed. tools/engine_bench.py checks that it reads every name exactly as Paddle does."""
     value = os.environ.get("BLACKLIST_DETECT_ENGINE", "").strip().lower()
     return value if value in ENGINES else "paddle"
 
 
-def engine_kwargs(backend: str) -> dict:
-    """The engine arguments PaddleOCR takes for this backend; none for Paddle, which keeps its defaults."""
-    if backend != "onnxruntime":
-        return {}
-    config: dict = {}
-    threads = os.environ.get("PADDLE_PDX_CPU_NUM_THREADS", "")
-    if threads.isdigit() and int(threads) > 0:
-        config["intra_op_num_threads"] = int(threads)
-    return {"engine": "onnxruntime", "engine_config": config, "device": "cpu"}
-
-
-def flush_denormals() -> bool:
-    """Have every ONNX Runtime session PaddleX makes treat denormal numbers as zero. PP-OCRv6_medium_rec's
-    activations go denormal, and computed exactly they made a check five times slower (3.6 s against
-    0.7 s); the names read the same either way. PaddleX's runner offers no setting for it."""
-    try:
-        from paddlex.inference.models.runners.onnxruntime_runner import ONNXRuntimeRunner
-    except ImportError:
-        return False
-    build = getattr(ONNXRuntimeRunner, "_build_session_options", None)
-    if build is None:
-        log.warning("PaddleX's ONNX Runtime runner changed: denormals are not flushed, reading is slower")
-        return False
-    if getattr(build, "flushes_denormals", False):
-        return True
-
-    def flushing(self):  # noqa: ANN001, ANN202
-        options = build(self)
-        options.add_session_config_entry("session.set_denormal_as_zero", "1")
-        return options
-
-    flushing.flushes_denormals = True
-    ONNXRuntimeRunner._build_session_options = flushing
-    return True
+def _pipeline_of(engine):  # noqa: ANN001, ANN202
+    """The part of the reader that holds the two models: PaddleOCR's inner PaddleX pipeline, or onnx_ocr's."""
+    if hasattr(engine, "text_det_model"):
+        return engine
+    return getattr(getattr(engine, "paddlex_pipeline", None), "_pipeline", None)
 
 
 class OcrUnavailable(RuntimeError):
@@ -299,7 +270,7 @@ class OcrEngine:
         """Read text lines already cut out (BGR), without looking for them first. None when the
         reader cannot do that; the caller then does without."""
         engine = self._ensure()
-        inner = getattr(getattr(engine, "paddlex_pipeline", None), "_pipeline", None)
+        inner = _pipeline_of(engine)
         rec = getattr(inner, "text_rec_model", None)
         if rec is None:
             return None
@@ -316,7 +287,7 @@ class OcrEngine:
         cannot be done this way; the caller then reads everything.
         """
         engine = self._ensure()
-        inner = getattr(getattr(engine, "paddlex_pipeline", None), "_pipeline", None)
+        inner = _pipeline_of(engine)
         det = getattr(inner, "text_det_model", None)
         rec = getattr(inner, "text_rec_model", None)
         sort_boxes = getattr(inner, "_sort_boxes", None)
@@ -382,7 +353,7 @@ class OcrEngine:
         does, so a line that is read gives the same text as the full read.
         """
         engine = self._ensure()
-        inner = getattr(getattr(engine, "paddlex_pipeline", None), "_pipeline", None)
+        inner = _pipeline_of(engine)
         det = getattr(inner, "text_det_model", None)
         rec = getattr(inner, "text_rec_model", None)
         sort_boxes = getattr(inner, "_sort_boxes", None)
@@ -454,6 +425,9 @@ class OcrEngine:
     def _ensure(self):
         if self._ocr is not None:
             return self._ocr
+        if self.backend == "onnxruntime":
+            self._ocr = _onnx_part("pipeline")
+            return self._ocr
         # Skip the host check once weights are on disk. A missing model still errors clearly.
         silence_console_children()
         os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
@@ -470,10 +444,8 @@ class OcrEngine:
             "text_detection_model_name": "PP-OCRv5_mobile_det",
             "text_recognition_model_name": "PP-OCRv5_mobile_rec",
             "text_recognition_batch_size": 16,
+            "device": inference_device(),
         }
-        kwargs.update(engine_kwargs(self.backend) or {"device": inference_device()})
-        if self.backend == "onnxruntime":
-            flush_denormals()
         det, rec = model_dirs()
         if det and rec:
             kwargs["text_detection_model_dir"] = str(paddle_safe_dir(det))
@@ -492,6 +464,9 @@ class OcrEngine:
     def _ensure_name_rec(self):
         if self._name_rec is not None:
             return self._name_rec
+        if self.backend == "onnxruntime":
+            self._name_rec = _onnx_part("names")
+            return self._name_rec
         silence_console_children()
         os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
         os.environ.setdefault("FLAGS_use_mkldnn", "0")
@@ -501,9 +476,10 @@ class OcrEngine:
             log.warning("PaddleOCR TextRecognition could not be imported", exc_info=True)
             raise OcrUnavailable("识别功能没装好，重新解压一遍安装包") from exc
         try:
-            name_kwargs: dict = {"model_name": "PP-OCRv6_medium_rec", **(engine_kwargs(self.backend) or {"device": inference_device()})}
-            if self.backend == "onnxruntime":
-                flush_denormals()
+            name_kwargs: dict = {
+                "model_name": "PP-OCRv6_medium_rec",
+                "device": inference_device(),
+            }
             local_rec = bundled_model("PP-OCRv6_medium_rec")
             if local_rec is not None:
                 name_kwargs["model_dir"] = str(paddle_safe_dir(local_rec))
@@ -515,6 +491,26 @@ class OcrEngine:
             log.warning("The PP-OCRv6 name recognition model did not load", exc_info=True)
             raise OcrUnavailable("识别功能没装好，重新解压一遍安装包") from exc
         return self._name_rec
+
+
+def _onnx_part(part: str):  # noqa: ANN202
+    """The ONNX Runtime line reader ("pipeline") or name reader ("names"), or OcrUnavailable as the Paddle path raises it."""
+    try:
+        from blacklist_detect.onnx_ocr import OnnxOcr, TextRecognizer
+
+        if part == "pipeline":
+            det, rec = model_dirs()
+            if det is None or rec is None:
+                raise FileNotFoundError("no detection and recognition model folders")
+            return OnnxOcr(det, rec)
+        folder = bundled_model("PP-OCRv6_medium_rec")
+        if folder is None:
+            raise FileNotFoundError("no PP-OCRv6_medium_rec folder")
+        return TextRecognizer(folder, batch_size=12)
+    except Exception as exc:
+        # For whoever reads the log: each model folder needs inference.onnx and inference.yml.
+        log.warning("The ONNX Runtime models did not load", exc_info=True)
+        raise OcrUnavailable("识别功能没装好，重新解压一遍安装包") from exc
 
 
 def get_engine() -> OcrEngine:

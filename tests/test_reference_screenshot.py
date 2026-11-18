@@ -1,14 +1,19 @@
-"""Read the reference lobby. Needs the local PaddleOCR Chinese model."""
+"""Read the reference lobby. Needs the local PaddleOCR Chinese model, or its ONNX copy with
+BLACKLIST_DETECT_ENGINE=onnxruntime."""
 
+import importlib.util
 from pathlib import Path
 
 import pytest
 
 from blacklist_detect.model import Entry
+from blacklist_detect.ocr_engine import ocr_backend
 from blacklist_detect.pipeline import check_image
 
 # CI has no Paddle and no models. The release build runs this check on the bundled runtime instead.
-pytest.importorskip("paddleocr", reason="PaddleOCR is not installed")
+READER = "onnxruntime" if ocr_backend() == "onnxruntime" else "paddleocr"
+if importlib.util.find_spec(READER) is None:
+    pytest.skip(f"{READER} is not installed", allow_module_level=True)
 
 FIXTURE = Path(__file__).parent / "fixtures" / "reference-lobby.png"
 
