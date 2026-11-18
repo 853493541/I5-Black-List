@@ -134,7 +134,7 @@ def _engines_here() -> bool:
 def test_reference_lobby_reads_the_same_on_every_engine(tmp_path, capsys, monkeypatch):
     # The tool sets these for its own run; they go back after the test.
     for name in ("APPDATA", "PADDLE_PDX_CPU_NUM_THREADS", "PADDLE_PDX_MODEL_SOURCE"):
-        monkeypatch.setenv(name, os.environ.get(name, ""))
+        monkeypatch.delenv(name, raising=False)
     assert main([str(FIXTURE), str(tmp_path), "--repeat", "1"]) == 0
     text = capsys.readouterr().out
     assert "onnxruntime: PASS, names identical 12/12" in text
