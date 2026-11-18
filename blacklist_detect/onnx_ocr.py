@@ -42,11 +42,17 @@ def session(model_dir: Path):  # noqa: ANN201
     """An ONNX Runtime session for the model in this folder, on the CPU."""
     import onnxruntime as ort
 
+    from blacklist_detect.paths import ocr_threads
+
     options = ort.SessionOptions()
     options.log_severity_level = 3
+    # The app's own count, as Paddle gets it (paths.ocr_threads): one per core, never the whole CPU beside the
+    # game. A measurement sets the same count for every engine through PADDLE_PDX_CPU_NUM_THREADS.
     threads = os.environ.get("PADDLE_PDX_CPU_NUM_THREADS", "")
-    if threads.isdigit() and int(threads) > 0:
-        options.intra_op_num_threads = int(threads)
+    options.intra_op_num_threads = int(threads) if threads.isdigit() and int(threads) > 0 else int(ocr_threads())
+    options.inter_op_num_threads = 1
+    # Between reads the threads sleep instead of spinning: a spinning pool keeps cores busy after a check is done.
+    options.add_session_config_entry("session.intra_op.allow_spinning", "0")
     # PP-OCRv6_medium_rec's activations go denormal; computed exactly, they made a check five times slower.
     options.add_session_config_entry("session.set_denormal_as_zero", "1")
     return ort.InferenceSession(str(model_dir / "inference.onnx"), options, providers=["CPUExecutionProvider"])
