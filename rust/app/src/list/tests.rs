@@ -172,7 +172,7 @@ fn every_state_renders() {
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| std::env::temp_dir().join(format!("list-render-{}", std::process::id())));
     let sizes = render(&dir, &[("normal", false), ("empty", false), ("stress", false), ("normal", true)], 1.5).unwrap();
-    assert_eq!(sizes, [(1350, 732); 4]);
+    assert_eq!(sizes, [(1350, 751); 4]);
     for name in ["rust-normal.png", "rust-empty.png", "rust-stress.png", "rust-normal-dark.png"] {
         assert!(dir.join(name).metadata().unwrap().len() > 10_000, "{name}");
     }

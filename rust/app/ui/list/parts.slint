@@ -28,13 +28,14 @@ export component Glyph inherits Rectangle {
         viewbox-height: 24;
         stroke: tone;
         stroke-width: line;
+        stroke-line-cap: round;
         fill: transparent;
         commands: name == "search"
             ? "M10.5 4 A6.5 6.5 0 1 0 10.5 17 A6.5 6.5 0 1 0 10.5 4 M15.3 15.3 L20 20"
             : name == "add"
             ? "M12 5 L12 19 M5 12 L19 12"
             : name == "more"
-            ? "M5.5 11.4 L5.5 12.6 M12 11.4 L12 12.6 M18.5 11.4 L18.5 12.6"
+            ? "M5.5 11.6 L5.5 12.4 M12 11.6 L12 12.4 M18.5 11.6 L18.5 12.4"
             : name == "users"
             ? "M9 4 A3.6 3.6 0 1 0 9 11.2 A3.6 3.6 0 1 0 9 4 M2.5 20 C2.5 15.6 5.4 13.6 9 13.6 C12.6 13.6 15.5 15.6 15.5 20 M15.5 4.4 A3.2 3.2 0 0 1 15.5 10.8 M17.8 13.9 C20.2 14.6 21.5 16.6 21.5 20"
             : name == "eye"
@@ -62,13 +63,17 @@ export component Pill inherits Rectangle {
     in property <color> wash;
     in property <Palette> p;
     in property <bool> dark;
+    // The most the pill may take; longer words end in an ellipsis (TagListDelegate's elidedText).
+    in property <length> room: 10000px;
     height: 21px;
-    width: words.preferred-width + 18px;
+    width: min(words.preferred-width, room - 18px) + 18px;
     border-radius: self.height / 2;
     background: active ? wash : dark ? ListInk.pill-off-bg-dark : ListInk.pill-off-bg-light;
     border-width: active ? 0px : 1px;
     border-color: dark ? ListInk.pill-off-line-dark : ListInk.pill-off-line-light;
     words := Text {
+        width: min(self.preferred-width, room - 18px);
+        overflow: elide;
         text: label;
         font-size: 12px;
         font-weight: 600;
@@ -101,7 +106,7 @@ export component IconButton inherits Rectangle {
     height: 32px;
     border-radius: 6px;
     background: touch.has-hover ? p.hover : transparent;
-    Glyph { name: icon; tone: touch.has-hover ? p.text : p.muted; size: 18px; }
+    Glyph { name: icon; tone: touch.has-hover ? p.text : p.muted; size: 18px; line: icon == "more" ? 2.6px : 1.6px; }
     touch := TouchArea { mouse-cursor: pointer; clicked => { root.clicked(); } }
 }
 

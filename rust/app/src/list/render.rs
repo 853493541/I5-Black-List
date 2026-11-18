@@ -21,7 +21,7 @@ pub const SEATS: [&str; 12] =
     ["小林同学", "白日梦想家", "路过的猫", "一只团子", "夏天的风", "心动小鹿", "晚风吹过", "摸鱼大师", "示例坏人", "心动星星", "柠檬汽水", "棉花糖"];
 
 /// The page's logical size inside the 900 x 560 window: the window less the header and the page margins.
-pub const SIZE: (u32, u32) = (900, 488);
+pub const SIZE: (u32, u32) = (900, 501);
 
 struct Headless(Rc<MinimalSoftwareWindow>);
 

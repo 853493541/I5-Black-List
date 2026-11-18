@@ -5,6 +5,8 @@
 import { ListView } from "std-widgets.slint";
 import { Palette, Light, Dark } from "../theme.slint";
 import { Pill, Button, IconButton, Glyph, Field, MenuItem, MenuLine, MenuCard } from "parts.slint";
+import { TagSideRow, HeaderCell, TagRow } from "cells.slint";
+export { TagRow }
 
 export struct ListRow {
     index: int,
@@ -16,95 +18,6 @@ export struct ListRow {
     met-known: bool,
 }
 
-export struct TagRow { tag: string, count: int }
-
-component TagSideRow inherits Rectangle {
-    in property <TagRow> tag-row;
-    in property <bool> chosen;
-    in property <Palette> p;
-    in property <color> wash;
-    in property <bool> dark;
-    callback picked();
-    callback edit();
-    callback menu(length, length);
-    height: 34px;
-    border-radius: 6px;
-    background: chosen ? p.selected : touch.has-hover ? p.hover : transparent;
-    if tag-row.tag == "": Text {
-        x: 12px;
-        vertical-alignment: center;
-        height: parent.height;
-        text: "全部";
-        font-size: 14px;
-        color: p.text;
-    }
-    if tag-row.tag != "": Pill {
-        x: 12px;
-        label: tag-row.tag;
-        wash: wash;
-        p: p;
-        dark: dark;
-        max-width: parent.width - 12px - 44px;
-    }
-    if tag-row.tag != "" && touch.has-hover: Glyph {
-        x: parent.width - 12px - 16px;
-        name: "pencil";
-        tone: p.muted;
-        line: 1.4px;
-    }
-    if !(tag-row.tag != "" && touch.has-hover) && tag-row.count > 0: Text {
-        x: parent.width - 12px - self.width;
-        height: parent.height;
-        vertical-alignment: center;
-        text: tag-row.count;
-        font-size: 12px;
-        color: p.muted;
-    }
-    touch := TouchArea {
-        mouse-cursor: pointer;
-        pointer-event(event) => {
-            if event.kind == PointerEventKind.down && event.button == PointerEventButton.right {
-                root.menu(self.mouse-x, self.mouse-y);
-            }
-        }
-        clicked => {
-            if tag-row.tag != "" && self.mouse-x > parent.width - 36px { root.edit(); } else { root.picked(); }
-        }
-        double-clicked => { if tag-row.tag != "" { root.edit(); } }
-    }
-}
-
-component HeaderCell inherits Rectangle {
-    in property <string> label;
-    in property <bool> sorted;
-    in property <bool> up;
-    in property <bool> eye;
-    in property <bool> eye-off;
-    in property <bool> eye-locked;
-    in property <Palette> p;
-    callback clicked();
-    callback eye-clicked();
-    words := Text {
-        x: 12px;
-        height: parent.height;
-        vertical-alignment: center;
-        text: label;
-        font-size: 14px;
-        font-weight: 600;
-        color: p.muted;
-    }
-    if sorted: Glyph { x: words.x + words.width + 4px; name: up ? "up" : "down"; tone: p.muted; size: 14px; }
-    touch := TouchArea { clicked => { root.clicked(); } }
-    if eye: Rectangle {
-        x: parent.width - 34px;
-        width: 26px;
-        height: 26px;
-        border-radius: 6px;
-        background: eye-touch.has-hover && !eye-locked ? p.hover : transparent;
-        Glyph { name: eye-off ? "eye-off" : "eye"; tone: p.muted; opacity: eye-locked ? 0.5 : 1; }
-        eye-touch := TouchArea { enabled: !eye-locked; clicked => { root.eye-clicked(); } }
-    }
-}
 
 // What Rust fills the page with and what the page asks of Rust (src/list/bind.rs); the window that shows ListPage
 // carries it.
@@ -168,6 +81,12 @@ export component ListPage inherits Rectangle {
     property <string> search <=> ListData.search;
     out property <length> table-width: table.width;
     changed table-width => { ListData.table-width = self.table-width; }
+    init => { ListData.table-width = table.width; }
+    // 原因 takes what the others leave (ui._FLEX_COLUMN); Rust has already narrowed the others to fit.
+    function col-width(column: int) -> length {
+        if column == 2 { return max(72px, table.width - 2px - widths[0] - widths[1] - widths[3]); }
+        return widths[column];
+    }
     property <int> hover: -1;
     property <int> menu-index: -1;
     property <length> menu-x;
@@ -179,7 +98,10 @@ export component ListPage inherits Rectangle {
     background: p.bg;
 
     HorizontalLayout {
-        padding: 16px;
+        padding-left: 24px;
+        padding-right: 24px;
+        padding-top: 12px;
+        padding-bottom: 24px;
         spacing: 12px;
         // 标签 beside the list, as wide as 记录's list of records.
         side := VerticalLayout {
@@ -253,10 +175,9 @@ export component ListPage inherits Rectangle {
         }
         VerticalLayout {
             spacing: 12px;
-            HorizontalLayout {
+            if count > 0 || search != "": HorizontalLayout {
                 height: 32px;
                 spacing: 8px;
-                visible: count > 0 || search != "";
                 Field {
                     max-width: 360px;
                     horizontal-stretch: 1;
@@ -279,13 +200,18 @@ export component ListPage inherits Rectangle {
             table := Rectangle {
                 vertical-stretch: 1;
                 border-radius: 8px;
+                border-width: rows.length > 0 ? 1px : 0px;
+                border-color: p.border;
                 background: rows.length > 0 ? p.surface : transparent;
                 clip: true;
                 if rows.length > 0: VerticalLayout {
+                    padding: 1px;
                     HorizontalLayout {
-                        height: 36px;
-                        for column in column-order: HeaderCell {
-                            width: widths[column];
+                        height: 38px;
+                        for column[place] in column-order: HeaderCell {
+                            width: col-width(column);
+                            first: place == 0;
+                            background: p.hover;
                             label: column == 0 ? "名字" : column == 1 ? "标签" : column == 2 ? "原因" : "最近遇到";
                             sorted: column == sort-column;
                             up: sort-up;
@@ -297,18 +223,19 @@ export component ListPage inherits Rectangle {
                             eye-clicked => { ListData.eye(!names-hidden); }
                         }
                     }
-                    Rectangle { height: 1px; background: p.border; }
                     list := ListView {
                         for row[i] in rows: Rectangle {
                             height: 40px;
                             background: i == hover ? p.hover : transparent;
+                            width: col-width(0) + col-width(1) + col-width(2) + col-width(3);
+                            Rectangle { y: parent.height - 1px; height: 1px; background: p.border; }
                             HorizontalLayout {
                                 for column in column-order: Rectangle {
-                                    width: widths[column];
+                                    width: col-width(column);
                                     clip: true;
                                     if column == 0 || column == 2 || column == 3: Text {
-                                        x: 12px;
-                                        width: parent.width - 24px;
+                                        x: 14px;
+                                        width: parent.width - 26px;
                                         height: parent.height;
                                         vertical-alignment: center;
                                         overflow: elide;
@@ -317,7 +244,7 @@ export component ListPage inherits Rectangle {
                                         color: column == 3 && !row.met-known ? p.muted : p.text;
                                     }
                                     if column == 1: HorizontalLayout {
-                                        padding-left: 12px;
+                                        padding-left: 5px;
                                         spacing: 6px;
                                         alignment: start;
                                         for tag in row.tags: Pill { y: (40px - 21px) / 2; label: tag; wash: p.red-wash; p: p; dark: dark; }
@@ -348,10 +275,10 @@ export component ListPage inherits Rectangle {
                     spacing: 0px;
                     HorizontalLayout {
                         alignment: center;
-                        Glyph { name: count > 0 ? "search" : "users"; size: 48px; tone: p.muted; line: 1.2px; }
+                        Glyph { name: count > 0 ? "search" : "users"; size: 34px; tone: p.muted; line: 1.4px; }
                     }
                     Rectangle { height: 12px; }
-                    Text { horizontal-alignment: center; text: empty-text; font-size: 16px; color: p.text; }
+                    Text { horizontal-alignment: center; text: empty-text; font-size: 20px; color: p.text; }
                     if count == 0: Rectangle { height: 22px; }
                     if count == 0: HorizontalLayout {
                         alignment: center;
@@ -448,6 +375,6 @@ export component ListPage inherits Rectangle {
 export component ListWindow inherits Window {
     in property <bool> dark;
     preferred-width: 900px;
-    preferred-height: 488px;
+    preferred-height: 501px;
     ListPage { dark: dark; }
 }

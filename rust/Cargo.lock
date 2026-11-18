@@ -107,9 +107,16 @@ checksum = "940b3a0ca603d1eade50a4846a2afffd5ef57a9feac2c0e2ec2e14f9ead76000"
 name = "app"
 version = "0.1.0"
 dependencies = [
+ "caseless",
+ "chrono",
+ "data",
+ "lobby",
+ "pinyin",
  "png 0.17.16",
+ "serde_json",
  "slint",
  "slint-build",
+ "unicode-normalization",
 ]
 
 [[package]]
@@ -3663,6 +3670,12 @@ name = "pin-weak"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b330c9d1b92dfe68442ca20b009c717d5f0b1e3cf4965e62f704c3c6e95a1305"
+
+[[package]]
+name = "pinyin"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16f2611cd06a1ac239a0cea4521de9eb068a6ca110324ee00631aa68daa74fc0"
 
 [[package]]
 name = "piper"
