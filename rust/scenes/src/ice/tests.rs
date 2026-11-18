@@ -32,7 +32,7 @@ fn matches_the_python_frames() {
     let scene = Ice::sample(1920.0, 1080.0);
     // No Vulkan, Metal or DX12 driver at all: nothing to test here.
     let Ok(gpu) = Renderer::new(&scene, lobby.as_raw()) else { return };
-    for (t, floor) in [(1.5, 40.0), (2.0, 40.0)] {
+    for (t, floor) in [(1.5, 45.0), (2.0, 45.0)] {
         gpu.render(&scene.paint(t));
         let ours = RgbaImage::from_raw(1920, 1080, gpu.read()).expect("frame");
         let theirs = image::open(dir.join(format!("ice/py_t{t:.1}.png"))).expect("python frame").to_rgba8();

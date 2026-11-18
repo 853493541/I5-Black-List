@@ -29,6 +29,9 @@ fn main() -> Result<(), String> {
         gpu.render(&scene.paint(t));
         let ours = RgbaImage::from_raw(W, H, gpu.read()).ok_or("short read")?;
         let theirs = image::open(dir.join(format!("py_t{t:.1}.png"))).map_err(|e| e.to_string())?.to_rgba8();
+        if std::env::var_os("ICE_SAVE_RUST").is_some() {
+            ours.save(dir.join(format!("rust_t{t:.1}.png"))).map_err(|e| e.to_string())?;
+        }
         let (mean, over8, over32, psnr) = compare(&ours, &theirs);
         println!("| {t:.1} s | {mean:.2}/255 | {over8:.2} % | {over32:.3} % | {psnr:.1} dB |");
         side_by_side(&theirs, &ours).save(dir.join(format!("side_t{t:.1}.png"))).map_err(|e| e.to_string())?;
