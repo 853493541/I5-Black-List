@@ -21,3 +21,12 @@ pub mod lace;
 pub mod classic;
 pub mod claw;
 pub mod neon;
+
+/// The overlay's look for a scene key: a scene that draws its own marks brings its look (lyre), the
+/// rest are ui_overlay.LOOKS' (overlay::look_for).
+pub fn look(key: &str) -> overlay::Look {
+    match key {
+        "lyre" => lyre::hook::look(),
+        _ => overlay::look_for(key),
+    }
+}
