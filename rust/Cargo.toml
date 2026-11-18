@@ -1,0 +1,10 @@
+[workspace]
+resolver = "2"
+members = ["ocr", "lobby", "data", "win", "scenes"]
+
+[workspace.package]
+edition = "2021"
+license = "UNLICENSED"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
