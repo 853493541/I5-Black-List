@@ -55,10 +55,18 @@ def crosscheck(private: Path, out: Path) -> None:
         paddle = json.loads((private / "eb" / "paddle.json").read_text(encoding="utf-8"))
         rust = json.loads((private / "rust.json").read_text(encoding="utf-8"))
         v101 = json.loads((private / "python.json").read_text(encoding="utf-8"))
+        # Matched by file name: engine_bench sorts its own way, so position alone says nothing.
+        rust_files = json.loads((private / "rust-files.json").read_text(encoding="utf-8"))
+        v101_files = json.loads((private / "python-files.json").read_text(encoding="utf-8"))
         rows = []
         for f, read in enumerate(paddle[:3]):
             ref = [n["text"] for n in read["names"]]
-            for label, other in (("rust", rust[f]), ("v101", v101[f])):
+            image = Path(read["image"]).name
+            for label, names, files in (("rust", rust, rust_files), ("v101", v101, v101_files)):
+                if image not in files:
+                    rows.append({"frame": f, "vs": label, "seats": len(ref), "same": None})
+                    continue
+                other = names[files.index(image)]
                 same = sum(a == b for a, b in zip(ref, other, strict=False))
                 rows.append({"frame": f, "vs": label, "seats": max(len(ref), len(other)), "same": same})
         result = {"rows": rows}
@@ -112,7 +120,8 @@ def bench(name: str, out: Path, command: list[str]) -> None:
     proc = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=sys.stderr, env=_env(),
                             text=True, encoding="utf-8", errors="replace")
     ps = psutil.Process(proc.pid)
-    frames, raw, rss10, cpu_start, rss_ready, peak = [], [], None, None, None, 0
+    frames, raw, files, rss10, cpu_start, rss_ready, peak = [], [], [], None, None, None, 0
+    file = ""
     started = time.perf_counter()
     for line in proc.stdout:
         line = line.rstrip("\n")
@@ -123,12 +132,17 @@ def bench(name: str, out: Path, command: list[str]) -> None:
             continue
         if line == "DONE":
             break
+        if line.startswith("FILE\t"):
+            file = line[5:]
+            continue
         parts = line.split("\t")
         if len(parts) < 3 or not re.fullmatch(r"[\d.]+", parts[0]):
             continue
         names = parts[3:]
         raw.append(names)
+        files.append(file)
         frames.append({
+            "file": _hash(file, 16),
             "ms": float(parts[0]),
             "header": parts[1] == "1",
             "hits": [int(i) for i in parts[2].split(",") if i.strip().isdigit()],
@@ -161,6 +175,7 @@ def bench(name: str, out: Path, command: list[str]) -> None:
         # The names read, for the made-up 黑名单 only: a folder on the runner that is never uploaded.
         Path(private).mkdir(parents=True, exist_ok=True)
         (Path(private) / f"{name}.json").write_text(json.dumps(raw, ensure_ascii=False), encoding="utf-8")
+        (Path(private) / f"{name}-files.json").write_text(json.dumps(files, ensure_ascii=False), encoding="utf-8")
     print({k: v for k, v in result.items() if k != "frames"})
 
 
@@ -320,10 +335,15 @@ def _difference(left, right) -> dict:
             "same_size": same, "mean": round(mean, 1), "over24": round(over * 100, 1)}
 
 
+def _aligned(a: dict, b: dict) -> bool:
+    """Both runs read the same files in the same order (each frame line follows its file's name, hashed)."""
+    return [f.get("file") for f in a.get("frames", [])] == [f.get("file") for f in b.get("frames", [])]
+
+
 def _same(a: dict, b: dict) -> tuple[int, int, int, int]:
     """Frames with identical names, frames compared, seats identical, seats compared."""
     af, bf = a.get("frames", []), b.get("frames", [])
-    if not af or len(af) != len(bf):
+    if not af or len(af) != len(bf) or not _aligned(a, b):
         return 0, 0, 0, 0
     frames = sum(x["names"] == y["names"] for x, y in zip(af, bf, strict=True))
     seats = total = 0
@@ -337,7 +357,8 @@ def _same(a: dict, b: dict) -> tuple[int, int, int, int]:
 def _names_rows(label: str, base: dict, rust: dict) -> list[str]:
     frames, count, seats, total = _same(base, rust)
     if not count:
-        return [f"| Names vs {label} | not comparable ({len(base.get('frames', []))} vs {len(rust.get('frames', []))} frames) | |"]
+        why = "the frames came in another order" if not _aligned(base, rust) else "frame counts differ"
+        return [f"| Names vs {label} | not comparable: {why} ({len(base.get('frames', []))} vs {len(rust.get('frames', []))}) | |"]
     head = sum(x["header"] == y["header"] for x, y in zip(base["frames"], rust["frames"], strict=True))
     rows = [f"| Names identical per lobby, vs {label} | {frames} of {count} | seats identical {seats} of {total}; "
             f"lobby found the same {head} of {count} |"]
@@ -351,7 +372,7 @@ def _names_rows(label: str, base: dict, rust: dict) -> list[str]:
 def _seat_breakdown(py: dict, rust: dict, picked: dict, py_list: dict, rust_list: dict) -> list[str]:
     """Rust against v1.0.1 seat by seat, and whether both mark the same players on a made-up 黑名单."""
     pf, rf = py.get("frames", []), rust.get("frames", [])
-    if not pf or len(pf) != len(rf):
+    if not pf or len(pf) != len(rf) or not _aligned(py, rust):
         return []
     same = norm = empty = 0
     real = []
@@ -424,7 +445,7 @@ def report(results: Path, out: Path) -> None:
               f"| Memory after all frames / peak | {cell(pb.get('rss_end_mb'))} / {cell(pb.get('rss_peak_mb'), ' MB')} | "
               f"{cell(rb.get('rss_end_mb'))} / {cell(rb.get('rss_peak_mb'), ' MB')} |",
               f"| Corpus frames checked | {cell(pb.get('count'))} | {cell(rb.get('count'))} |",
-              f"| Time per lobby, median / mean | {cell(pb.get('median_ms'))} / {cell(round(pb['mean_ms'], 1) if pb.get('mean_ms') else None, ' ms')} | "
+              f"| Time per lobby (each a first check: whole-frame search), median / mean | {cell(pb.get('median_ms'))} / {cell(round(pb['mean_ms'], 1) if pb.get('mean_ms') else None, ' ms')} | "
               f"{cell(rb.get('median_ms'))} / {cell(round(rb['mean_ms'], 1) if rb.get('mean_ms') else None, ' ms')} |",
               f"| CPU time, whole corpus (wall) | {cell(pb.get('cpu_s'), ' s')} ({cell(pb.get('wall_s'), ' s')}) | "
               f"{cell(rb.get('cpu_s'), ' s')} ({cell(rb.get('wall_s'), ' s')}) |"]
@@ -436,8 +457,10 @@ def report(results: Path, out: Path) -> None:
     if v101.exists():
         lines += ["", "## What v1.0.1 read with on this runner", "", "```",
                   *v101.read_text(encoding="utf-8").splitlines()[:30], "```", "",
-                  "Both apps get the 85 frames in file-name order, whole frames (each finds the lobby itself), and list "
-                  "seats in seat-index order (CheckResult.names), not reading order."]
+                  "Both apps get whole frames in code-point file-name order (each finds the lobby itself, as a first "
+                  "check does: no spot kept from the frame before), and list seats in seat-index order "
+                  "(CheckResult.names). Same files in the same order, checked by each line's file-name hash: "
+                  f"v1.0.1 {'yes' if _aligned(pb, rb) else 'NO'}, Python on ONNX Runtime {'yes' if _aligned(ob, rb) else 'NO'}."]
     cc = _load(results / "crosscheck.json")
     if cc:
         lines += ["", "Cross-check, tools/engine_bench.py (Paddle read path, same Paddle models) on the first 3 frames: "
@@ -512,6 +535,8 @@ def gate(results: Path) -> None:
     ob = _load(results / "bench-python-onnx.json")
     if ob.get("count") != corpus:
         problems.append(f"Python on ONNX Runtime read {ob.get('count')} of {corpus} lobbies")
+    elif rb.get("count") == corpus and not _aligned(ob, rb):
+        problems.append("Rust and Python on ONNX Runtime read the frames in different orders")
     elif rb.get("count") == corpus:
         frames, count, _, _ = _same(ob, rb)
         if frames != count:

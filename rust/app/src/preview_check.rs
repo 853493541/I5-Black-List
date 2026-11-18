@@ -4,7 +4,8 @@
 //! - `--shots <dir>`: every page and dialog drawn without a display, with ui_shots' made-up data, at the Windows
 //!   scale in `BLACKLIST_DETECT_SCALE` (1.25 for 125 %, default 1.5), saved as `<dir>/<name>.png` under
 //!   tools/ui_shots.py's names (page_记录, dlg_添加黑名单, ...), so the check can put each beside Python's.
-//! - `--bench-check <dir> [<list>]`: every .jpg in `<dir>` read by one checker, in name order, one line each on stdout
+//! - `--bench-check <dir> [<list>]`: every .jpg in `<dir>` read by one checker as a first check reads it (no spot kept),
+//!   in code-point name order, a `FILE\t<file name>` line and then one line each on stdout
 //!   (`<ms>\t<header 0/1>\t<seats flagged, comma-separated>\t<seat names, tab-separated>`), then `DONE`; the process waits for a line on stdin before it
 //!   ends, so the harness can read its CPU time and memory first.
 
@@ -122,6 +123,8 @@ pub fn bench(dir: &Path, list: Option<&Path>) -> Result<(), Box<dyn std::error::
         let bgr = opencv::imgcodecs::imdecode(&bytes, opencv::imgcodecs::IMREAD_COLOR)?;
         let mut rgb = opencv::core::Mat::default();
         opencv::imgproc::cvt_color_def(&bgr, &mut rgb, opencv::imgproc::COLOR_BGR2RGB)?;
+        checker.spot = None;
+        println!("FILE\t{}", image.file_name().map(|name| name.to_string_lossy()).unwrap_or_default());
         let start = Instant::now();
         let result = checker.check(&[rgb], &blacklist, &[], None).map_err(|e| e.to_string())?;
         let ms = start.elapsed().as_secs_f64() * 1000.0;
