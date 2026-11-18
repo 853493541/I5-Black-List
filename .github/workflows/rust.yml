@@ -153,7 +153,13 @@ jobs:
             echo '|---|---|---|'
             for exe in "$RUNNER_TEMP"/app/*.exe; do size "$(basename "$exe")" "$exe"; done
             size onnxruntime.dll "$REC_ORT_LIB"
-          } | tee "$RUNNER_TEMP/app/sizes.md" >> "$GITHUB_STEP_SUMMARY"
+          } > "$RUNNER_TEMP/app/sizes.md"
+          cat "$RUNNER_TEMP/app/sizes.md" | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with:
+          name: app-windows-release
+          path: ${{ runner.temp }}/app
       # The exe may import only DLLs a clean Windows 10 has (build/make_rust_release.py: SYSTEM_DLLS).
       - name: Import tables (Windows)
         if: runner.os == 'Windows'
@@ -171,11 +177,6 @@ jobs:
               bad += bool(foreign)
           sys.exit(bad)
           PY
-      - uses: actions/upload-artifact@v4
-        if: runner.os == 'Windows'
-        with:
-          name: app-windows-release
-          path: ${{ runner.temp }}/app
       - name: Test
         run: cargo test --workspace
       - name: Clippy
