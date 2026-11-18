@@ -92,10 +92,13 @@ fn psnr(a: &[f32], b: &[f32]) -> (f64, f64) {
 fn marks_match_python() {
     // Qt's metrics come from the face fontconfig puts first for Microsoft YaHei here (Inter), the glyphs from WenQuanYi.
     let inter = std::fs::read("/usr/share/fonts/opentype/inter/Inter-SemiBold.otf").ok();
-    let Some(face) = Face::system().map(|f| match inter { Some(b) => f.with_metrics(b), None => f }) else {
-        eprintln!("no Chinese face installed: parity skipped");
+    // The golden pictures were painted on Linux with these two faces; elsewhere (Windows: Microsoft YaHei) they do not apply.
+    let wqy = std::fs::read("/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc").ok().and_then(|b| Face::from_bytes(b, 0));
+    let (Some(face), Some(inter)) = (wqy, inter) else {
+        eprintln!("WenQuanYi Zen Hei and Inter not installed: parity skipped");
         return;
     };
+    let face = face.with_metrics(inter);
     let golden = root().join("golden");
     let lobby = image::open(root().join("../../blacklist_detect/assets/sample-lobby.jpg")).unwrap().to_rgba8();
     let shots = std::env::var_os("OVERLAY_SHOTS").is_some();
