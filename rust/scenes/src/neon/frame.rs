@@ -13,12 +13,14 @@ pub const LINE: u32 = 4;
 pub const RING: u32 = 5;
 pub const IMAGE: u32 = 6;
 pub const LOBBY: u32 = 7;
+/// A run of Plus under an opacity: Qt's d + o * min(s, 1 - d), the opacity in kind[2] (of 65535).
+pub const FADED: u8 = 2;
 
 /// One shape as the shader reads it (std430: 112 bytes).
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, Pod, Zeroable)]
 pub struct Prim {
-    /// shape, flags (1 smooth sampling), unused, unused.
+    /// shape, flags (1 smooth sampling), the opacity of a FADED run in 65535ths, unused.
     pub kind: [u32; 4],
     pub bbox: [f32; 4],
     pub s0: [f32; 4],
@@ -72,7 +74,8 @@ pub struct Frame<'a> {
     pub prims: Vec<Prim>,
     pub points: Vec<[f32; 2]>,
     /// Runs of prims: (first, end, added).
-    pub runs: Vec<(u32, u32, bool)>,
+    /// (first, end, how): 0 over, 1 Plus, 2 Plus under an opacity below 1 (FADED).
+    pub runs: Vec<(u32, u32, u8)>,
     /// painter.setOpacity: every alpha is multiplied by it.
     pub opacity: f64,
     pub plus: bool,
@@ -106,12 +109,15 @@ impl<'a> Frame<'a> {
             return;
         }
         let index = self.prims.len() as u32;
+        let faded = self.plus && self.opacity < 1.0;
+        let how = if faded { FADED } else { u8::from(self.plus) };
         match self.runs.last_mut() {
-            Some(run) if run.2 == self.plus && run.1 == index => run.1 += 1,
-            _ => self.runs.push((index, index + 1, self.plus)),
+            Some(run) if run.2 == how && run.1 == index => run.1 += 1,
+            _ => self.runs.push((index, index + 1, how)),
         }
+        let fade = if faded { (self.opacity.clamp(0.0, 1.0) * 65535.0).round() as u32 } else { 0 };
         let color = if kind == IMAGE { [0.0, 0.0, 0.0, a] } else { [color[0] * a, color[1] * a, color[2] * a, a] };
-        self.prims.push(Prim { kind: [kind, flags, 0, 0], bbox: f4(bbox[0], bbox[1], bbox[2], bbox[3]), s0: s[0], s1: s[1], s2: s[2], clip: f4(c[0], c[1], c[2], c[3]), color });
+        self.prims.push(Prim { kind: [kind, flags, fade, 0], bbox: f4(bbox[0], bbox[1], bbox[2], bbox[3]), s0: s[0], s1: s[1], s2: s[2], clip: f4(c[0], c[1], c[2], c[3]), color });
     }
 
     fn add_points(&mut self, points: &[Pt]) -> ([f32; 4], [f64; 4]) {

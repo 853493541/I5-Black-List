@@ -187,3 +187,13 @@ pub fn title_art(m: &TitleMask, u: f64, gold: [[f32; 3]; 3]) -> (Vec<u8>, Vec<u8
     let shine = rgb("#fffaf0");
     (picture(w, h, |i| color[i], &alpha), picture(w, h, |_| shine, &words))
 }
+
+impl TitleMask {
+    /// 心动嘉宾 as Qt set it (classic/title_mask.png and title.txt, written by classic/py_frames.py), built in.
+    pub fn built_in() -> Result<Self, String> {
+        let img = image::load_from_memory(include_bytes!("../../classic/title_mask.png")).map_err(|e| e.to_string())?.to_luma8();
+        let text_height = include_str!("../../classic/title.txt").trim().parse::<f64>().map_err(|e| e.to_string())?;
+        let words = img.pixels().map(|p| f32::from(p[0]) / 255.0).collect();
+        Ok(Self { w: img.width() as usize, h: img.height() as usize, words, text_height })
+    }
+}

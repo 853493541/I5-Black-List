@@ -146,6 +146,11 @@ impl Overlay {
         self.painter.set_still(gpu, frame);
     }
 
+    /// A frame the scene drew itself (`stage::scene::shoot`), set before `present`.
+    pub fn set_still_pixels(&self, gpu: &Gpu, rgba: &[u8]) {
+        self.painter.set_still_pixels(gpu, rgba);
+    }
+
     /// Shows the window, topmost, without taking focus (the first frame).
     pub fn show(&self) -> Result<(), String> {
         let [x, y, w, h] = self.area;

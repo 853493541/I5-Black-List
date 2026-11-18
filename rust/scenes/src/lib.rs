@@ -14,6 +14,7 @@ pub mod lyre;
 pub mod gpu;
 pub mod ice;
 pub mod prim;
+pub mod render;
 pub mod pyrand;
 pub mod stars;
 pub mod lace;

@@ -31,6 +31,8 @@ pub enum Blend {
     Plus,
     Atop,
     Out,
+    /// Plus under an opacity below 1, as Qt does it: d + o * min(s, 1 - d), read from a copy of the screen.
+    PlusFaded,
 }
 
 #[repr(C)]
@@ -47,6 +49,8 @@ pub struct Prim {
     pub clip: [f32; 4],
     pub xf: [f32; 4],
     pub xf2: [f32; 4],
+    /// x: the opacity of a PlusFaded shape (0 for every other).
+    pub fade: [f32; 4],
 }
 
 pub struct Run {
@@ -144,13 +148,18 @@ impl Canvas {
         p.bbox = f4(b[0], b[1], b[2], b[3]);
         p.clip = f4(c[0], c[1], c[2], c[3]);
         let n = self.prims.len() as u32;
-        let same = self.runs.last().is_some_and(|r| r.target == self.target && r.blend == self.blend && r.end == n) && !self.clear;
+        let mut blend = self.blend;
+        if blend == Blend::Plus && self.opacity < 1.0 && self.target == SCREEN {
+            blend = Blend::PlusFaded;
+            p.fade = [self.opacity as f32, 0.0, 0.0, 0.0];
+        }
+        let same = self.runs.last().is_some_and(|r| r.target == self.target && r.blend == blend && r.end == n) && !self.clear;
         if same {
             if let Some(r) = self.runs.last_mut() {
                 r.end += 1;
             }
         } else {
-            self.runs.push(Run { target: self.target, clear: self.clear, blend: self.blend, start: n, end: n + 1 });
+            self.runs.push(Run { target: self.target, clear: self.clear, blend, start: n, end: n + 1 });
             self.clear = false;
         }
         self.prims.push(p);
