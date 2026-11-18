@@ -21,6 +21,7 @@ pub struct Assembled {
     pub tray: Box<dyn Tray>,
     pub tray_actions: Receiver<TrayAction>,
     pub placed: Receiver<super::stubs::Rect>,
+    pub tester: (super::runner::MakeChecker, PathBuf),
 }
 
 /// The app's pictures and tunes: the release's blacklist_detect\assets, else beside the exe, else the source's.
@@ -45,6 +46,10 @@ pub fn assemble(store: &Rc<RefCell<Store>>, install: Option<&Path>, log: &AppLog
     let library = engine::ort_library(install);
     let dirs = pipeline::ModelDirs::find(&model_roots(install));
     log.info(&format!("OCR: runtime {}, models {}", library.display(), if dirs.is_some() { "found" } else { "missing" }));
+    let tester: super::runner::MakeChecker = {
+        let (library, dirs) = (library.clone(), dirs.clone());
+        Box::new(move || PipelineChecker::new(library.clone(), dirs.clone(), common::paths::ocr_threads(), SharedLists::default()))
+    };
     let mut checker = PipelineChecker::new(library, dirs, common::paths::ocr_threads(), lists);
     let (placed_sender, placed) = channel();
     checker.placed = Some(placed_sender);
@@ -58,7 +63,7 @@ pub fn assemble(store: &Rc<RefCell<Store>>, install: Option<&Path>, log: &AppLog
         player: Box::new(player),
         records: Box::new(StoreRecords::new(store.clone(), seed)),
     };
-    Assembled { ports, checker, before_check: Box::new(copy), tray: tray(sender, log), tray_actions, placed }
+    Assembled { ports, checker, before_check: Box::new(copy), tray: tray(sender, log), tray_actions, placed, tester: (tester, assets_dir(install)) }
 }
 
 #[cfg(windows)]
