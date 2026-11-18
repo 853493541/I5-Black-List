@@ -3,18 +3,22 @@
 //! scene works out once per pixel are worked out the same way here (`pics`, `light`, numpy's own
 //! generator in `npr`) and packed in an atlas; every frame is a list of shapes for `gfx`.
 
+mod bolt;
 pub mod canvas;
 mod frame;
 pub mod gfx;
 pub mod light;
 pub mod npr;
 mod pics;
+mod sparks;
 
 use canvas::{Canvas, Src, ATLAS, LOBBY, SCREEN, WASH};
 use gfx::Atlas;
 use pics::{dot, flash, frame_glow, night};
 
-use crate::draw::{ease_in, ease_out, win, Pt};
+use crate::draw::{ease_in, ease_out, hex, win, Pt};
+use bolt::{bolt_shapes, strike, strike_light, Shape, LEAD};
+use sparks::{heats, shower, spark_shower, Heat, Shower};
 
 pub const DURATION: f64 = 5.0;
 pub const DESIGN: (f64, f64) = (1635.0, 848.0);
@@ -46,6 +50,9 @@ pub struct Cyber {
     pub panels: [[f64; 4]; 2],
     pub pics: Pics,
     atlas: Atlas,
+    /// (when it lands, where from, where to, the panel struck), its two shapes and its shower.
+    strikes: Vec<(f64, Pt, Pt, usize, Vec<Shape>, Shower)>,
+    heats: Vec<Heat>,
 }
 
 /// _lay: a round glow laid on at x, y, r its radius, at alpha (the painter's whole opacity).
@@ -79,11 +86,30 @@ impl Cyber {
             night: atlas.add(&night(width, height, u, &panels)),
             flash: [atlas.add(&flash(width, height, gap, u, -1)), atlas.add(&flash(width, height, gap, u, 1))],
             glow: [atlas.add(&frame_glow(width, height, &outer, CYAN, u)), atlas.add(&frame_glow(width, height, &inner, MAGENTA, u))],
-            hot: atlas.add(&dot("#bff9ff", 1.0, 64)),
-            cyan: atlas.add(&dot(CYAN, 0.25, 64)),
-            violet: atlas.add(&dot(VIOLET, 0.0, 64)),
+            hot: atlas.add(&dot(hex("#bff9ff"), 1.0, 64)),
+            cyan: atlas.add(&dot(hex(CYAN), 0.25, 64)),
+            violet: atlas.add(&dot(hex(VIOLET), 0.0, 64)),
         };
-        Self { width, height, gap, u, outer, inner, panels, pics, atlas }
+        let names = [width * 0.13, height * 0.29, width * 0.81, height * 0.55];
+        let title = [width * 0.38, height * 0.07, width * 0.3, height * 0.18];
+        let wide = [gap[0] - 30.0 * u, gap[1] - 30.0 * u, gap[2] + 60.0 * u, gap[3] + 60.0 * u];
+        let (l, r) = (left, right);
+        let defs = [
+            (1.5, [width * 0.27, -height * 0.03], [l[0] + l[2], l[1] + l[3]], -2.2, 64, 1, 0),
+            (2.1, [width * 0.74, -height * 0.03], [r[0], r[1] + r[3]], -0.9, 64, 2, 1),
+            (2.75, [width, height * 0.62], [r[0] + r[2], r[1] + r[3]], -2.3, 74, 3, 1),
+            (3.3, [0.0, height * 0.6], [l[0], l[1] + l[3]], -0.8, 64, 4, 0),
+            (3.8, [width * 0.9, -height * 0.03], [r[0] + r[2], r[1]], 2.6, 50, 5, 1),
+        ];
+        let strikes = defs
+            .iter()
+            .map(|&(when, start, end, aim, count, seed, panel)| {
+                let shapes = bolt_shapes(start, end, seed, u, &[names, title], &mut atlas);
+                (when, start, end, panel, shapes, shower(end, aim, count, u, seed, width, height, &[names, title, wide]))
+            })
+            .collect();
+        let heats = heats(u, &mut atlas);
+        Self { width, height, gap, u, outer, inner, panels, pics, atlas, strikes, heats }
     }
 
     pub fn atlas(&self) -> &Atlas {
@@ -108,8 +134,29 @@ impl Cyber {
         if wash > 0.005 {
             c.lay(WASH, [0.0, 0.0, w, h], [0.0, 0.0, w, h], wash);
         }
-        let bright = 0.0;
+        let bright = self.strikes.iter().map(|s| strike_light(t - s.0)).fold(0.0, f64::max);
+        // A strike lights its own side of the screen most.
+        for (side, &flash) in [-1.0, 1.0].iter().zip(&self.pics.flash) {
+            let near = self
+                .strikes
+                .iter()
+                .map(|s| strike_light(t - s.0) * if (s.2[0] < w / 2.0) == (*side < 0.0) { 1.0 } else { 0.3 })
+                .fold(0.0, f64::max);
+            if near * (1.0 - leave) > 0.01 {
+                c.opacity = life * near * (1.0 - leave);
+                c.lay(ATLAS, flash, [0.0, 0.0, w, h], 1.0);
+            }
+        }
+        c.opacity = life;
         frame::neon_frame(&mut c, self, t, bright);
+        for (when, start, end, _panel, shapes, _shower) in &self.strikes {
+            if (-LEAD..=0.55).contains(&(t - when)) {
+                strike(&mut c, self, t - when, *start, *end, shapes);
+            }
+        }
+        for (when, .., shower) in &self.strikes {
+            spark_shower(&mut c, t - when, shower, &self.heats, self.u);
+        }
         c
     }
 }

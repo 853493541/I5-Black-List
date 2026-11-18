@@ -88,8 +88,7 @@ pub fn frame_glow(width: f64, height: f64, points: &[Pt], tint: &str, u: f64) ->
 }
 
 /// cyber._dot: a round glow, a hot middle going white by white, the tint fading round it.
-pub fn dot(tint: &str, white: f32, side: usize) -> Pic {
-    let color = rgb(tint);
+pub fn dot(color: [f32; 3], white: f32, side: usize) -> Pic {
     let half = (side as f32 - 1.0) / 2.0;
     glow(side, side, |xs, ys| {
         let r = (xs as f32 - half).hypot(ys as f32 - half) / (side as f32 / 2.0);

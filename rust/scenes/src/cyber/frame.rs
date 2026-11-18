@@ -1,6 +1,6 @@
 //! The night's wash and the neon frame: cyber._frame, _tube, _neon, _power_down, _neon_frame.
 
-use super::canvas::{col, Blend, Canvas, Paint, ATLAS, WASH};
+use super::canvas::{col, Blend, Canvas, Paint, ATLAS, LAYER, SCREEN, WASH};
 use super::{lay_dot, Cyber, CYAN, MAGENTA};
 use crate::draw::{ease_out, hex, mix, partial, win, Pt};
 
@@ -116,8 +116,15 @@ pub fn neon_frame(c: &mut Canvas, s: &Cyber, t: f64, bright: f64) {
             continue;
         }
         if trace >= 1.0 {
-            c.opacity = base * lit;
+            // Lit once at full strength into a layer, then laid on as a whole, as Python bakes it.
+            let keep = c.save();
+            c.draw_into(LAYER[0], true);
+            c.opacity = 1.0;
             tube(c, points, tint, 1.0, 7.0 * u);
+            c.draw_into(SCREEN, false);
+            c.restore(keep);
+            c.opacity = base * lit;
+            c.lay(LAYER[0], [0.0, 0.0, w, h], [0.0, 0.0, w, h], 1.0);
             continue;
         }
         let corner = (0..points.len()).min_by(|&a, &b| (points[a][0] + points[a][1]).total_cmp(&(points[b][0] + points[b][1]))).unwrap_or(0);

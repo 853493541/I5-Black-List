@@ -21,6 +21,11 @@ fn main() -> Result<(), String> {
     let start = Instant::now();
     let scene = Cyber::sample(f64::from(W), f64::from(H));
     println!("pictures worked out in {:.0} ms", start.elapsed().as_secs_f64() * 1000.0);
+    if std::env::var_os("CYBER_ATLAS").is_some() {
+        let a = scene.atlas();
+        RgbaImage::from_raw(a.w as u32, a.h as u32, a.px.clone()).ok_or("atlas")?.save(dir.join("atlas.png")).map_err(|e| e.to_string())?;
+        println!("glow {:?} flash {:?}", scene.pics.glow, scene.pics.flash);
+    }
     let gpu = Renderer::new(W, H, lobby.as_raw(), scene.atlas())?;
     println!("adapter: {}", gpu.adapter);
     gpu.render(&scene.wash());
