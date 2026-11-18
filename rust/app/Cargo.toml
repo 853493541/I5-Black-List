@@ -16,6 +16,11 @@ slint = { version = "1.14", default-features = false, features = [
     "software-renderer-systemfonts",
 ] }
 png = "0.17"
+data = { path = "../data" }
+
+[dev-dependencies]
+serde_json = "1"
+tempfile = "3"
 
 [build-dependencies]
 slint-build = "1.14"

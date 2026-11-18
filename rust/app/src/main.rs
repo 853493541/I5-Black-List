@@ -8,6 +8,8 @@
 #![deny(unsafe_code)]
 
 mod headless;
+#[allow(dead_code)] // wired by the app-wiring package
+mod settings;
 
 use std::path::PathBuf;
 

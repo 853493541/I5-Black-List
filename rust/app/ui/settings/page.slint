@@ -1,0 +1,104 @@
+// 设置 (blacklist_detect/ui.py _settings_page): the catalog on the left (常规, 帮助, 关于), the chosen section on the
+// right, its name in bold, then one row per setting with thin lines between. Rows and wording come from Rust
+// (src/settings/rows.rs); actions go out through the callbacks (src/settings/mod.rs, Action).
+
+import { Palette, Light, Dark } from "../theme.slint";
+import { Hairline } from "../kit.slint";
+import { SectionData, RowData, CatalogRow, SettingRow } from "rows.slint";
+export { SetupWindow } from "setup.slint";
+export { SectionData, RowData }
+
+component SectionBody inherits VerticalLayout {
+    in property <string> title;
+    in property <[RowData]> rows;
+    in property <Palette> p;
+    callback chosen(string, string);
+    callback pressed(string);
+    height: self.preferred-height;
+    alignment: start;
+    Text { text: title; font-size: 16px; font-weight: 700; color: p.text; }
+    Rectangle { height: 6px; }
+    for row in rows: VerticalLayout {
+        if !row.first: Hairline { p: p; }
+        SettingRow {
+            data: row;
+            p: p;
+            chosen(key, value) => { root.chosen(key, value); }
+            pressed(key) => { root.pressed(key); }
+        }
+    }
+}
+
+export component SettingsPage inherits Rectangle {
+    in property <bool> dark;
+    in-out property <string> section: "general";
+    in property <[SectionData]> sections;
+    in property <[RowData]> general-rows;
+    in property <[RowData]> help-rows;
+    in property <[RowData]> about-rows;
+    callback section-chosen(string);
+    callback chosen(string, string);
+    callback pressed(string);
+    property <Palette> p: dark ? Dark.palette : Light.palette;
+    background: p.bg;
+
+    // The catalog.
+    VerticalLayout {
+        x: 24px;
+        y: 12px;
+        width: 180px;
+        height: self.preferred-height;
+        for s in sections: CatalogRow {
+            label: s.title;
+            icon: s.icon;
+            chosen: s.key == section;
+            p: p;
+            clicked => {
+                section = s.key;
+                section-chosen(s.key);
+            }
+        }
+    }
+
+    // The chosen section: its name in bold, then its rows; on a wide window the rows keep 760 px.
+    // How tall the chosen section is, from the top of the page: it fits the window without scrolling.
+    out property <length> section-height: 13px + (section == "general" ? g.preferred-height : section == "help" ? h.preferred-height : a.preferred-height);
+    property <length> body-width: min(root.width - 228px - 24px, 760px);
+    g := SectionBody { visible: section == "general"; x: 228px; y: 13px; width: body-width; title: sections[0].title; rows: general-rows; p: p;
+        chosen(key, value) => { root.chosen(key, value); } pressed(key) => { root.pressed(key); } }
+    h := SectionBody { visible: section == "help"; x: 228px; y: 13px; width: body-width; title: sections[1].title; rows: help-rows; p: p;
+        chosen(key, value) => { root.chosen(key, value); } pressed(key) => { root.pressed(key); } }
+    a := SectionBody { visible: section == "about"; x: 228px; y: 13px; width: body-width; title: sections[2].title; rows: about-rows; p: p;
+        chosen(key, value) => { root.chosen(key, value); } pressed(key) => { root.pressed(key); } }
+}
+
+// The page alone in a window of the Python app's size, for the headless pictures and tests.
+export component SettingsPreview inherits Window {
+    in property <bool> dark;
+    in-out property <string> section: "general";
+    in property <[SectionData]> sections;
+    in property <[RowData]> general-rows;
+    in property <[RowData]> help-rows;
+    in property <[RowData]> about-rows;
+    callback chosen(string, string);
+    callback pressed(string);
+    out property <length> section-height: page.section-height;
+    property <Palette> p: dark ? Dark.palette : Light.palette;
+    preferred-width: 900px;
+    preferred-height: 560px;
+    background: p.bg;
+    default-font-family: "Noto Sans CJK SC";
+    Rectangle { x: 24px; y: 59px; width: parent.width - 48px; height: 1px; background: p.border; }
+    page := SettingsPage {
+        y: 60px;
+        height: parent.height - 60px;
+        dark: dark;
+        section <=> root.section;
+        sections: sections;
+        general-rows: general-rows;
+        help-rows: help-rows;
+        about-rows: about-rows;
+        chosen(key, value) => { root.chosen(key, value); }
+        pressed(key) => { root.pressed(key); }
+    }
+}
