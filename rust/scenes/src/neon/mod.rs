@@ -10,14 +10,13 @@ mod check;
 pub mod frame;
 pub mod fx;
 pub mod gpu;
-pub mod np;
+pub use crate::np as np;
 mod paint;
 pub mod raster;
 pub mod signs;
 pub mod sky;
 pub mod sparks;
 pub mod towers;
-mod zig;
 
 use frame::Atlas;
 use raster::{noise, round_even, Img, Pt};

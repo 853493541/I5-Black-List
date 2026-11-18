@@ -29,16 +29,16 @@ pub struct Rain {
 
 /// neon._rain_drops, from numpy's generator seeded 31.
 pub fn rain_drops(width: f64, height: f64, u: f64) -> Vec<Rain> {
-    let mut rng = super::np::Rng::new(31);
+    let mut rng = super::np::Rng::new(31u64);
     let layers = [(160.0, (850.0, 1100.0), (9.0, 16.0), 0.8, 0.26, false), (60.0, (1500.0, 1900.0), (22.0, 38.0), 1.2, 0.3, true)];
     layers
         .iter()
         .map(|&(count, speed, length, pen, alpha, front)| {
             let n = round_even(count * width / 1635.0) as usize;
-            let x0 = rng.uniform(-SLANT * height, width, n);
-            let phase = rng.uniform(0.0, 1.0, n);
-            let speed = rng.uniform(speed.0, speed.1, n).iter().map(|v| v * u).collect();
-            let length = rng.uniform(length.0, length.1, n).iter().map(|v| v * u).collect();
+            let x0 = rng.uniforms(-SLANT * height, width, n);
+            let phase = rng.uniforms(0.0, 1.0, n);
+            let speed = rng.uniforms(speed.0, speed.1, n).iter().map(|v| v * u).collect();
+            let length = rng.uniforms(length.0, length.1, n).iter().map(|v| v * u).collect();
             Rain { x0, phase, speed, length, pen: pen * u, alpha, front }
         })
         .collect()

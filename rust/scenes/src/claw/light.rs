@@ -108,7 +108,7 @@ pub fn noise(w: usize, h: usize, scale: f64, octaves: u32, seed: u32) -> Gray {
     for octave in 0..octaves {
         let cell = (scale / f64::from(1u32 << octave)).max(2.0);
         let (gw, gh) = ((w as f64 / cell) as usize + 3, (h as f64 / cell) as usize + 3);
-        let grid: Vec<f32> = (0..gw * gh).map(|_| rng.f32()).collect();
+        let grid: Vec<f32> = (0..gw * gh).map(|_| rng.random_f32()).collect();
         let axis = |n: usize| -> Vec<(usize, f64)> {
             (0..n)
                 .map(|i| {

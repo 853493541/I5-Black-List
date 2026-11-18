@@ -16,7 +16,7 @@ pub mod gpu;
 pub mod light;
 pub mod marks;
 pub mod marks_art;
-pub mod rng;
+pub use crate::np as rng;
 mod strike;
 #[cfg(test)]
 mod parity;

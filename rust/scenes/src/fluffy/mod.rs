@@ -12,7 +12,7 @@ mod frame;
 pub mod gpu;
 mod lines;
 mod paper;
-mod pcg;
+pub use crate::np as pcg;
 mod pixels;
 mod sprite;
 #[cfg(test)]

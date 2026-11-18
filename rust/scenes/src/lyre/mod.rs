@@ -13,7 +13,7 @@ pub mod hook;
 pub mod img;
 pub mod lyre_art;
 pub mod marks;
-pub mod npr;
+pub use crate::np as npr;
 pub mod paint;
 pub mod raster;
 pub mod sprites;
