@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -26,10 +27,10 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parent.parent
 CORPUS = ROOT / "tests" / "lobby_corpus"
-STEP_S = 3.0  # the lobby countdown shows for 10 s or more, so a 3 s step sees each lobby several times
+STEP_S = 12.0  # a lobby stays on screen about 15 s, so a 12 s step sees each one at least once
 GAP_S = 20.0  # hits closer than this are the same lobby
 DETECT_WIDTH = 640
-WORKERS = 3
+WORKERS = 4
 TITLE = "推演成功"
 TITLE_HINTS = ("模仿者狂欢", "准备就绪", "12人狂欢")
 
@@ -127,66 +128,89 @@ def _input(source: Source) -> list[str]:
     return args + (["-http_proxy", proxy] if proxy else [])
 
 
-def frames(source: Source, step: float, start: float = 0.0, length: float | None = None, width_to: int = 0):
-    """Yield (seconds, rgb) every `step` seconds, decoded by ffmpeg at full resolution or `width_to` wide."""
+def _read_bytes(log: str) -> int:
+    return sum(int(n) for n in re.findall(r"Statistics: (\d+) bytes read", log))
+
+
+def frames(source: Source, step: float, start: float, length: float, width_to: int = 0) -> tuple[list, int]:
+    """(seconds, rgb) every `step` seconds over a short window, decoded in one pass, and the bytes it fetched."""
     width, height, scale = source.width, source.height, ""
     if width_to:
         height = round(height * width_to / width / 2) * 2
         width = width_to
         scale = f",scale={width}:{height}"
-    cmd = ["ffmpeg", "-v", "error", *_input(source), "-ss", f"{start:.3f}"]
-    if length is not None:
-        cmd += ["-t", f"{length:.3f}"]
-    cmd += ["-i", source.where, "-vf", f"fps=1/{step}{scale}", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
+    cmd = ["ffmpeg", "-v", "verbose", *_input(source), "-ss", f"{start:.3f}", "-t", f"{length:.3f}", "-i", source.where,
+           "-vf", f"fps=1/{step}{scale}", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
+    done = subprocess.run(cmd, capture_output=True, timeout=240)
     size = width * height * 3
-    with subprocess.Popen(cmd, stdout=subprocess.PIPE) as proc:
-        index = 0
-        while True:
-            raw = proc.stdout.read(size)
-            if len(raw) < size:
-                break
-            yield start + index * step, np.frombuffer(raw, np.uint8).reshape(height, width, 3)
-            index += 1
+    raw = done.stdout
+    shots = [(start + i * step, np.frombuffer(raw[i * size:(i + 1) * size], np.uint8).reshape(height, width, 3))
+             for i in range(len(raw) // size)]
+    return shots, _read_bytes(done.stderr.decode(errors="replace"))
 
 
-def grab(source: Source, seconds: float) -> np.ndarray | None:
-    """One whole frame at `seconds`: a seek, so a stream sends only the part around it."""
-    cmd = ["ffmpeg", "-v", "error", *_input(source), "-ss", f"{seconds:.3f}", "-i", source.where, "-frames:v", "1",
+def grab(source: Source, seconds: float) -> tuple[np.ndarray | None, int]:
+    """One whole frame at `seconds` by seeking, so a stream sends only the part around it; and the bytes fetched."""
+    cmd = ["ffmpeg", "-v", "verbose", *_input(source), "-ss", f"{seconds:.3f}", "-i", source.where, "-frames:v", "1",
            "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
-    raw = subprocess.run(cmd, capture_output=True, timeout=120).stdout
-    size = source.width * source.height * 3
-    return np.frombuffer(raw[:size], np.uint8).reshape(source.height, source.width, 3) if len(raw) >= size else None
+    done = subprocess.run(cmd, capture_output=True, timeout=120)
+    raw, size = done.stdout, source.width * source.height * 3
+    rgb = np.frombuffer(raw[:size], np.uint8).reshape(source.height, source.width, 3) if len(raw) >= size else None
+    return rgb, _read_bytes(done.stderr.decode(errors="replace"))
 
 
-def find_lobbies(scan: Source, full: Source | None = None, step: float = STEP_S, picks: int = 8) -> list[Hit]:
-    """Find lobbies on `scan` (small) every `step` s, then every 1 s around each; take up to `picks` of those
-    seconds from `full` (the best quality) and keep the sharpest that still shows the lobby."""
+def _probe_at(job: tuple[Source, float]) -> tuple[float, bool, int]:
+    source, seconds = job
+    rgb, fetched = grab(source, seconds)
+    return seconds, rgb is not None and shows_lobby(rgb), fetched
+
+
+def _check(item: tuple[float, np.ndarray]) -> tuple[float, bool]:
+    return item[0], shows_lobby(item[1])
+
+
+def find_lobbies(scan: Source, duration: float, full: Source | None = None, step: float = STEP_S, picks: int = 8,
+                 on_lobby=None) -> tuple[list[Hit], int]:  # noqa: ANN001
+    """Probe `scan` (small) by seeking every `step` s; around each hit decode `scan` every 1 s; take up to `picks`
+    of the lobby's seconds from `full` (best quality) and keep the sharpest that still shows the lobby.
+    Returns the lobbies and the bytes fetched."""
     from multiprocessing import Pool
 
     full = full or scan
+    times = list(np.arange(step / 2, duration, step))
+    fetched, hits, found = 0, [], []
     with Pool(WORKERS) as pool:
-        checked = pool.imap(_check, frames(scan, step, width_to=DETECT_WIDTH), chunksize=4)
-        coarse = [Hit(t, 0.0, np.empty(0)) for t, hit in checked if hit]
-        found = []
-        for lobby in group_hits(coarse):
-            span = [h.seconds for h in coarse if abs(h.seconds - lobby.seconds) <= GAP_S * 2]
+        for n, (t, hit, got) in enumerate(pool.imap(_probe_at, [(scan, float(t)) for t in times]), 1):
+            fetched += got
+            if hit:
+                hits.append(Hit(t, 0.0, np.empty(0)))
+            if n % 60 == 0:
+                print(f"  probed {t / 60:.0f}/{duration / 60:.0f} min, {len(hits)} hits, {fetched / 2**20:.0f} MiB",
+                      flush=True)
+        for lobby in group_hits(hits):
+            span = [h.seconds for h in hits if abs(h.seconds - lobby.seconds) <= GAP_S * 2]
             start = max(0.0, min(span) - step)
-            fine = pool.map(_check, frames(scan, 1.0, start, max(span) - start + step, width_to=DETECT_WIDTH))
-            seconds = [t for t, hit in fine if hit]
-            if not seconds:
-                continue
-            chosen = [seconds[round(i * (len(seconds) - 1) / max(1, picks - 1))] for i in range(min(picks, len(seconds)))]
+            shots, got = frames(scan, 1.0, start, max(span) - start + step, width_to=DETECT_WIDTH)
+            fetched += got
+            seconds = [t for t, ok in pool.map(_check, shots) if ok]
+            chosen = sorted({seconds[round(i * (len(seconds) - 1) / max(1, picks - 1))]
+                             for i in range(min(picks, len(seconds)))})
             best = None
-            for t in sorted(set(chosen)):
-                rgb = grab(full, t)
+            for t, (rgb, got) in zip(chosen, pool.map(_grab_full, [(full, t) for t in chosen]), strict=True):
+                fetched += got
                 if rgb is None or not shows_lobby(rgb):
                     continue
-                hit = Hit(t, sharpness(rgb), rgb)
-                if best is None or hit.sharp > best.sharp:
-                    best = hit
+                if best is None or sharpness(rgb) > best.sharp:
+                    best = Hit(t, sharpness(rgb), rgb)
             if best is not None:
                 found.append(best)
-    return found
+                if on_lobby is not None:
+                    on_lobby(best)
+    return found, fetched
+
+
+def _grab_full(job: tuple[Source, float]) -> tuple[np.ndarray | None, int]:
+    return grab(*job)
 
 
 def save_jpeg(rgb: np.ndarray, path: Path) -> None:
@@ -214,7 +238,6 @@ def _ytdlp(*args: str) -> subprocess.CompletedProcess:
 def _series(url: str) -> list[dict] | None:
     """A space series list (space.bilibili.com/<mid>/lists/<id>?type=series), newest first as the page shows it,
     read from api.bilibili.com: yt-dlp would fetch space.bilibili.com, which the network may not allow."""
-    import re
 
     found = re.search(r"space\.bilibili\.com/(\d+)/lists/(\d+)", url)
     if not found or "type=season" in url:
@@ -236,7 +259,6 @@ def _get_json(url: str) -> dict:
 
 def parts(video: dict) -> list[dict]:
     """A stream replay is one BV with several parts (p=1, 2, ...): one entry per part."""
-    import re
 
     found = re.search(r"(BV[0-9A-Za-z]{10})", video["url"])
     if not found:
@@ -291,20 +313,28 @@ def process(video: dict, per_video: int) -> int:
         print(f"{vid}: already in the corpus")
         return 0
     scan, full, info = streams(url)
-    print(f"{vid}: {full.width}x{full.height}, {(info.get('duration') or 0) / 60:.0f} min, {video.get('title')}",
-          flush=True)
-    lobbies = find_lobbies(scan, full)
-    lobbies = sorted(lobbies, key=lambda h: h.seconds)[:per_video] if per_video else lobbies
+    duration = float(info.get("duration") or 0)
+    total = sum(f.get("filesize") or f.get("filesize_approx") or 0 for f in [info["full_format"]])
+    print(f"{vid}: {full.width}x{full.height}, {duration / 60:.0f} min, {video.get('title')}", flush=True)
     CORPUS.mkdir(parents=True, exist_ok=True)
-    for hit in lobbies:
+    saved = []
+
+    def keep(hit: Hit) -> None:
+        if per_video and len(saved) >= per_video:
+            return
         name = f"{vid}_{int(hit.seconds)}.jpg"
         save_jpeg(hit.frame, CORPUS / name)
         entries.append({"file": name, "video_id": vid, "source_url": url, "title": video.get("title") or info.get("title"),
                         "seconds": int(hit.seconds), "resolution": f"{full.width}x{full.height}",
                         "format": info["full_format"].get("format_id")})
+        save_index(entries)
+        saved.append(name)
         print(f"  lobby at {int(hit.seconds)} s -> {name}", flush=True)
-    save_index(entries)
-    return len(lobbies)
+
+    _, fetched = find_lobbies(scan, duration, full, on_lobby=keep)
+    print(f"{vid}: {len(saved)} lobbies, fetched {fetched / 2**20:.0f} MiB of a {total / 2**20:.0f} MiB "
+          f"{full.height}p video", flush=True)
+    return len(saved)
 
 
 def main() -> None:
