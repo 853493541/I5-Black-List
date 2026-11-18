@@ -1,7 +1,7 @@
 //! The Rust preview (cargo feature `preview`, docs/dev/preview.md): a copy of the app the player tries beside v1.0.1.
 //! It has a name, a data folder, a single-instance key and no 开机启动 of its own, never looks for updates and never
-//! sweeps an install folder. On its first run it copies the lists, 设置, 嘉宾 and custom sounds from v1.0.1's data
-//! folder, opening them read-only. Every choice here takes `on` so both builds are tested in one `cargo test`.
+//! sweeps an install folder. On its first run it copies everything of the player's from v1.0.1's data folder (all but
+//! logs, caches, update staging and locks), opening each file read-only. Every choice here takes `on` so both builds are tested in one `cargo test`.
 
 use std::io;
 use std::path::{Path, PathBuf};
@@ -16,10 +16,17 @@ pub const FOLDER: &str = "BlackListDetect-RustPreview";
 pub const KEY_SUFFIX: &str = "-RustPreview";
 /// Written once the first-run copy has run; while it is there, nothing is copied again.
 pub const COPIED_MARK: &str = "preview-copied.txt";
-/// The files copied from the old folder: the lists, 设置, 嘉宾 and the history.
-pub const COPIED_FILES: [&str; 4] = ["blacklist.json", "settings.json", "likes.json", "history.json"];
-/// And this folder, the 场景 sounds the player added.
-pub const COPIED_FOLDER: &str = "custom_sounds";
+/// What the first-run copy leaves behind in the old folder: the logs (and their running marker and crash dumps), the
+/// 场景 tunes made again from the assets (ui_music.sound_dir), an update's staging, the updater's mirror list and the
+/// debug captures. Everything else of the player's is copied: the lists, 嘉宾, 组合, 我, records, 设置, custom sounds,
+/// backups and any file a later version added.
+pub const SKIPPED: [&str; 5] = ["logs", "sounds", "updates", "mirrors.json", "debug"];
+/// Half-written files (storage.atomic_write's .tmp) and locks, anywhere.
+pub const SKIPPED_ENDINGS: [&str; 3] = [".tmp", ".lock", ".part"];
+
+fn skipped(name: &str, top: bool) -> bool {
+    (top && (SKIPPED.contains(&name) || name == COPIED_MARK)) || SKIPPED_ENDINGS.iter().any(|end| name.ends_with(end))
+}
 
 /// Called first in main: the data folder and the tray follow the preview's name.
 pub fn install() {
@@ -64,7 +71,7 @@ pub fn old_folder() -> PathBuf {
 /// What the first-run copy did.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Copied {
-    /// The paths copied, relative to the data folder.
+    /// The paths copied, relative to the data folder, with / between folders.
     pub files: Vec<String>,
     /// Why it copied nothing, when it did not run.
     pub skipped: Option<&'static str>,
@@ -75,35 +82,28 @@ impl Copied {
         match self.skipped {
             Some(why) => format!("Preview: nothing copied from {} ({why}).", old.display()),
             None if self.files.is_empty() => format!("Preview: nothing to copy in {}.", old.display()),
-            None => format!("Preview: copied from {} (read-only): {}.", old.display(), self.files.join(", ")),
+            None => format!("Preview: copied {} files from {} (read-only): {}.", self.files.len(), old.display(), self.files.join(", ")),
         }
     }
 }
 
-/// The first-run copy: when `new` holds none of the player's files and no mark, the lists, 设置, 嘉宾 and custom
-/// sounds in `old` are read (opened read-only) and written into `new`. The old files are never written, renamed or
+/// The first-run copy: when `new` holds nothing of the player's yet (only logs) and no mark, everything in `old` but
+/// `SKIPPED` is read (each file opened read-only) and written into `new`. The old files are never written, renamed or
 /// held open past their read. The mark is written after, so a second run copies nothing.
 pub fn copy_old_data(new: &Path, old: &Path) -> io::Result<Copied> {
     if new.join(COPIED_MARK).exists() {
         return Ok(Copied { skipped: Some("copied before"), ..Copied::default() });
     }
-    if COPIED_FILES.iter().any(|name| new.join(name).exists()) || new.join(COPIED_FOLDER).exists() {
+    let own = std::fs::read_dir(new).map(|items| items.flatten().any(|item| !skipped(&item.file_name().to_string_lossy(), true)));
+    if own.unwrap_or(false) {
         return Ok(Copied { skipped: Some("the preview has data of its own"), ..Copied::default() });
     }
     if same_folder(new, old) {
         return Ok(Copied { skipped: Some("same folder"), ..Copied::default() });
     }
     let mut files = Vec::new();
-    for name in COPIED_FILES {
-        let source = old.join(name);
-        if source.is_file() {
-            copy_read_only(&source, &new.join(name))?;
-            files.push(name.to_string());
-        }
-    }
-    let sounds = old.join(COPIED_FOLDER);
-    if sounds.is_dir() {
-        copy_tree(&sounds, &new.join(COPIED_FOLDER), COPIED_FOLDER, &mut files)?;
+    if old.is_dir() {
+        copy_tree(old, new, "", &mut files)?;
     }
     std::fs::create_dir_all(new)?;
     let note = format!("Copied once from {}:\n{}\n", old.display(), files.join("\n"));
@@ -134,7 +134,10 @@ fn copy_tree(source: &Path, target: &Path, shown: &str, files: &mut Vec<String>)
     entries.sort_by_key(|entry| entry.file_name());
     for entry in entries {
         let name = entry.file_name();
-        let shown = format!("{shown}/{}", name.to_string_lossy());
+        if skipped(&name.to_string_lossy(), shown.is_empty()) {
+            continue;
+        }
+        let shown = if shown.is_empty() { name.to_string_lossy().into_owned() } else { format!("{shown}/{}", name.to_string_lossy()) };
         let path = entry.path();
         let kind = entry.file_type()?;
         if kind.is_dir() {

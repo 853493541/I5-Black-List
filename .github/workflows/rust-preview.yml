@@ -172,7 +172,7 @@ jobs:
           for step in "data folder" "logs" "single instance" "settings" "autostart" "models"; do
             grep -q "Start-up: $step ok" "$log" || { echo "::error::start-up step '$step' not ok"; exit 1; }
           done
-          grep -q "Preview: copied from" "$log" || { echo "::error::the old list was not copied"; exit 1; }
+          grep -q "Preview: copied " "$log" || { echo "::error::the old list was not copied"; exit 1; }
           [ "$(sha1sum "$home/BlackListDetect/blacklist.json")" = "$before" ] || { echo "::error::old list changed"; exit 1; }
           [ ! -e "$home/BlackListDetect/logs" ] || { echo "::error::the preview wrote in the old folder"; exit 1; }
           set +e

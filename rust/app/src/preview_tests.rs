@@ -1,18 +1,34 @@
 use super::*;
 use std::time::SystemTime;
 
-/// v1.0.1's folder as a player has it: the lists, 设置, 嘉宾, a custom sound, and files the preview leaves alone.
+/// A copy of a folder, file by file.
+fn copy_dir(from: &Path, to: &Path) {
+    std::fs::create_dir_all(to).unwrap();
+    for entry in std::fs::read_dir(from).unwrap().flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            copy_dir(&path, &to.join(entry.file_name()));
+        } else {
+            std::fs::copy(&path, to.join(entry.file_name())).unwrap();
+        }
+    }
+}
+
+/// v1.0.1's folder as the Python app writes it (rust/data's store golden, made by blacklist_detect/storage.py: the
+/// 黑名单 with tags and notes, 嘉宾, 组合, 我, records, 设置 with hotkeys and theme, backups, custom sounds), plus a made-up
+/// picture and video among the sounds, and what the preview must leave: logs, the tune cache, update staging, the
+/// mirror list, debug captures and a half-written file.
 fn old_folder_with_data(dir: &Path) -> PathBuf {
     let old = dir.join(common::paths::FOLDER_NAME);
-    std::fs::create_dir_all(old.join("custom_sounds").join("scene")).unwrap();
-    std::fs::create_dir_all(old.join("logs")).unwrap();
-    std::fs::create_dir_all(old.join("backups")).unwrap();
-    std::fs::write(old.join("blacklist.json"), r#"{"entries": [{"name": "示例坏人", "reason": "", "tags": []}]}"#).unwrap();
-    std::fs::write(old.join("likes.json"), r#"[{"name": "心动小鹿"}, {"name": "心动星星"}]"#).unwrap();
-    std::fs::write(old.join("settings.json"), r#"{"hotkey": "F8"}"#).unwrap();
-    std::fs::write(old.join("custom_sounds").join("scene").join("song.wav"), b"RIFF made-up").unwrap();
-    std::fs::write(old.join("logs").join("app.log"), b"old log").unwrap();
-    std::fs::write(old.join("backups").join("blacklist.json"), b"[]").unwrap();
+    copy_dir(&Path::new(env!("CARGO_MANIFEST_DIR")).join("../data/tests/golden/store/migrate/output"), &old);
+    std::fs::write(old.join("custom_sounds").join("poster.png"), b"\x89PNG made-up").unwrap();
+    std::fs::write(old.join("custom_sounds").join("clip.mp4"), b"made-up video").unwrap();
+    for skipped in ["logs", "sounds", "updates", "debug"] {
+        std::fs::create_dir_all(old.join(skipped)).unwrap();
+        std::fs::write(old.join(skipped).join("x.bin"), b"leave me").unwrap();
+    }
+    std::fs::write(old.join("mirrors.json"), b"[]").unwrap();
+    std::fs::write(old.join("likes.json.tmp"), b"half").unwrap();
     old
 }
 
@@ -36,23 +52,47 @@ fn snapshot(root: &Path) -> Vec<(PathBuf, Vec<u8>, SystemTime)> {
 }
 
 #[test]
-fn the_first_run_copies_the_old_data_and_leaves_it_as_it_was() {
+fn the_first_run_copies_everything_of_the_players_and_leaves_the_old_folder_as_it_was() {
     let dir = tempfile::tempdir().unwrap();
     let old = old_folder_with_data(dir.path());
     let new = dir.path().join(FOLDER);
+    // The preview's own log is already there when the copy runs.
+    std::fs::create_dir_all(new.join("logs")).unwrap();
+    let pristine = dir.path().join("pristine");
+    copy_dir(&old, &pristine);
     let before = snapshot(&old);
     std::thread::sleep(std::time::Duration::from_millis(20));
 
     let copied = copy_old_data(&new, &old).unwrap();
     assert_eq!(copied.skipped, None);
-    assert_eq!(copied.files, ["blacklist.json", "settings.json", "likes.json", "custom_sounds/scene/song.wav"]);
-    for name in ["blacklist.json", "settings.json", "likes.json", "custom_sounds/scene/song.wav"] {
+    for name in [
+        "blacklist.json", "likes.json", "settings.json", "history.json", "backups/blacklist-2026-11-18.json",
+        "backups/likes-2026-11-18.json", "custom_sounds/angel-1.wav", "custom_sounds/angel-2.wav", "custom_sounds/ice-1.wav",
+        "custom_sounds/ice-x.wav", "custom_sounds/poster.png", "custom_sounds/clip.mp4",
+    ] {
+        assert!(copied.files.contains(&name.to_string()), "{name} not in {:?}", copied.files);
         assert_eq!(std::fs::read(new.join(name)).unwrap(), std::fs::read(old.join(name)).unwrap(), "{name}");
     }
-    assert!(!new.join("logs").exists() && !new.join("backups").exists(), "only the lists, 设置, 嘉宾 and sounds");
+    assert_eq!(copied.files.len(), 12, "{:?}", copied.files);
+    for left in ["sounds", "updates", "debug", "mirrors.json", "likes.json.tmp", "logs/x.bin"] {
+        assert!(!new.join(left).exists(), "{left} is not the player's and stays behind");
+    }
     assert!(new.join(COPIED_MARK).is_file());
     assert_eq!(snapshot(&old), before, "the old folder's files are byte-identical with the same mtimes");
-    assert!(copied.line(&old).contains("blacklist.json"), "{}", copied.line(&old));
+
+    // Read through the data crate, the copy holds everything the old folder held.
+    let clock = || data::store::Clock::default();
+    let (mine, theirs) = (data::store::Store::open(Some(new.clone()), clock()), data::store::Store::open(Some(pristine), clock()));
+    assert_eq!(mine.load_warning, "");
+    assert!(!mine.entries.is_empty() && !mine.likes.is_empty() && !mine.combos.is_empty() && !mine.scans.is_empty());
+    assert_eq!(mine.entries, theirs.entries, "黑名单 rows, tags and notes");
+    assert_eq!(mine.likes, theirs.likes, "嘉宾");
+    assert_eq!(mine.combos, theirs.combos, "组合");
+    assert_eq!(mine.me, theirs.me, "我");
+    assert_eq!(mine.scans, theirs.scans, "records");
+    assert_eq!(mine.settings, theirs.settings, "设置");
+    assert_eq!(mine.settings.hotkey, "Ctrl+F9");
+    assert_eq!(mine.settings.theme, "绿色");
 }
 
 #[test]

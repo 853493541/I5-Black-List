@@ -14,13 +14,16 @@ release, draft, tag or update offer, never signed with the release key, never pu
 | Updater | (stub today) | always `Quiet`, whatever is wired (`preview::updater`) |
 | Switch-over sweep | after a good start | never (`install_root` is None) |
 
-First run: when the preview folder has none of `blacklist.json`, `settings.json`, `likes.json`, `history.json`,
-`custom_sounds\` and no `preview-copied.txt`, those are copied from `%APPDATA%\BlackListDetect`, each opened read-only
-(`File::open`) and closed after its read; then `preview-copied.txt` is written, so a later run copies nothing. The log
-says what was copied (`Preview: copied from ...`). `--data <folder>` skips the copy.
+First run: when the preview folder holds nothing but its logs and no `preview-copied.txt`, everything in
+`%APPDATA%\BlackListDetect` is copied, each file opened read-only (`File::open`) and closed after its read: the lists
+(tags, notes), 嘉宾, 组合, 我, records, 设置 (hotkeys, theme), backups, `custom_sounds\` and any other file. Left behind
+(`preview::SKIPPED`): `logs\`, `sounds\` (tunes made again from the assets), `updates\` (update staging),
+`mirrors.json` (the updater's), `debug\` (debug captures), and `*.tmp`, `*.lock`, `*.part`. Then `preview-copied.txt`
+is written, so a later run copies nothing. The log lists what was copied (`Preview: copied N files from ...`).
+`--data <folder>` skips the copy.
 
-Tests: `cargo test -p app --features preview --test preview --lib preview` (old files byte-identical with unchanged
-mtimes, a second run copies nothing, key and folder differ from the normal build).
+Tests: `cargo test -p app --features preview --test preview --lib preview` (a v1.0.1 folder written by the Python store, read back
+through the data crate equal item by item; old files byte-identical with unchanged mtimes; a second run copies nothing, key and folder differ from the normal build).
 
 ## The build (`.github/workflows/rust-preview.yml`)
 

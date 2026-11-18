@@ -46,7 +46,7 @@ fn the_preview_copies_the_old_lists_once_and_never_changes_them() {
 
     let log = start(home.path());
     assert!(log.contains(app::preview::NAME), "{log}");
-    assert!(log.contains("Preview: copied from"), "{log}");
+    assert!(log.contains("Preview: copied "), "{log}");
     assert!(log.contains("Start-up: autostart ok (off in the preview)"), "{log}");
     let new = home.path().join(app::preview::FOLDER);
     assert_eq!(std::fs::read(new.join("blacklist.json")).unwrap(), std::fs::read(old.join("blacklist.json")).unwrap());
