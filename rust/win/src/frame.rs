@@ -50,7 +50,7 @@ pub struct Frame {
 impl Frame {
     /// A frame from GDI's top-down 32-bit BGRA rows.
     pub fn from_bgra(width: usize, height: usize, bgra: &[u8]) -> Frame {
-        let rgb = bgra.chunks_exact(4).take(width * height).flat_map(|p| [p[2], p[1], p[0]]).collect();
+        let rgb = bgra.as_chunks::<4>().0.iter().take(width * height).flat_map(|p| [p[2], p[1], p[0]]).collect();
         Frame { width, height, rgb }
     }
 

@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 539020bbed1fb4fe3bf673547bea4b28a8f5ec226cb901be1b6998f9621db6fc # shrinks to parts = ["N", "alt", "control"]
+cc c393a7e25ffd454c3a1968370c9cd35f785de245593fd7a246b7ce0655c633e7 # shrinks to parts = ["f1", "win", "win"]

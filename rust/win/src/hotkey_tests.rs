@@ -82,7 +82,9 @@ proptest! {
             prop_assert_eq!(parse_hotkey(&spec.display), Some(spec.clone()));
             prop_assert!(spec.win_modifiers() & MOD_NOREPEAT != 0);
             prop_assert!((0x30..=0x39).contains(&spec.vk) || (0x41..=0x5A).contains(&spec.vk) || (0x70..=0x7B).contains(&spec.vk));
-            prop_assert!(two_keys(&text).split('+').count() <= 2);
+            let shortened = two_keys(&text);
+            let expected = if spec.modifiers.len() > 1 { shortened.split('+').count() == 2 } else { shortened == text };
+            prop_assert!(expected, "two_keys({:?}) = {:?}", text, shortened);
         }
     }
 
