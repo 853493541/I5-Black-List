@@ -11,6 +11,8 @@ mod guestedit;
 mod guests;
 mod headless;
 mod stream;
+#[allow(dead_code)] // wired by the app-wiring package
+mod settings;
 
 use std::path::PathBuf;
 
