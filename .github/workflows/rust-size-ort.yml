@@ -122,7 +122,13 @@ jobs:
       - name: ONNX Runtime source
         if: steps.ort-cache.outputs.cache-hit != 'true'
         run: |
-          curl -sSfL --retry 3 -o ort-src.tar.gz "https://github.com/microsoft/onnxruntime/archive/refs/tags/v$ORT_VERSION.tar.gz"
+          if ! curl -sSfL --retry 3 -o ort-src.tar.gz "https://github.com/microsoft/onnxruntime/archive/refs/tags/v$ORT_VERSION.tar.gz"; then
+            echo "::error::no source tarball for v$ORT_VERSION"
+            curl -sS https://api.github.com/repos/microsoft/onnxruntime | head -c 600; echo
+            curl -sS "https://api.github.com/repos/microsoft/onnxruntime/tags?per_page=8" | grep '"name"' | head -8
+            git ls-remote --tags https://github.com/microsoft/onnxruntime 2>&1 | tail -5
+            exit 1
+          fi
           mkdir ort-src && tar xzf ort-src.tar.gz -C ort-src --strip-components 1
           ls ort-src | head -30
       - name: Build
