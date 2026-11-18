@@ -16,6 +16,8 @@ use std::time::Duration;
 
 mod cli;
 mod corner_port;
+mod stream_marks;
+mod update_port;
 mod ui_wiring;
 
 // The UI areas, each its own package's; the shell's MainWindow takes their pages.
@@ -182,6 +184,8 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
     let store = Rc::new(RefCell::new(store));
     let mut parts = assemble(&store, install.as_deref(), &log, seed());
     parts.ports.notice = Box::new(corner_port::CornerPort::new());
+    let screen_marks = std::mem::replace(&mut parts.ports.overlay, Box::new(app::wiring::stubs::Quiet));
+    parts.ports.overlay = Box::new(stream_marks::WithStream::new(screen_marks, store.clone()));
     let tray_visible = parts.tray.visible();
     // The real app's run is the only one that makes a sound (ui_music.allow_sound).
     // BLACKLIST_DETECT_SILENT keeps a run of the window quiet (the preview check on CI).
@@ -203,6 +207,7 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
         installed: install.is_some(),
         before_check: Some(parts.before_check),
         placed: Some(parts.placed),
+        tester: Some(parts.tester),
     };
     let runner = Rc::new(RefCell::new(Runner::new(root, log, claim, store.clone(), parts)));
 
@@ -239,17 +244,21 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
     let timer = slint::Timer::default();
     let (pumped, shown) = (runner.clone(), window.as_weak());
     let pages = ui.clone();
+    let mut updates = update_port::UpdatePort::default();
     let mut hotkeys = {
         let settings = &store.borrow().settings;
         (settings.hotkey.clone(), settings.effect_hotkey.clone())
     };
     timer.start(slint::TimerMode::Repeated, Duration::from_millis(50), move || {
         for event in pages.pump() {
-            if !ui_wiring::handle(&mut pumped.borrow_mut(), &event) {
+            if event == ui_events::UiEvent::Shell(shell::ShellAction::OpenUpdate) {
+                updates.open(&mut pumped.borrow_mut());
+            } else if !ui_wiring::handle(&mut pumped.borrow_mut(), &event) {
                 pumped.borrow().log.info(&format!("UI: {event:?}"));
             }
         }
         ui_wiring::rekey(&mut pumped.borrow_mut(), &mut hotkeys);
+        updates.pump(&mut pumped.borrow_mut());
         let asks = pumped.borrow_mut().pump();
         for ask in asks {
             match ask {
