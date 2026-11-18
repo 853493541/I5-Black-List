@@ -60,27 +60,29 @@ jobs:
         with:
           path: C:\opencv-static
           key: opencv-${{ env.OPENCV_VERSION }}-static-ipp-mt-v1
-      - uses: ilammy/msvc-dev-cmd@v1
-        if: runner.os == 'Windows' && steps.opencv-cache.outputs.cache-hit != 'true'
+      # vcvars64 only inside this cmd step: a dev-cmd environment left for later steps (VCINSTALLDIR) makes rustc take
+      # link.exe from PATH, where bash finds Git's /usr/bin/link first.
       - name: Build OpenCV static (Windows)
         if: runner.os == 'Windows' && steps.opencv-cache.outputs.cache-hit != 'true'
         working-directory: ${{ runner.temp }}
+        shell: cmd
         run: |
-          python -m pip install -q ninja
-          curl -sSfL -o opencv.tar.gz "https://github.com/opencv/opencv/archive/refs/tags/${OPENCV_VERSION}.tar.gz"
-          tar xzf opencv.tar.gz
-          cmake -S "opencv-${OPENCV_VERSION}" -B cvbuild -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=C:/opencv-static -DBUILD_SHARED_LIBS=OFF -DBUILD_WITH_STATIC_CRT=ON \
-            -DBUILD_LIST=core,imgproc,imgcodecs -DWITH_IPP=ON -DBUILD_IPP_IW=ON \
-            -DWITH_ITT=OFF -DWITH_OPENCL=OFF -DWITH_EIGEN=OFF -DWITH_LAPACK=OFF -DWITH_PROTOBUF=OFF -DWITH_ADE=OFF \
-            -DWITH_TIFF=OFF -DWITH_WEBP=OFF -DWITH_OPENJPEG=OFF -DWITH_JASPER=OFF -DWITH_OPENEXR=OFF -DWITH_AVIF=OFF \
-            -DWITH_FFMPEG=OFF -DWITH_DSHOW=OFF -DWITH_MSMF=OFF -DWITH_DIRECTX=OFF -DWITH_WIN32UI=OFF \
-            -DBUILD_PNG=ON -DBUILD_JPEG=ON -DBUILD_ZLIB=ON \
-            -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_opencv_apps=OFF \
-            -DBUILD_JAVA=OFF -DBUILD_opencv_python3=OFF -DBUILD_opencv_python2=OFF > cmake.log
-          grep -iE 'IPP|Parallel framework|CPU/HW|Linker flags \(Release\)|C\+\+ flags \(Release\)' cmake.log
-          cmake --build cvbuild --target install
-          find /c/opencv-static -name '*.lib' | xargs ls -la
+          for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do call "%%i\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
+          python -m pip install -q ninja || exit /b 1
+          curl -sSfL -o opencv.tar.gz "https://github.com/opencv/opencv/archive/refs/tags/%OPENCV_VERSION%.tar.gz" || exit /b 1
+          tar xzf opencv.tar.gz || exit /b 1
+          cmake -S "opencv-%OPENCV_VERSION%" -B cvbuild -G Ninja -DCMAKE_BUILD_TYPE=Release ^
+            -DCMAKE_INSTALL_PREFIX=C:/opencv-static -DBUILD_SHARED_LIBS=OFF -DBUILD_WITH_STATIC_CRT=ON ^
+            -DBUILD_LIST=core,imgproc,imgcodecs -DWITH_IPP=ON -DBUILD_IPP_IW=ON ^
+            -DWITH_ITT=OFF -DWITH_OPENCL=OFF -DWITH_EIGEN=OFF -DWITH_LAPACK=OFF -DWITH_PROTOBUF=OFF -DWITH_ADE=OFF ^
+            -DWITH_TIFF=OFF -DWITH_WEBP=OFF -DWITH_OPENJPEG=OFF -DWITH_JASPER=OFF -DWITH_OPENEXR=OFF -DWITH_AVIF=OFF ^
+            -DWITH_FFMPEG=OFF -DWITH_DSHOW=OFF -DWITH_MSMF=OFF -DWITH_DIRECTX=OFF -DWITH_WIN32UI=OFF ^
+            -DBUILD_PNG=ON -DBUILD_JPEG=ON -DBUILD_ZLIB=ON ^
+            -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_opencv_apps=OFF ^
+            -DBUILD_JAVA=OFF -DBUILD_opencv_python3=OFF -DBUILD_opencv_python2=OFF > cmake.log || (type cmake.log & exit /b 1)
+          findstr /i /c:"IPP" /c:"CPU/HW" /c:"C++ flags (Release)" cmake.log
+          cmake --build cvbuild --target install || exit /b 1
+          dir /s /b C:\opencv-static\*.lib
       - uses: actions/cache/save@v4
         if: runner.os == 'Windows' && steps.opencv-cache.outputs.cache-hit != 'true'
         with:
@@ -151,7 +153,13 @@ jobs:
             echo '|---|---|---|'
             for exe in "$RUNNER_TEMP"/app/*.exe; do size "$(basename "$exe")" "$exe"; done
             size onnxruntime.dll "$REC_ORT_LIB"
-          } | tee "$RUNNER_TEMP/app/sizes.md" >> "$GITHUB_STEP_SUMMARY"
+          } > "$RUNNER_TEMP/app/sizes.md"
+          cat "$RUNNER_TEMP/app/sizes.md" | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with:
+          name: app-windows-release
+          path: ${{ runner.temp }}/app
       # The exe may import only DLLs a clean Windows 10 has (build/make_rust_release.py: SYSTEM_DLLS).
       - name: Import tables (Windows)
         if: runner.os == 'Windows'
@@ -169,13 +177,14 @@ jobs:
               bad += bool(foreign)
           sys.exit(bad)
           PY
-      - uses: actions/upload-artifact@v4
-        if: runner.os == 'Windows'
-        with:
-          name: app-windows-release
-          path: ${{ runner.temp }}/app
       - name: Test
         run: cargo test --workspace
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      # Last, so it ends the log: which OCR parity tests ran against which OpenCV, and the release sizes.
+      - name: Recap
+        if: always()
+        run: |
+          grep -hE 'IPP in use|skipped|^test .*(ipp|fill_poly|byte_for_byte)|test result' "$RUNNER_TEMP/ocr.log" || true
+          cat "$RUNNER_TEMP/app/sizes.md" 2>/dev/null || true
