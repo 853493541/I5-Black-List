@@ -16,6 +16,7 @@ use std::time::Duration;
 
 mod cli;
 mod corner_port;
+mod stream_marks;
 mod ui_wiring;
 
 // The UI areas, each its own package's; the shell's MainWindow takes their pages.
@@ -163,6 +164,8 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
     let store = Rc::new(RefCell::new(store));
     let mut parts = assemble(&store, install.as_deref(), &log, seed());
     parts.ports.notice = Box::new(corner_port::CornerPort::new());
+    let screen_marks = std::mem::replace(&mut parts.ports.overlay, Box::new(app::wiring::stubs::Quiet));
+    parts.ports.overlay = Box::new(stream_marks::WithStream::new(screen_marks, store.clone()));
     let tray_visible = parts.tray.visible();
     // The real app's run is the only one that makes a sound (ui_music.allow_sound).
     sound::allow_sound();
