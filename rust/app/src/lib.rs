@@ -2,4 +2,5 @@
 //! into each binary.
 #![forbid(unsafe_code)]
 
+pub mod preview;
 pub mod wiring;

@@ -69,6 +69,11 @@ fn setting(runner: &mut Runner, change: impl FnOnce(&mut data::store::settings::
 /// 开机启动 (autostart.set_enabled), the app's own command with the tray-only flag.
 #[cfg(windows)]
 fn autostart(runner: &mut Runner, on: bool) {
+    if app::preview::ON {
+        // The Run entry is v1.0.1's: the preview never adds, changes or removes it.
+        runner.log.info(&format!("Autostart {on}: off in the preview; v1.0.1's entry is left as it is."));
+        return;
+    }
     let launcher = app::wiring::startup::install_root().and_then(|root| win::autostart::launcher_in(&root));
     let command = launcher.as_deref().map(win::autostart::command);
     let entry = win::autostart::RunEntry::app();
