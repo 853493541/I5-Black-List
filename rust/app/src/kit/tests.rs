@@ -13,8 +13,9 @@ fn hex(color: slint::Color) -> String {
 #[test]
 fn theme_matches_python_and_gallery_renders() {
     let golden: serde_json::Value = serde_json::from_str(include_str!("golden_theme.json")).unwrap();
-    let window = render::window();
+    crate::shots::init();
     let ui = KitGallery::new().unwrap();
+    let window = render::window();
     let theme = ui.global::<Theme>();
 
     let palettes = golden["palettes"].as_object().unwrap();

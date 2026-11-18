@@ -2,13 +2,10 @@
 //! 672 px of usable height (1080p at 150 %) with its buttons in view, as tests/test_dialog_fit.py asks of the
 //! Python ones. With DIALOG_SHOTS=<dir> the pictures are saved there at scale 1.5 (rust/app/shots/dialogs).
 
-use std::cell::RefCell;
 use std::path::Path;
-use std::rc::Rc;
 
 use data::import::{ImportRow, Status, TagSuggestion};
-use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType};
-use slint::platform::{Platform, WindowAdapter, WindowEvent};
+use slint::platform::{WindowAdapter, WindowEvent};
 use slint::{ComponentHandle, ModelRc, PhysicalSize, Rgb8Pixel, VecModel};
 
 use super::models::{self, NAME_TAG_ROOM};
@@ -20,24 +17,10 @@ const SHORT: f32 = 672.0;
 const SHADOW: f32 = 44.0;
 const SCALE: f32 = 1.5;
 
-thread_local! {
-    static LAST: RefCell<Option<Rc<MinimalSoftwareWindow>>> = const { RefCell::new(None) };
-}
-
-struct Headless;
-
-impl Platform for Headless {
-    fn create_window_adapter(&self) -> Result<Rc<dyn WindowAdapter>, slint::PlatformError> {
-        let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
-        LAST.with(|last| *last.borrow_mut() = Some(window.clone()));
-        Ok(window)
-    }
-}
-
 /// Draw the dialog's window at 900 x 560 logical (taller if its card needs it), save it when asked, and return
 /// its card's height with the shadow.
 fn draw(ui: &impl ComponentHandle, card: f32, name: &str) -> f32 {
-    let window = LAST.with(|last| last.borrow().clone()).expect("a window");
+    let window = crate::shots::newest();
     window.dispatch_event(WindowEvent::ScaleFactorChanged {
         scale_factor: SCALE,
     });
@@ -262,7 +245,7 @@ fn sound_trim() -> f32 {
 
 #[test]
 fn every_dialog_draws_and_fits_a_short_screen_with_its_buttons() {
-    let _ = slint::platform::set_platform(Box::new(Headless));
+    crate::shots::init();
     let mut heights: Vec<(&str, f32)> = vec![
         ("add", add_name(false, false)),
         ("edit", add_name(true, false)),

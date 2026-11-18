@@ -2,14 +2,13 @@
 //! for the side-by-side pictures in rust/app/shots/list/ and the test that every state renders.
 
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use chrono::{Duration, Local};
 use data::store::scans::{Scan, Seat};
 use data::store::{Clock, Store};
-use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType};
-use slint::platform::{Platform, WindowAdapter};
+use slint::platform::software_renderer::MinimalSoftwareWindow;
+use slint::platform::WindowAdapter;
 use slint::{ComponentHandle, PhysicalSize, Rgb8Pixel};
 use serde_json::json;
 
@@ -22,14 +21,6 @@ pub const SEATS: [&str; 12] =
 
 /// The page's logical size inside the 900 x 560 window: the window less the header and the page margins.
 pub const SIZE: (u32, u32) = (900, 501);
-
-struct Headless(Rc<MinimalSoftwareWindow>);
-
-impl Platform for Headless {
-    fn create_window_adapter(&self) -> Result<Rc<dyn WindowAdapter>, slint::PlatformError> {
-        Ok(self.0.clone())
-    }
-}
 
 /// A data folder of its own, seeded the way ui_shots._seed seeds `data` ("normal", "empty" or "stress").
 pub fn seeded(data: &str) -> Store {
@@ -92,14 +83,14 @@ pub fn seeded(data: &str) -> Store {
 /// Draw the page for each of `cases` (data, dark) into `dir`/rust-<data>[-dark].png at `scale`; the picture sizes.
 pub fn render(dir: &Path, cases: &[(&str, bool)], scale: f32) -> Result<Vec<(u32, u32)>, Box<dyn std::error::Error>> {
     std::fs::create_dir_all(dir)?;
-    let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
-    slint::platform::set_platform(Box::new(Headless(window.clone()))).map_err(|error| format!("{error:?}"))?;
-    window.dispatch_event(slint::platform::WindowEvent::ScaleFactorChanged { scale_factor: scale });
+    crate::shots::init();
     let (width, height) = ((SIZE.0 as f32 * scale) as u32, (SIZE.1 as f32 * scale) as u32);
-    window.set_size(PhysicalSize::new(width, height));
     let mut sizes = Vec::new();
     for (data, dark) in cases {
         let ui = ListWindow::new()?;
+        let window = crate::shots::newest();
+        window.dispatch_event(slint::platform::WindowEvent::ScaleFactorChanged { scale_factor: scale });
+        window.set_size(PhysicalSize::new(width, height));
         ui.set_dark(*dark);
         ui.show()?;
         let store = seeded(data);

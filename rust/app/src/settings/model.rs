@@ -43,6 +43,14 @@ pub fn show_settings(window: &SettingsPreview, state: &SettingsState) {
     window.set_about_rows(rows(state, "about"));
 }
 
+/// The page inside the main window.
+pub fn show_settings_main(window: &crate::MainWindow, state: &SettingsState) {
+    window.set_settings_sections(sections());
+    window.set_settings_general_rows(rows(state, "general"));
+    window.set_settings_help_rows(rows(state, "help"));
+    window.set_settings_about_rows(rows(state, "about"));
+}
+
 pub fn show_setup(window: &SetupWindow, model: &SetupModel) {
     window.set_state(
         match model.state {

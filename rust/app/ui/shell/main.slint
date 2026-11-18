@@ -4,7 +4,11 @@
 import { Palette, Light, Dark } from "../theme.slint";
 import { TabButton, StatusChip, UpdatePill, ProfileChip } from "header.slint";
 import { CheckCard } from "check_panel.slint";
-import { HistoryPage, ListPage, GuestsPage, SettingsPage } from "stubs.slint";
+import { HistoryPage } from "../history/page.slint";
+import { ListPage } from "../list/page.slint";
+import { GuestsPage, GuestRow } from "../guests/page.slint";
+import { SettingsPage } from "../settings/page.slint";
+import { SectionData, RowData } from "../settings/rows.slint";
 
 // The colours theme.slint's Palette lacks yet (ui_theme.py on_accent, green), by scheme.
 global Extra {
@@ -44,6 +48,27 @@ export component MainWindow inherits Window {
     in property <bool> stream-on;
     in property <string> stream-state;
     in property <bool> stream-ok;
+
+    // 嘉宾 (src/guests fills these, as on GuestsPreview).
+    in property <[GuestRow]> guests-rows;
+    in property <int> guests-fixed;
+    in property <bool> guests-show-table;
+    in property <bool> guests-show-toolbar;
+    in property <bool> guests-show-search;
+    in property <bool> guests-show-more;
+    in property <bool> guests-add-combo-enabled;
+    in property <string> guests-empty-icon: "heart";
+    in property <string> guests-empty-text;
+    in property <bool> guests-empty-buttons;
+    in-out property <string> guests-search;
+    // 设置 (src/settings fills these, as on SettingsPreview).
+    in-out property <string> settings-section: "general";
+    in property <[SectionData]> settings-sections;
+    in property <[RowData]> settings-general-rows;
+    in property <[RowData]> settings-help-rows;
+    in property <[RowData]> settings-about-rows;
+    callback settings-chosen(string, string);
+    callback settings-pressed(string);
 
     callback page-changed(int);
     callback update-clicked;
@@ -135,16 +160,47 @@ export component MainWindow inherits Window {
         Rectangle { y: parent.height - 1px; height: 1px; background: p.border; }
     }
 
-    // The page area.
-    Rectangle {
+    // The page area. 记录 sits inside the page margins; the other pages keep their own, under the header's line.
+    if page == 0: HistoryPage {
         x: 24px;
         y: header.y + header.height;
         width: parent.width - 48px;
         height: parent.height - self.y - 24px;
-        if page == 0: HistoryPage { p: p; }
-        if page == 1: ListPage { p: p; }
-        if page == 2: GuestsPage { p: p; }
-        if page == 3: SettingsPage { p: p; }
+        dark: dark;
+        p: p;
+    }
+    if page == 1: ListPage {
+        y: header.y + header.height;
+        height: parent.height - self.y;
+        dark: dark;
+    }
+    if page == 2: GuestsPage {
+        y: header.y + header.height;
+        height: parent.height - self.y;
+        dark: dark;
+        rows: guests-rows;
+        fixed: guests-fixed;
+        show-table: guests-show-table;
+        show-toolbar: guests-show-toolbar;
+        show-search: guests-show-search;
+        show-more: guests-show-more;
+        add-combo-enabled: guests-add-combo-enabled;
+        empty-icon: guests-empty-icon;
+        empty-text: guests-empty-text;
+        empty-buttons: guests-empty-buttons;
+        search <=> guests-search;
+    }
+    if page == 3: SettingsPage {
+        y: header.y + header.height;
+        height: parent.height - self.y;
+        dark: dark;
+        section <=> settings-section;
+        sections: settings-sections;
+        general-rows: settings-general-rows;
+        help-rows: settings-help-rows;
+        about-rows: settings-about-rows;
+        chosen(key, value) => { settings-chosen(key, value); }
+        pressed(key) => { settings-pressed(key); }
     }
 
     // A click anywhere else in the window closes the panel, as a menu does.
