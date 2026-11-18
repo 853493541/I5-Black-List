@@ -125,7 +125,8 @@ jobs:
           name: ocr-models
           path: ${{ runner.temp }}/models
 
-      # "before" is the base commit with its own (default) release profile; the others are this commit's profiles.
+      # "before" is the base commit with its own (default) release profile; the others are this commit's profiles. A
+      # linker map gives where the bytes go.
       - name: Build
         run: |
           if [ "${{ matrix.variant }}" = before ]; then
@@ -137,51 +138,105 @@ jobs:
           fi
           cd "$RUNNER_TEMP/src/rust"
           start=$(date +%s)
-          cargo build --profile "$profile" -p app --bin blacklist-detect
+          RUSTFLAGS="$RUSTFLAGS -C link-arg=/MAP:$(cygpath -w "$RUNNER_TEMP/app.map")" \
+            cargo build --profile "$profile" -p app --bin blacklist-detect
           echo "BUILD_SECONDS=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
           echo "PROFILE=$profile" >> "$GITHUB_ENV"
-          echo "EXE=$RUNNER_TEMP/src/rust/target/$profile/blacklist-detect.exe" >> "$GITHUB_ENV"
-      - name: Measure
+          mkdir -p "$RUNNER_TEMP/out"
+          cp "target/$profile/blacklist-detect.exe" "$RUNNER_TEMP/out/${{ matrix.variant }}.exe"
+          echo "${{ matrix.variant }} $(stat -c %s target/$profile/blacklist-detect.exe) $(( $(date +%s) - start ))" > "$RUNNER_TEMP/out/${{ matrix.variant }}.txt"
+      - name: Where the bytes go
+        working-directory: .
         run: |
-          python -m pip install -q onnxruntime==$ORT_VERSION
-          ort=$(python -c "import onnxruntime, os; print(os.path.join(os.path.dirname(onnxruntime.__file__), 'capi', 'onnxruntime.dll'))")
-          run="$RUNNER_TEMP/run"; mkdir -p "$run"
-          cp "$EXE" "$run/blacklist-detect.exe"; cp "$ort" "$run/onnxruntime.dll"
-          home="$RUNNER_TEMP/home"; mkdir -p "$home"
-          export APPDATA="$home" USERPROFILE="$home" HOME="$home" BLACKLIST_DETECT_MODEL_DIR="$RUNNER_TEMP/models"
-          unset BLACKLIST_DETECT_SOUND
-          ms() { local s=$(date +%s%N); "$@" > /dev/null 2>&1; echo $(( ($(date +%s%N) - s) / 1000000 )); }
-          median() { sort -n | awk '{ a[NR] = $1 } END { print a[int((NR + 1) / 2)] }'; }
-          "$run/blacklist-detect.exe" --quit-after-start || true
-          start_ms=$(for i in 1 2 3 4 5; do ms "$run/blacklist-detect.exe" --quit-after-start; done | median)
-          "$run/blacklist-detect.exe" check "$GITHUB_WORKSPACE/blacklist_detect/assets/sample-lobby.jpg" | tee "$RUNNER_TEMP/check.txt" || true
-          check_ms=$(for i in 1 2 3 4 5; do ms "$run/blacklist-detect.exe" check "$GITHUB_WORKSPACE/blacklist_detect/assets/sample-lobby.jpg"; done | median)
-          python - "$run/blacklist-detect.exe" "$RUNNER_TEMP/exe.zip" <<'PY' > "$RUNNER_TEMP/zip.txt"
-          import sys, zipfile
-          with zipfile.ZipFile(sys.argv[2], "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
-              z.write(sys.argv[1], "blacklist-detect.exe")
+          python - "$RUNNER_TEMP/app.map" <<'PY' | tee "$RUNNER_TEMP/out/${{ matrix.variant }}-map.txt"
+          import re, sys, collections
+          rows = []
+          for line in open(sys.argv[1], encoding="latin-1"):
+              m = re.match(r"\s*[0-9a-f]{4}:[0-9a-f]{8}\s+\S+\s+([0-9a-f]{16})\s+(?:f\s+)?(?:i\s+)?(\S+)\s*$", line)
+              if m:
+                  rows.append((int(m.group(1), 16), m.group(2)))
+          rows.sort()
+          size = collections.Counter()
+          for (a, obj), (b, _) in zip(rows, rows[1:]):
+              if b - a < 64 << 20:
+                  lib = obj.split(":")[0] if ":" in obj else ("rust" if obj.endswith(".o") or "rcgu" in obj else obj)
+                  size[re.sub(r"-[0-9a-f]{16}", "", lib)] += b - a
+          for lib, n in size.most_common(15):
+              print(f"{n / 1048576:7.2f} MiB  {lib}")
           PY
-          exe=$(stat -c %s "$EXE"); zip=$(stat -c %s "$RUNNER_TEMP/exe.zip")
-          pdb=$(stat -c %s "${EXE%.exe}.pdb" 2>/dev/null || echo 0)
-          seats=$(grep -cE '^ ?[0-9]+  完整' "$RUNNER_TEMP/check.txt" || true)
-          line="| ${{ matrix.variant }} | $exe | $(awk -v b=$exe 'BEGIN { printf "%.2f", b / 1048576 }') | $(awk -v b=$zip 'BEGIN { printf "%.2f", b / 1048576 }') | $pdb | $start_ms | $check_ms | $seats | $BUILD_SECONDS |"
-          echo "$line" > "$RUNNER_TEMP/row.md"
-          echo "$line"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: exe-${{ matrix.variant }}
+          path: ${{ runner.temp }}/out
+          retention-days: 3
       # The stage's frame time at 1920x1080 on this runner (WARP: no GPU), with the variant's profile.
       - name: Frame time
         continue-on-error: true
         working-directory: ${{ runner.temp }}/src/rust
         run: |
-          cargo test --profile "$PROFILE" -p stage --test overlay -- --nocapture 2>&1 | tee "$RUNNER_TEMP/stage.log" | grep -E "STAGE|test result" || true
-      - name: Report
-        if: always()
+          cargo test --profile "$PROFILE" -p stage --test overlay -- --nocapture > "$RUNNER_TEMP/stage.log" 2>&1 || true
+          grep -E "STAGE|test result|error" "$RUNNER_TEMP/stage.log" | tail -5
+          echo "RESULT ${{ matrix.variant }} $(grep -oE 'draw median [0-9.]+ ms' "$RUNNER_TEMP/stage.log" | head -1)"
+
+  # Every exe timed on the same runner, interleaved, so the runners' different CPUs do not count.
+  compare:
+    needs: measure
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    env:
+      ORT_VERSION: "1.32.0"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: exe-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/exes
+      - uses: actions/download-artifact@v4
+        with:
+          name: ocr-models
+          path: ${{ runner.temp }}/models
+      - name: Time them
         run: |
-          frame=$(grep -oE 'draw median [0-9.]+ ms' "$RUNNER_TEMP/stage.log" 2>/dev/null | head -1)
-          {
-            echo "### ${{ matrix.variant }}"
-            echo '| Variant | Exe bytes | Exe MiB | Zip MiB | PDB bytes | Start ms | Check ms | Seats read | Build s |'
-            echo '|---|---|---|---|---|---|---|---|---|'
-            cat "$RUNNER_TEMP/row.md" 2>/dev/null
-            echo
-            echo "Stage frame: ${frame:-n/a}"
-          } | tee -a "$GITHUB_STEP_SUMMARY"
+          python -m pip install -q onnxruntime==$ORT_VERSION
+          ort=$(python -c "import onnxruntime, os; print(os.path.join(os.path.dirname(onnxruntime.__file__), 'capi', 'onnxruntime.dll'))")
+          cp "$ort" "$RUNNER_TEMP/exes/onnxruntime.dll"
+          home="$RUNNER_TEMP/home"; mkdir -p "$home"
+          export APPDATA="$home" USERPROFILE="$home" HOME="$home" BLACKLIST_DETECT_MODEL_DIR="$RUNNER_TEMP/models"
+          unset BLACKLIST_DETECT_SOUND
+          lobby="$GITHUB_WORKSPACE/blacklist_detect/assets/sample-lobby.jpg"
+          cd "$RUNNER_TEMP/exes"
+          variants="before release release-s release-z release-zhot"
+          for v in $variants; do ./$v.exe --quit-after-start; ./$v.exe check "$lobby" > "$v-check.txt" || true; done
+          ms() { local s=$(date +%s%N); "$@" > /dev/null 2>&1; echo $(( ($(date +%s%N) - s) / 1000000 )); }
+          for round in 1 2 3 4 5 6 7; do
+            for v in $variants; do
+              echo "$v start $(ms ./$v.exe --quit-after-start)" >> times.txt
+              echo "$v check $(ms ./$v.exe check "$lobby")" >> times.txt
+            done
+          done
+          python - $variants <<'PY'
+          import collections, os, statistics, zipfile
+          t = collections.defaultdict(list)
+          for line in open("times.txt"):
+              v, what, ms = line.split()
+              t[v, what].append(int(ms))
+          print("| Variant | Exe MiB | Zip MiB | Start ms | Check ms | Same names as before |")
+          print("|---|---|---|---|---|---|")
+          ref = open("before-check.txt", encoding="utf-8").read()
+          for v in os.sys.argv[1:]:
+              with zipfile.ZipFile(f"{v}.zip", "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+                  z.write(f"{v}.exe", "blacklist-detect.exe")
+              mib = lambda p: os.path.getsize(p) / 1048576
+              same = open(f"{v}-check.txt", encoding="utf-8").read() == ref
+              print(f"| {v} | {mib(v + '.exe'):.2f} | {mib(v + '.zip'):.2f} | {statistics.median(t[v, 'start'])} | "
+                    f"{statistics.median(t[v, 'check'])} | {same} |")
+          PY
+          for v in $variants; do echo "== $v"; cat "$v-map.txt"; done
+          cat before-check.txt
