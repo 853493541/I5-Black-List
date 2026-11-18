@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["ocr", "lobby", "data", "win", "scenes", "app", "common", "sound", "pipeline", "stage", "pyocr"]
+members = ["ocr", "lobby", "data", "win", "scenes", "app", "common", "overlay"]
 
 [workspace.package]
 edition = "2021"
