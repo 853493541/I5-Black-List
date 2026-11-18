@@ -2,6 +2,7 @@
 resolver = "2"
 members = ["ocr", "lobby", "data", "win", "scenes", "app", "common", "sound"]
 members = ["ocr", "lobby", "data", "win", "scenes", "app", "common", "pipeline"]
+members = ["ocr", "lobby", "data", "win", "scenes", "app", "common", "stage"]
 
 [workspace.package]
 edition = "2021"
