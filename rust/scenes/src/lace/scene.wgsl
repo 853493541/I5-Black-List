@@ -68,8 +68,14 @@ fn polygon(p: vec2<f32>, offset: u32, count: u32) -> f32 {
     return select(clamp(0.5 - d, 0.0, 1.0), clamp(0.5 + d, 0.0, 1.0), inside);
 }
 
-// A pen of half-width `half` along the polylines from offset; a point far off to the left starts a new one.
-fn stroke(p: vec2<f32>, offset: u32, count: u32, half: f32) -> f32 {
+fn is_break(i: u32, offset: u32, count: u32) -> bool {
+    return i >= count || points[offset + i].x < -1e29;
+}
+
+// A pen of half-width `half` along the polylines from offset; a point far off to the left starts a new
+// one. With `square` the outer end of each one's first and last segment is cut flat there (the CPU has
+// already pushed it out by half); elsewhere the ends and joins are round.
+fn stroke(p: vec2<f32>, offset: u32, count: u32, half: f32, square: bool) -> f32 {
     var d = 1e9;
     for (var i = 0u; i + 1u < count; i++) {
         let a = points[offset + i];
@@ -77,12 +83,21 @@ fn stroke(p: vec2<f32>, offset: u32, count: u32, half: f32) -> f32 {
         if a.x < -1e29 || b.x < -1e29 {
             continue;
         }
-        d = min(d, seg_dist(p, a, b));
+        let ab = b - a;
+        let len = max(length(ab), 1e-9);
+        let along = dot(p - a, ab) / len;
+        let across = abs(dot(p - a, vec2(-ab.y, ab.x)) / len);
+        var sd = seg_dist(p, a, b) - half;
+        if square && ((along < 0.0 && (i == 0u || is_break(i - 1u, offset, count))) || (along > len && is_break(i + 2u, offset, count))) {
+            let e = vec2(select(along - len, -along, along < 0.0), across - half);
+            sd = length(max(e, vec2(0.0))) + min(max(e.x, e.y), 0.0);
+        }
+        d = min(d, sd);
     }
     if half < 0.5 {
-        return clamp(1.0 - d, 0.0, 1.0) * half * 2.0;
+        return clamp(1.0 - (d + half), 0.0, 1.0) * half * 2.0;
     }
-    return clamp(half + 0.5 - d, 0.0, 1.0);
+    return clamp(0.5 - d, 0.0, 1.0);
 }
 
 fn rounded_rect(p: vec2<f32>, r: vec4<f32>, radius: f32) -> f32 {
@@ -162,7 +177,7 @@ fn fs(in: Out) -> @location(0) vec4<f32> {
     switch pr.kind.x {
         case 1u: { cover = disc(p, pr.s0.xyz); }
         case 2u: { cover = polygon(p, u32(pr.s0.x), u32(pr.s0.y)); }
-        case 5u: { cover = stroke(p, u32(pr.s0.x), u32(pr.s0.y), pr.s0.z); }
+        case 5u: { cover = stroke(p, u32(pr.s0.x), u32(pr.s0.y), pr.s0.z, pr.s0.w > 0.5); }
         default: {}
     }
     if pr.kind.x == 6u {

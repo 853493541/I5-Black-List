@@ -162,22 +162,34 @@ impl Frame {
         self.push(POLY, paint, bb, [s0, [0.0; 4], [0.0; 4]], 0);
     }
 
-    /// A pen along polylines (subpaths), `width` across, round joins; `square` caps reach half the
-    /// width past each open end (Qt's default pen), else round caps.
-    pub fn stroke_with(&mut self, subs: &[Vec<Pt>], width: f64, paint: &Paint, square: bool, flags: u32) {
+    /// A pen along a path, `width` across, round joins; `square` caps reach half the width past each
+    /// open end, squared off (Qt's default pen), else round caps.
+    pub fn stroke_path(&mut self, path: &Path, width: f64, paint: &Paint, square: bool, flags: u32) {
         let h = width / 2.0;
-        let subs: Vec<Vec<Pt>> = if square { subs.iter().map(|s| extend(s, h)).collect() } else { subs.to_vec() };
-        let (mut s0, bb) = self.add_points(&subs);
-        if subs.iter().all(|s| s.is_empty()) {
+        let subs: Vec<Vec<Pt>> = path
+            .subs
+            .iter()
+            .zip(&path.closed)
+            .filter(|(s, _)| s.len() > 1)
+            .map(|(s, &closed)| match (closed, square) {
+                // A closed one runs on over its first segment, so its start is a join like the rest.
+                (true, _) => s.iter().chain(s.get(1)).copied().collect(),
+                (false, true) => extend(s, h),
+                (false, false) => s.clone(),
+            })
+            .collect();
+        if subs.is_empty() {
             return;
         }
+        let (mut s0, bb) = self.add_points(&subs);
         s0[2] = h as f32;
+        s0[3] = if square { 1.0 } else { 0.0 };
         self.push(STROKE, paint, [bb[0] - h, bb[1] - h, bb[2] + h, bb[3] + h], [s0, [0.0; 4], [0.0; 4]], flags);
     }
 
     /// A round-capped pen of one color along one polyline.
     pub fn stroke(&mut self, points: &[Pt], width: f64, color: &str, alpha: f64) {
-        self.stroke_with(&[points.to_vec()], width, &solid(color, alpha), false, 0);
+        self.stroke_path(&Path::lines(points), width, &solid(color, alpha), false, 0);
     }
 
     /// A whole-frame picture: the lobby or one of the scene's layers, at `alpha`.
@@ -215,14 +227,10 @@ impl Frame {
     }
 }
 
-/// An open polyline with its ends pushed out by `h` along the line (a square cap's reach); a closed
-/// one (first point equal to last) is left as it is.
+/// An open polyline with its ends pushed out by `h` along the line (a square cap's reach).
 fn extend(s: &[Pt], h: f64) -> Vec<Pt> {
     let mut out = s.to_vec();
     let n = out.len();
-    if n < 2 || out[0] == out[n - 1] {
-        return out;
-    }
     let push = |a: Pt, b: Pt| {
         let (dx, dy) = (a[0] - b[0], a[1] - b[1]);
         let len = dx.hypot(dy);
@@ -269,6 +277,8 @@ impl Xf {
 #[derive(Default, Clone)]
 pub struct Path {
     pub subs: Vec<Vec<Pt>>,
+    /// Whether each subpath was closed (closeSubpath, or an ellipse).
+    pub closed: Vec<bool>,
 }
 
 fn pieces(dd: f64) -> usize {
@@ -277,7 +287,12 @@ fn pieces(dd: f64) -> usize {
 
 impl Path {
     pub fn new(at: Pt) -> Self {
-        Self { subs: vec![vec![at]] }
+        Self { subs: vec![vec![at]], closed: vec![false] }
+    }
+
+    /// An open polyline.
+    pub fn lines(points: &[Pt]) -> Self {
+        Self { subs: vec![points.to_vec()], closed: vec![false] }
     }
 
     fn last(&self) -> Pt {
@@ -286,6 +301,7 @@ impl Path {
 
     pub fn move_to(&mut self, p: Pt) {
         self.subs.push(vec![p]);
+        self.closed.push(false);
     }
 
     pub fn line_to(&mut self, p: Pt) {
@@ -324,10 +340,13 @@ impl Path {
                 s.push(s[0]);
             }
         }
+        if let Some(c) = self.closed.last_mut() {
+            *c = true;
+        }
     }
 
     /// The path through a transform.
     pub fn mapped(&self, xf: &Xf) -> Path {
-        Path { subs: self.subs.iter().map(|s| s.iter().map(|&p| xf.map(p)).collect()).collect() }
+        Path { subs: self.subs.iter().map(|s| s.iter().map(|&p| xf.map(p)).collect()).collect(), closed: self.closed.clone() }
     }
 }

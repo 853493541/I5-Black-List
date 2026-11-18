@@ -13,7 +13,7 @@ fn fill_and_stroke(f: &mut Frame, path: &Path, fill: &Paint, pen: &Paint, width:
     for sub in &path.subs {
         f.poly(sub, fill);
     }
-    f.stroke_with(&path.subs, width, pen, true, 0);
+    f.stroke_path(path, width, pen, true, 0);
 }
 
 fn grad(xf: &Xf, a: Pt, b: Pt, list: &[(f64, &str, f64)]) -> Paint {

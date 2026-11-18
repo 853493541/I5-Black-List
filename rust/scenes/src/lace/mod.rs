@@ -159,7 +159,7 @@ impl Lace {
                 let mut path = Path::new(a);
                 path.quad_to([(a[0] + b[0]) / 2.0, a[1] + 2.0 * depth], b);
                 let pen = Paint::Solid(rgb(*color), (255.0 * alpha).round_ties_even() / 255.0);
-                f.stroke_with(&path.subs, thick * u, &pen, false, 0);
+                f.stroke_path(&path, thick * u, &pen, false, 0);
             }
         }
     }
@@ -170,7 +170,7 @@ impl Lace {
         let grow = ease_out(t / 1.2);
         let inset = 16.0 * u;
         let (half_w, half_h) = ((width / 2.0 - inset) * grow, (height / 2.0 - inset) * grow);
-        let line = |f: &mut Frame, a: Pt, b: Pt, w: f64, pen: &Paint| f.stroke_with(&[vec![a, b]], w, pen, true, 0);
+        let line = |f: &mut Frame, a: Pt, b: Pt, w: f64, pen: &Paint| f.stroke_path(&Path::lines(&[a, b]), w, pen, true, 0);
         let pen = solid("#ffd9e6", 0.9);
         for y in [inset, height - inset] {
             line(f, [width / 2.0 - half_w, y], [width / 2.0 + half_w, y], 2.0 * u, &pen);
@@ -193,7 +193,7 @@ impl Lace {
                     curl.cubic_to([x, y + 6.0 * u * flip], [x + step / 6.0, y + 6.0 * u * flip], [x + step / 6.0, y + u * flip]);
                     curl.move_to([x, y]);
                     curl.cubic_to([x + step / 4.0, y + 9.0 * u * flip], [x + step / 2.0, y + 4.0 * u * flip], [x + step / 2.0, y]);
-                    f.stroke_with(&curl.subs, 1.6 * u, &pen, true, 0);
+                    f.stroke_path(&curl, 1.6 * u, &pen, true, 0);
                 }
                 reach += step;
             }
