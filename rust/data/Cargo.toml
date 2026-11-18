@@ -4,6 +4,15 @@ version = "0.1.0"
 edition.workspace = true
 
 [dependencies]
+serde_json = { version = "1", features = ["preserve_order"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+unicode-normalization = "0.1"
+unicode-general-category = "1"
+caseless = "0.2"
+
+[dev-dependencies]
+proptest = "1"
+tempfile = "3"
 
 [lints]
 workspace = true
