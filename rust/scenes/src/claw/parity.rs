@@ -29,6 +29,11 @@ fn python(name: &str, w: u32, h: u32) -> Vec<u8> {
 #[test]
 fn the_strike_matches_python() {
     let (w, h) = (1920u32, 1080u32);
+    // The Python frames are not committed (claw/py_frames.py writes them): nothing to compare with.
+    if !root().join("claw/py_t3.1.png").exists() {
+        eprintln!("claw/py_t*.png missing: run rust/scenes/claw/py_frames.py to compare with Python");
+        return;
+    }
     // No Vulkan, Metal or DX12 driver at all: nothing to test here.
     let Ok(mut gpu) = Renderer::new(w, h) else { return };
     let (fw, fh) = (f64::from(w), f64::from(h));

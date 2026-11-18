@@ -28,11 +28,15 @@ each name), and `LOOK` for the shared ring and the card's names. How the overlay
 
 ## Pictures and numbers
 
-1920x1080 over the sample lobby (made-up names). `side_t<t>.png`: Python left, Rust right, half size;
-`crop_t<t>.png`: full-size crops of the middle (the slashes); `side_marks.png`: the marks, Python left.
+1920x1080 over the sample lobby (made-up names). `side_t<t>.jpg`: Python left, Rust right, half size;
+`crop_t<t>.jpg` (1.5 s, 3.1 s): full-size crops of the middle (the slashes); `side_marks.jpg`: the marks,
+Python left. Only these (JPEG, quality 90), `py_marks.png` and the script are committed; the full-size frames
+are made again:
 
     PYTHONPATH=. python rust/scenes/claw/py_frames.py      # py_t*.png, py_marks.png, glyphs.rs
-    cargo run --release -p scenes --bin claw_frames          # from rust/: rust_t*, side_*, crop_*, the numbers
+    cargo run --release -p scenes --bin claw_frames          # from rust/: rust_t*, side_*.png, crop_*.png, the numbers
+
+The scene's parity test is skipped while `py_t*.png` are missing; the marks' test always runs.
 
 | t | what | mean abs diff | pixels off by > 8 | > 32 | PSNR |
 |---|---|---|---|---|---|
