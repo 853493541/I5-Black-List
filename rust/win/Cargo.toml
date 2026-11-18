@@ -5,6 +5,7 @@ edition.workspace = true
 
 [dependencies]
 sha1 = "0.10"
+serde_json = { version = "1", features = ["float_roundtrip"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-registry = "0.5"
@@ -25,6 +26,7 @@ windows = { version = "0.61", features = [
 
 [dev-dependencies]
 proptest = "1"
+serde = { version = "1", features = ["derive"] }
 
 [lints]
 workspace = true
