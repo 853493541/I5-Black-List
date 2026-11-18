@@ -16,3 +16,4 @@ pub mod pyrand;
 pub mod stars;
 pub mod lace;
 pub mod classic;
+pub mod claw;
