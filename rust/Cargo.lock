@@ -140,6 +140,7 @@ dependencies = [
  "pinyin",
  "pipeline",
  "png 0.17.16",
+ "raw-window-handle",
  "serde_json",
  "slint",
  "slint-build",
@@ -4919,6 +4920,7 @@ dependencies = [
  "i-slint-renderer-software",
  "once_cell",
  "pin-weak",
+ "raw-window-handle",
  "slint-macros",
  "vtable",
 ]
