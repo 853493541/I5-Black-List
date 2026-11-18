@@ -175,7 +175,7 @@ export component NoticeCard inherits Rectangle {
                     color: look.ink;
                     vertical-alignment: center;
                 }
-                if note != "": Text { text: note; font-size: 14px; color: look.soft; wrap: word-wrap; }
+                if note != "": Text { text: note; font-size: 14px; color: look.soft; }
             }
         }
         if people.length > 0: VerticalLayout {
@@ -276,7 +276,6 @@ export component NoticeWindow inherits Window {
     always-on-top: true;
     default-font-family: "Microsoft YaHei";
     width: card-width;
-    height: card.natural-height;
     card := NoticeCard {
         width: parent.width;
         height: parent.height;

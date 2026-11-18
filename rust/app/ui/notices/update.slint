@@ -147,12 +147,13 @@ export component UpdateDialogWindow inherits Window {
     width: 900px;
     height: 560px;
     background: p.bg;
-    Rectangle { background: #00000059; TouchArea { clicked => { root.click-outside(); } } }
+    Rectangle { background: #0000004a; TouchArea { clicked => { root.click-outside(); } } }
     card := UpdateDialogCard {
         width: 460px;
         height: self.natural-height;
         x: (root.width - self.width) / 2;
-        y: (root.height - self.height) / 2;
+        // Modal keeps more shadow below the card than above it: the card sits 6 px above the middle.
+        y: (root.height - self.height) / 2 - 6px;
         p: p;
         title-text: title-text;
         summary: summary;

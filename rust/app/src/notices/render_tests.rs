@@ -1,6 +1,7 @@
 //! Every notice window drawn without a display at scale 1.5, and the update dialog's fit in 672 px.
 //! NOTICES_SHOTS=<dir> also saves the pictures there.
 
+use slint::platform::software_renderer::MinimalSoftwareWindow;
 use slint::ComponentHandle;
 
 use super::corner::{result_messages, Message};
@@ -23,17 +24,25 @@ fn keep(picture: &Picture, name: &str) {
     }
 }
 
-/// The notice window measures its own words.
-struct Slint<'a>(&'a NoticeWindow);
+/// The notice window measures its own words. Slint makes a card's optional parts (the note, the
+/// names) only when it is drawn, so it is drawn once before it is measured.
+struct Slint<'a>(&'a NoticeWindow, &'a MinimalSoftwareWindow);
+
+impl Slint<'_> {
+    fn settle(&self, message: &Message, width: f32) {
+        fill_notice(self.0, message, Some(1.0), 0.0);
+        self.0.set_card_width(width);
+        draw(self.0, self.1, (width, 600.0));
+    }
+}
 
 impl Measure for Slint<'_> {
     fn natural_width(&self, message: &Message) -> i32 {
-        fill_notice(self.0, message, Some(1.0), 0.0);
+        self.settle(message, 440.0);
         self.0.get_natural_width().round() as i32
     }
     fn height(&self, message: &Message, width: i32) -> i32 {
-        fill_notice(self.0, message, Some(1.0), 0.0);
-        self.0.set_card_width(width as f32);
+        self.settle(message, width as f32);
         self.0.get_natural_height().round() as i32
     }
 }
@@ -55,7 +64,7 @@ fn notice_cards_draw() {
     all.push(("notice_error".into(), Message::error("截图失败，等会儿再试"), Some(1.0)));
     let many: Vec<(String, Vec<String>)> = (0..7).map(|i| (format!("示例坏人{i}"), vec!["炸房".into(), "挂机".into()])).collect();
     all.push(("notice_many".into(), result_messages(&many, &[], 0).remove(0), Some(1.0)));
-    let measure = Slint(&ui);
+    let measure = Slint(&ui, &window);
     for (name, message, left) in all {
         let width = measure.natural_width(&message).clamp(300, 440);
         let height = measure.height(&message, width);
