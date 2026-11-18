@@ -13,7 +13,7 @@ pub fn placement(stage: &Stage) -> stage::geom::Placement {
 }
 
 /// The scene for this key on this stage; None for a key this build has no port of (it plays nothing).
-pub fn make(key: &str, stage: &Stage) -> Option<Box<dyn stage::scene::Scene>> {
+pub fn make(key: &str, stage: &Stage) -> Option<Box<dyn stage::scene::Scene + Send>> {
     stage::scene::make(key, &placement(stage).stage())
 }
 
