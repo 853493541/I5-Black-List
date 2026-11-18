@@ -3,6 +3,8 @@
 //! /tmp/rec/onnx), REC_CROPS (/tmp/rec/crops) and REC_ORT_LIB (libonnxruntime.so of the onnxruntime 1.32.0 wheel)
 //! say where they are; without them the tests say so and pass.
 //!
+//! REC_GOLDEN replaces the strips.json here (tools/rust_golden_ipp.py writes one, with its crops, from made-up names).
+//!
 //! The plain line is checked against the reads Python makes with Intel IPP off. opencv-python 4.10 resizes
 //! INTER_CUBIC through IPP, and an OpenCV built without it (Ubuntu's libopencv 4.6.0) gives other pixels at
 //! non-integer scales; the `*_with_ipp` test, ignored, compares against the app's own reads and shows that gap.
@@ -19,7 +21,7 @@ use ort::environment::Environment;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-const GOLDEN: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/golden/rec/strips.json");
+const GOLDEN_IN_GIT: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/golden/rec/strips.json");
 const ORT_LIB: &str = "/tmp/rec/venv/lib/python3.12/site-packages/onnxruntime/capi/libonnxruntime.so.1.32.0";
 
 fn setting(name: &str, default: &str) -> PathBuf {
@@ -27,7 +29,8 @@ fn setting(name: &str, default: &str) -> PathBuf {
 }
 
 fn golden() -> Vec<Value> {
-    let data: Value = serde_json::from_str(&std::fs::read_to_string(GOLDEN).unwrap()).unwrap();
+    let path = setting("REC_GOLDEN", GOLDEN_IN_GIT);
+    let data: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
     data["frames"].as_array().unwrap().clone()
 }
 
@@ -84,12 +87,13 @@ fn plain<'a>(strip: &'a Value, key: &str, ipp: bool) -> &'a Value {
 }
 
 #[test]
+#[cfg_attr(windows, ignore = "the official Windows OpenCV 4.10 resizes with Intel IPP: the *_with_ipp twin runs there")]
 fn prepared_images_match_python_byte_for_byte() {
     check_prepared(false);
 }
 
 #[test]
-#[ignore = "opencv-python 4.10 resizes INTER_CUBIC with Intel IPP; the system OpenCV here has none"]
+#[cfg_attr(not(windows), ignore = "opencv-python 4.10 resizes INTER_CUBIC with Intel IPP; the system OpenCV here has none")]
 fn prepared_images_match_python_byte_for_byte_with_ipp() {
     check_prepared(true);
 }
@@ -129,12 +133,13 @@ fn compare(label: &str, got: &[Read], want: &[&Value], failures: &mut Vec<String
 }
 
 #[test]
+#[cfg_attr(windows, ignore = "the official Windows OpenCV 4.10 resizes with Intel IPP: the *_with_ipp twin runs there")]
 fn reads_match_python_texts_and_scores() {
     check_reads(false);
 }
 
 #[test]
-#[ignore = "opencv-python 4.10 resizes INTER_CUBIC with Intel IPP; the system OpenCV here has none"]
+#[cfg_attr(not(windows), ignore = "opencv-python 4.10 resizes INTER_CUBIC with Intel IPP; the system OpenCV here has none")]
 fn reads_match_python_texts_and_scores_with_ipp() {
     check_reads(true);
 }
