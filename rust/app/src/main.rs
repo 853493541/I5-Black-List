@@ -14,6 +14,7 @@ mod headless;
 mod stream;
 #[allow(dead_code)] // wired by the app-wiring package
 mod settings;
+mod shell;
 
 use std::path::PathBuf;
 
