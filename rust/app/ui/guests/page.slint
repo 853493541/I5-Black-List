@@ -1,0 +1,371 @@
+// The 嘉宾 page (blacklist_detect/ui_likes.py LikesPage): toolbar, the list (我, 组合, 嘉宾), the right-click and 更多
+// menus, the empty states. It shows what src/guests/view.rs gives it and sends every click back out.
+
+import { Palette, Light, Dark } from "../theme.slint";
+import { GuestTones, GuestColors, GuestIcon, GuestButton, GuestTag, SceneCell, MenuLine } from "parts.slint";
+
+export struct GuestPerson { name: string, present: bool }
+
+// One row: kind 0 the 我 row, 1 a 组合, 2 a 嘉宾. menu: its right-click items, "-" for the line.
+export struct GuestRow {
+    kind: int,
+    name: string,
+    people: [GuestPerson],
+    nickname: string,
+    dots: [color],
+    scene: string,
+    reason: string,
+    met: string,
+    menu: [string],
+}
+
+// Where the page's clicks go: src/guests/view.rs turns them into GuestActions.
+export global GuestsBridge {
+    callback search-edited(string);
+    callback row-clicked(int);
+    callback row-key(int, int);
+    callback row-menu(int, int);
+    callback row-moved(int, int);
+    callback manage-scenes();
+    callback add-combo();
+    callback add-guest();
+    callback more-chosen(int);
+}
+
+export component GuestsPage inherits Rectangle {
+    in property <bool> dark;
+    in property <[GuestRow]> rows;
+    in property <int> fixed;
+    in property <bool> show-table;
+    in property <bool> show-toolbar;
+    in property <bool> show-search;
+    in property <bool> show-more;
+    in property <bool> add-combo-enabled;
+    in property <string> empty-icon: "heart";
+    in property <string> empty-text;
+    in property <bool> empty-buttons;
+    in property <bool> drag-enabled;
+    in property <length> scene-width: 178px;
+    in-out property <string> search;
+    in-out property <int> current: -1;
+
+    property <Palette> p: dark ? Dark.palette : Light.palette;
+    property <GuestTones> g: dark ? GuestColors.dark : GuestColors.light;
+    property <length> pad: 24px;
+    property <length> row-h: 40px;
+    property <length> head-h: 41px;
+    property <[length]> cols: [200px, 140px, scene-width, list.width - 2px - 460px - scene-width, 120px];
+    property <[string]> titles: ["名字", "昵称", "场景", "原因", "最近遇到"];
+    property <int> menu-row: -1;
+    property <length> menu-x;
+    property <length> menu-y;
+    property <int> drag-from: -1;
+    property <int> drag-to: -1;
+    background: p.bg;
+
+    // Toolbar: search and 场景管理 on the left, 添加组合, 添加嘉宾 and 更多 on the right.
+    toolbar := Rectangle {
+        x: pad;
+        y: 12px;
+        width: parent.width - 2 * pad;
+        height: 32px;
+        if show-search: Rectangle {
+            x: 0;
+            width: 267px;
+            border-radius: 6px;
+            border-width: 1px;
+            border-color: field.has-focus ? p.muted : p.border;
+            background: p.surface;
+            GuestIcon { x: 12px; name: "search"; size: 16px; tone: p.muted; }
+            if search == "": Text { x: 39px; y: (parent.height - self.height) / 2; text: "搜索"; font-size: 14px; color: p.muted; }
+            field := TextInput {
+                x: 39px;
+                width: parent.width - 39px - 10px;
+                y: (parent.height - self.height) / 2;
+                text <=> search;
+                font-size: 14px;
+                color: p.text;
+                single-line: true;
+                accessible-label: "搜索名字、昵称或原因";
+                edited => { GuestsBridge.search-edited(self.text); }
+            }
+        }
+        if show-toolbar: GuestButton { x: 275px; label: "场景管理"; p: p; clicked => { GuestsBridge.manage-scenes(); } }
+        if show-toolbar: GuestButton {
+            x: parent.width - 28px - 8px - 86px - 8px - self.width;
+            label: "添加组合";
+            enabled: add-combo-enabled;
+            p: p;
+            clicked => { GuestsBridge.add-combo(); }
+        }
+        if show-toolbar: GuestButton { x: parent.width - 28px - 8px - self.width; width: 86px; label: "添加嘉宾"; primary: true; p: p; clicked => { GuestsBridge.add-guest(); } }
+        if show-more: Rectangle {
+            x: parent.width - 28px;
+            width: 28px;
+            border-radius: 6px;
+            background: more-touch.has-hover ? p.hover : transparent;
+            GuestIcon { name: "more"; size: 16px; tone: p.muted; }
+            more-touch := TouchArea { mouse-cursor: pointer; clicked => { more-menu.show(); } }
+        }
+        more-menu := PopupWindow {
+            x: parent.width - 160px;
+            y: parent.height + 4px;
+            width: 160px;
+            Rectangle {
+                background: p.surface;
+                border-radius: 8px;
+                border-width: 1px;
+                border-color: p.border;
+                drop-shadow-blur: 12px;
+                drop-shadow-color: #0000002a;
+                VerticalLayout {
+                    padding: 4px;
+                    MenuLine { label: "复制名单"; icon: "copy"; p: p; chosen => { GuestsBridge.more-chosen(0); } }
+                    MenuLine { label: "-"; p: p; }
+                    MenuLine { label: "清空嘉宾列表"; icon: "delete"; p: p; chosen => { GuestsBridge.more-chosen(1); } }
+                }
+            }
+        }
+    }
+
+    // The list: a header as 黑名单's, then the rows; the first `fixed` neither drag nor take a drop.
+    list := Rectangle {
+        x: pad;
+        y: 56px;
+        width: parent.width - 2 * pad;
+        height: parent.height - self.y - pad;
+        visible: show-table;
+        border-radius: 6px;
+        border-width: 1px;
+        border-color: p.border;
+        background: p.surface;
+        clip: true;
+        Rectangle {
+            x: 1px;
+            y: 1px;
+            width: parent.width - 2px;
+            height: head-h;
+            background: p.hover;
+            for title[i] in titles: Rectangle {
+                x: i == 0 ? 0 : cols[0] + (i > 1 ? cols[1] : 0) + (i > 2 ? cols[2] : 0) + (i > 3 ? cols[3] : 0);
+                width: cols[i];
+                Text { x: 14px; y: (parent.height - self.height) / 2; text: title; font-size: 13px; color: p.muted; }
+                if i > 0: Rectangle { x: 0; y: 10px; width: 1px; height: parent.height - 20px; background: p.border; }
+            }
+        }
+        keys := FocusScope {
+            x: 1px;
+            y: head-h + 1px;
+            width: parent.width - 2px;
+            height: parent.height - head-h - 2px;
+            key-pressed(event) => {
+                if (event.text == Key.Return || event.text == "\n") { GuestsBridge.row-key(current, 0); return accept; }
+                if (event.text == Key.Delete) { GuestsBridge.row-key(current, 1); return accept; }
+                if (event.text == Key.DownArrow) { current = min(rows.length - 1, current + 1); return accept; }
+                if (event.text == Key.UpArrow) { current = max(0, current - 1); return accept; }
+                reject
+            }
+            scroll := Flickable {
+                content-height: rows.length * row-h;
+                for row[r] in rows: Rectangle {
+                    y: r * row-h;
+                    height: row-h;
+                    background: row.kind == 0 ? (r == current ? g.green-hover : g.green-wash)
+                        : r == current ? p.selected : touch.has-hover ? p.hover : transparent;
+                    if row.kind == 0: GuestTag { x: 13px; y: (parent.height - self.height) / 2; label: "我"; ink: g.green; wash: p.surface; }
+                    if row.kind == 1: GuestTag { x: 13px; y: (parent.height - self.height) / 2; label: "组合"; ink: g.blue; wash: g.blue-wash; }
+                    if row.kind == 0: Text {
+                        x: 13px + 28px + 6px;
+                        y: (parent.height - self.height) / 2;
+                        width: cols[0] + cols[1] - self.x - 8px;
+                        text: row.name;
+                        font-size: 14px;
+                        color: row.name == "点右上角填写游戏名" ? p.muted : p.text;
+                        overflow: elide;
+                    }
+                    if row.kind == 1: HorizontalLayout {
+                        x: 13px + 41px + 6px;
+                        width: cols[0] + cols[1] - self.x - 8px;
+                        alignment: start;
+                        for person[k] in row.people: HorizontalLayout {
+                            if k > 0: Text { vertical-alignment: center; text: " + "; font-size: 14px; color: p.text; }
+                            Rectangle {
+                                min-width: 0;
+                                preferred-width: who.preferred-width;
+                                who := Text {
+                                    width: 100%;
+                                    vertical-alignment: center;
+                                    text: person.name;
+                                    font-size: 14px;
+                                    color: person.present ? p.text : p.muted;
+                                    overflow: elide;
+                                }
+                                // Struck out: one taken off the list.
+                                if !person.present: Rectangle { y: parent.height / 2; height: 1px; background: p.muted; }
+                            }
+                        }
+                    }
+                    if row.kind == 2: Text {
+                        x: 16px;
+                        y: (parent.height - self.height) / 2;
+                        width: cols[0] - 24px;
+                        text: row.name;
+                        font-size: 14px;
+                        color: p.text;
+                        overflow: elide;
+                    }
+                    if row.kind == 2: Text {
+                        x: cols[0] + 16px;
+                        y: (parent.height - self.height) / 2;
+                        width: cols[1] - 24px;
+                        text: row.nickname;
+                        font-size: 14px;
+                        color: p.text;
+                        overflow: elide;
+                    }
+                    SceneCell {
+                        x: cols[0] + cols[1] + 16px;
+                        width: cols[2] - 24px;
+                        dots: row.dots;
+                        words: row.scene;
+                        ink: p.text;
+                    }
+                    Text {
+                        x: cols[0] + cols[1] + cols[2] + 16px;
+                        y: (parent.height - self.height) / 2;
+                        width: cols[3] - 24px;
+                        text: row.reason;
+                        font-size: 14px;
+                        color: p.text;
+                        overflow: elide;
+                    }
+                    Text {
+                        x: cols[0] + cols[1] + cols[2] + cols[3] + 16px;
+                        y: (parent.height - self.height) / 2;
+                        width: cols[4] - 24px;
+                        text: row.met;
+                        font-size: 14px;
+                        color: p.text;
+                        overflow: elide;
+                    }
+                    Rectangle { y: parent.height - 1px; height: 1px; background: p.border; }
+                    if drag-from >= 0 && drag-to == r && drag-to != drag-from: Rectangle {
+                        y: drag-to > drag-from ? parent.height - 2px : 0;
+                        height: 2px;
+                        background: p.accent-line;
+                    }
+                    touch := TouchArea {
+                        mouse-cursor: pointer;
+                        pointer-event(event) => {
+                            if (event.kind == PointerEventKind.down && event.button == PointerEventButton.left) {
+                                current = r;
+                                keys.focus();
+                                drag-from = (drag-enabled && r >= fixed) ? r : -1;
+                                drag-to = r;
+                            }
+                            if (event.kind == PointerEventKind.up && event.button == PointerEventButton.left) {
+                                if (drag-from >= 0 && drag-to != drag-from) {
+                                    GuestsBridge.row-moved(drag-from, drag-to);
+                                } else if (self.has-hover) {
+                                    GuestsBridge.row-clicked(r);
+                                }
+                                drag-from = -1;
+                                drag-to = -1;
+                            }
+                            if (event.kind == PointerEventKind.down && event.button == PointerEventButton.right) {
+                                current = r;
+                                menu-row = r;
+                                menu-x = list.x + 1px + self.mouse-x;
+                                menu-y = list.y + head-h + 1px + r * row-h + scroll.content-y + self.mouse-y;
+                                row-menu-popup.show();
+                            }
+                        }
+                        moved => {
+                            if (drag-from >= 0) {
+                                drag-to = max(fixed, min(rows.length - 1, r + floor((self.mouse-y) / row-h)));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    row-menu-popup := PopupWindow {
+        x: menu-x;
+        y: menu-y;
+        width: 140px;
+        Rectangle {
+            background: p.surface;
+            border-radius: 8px;
+            border-width: 1px;
+            border-color: p.border;
+            drop-shadow-blur: 12px;
+            drop-shadow-color: #0000002a;
+            VerticalLayout {
+                padding: 4px;
+                if menu-row >= 0 && menu-row < rows.length: VerticalLayout {
+                    for item[i] in rows[menu-row].menu: MenuLine {
+                        label: item;
+                        danger: item == "删除";
+                        p: p;
+                        chosen => { GuestsBridge.row-menu(menu-row, i); }
+                    }
+                }
+            }
+        }
+    }
+
+    // The empty states: an empty list (场景管理 and 添加嘉宾 under it), or a search that found no one.
+    if !show-table: VerticalLayout {
+        y: 16px;
+        height: parent.height - 16px - 24px;
+        alignment: center;
+        spacing: 18px;
+        HorizontalLayout { alignment: center; GuestIcon { name: empty-icon; size: 32px; tone: p.muted; } }
+        Text { horizontal-alignment: center; text: empty-text; font-size: 20px; color: p.text; }
+        if empty-buttons: HorizontalLayout {
+            alignment: center;
+            spacing: 12px;
+            GuestButton { label: "场景管理"; p: p; clicked => { GuestsBridge.manage-scenes(); } }
+            GuestButton { width: 86px; label: "添加嘉宾"; primary: true; p: p; clicked => { GuestsBridge.add-guest(); } }
+        }
+    }
+}
+
+// The page alone in a window, for the headless pictures and a look at it: the app's header is not drawn, its 60 px
+// left in the page's colour so the page sits where it does in the app.
+export component GuestsPreview inherits Window {
+    in property <bool> dark;
+    in property <[GuestRow]> rows;
+    in property <int> fixed;
+    in property <bool> show-table;
+    in property <bool> show-toolbar;
+    in property <bool> show-search;
+    in property <bool> show-more;
+    in property <bool> add-combo-enabled;
+    in property <string> empty-icon;
+    in property <string> empty-text;
+    in property <bool> empty-buttons;
+    in-out property <string> search;
+    width: 900px;
+    height: 560px;
+    default-font-family: "Noto Sans CJK SC";
+    background: dark ? Dark.palette.bg : Light.palette.bg;
+    GuestsPage {
+        y: 60px;
+        height: parent.height - 60px;
+        dark: dark;
+        rows: rows;
+        fixed: fixed;
+        show-table: show-table;
+        show-toolbar: show-toolbar;
+        show-search: show-search;
+        show-more: show-more;
+        add-combo-enabled: add-combo-enabled;
+        empty-icon: empty-icon;
+        empty-text: empty-text;
+        empty-buttons: empty-buttons;
+        search <=> search;
+    }
+}

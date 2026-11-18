@@ -1,6 +1,7 @@
 //! What storage.py leans on from Python itself, over JSON values: `str()`, truth, iterating, `int()`, `round()`, and
 //! `json.dumps(..., ensure_ascii=False, indent=2)` to the byte.
 
+pub use common::text::is_space;
 use serde_json::{Map, Value};
 
 /// A file that does not read as the Python app expects: storage.py's `except (OSError, ValueError, AttributeError,
@@ -176,11 +177,6 @@ pub fn round_even(x: f64) -> f64 {
 /// `round(x, 2)`, correctly rounded as Python does it, through the exact decimal.
 pub fn round2(x: f64) -> f64 {
     format!("{x:.2}").parse().unwrap_or(x)
-}
-
-/// `str.isspace()` for one character.
-pub fn is_space(c: char) -> bool {
-    c.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&c)
 }
 
 /// `str.strip()`.

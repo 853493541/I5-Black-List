@@ -1,0 +1,264 @@
+// The parts every dialog of blacklist_detect/ui_kit.py Modal is built from: the card with its title and ×,
+// the body, the footer band, the buttons, the boxes, the 标签 pill and the line icons.
+
+import { Palette, Light, Dark } from "../theme.slint";
+
+// The colours of ui_theme.py the 设置 palette does not carry yet.
+export struct Tones {
+    field-line: color, surface-alt: color, on-accent: color, accent-hover: color, chip-off-bg: color,
+    chip-off-line: color, danger-hover: color, backdrop: color,
+}
+
+// stub: ui-kit (these belong in theme.slint once it carries them)
+export global DialogTones {
+    out property <Tones> light: {
+        field-line: #8b93a1, surface-alt: #e4eef8, on-accent: #f4f8ff, accent-hover: #1a4578, chip-off-bg: #f7f8fa,
+        chip-off-line: #8b93a1, danger-hover: #fbe9e7, backdrop: #b8b8b8,
+    };
+    out property <Tones> dark: {
+        field-line: #6e7685, surface-alt: #262a31, on-accent: #0e1116, accent-hover: #4f8fdc, chip-off-bg: #22262d,
+        chip-off-line: #6e7685, danger-hover: #3a2325, backdrop: #0b0c0e,
+    };
+}
+
+// The window a dialog opens in: the dimmed app behind, the card in the middle.
+export component Stage inherits Window {
+    in property <bool> dark;
+    out property <Palette> p: dark ? Dark.palette : Light.palette;
+    out property <Tones> t: dark ? DialogTones.dark : DialogTones.light;
+    preferred-width: 900px;
+    preferred-height: 560px;
+    background: t.backdrop;
+    default-font-family: "Microsoft YaHei";
+}
+
+// The line icons of ui_icons.py, on a 24 x 24 grid.
+export component LineIcon inherits Rectangle {
+    in property <string> name;
+    in property <length> size: 18px;
+    in property <color> tone;
+    in property <length> line: 1.6px;
+    width: size;
+    height: size;
+    Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        stroke: tone;
+        stroke-width: line;
+        fill: transparent;
+        commands: name == "close" ? "M6 6 L18 18 M18 6 L6 18"
+            : name == "search" ? "M16.5 10.5 A6 6 0 1 0 4.5 10.5 A6 6 0 1 0 16.5 10.5 M15 15 L20 20"
+            : name == "edit" ? "M5 19 L5.6 15.2 L15.5 5.3 L18.7 8.5 L8.8 18.4 Z M13.3 7.5 L16.5 10.7"
+            : name == "users" ? "M12.2 9 A3.2 3.2 0 1 0 5.8 9 A3.2 3.2 0 1 0 12.2 9 M3.5 19 Q3.5 13.8 9 13.8 Q14.5 13.8 14.5 19 M19 8.5 A2.5 2.5 0 1 0 14 8.5 A2.5 2.5 0 1 0 19 8.5 M16 12.8 Q20.5 12.8 20.5 17.5"
+            : name == "warning" ? "M12 4 L21 19.5 L3 19.5 Z M12 9.5 L12 14 M12 16.6 L12 17.4"
+            : name == "eye" ? "M3 12 Q12 3.5 21 12 Q12 20.5 3 12 Z M15 12 A3 3 0 1 0 9 12 A3 3 0 1 0 15 12"
+            : "M12 3 A9 9 0 1 0 12 21 A9 9 0 1 0 12 3";
+    }
+}
+
+// The filled signs of ui_sound_trim._glyph, 12 px: play, back, pause, stop.
+export component Glyph inherits Rectangle {
+    in property <string> name;
+    in property <color> tone;
+    width: 12px;
+    height: 12px;
+    Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: 12;
+        viewbox-height: 12;
+        fill: tone;
+        commands: name == "play" ? "M2.4 1.2 L10.8 6 L2.4 10.8 Z"
+            : name == "back" ? "M9.6 1.2 L1.2 6 L9.6 10.8 Z"
+            : name == "pause" ? "M2.4 1.44 L5.04 1.44 L5.04 10.56 L2.4 10.56 Z M6.96 1.44 L9.6 1.44 L9.6 10.56 L6.96 10.56 Z"
+            : "M2.16 2.16 L9.84 2.16 L9.84 9.84 L2.16 9.84 Z";
+    }
+}
+
+// A QPushButton of the dialogs: "plain" (outlined), "primary" (filled accent) or "danger" (red outline).
+export component DialogButton inherits Rectangle {
+    in property <string> label;
+    in property <string> kind: "plain";
+    in property <string> glyph;
+    in property <bool> enabled: true;
+    in property <Palette> p;
+    in property <Tones> t;
+    callback clicked();
+    property <bool> hot: touch.has-hover && enabled;
+    height: 32px;
+    horizontal-stretch: 0;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: !enabled ? p.border : kind == "primary" ? (hot ? t.accent-hover : p.accent) : kind == "danger" ? p.danger : hot ? p.accent-line : p.border;
+    background: !enabled ? t.surface-alt : kind == "primary" ? (hot ? t.accent-hover : p.accent) : kind == "danger" ? (hot ? t.danger-hover : p.surface) : hot ? p.hover : p.surface;
+    HorizontalLayout {
+        padding-left: label == "" ? 16px : 14px;
+        padding-right: label == "" ? 16px : 14px;
+        spacing: 4px;
+        alignment: center;
+        if glyph != "": VerticalLayout {
+            alignment: center;
+            Glyph { name: glyph; tone: p.text; }
+        }
+        if label != "": Text {
+            text: label;
+            font-size: 14px;
+            vertical-alignment: center;
+            color: !enabled ? p.muted : kind == "primary" ? t.on-accent : kind == "danger" ? p.danger : p.text;
+        }
+    }
+    touch := TouchArea {
+        enabled: enabled;
+        clicked => { root.clicked(); }
+    }
+}
+
+// The card of a Modal: its title and × in one row, then the dialog's own parts (DialogBody, DialogFooter).
+export component DialogCard inherits Rectangle {
+    in property <string> title;
+    in property <Palette> p;
+    callback close();
+    background: p.surface;
+    border-radius: 12px;
+    border-width: 1px;
+    border-color: p.border;
+    drop-shadow-blur: 24px;
+    drop-shadow-offset-y: 6px;
+    drop-shadow-color: #0000002e;
+    VerticalLayout {
+        spacing: 0px;
+        HorizontalLayout {
+            padding-left: 24px;
+            padding-top: 18px;
+            padding-right: 12px;
+            padding-bottom: 16px;
+            spacing: 8px;
+            Text { text: title; font-size: 18px; color: p.text; vertical-alignment: center; wrap: word-wrap; }
+            Rectangle {
+                width: 28px;
+                height: 28px;
+                border-radius: 6px;
+                background: x-touch.has-hover ? p.hover : transparent;
+                LineIcon { name: "close"; size: 20px; tone: p.muted; }
+                x-touch := TouchArea { clicked => { root.close(); } }
+            }
+        }
+        @children
+    }
+}
+
+// What a dialog shows between its title and its buttons, 16 px apart.
+export component DialogBody inherits VerticalLayout {
+    padding-left: 24px;
+    padding-right: 24px;
+    padding-bottom: 24px;
+    spacing: 16px;
+}
+
+// The band along the card's foot: the main action on the right, anything destructive apart on the left.
+export component DialogFooter inherits Rectangle {
+    in property <Palette> p;
+    background: p.bg;
+    border-bottom-left-radius: 11px;
+    border-bottom-right-radius: 11px;
+    Rectangle { x: 0; y: 0; height: 1px; width: parent.width; background: p.border; }
+    HorizontalLayout {
+        padding-left: 24px;
+        padding-right: 24px;
+        padding-top: 14px;
+        padding-bottom: 14px;
+        spacing: 8px;
+        @children
+    }
+}
+
+// The room between the left and right buttons of a footer.
+export component Spread inherits Rectangle {
+    horizontal-stretch: 1;
+}
+
+// A label above its control and, under it, the line for what is wrong with it (ui_dialogs._field).
+export component Field inherits VerticalLayout {
+    in property <string> label;
+    in property <string> error;
+    in property <Palette> p;
+    spacing: 6px;
+    if label != "": Text { text: label; font-size: 14px; color: p.text; }
+    @children
+    if error != "": Text { text: error; font-size: 12px; color: p.red; }
+}
+
+// A QLineEdit or QPlainTextEdit: one line, or several that wrap.
+export component TextBox inherits Rectangle {
+    in-out property <string> text <=> input.text;
+    in property <string> placeholder;
+    in property <bool> lines;
+    in property <bool> read-only;
+    in property <Palette> p;
+    in property <Tones> t;
+    callback accepted();
+    callback edited(string);
+    min-height: lines ? 0px : 32px;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: input.has-focus ? p.accent : touch.has-hover ? p.accent-line : t.field-line;
+    background: p.surface;
+    touch := TouchArea { mouse-cursor: MouseCursor.text; clicked => { input.focus(); } }
+    if input.text == "" && placeholder != "": Text {
+        x: input.x;
+        y: input.y;
+        width: input.width;
+        text: placeholder;
+        font-size: 14px;
+        color: p.muted;
+        wrap: word-wrap;
+    }
+    input := TextInput {
+        x: lines ? 11px : 12px;
+        y: lines ? 6px : (parent.height - self.height) / 2;
+        width: parent.width - self.x - 10px;
+        height: lines ? parent.height - 12px : self.preferred-height;
+        font-size: 14px;
+        color: p.text;
+        read-only: root.read-only;
+        single-line: !lines;
+        wrap: lines ? word-wrap : no-wrap;
+        selection-background-color: p.selected;
+        selection-foreground-color: p.text;
+        accepted => { root.accepted(); }
+        edited => { root.edited(self.text); }
+    }
+}
+
+// A 标签 as ui_widgets.TagPill paints it: red when on, an outlined gray capsule when off.
+export component TagPill inherits Rectangle {
+    in property <string> text;
+    in property <bool> active: true;
+    in property <bool> clickable;
+    in property <Palette> p;
+    in property <Tones> t;
+    callback toggled(string);
+    property <bool> hot: clickable && touch.has-hover;
+    height: clickable ? 28px : 23px;
+    width: words.preferred-width + 18px;
+    Rectangle {
+        y: (parent.height - self.height) / 2;
+        height: 23px;
+        border-radius: self.height / 2;
+        border-width: active ? 0px : 1px;
+        border-color: hot ? p.red : t.chip-off-line;
+        background: active || hot ? p.red-wash : t.chip-off-bg;
+        words := Text {
+            text: root.text;
+            font-size: 12px;
+            font-weight: 600;
+            color: active || hot ? p.red : p.muted;
+        }
+    }
+    touch := TouchArea {
+        enabled: clickable;
+        clicked => { root.toggled(root.text); }
+    }
+}
