@@ -16,7 +16,15 @@ sys.path.insert(0, str(ROOT))
 from PySide6.QtCore import QRect, Qt  # noqa: E402
 from PySide6.QtGui import QPainter  # noqa: E402
 from PySide6.QtWidgets import (  # noqa: E402
-    QApplication, QFrame, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QVBoxLayout, QWidget,
+    QApplication,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
 )
 
 from blacklist_detect import ui_icons, ui_kit, ui_theme, ui_widgets  # noqa: E402
