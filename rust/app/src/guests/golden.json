@@ -1,0 +1,1522 @@
+{
+ "now": "2026-11-18T15:00:05+00:00",
+ "cases": [
+  {
+   "kind": "empty",
+   "share": "",
+   "likes": [],
+   "combos": [],
+   "me": {
+    "scenes": [],
+    "random": false
+   },
+   "player_name": "",
+   "scans": [],
+   "states": [
+    {
+     "query": "",
+     "rows": [],
+     "table": false,
+     "toolbar": false,
+     "search": false,
+     "more": false,
+     "add_combo_enabled": false,
+     "empty_text": "嘉宾列表还是空的",
+     "empty_buttons": true,
+     "drag": false
+    }
+   ]
+  },
+  {
+   "kind": "list",
+   "share": "心动小鹿（声音好听）\n心动星星\n一起开黑的朋友（每次都带我赢\n第二行）\n柠檬汽水\n棉花糖",
+   "likes": [
+    {
+     "name": "心动小鹿",
+     "nickname": "小鹿",
+     "reason": "声音好听",
+     "scenes": [
+      "fluffy",
+      "stars"
+     ],
+     "random": false
+    },
+    {
+     "name": "心动星星",
+     "nickname": "",
+     "reason": "",
+     "scenes": [],
+     "random": true
+    },
+    {
+     "name": "一起开黑的朋友",
+     "nickname": "",
+     "reason": "每次都带我赢\n第二行",
+     "scenes": [
+      "cyber"
+     ],
+     "random": false
+    },
+    {
+     "name": "柠檬汽水",
+     "nickname": "汽水",
+     "reason": "",
+     "scenes": [],
+     "random": false
+    },
+    {
+     "name": "棉花糖",
+     "nickname": "",
+     "reason": "",
+     "scenes": [
+      "angel",
+      "gone_scene",
+      "lace",
+      "ice",
+      "neon"
+     ],
+     "random": false
+    }
+   ],
+   "combos": [
+    {
+     "names": [
+      "心动小鹿",
+      "心动星星"
+     ],
+     "scenes": [
+      "angel"
+     ],
+     "random": false
+    },
+    {
+     "names": [
+      "心动星星",
+      "一起开黑的朋友"
+     ],
+     "scenes": [],
+     "random": false
+    },
+    {
+     "names": [
+      "棉花糖",
+      "走掉的嘉宾"
+     ],
+     "scenes": [],
+     "random": false
+    }
+   ],
+   "me": {
+    "scenes": [
+     "lace"
+    ],
+    "random": false
+   },
+   "player_name": "",
+   "scans": [
+    {
+     "at": "2026-11-18T12:00:05+00:00",
+     "names": [
+      [
+       "小林同学",
+       false
+      ],
+      [
+       "白日梦想家",
+       false
+      ],
+      [
+       "路过的猫",
+       false
+      ],
+      [
+       "一只团子",
+       false
+      ],
+      [
+       "夏天的风",
+       false
+      ],
+      [
+       "心动小鹿",
+       false
+      ],
+      [
+       "晚风吹过",
+       false
+      ],
+      [
+       "摸鱼大师",
+       true
+      ],
+      [
+       "示例坏人",
+       false
+      ],
+      [
+       "心动星星",
+       false
+      ],
+      [
+       "柠檬汽水",
+       false
+      ],
+      [
+       "棉花糖",
+       false
+      ]
+     ]
+    },
+    {
+     "at": "2026-10-09T15:00:05+00:00",
+     "names": [
+      [
+       "棉花糖",
+       false
+      ],
+      [
+       "走掉的嘉宾",
+       false
+      ]
+     ]
+    }
+   ],
+   "states": [
+    {
+     "query": "",
+     "rows": [
+      {
+       "kind": "me",
+       "place": -1,
+       "cells": [
+        "点右上角填写游戏名",
+        "",
+        "玫瑰花边",
+        "",
+        ""
+       ],
+       "people": [],
+       "dots": [
+        "lace"
+       ],
+       "menu": [
+        "编辑"
+       ]
+      },
+      {
+       "kind": "combo",
+       "place": 0,
+       "cells": [
+        "小鹿 + 心动星星",
+        "",
+        "金色传说",
+        "",
+        "3小时前"
+       ],
+       "people": [
+        [
+         "小鹿",
+         true
+        ],
+        [
+         "心动星星",
+         true
+        ]
+       ],
+       "dots": [
+        "angel"
+       ],
+       "menu": [
+        "编辑",
+        "-",
+        "删除"
+       ]
+      },
+      {
+       "kind": "combo",
+       "place": 1,
+       "cells": [
+        "心动星星 + 一起开黑的朋友",
+        "",
+        "",
+        "",
+        "—"
+       ],
+       "people": [
+        [
+         "心动星星",
+         true
+        ],
+        [
+         "一起开黑的朋友",
+         true
+        ]
+       ],
+       "dots": [],
+       "menu": [
+        "编辑",
+        "-",
+        "删除"
+       ]
+      },
+      {
+       "kind": "combo",
+       "place": 2,
+       "cells": [
+        "棉花糖 + 走掉的嘉宾",
+        "",
+        "",
+        "",
+        "1个月前"
+       ],
+       "people": [
+        [
+         "棉花糖",
+         true
+        ],
+        [
+         "走掉的嘉宾",
+         false
+        ]
+       ],
+       "dots": [],
+       "menu": [
+        "编辑",
+        "-",
+        "删除"
+       ]
+      },
+      {
+       "kind": "like",
+       "place": 4,
+       "cells": [
+        "棉花糖",
+        "",
+        "4个场景",
+        "",
+        "3小时前"
+       ],
+       "people": [],
+       "dots": [
+        "angel",
+        "lace",
+        "ice",
+        "neon"
+       ],
+       "menu": [
+        "编辑",
+        "复制名字",
+        "-",
+        "删除"
+       ]
+      },
+      {
+       "kind": "like",
+       "place": 3,
+       "cells": [
+        "柠檬汽水",
+        "汽水",
+        "",
+        "",
+        "3小时前"
+       ],
+       "people": [],
+       "dots": [],
+       "menu": [
+        "编辑",
+        "复制名字",
+        "置顶",
+        "-",
+        "删除"
+       ]
+      },
+      {
+       "kind": "like",
+       "place": 2,
+       "cells": [
+        "一起开黑的朋友",
+        "",
+        "赛博朋克（一）",
+        "每次都带我赢 第二行",
+        "—"
+       ],
+       "people": [],
+       "dots": [
+        "cyber"
+       ],
+       "menu": [
+        "编辑",
+        "复制名字",
+        "置顶",
+        "-",
+        "删除"
+       ]
+      },
+      {
+       "kind": "like",
+       "place": 1,
+       "cells": [
+        "心动星星",
+        "",
+        "随机",
+        "",
+        "3小时前"
+       ],
+       "people": [],
+       "dots": [
+        "random"
+       ],
+       "menu": [
+        "编辑",
+        "复制名字",
+        "置顶",
+        "-",
+        "删除"
+       ]
+      },
+      {
+       "kind": "like",
+       "place": 0,
+       "cells": [
+        "心动小鹿",
+        "小鹿",
+        "2个场景",
+        "声音好听",
+        "3小时前"
+       ],
+       "people": [],
+       "dots": [
+        "fluffy",
+        "stars"
+       ],
+       "menu": [
+        "编辑",
+        "复制名字",
+        "置顶",
+        "-",
+        "删除"
+       ]
+      }
+     ],
+     "table": true,
+     "toolbar": true,
+     "search": true,
+     "more": true,
+     "add_combo_enabled": true,
+     "empty_text": "嘉宾列表还是空的",
+     "empty_buttons": false,
+     "drag": true
+    },
+    {
+     "query": "小鹿",
+     "rows": [
+      {
+       "kind": "combo",
+       "place": 0,
+       "cells": [
+        "小鹿 + 心动星星",
+        "",
+        "金色传说",
+        "",
+        "3小时前"
+       ],
+       "people": [
+        [
+         "小鹿",
+         true
+        ],
+        [
+         "心动星星",
+         true
+        ]
+       ],
+       "dots": [
+        "angel"
+       ],
+       "menu": [
+        "编辑",
+        "-",
+        "删除"
+       ]
+      },
+      {
+       "kind": "like",
+       "place": 0,
+       "cells": [
+        "心动小鹿",
+        "小鹿",
+        "2个场景",
+        "声音好听",
+        "3小时前"
+       ],
+       "people": [],
+       "dots": [
+        "fluffy",
+        "stars"
+       ],
+       "menu": [
+        "编辑",
+        "复制名字",
+        "置顶",
+        "-",
+        "删除"
+       ]
+      }
+     ],
+     "table": true,
+     "toolbar": true,
+     "search": true,
+     "more": true,
+     "add_combo_enabled": true,
+     "empty_text": "嘉宾列表还是空的",
+     "empty_buttons": false,
+     "drag": false
+    },
+    {
+     "query": "星星",
+     "rows": [
+      {
+       "kind": "combo",
+       "place": 0,
+       "cells": [
+        "小鹿 + 心动星星",
+        "",
+        "金色传说",
+        "",
+        "3小时前"
+       ],
+       "people": [
+        [
+         "小鹿",
+         true
+        ],
+        [
+         "心动星星",
+         true
+        ]
+       ],
+       "dots": [
+        "angel"
+       ],
+       "menu": [
+        "编辑",
+        "-",
+        "删除"
+       ]
+      },
+      {
+       "kind": "combo",
+       "place": 1,
+       "cells": [
+        "心动星星 + 一起开黑的朋友",
+        "",
+        "",
+        "",
+        "—"
+       ],
+       "people": [
+        [
+         "心动星星",
+         true
+        ],
+        [
+         "一起开黑的朋友",
+         true
+        ]
+       ],
+       "dots": [],
+       "menu": [
+        "编辑",
+        "-",
+        "删除"
+       ]
+      },
+      {
+       "kind": "like",
+       "place": 1,
+       "cells": [
+        "心动星星",
+        "",
+        "随机",
+        "",
+        "3小时前"
+       ],
+       "people": [],
+       "dots": [
+        "random"
+       ],
+       "menu": [
+        "编辑",
+        "复制名字",
+        "置顶",
+        "-",
+        "删除"
+       ]
+      }
+     ],
+     "table": true,
+     "toolbar": true,
+     "search": true,
+     "more": true,
+     "add_combo_enabled": true,
+     "empty_text": "嘉宾列表还是空的",
+     "empty_buttons": false,
+     "drag": false
+    },
+    {
+     "query": "汽水",
+     "rows": [
+      {
+       "kind": "like",
+       "place": 3,
+       "cells": [
+        "柠檬汽水",
+        "汽水",
+        "",
+        "",
+        "3小时前"
+       ],
+       "people": [],
+       "dots": [],
+       "menu": [
+        "编辑",
+        "复制名字",
+        "置顶",
+        "-",
+        "删除"
+       ]
+      }
+     ],
+     "table": true,
+     "toolbar": true,
+     "search": true,
+     "more": true,
+     "add_combo_enabled": true,
+     "empty_text": "嘉宾列表还是空的",
+     "empty_buttons": false,
+     "drag": false
+    },
+    {
+     "query": "开黑",
+     "rows": [
+      {
+       "kind": "combo",
+       "place": 1,
+       "cells": [
+        "心动星星 + 一起开黑的朋友",
+        "",
+        "",
+        "",
+        "—"
+       ],
+       "people": [
+        [
+         "心动星星",
+         true
+        ],
+        [
+         "一起开黑的朋友",
+         true
+        ]
+       ],
+       "dots": [],
+       "menu": [
+        "编辑",
+        "-",
+        "删除"
+       ]
+      },
+      {
+       "kind": "like",
+       "place": 2,
+       "cells": [
+        "一起开黑的朋友",
+        "",
+        "赛博朋克（一）",
+        "每次都带我赢 第二行",
+        "—"
+       ],
+       "people": [],
+       "dots": [
+        "cyber"
+       ],
+       "menu": [
+        "编辑",
+        "复制名字",
+        "置顶",
+        "-",
+        "删除"
+       ]
+      }
+     ],
+     "table": true,
+     "toolbar": true,
+     "search": true,
+     "more": true,
+     "add_combo_enabled": true,
+     "empty_text": "嘉宾列表还是空的",
+     "empty_buttons": false,
+     "drag": false
+    },
+    {
+     "query": "走掉",
+     "rows": [
+      {
+       "kind": "combo",
+       "place": 2,
+       "cells": [
+        "棉花糖 + 走掉的嘉宾",
+        "",
+        "",
+        "",
+        "1个月前"
+       ],
+       "people": [
+        [
+         "棉花糖",
+         true
+        ],
+        [
+         "走掉的嘉宾",
+         false
+        ]
+       ],
+       "dots": [],
+       "menu": [
+        "编辑",
+        "-",
+        "删除"
+       ]
+      }
+     ],
+     "table": true,
+     "toolbar": true,
+     "search": true,
+     "more": true,
+     "add_combo_enabled": true,
+     "empty_text": "嘉宾列表还是空的",
+     "empty_buttons": false,
+     "drag": false
+    },
+    {
+     "query": "没有这个人",
+     "rows": [],
+     "table": false,
+     "toolbar": true,
+     "search": true,
+     "more": true,
+     "add_combo_enabled": true,
+     "empty_text": "没有找到「没有这个人」",
+     "empty_buttons": false,
+     "drag": false
+    },
+    {
+     "query": "XINDONG",
+     "rows": [],
+     "table": false,
+     "toolbar": true,
+     "search": true,
+     "more": true,
+     "add_combo_enabled": true,
+     "empty_text": "没有找到「XINDONG」",
+     "empty_buttons": false,
+     "drag": false
+    }
+   ]
+  },
+  {
+   "kind": "named",
+   "share": "心动小鹿（声音好听）\n心动星星\n一起开黑的朋友（每次都带我赢\n第二行）\n柠檬汽水\n棉花糖",
+   "likes": [
+    {
+     "name": "心动小鹿",
+     "nickname": "小鹿",
+     "reason": "声音好听",
+     "scenes": [
+      "fluffy",
+      "stars"
+     ],
+     "random": false
+    },
+    {
+     "name": "心动星星",
+     "nickname": "",
+     "reason": "",
+     "scenes": [],
+     "random": true
+    },
+    {
+     "name": "一起开黑的朋友",
+     "nickname": "",
+     "reason": "每次都带我赢\n第二行",
+     "scenes": [
+      "cyber"
+     ],
+     "random": false
+    },
+    {
+     "name": "柠檬汽水",
+     "nickname": "汽水",
+     "reason": "",
+     "scenes": [],
+     "random": false
+    },
+    {
+     "name": "棉花糖",
+     "nickname": "",
+     "reason": "",
+     "scenes": [
+      "angel",
+      "gone_scene",
+      "lace",
+      "ice",
+      "neon"
+     ],
+     "random": false
+    }
+   ],
+   "combos": [
+    {
+     "names": [
+      "心动小鹿",
+      "心动星星"
+     ],
+     "scenes": [
+      "angel"
+     ],
+     "random": false
+    },
+    {
+     "names": [
+      "心动星星",
+      "一起开黑的朋友"
+     ],
+     "scenes": [],
+     "random": false
+    },
+    {
+     "names": [
+      "棉花糖",
+      "走掉的嘉宾"
+     ],
+     "scenes": [],
+     "random": false
+    }
+   ],
+   "me": {
+    "scenes": [
+     "lace"
+    ],
+    "random": false
+   },
+   "player_name": "心动星星",
+   "scans": [
+    {
+     "at": "2026-11-18T12:00:05+00:00",
+     "names": [
+      [
+       "小林同学",
+       false
+      ],
+      [
+       "白日梦想家",
+       false
+      ],
+      [
+       "路过的猫",
+       false
+      ],
+      [
+       "一只团子",
+       false
+      ],
+      [
+       "夏天的风",
+       false
+      ],
+      [
+       "心动小鹿",
+       false
+      ],
+      [
+       "晚风吹过",
+       false
+      ],
+      [
+       "摸鱼大师",
+       true
+      ],
+      [
+       "示例坏人",
+       false
+      ],
+      [
+       "心动星星",
+       false
+      ],
+      [
+       "柠檬汽水",
+       false
+      ],
+      [
+       "棉花糖",
+       false
+      ]
+     ]
+    },
+    {
+     "at": "2026-10-09T15:00:05+00:00",
+     "names": [
+      [
+       "棉花糖",
+       false
+      ],
+      [
+       "走掉的嘉宾",
+       false
+      ]
+     ]
+    }
+   ],
+   "states": [
+    {
+     "query": "",
+     "rows": [
+      {
+       "kind": "me",
+       "place": -1,
+       "cells": [
+        "心动星星",
+        "",
+        "玫瑰花边",
+        "",
+        ""
+       ],
+       "people": [],
+       "dots": [
+        "lace"
+       ],
+       "menu": [
+        "编辑"
+       ]
+      },
+      {
+       "kind": "combo",
+       "place": 0,
+       "cells": [
+        "小鹿 + 心动星星",
+        "",
+        "金色传说",
+        "",
+        "3小时前"
+       ],
+       "people": [
+        [
+         "小鹿",
+         true
+        ],
+        [
+         "心动星星",
+         true
+        ]
+       ],
+       "dots": [
+        "angel"
+       ],
+       "menu": [
+        "编辑",
+        "-",
+        "删除"
+       ]
+      },
+      {
+       "kind": "combo",
+       "place": 1,
+       "cells": [
+        "心动星星 + 一起开黑的朋友",
+        "",
+        "",
+        "",
+        "—"
+       ],
+       "people": [
+        [
+         "心动星星",
+         true
+        ],
+        [
+         "一起开黑的朋友",
+         true
+        ]
+       ],
+       "dots": [],
+       "menu": [
+        "编辑",
+        "-",
+        "删除"
+       ]
+      },
+      {
+       "kind": "combo",
+       "place": 2,
+       "cells": [
+        "棉花糖 + 走掉的嘉宾",
+        "",
+        "",
+        "",
+        "1个月前"
+       ],
+       "people": [
+        [
+         "棉花糖",
+         true
+        ],
+        [
+         "走掉的嘉宾",
+         false
+        ]
+       ],
+       "dots": [],
+       "menu": [
+        "编辑",
+        "-",
+        "删除"
+       ]
+      },
+      {
+       "kind": "like",
+       "place": 4,
+       "cells": [
+        "棉花糖",
+        "",
+        "4个场景",
+        "",
+        "3小时前"
+       ],
+       "people": [],
+       "dots": [
+        "angel",
+        "lace",
+        "ice",
+        "neon"
+       ],
+       "menu": [
+        "编辑",
+        "复制名字",
+        "-",
+        "删除"
+       ]
+      },
+      {
+       "kind": "like",
+       "place": 3,
+       "cells": [
+        "柠檬汽水",
+        "汽水",
+        "",
+        "",
+        "3小时前"
+       ],
+       "people": [],
+       "dots": [],
+       "menu": [
+        "编辑",
+        "复制名字",
+        "置顶",
+        "-",
+        "删除"
+       ]
+      },
+      {
+       "kind": "like",
+       "place": 2,
+       "cells": [
+        "一起开黑的朋友",
+        "",
+        "赛博朋克（一）",
+        "每次都带我赢 第二行",
+        "—"
+       ],
+       "people": [],
+       "dots": [
+        "cyber"
+       ],
+       "menu": [
+        "编辑",
+        "复制名字",
+        "置顶",
+        "-",
+        "删除"
+       ]
+      },
+      {
+       "kind": "like",
+       "place": 1,
+       "cells": [
+        "心动星星",
+        "",
+        "随机",
+        "",
+        "3小时前"
+       ],
+       "people": [],
+       "dots": [
+        "random"
+       ],
+       "menu": [
+        "编辑",
+        "复制名字",
+        "置顶",
+        "-",
+        "删除"
+       ]
+      },
+      {
+       "kind": "like",
+       "place": 0,
+       "cells": [
+        "心动小鹿",
+        "小鹿",
+        "2个场景",
+        "声音好听",
+        "3小时前"
+       ],
+       "people": [],
+       "dots": [
+        "fluffy",
+        "stars"
+       ],
+       "menu": [
+        "编辑",
+        "复制名字",
+        "置顶",
+        "-",
+        "删除"
+       ]
+      }
+     ],
+     "table": true,
+     "toolbar": true,
+     "search": true,
+     "more": true,
+     "add_combo_enabled": true,
+     "empty_text": "嘉宾列表还是空的",
+     "empty_buttons": false,
+     "drag": true
+    },
+    {
+     "query": "小鹿",
+     "rows": [
+      {
+       "kind": "combo",
+       "place": 0,
+       "cells": [
+        "小鹿 + 心动星星",
+        "",
+        "金色传说",
+        "",
+        "3小时前"
+       ],
+       "people": [
+        [
+         "小鹿",
+         true
+        ],
+        [
+         "心动星星",
+         true
+        ]
+       ],
+       "dots": [
+        "angel"
+       ],
+       "menu": [
+        "编辑",
+        "-",
+        "删除"
+       ]
+      },
+      {
+       "kind": "like",
+       "place": 0,
+       "cells": [
+        "心动小鹿",
+        "小鹿",
+        "2个场景",
+        "声音好听",
+        "3小时前"
+       ],
+       "people": [],
+       "dots": [
+        "fluffy",
+        "stars"
+       ],
+       "menu": [
+        "编辑",
+        "复制名字",
+        "置顶",
+        "-",
+        "删除"
+       ]
+      }
+     ],
+     "table": true,
+     "toolbar": true,
+     "search": true,
+     "more": true,
+     "add_combo_enabled": true,
+     "empty_text": "嘉宾列表还是空的",
+     "empty_buttons": false,
+     "drag": false
+    },
+    {
+     "query": "星星",
+     "rows": [
+      {
+       "kind": "me",
+       "place": -1,
+       "cells": [
+        "心动星星",
+        "",
+        "玫瑰花边",
+        "",
+        ""
+       ],
+       "people": [],
+       "dots": [
+        "lace"
+       ],
+       "menu": [
+        "编辑"
+       ]
+      },
+      {
+       "kind": "combo",
+       "place": 0,
+       "cells": [
+        "小鹿 + 心动星星",
+        "",
+        "金色传说",
+        "",
+        "3小时前"
+       ],
+       "people": [
+        [
+         "小鹿",
+         true
+        ],
+        [
+         "心动星星",
+         true
+        ]
+       ],
+       "dots": [
+        "angel"
+       ],
+       "menu": [
+        "编辑",
+        "-",
+        "删除"
+       ]
+      },
+      {
+       "kind": "combo",
+       "place": 1,
+       "cells": [
+        "心动星星 + 一起开黑的朋友",
+        "",
+        "",
+        "",
+        "—"
+       ],
+       "people": [
+        [
+         "心动星星",
+         true
+        ],
+        [
+         "一起开黑的朋友",
+         true
+        ]
+       ],
+       "dots": [],
+       "menu": [
+        "编辑",
+        "-",
+        "删除"
+       ]
+      },
+      {
+       "kind": "like",
+       "place": 1,
+       "cells": [
+        "心动星星",
+        "",
+        "随机",
+        "",
+        "3小时前"
+       ],
+       "people": [],
+       "dots": [
+        "random"
+       ],
+       "menu": [
+        "编辑",
+        "复制名字",
+        "置顶",
+        "-",
+        "删除"
+       ]
+      }
+     ],
+     "table": true,
+     "toolbar": true,
+     "search": true,
+     "more": true,
+     "add_combo_enabled": true,
+     "empty_text": "嘉宾列表还是空的",
+     "empty_buttons": false,
+     "drag": false
+    },
+    {
+     "query": "汽水",
+     "rows": [
+      {
+       "kind": "like",
+       "place": 3,
+       "cells": [
+        "柠檬汽水",
+        "汽水",
+        "",
+        "",
+        "3小时前"
+       ],
+       "people": [],
+       "dots": [],
+       "menu": [
+        "编辑",
+        "复制名字",
+        "置顶",
+        "-",
+        "删除"
+       ]
+      }
+     ],
+     "table": true,
+     "toolbar": true,
+     "search": true,
+     "more": true,
+     "add_combo_enabled": true,
+     "empty_text": "嘉宾列表还是空的",
+     "empty_buttons": false,
+     "drag": false
+    },
+    {
+     "query": "开黑",
+     "rows": [
+      {
+       "kind": "combo",
+       "place": 1,
+       "cells": [
+        "心动星星 + 一起开黑的朋友",
+        "",
+        "",
+        "",
+        "—"
+       ],
+       "people": [
+        [
+         "心动星星",
+         true
+        ],
+        [
+         "一起开黑的朋友",
+         true
+        ]
+       ],
+       "dots": [],
+       "menu": [
+        "编辑",
+        "-",
+        "删除"
+       ]
+      },
+      {
+       "kind": "like",
+       "place": 2,
+       "cells": [
+        "一起开黑的朋友",
+        "",
+        "赛博朋克（一）",
+        "每次都带我赢 第二行",
+        "—"
+       ],
+       "people": [],
+       "dots": [
+        "cyber"
+       ],
+       "menu": [
+        "编辑",
+        "复制名字",
+        "置顶",
+        "-",
+        "删除"
+       ]
+      }
+     ],
+     "table": true,
+     "toolbar": true,
+     "search": true,
+     "more": true,
+     "add_combo_enabled": true,
+     "empty_text": "嘉宾列表还是空的",
+     "empty_buttons": false,
+     "drag": false
+    },
+    {
+     "query": "走掉",
+     "rows": [
+      {
+       "kind": "combo",
+       "place": 2,
+       "cells": [
+        "棉花糖 + 走掉的嘉宾",
+        "",
+        "",
+        "",
+        "1个月前"
+       ],
+       "people": [
+        [
+         "棉花糖",
+         true
+        ],
+        [
+         "走掉的嘉宾",
+         false
+        ]
+       ],
+       "dots": [],
+       "menu": [
+        "编辑",
+        "-",
+        "删除"
+       ]
+      }
+     ],
+     "table": true,
+     "toolbar": true,
+     "search": true,
+     "more": true,
+     "add_combo_enabled": true,
+     "empty_text": "嘉宾列表还是空的",
+     "empty_buttons": false,
+     "drag": false
+    },
+    {
+     "query": "没有这个人",
+     "rows": [],
+     "table": false,
+     "toolbar": true,
+     "search": true,
+     "more": true,
+     "add_combo_enabled": true,
+     "empty_text": "没有找到「没有这个人」",
+     "empty_buttons": false,
+     "drag": false
+    },
+    {
+     "query": "XINDONG",
+     "rows": [],
+     "table": false,
+     "toolbar": true,
+     "search": true,
+     "more": true,
+     "add_combo_enabled": true,
+     "empty_text": "没有找到「XINDONG」",
+     "empty_buttons": false,
+     "drag": false
+    }
+   ]
+  }
+ ],
+ "said": [
+  {
+   "scenes": [
+    "classic"
+   ],
+   "random": false,
+   "said": "经典",
+   "dots": [
+    "classic"
+   ]
+  },
+  {
+   "scenes": [],
+   "random": true,
+   "said": "随机",
+   "dots": [
+    "random"
+   ]
+  },
+  {
+   "scenes": [],
+   "random": false,
+   "said": "",
+   "dots": []
+  },
+  {
+   "scenes": [
+    "ice",
+    "stars"
+   ],
+   "random": false,
+   "said": "2个场景",
+   "dots": [
+    "ice",
+    "stars"
+   ]
+  },
+  {
+   "scenes": [
+    "gone"
+   ],
+   "random": false,
+   "said": "随机",
+   "dots": [
+    "random"
+   ]
+  },
+  {
+   "scenes": [
+    "champagne"
+   ],
+   "random": false,
+   "said": "金色传说",
+   "dots": [
+    "angel"
+   ]
+  },
+  {
+   "scenes": [
+    "fluffy"
+   ],
+   "random": true,
+   "said": "随机",
+   "dots": [
+    "random"
+   ]
+  },
+  {
+   "scenes": [
+    "a",
+    "b"
+   ],
+   "random": false,
+   "said": "随机",
+   "dots": [
+    "random"
+   ]
+  }
+ ]
+}

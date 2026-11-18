@@ -1,0 +1,204 @@
+// The window's header (blacklist_detect/ui_kit.py TabButton, ui_header.py StatusChip and ProfileChip, ui.py
+// MainWindow._build): the page tabs on the left; 有更新, the status pill and the player's name on the right.
+
+import { Palette } from "../theme.slint";
+import { Icon } from "../kit.slint";
+
+// One page tab: its name, a count badge when there is something to count, and an accent underline while open.
+export component TabButton inherits Rectangle {
+    in property <string> label;
+    in property <int> count;
+    in property <bool> chosen;
+    in property <bool> dark;
+    in property <Palette> p;
+    callback clicked;
+    property <color> accent: dark ? p.accent-line : p.accent;
+    property <string> badge: count > 99 ? "99+" : count;
+    height: 36px;
+    // Measured bold, so the label never clips when this becomes the open page.
+    width: bold.preferred-width + 24px + (count > 0 ? 6px + max(18px, badge-words.preferred-width + 10px) : 0px);
+    accessible-role: tab;
+    accessible-label: label;
+    bold := Text { visible: false; text: label; font-size: 14px; font-weight: 600; }
+    words := Text {
+        x: 12px;
+        y: (parent.height - 2px - self.height) / 2;
+        text: label;
+        font-size: 14px;
+        font-weight: chosen ? 600 : 400;
+        color: chosen ? accent : touch.has-hover ? p.text : p.muted;
+    }
+    if count > 0: Rectangle {
+        x: words.x + words.width + 6px;
+        y: (parent.height - 2px - 18px) / 2;
+        width: max(18px, badge-words.preferred-width + 10px);
+        height: 18px;
+        border-radius: 9px;
+        background: chosen ? p.accent-wash : p.chip-bg;
+        Text { text: badge; font-size: 12px; color: chosen ? accent : p.muted; }
+    }
+    badge-words := Text { visible: false; text: badge; font-size: 12px; }
+    if chosen: Rectangle {
+        x: 10px;
+        y: parent.height - 2.5px;
+        width: words.width + 4px + (count > 0 ? 6px + max(18px, badge-words.preferred-width + 10px) : 0px);
+        height: 2.5px;
+        border-radius: 1.2px;
+        background: accent;
+    }
+    touch := TouchArea { clicked => { root.clicked(); } }
+}
+
+// What checking is doing: idle (gray dot), watch-off (手动检查, hollow ring, its hotkey after it in gray),
+// watch-on (自动检查中, accent wash) or hit (a problem, in red).
+export component StatusChip inherits Rectangle {
+    in property <string> text;
+    in property <string> tone: "idle";
+    in property <string> key;
+    in property <bool> dark;
+    in property <Palette> p;
+    callback clicked;
+    property <color> accent: dark ? p.accent-line : p.accent;
+    property <color> wash: tone == "watchOn" ? p.accent-wash : tone == "hit" ? p.red-wash : p.surface;
+    property <color> ink: tone == "watchOn" ? accent : tone == "hit" ? p.red : tone == "watchOff" ? p.text : p.muted;
+    property <color> edge: tone == "watchOn" ? p.accent-wash.mix(accent, 0.72) : tone == "hit" ? p.red-wash.mix(p.red, 0.8) : p.border;
+    property <bool> on-surface: tone != "watchOn" && tone != "hit";
+    height: 30px;
+    width: 10px + 16px + 6px + words.width + (key != "" ? 8px + key-words.preferred-width : 0px) + 10px;
+    border-radius: 15px;
+    border-width: 1px;
+    border-color: on-surface && touch.has-hover ? p.accent-line : edge;
+    background: on-surface ? (touch.has-hover ? p.hover : p.surface) : touch.has-hover ? wash.mix(ink, 0.88) : wash;
+    accessible-role: button;
+    accessible-label: key == "" ? text : text + " " + key;
+    if tone == "watchOff": Rectangle {
+        x: 10px + 4px + 0.7px;
+        y: (parent.height - 8px) / 2 + 0.7px;
+        width: 6.6px;
+        height: 6.6px;
+        border-radius: 3.3px;
+        border-width: 1.4px;
+        border-color: accent;
+    }
+    if tone != "watchOff": Rectangle {
+        x: 10px + 2px;
+        y: (parent.height - 12px) / 2;
+        width: 12px;
+        height: 12px;
+        border-radius: 6px;
+        background: ink.with-alpha(0.22);
+        Rectangle { width: 8px; height: 8px; border-radius: 4px; background: ink; }
+    }
+    words := Text {
+        x: 32px;
+        y: (parent.height - self.height) / 2;
+        width: min(self.preferred-width, 200px);
+        text: text;
+        overflow: elide;
+        font-size: 14px;
+        color: ink;
+    }
+    if key != "": Text {
+        x: words.x + words.width + 8px;
+        y: (parent.height - self.height) / 2;
+        text: "·  " + key;
+        font-size: 12px;
+        color: p.muted;
+    }
+    key-words := Text { visible: false; text: "·  " + key; font-size: 12px; }
+    touch := TouchArea { clicked => { root.clicked(); } }
+}
+
+// 有更新: a new version found while the app was open. A click opens 发现新版本 under it.
+export component UpdatePill inherits Rectangle {
+    in property <Palette> p;
+    in property <color> on-accent;
+    callback clicked;
+    height: 28px;
+    width: words.preferred-width + 26px;
+    border-radius: 14px;
+    background: touch.has-hover ? p.accent.mix(p.accent-line, 0.8) : p.accent;
+    accessible-role: button;
+    accessible-label: "有更新";
+    words := Text { text: "有更新"; font-size: 12px; color: on-accent; }
+    touch := TouchArea { clicked => { root.clicked(); } }
+}
+
+// 角色名称 with a round initial and a pen, at the far right. A click turns it into a box for the name, in
+// the same place: Enter or a click elsewhere keeps it, Esc puts it back.
+export component ProfileChip inherits Rectangle {
+    in property <string> name;
+    // The name's first letter, upper-cased (the Rust model makes it: Slint has no substring).
+    in property <string> initial;
+    in property <bool> dark;
+    in property <Palette> p;
+    in-out property <bool> editing;
+    callback renamed(string);
+    property <color> accent: dark ? p.accent-line : p.accent;
+    height: 30px;
+    width: editing ? 180px : 3px + 24px + 8px + shown.width + 6px + 12px + 10px;
+    border-radius: 15px;
+    background: !editing && touch.has-hover ? p.hover : transparent;
+    accessible-role: button;
+    accessible-label: "游戏名";
+    if !editing && name != "": Rectangle {
+        x: 3px;
+        y: 3px;
+        width: 24px;
+        height: 24px;
+        border-radius: 12px;
+        background: p.accent-wash;
+        Text { text: initial; font-size: 12px; font-weight: 600; color: accent; }
+    }
+    if !editing && name == "": Rectangle {
+        x: 3.6px;
+        y: 3.6px;
+        width: 22.8px;
+        height: 22.8px;
+        border-radius: 11.4px;
+        border-width: 1.2px;
+        border-color: p.border;
+        Text { text: "+"; font-size: 14px; color: p.muted; }
+    }
+    shown := Text {
+        visible: !editing;
+        x: 35px;
+        y: (parent.height - self.height) / 2;
+        width: min(self.preferred-width, 120px);
+        text: name != "" ? name : "游戏名";
+        overflow: elide;
+        font-size: 14px;
+        color: name != "" ? p.text : p.muted;
+    }
+    if !editing: Icon { x: shown.x + shown.width + 6px; y: 10px; name: "pencil"; size: 10px; tone: p.muted; }
+    touch := TouchArea {
+        enabled: !editing;
+        clicked => {
+            box.text = name;
+            editing = true;
+            box.focus();
+            box.select-all();
+        }
+    }
+    if editing: Rectangle {
+        border-radius: 6px;
+        border-width: 1px;
+        border-color: p.accent-line;
+        background: p.surface;
+    }
+    box := TextInput {
+        visible: editing;
+        x: 10px;
+        width: parent.width - 20px;
+        y: (parent.height - self.height) / 2;
+        font-size: 14px;
+        color: p.text;
+        single-line: true;
+        accepted => { editing = false; renamed(self.text); }
+        key-pressed(event) => {
+            if event.text == Key.Escape { editing = false; return accept; }
+            reject
+        }
+        changed has-focus => { if !self.has-focus && editing { editing = false; renamed(self.text); } }
+    }
+}

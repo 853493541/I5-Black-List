@@ -1,0 +1,134 @@
+// 环境测试 as the first open shows it (blacklist_detect/ui_setup.py SetupCheck): a card over the window with a
+// progress bar and five steps. All pass: 准备好了 and the card fades; one fails: which and why, with 关闭 and 重试.
+// The state comes from Rust (src/settings/setup.rs, SetupModel); the steps run in the app.
+
+import { Palette, Light, Dark } from "../theme.slint";
+import { ActionButton } from "rows.slint";
+
+// state: "wait", "run", "ok" or "fail".
+export struct StepData {
+    name: string,
+    state: string,
+    note: string,
+}
+
+// The line marks of ui_icons: check, warning, and _watch_mark (a clock face) for waiting and running steps.
+component Mark inherits Rectangle {
+    in property <string> name;
+    in property <length> size: 16px;
+    in property <color> tone;
+    width: size;
+    height: size;
+    Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        stroke: tone;
+        stroke-width: 1.8px;
+        fill: transparent;
+        commands: name == "check"
+            ? "M5 12.5 L10 17.5 L19 7"
+            : name == "warning"
+            ? "M12 3.5 L21.5 20 L2.5 20 Z M12 9.5 L12 14.5 M12 16.8 L12 17.6"
+            : "M12 3 A9 9 0 1 0 12 21 A9 9 0 1 0 12 3 M12 7 L12 12 L15.5 14";
+    }
+}
+
+export component SetupWindow inherits Window {
+    in property <bool> dark;
+    // "running", "ok" or "failed".
+    in property <string> state: "running";
+    in property <string> heading;
+    in property <float> progress;
+    in property <[StepData]> steps;
+    in property <string> message;
+    in property <string> close-label: "关闭";
+    in property <string> retry-label: "重试";
+    // The card's height: it fits 672 px of usable height (1080p at 150%) with its buttons in view.
+    out property <length> card-height: card.height;
+    callback retry;
+    callback dismiss;
+    property <Palette> p: dark ? Dark.palette : Light.palette;
+    property <color> green: dark ? #5fcb8c : #1c7a3e;
+    title: "模仿者小工具";
+    preferred-width: 900px;
+    preferred-height: 560px;
+    background: p.bg;
+    default-font-family: "Noto Sans CJK SC";
+
+    card := Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        width: 440px;
+        height: column.preferred-height;
+        background: p.surface;
+        border-radius: 12px;
+        border-width: 1px;
+        border-color: p.border;
+        column := VerticalLayout {
+            padding: 24px;
+            spacing: 12px;
+            HorizontalLayout {
+                spacing: 8px;
+                alignment: start;
+                if state != "running": Mark {
+                    y: (parent.height - self.height) / 2;
+                    name: state == "ok" ? "check" : "warning";
+                    size: 22px;
+                    tone: state == "ok" ? green : p.red;
+                }
+                Text { text: heading; font-size: 18px; font-weight: 600; color: p.text; vertical-alignment: center; }
+            }
+            Rectangle {
+                height: 6px;
+                border-radius: 3px;
+                background: p.hover;
+                Rectangle {
+                    x: 0;
+                    width: parent.width * clamp(progress, 0, 1);
+                    border-radius: 3px;
+                    background: state == "failed" ? p.red : state == "ok" ? green : p.accent-line;
+                }
+            }
+            Rectangle { height: 4px - 12px; }
+            for step in steps: HorizontalLayout {
+                spacing: 10px;
+                Mark {
+                    y: (parent.height - self.height) / 2;
+                    name: step.state == "ok" ? "check" : step.state == "fail" ? "warning" : "watch";
+                    tone: step.state == "ok" ? green : step.state == "fail" ? p.red : step.state == "run" ? p.accent-line : p.border;
+                }
+                Text { text: step.name; font-size: 14px; color: p.text; vertical-alignment: center; horizontal-stretch: 1; }
+                Text {
+                    text: step.note;
+                    font-size: 12px;
+                    color: p.muted;
+                    min-width: 52px;
+                    horizontal-alignment: right;
+                    vertical-alignment: center;
+                }
+            }
+            if state == "failed" && message != "": Text {
+                text: message;
+                wrap: word-wrap;
+                font-size: 14px;
+                color: p.red;
+            }
+            if state == "failed": HorizontalLayout {
+                padding-top: 4px;
+                spacing: 8px;
+                alignment: end;
+                ActionButton { label: close-label; p: p; clicked => { root.dismiss(); } }
+                Rectangle {
+                    height: 32px;
+                    width: retry-words.preferred-width + 28px;
+                    border-radius: 6px;
+                    background: retry-touch.has-hover ? p.accent-line : p.accent;
+                    retry-words := Text { text: retry-label; font-size: 14px; color: dark ? #15171b : #ffffff; }
+                    retry-touch := TouchArea { clicked => { root.retry(); } }
+                }
+            }
+        }
+    }
+}
