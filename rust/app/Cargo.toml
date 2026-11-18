@@ -14,6 +14,11 @@ path = "src/main.rs"
 name = "settings-mock"
 path = "src/bin/settings_mock.rs"
 
+[features]
+default = []
+# The Rust preview (docs/dev/preview.md): its own name, data folder and single-instance key; no updater, no sweep.
+preview = []
+
 [dependencies]
 slint = { version = "1.14", default-features = false, features = [
     "std",

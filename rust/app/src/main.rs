@@ -38,6 +38,8 @@ mod ui_events;
 slint::include_modules!();
 
 fn main() -> ExitCode {
+    // The Rust preview's name, data folder and tray (a no-op in the normal build).
+    app::preview::install();
     // The OCR's own thread count (paths.ocr_threads); the one this copy was started with is only logged.
     let inherited = std::env::var("OMP_NUM_THREADS").ok();
     std::env::set_var("OMP_NUM_THREADS", common::paths::ocr_threads().to_string());
@@ -169,7 +171,8 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
         ports: parts.ports,
         worker: Worker::start(Box::new(RealScreen), Box::new(parts.checker)),
         keys,
-        update_check: Box::new(app::wiring::stubs::Quiet), // stub: updater (data::update has no HTTP client yet)
+        // stub: updater (data::update has no HTTP client yet); the preview never looks, whatever is wired here.
+        update_check: app::preview::updater(Box::new(app::wiring::stubs::Quiet), app::preview::ON),
         tray: parts.tray,
         tray_actions: parts.tray_actions,
         installed: install.is_some(),
@@ -177,7 +180,7 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
     };
     let runner = Rc::new(RefCell::new(Runner::new(root, log, claim, store.clone(), parts)));
 
-    let ui = Rc::new(ui_app::MainUi::new(store.clone(), VERSION)?);
+    let ui = Rc::new(ui_app::MainUi::new(store.clone(), &app::preview::shown_version(VERSION, app::preview::ON))?);
     let window = ui.window.clone_strong();
     let quiet = life::start_quiet(options.background, tray_visible, first_run, &store.borrow().settings, VERSION);
     if quiet {
@@ -185,7 +188,8 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
     } else {
         window.show()?;
     }
-    if let Some(install) = install {
+    // Never in the preview: install_root is None there, and the sweep must not touch anything outside its folder.
+    if let Some(install) = install.filter(|_| !app::preview::ON) {
         // Up and running: tell the launcher, and sweep what the release no longer ships, off the window's thread.
         let data_root = runner.borrow().root.clone();
         let started = std::thread::Builder::new().name("AfterStart".into()).spawn(move || {

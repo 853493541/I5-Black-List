@@ -94,6 +94,10 @@ pub fn exe_dir() -> Option<PathBuf> {
 
 /// The release folder this exe runs from (switchover.install_root), None for a build run from source.
 pub fn install_root() -> Option<PathBuf> {
+    // The preview runs from a plain folder and never takes part in a release's switch-over or sweep.
+    if crate::preview::ON {
+        return None;
+    }
     data::update::switchover::install_root(&std::env::current_exe().ok()?)
 }
 
@@ -101,8 +105,16 @@ pub fn start(options: &Options) -> Result<Outcome, String> {
     let root = options.root.clone().unwrap_or_else(files::app_dir);
     std::fs::create_dir_all(&root).map_err(|error| format!("data folder {}: {error}", root.display()))?;
     let log = AppLog::open(&root);
-    log.info(&format!("==== Start {VERSION} (Rust, {}) ====", std::env::consts::OS));
+    let build = if crate::preview::ON { crate::preview::NAME } else { "Rust" };
+    log.info(&format!("==== Start {VERSION} ({build}, {}) ====", std::env::consts::OS));
     log.info("Start-up: data folder ok");
+    if crate::preview::ON && options.root.is_none() {
+        let old = crate::preview::old_folder();
+        match crate::preview::copy_old_data(&root, &old) {
+            Ok(copied) => log.info(&copied.line(&old)),
+            Err(error) => log.warn(&format!("Preview: copy from {} stopped: {error}", old.display())),
+        }
+    }
     if mark_running(&root) {
         log.warn("The last run ended without closing: it was ended from outside (Task Manager, a tool, or a power loss).");
     }
@@ -121,8 +133,13 @@ pub fn start(options: &Options) -> Result<Outcome, String> {
     }
     log.info(&format!("Settings: {}", settings_line(&store)));
     log.info("Start-up: settings ok");
-    autostart_refresh(install.as_deref());
-    log.info("Start-up: autostart ok");
+    if crate::preview::ON {
+        // The preview never adds, moves or removes a Run entry: v1.0.1's stays as it is.
+        log.info("Start-up: autostart ok (off in the preview)");
+    } else {
+        autostart_refresh(install.as_deref());
+        log.info("Start-up: autostart ok");
+    }
     let models = model_dirs(&model_roots(install.as_deref()));
     match &models {
         Some((det, rec)) => log.info(&format!("Start-up: models ok ({}, {})", det.display(), rec.display())),
@@ -155,7 +172,7 @@ pub fn settings_line(store: &Store) -> String {
 /// One copy (single.claim, single.settle): Some(claim) to go on, None when another copy answered.
 #[cfg(windows)]
 fn one_copy(options: &Options, install: Option<PathBuf>, log: &AppLog) -> Option<Option<Box<dyn std::any::Any>>> {
-    let key = win::instance::instance_key();
+    let key = crate::preview::instance_key(&win::instance::instance_key(), crate::preview::ON);
     let claim = win::process::claim(&key);
     let message: &[u8] = if options.background { b"" } else { b"show" };
     let mut host = win::process::SystemHost {

@@ -4,6 +4,17 @@ use super::TrayAction;
 
 /// The tooltip on the icon. Python never sets one (QSystemTrayIcon's toolTip() is empty), so hovering shows none.
 pub const TOOLTIP: &str = "";
+static TIP: std::sync::OnceLock<&'static str> = std::sync::OnceLock::new();
+
+/// A build of its own (the Rust preview) names itself on the icon. Set once, before the icon is made.
+pub fn set_tooltip(text: &'static str) {
+    let _ = TIP.set(text);
+}
+
+/// The tooltip the icon gets: TOOLTIP unless `set_tooltip` set one.
+pub fn tooltip() -> &'static str {
+    TIP.get().copied().unwrap_or(TOOLTIP)
+}
 
 /// The app state the menu could depend on. In Python it does not: the menu is the same in every state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
