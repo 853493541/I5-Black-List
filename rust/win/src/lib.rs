@@ -16,4 +16,6 @@ pub mod capture;
 #[cfg(windows)]
 pub mod global_hotkey;
 #[cfg(windows)]
+pub mod machine;
+#[cfg(windows)]
 pub mod process;

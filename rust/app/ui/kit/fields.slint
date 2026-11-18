@@ -1,0 +1,82 @@
+// The text inputs of ui_theme._input_rules: TextField and SearchBox.
+//
+// TextField: in-out text, in placeholder, in enabled (true), in p (Theme.p); callback edited(string), accepted.
+//   32 px high, 10 px side padding, a field-line edge that turns accent-line on hover and accent while typing.
+// SearchBox: a TextField with the search icon before the words and a × that clears them once there are any.
+//   in-out text, in placeholder ("搜索"), in p; callback edited(string).
+
+import { Palette, Theme, Tokens, Motion } from "../theme.slint";
+import { LineIcon } from "icons.slint";
+import { IconButton } from "buttons.slint";
+
+export component TextField inherits Rectangle {
+    in-out property <string> text <=> input.text;
+    in property <string> placeholder;
+    in property <bool> enabled: true;
+    in property <length> lead: 0;
+    in property <length> trail: 0;
+    in property <Palette> p: Theme.p;
+    callback edited(string);
+    callback accepted;
+    height: Tokens.control-h;
+    min-width: 120px;
+    border-radius: Tokens.radius;
+    border-width: 1px;
+    border-color: !enabled ? p.border : input.has-focus ? p.accent : hover.has-hover ? p.accent-line : p.field-line;
+    background: enabled ? p.surface : p.surface-alt;
+    animate border-color { duration: Motion.hover; easing: cubic-bezier(0.33, 1, 0.68, 1); }
+    hover := TouchArea { mouse-cursor: MouseCursor.text; }
+    if input.text == "": Text {
+        x: 10px + lead;
+        width: parent.width - 20px - lead - trail;
+        height: parent.height;
+        vertical-alignment: center;
+        text: placeholder;
+        font-size: Tokens.body;
+        color: p.muted;
+        overflow: elide;
+    }
+    input := TextInput {
+        x: 10px + lead;
+        width: parent.width - 20px - lead - trail;
+        height: parent.height;
+        vertical-alignment: center;
+        font-size: Tokens.body;
+        color: enabled ? p.text : p.muted;
+        selection-background-color: p.selected;
+        selection-foreground-color: p.text;
+        enabled: enabled;
+        single-line: true;
+        edited => { root.edited(self.text); }
+        accepted => { root.accepted(); }
+    }
+}
+
+export component SearchBox inherits Rectangle {
+    in-out property <string> text <=> field.text;
+    in property <string> placeholder: "搜索";
+    in property <Palette> p: Theme.p;
+    callback edited(string);
+    height: Tokens.control-h;
+    min-width: 160px;
+    field := TextField {
+        width: parent.width;
+        p: p;
+        placeholder: placeholder;
+        lead: 22px;
+        trail: field.text == "" ? 0 : 22px;
+        edited(t) => { root.edited(t); }
+    }
+    LineIcon { x: 10px; name: "search"; size: 16px; tone: p.muted; }
+    if field.text != "": IconButton {
+        x: parent.width - self.width - 2px;
+        width: 26px;
+        height: 26px;
+        icon: "close";
+        p: p;
+        clicked => {
+            field.text = "";
+            root.edited("");
+        }
+    }
+}

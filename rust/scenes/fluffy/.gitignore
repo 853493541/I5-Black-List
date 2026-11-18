@@ -1,0 +1,2 @@
+# fluffy_frames writes these each run; side_t*.png and crop_t*.png are kept instead.
+rust_t*.png

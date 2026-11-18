@@ -1,0 +1,31 @@
+name: rust-stage
+
+# The stage crate alone (rust/stage), so its Windows window is proven on WARP even while the whole
+# workspace's build waits on OpenCV on the runners. The master may fold this into rust.yml.
+on:
+  push:
+    branches: ["feature/rust-stage"]
+
+jobs:
+  stage:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: rust
+    env:
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Test
+        run: cargo test -p stage -- --nocapture --test-threads=1
+      - name: Clippy
+        run: cargo clippy -p stage --all-targets -- -D warnings

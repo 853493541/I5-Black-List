@@ -52,9 +52,7 @@ pub fn init_runtime(library: &Path) -> Result<Environment> {
 }
 
 /// paths.ocr_threads: one thread per core, 2 to 8.
-pub fn ocr_threads(cores: usize) -> usize {
-    cores.clamp(2, 8)
-}
+pub use common::paths::ocr_threads_for as ocr_threads;
 
 pub struct TextDetector {
     pub alpha: [f64; 3],

@@ -17,8 +17,8 @@ out per pixel once (numpy and QPainter masks) and lays them on every frame; the 
   square as Python's tiles do); `gpu.rs` + `lyre.wgsl` shade every pixel: bilinear sampling through the
   inverse transform, the radial soft dot, premultiplied blending.
 
-Pictures (1920x1080 over the sample lobby, made-up names): `side_t<t>.png` (Python left, Rust right, half
-size) and `crop_t<t>.png` (full size, Python left, Rust right: the lyre top, the curl and its leaves
+Pictures (1920x1080 over the sample lobby, made-up names), JPEG quality 90 of what `lyre_frames` writes as PNG:
+`side_t<t>.jpg` (Python left, Rust right, half size) and `crop_t<t>.jpg` (full size, Python left, Rust right: the lyre top, the curl and its leaves
 bottom). Remake them (from the root, then from rust/):
 
     QT_QPA_PLATFORM=offscreen PYTHONPATH=. python rust/scenes/lyre/py_frames.py   # py_t*.png
@@ -34,8 +34,8 @@ Results on this container (Mesa llvmpipe through Vulkan, no GPU):
 | 4.0 s | 0.05/255 | 0.02 % | 0.000 % | 57.4 dB |
 | 4.7 s | 0.18/255 | 0.04 % | 0.001 % | 53.5 dB |
 
-`tests.rs` holds the floor: 42 dB at 0.5 s, 50 dB at 1.5 and 3.0 s (skipped without a Vulkan, Metal or
-DX12 adapter). What still differs: at 0.5 s the edge of the current as it draws itself in (Qt's
+The full-size frames stay out of git (`py_frames.py` and `lyre_frames` remake them). `tests.rs` holds the floor: 42 dB at 0.5 s, 50 dB at 1.5 and 3.0 s (skipped without a Vulkan, Metal or
+DX12 adapter, or before `py_frames.py` has written the Python frames). What still differs: at 0.5 s the edge of the current as it draws itself in (Qt's
 antialiased clip against ours), and the birds' edges (Qt's smooth scaling against a triangle filter).
 
 Frame time on llvmpipe: median 49.5 ms (Python/Qt raster on the same CPU: 15.4 ms); building the list

@@ -1,0 +1,4814 @@
+{
+ "scenes": [
+  {
+   "key": "classic",
+   "name": "经典",
+   "duration": 4.4,
+   "warm": false,
+   "max_ratio": null
+  },
+  {
+   "key": "lace",
+   "name": "玫瑰花边",
+   "duration": 4.6,
+   "warm": false,
+   "max_ratio": null
+  },
+  {
+   "key": "ice",
+   "name": "冰蓝极光",
+   "duration": 5.0,
+   "warm": false,
+   "max_ratio": 1.0
+  },
+  {
+   "key": "stars",
+   "name": "星河许愿",
+   "duration": 5.0,
+   "warm": false,
+   "max_ratio": null
+  },
+  {
+   "key": "cyber",
+   "name": "赛博朋克（一）",
+   "duration": 5.0,
+   "warm": false,
+   "max_ratio": null
+  },
+  {
+   "key": "neon",
+   "name": "赛博朋克（二）",
+   "duration": 5.0,
+   "warm": false,
+   "max_ratio": null
+  },
+  {
+   "key": "angel",
+   "name": "金色传说",
+   "duration": 5.0,
+   "warm": false,
+   "max_ratio": null
+  },
+  {
+   "key": "equation",
+   "name": "数学公式",
+   "duration": 5.0,
+   "warm": false,
+   "max_ratio": null
+  },
+  {
+   "key": "fluffy",
+   "name": "毛茸茸保护协会",
+   "duration": 5.0,
+   "warm": false,
+   "max_ratio": null
+  },
+  {
+   "key": "claw",
+   "name": "演说家遇袭",
+   "duration": 6.6,
+   "warm": false,
+   "max_ratio": null
+  },
+  {
+   "key": "lyre",
+   "name": "竖琴清风",
+   "duration": 5.0,
+   "warm": true,
+   "max_ratio": null
+  }
+ ],
+ "replaced": {
+  "champagne": "angel"
+ },
+ "choose": [
+  {
+   "seed": 0,
+   "choice": "random",
+   "last": "",
+   "picks": [
+    "angel",
+    "angel",
+    "classic",
+    "cyber",
+    "fluffy",
+    "equation"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "random",
+   "last": "stars",
+   "picks": [
+    "equation",
+    "equation",
+    "classic",
+    "neon",
+    "claw",
+    "fluffy"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "random",
+   "last": "ice",
+   "picks": [
+    "equation",
+    "equation",
+    "classic",
+    "neon",
+    "claw",
+    "fluffy"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "random",
+   "last": "classic",
+   "picks": [
+    "equation",
+    "equation",
+    "lace",
+    "neon",
+    "claw",
+    "fluffy"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "random",
+   "last": "angel",
+   "picks": [
+    "equation",
+    "equation",
+    "classic",
+    "cyber",
+    "claw",
+    "fluffy"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "off",
+   "last": "",
+   "picks": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "off",
+   "last": "stars",
+   "picks": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "off",
+   "last": "ice",
+   "picks": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "off",
+   "last": "classic",
+   "picks": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "off",
+   "last": "angel",
+   "picks": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "stars",
+   "last": "",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "stars",
+   "last": "stars",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "stars",
+   "last": "ice",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "stars",
+   "last": "classic",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "stars",
+   "last": "angel",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "lace",
+   "last": "",
+   "picks": [
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "lace",
+   "last": "stars",
+   "picks": [
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "lace",
+   "last": "ice",
+   "picks": [
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "lace",
+   "last": "classic",
+   "picks": [
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "lace",
+   "last": "angel",
+   "picks": [
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "champagne",
+   "last": "",
+   "picks": [
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "champagne",
+   "last": "stars",
+   "picks": [
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "champagne",
+   "last": "ice",
+   "picks": [
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "champagne",
+   "last": "classic",
+   "picks": [
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "champagne",
+   "last": "angel",
+   "picks": [
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "chiffon",
+   "last": "",
+   "picks": [
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "chiffon",
+   "last": "stars",
+   "picks": [
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "chiffon",
+   "last": "ice",
+   "picks": [
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "chiffon",
+   "last": "classic",
+   "picks": [
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": "chiffon",
+   "last": "angel",
+   "picks": [
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [
+    "stars"
+   ],
+   "last": "",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [
+    "stars"
+   ],
+   "last": "stars",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [
+    "stars"
+   ],
+   "last": "ice",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [
+    "stars"
+   ],
+   "last": "classic",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [
+    "stars"
+   ],
+   "last": "angel",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [
+    "stars",
+    "ice"
+   ],
+   "last": "",
+   "picks": [
+    "ice",
+    "ice",
+    "stars",
+    "ice",
+    "ice",
+    "ice"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [
+    "stars",
+    "ice"
+   ],
+   "last": "stars",
+   "picks": [
+    "ice",
+    "ice",
+    "ice",
+    "ice",
+    "ice",
+    "ice"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [
+    "stars",
+    "ice"
+   ],
+   "last": "ice",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [
+    "stars",
+    "ice"
+   ],
+   "last": "classic",
+   "picks": [
+    "ice",
+    "ice",
+    "stars",
+    "ice",
+    "ice",
+    "ice"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [
+    "stars",
+    "ice"
+   ],
+   "last": "angel",
+   "picks": [
+    "ice",
+    "ice",
+    "stars",
+    "ice",
+    "ice",
+    "ice"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [
+    "stars",
+    "ice",
+    "claw",
+    "lyre"
+   ],
+   "last": "",
+   "picks": [
+    "lyre",
+    "lyre",
+    "stars",
+    "claw",
+    "lyre",
+    "lyre"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [
+    "stars",
+    "ice",
+    "claw",
+    "lyre"
+   ],
+   "last": "stars",
+   "picks": [
+    "claw",
+    "claw",
+    "ice",
+    "claw",
+    "lyre",
+    "claw"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [
+    "stars",
+    "ice",
+    "claw",
+    "lyre"
+   ],
+   "last": "ice",
+   "picks": [
+    "claw",
+    "claw",
+    "stars",
+    "claw",
+    "lyre",
+    "claw"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [
+    "stars",
+    "ice",
+    "claw",
+    "lyre"
+   ],
+   "last": "classic",
+   "picks": [
+    "lyre",
+    "lyre",
+    "stars",
+    "claw",
+    "lyre",
+    "lyre"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [
+    "stars",
+    "ice",
+    "claw",
+    "lyre"
+   ],
+   "last": "angel",
+   "picks": [
+    "lyre",
+    "lyre",
+    "stars",
+    "claw",
+    "lyre",
+    "lyre"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [
+    "champagne",
+    "angel",
+    "classic"
+   ],
+   "last": "",
+   "picks": [
+    "classic",
+    "classic",
+    "angel",
+    "classic",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [
+    "champagne",
+    "angel",
+    "classic"
+   ],
+   "last": "stars",
+   "picks": [
+    "classic",
+    "classic",
+    "angel",
+    "classic",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [
+    "champagne",
+    "angel",
+    "classic"
+   ],
+   "last": "ice",
+   "picks": [
+    "classic",
+    "classic",
+    "angel",
+    "classic",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [
+    "champagne",
+    "angel",
+    "classic"
+   ],
+   "last": "classic",
+   "picks": [
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [
+    "champagne",
+    "angel",
+    "classic"
+   ],
+   "last": "angel",
+   "picks": [
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [
+    "chiffon",
+    "ribbon"
+   ],
+   "last": "",
+   "picks": [
+    "angel",
+    "angel",
+    "classic",
+    "cyber",
+    "fluffy",
+    "equation"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [
+    "chiffon",
+    "ribbon"
+   ],
+   "last": "stars",
+   "picks": [
+    "equation",
+    "equation",
+    "classic",
+    "neon",
+    "claw",
+    "fluffy"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [
+    "chiffon",
+    "ribbon"
+   ],
+   "last": "ice",
+   "picks": [
+    "equation",
+    "equation",
+    "classic",
+    "neon",
+    "claw",
+    "fluffy"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [
+    "chiffon",
+    "ribbon"
+   ],
+   "last": "classic",
+   "picks": [
+    "equation",
+    "equation",
+    "lace",
+    "neon",
+    "claw",
+    "fluffy"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [
+    "chiffon",
+    "ribbon"
+   ],
+   "last": "angel",
+   "picks": [
+    "equation",
+    "equation",
+    "classic",
+    "cyber",
+    "claw",
+    "fluffy"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [],
+   "last": "",
+   "picks": [
+    "angel",
+    "angel",
+    "classic",
+    "cyber",
+    "fluffy",
+    "equation"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [],
+   "last": "stars",
+   "picks": [
+    "equation",
+    "equation",
+    "classic",
+    "neon",
+    "claw",
+    "fluffy"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [],
+   "last": "ice",
+   "picks": [
+    "equation",
+    "equation",
+    "classic",
+    "neon",
+    "claw",
+    "fluffy"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [],
+   "last": "classic",
+   "picks": [
+    "equation",
+    "equation",
+    "lace",
+    "neon",
+    "claw",
+    "fluffy"
+   ]
+  },
+  {
+   "seed": 0,
+   "choice": [],
+   "last": "angel",
+   "picks": [
+    "equation",
+    "equation",
+    "classic",
+    "cyber",
+    "claw",
+    "fluffy"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "random",
+   "last": "",
+   "picks": [
+    "neon",
+    "ice",
+    "angel",
+    "lyre",
+    "classic",
+    "lace"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "random",
+   "last": "stars",
+   "picks": [
+    "angel",
+    "ice",
+    "equation",
+    "classic",
+    "lace",
+    "claw"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "random",
+   "last": "ice",
+   "picks": [
+    "angel",
+    "stars",
+    "equation",
+    "classic",
+    "lace",
+    "claw"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "random",
+   "last": "classic",
+   "picks": [
+    "angel",
+    "stars",
+    "equation",
+    "lace",
+    "ice",
+    "claw"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "random",
+   "last": "angel",
+   "picks": [
+    "neon",
+    "ice",
+    "equation",
+    "classic",
+    "lace",
+    "claw"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "off",
+   "last": "",
+   "picks": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "off",
+   "last": "stars",
+   "picks": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "off",
+   "last": "ice",
+   "picks": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "off",
+   "last": "classic",
+   "picks": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "off",
+   "last": "angel",
+   "picks": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "stars",
+   "last": "",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "stars",
+   "last": "stars",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "stars",
+   "last": "ice",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "stars",
+   "last": "classic",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "stars",
+   "last": "angel",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "lace",
+   "last": "",
+   "picks": [
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "lace",
+   "last": "stars",
+   "picks": [
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "lace",
+   "last": "ice",
+   "picks": [
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "lace",
+   "last": "classic",
+   "picks": [
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "lace",
+   "last": "angel",
+   "picks": [
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "champagne",
+   "last": "",
+   "picks": [
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "champagne",
+   "last": "stars",
+   "picks": [
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "champagne",
+   "last": "ice",
+   "picks": [
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "champagne",
+   "last": "classic",
+   "picks": [
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "champagne",
+   "last": "angel",
+   "picks": [
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "chiffon",
+   "last": "",
+   "picks": [
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "chiffon",
+   "last": "stars",
+   "picks": [
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "chiffon",
+   "last": "ice",
+   "picks": [
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "chiffon",
+   "last": "classic",
+   "picks": [
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": "chiffon",
+   "last": "angel",
+   "picks": [
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [
+    "stars"
+   ],
+   "last": "",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [
+    "stars"
+   ],
+   "last": "stars",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [
+    "stars"
+   ],
+   "last": "ice",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [
+    "stars"
+   ],
+   "last": "classic",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [
+    "stars"
+   ],
+   "last": "angel",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [
+    "stars",
+    "ice"
+   ],
+   "last": "",
+   "picks": [
+    "ice",
+    "stars",
+    "ice",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [
+    "stars",
+    "ice"
+   ],
+   "last": "stars",
+   "picks": [
+    "ice",
+    "ice",
+    "ice",
+    "ice",
+    "ice",
+    "ice"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [
+    "stars",
+    "ice"
+   ],
+   "last": "ice",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [
+    "stars",
+    "ice"
+   ],
+   "last": "classic",
+   "picks": [
+    "ice",
+    "stars",
+    "ice",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [
+    "stars",
+    "ice"
+   ],
+   "last": "angel",
+   "picks": [
+    "ice",
+    "stars",
+    "ice",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [
+    "stars",
+    "ice",
+    "claw",
+    "lyre"
+   ],
+   "last": "",
+   "picks": [
+    "claw",
+    "ice",
+    "lyre",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [
+    "stars",
+    "ice",
+    "claw",
+    "lyre"
+   ],
+   "last": "stars",
+   "picks": [
+    "claw",
+    "ice",
+    "claw",
+    "lyre",
+    "ice",
+    "ice"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [
+    "stars",
+    "ice",
+    "claw",
+    "lyre"
+   ],
+   "last": "ice",
+   "picks": [
+    "claw",
+    "stars",
+    "claw",
+    "lyre",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [
+    "stars",
+    "ice",
+    "claw",
+    "lyre"
+   ],
+   "last": "classic",
+   "picks": [
+    "claw",
+    "ice",
+    "lyre",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [
+    "stars",
+    "ice",
+    "claw",
+    "lyre"
+   ],
+   "last": "angel",
+   "picks": [
+    "claw",
+    "ice",
+    "lyre",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [
+    "champagne",
+    "angel",
+    "classic"
+   ],
+   "last": "",
+   "picks": [
+    "classic",
+    "angel",
+    "classic",
+    "angel",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [
+    "champagne",
+    "angel",
+    "classic"
+   ],
+   "last": "stars",
+   "picks": [
+    "classic",
+    "angel",
+    "classic",
+    "angel",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [
+    "champagne",
+    "angel",
+    "classic"
+   ],
+   "last": "ice",
+   "picks": [
+    "classic",
+    "angel",
+    "classic",
+    "angel",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [
+    "champagne",
+    "angel",
+    "classic"
+   ],
+   "last": "classic",
+   "picks": [
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [
+    "champagne",
+    "angel",
+    "classic"
+   ],
+   "last": "angel",
+   "picks": [
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [
+    "chiffon",
+    "ribbon"
+   ],
+   "last": "",
+   "picks": [
+    "neon",
+    "ice",
+    "angel",
+    "lyre",
+    "classic",
+    "lace"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [
+    "chiffon",
+    "ribbon"
+   ],
+   "last": "stars",
+   "picks": [
+    "angel",
+    "ice",
+    "equation",
+    "classic",
+    "lace",
+    "claw"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [
+    "chiffon",
+    "ribbon"
+   ],
+   "last": "ice",
+   "picks": [
+    "angel",
+    "stars",
+    "equation",
+    "classic",
+    "lace",
+    "claw"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [
+    "chiffon",
+    "ribbon"
+   ],
+   "last": "classic",
+   "picks": [
+    "angel",
+    "stars",
+    "equation",
+    "lace",
+    "ice",
+    "claw"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [
+    "chiffon",
+    "ribbon"
+   ],
+   "last": "angel",
+   "picks": [
+    "neon",
+    "ice",
+    "equation",
+    "classic",
+    "lace",
+    "claw"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [],
+   "last": "",
+   "picks": [
+    "neon",
+    "ice",
+    "angel",
+    "lyre",
+    "classic",
+    "lace"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [],
+   "last": "stars",
+   "picks": [
+    "angel",
+    "ice",
+    "equation",
+    "classic",
+    "lace",
+    "claw"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [],
+   "last": "ice",
+   "picks": [
+    "angel",
+    "stars",
+    "equation",
+    "classic",
+    "lace",
+    "claw"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [],
+   "last": "classic",
+   "picks": [
+    "angel",
+    "stars",
+    "equation",
+    "lace",
+    "ice",
+    "claw"
+   ]
+  },
+  {
+   "seed": 7,
+   "choice": [],
+   "last": "angel",
+   "picks": [
+    "neon",
+    "ice",
+    "equation",
+    "classic",
+    "lace",
+    "claw"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "random",
+   "last": "",
+   "picks": [
+    "classic",
+    "equation",
+    "lace",
+    "angel",
+    "ice",
+    "lyre"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "random",
+   "last": "stars",
+   "picks": [
+    "classic",
+    "fluffy",
+    "lace",
+    "equation",
+    "ice",
+    "classic"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "random",
+   "last": "ice",
+   "picks": [
+    "classic",
+    "fluffy",
+    "lace",
+    "equation",
+    "stars",
+    "classic"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "random",
+   "last": "classic",
+   "picks": [
+    "lace",
+    "fluffy",
+    "ice",
+    "equation",
+    "stars",
+    "lace"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "random",
+   "last": "angel",
+   "picks": [
+    "classic",
+    "fluffy",
+    "lace",
+    "equation",
+    "ice",
+    "classic"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "off",
+   "last": "",
+   "picks": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "off",
+   "last": "stars",
+   "picks": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "off",
+   "last": "ice",
+   "picks": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "off",
+   "last": "classic",
+   "picks": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "off",
+   "last": "angel",
+   "picks": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "stars",
+   "last": "",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "stars",
+   "last": "stars",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "stars",
+   "last": "ice",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "stars",
+   "last": "classic",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "stars",
+   "last": "angel",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "lace",
+   "last": "",
+   "picks": [
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "lace",
+   "last": "stars",
+   "picks": [
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "lace",
+   "last": "ice",
+   "picks": [
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "lace",
+   "last": "classic",
+   "picks": [
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "lace",
+   "last": "angel",
+   "picks": [
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "champagne",
+   "last": "",
+   "picks": [
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "champagne",
+   "last": "stars",
+   "picks": [
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "champagne",
+   "last": "ice",
+   "picks": [
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "champagne",
+   "last": "classic",
+   "picks": [
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "champagne",
+   "last": "angel",
+   "picks": [
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "chiffon",
+   "last": "",
+   "picks": [
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "chiffon",
+   "last": "stars",
+   "picks": [
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "chiffon",
+   "last": "ice",
+   "picks": [
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "chiffon",
+   "last": "classic",
+   "picks": [
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": "chiffon",
+   "last": "angel",
+   "picks": [
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [
+    "stars"
+   ],
+   "last": "",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [
+    "stars"
+   ],
+   "last": "stars",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [
+    "stars"
+   ],
+   "last": "ice",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [
+    "stars"
+   ],
+   "last": "classic",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [
+    "stars"
+   ],
+   "last": "angel",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [
+    "stars",
+    "ice"
+   ],
+   "last": "",
+   "picks": [
+    "stars",
+    "ice",
+    "stars",
+    "ice",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [
+    "stars",
+    "ice"
+   ],
+   "last": "stars",
+   "picks": [
+    "ice",
+    "ice",
+    "ice",
+    "ice",
+    "ice",
+    "ice"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [
+    "stars",
+    "ice"
+   ],
+   "last": "ice",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [
+    "stars",
+    "ice"
+   ],
+   "last": "classic",
+   "picks": [
+    "stars",
+    "ice",
+    "stars",
+    "ice",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [
+    "stars",
+    "ice"
+   ],
+   "last": "angel",
+   "picks": [
+    "stars",
+    "ice",
+    "stars",
+    "ice",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [
+    "stars",
+    "ice",
+    "claw",
+    "lyre"
+   ],
+   "last": "",
+   "picks": [
+    "stars",
+    "lyre",
+    "stars",
+    "lyre",
+    "ice",
+    "stars"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [
+    "stars",
+    "ice",
+    "claw",
+    "lyre"
+   ],
+   "last": "stars",
+   "picks": [
+    "ice",
+    "claw",
+    "ice",
+    "claw",
+    "ice",
+    "lyre"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [
+    "stars",
+    "ice",
+    "claw",
+    "lyre"
+   ],
+   "last": "ice",
+   "picks": [
+    "stars",
+    "claw",
+    "stars",
+    "claw",
+    "stars",
+    "lyre"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [
+    "stars",
+    "ice",
+    "claw",
+    "lyre"
+   ],
+   "last": "classic",
+   "picks": [
+    "stars",
+    "lyre",
+    "stars",
+    "lyre",
+    "ice",
+    "stars"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [
+    "stars",
+    "ice",
+    "claw",
+    "lyre"
+   ],
+   "last": "angel",
+   "picks": [
+    "stars",
+    "lyre",
+    "stars",
+    "lyre",
+    "ice",
+    "stars"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [
+    "champagne",
+    "angel",
+    "classic"
+   ],
+   "last": "",
+   "picks": [
+    "angel",
+    "classic",
+    "angel",
+    "classic",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [
+    "champagne",
+    "angel",
+    "classic"
+   ],
+   "last": "stars",
+   "picks": [
+    "angel",
+    "classic",
+    "angel",
+    "classic",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [
+    "champagne",
+    "angel",
+    "classic"
+   ],
+   "last": "ice",
+   "picks": [
+    "angel",
+    "classic",
+    "angel",
+    "classic",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [
+    "champagne",
+    "angel",
+    "classic"
+   ],
+   "last": "classic",
+   "picks": [
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [
+    "champagne",
+    "angel",
+    "classic"
+   ],
+   "last": "angel",
+   "picks": [
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [
+    "chiffon",
+    "ribbon"
+   ],
+   "last": "",
+   "picks": [
+    "classic",
+    "equation",
+    "lace",
+    "angel",
+    "ice",
+    "lyre"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [
+    "chiffon",
+    "ribbon"
+   ],
+   "last": "stars",
+   "picks": [
+    "classic",
+    "fluffy",
+    "lace",
+    "equation",
+    "ice",
+    "classic"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [
+    "chiffon",
+    "ribbon"
+   ],
+   "last": "ice",
+   "picks": [
+    "classic",
+    "fluffy",
+    "lace",
+    "equation",
+    "stars",
+    "classic"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [
+    "chiffon",
+    "ribbon"
+   ],
+   "last": "classic",
+   "picks": [
+    "lace",
+    "fluffy",
+    "ice",
+    "equation",
+    "stars",
+    "lace"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [
+    "chiffon",
+    "ribbon"
+   ],
+   "last": "angel",
+   "picks": [
+    "classic",
+    "fluffy",
+    "lace",
+    "equation",
+    "ice",
+    "classic"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [],
+   "last": "",
+   "picks": [
+    "classic",
+    "equation",
+    "lace",
+    "angel",
+    "ice",
+    "lyre"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [],
+   "last": "stars",
+   "picks": [
+    "classic",
+    "fluffy",
+    "lace",
+    "equation",
+    "ice",
+    "classic"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [],
+   "last": "ice",
+   "picks": [
+    "classic",
+    "fluffy",
+    "lace",
+    "equation",
+    "stars",
+    "classic"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [],
+   "last": "classic",
+   "picks": [
+    "lace",
+    "fluffy",
+    "ice",
+    "equation",
+    "stars",
+    "lace"
+   ]
+  },
+  {
+   "seed": 31,
+   "choice": [],
+   "last": "angel",
+   "picks": [
+    "classic",
+    "fluffy",
+    "lace",
+    "equation",
+    "ice",
+    "classic"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "random",
+   "last": "",
+   "picks": [
+    "lace",
+    "neon",
+    "fluffy",
+    "fluffy",
+    "lyre",
+    "lace"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "random",
+   "last": "stars",
+   "picks": [
+    "lace",
+    "angel",
+    "claw",
+    "claw",
+    "lace",
+    "cyber"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "random",
+   "last": "ice",
+   "picks": [
+    "lace",
+    "angel",
+    "claw",
+    "claw",
+    "lace",
+    "cyber"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "random",
+   "last": "classic",
+   "picks": [
+    "ice",
+    "angel",
+    "claw",
+    "claw",
+    "ice",
+    "cyber"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "random",
+   "last": "angel",
+   "picks": [
+    "lace",
+    "neon",
+    "claw",
+    "claw",
+    "lace",
+    "stars"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "off",
+   "last": "",
+   "picks": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "off",
+   "last": "stars",
+   "picks": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "off",
+   "last": "ice",
+   "picks": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "off",
+   "last": "classic",
+   "picks": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "off",
+   "last": "angel",
+   "picks": [
+    "",
+    "",
+    "",
+    "",
+    "",
+    ""
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "stars",
+   "last": "",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "stars",
+   "last": "stars",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "stars",
+   "last": "ice",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "stars",
+   "last": "classic",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "stars",
+   "last": "angel",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "lace",
+   "last": "",
+   "picks": [
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "lace",
+   "last": "stars",
+   "picks": [
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "lace",
+   "last": "ice",
+   "picks": [
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "lace",
+   "last": "classic",
+   "picks": [
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "lace",
+   "last": "angel",
+   "picks": [
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace",
+    "lace"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "champagne",
+   "last": "",
+   "picks": [
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "champagne",
+   "last": "stars",
+   "picks": [
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "champagne",
+   "last": "ice",
+   "picks": [
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "champagne",
+   "last": "classic",
+   "picks": [
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "champagne",
+   "last": "angel",
+   "picks": [
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "chiffon",
+   "last": "",
+   "picks": [
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "chiffon",
+   "last": "stars",
+   "picks": [
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "chiffon",
+   "last": "ice",
+   "picks": [
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "chiffon",
+   "last": "classic",
+   "picks": [
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": "chiffon",
+   "last": "angel",
+   "picks": [
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [
+    "stars"
+   ],
+   "last": "",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [
+    "stars"
+   ],
+   "last": "stars",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [
+    "stars"
+   ],
+   "last": "ice",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [
+    "stars"
+   ],
+   "last": "classic",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [
+    "stars"
+   ],
+   "last": "angel",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [
+    "stars",
+    "ice"
+   ],
+   "last": "",
+   "picks": [
+    "stars",
+    "ice",
+    "stars",
+    "stars",
+    "ice",
+    "ice"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [
+    "stars",
+    "ice"
+   ],
+   "last": "stars",
+   "picks": [
+    "ice",
+    "ice",
+    "ice",
+    "ice",
+    "ice",
+    "ice"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [
+    "stars",
+    "ice"
+   ],
+   "last": "ice",
+   "picks": [
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars",
+    "stars"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [
+    "stars",
+    "ice"
+   ],
+   "last": "classic",
+   "picks": [
+    "stars",
+    "ice",
+    "stars",
+    "stars",
+    "ice",
+    "ice"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [
+    "stars",
+    "ice"
+   ],
+   "last": "angel",
+   "picks": [
+    "stars",
+    "ice",
+    "stars",
+    "stars",
+    "ice",
+    "ice"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [
+    "stars",
+    "ice",
+    "claw",
+    "lyre"
+   ],
+   "last": "",
+   "picks": [
+    "stars",
+    "claw",
+    "stars",
+    "ice",
+    "lyre",
+    "lyre"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [
+    "stars",
+    "ice",
+    "claw",
+    "lyre"
+   ],
+   "last": "stars",
+   "picks": [
+    "ice",
+    "claw",
+    "lyre",
+    "lyre",
+    "lyre",
+    "ice"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [
+    "stars",
+    "ice",
+    "claw",
+    "lyre"
+   ],
+   "last": "ice",
+   "picks": [
+    "stars",
+    "claw",
+    "lyre",
+    "lyre",
+    "lyre",
+    "stars"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [
+    "stars",
+    "ice",
+    "claw",
+    "lyre"
+   ],
+   "last": "classic",
+   "picks": [
+    "stars",
+    "claw",
+    "stars",
+    "ice",
+    "lyre",
+    "lyre"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [
+    "stars",
+    "ice",
+    "claw",
+    "lyre"
+   ],
+   "last": "angel",
+   "picks": [
+    "stars",
+    "claw",
+    "stars",
+    "ice",
+    "lyre",
+    "lyre"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [
+    "champagne",
+    "angel",
+    "classic"
+   ],
+   "last": "",
+   "picks": [
+    "angel",
+    "classic",
+    "angel",
+    "angel",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [
+    "champagne",
+    "angel",
+    "classic"
+   ],
+   "last": "stars",
+   "picks": [
+    "angel",
+    "classic",
+    "angel",
+    "angel",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [
+    "champagne",
+    "angel",
+    "classic"
+   ],
+   "last": "ice",
+   "picks": [
+    "angel",
+    "classic",
+    "angel",
+    "angel",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [
+    "champagne",
+    "angel",
+    "classic"
+   ],
+   "last": "classic",
+   "picks": [
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [
+    "champagne",
+    "angel",
+    "classic"
+   ],
+   "last": "angel",
+   "picks": [
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic",
+    "classic"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [
+    "chiffon",
+    "ribbon"
+   ],
+   "last": "",
+   "picks": [
+    "lace",
+    "neon",
+    "fluffy",
+    "fluffy",
+    "lyre",
+    "lace"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [
+    "chiffon",
+    "ribbon"
+   ],
+   "last": "stars",
+   "picks": [
+    "lace",
+    "angel",
+    "claw",
+    "claw",
+    "lace",
+    "cyber"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [
+    "chiffon",
+    "ribbon"
+   ],
+   "last": "ice",
+   "picks": [
+    "lace",
+    "angel",
+    "claw",
+    "claw",
+    "lace",
+    "cyber"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [
+    "chiffon",
+    "ribbon"
+   ],
+   "last": "classic",
+   "picks": [
+    "ice",
+    "angel",
+    "claw",
+    "claw",
+    "ice",
+    "cyber"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [
+    "chiffon",
+    "ribbon"
+   ],
+   "last": "angel",
+   "picks": [
+    "lace",
+    "neon",
+    "claw",
+    "claw",
+    "lace",
+    "stars"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [],
+   "last": "",
+   "picks": [
+    "lace",
+    "neon",
+    "fluffy",
+    "fluffy",
+    "lyre",
+    "lace"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [],
+   "last": "stars",
+   "picks": [
+    "lace",
+    "angel",
+    "claw",
+    "claw",
+    "lace",
+    "cyber"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [],
+   "last": "ice",
+   "picks": [
+    "lace",
+    "angel",
+    "claw",
+    "claw",
+    "lace",
+    "cyber"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [],
+   "last": "classic",
+   "picks": [
+    "ice",
+    "angel",
+    "claw",
+    "claw",
+    "ice",
+    "cyber"
+   ]
+  },
+  {
+   "seed": 2026,
+   "choice": [],
+   "last": "angel",
+   "picks": [
+    "lace",
+    "neon",
+    "claw",
+    "claw",
+    "lace",
+    "stars"
+   ]
+  }
+ ],
+ "picker": [
+  {
+   "seed": 1,
+   "ops": [
+    [
+     "choice",
+     "random"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "heard",
+     "stars"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ]
+   ],
+   "picks": [
+    "ice",
+    "ice",
+    "claw",
+    "lace"
+   ]
+  },
+  {
+   "seed": 1,
+   "ops": [
+    [
+     "choice",
+     [
+      "stars",
+      "ice"
+     ]
+    ],
+    [
+     "pick"
+    ],
+    [
+     "heard",
+     "stars"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "heard",
+     "ice"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ]
+   ],
+   "picks": [
+    "stars",
+    "ice",
+    "stars"
+   ]
+  },
+  {
+   "seed": 1,
+   "ops": [
+    [
+     "choice",
+     "off"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "choice",
+     "lace"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "choice",
+     "random"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "pick"
+    ]
+   ],
+   "picks": [
+    "",
+    "lace",
+    "ice",
+    "ice"
+   ]
+  },
+  {
+   "seed": 1,
+   "ops": [
+    [
+     "choice",
+     "random"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ]
+   ],
+   "picks": [
+    "ice",
+    "lyre",
+    "lace",
+    "neon",
+    "lace",
+    "fluffy",
+    "equation",
+    "fluffy",
+    "angel",
+    "stars"
+   ]
+  },
+  {
+   "seed": 5,
+   "ops": [
+    [
+     "choice",
+     "random"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "heard",
+     "stars"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ]
+   ],
+   "picks": [
+    "claw",
+    "claw",
+    "cyber",
+    "angel"
+   ]
+  },
+  {
+   "seed": 5,
+   "ops": [
+    [
+     "choice",
+     [
+      "stars",
+      "ice"
+     ]
+    ],
+    [
+     "pick"
+    ],
+    [
+     "heard",
+     "stars"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "heard",
+     "ice"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ]
+   ],
+   "picks": [
+    "ice",
+    "ice",
+    "stars"
+   ]
+  },
+  {
+   "seed": 5,
+   "ops": [
+    [
+     "choice",
+     "off"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "choice",
+     "lace"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "choice",
+     "random"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "pick"
+    ]
+   ],
+   "picks": [
+    "",
+    "lace",
+    "claw",
+    "claw"
+   ]
+  },
+  {
+   "seed": 5,
+   "ops": [
+    [
+     "choice",
+     "random"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ]
+   ],
+   "picks": [
+    "claw",
+    "cyber",
+    "angel",
+    "claw",
+    "classic",
+    "fluffy",
+    "stars",
+    "classic",
+    "stars",
+    "lace"
+   ]
+  },
+  {
+   "seed": 99,
+   "ops": [
+    [
+     "choice",
+     "random"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "heard",
+     "stars"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ]
+   ],
+   "picks": [
+    "angel",
+    "angel",
+    "angel",
+    "cyber"
+   ]
+  },
+  {
+   "seed": 99,
+   "ops": [
+    [
+     "choice",
+     [
+      "stars",
+      "ice"
+     ]
+    ],
+    [
+     "pick"
+    ],
+    [
+     "heard",
+     "stars"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "heard",
+     "ice"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ]
+   ],
+   "picks": [
+    "ice",
+    "ice",
+    "stars"
+   ]
+  },
+  {
+   "seed": 99,
+   "ops": [
+    [
+     "choice",
+     "off"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "choice",
+     "lace"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "choice",
+     "random"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "pick"
+    ]
+   ],
+   "picks": [
+    "",
+    "lace",
+    "angel",
+    "angel"
+   ]
+  },
+  {
+   "seed": 99,
+   "ops": [
+    [
+     "choice",
+     "random"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ],
+    [
+     "pick"
+    ],
+    [
+     "play"
+    ],
+    [
+     "draw_again"
+    ]
+   ],
+   "picks": [
+    "angel",
+    "equation",
+    "stars",
+    "lyre",
+    "ice",
+    "cyber",
+    "stars",
+    "ice",
+    "lace",
+    "neon"
+   ]
+  }
+ ],
+ "gaps": [
+  {
+   "area": [
+    0,
+    0,
+    1920,
+    1080
+   ],
+   "keep": [
+    812,
+    970,
+    300,
+    90
+   ],
+   "badge": [
+    1131,
+    1014
+   ],
+   "seats": [
+    [
+     200.5,
+     400.0,
+     150.0,
+     30.0
+    ],
+    [
+     900.0,
+     650.25,
+     120.0,
+     28.0
+    ]
+   ],
+   "gap": [
+    784.0,
+    940.0,
+    356.0,
+    140.0
+   ],
+   "unit": 1.1743119266055047,
+   "heart": [
+    1131.0,
+    1014.0
+   ],
+   "bare_heart": [
+    1079.48,
+    1024.5504587155963
+   ],
+   "names": [
+    [
+     200.5,
+     400.0,
+     150.0,
+     30.0
+    ],
+    [
+     900.0,
+     650.25,
+     120.0,
+     28.0
+    ]
+   ],
+   "bare_names": [
+    [
+     203.51999999999998,
+     525.96,
+     275.52000000000004,
+     43.20000000000004
+    ],
+    [
+     502.08000000000004,
+     528.12,
+     247.10399999999996,
+     39.960000000000036
+    ],
+    [
+     772.224,
+     521.64,
+     230.39999999999998,
+     48.600000000000044
+    ],
+    [
+     1025.856,
+     524.88,
+     241.92000000000002,
+     45.36000000000004
+    ],
+    [
+     1307.52,
+     524.88,
+     232.32,
+     47.52000000000004
+    ],
+    [
+     1570.56,
+     525.96,
+     232.32,
+     44.28000000000004
+    ],
+    [
+     232.32,
+     839.1600000000001,
+     248.64000000000001,
+     43.19999999999992
+    ],
+    [
+     504.0,
+     835.9200000000001,
+     241.34399999999997,
+     48.59999999999992
+    ],
+    [
+     775.6800000000001,
+     835.9200000000001,
+     236.16,
+     47.519999999999925
+    ],
+    [
+     1040.64,
+     834.84,
+     236.16,
+     45.35999999999992
+    ],
+    [
+     1301.76,
+     839.1600000000001,
+     241.92000000000002,
+     42.11999999999992
+    ],
+    [
+     1566.7199999999998,
+     838.08,
+     272.64000000000004,
+     43.19999999999992
+    ]
+   ]
+  },
+  {
+   "area": [
+    100,
+    50,
+    1635,
+    848
+   ],
+   "keep": [
+    649,
+    799,
+    556,
+    94
+   ],
+   "badge": [
+    1224,
+    845
+   ],
+   "seats": [
+    [
+     300.5,
+     450.0,
+     150.0,
+     30.0
+    ],
+    [
+     1000.0,
+     700.25,
+     120.0,
+     28.0
+    ]
+   ],
+   "gap": [
+    521.0,
+    719.0,
+    612.0,
+    129.0
+   ],
+   "unit": 1.0,
+   "heart": [
+    1124.0,
+    795.0
+   ],
+   "bare_heart": [
+    1028.96,
+    791.0
+   ],
+   "names": [
+    [
+     200.5,
+     400.0,
+     150.0,
+     30.0
+    ],
+    [
+     900.0,
+     650.25,
+     120.0,
+     28.0
+    ]
+   ],
+   "bare_names": [
+    [
+     173.31,
+     412.976,
+     234.62250000000003,
+     33.92000000000003
+    ],
+    [
+     427.5525,
+     414.67199999999997,
+     210.42449999999997,
+     31.376000000000026
+    ],
+    [
+     657.597,
+     409.584,
+     196.2,
+     38.16000000000003
+    ],
+    [
+     873.5805,
+     412.128,
+     206.01,
+     35.61600000000003
+    ],
+    [
+     1113.4350000000002,
+     412.128,
+     197.835,
+     37.31200000000003
+    ],
+    [
+     1337.4299999999998,
+     412.976,
+     197.835,
+     34.76800000000003
+    ],
+    [
+     197.835,
+     658.8960000000001,
+     211.73250000000002,
+     33.91999999999994
+    ],
+    [
+     429.1875,
+     656.352,
+     205.51949999999997,
+     38.15999999999994
+    ],
+    [
+     660.5400000000001,
+     656.352,
+     201.105,
+     37.31199999999994
+    ],
+    [
+     886.1700000000001,
+     655.504,
+     201.105,
+     35.615999999999936
+    ],
+    [
+     1108.53,
+     658.8960000000001,
+     206.01,
+     33.07199999999993
+    ],
+    [
+     1334.1599999999999,
+     658.048,
+     232.17000000000002,
+     33.91999999999994
+    ]
+   ]
+  },
+  {
+   "area": [
+    -1920,
+    0,
+    1920,
+    1080
+   ],
+   "keep": [
+    -1100,
+    960,
+    280,
+    100
+   ],
+   "badge": [
+    -801,
+    1009
+   ],
+   "seats": [
+    [
+     -1719.5,
+     400.0,
+     150.0,
+     30.0
+    ],
+    [
+     -1020.0,
+     650.25,
+     120.0,
+     28.0
+    ]
+   ],
+   "gap": [
+    792.0,
+    930.0,
+    336.0,
+    150.0
+   ],
+   "unit": 1.1743119266055047,
+   "heart": [
+    1119.0,
+    1009.0
+   ],
+   "bare_heart": [
+    1070.88,
+    1014.5504587155963
+   ],
+   "names": [
+    [
+     200.5,
+     400.0,
+     150.0,
+     30.0
+    ],
+    [
+     900.0,
+     650.25,
+     120.0,
+     28.0
+    ]
+   ],
+   "bare_names": [
+    [
+     203.51999999999998,
+     525.96,
+     275.52000000000004,
+     43.20000000000004
+    ],
+    [
+     502.08000000000004,
+     528.12,
+     247.10399999999996,
+     39.960000000000036
+    ],
+    [
+     772.224,
+     521.64,
+     230.39999999999998,
+     48.600000000000044
+    ],
+    [
+     1025.856,
+     524.88,
+     241.92000000000002,
+     45.36000000000004
+    ],
+    [
+     1307.52,
+     524.88,
+     232.32,
+     47.52000000000004
+    ],
+    [
+     1570.56,
+     525.96,
+     232.32,
+     44.28000000000004
+    ],
+    [
+     232.32,
+     839.1600000000001,
+     248.64000000000001,
+     43.19999999999992
+    ],
+    [
+     504.0,
+     835.9200000000001,
+     241.34399999999997,
+     48.59999999999992
+    ],
+    [
+     775.6800000000001,
+     835.9200000000001,
+     236.16,
+     47.519999999999925
+    ],
+    [
+     1040.64,
+     834.84,
+     236.16,
+     45.35999999999992
+    ],
+    [
+     1301.76,
+     839.1600000000001,
+     241.92000000000002,
+     42.11999999999992
+    ],
+    [
+     1566.7199999999998,
+     838.08,
+     272.64000000000004,
+     43.19999999999992
+    ]
+   ]
+  },
+  {
+   "area": [
+    0,
+    0,
+    2560,
+    1440
+   ],
+   "keep": [
+    1140,
+    1290,
+    400,
+    120
+   ],
+   "badge": [
+    1559,
+    1349
+   ],
+   "seats": [
+    [
+     200.5,
+     400.0,
+     150.0,
+     30.0
+    ],
+    [
+     900.0,
+     650.25,
+     120.0,
+     28.0
+    ]
+   ],
+   "gap": [
+    1112.0,
+    1260.0,
+    456.0,
+    180.0
+   ],
+   "unit": 1.5657492354740061,
+   "heart": [
+    1559.0,
+    1349.0
+   ],
+   "bare_heart": [
+    1490.48,
+    1372.7339449541284
+   ],
+   "names": [
+    [
+     200.5,
+     400.0,
+     150.0,
+     30.0
+    ],
+    [
+     900.0,
+     650.25,
+     120.0,
+     28.0
+    ]
+   ],
+   "bare_names": [
+    [
+     271.36,
+     701.28,
+     367.36,
+     57.60000000000005
+    ],
+    [
+     669.44,
+     704.16,
+     329.472,
+     53.280000000000044
+    ],
+    [
+     1029.632,
+     695.52,
+     307.2,
+     64.80000000000005
+    ],
+    [
+     1367.808,
+     699.84,
+     322.56,
+     60.480000000000054
+    ],
+    [
+     1743.3600000000001,
+     699.84,
+     309.76,
+     63.360000000000056
+    ],
+    [
+     2094.08,
+     701.28,
+     309.76,
+     59.04000000000005
+    ],
+    [
+     309.76,
+     1118.88,
+     331.52,
+     57.599999999999895
+    ],
+    [
+     672.0,
+     1114.56,
+     321.7919999999999,
+     64.7999999999999
+    ],
+    [
+     1034.24,
+     1114.56,
+     314.88,
+     63.3599999999999
+    ],
+    [
+     1387.52,
+     1113.1200000000001,
+     314.88,
+     60.47999999999989
+    ],
+    [
+     1735.68,
+     1118.88,
+     322.56,
+     56.15999999999989
+    ],
+    [
+     2088.96,
+     1117.44,
+     363.52000000000004,
+     57.599999999999895
+    ]
+   ]
+  }
+ ],
+ "samples": [
+  {
+   "size": [
+    1635.0,
+    848.0
+   ],
+   "gap": [
+    521.0,
+    719.0,
+    612.0,
+    129.0
+   ],
+   "badge": [
+    1052.0,
+    796.0
+   ],
+   "unit": 1.0
+  },
+  {
+   "size": [
+    1920.0,
+    1080.0
+   ],
+   "gap": [
+    611.816513761468,
+    844.3302752293579,
+    718.6788990825689,
+    235.66972477064218
+   ],
+   "badge": [
+    1235.3761467889908,
+    934.7522935779817
+   ],
+   "unit": 1.1743119266055047
+  },
+  {
+   "size": [
+    1280.0,
+    720.0
+   ],
+   "gap": [
+    407.87767584097855,
+    562.8868501529053,
+    479.11926605504584,
+    157.11314984709477
+   ],
+   "badge": [
+    823.5840978593272,
+    623.1681957186545
+   ],
+   "unit": 0.7828746177370031
+  }
+ ],
+ "tick_ms": 33,
+ "ready_s": 0.02
+}

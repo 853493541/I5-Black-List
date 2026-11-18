@@ -1,0 +1,56 @@
+// Pieces the stream UI needs that ui/kit.slint does not have yet.
+// stub: ui-kit (SegmentedControl, IconButton, the green and on-accent colours); swap for the kit's when it lands.
+
+import { Palette } from "../theme.slint";
+import { Icon } from "../kit.slint";
+
+// The colours ui/theme.slint's Palette does not carry yet (ui_theme.py's green and on_accent).
+export global StreamTones {
+    in property <bool> dark;
+    out property <color> green: dark ? #5fcb8c : #1c7a3e;
+    out property <color> on-accent: dark ? #0e1116 : #ffffff;
+}
+
+// ui_kit.SegmentedControl: segments side by side, the chosen one filled in the accent.
+export component Segments inherits Rectangle {
+    in property <[{key: string, label: string}]> choices;
+    in-out property <string> current;
+    in property <Palette> p;
+    callback changed(string);
+    height: 32px;
+    HorizontalLayout {
+        for choice[index] in choices: Rectangle {
+            property <bool> on: choice.key == current;
+            width: words.preferred-width + 20px;
+            border-width: 1px;
+            border-color: on ? p.accent : p.border;
+            background: on ? p.accent : touch.has-hover ? p.hover : p.surface;
+            border-top-left-radius: index == 0 ? 6px : 0;
+            border-bottom-left-radius: index == 0 ? 6px : 0;
+            border-top-right-radius: index == choices.length - 1 ? 6px : 0;
+            border-bottom-right-radius: index == choices.length - 1 ? 6px : 0;
+            words := Text { text: choice.label; font-size: 14px; color: on ? StreamTones.on-accent : p.text; }
+            touch := TouchArea {
+                clicked => {
+                    if (!on) {
+                        current = choice.key;
+                        changed(choice.key);
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ui_kit.IconButton: a line icon in a square button with no frame until hovered.
+export component IconButton inherits Rectangle {
+    in property <string> icon;
+    in property <Palette> p;
+    callback clicked;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: touch.has-hover ? p.hover : transparent;
+    Icon { name: icon; size: 18px; tone: touch.has-hover ? p.text : p.muted; }
+    touch := TouchArea { clicked => { root.clicked(); } }
+}

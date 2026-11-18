@@ -1,0 +1,57 @@
+// 直播模式's row in the 检查 panel, right of its name: 关闭 | 开启, and 直播姬's state in words.
+// StreamInfo is the ⓘ that goes right after the name (直播模式说明).
+// ui-shell puts it in the row; src/stream fills `status` and `tone-ok` (row_status) and takes the callbacks.
+
+import { Palette } from "../theme.slint";
+import { Segments, IconButton, StreamTones } from "parts.slint";
+
+export component StreamInfo inherits IconButton {
+    icon: "info";
+}
+
+export component StreamPanel inherits HorizontalLayout {
+    in property <Palette> p;
+    // Whether 直播模式 is on: 开启 chosen.
+    in-out property <bool> on;
+    // What 直播姬's state says ("" hides it, its room kept), and whether it is green (shows 直播画面).
+    in property <string> status;
+    in property <bool> tone-ok;
+    // The width kept for the longest words, so the panel keeps its size as they come and go.
+    in property <length> status-room: 300px;
+    // 关闭 / 开启 clicked.
+    callback choice-changed(bool);
+    spacing: 4px;
+    alignment: start;
+    Segments {
+        p: p;
+        choices: [{key: "off", label: "关闭"}, {key: "on", label: "开启"}];
+        current: on ? "on" : "off";
+        changed(key) => {
+            on = key == "on";
+            choice-changed(on);
+        }
+    }
+    Rectangle {
+        min-width: status-room;
+        horizontal-stretch: 1;
+        Text {
+            x: 8px;
+            width: parent.width - 8px;
+            text: status;
+            visible: status != "";
+            font-size: 12px;
+            color: tone-ok ? StreamTones.green : p.red;
+            overflow: elide;
+            vertical-alignment: center;
+        }
+        // The underline of a warning (Qt's text-decoration; Slint 1.x Text has no underline).
+        if status != "" && !tone-ok: Rectangle {
+            x: 8px;
+            y: parent.height / 2 + 8px;
+            width: min(parent.width - 8px, measure.preferred-width);
+            height: 1px;
+            background: p.red;
+        }
+        measure := Text { text: status; font-size: 12px; visible: false; }
+    }
+}
