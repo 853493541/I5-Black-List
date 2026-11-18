@@ -1,12 +1,14 @@
 name: rust
 
 # The Rust rewrite (rust/): build, test and lint the whole workspace. The Windows job is where the
-# Windows-only code (rust/win: capture, hotkeys, single instance, autostart) actually runs.
+# Windows-only code (rust/win: capture, hotkeys, single instance, autostart) actually runs, and where the OCR is
+# linked to the official OpenCV 4.10 Windows build (with Intel IPP, the same pixels as the Python app's opencv
+# wheel): the IPP tests of rust/ocr run there on golden data that tools/rust_golden_ipp.py makes from made-up names.
 on:
   push:
     branches: ["feature/rust*"]
   pull_request:
-    paths: ["rust/**", ".github/workflows/rust.yml"]
+    paths: ["rust/**", ".github/workflows/rust.yml", "tools/rust_golden_ipp.py"]
 
 jobs:
   test:
@@ -15,18 +17,76 @@ jobs:
       matrix:
         os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: rust
+        shell: bash
     env:
       CARGO_TERM_COLOR: always
       RUST_BACKTRACE: "1"
+      OPENCV_VERSION: "4.10.0"
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: System libraries (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q libopencv-dev clang libclang-dev mesa-vulkan-drivers libvulkan1 \
+            libfontconfig1-dev libxkbcommon-dev
+
+      # The official build: a 7-Zip self-extractor holding build/include and build/x64/vc16/{lib,bin}/opencv_world4100.*
+      - name: Cache OpenCV (Windows)
+        if: runner.os == 'Windows'
+        id: opencv-cache
+        uses: actions/cache@v4
+        with:
+          path: C:\opencv
+          key: opencv-${{ env.OPENCV_VERSION }}-windows-official
+      - name: Install OpenCV (Windows)
+        if: runner.os == 'Windows' && steps.opencv-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -sSfL -o "$RUNNER_TEMP/opencv.exe" \
+            "https://github.com/opencv/opencv/releases/download/${OPENCV_VERSION}/opencv-${OPENCV_VERSION}-windows.exe"
+          "$RUNNER_TEMP/opencv.exe" -o"C:\\" -y
+          ls -la /c/opencv/build/x64/vc16/lib /c/opencv/build/x64/vc16/bin
+      - name: Point the opencv crate at it (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          {
+            echo 'OPENCV_LINK_LIBS=opencv_world4100'
+            echo 'OPENCV_LINK_PATHS=C:\opencv\build\x64\vc16\lib'
+            echo 'OPENCV_INCLUDE_PATHS=C:\opencv\build\include'
+            echo 'LIBCLANG_PATH=C:\Program Files\LLVM\bin'
+          } >> "$GITHUB_ENV"
+          echo 'C:\opencv\build\x64\vc16\bin' >> "$GITHUB_PATH"
+
+      # Golden data from the Python side (opencv-python 4.10 with IPP), and onnxruntime.dll for ort's load-dynamic.
+      - name: Python reference and golden data
+        working-directory: .
+        run: |
+          python -m pip install -q numpy==2.3.5 Pillow==12.1.0 opencv-python-headless==4.10.0.84 onnxruntime==1.32.0
+          mkdir -p "$RUNNER_TEMP/appdata"
+          APPDATA="$RUNNER_TEMP/appdata" HOME="$RUNNER_TEMP/appdata" PYTHONPATH=. \
+            python tools/rust_golden_ipp.py --out "$RUNNER_TEMP/ipp-golden"
+          ort=$(python -c "import onnxruntime, os, glob; d = os.path.join(os.path.dirname(onnxruntime.__file__), 'capi'); print(sorted(glob.glob(os.path.join(d, '*onnxruntime.dll')) + glob.glob(os.path.join(d, 'libonnxruntime.so*')))[0])")
+          {
+            echo "REC_GOLDEN=$RUNNER_TEMP/ipp-golden/strips.json"
+            echo "REC_CROPS=$RUNNER_TEMP/ipp-golden/crops"
+            echo "REC_ORT_LIB=$ort"
+            echo "OCR_ORT_LIB=$ort"
+            echo "ORT_DYLIB_PATH=$ort"
+          } >> "$GITHUB_ENV"
+          # fillPoly: Ubuntu's OpenCV 4.6 draws 71 of the 400 masks differently (rust/ocr/README.md); 4.10 only.
+          if [ "$RUNNER_OS" = Windows ]; then echo "FILLPOLY_GOLDEN=$RUNNER_TEMP/ipp-golden/fillpoly.json" >> "$GITHUB_ENV"; fi
+
       - uses: actions/cache@v4
         with:
           path: |
@@ -35,7 +95,30 @@ jobs:
             rust/target
           key: rust-${{ matrix.os }}-${{ hashFiles('rust/Cargo.lock') }}
           restore-keys: rust-${{ matrix.os }}-
+      - name: OCR against the Python reference
+        run: cargo test -p ocr -- --nocapture
       - name: Test
         run: cargo test --workspace
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Release build of the app (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cargo build --release -p app
+          mkdir -p "$RUNNER_TEMP/app"
+          cp target/release/*.exe "$RUNNER_TEMP/app/"
+          size() { stat -c %s "$2" | awk -v f="$1" '{ printf "| %s | %d | %.1f |\n", f, $1, $1 / 1048576 }'; }
+          {
+            echo '### Release sizes'
+            echo '| File | Bytes | MiB |'
+            echo '|---|---|---|'
+            for exe in target/release/*.exe; do size "$(basename "$exe")" "$exe"; done
+            size opencv_world4100.dll /c/opencv/build/x64/vc16/bin/opencv_world4100.dll
+            size onnxruntime.dll "$REC_ORT_LIB"
+          } | tee "$RUNNER_TEMP/app/sizes.md" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with:
+          name: app-windows-release
+          path: ${{ runner.temp }}/app
