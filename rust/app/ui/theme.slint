@@ -1,0 +1,23 @@
+// The colours of blacklist_detect/ui_theme.py's 蓝色 palette, light and dark, by role.
+
+export struct Palette {
+    bg: color, surface: color, text: color, muted: color, border: color, hover: color, selected: color,
+    accent: color, accent-line: color, accent-wash: color, chip-bg: color,
+    red: color, red-wash: color, red-edge: color, danger: color,
+}
+
+export global Light {
+    out property <Palette> palette: {
+        bg: #f2f6fb, surface: #ffffff, text: #172033, muted: #5d6d82, border: #d3deec, hover: #e4eef8,
+        selected: #cfdbe8, accent: #12325a, accent-line: #2c6cb3, accent-wash: #dce8f4, chip-bg: #eef0f3,
+        red: #c23b2e, red-wash: #fff3f2, red-edge: #f0c9c5, danger: #b3261e,
+    };
+}
+
+export global Dark {
+    out property <Palette> palette: {
+        bg: #15171b, surface: #1d2025, text: #e7e9ee, muted: #9aa2b0, border: #343944, hover: #2a2e36,
+        selected: #31435a, accent: #6aa6f0, accent-line: #86b8f4, accent-wash: #2b3a4f, chip-bg: #2d323b,
+        red: #f0817a, red-wash: #3a2325, red-edge: #6a3a3a, danger: #f0817a,
+    };
+}
