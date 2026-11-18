@@ -241,7 +241,8 @@ jobs:
         run: |
           git fetch -q --depth=1 origin data/lobby-corpus
           mkdir -p "$RUNNER_TEMP/corpus"
-          git archive FETCH_HEAD tests/lobby_corpus | tar -x -C "$RUNNER_TEMP/corpus"
+          git archive --format=zip -o "$RUNNER_TEMP/corpus.zip" FETCH_HEAD tests/lobby_corpus
+          python -I -c "import sys, zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$RUNNER_TEMP/corpus.zip" "$RUNNER_TEMP/corpus"
           frames="$RUNNER_TEMP/corpus/tests/lobby_corpus"
           echo "CORPUS_FRAMES=$(ls "$frames"/*.jpg | wc -l)" >> "$GITHUB_ENV"
           echo "corpus: $(ls "$frames"/*.jpg | wc -l) frames, sha256 of the list $(cd "$frames" && sha256sum *.jpg | sha256sum | cut -c1-16)" | tee "$RESULTS/corpus.txt"
