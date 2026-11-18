@@ -9,6 +9,7 @@ pub mod fetch;
 pub mod mirrors;
 pub mod py;
 pub mod stage;
+pub mod switchover;
 
 use base64::Engine as _;
 use ed25519_dalek::{Signature, VerifyingKey};

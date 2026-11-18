@@ -3,57 +3,9 @@
 use std::collections::HashMap;
 
 use crate::model::Entry;
-use crate::text::{casefold, digit_run, drop_space, is_digit, is_letter_or_number, nfkc};
+use crate::text::{digit_run, is_digit};
 
-pub const MIN_PREFIX_CHARS: usize = 4;
-
-/// NFKC, drop whitespace. Full-width Latin becomes half-width. Case is kept.
-pub fn normalize_text(raw: &str) -> String {
-    drop_space(&nfkc(raw).replace('\u{3000}', ""))
-}
-
-fn is_dot_kind(ch: char) -> bool {
-    matches!(ch, '.' | '·' | '。')
-}
-
-/// The tail is wholly `…`, `⋯`, or runs of two or more of `.`, `·`, `。`.
-fn is_ellipsis_tail(tail: &[char]) -> bool {
-    if tail.is_empty() {
-        return false;
-    }
-    let mut at = 0;
-    while at < tail.len() {
-        let ch = tail[at];
-        let run = tail[at..].iter().take_while(|&&next| next == ch).count();
-        let fits = matches!(ch, '…' | '⋯') || (is_dot_kind(ch) && run >= 2);
-        if !fits {
-            return false;
-        }
-        at += run;
-    }
-    true
-}
-
-/// Where `(?:…|⋯|\.{2,}|·{2,}|。{2,})+$` first matches, if it does.
-fn ellipsis_start(chars: &[char]) -> Option<usize> {
-    (0..chars.len()).find(|&start| is_ellipsis_tail(&chars[start..]))
-}
-
-/// The visible text and whether a trailing ellipsis was removed.
-pub fn split_ellipsis(raw: &str) -> (String, bool) {
-    let mut chars: Vec<char> = normalize_text(raw).chars().collect();
-    let mut truncated = false;
-    while let Some(start) = ellipsis_start(&chars) {
-        chars.truncate(start);
-        truncated = true;
-    }
-    // This lobby's ellipsis is sometimes read as a single dot.
-    if chars.last().is_some_and(|&ch| is_dot_kind(ch)) {
-        chars.pop();
-        truncated = true;
-    }
-    (chars.into_iter().collect(), truncated)
-}
+pub use common::text::{clean_stored_name, fold, normalize_text, split_ellipsis, strip_noise, MIN_PREFIX_CHARS};
 
 /// Keep the cutoff the lobby prints. Matching still uses the letters in front of it.
 pub fn with_game_ellipsis(visible: &str, truncated: bool) -> String {
@@ -61,19 +13,6 @@ pub fn with_game_ellipsis(visible: &str, truncated: bool) -> String {
         return format!("{visible}...");
     }
     visible.to_string()
-}
-
-/// Drop punctuation and symbols. A backtick in the middle of a name is not part of it.
-pub fn strip_noise(text: &str) -> String {
-    normalize_text(text)
-        .chars()
-        .filter(|&ch| is_letter_or_number(ch))
-        .collect()
-}
-
-/// Comparison form. Latin letters compare case-insensitively. Chinese is unchanged.
-pub fn fold(text: &str) -> String {
-    casefold(&strip_noise(text))
 }
 
 /// What the list adds after a name the game cut short: "" when the two are the same name, None when
@@ -90,11 +29,6 @@ pub fn listed_tail(read: &str, listed: &str) -> Option<String> {
         return Some(listed_chars[cut..].iter().collect());
     }
     None
-}
-
-/// Name as saved. A trailing ellipsis or a stray mark is not part of the name.
-pub fn clean_stored_name(raw: &str) -> String {
-    strip_noise(&split_ellipsis(raw).0)
 }
 
 /// `倒计时[:：]?\d+秒`, the whole text.
