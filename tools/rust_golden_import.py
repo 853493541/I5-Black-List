@@ -47,13 +47,13 @@ def _stub_qt() -> None:
 
 _stub_qt()
 
+import test_importing as ti  # noqa: E402
+import test_paste_formats as tp  # noqa: E402
+
 from blacklist_detect import guests, importing, love_scenes, names  # noqa: E402
 from blacklist_detect.match import clean_stored_name, fold  # noqa: E402
 from blacklist_detect.model import Combo, Entry, Scenes  # noqa: E402
 from blacklist_detect.storage import TAGS  # noqa: E402
-
-import test_importing as ti  # noqa: E402
-import test_paste_formats as tp  # noqa: E402
 
 OUT = ROOT / "rust" / "data" / "tests" / "golden" / "import"
 PASTE_CATALOG = tp.CATALOG
@@ -87,6 +87,10 @@ ENTRY_SETS = [
     [{"name": "示例坏人", "reason": "炸房还骂人", "tags": ["炸房"]}, {"name": "心动小鹿大王", "reason": "", "tags": []},
      {"name": "心动星星", "reason": "挂机", "tags": ["挂机"]}],
     [{"name": "Lucky Star", "reason": "", "tags": ["演员"]}, {"name": "示例", "reason": "", "tags": []}],
+    # As in tests/test_importing.py: names the game cut short, and one three characters long.
+    [{"name": "挖野菜养你吖", "reason": "纯粹的傻逼", "tags": []}, {"name": "小猫爆锤大王", "reason": "", "tags": ["挂机"]},
+     {"name": "名辅导可乐", "reason": "", "tags": []}, {"name": "心动小", "reason": "", "tags": []},
+     {"name": "示例坏人示例坏人", "reason": "", "tags": []}],
 ]
 ELSEWHERE_SETS = [[], [{"name": "心动小鹿", "reason": "", "tags": []}, {"name": "LUCKYSTAR", "reason": "", "tags": []}]]
 
@@ -123,13 +127,12 @@ def main() -> None:
                           "read": [[n, list(t), r] for n, t, r in importing.read_paste(text, catalog)]})
     plans = []
     for text in pastes():
-        for ei, entries in enumerate(ENTRY_SETS):
+        for entries in ENTRY_SETS:
             for elsewhere in ELSEWHERE_SETS:
                 for catalog in (TAGS, PASTE_CATALOG):
                     out = importing.plan_import(text, [entry(e) for e in entries], catalog, [entry(e) for e in elsewhere])
                     plans.append({"text": text, "catalog": list(catalog), "entries": entries, "elsewhere": elsewhere,
                                   "rows": rows_out(out)})
-            del ei
     reason_sets = [ti.SHARED_REASONS, ti.GAME_REASONS,
                    [("甲", (), "演员一个", -1), ("乙", (), "纯演员", -1), ("丙", ("演员",), "又是演员", -1)],
                    [("甲", ("炸房",), "又炸房了", -1), ("乙", ("炸房",), "炸房狗", -1)],
@@ -160,7 +163,6 @@ def main() -> None:
 
 
 def guest_cases() -> list:
-    import itertools
     import random
 
     rng = random.Random(20261118)
@@ -195,7 +197,6 @@ def guest_cases() -> list:
                     "lobby_choice": enc(guests.lobby_choice(L, C, P, "classic")), "lobby_scene": [who, enc(choice)],
                     "ticked": [list(guests.ticked(make(d["scenes"]))) for d in likes],
                     "members": [[list(m) for m in guests.members(c, L)] for c in C]})
-    del itertools
     return out
 
 
