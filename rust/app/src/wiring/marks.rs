@@ -58,9 +58,12 @@ mod windows {
         look: overlay::Look,
         fading: Option<Instant>,
         /// The game's rect the marks were laid out for, a point inside the game, and the window found there.
-        tracked: Option<([i32; 4], (i32, i32), [i64; 4])>,
+        tracked: Option<Tracked>,
         pub errors: Vec<String>,
     }
+
+    /// The game's rect the marks were laid out for, a point inside the game, and the window found there.
+    type Tracked = ([i32; 4], (i32, i32), [i64; 4]);
 
     /// The game's window at a point (game_area.window_rect_at, the innermost one).
     fn window_at((x, y): (i32, i32)) -> Option<[i64; 4]> {
