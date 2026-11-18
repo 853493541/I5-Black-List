@@ -1,0 +1,343 @@
+// The 黑名单 dialogs of blacklist_detect/ui_dialogs.py: AddNameDialog (添加 / 编辑), BatchAddDialog (批量导入),
+// TagSuggestDialog (确认导入), and ui_kit.ConfirmDialog (清空黑名单 and every other "are you sure").
+
+import { Palette, Light, Dark } from "../theme.slint";
+import { ListView } from "std-widgets.slint";
+import { Stage, Tones, DialogTones, DialogCard, DialogBody, DialogFooter, DialogButton, Spread, Field, TextBox, TagPill, LineIcon } from "frame.slint";
+
+// One 标签 pill, on or off.
+export struct TagChip { text: string, active: bool }
+// One line of pills, as src/dialogs/models.rs flows them into the room there is.
+export struct TagLine { chips: [TagChip] }
+// One person in an import preview: their box, name, 标签, 原因 and what importing them does.
+export struct PreviewRow {
+    name: string, tags: [TagChip], reason: string, status: string, merge: bool, checked: bool, locked: bool,
+}
+
+// The columns of an import preview: a header line, then one 30 px row per person.
+component PreviewTable inherits Rectangle {
+    in property <[PreviewRow]> rows;
+    in property <string> first: "名字";
+    in property <bool> boxes;
+    in property <bool> status;
+    in property <length> name-width;
+    in property <length> tag-width;
+    in property <Palette> p;
+    in property <Tones> t;
+    callback toggled(int);
+    border-width: 1px;
+    border-color: root.p.border;
+    border-radius: 6px;
+    background: root.p.surface;
+    clip: true;
+    VerticalLayout {
+        padding: 1px;
+        Rectangle {
+            height: 28px;
+            background: root.p.surface;
+            HorizontalLayout {
+                padding-left: 8px;
+                Text { width: name-width - 8px; text: first; font-size: 14px; color: root.p.muted; vertical-alignment: center; }
+                Text { width: tag-width; text: "标签"; font-size: 14px; color: root.p.muted; vertical-alignment: center; }
+                Text { text: "原因"; font-size: 14px; color: root.p.muted; vertical-alignment: center; }
+            }
+            Rectangle { y: parent.height - 1px; height: 1px; background: root.p.border; }
+        }
+        ListView {
+            for row[index] in rows: Rectangle {
+                height: 30px;
+                background: touch.has-hover && boxes ? root.p.hover : transparent;
+                property <float> fade: row.checked ? 1 : 0.45;
+                HorizontalLayout {
+                    padding-left: 8px;
+                    padding-right: 8px;
+                    spacing: 0px;
+                    HorizontalLayout {
+                        width: name-width - 8px;
+                        spacing: 8px;
+                        if boxes: VerticalLayout {
+                            alignment: center;
+                            Rectangle {
+                                width: 16px;
+                                height: 16px;
+                                border-radius: 4px;
+                                border-width: 1px;
+                                border-color: row.checked ? root.p.accent : root.t.field-line;
+                                background: row.checked ? root.p.accent : root.p.surface;
+                                opacity: row.locked ? 0.5 : 1;
+                                if row.checked: Text { text: "✓"; font-size: 12px; color: root.t.on-accent; }
+                            }
+                        }
+                        Text { text: row.name; font-size: 14px; color: root.p.text; opacity: fade; vertical-alignment: center; overflow: elide; }
+                    }
+                    HorizontalLayout {
+                        width: tag-width;
+                        spacing: 6px;
+                        alignment: start;
+                        opacity: fade;
+                        for chip in row.tags: VerticalLayout {
+                            alignment: center;
+                            TagPill { text: chip.text; active: true; p: root.p; t: root.t; }
+                        }
+                    }
+                    Text { text: row.reason; font-size: 14px; color: root.p.muted; opacity: fade; vertical-alignment: center; overflow: elide; }
+                    if status: Text {
+                        text: row.status;
+                        font-size: 14px;
+                        color: row.merge ? root.p.accent : root.p.muted;
+                        vertical-alignment: center;
+                        horizontal-alignment: right;
+                    }
+                }
+                touch := TouchArea { enabled: boxes && !row.locked; clicked => { root.toggled(index); } }
+            }
+        }
+    }
+}
+
+// 添加 / 编辑 one 黑名单 player: 名字, 标签 to click on and off, 原因. 删除 only when editing.
+export component AddNameDialog inherits Stage {
+    in property <string> heading: "添加";
+    in property <bool> allow-delete;
+    in-out property <string> name;
+    in-out property <string> detail;
+    in property <string> name-error;
+    // 直播模式: the name shows masked and read-only until the eye at its end shows it.
+    in property <bool> masked;
+    in property <[TagLine]> tag-lines;
+    out property <length> card-height: card.preferred-height;
+    out property <length> card-width: card.width;
+    callback closed();
+    callback reveal();
+    callback name-edited(string);
+    callback toggled(string);
+    callback save();
+    callback delete();
+    title: heading;
+    card := DialogCard {
+        width: 440px;
+        height: self.preferred-height;
+        x: (root.width - self.width) / 2;
+        y: max(0px, (root.height - self.height) / 2);
+        title: heading;
+        p: root.p;
+        close => { root.closed(); }
+        DialogBody {
+            Field {
+                label: "名字";
+                error: name-error;
+                p: root.p;
+                Rectangle {
+                    height: 32px;
+                    TextBox {
+                        text <=> root.name;
+                        read-only: masked;
+                        p: root.p;
+                        t: root.t;
+                        accepted => { root.save(); }
+                        edited(text) => { root.name-edited(text); }
+                    }
+                    if masked: Rectangle {
+                        x: parent.width - 30px;
+                        width: 24px;
+                        LineIcon { name: "eye"; size: 16px; tone: root.p.muted; }
+                        TouchArea { clicked => { root.reveal(); } }
+                    }
+                }
+            }
+            if tag-lines.length > 0: Field {
+                label: "标签";
+                p: root.p;
+                VerticalLayout {
+                    spacing: 8px;
+                    for line in tag-lines: HorizontalLayout {
+                        spacing: 8px;
+                        alignment: start;
+                        for chip in line.chips: TagPill {
+                            text: chip.text;
+                            active: chip.active;
+                            clickable: true;
+                            p: root.p;
+                            t: root.t;
+                            toggled(tag) => { root.toggled(tag); }
+                        }
+                    }
+                }
+            }
+            Field {
+                label: "原因";
+                p: root.p;
+                TextBox { height: 68px; lines: true; text <=> root.detail; p: root.p; t: root.t; }
+            }
+        }
+        DialogFooter {
+            p: root.p;
+            if allow-delete: DialogButton { label: "删除"; kind: "danger"; p: root.p; t: root.t; clicked => { root.delete(); } }
+            Spread { }
+            DialogButton { label: allow-delete ? "保存" : "添加"; kind: "primary"; p: root.p; t: root.t; clicked => { root.save(); } }
+        }
+    }
+}
+
+// 批量导入: paste a list, see what each person does to the list, import the ones left checked.
+export component BatchAddDialog inherits Stage {
+    in-out property <string> text;
+    in property <[PreviewRow]> rows;
+    in property <string> error;
+    in property <int> count;
+    out property <length> card-height: card.preferred-height;
+    out property <length> card-width: card.width;
+    callback closed();
+    callback edited(string);
+    callback toggled(int);
+    callback import();
+    title: "批量导入";
+    card := DialogCard {
+        width: 680px;
+        height: self.preferred-height;
+        x: (root.width - self.width) / 2;
+        y: max(0px, (root.height - self.height) / 2);
+        title: "批量导入";
+        p: root.p;
+        close => { root.closed(); }
+        DialogBody {
+            TextBox {
+                height: 120px;
+                lines: true;
+                placeholder: "名字（原因），一行一个";
+                text <=> root.text;
+                p: root.p;
+                t: root.t;
+                edited(text) => { root.edited(text); }
+            }
+            if rows.length > 0: PreviewTable {
+                height: 240px;
+                rows: rows;
+                boxes: true;
+                status: true;
+                name-width: 160px;
+                tag-width: 110px;
+                p: root.p;
+                t: root.t;
+                toggled(index) => { root.toggled(index); }
+            }
+            if error != "": Text { text: error; font-size: 12px; color: root.p.red; }
+        }
+        DialogFooter {
+            p: root.p;
+            Spread { }
+            DialogButton {
+                label: count > 0 ? "导入 \{count} 人" : "导入";
+                kind: "primary";
+                enabled: count > 0;
+                p: root.p;
+                t: root.t;
+                clicked => { root.import(); }
+            }
+        }
+    }
+}
+
+// 新标签 or 已有标签, and its pills beside it.
+component TagGroup inherits HorizontalLayout {
+    in property <string> kind;
+    in property <[TagLine]> lines;
+    in property <Palette> p;
+    in property <Tones> t;
+    callback toggled(string);
+    spacing: 12px;
+    Text { width: 52px; height: 28px; text: kind; font-size: 12px; color: root.p.muted; vertical-alignment: center; }
+    VerticalLayout {
+        spacing: 8px;
+        for line in lines: HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+            for chip in line.chips: TagPill {
+                text: chip.text;
+                active: chip.active;
+                clickable: true;
+                p: root.p;
+                t: root.t;
+                toggled(tag) => { root.toggled(tag); }
+            }
+        }
+    }
+}
+
+// 确认导入, 批量导入's last step: the 标签 to add (a click cancels one), then who will be added.
+export component TagSuggestDialog inherits Stage {
+    in property <[TagLine]> new-tags;
+    in property <[TagLine]> old-tags;
+    in property <[PreviewRow]> people;
+    out property <length> card-height: card.preferred-height;
+    out property <length> card-width: card.width;
+    callback closed();
+    callback toggled(string);
+    callback back();
+    callback import();
+    title: "确认导入";
+    card := DialogCard {
+        width: 680px;
+        height: self.preferred-height;
+        x: (root.width - self.width) / 2;
+        y: max(0px, (root.height - self.height) / 2);
+        title: "确认导入";
+        p: root.p;
+        close => { root.closed(); }
+        DialogBody {
+            VerticalLayout {
+                spacing: 10px;
+                Text { text: "点标签可以取消"; font-size: 12px; color: root.p.muted; }
+                if new-tags.length > 0: TagGroup { kind: "新标签"; lines: new-tags; p: root.p; t: root.t; toggled(tag) => { root.toggled(tag); } }
+                if old-tags.length > 0: TagGroup { kind: "已有标签"; lines: old-tags; p: root.p; t: root.t; toggled(tag) => { root.toggled(tag); } }
+            }
+            PreviewTable {
+                height: 28px + 30px * min(people.length, 6) + 26px;
+                rows: people;
+                first: "名字  \{people.length}";
+                name-width: 150px;
+                tag-width: 190px;
+                p: root.p;
+                t: root.t;
+            }
+        }
+        DialogFooter {
+            p: root.p;
+            Spread { }
+            DialogButton { label: "返回"; p: root.p; t: root.t; clicked => { root.back(); } }
+            DialogButton { label: "导入"; kind: "primary"; p: root.p; t: root.t; clicked => { root.import(); } }
+        }
+    }
+}
+
+// Ask before something hard to take back; 取消 is the safe answer.
+export component ConfirmDialog inherits Stage {
+    in property <string> heading;
+    in property <string> body;
+    in property <string> confirm: "确定";
+    in property <string> cancel: "取消";
+    in property <bool> danger: true;
+    out property <length> card-height: card.preferred-height;
+    out property <length> card-width: card.width;
+    callback closed();
+    callback answered(bool);
+    title: heading;
+    card := DialogCard {
+        width: 400px;
+        height: self.preferred-height;
+        x: (root.width - self.width) / 2;
+        y: max(0px, (root.height - self.height) / 2);
+        title: heading;
+        p: root.p;
+        close => { root.closed(); }
+        DialogBody {
+            Text { text: body; font-size: 14px; color: root.p.text; wrap: word-wrap; }
+        }
+        DialogFooter {
+            p: root.p;
+            Spread { }
+            DialogButton { label: cancel; p: root.p; t: root.t; clicked => { root.answered(false); } }
+            DialogButton { label: confirm; kind: danger ? "danger" : "primary"; p: root.p; t: root.t; clicked => { root.answered(true); } }
+        }
+    }
+}

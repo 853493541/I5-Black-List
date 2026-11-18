@@ -1,0 +1,238 @@
+// The dialogs of blacklist_detect/ui_dialogs.py that tell rather than ask: DisclaimerDialog (使用声明), GuideDialog
+// (the first-run welcome), PictureGuideDialog (显示 and 直播模式's guides) and FlowReportDialog (环境测试).
+
+import { Palette } from "../theme.slint";
+import { Stage, Tones, DialogCard, DialogBody, DialogFooter, DialogButton, Spread, LineIcon } from "frame.slint";
+
+// 使用声明. Before first use it asks (同意并继续 or 不同意, which closes the app); from 设置 it only shows.
+export component DisclaimerDialog inherits Stage {
+    in property <bool> asking: true;
+    in property <[string]> points: [
+        "玩家自制的免费工具，和网易、第五人格官方无关。",
+        "本工具会进行截图并且在工具内分析，然后展示结果，无注入游戏。",
+        "使用第三方工具可能违反游戏用户协议，由此带来的任何后果（包括账号处罚）由使用者自行承担。",
+    ];
+    out property <length> card-height: card.preferred-height;
+    out property <length> card-width: card.width;
+    callback closed();
+    callback answered(bool);
+    title: "使用声明";
+    card := DialogCard {
+        width: 520px;
+        height: self.preferred-height;
+        x: (root.width - self.width) / 2;
+        y: max(0px, (root.height - self.height) / 2);
+        title: "使用声明";
+        p: root.p;
+        close => { root.closed(); }
+        DialogBody {
+            for point[number] in points: HorizontalLayout {
+                spacing: 8px;
+                Text { text: "\{number + 1}."; font-size: 14px; color: root.p.muted; vertical-alignment: top; }
+                Text { text: point; font-size: 14px; color: root.p.text; wrap: word-wrap; horizontal-stretch: 1; }
+            }
+        }
+        DialogFooter {
+            p: root.p;
+            Spread { }
+            if asking: DialogButton { label: "不同意"; p: root.p; t: root.t; clicked => { root.answered(false); } }
+            DialogButton { label: asking ? "同意并继续" : "知道了"; kind: "primary"; p: root.p; t: root.t; clicked => { root.answered(true); } }
+        }
+    }
+}
+
+// One step of the welcome: its icon on a washed tile, its words beside it.
+component Step inherits HorizontalLayout {
+    in property <string> icon;
+    in property <string> words;
+    in property <Palette> p;
+    spacing: 12px;
+    Rectangle {
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        background: root.p.accent-wash;
+        LineIcon { name: icon; size: 20px; tone: root.p.accent; }
+    }
+    Text { text: words; font-size: 14px; color: root.p.text; vertical-alignment: center; wrap: word-wrap; horizontal-stretch: 1; }
+}
+
+// Shown once on a new PC: what to set up, how a check starts, and what it shows.
+export component GuideDialog inherits Stage {
+    // How a check starts in the mode the app is in, such as 在「推演成功」大厅按 Alt+1 检查.
+    in property <string> how: "在「推演成功」大厅按快捷键检查";
+    in property <string> app-name: "模仿者小工具";
+    out property <length> card-height: card.preferred-height;
+    out property <length> card-width: card.width;
+    callback closed();
+    callback start();
+    title: "欢迎使用\{app-name}";
+    card := DialogCard {
+        width: 460px;
+        height: self.preferred-height;
+        x: (root.width - self.width) / 2;
+        y: max(0px, (root.height - self.height) / 2);
+        title: "欢迎使用\{app-name}";
+        p: root.p;
+        close => { root.closed(); }
+        DialogBody {
+            Step { icon: "edit"; words: "右上角填写游戏名称"; p: root.p; }
+            Step { icon: "users"; words: "在「黑名单」里加上不想遇到的人"; p: root.p; }
+            Step { icon: "search"; words: how; p: root.p; }
+            Step { icon: "warning"; words: "遇到黑名单会提醒你"; p: root.p; }
+        }
+        DialogFooter {
+            p: root.p;
+            Spread { }
+            DialogButton { label: "开始使用"; kind: "primary"; p: root.p; t: root.t; clicked => { root.start(); } }
+        }
+    }
+}
+
+// One row of a picture guide: a title and words in 186 px, the picture beside them. A two-half picture (930 px
+// wide, drawn at half size) has the gutter between its halves painted in the card's colour.
+component GuideRow inherits HorizontalLayout {
+    in property <string> heading;
+    in property <string> words;
+    in property <image> picture;
+    in property <length> picture-width;
+    in property <length> picture-height;
+    in property <bool> halves;
+    in property <Palette> p;
+    spacing: 16px;
+    alignment: start;
+    VerticalLayout {
+        width: 186px;
+        spacing: 4px;
+        alignment: start;
+        Text { text: heading; font-size: 14px; font-weight: 600; color: root.p.text; }
+        Text { text: words; font-size: 12px; color: root.p.muted; wrap: word-wrap; }
+    }
+    Rectangle {
+        width: picture-width;
+        height: picture-height;
+        border-radius: 6px;
+        border-width: 1px;
+        border-color: root.p.border;
+        clip: true;
+        Image { width: 100%; height: 100%; source: picture; image-fit: fill; }
+        if halves: Rectangle { x: parent.width * 460 / 930; width: parent.width * 10 / 930; background: root.p.surface; }
+    }
+}
+
+// 显示 (基础模式 and 完整模式 side by side) or 直播模式 (what viewers see, how to add it in 直播姬).
+export component PictureGuideDialog inherits Stage {
+    in property <string> which: "display";
+    out property <length> card-height: card.preferred-height;
+    out property <length> card-width: card.width;
+    callback closed();
+    callback done();
+    title: which == "display" ? "显示" : "直播模式";
+    card := DialogCard {
+        width: 717px;
+        height: self.preferred-height;
+        x: (root.width - self.width) / 2;
+        y: max(0px, (root.height - self.height) / 2);
+        title: root.title;
+        p: root.p;
+        close => { root.closed(); }
+        DialogBody {
+            VerticalLayout {
+                padding-top: 4px;
+                spacing: 14px;
+                if which == "display": GuideRow {
+                    heading: "发现黑名单";
+                    words: "基础模式只在右下角提示，完整模式直接标在游戏上";
+                    picture: @image-url("../../../../blacklist_detect/assets/display-diff-1.jpg");
+                    picture-width: 465px;
+                    picture-height: 130px;
+                    halves: true;
+                    p: root.p;
+                }
+                if which == "display": GuideRow {
+                    heading: "遇到嘉宾";
+                    words: "完整模式还有花边";
+                    picture: @image-url("../../../../blacklist_detect/assets/display-diff-2.jpg");
+                    picture-width: 465px;
+                    picture-height: 130px;
+                    halves: true;
+                    p: root.p;
+                }
+                if which != "display": GuideRow {
+                    heading: "观众看到什么";
+                    words: "观众看不到黑名单，能看到嘉宾";
+                    picture: @image-url("../../../../blacklist_detect/assets/stream-diff-1.jpg");
+                    picture-width: 465px;
+                    picture-height: 130px;
+                    halves: true;
+                    p: root.p;
+                }
+                if which != "display": GuideRow {
+                    heading: "怎么设置";
+                    words: "在直播姬添加窗口捕捉";
+                    picture: @image-url("../../../../blacklist_detect/assets/stream-setup-2.png");
+                    picture-width: 311px;
+                    picture-height: 150px;
+                    p: root.p;
+                }
+            }
+        }
+        DialogFooter {
+            p: root.p;
+            Spread { }
+            DialogButton { label: "知道了"; kind: "primary"; p: root.p; t: root.t; clicked => { root.done(); } }
+        }
+    }
+}
+
+// One step of a check on a bar: where it starts and how wide it is in px, its colour, and its seconds under it.
+export struct FlowPart { x: length, width: length, tone: color, label: string, label-x: length }
+// One way a check starts: its title, its total, its steps.
+export struct FlowBarData { title: string, total: string, parts: [FlowPart] }
+
+component FlowBar inherits Rectangle {
+    in property <FlowBarData> bar;
+    in property <Palette> p;
+    in property <Tones> t;
+    height: 64px;
+    Text { x: 0; y: 0; height: 19px; text: bar.title; font-size: 14px; color: root.p.text; vertical-alignment: center; }
+    Text { x: parent.width - self.width; y: 0; height: 19px; text: bar.total; font-size: 14px; color: root.p.text; vertical-alignment: center; }
+    Rectangle { y: 25px; height: 14px; border-radius: 4px; background: root.t.surface-alt; }
+    for part in bar.parts: Rectangle { x: part.x; y: 25px; width: part.width; height: 14px; border-radius: 3px; background: part.tone; }
+    for part in bar.parts: Text { x: part.label-x; y: 43px; text: part.label; font-size: 12px; color: root.p.muted; }
+}
+
+// 环境测试's report: how long a check takes here, as two bars split by step, then why, and a way to send it.
+export component FlowReportDialog inherits Stage {
+    in property <string> headline;
+    in property <[FlowBarData]> bars;
+    in property <string> facts;
+    in property <string> causes;
+    out property <length> card-height: card.preferred-height;
+    out property <length> card-width: card.width;
+    callback closed();
+    callback export-log();
+    callback done();
+    title: "环境测试";
+    card := DialogCard {
+        width: 500px;
+        height: self.preferred-height;
+        x: (root.width - self.width) / 2;
+        y: max(0px, (root.height - self.height) / 2);
+        title: "环境测试";
+        p: root.p;
+        close => { root.closed(); }
+        DialogBody {
+            Text { text: headline; font-size: 14px; font-weight: 600; color: root.p.text; wrap: word-wrap; }
+            for bar in bars: FlowBar { bar: bar; p: root.p; t: root.t; }
+            if facts != "": Text { text: facts; font-size: 12px; color: root.p.muted; wrap: word-wrap; }
+            if causes != "": Text { text: causes; font-size: 14px; color: root.p.text; wrap: word-wrap; }
+        }
+        DialogFooter {
+            p: root.p;
+            Spread { }
+            DialogButton { label: "导出日志"; p: root.p; t: root.t; clicked => { root.export-log(); } }
+            DialogButton { label: "知道了"; kind: "primary"; p: root.p; t: root.t; clicked => { root.done(); } }
+        }
+    }
+}
