@@ -78,14 +78,20 @@ jobs:
             python tools/rust_golden_ipp.py --out "$RUNNER_TEMP/ipp-golden"
           ort=$(python -c "import onnxruntime, os, glob; d = os.path.join(os.path.dirname(onnxruntime.__file__), 'capi'); print(sorted(glob.glob(os.path.join(d, '*onnxruntime.dll')) + glob.glob(os.path.join(d, 'libonnxruntime.so*')))[0])")
           {
-            echo "REC_GOLDEN=$RUNNER_TEMP/ipp-golden/strips.json"
-            echo "REC_CROPS=$RUNNER_TEMP/ipp-golden/crops"
             echo "REC_ORT_LIB=$ort"
             echo "OCR_ORT_LIB=$ort"
             echo "ORT_DYLIB_PATH=$ort"
           } >> "$GITHUB_ENV"
-          # fillPoly: Ubuntu's OpenCV 4.6 draws 71 of the 400 masks differently (rust/ocr/README.md); 4.10 only.
-          if [ "$RUNNER_OS" = Windows ]; then echo "FILLPOLY_GOLDEN=$RUNNER_TEMP/ipp-golden/fillpoly.json" >> "$GITHUB_ENV"; fi
+          # Windows only: Ubuntu's OpenCV 4.6 draws 71 of the 400 fillPoly masks differently (rust/ocr/README.md), and
+          # its IPP-less INTER_CUBIC matched opencv-python's IPP-off resize on every strip on one CPU but not on the
+          # runner's (16 of 240 differ), so the Linux job keeps skipping these.
+          if [ "$RUNNER_OS" = Windows ]; then
+            {
+              echo "REC_GOLDEN=$RUNNER_TEMP/ipp-golden/strips.json"
+              echo "REC_CROPS=$RUNNER_TEMP/ipp-golden/crops"
+              echo "FILLPOLY_GOLDEN=$RUNNER_TEMP/ipp-golden/fillpoly.json"
+            } >> "$GITHUB_ENV"
+          fi
 
       - uses: actions/cache@v4
         with:
