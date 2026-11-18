@@ -1,0 +1,477 @@
+{
+ "family": "Microsoft YaHei",
+ "marks": {
+  "ring_hit_lace_full": {
+   "w": 194,
+   "h": 100
+  },
+  "ring_clear_lace_full": {
+   "w": 194,
+   "h": 100
+  },
+  "ring_liked_lace_full": {
+   "w": 194,
+   "h": 100
+  },
+  "ring_liked_ice_full": {
+   "w": 194,
+   "h": 100
+  },
+  "ring_liked_stars_full": {
+   "w": 194,
+   "h": 100
+  },
+  "ring_both_lace_full": {
+   "w": 194,
+   "h": 100
+  },
+  "ring_both_ice_full": {
+   "w": 194,
+   "h": 100
+  },
+  "ring_both_stars_full": {
+   "w": 194,
+   "h": 100
+  },
+  "ring_checking_lace_full": {
+   "w": 194,
+   "h": 100
+  },
+  "badge_check_lace_full": {
+   "w": 75,
+   "h": 75
+  },
+  "badge_heart_lace_full": {
+   "w": 75,
+   "h": 75
+  },
+  "badge_heart_ice_full": {
+   "w": 75,
+   "h": 75
+  },
+  "badge_heart_stars_full": {
+   "w": 75,
+   "h": 75
+  },
+  "card_hit_full": {
+   "w": 236,
+   "h": 64,
+   "rows": [
+    {
+     "row": 0,
+     "kind": "hitName",
+     "text": "示例坏人",
+     "x": 12,
+     "y": 445,
+     "w": 108,
+     "h": 22
+    },
+    {
+     "row": 0,
+     "kind": "TagPill",
+     "text": "",
+     "x": 134,
+     "y": 445,
+     "w": 42,
+     "h": 22
+    },
+    {
+     "row": 1,
+     "kind": "hitName",
+     "text": "路过的捣蛋鬼",
+     "x": 12,
+     "y": 471,
+     "w": 108,
+     "h": 22
+    },
+    {
+     "row": 1,
+     "kind": "TagPill",
+     "text": "",
+     "x": 134,
+     "y": 471,
+     "w": 42,
+     "h": 22
+    },
+    {
+     "row": 1,
+     "kind": "TagPill",
+     "text": "",
+     "x": 182,
+     "y": 471,
+     "w": 42,
+     "h": 22
+    }
+   ],
+   "scale": 1.0
+  },
+  "card_like_lace_full": {
+   "w": 182,
+   "h": 94,
+   "rows": [
+    {
+     "row": 0,
+     "kind": "likeFlower",
+     "text": "",
+     "x": 12,
+     "y": 447,
+     "w": 18,
+     "h": 18
+    },
+    {
+     "row": 0,
+     "kind": "hitName",
+     "text": "心动小鹿",
+     "x": 36,
+     "y": 445,
+     "w": 126,
+     "h": 22
+    },
+    {
+     "row": 1,
+     "kind": "likeFlower",
+     "text": "",
+     "x": 12,
+     "y": 473,
+     "w": 18,
+     "h": 18
+    },
+    {
+     "row": 1,
+     "kind": "hitName",
+     "text": "一起开黑的朋友",
+     "x": 36,
+     "y": 471,
+     "w": 126,
+     "h": 22
+    }
+   ],
+   "scale": 1.0,
+   "top": 12
+  },
+  "card_like_ice_full": {
+   "w": 182,
+   "h": 94,
+   "rows": [
+    {
+     "row": 0,
+     "kind": "likeFlower",
+     "text": "",
+     "x": 12,
+     "y": 447,
+     "w": 18,
+     "h": 18
+    },
+    {
+     "row": 0,
+     "kind": "hitName",
+     "text": "心动小鹿",
+     "x": 36,
+     "y": 445,
+     "w": 126,
+     "h": 22
+    },
+    {
+     "row": 1,
+     "kind": "likeFlower",
+     "text": "",
+     "x": 12,
+     "y": 473,
+     "w": 18,
+     "h": 18
+    },
+    {
+     "row": 1,
+     "kind": "hitName",
+     "text": "一起开黑的朋友",
+     "x": 36,
+     "y": 471,
+     "w": 126,
+     "h": 22
+    }
+   ],
+   "scale": 1.0,
+   "top": 12
+  },
+  "card_like_stars_full": {
+   "w": 182,
+   "h": 94,
+   "rows": [
+    {
+     "row": 0,
+     "kind": "likeFlower",
+     "text": "",
+     "x": 12,
+     "y": 447,
+     "w": 18,
+     "h": 18
+    },
+    {
+     "row": 0,
+     "kind": "hitName",
+     "text": "心动小鹿",
+     "x": 36,
+     "y": 445,
+     "w": 126,
+     "h": 22
+    },
+    {
+     "row": 1,
+     "kind": "likeFlower",
+     "text": "",
+     "x": 12,
+     "y": 473,
+     "w": 18,
+     "h": 18
+    },
+    {
+     "row": 1,
+     "kind": "hitName",
+     "text": "一起开黑的朋友",
+     "x": 36,
+     "y": 471,
+     "w": 126,
+     "h": 22
+    }
+   ],
+   "scale": 1.0,
+   "top": 12
+  },
+  "ring_hit_lace_small": {
+   "w": 188,
+   "h": 69
+  },
+  "ring_clear_lace_small": {
+   "w": 188,
+   "h": 69
+  },
+  "ring_liked_lace_small": {
+   "w": 188,
+   "h": 69
+  },
+  "ring_liked_ice_small": {
+   "w": 188,
+   "h": 69
+  },
+  "ring_liked_stars_small": {
+   "w": 188,
+   "h": 69
+  },
+  "ring_both_lace_small": {
+   "w": 188,
+   "h": 69
+  },
+  "ring_both_ice_small": {
+   "w": 188,
+   "h": 69
+  },
+  "ring_both_stars_small": {
+   "w": 188,
+   "h": 69
+  },
+  "ring_checking_lace_small": {
+   "w": 188,
+   "h": 69
+  },
+  "badge_check_lace_small": {
+   "w": 54,
+   "h": 54
+  },
+  "badge_heart_lace_small": {
+   "w": 54,
+   "h": 54
+  },
+  "badge_heart_ice_small": {
+   "w": 54,
+   "h": 54
+  },
+  "badge_heart_stars_small": {
+   "w": 54,
+   "h": 54
+  },
+  "card_hit_small": {
+   "w": 192,
+   "h": 57,
+   "rows": [
+    {
+     "row": 0,
+     "kind": "hitName",
+     "text": "示例坏人",
+     "x": 8,
+     "y": 448,
+     "w": 72,
+     "h": 16
+    },
+    {
+     "row": 0,
+     "kind": "TagPill",
+     "text": "",
+     "x": 94,
+     "y": 445,
+     "w": 42,
+     "h": 22
+    },
+    {
+     "row": 1,
+     "kind": "hitName",
+     "text": "路过的捣蛋鬼",
+     "x": 8,
+     "y": 473,
+     "w": 72,
+     "h": 16
+    },
+    {
+     "row": 1,
+     "kind": "TagPill",
+     "text": "",
+     "x": 94,
+     "y": 470,
+     "w": 42,
+     "h": 22
+    },
+    {
+     "row": 1,
+     "kind": "TagPill",
+     "text": "",
+     "x": 142,
+     "y": 470,
+     "w": 42,
+     "h": 22
+    }
+   ],
+   "scale": 0.6666666666666666
+  },
+  "card_like_lace_small": {
+   "w": 126,
+   "h": 63,
+   "rows": [
+    {
+     "row": 0,
+     "kind": "likeFlower",
+     "text": "",
+     "x": 8,
+     "y": 456,
+     "w": 12,
+     "h": 12
+    },
+    {
+     "row": 0,
+     "kind": "hitName",
+     "text": "心动小鹿",
+     "x": 26,
+     "y": 454,
+     "w": 84,
+     "h": 16
+    },
+    {
+     "row": 1,
+     "kind": "likeFlower",
+     "text": "",
+     "x": 8,
+     "y": 475,
+     "w": 12,
+     "h": 12
+    },
+    {
+     "row": 1,
+     "kind": "hitName",
+     "text": "一起开黑的朋友",
+     "x": 26,
+     "y": 473,
+     "w": 84,
+     "h": 16
+    }
+   ],
+   "scale": 0.6666666666666666,
+   "top": 12
+  },
+  "card_like_ice_small": {
+   "w": 126,
+   "h": 63,
+   "rows": [
+    {
+     "row": 0,
+     "kind": "likeFlower",
+     "text": "",
+     "x": 8,
+     "y": 456,
+     "w": 12,
+     "h": 12
+    },
+    {
+     "row": 0,
+     "kind": "hitName",
+     "text": "心动小鹿",
+     "x": 26,
+     "y": 454,
+     "w": 84,
+     "h": 16
+    },
+    {
+     "row": 1,
+     "kind": "likeFlower",
+     "text": "",
+     "x": 8,
+     "y": 475,
+     "w": 12,
+     "h": 12
+    },
+    {
+     "row": 1,
+     "kind": "hitName",
+     "text": "一起开黑的朋友",
+     "x": 26,
+     "y": 473,
+     "w": 84,
+     "h": 16
+    }
+   ],
+   "scale": 0.6666666666666666,
+   "top": 12
+  },
+  "card_like_stars_small": {
+   "w": 126,
+   "h": 63,
+   "rows": [
+    {
+     "row": 0,
+     "kind": "likeFlower",
+     "text": "",
+     "x": 8,
+     "y": 456,
+     "w": 12,
+     "h": 12
+    },
+    {
+     "row": 0,
+     "kind": "hitName",
+     "text": "心动小鹿",
+     "x": 26,
+     "y": 454,
+     "w": 84,
+     "h": 16
+    },
+    {
+     "row": 1,
+     "kind": "likeFlower",
+     "text": "",
+     "x": 8,
+     "y": 475,
+     "w": 12,
+     "h": 12
+    },
+    {
+     "row": 1,
+     "kind": "hitName",
+     "text": "一起开黑的朋友",
+     "x": 26,
+     "y": 473,
+     "w": 84,
+     "h": 16
+    }
+   ],
+   "scale": 0.6666666666666666,
+   "top": 12
+  }
+ }
+}
