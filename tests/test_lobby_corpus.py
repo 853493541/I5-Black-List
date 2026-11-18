@@ -16,7 +16,8 @@ spec.loader.exec_module(lobby_corpus)
 
 def test_lobby_texts_needs_title_and_a_lobby_line():
     assert lobby_corpus.lobby_texts(["推演成功", "模仿者狂欢（12人狂欢）"])
-    assert lobby_corpus.lobby_texts(["推演成", "倒计时10秒"])
+    assert lobby_corpus.lobby_texts(["推演成", "模仿者狂欢（12人狂"])
+    assert not lobby_corpus.lobby_texts(["推演成功", "自由假面", "倒计时10秒"])
     assert not lobby_corpus.lobby_texts(["推演成功"])
     assert not lobby_corpus.lobby_texts(["模仿者狂欢", "开始匹配"])
 

@@ -32,7 +32,7 @@ GAP_S = 20.0  # hits closer than this are the same lobby
 DETECT_WIDTH = 640
 WORKERS = 4
 TITLE = "推演成功"
-TITLE_HINTS = ("模仿者狂欢", "准备就绪", "12人狂欢")
+TITLE_HINTS = ("模仿者狂欢", "12人狂欢")
 
 _ocr = None
 
@@ -51,11 +51,11 @@ def _shared(a: str, b: str) -> int:
 
 
 def lobby_texts(texts: list[str]) -> bool:
-    """True when the read lines show the lobby: the title (3 of its 4 characters) and one more lobby line."""
+    """True when the read lines show the 模仿者狂欢 lobby: the title (3 of its 4 characters) and the mode's name.
+    自由假面 shows the same title over masks without names, so the mode line is required."""
     joined = "".join(texts).replace(" ", "")
     title = any(_shared(t.replace(" ", ""), TITLE) >= 3 for t in texts)
-    hint = any(hint in joined for hint in TITLE_HINTS) or "倒计时" in joined
-    return title and hint
+    return title and any(hint in joined for hint in TITLE_HINTS)
 
 
 def shows_lobby(rgb: np.ndarray) -> bool:
@@ -338,7 +338,7 @@ def process(video: dict, per_video: int) -> int:
         name = f"{vid}_{int(hit.seconds)}.jpg"
         save_jpeg(hit.frame, CORPUS / name)
         entries.append({"file": name, "video_id": vid, "source_url": url, "title": video.get("title") or info.get("title"),
-                        "seconds": int(hit.seconds), "resolution": f"{full.width}x{full.height}",
+                        "seconds": int(hit.seconds), "mode": "模仿者狂欢", "resolution": f"{full.width}x{full.height}",
                         "format": info["full_format"].get("format_id")})
         save_index(entries)
         saved.append(name)
