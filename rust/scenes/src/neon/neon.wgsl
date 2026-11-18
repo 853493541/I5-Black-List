@@ -16,6 +16,7 @@ struct Prim {
 @group(0) @binding(1) var<storage, read> points: array<vec2<f32>>;
 @group(0) @binding(2) var lobby: texture_2d<f32>;
 @group(0) @binding(3) var atlas: texture_2d<f32>;
+@group(0) @binding(5) var under: texture_2d<f32>;
 struct Uni {
     size: vec4<f32>,
     gap: vec4<f32>,
@@ -160,6 +161,17 @@ fn rounded_rect(p: vec2<f32>, r: vec4<f32>, radius: f32) -> f32 {
 
 @fragment
 fn fs(in: Out) -> @location(0) vec4<f32> {
+    let c = shade(in);
+    let o = f32(prims[in.index].kind.z) / 65535.0;
+    if o <= 0.0 {
+        return c;
+    }
+    // Qt's Plus under an opacity: d + o * min(s, 1 - d), added onto d by the blend; c already carries o.
+    let d = textureLoad(under, vec2<i32>(in.pos.xy), 0);
+    return min(c, o * (vec4(1.0) - d));
+}
+
+fn shade(in: Out) -> vec4<f32> {
     let pr = prims[in.index];
     let p = in.pos.xy;
     let cl = pr.clip;
