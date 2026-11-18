@@ -4,6 +4,16 @@ version = "0.1.0"
 edition.workspace = true
 
 [dependencies]
+base64 = "0.22"
+chrono = "0.4"
+ed25519-dalek = "2"
+flate2 = "1"
+serde_json = { version = "1", features = ["preserve_order"] }
+sha2 = "0.10"
+zip = { version = "2", default-features = false, features = ["deflate"] }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+tempfile = "3"
