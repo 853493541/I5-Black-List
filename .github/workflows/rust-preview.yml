@@ -10,7 +10,8 @@ on:
 
 concurrency:
   group: rust-preview-${{ github.ref }}
-  cancel-in-progress: true
+  # Queued, not cancelled: a cancelled first run would lose its OpenCV build before the cache saves it.
+  cancel-in-progress: false
 
 jobs:
   preview:
