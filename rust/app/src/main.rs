@@ -10,6 +10,7 @@
 mod guestedit;
 mod guests;
 mod headless;
+mod stream;
 
 use std::path::PathBuf;
 

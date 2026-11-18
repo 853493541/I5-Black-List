@@ -1,0 +1,44 @@
+// The stream UI's windows for build.rs, and StreamPanelShot: the 检查 panel's 直播模式 row as the panel shows it,
+// for the headless pictures (src/stream/render.rs). ui-shell imports StreamPanel and StreamInfo from panel.slint.
+
+import { Palette, Light, Dark } from "../theme.slint";
+import { StreamPanel, StreamInfo } from "panel.slint";
+import { StreamTones } from "parts.slint";
+import { StreamGuideDialog } from "guide.slint";
+import { StreamMirrorWindow } from "mirror.slint";
+
+export { StreamGuideDialog, StreamMirrorWindow }
+
+export component StreamPanelShot inherits Window {
+    in property <bool> dark;
+    in property <bool> on: true;
+    in property <string> status;
+    in property <bool> tone-ok;
+    property <Palette> p: dark ? Dark.palette : Light.palette;
+    width: 444px;
+    // The 检查 panel's row: 直播模式 and its ⓘ in a 107 px column, then the panel.
+    height: 56px;
+    background: p.surface;
+    init => { StreamTones.dark = dark; }
+    HorizontalLayout {
+        padding-left: 21px;
+        padding-right: 24px;
+        padding-top: 12px;
+        padding-bottom: 12px;
+        spacing: 0;
+        HorizontalLayout {
+            width: 107px;
+            spacing: 6px;
+            alignment: start;
+            Text { text: "直播模式"; font-size: 14px; color: p.text; vertical-alignment: center; }
+            StreamInfo { y: 2px; p: p; }
+        }
+        StreamPanel {
+            p: p;
+            on: on;
+            status: status;
+            tone-ok: tone-ok;
+            status-room: 180px;
+        }
+    }
+}
