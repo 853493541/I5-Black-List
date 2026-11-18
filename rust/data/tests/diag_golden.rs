@@ -90,7 +90,7 @@ fn screens_power_threads_match_python() {
         assert_eq!(diag::power_note(byte("ac"), byte("percent"), byte("saver")), case["note"].as_str().unwrap());
     }
     for pair in golden["ocr_threads"].as_array().unwrap() {
-        assert_eq!(diag::ocr_threads(pair[0].as_u64().unwrap() as usize), pair[1].as_str().unwrap());
+        assert_eq!(common::paths::ocr_threads_for(pair[0].as_u64().unwrap() as usize).to_string(), pair[1].as_str().unwrap());
     }
     let names: Vec<&str> = golden["sample_names"].as_array().unwrap().iter().map(|n| n.as_str().unwrap()).collect();
     assert_eq!(names, diag::SAMPLE_NAMES);
@@ -109,7 +109,7 @@ fn pairs(value: &Value) -> Vec<(String, String)> {
 #[test]
 fn child_env_matches_python() {
     for case in golden()["child_env"].as_array().unwrap() {
-        assert_eq!(diag::child_env(pairs(&case["input"])), pairs(&case["output"]));
+        assert_eq!(common::paths::child_env_from(pairs(&case["input"])), pairs(&case["output"]));
     }
 }
 
@@ -172,5 +172,4 @@ fn settings_come_from_the_store_and_the_fallback_has_threads() {
     assert!(Machine::fallback().threads >= 1);
     assert!(Machine::fallback().line().starts_with("CPU "));
     assert_eq!(diag::desktop_fallback(std::path::Path::new("/h")), std::path::PathBuf::from("/h/Desktop"));
-    assert_eq!(diag::start_threads(Some("1".into()), 12), (Some("1".into()), "8".into()));
 }

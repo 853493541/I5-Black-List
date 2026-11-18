@@ -1,9 +1,9 @@
 //! The command line, as blacklist_detect/__main__.py reads it, for the app-wiring package to call from main.
 //!
 //! Start-up order (what runs before the window), as in Python:
-//! 1. OMP_NUM_THREADS: the value the copy was started with is kept (`data::diag::start_threads`, for the log)
+//! 1. OMP_NUM_THREADS: the value the copy was started with is kept (paths.inherited_threads, for the log)
 //!    and the copy sets its own, one per physical core, 2 to 8. Programs the app starts get
-//!    `data::diag::child_env`, which leaves it out (an inherited 1 left the next copy's OCR on one core).
+//!    `common::paths::child_env`, which leaves it out (an inherited 1 left the next copy's OCR on one core).
 //! 2. Console windows of child programs are kept hidden (ocr_engine.silence_console_children; on Windows the
 //!    Rust app starts children with CREATE_NO_WINDOW instead).
 //! 3. [`parse`] the arguments (everything after the program's own path):
