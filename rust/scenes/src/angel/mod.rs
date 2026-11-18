@@ -12,6 +12,8 @@ pub mod gpu;
 mod light;
 mod lines;
 mod paint;
+#[cfg(test)]
+mod parity;
 pub mod pcg;
 pub mod px;
 
@@ -25,6 +27,9 @@ pub use atlas::Atlas as Pictures;
 
 pub const DURATION: f64 = 5.0;
 const DESIGN: [f64; 2] = [1635.0, 848.0];
+/// 6.28 as the Python scene has it, not TAU: the same numbers come out of the same seed.
+#[allow(clippy::approx_constant)]
+const TURN: f64 = 6.28;
 
 pub struct Angel {
     pub width: f64,
@@ -81,18 +86,18 @@ impl Angel {
             .map(|i| {
                 let born = rnd.uniform(0.6, 3.0);
                 let x = if i % 2 == 1 { rnd.uniform(0.025, 0.1) } else { rnd.uniform(0.958, 0.985) } * width;
-                [born, x, rnd.uniform(0.18, 0.55) * height, rnd.uniform(34.0, 52.0) * u, rnd.uniform(50.0, 66.0) * u, rnd.uniform(0.0, 6.28), rnd.uniform(1.1, 1.9)]
+                [born, x, rnd.uniform(0.18, 0.55) * height, rnd.uniform(34.0, 52.0) * u, rnd.uniform(50.0, 66.0) * u, rnd.uniform(0.0, TURN), rnd.uniform(1.1, 1.9)]
             })
             .collect();
         let rising = (0..36)
             .map(|i| {
                 let born = rnd.uniform(0.2, 4.0);
                 let x = if i % 2 == 1 { rnd.uniform(0.0, 0.13) } else { rnd.uniform(0.9, 1.0) } * width;
-                [born, x, height * rnd.uniform(0.86, 1.02), rnd.uniform(40.0, 90.0) * u, rnd.uniform(1.3, 2.8) * u, rnd.uniform(0.0, 6.28)]
+                [born, x, height * rnd.uniform(0.86, 1.02), rnd.uniform(40.0, 90.0) * u, rnd.uniform(1.3, 2.8) * u, rnd.uniform(0.0, TURN)]
             })
             .collect();
         let dust = (0..20)
-            .map(|_| [rnd.uniform(1.6, 3.4), rnd.uniform(0.35, 1.0), rnd.uniform(1.95, 2.9), rnd.uniform(0.35, 0.95), rnd.uniform(1.0, 2.2) * u, rnd.uniform(0.0, 6.28)])
+            .map(|_| [rnd.uniform(1.6, 3.4), rnd.uniform(0.35, 1.0), rnd.uniform(1.95, 2.9), rnd.uniform(0.35, 0.95), rnd.uniform(1.0, 2.2) * u, rnd.uniform(0.0, TURN)])
             .collect();
         let keystone = [width / 2.0, 40.0 * u];
         Self { width, height, gap, u, lines, center, radius, regions, ends, meet, keystone, glints, falling, rising, dust }
@@ -141,8 +146,11 @@ mod tests {
     fn lays_out_the_same_every_time() {
         let (a, b) = (Angel::sample(1920.0, 1080.0), Angel::sample(1920.0, 1080.0));
         assert_eq!(a.lines.len(), b.lines.len());
-        assert!(a.lines.len() > 200, "{}", a.lines.len());
         assert_eq!(a.dust[19][5].to_bits(), b.dust[19][5].to_bits());
-        assert!(a.ends > 2.0 && a.ends < 4.5, "{}", a.ends);
+        // What angel._cathedral gives at 1920x1080: 294 lines, drawn by 1.8114 s, 21349.55 points of them.
+        assert_eq!(a.lines.len(), 294);
+        assert!((a.ends - 1.811352350927835).abs() < 1e-9, "{}", a.ends);
+        let total: f64 = a.lines.iter().map(|l| l.run[l.run.len() - 1]).sum();
+        assert!((total - 21349.552967128315).abs() < 1e-6, "{total}");
     }
 }

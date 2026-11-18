@@ -36,6 +36,7 @@ impl Angel {
         [self.width, self.height]
     }
 
+    #[allow(clippy::too_many_arguments)] // angel._lay with the frame, the pictures and how it is laid
     /// _lay: a mote of light; returns the opacity it left the painter at, if it drew.
     fn spark(&self, f: &mut Frame, art: &Art, x: f64, y: f64, r: f64, alpha: f64, flags: u32) -> Option<f64> {
         if alpha <= 0.01 || r <= 0.2 {
@@ -45,6 +46,7 @@ impl Angel {
         Some(clamp(alpha))
     }
 
+    #[allow(clippy::too_many_arguments)] // angel._brighter with the frame, the picture and how it is laid
     /// _brighter: a picture of light laid on at a, which may run up to 2.
     fn brighter(&self, f: &mut Frame, region: Region, rect: [f64; 4], base: f64, a: f64, flags: u32, extra: impl Fn(&mut crate::prim::Prim)) {
         Lay::rect(region, rect, base * clamp(a), flags).put(f, self.size(), &extra);

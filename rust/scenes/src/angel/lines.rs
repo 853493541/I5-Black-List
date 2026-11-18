@@ -125,6 +125,7 @@ struct Adder<'a> {
 
 impl Adder<'_> {
     /// A line growing out from where it is nearest origin, both ways if that is in its middle.
+    #[allow(clippy::too_many_arguments)] // angel._cathedral's add, argument for argument
     fn add(&mut self, points: Vec<Pt>, thick: f64, origin: Pt, t0: f64, closed: bool, after: f64, beads: f64) {
         let nearest = |p: &[Pt]| (0..p.len()).fold(0, |best, k| if dist(p[k], origin) < dist(p[best], origin) { k } else { best });
         let parts: Vec<Vec<Pt>> = if closed {
