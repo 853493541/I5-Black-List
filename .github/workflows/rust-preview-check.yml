@@ -194,6 +194,9 @@ jobs:
           cp rust/target/release/blacklist-detect.exe "$app/$APP_NAME.exe"
           cp "$ort" "$app/onnxruntime.dll"
           cp -r "$RUNNER_TEMP/models" "$app/models"
+          # As the preview ships since Nov v2: the line model's own reader is gone, the name model reads the lines too.
+          rm -rf "$app/models/PP-OCRv5_mobile_rec"
+          echo "Rust app models: $(ls "$app/models" | tr '\n' ' ')" | tee -a "$GITHUB_STEP_SUMMARY"
           cp -r blacklist_detect/assets "$app/assets"
           out="$RUNNER_TEMP/out"
           mkdir -p "$out/results"

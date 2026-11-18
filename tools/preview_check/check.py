@@ -362,6 +362,10 @@ def _names_rows(label: str, base: dict, rust: dict) -> list[str]:
     head = sum(x["header"] == y["header"] for x, y in zip(base["frames"], rust["frames"], strict=True))
     rows = [f"| Names identical per lobby, vs {label} | {frames} of {count} | seats identical {seats} of {total}; "
             f"lobby found the same {head} of {count} |"]
+    found = [f"{i}:{int(x['header'])}/{int(y['header'])}"
+             for i, (x, y) in enumerate(zip(base["frames"], rust["frames"], strict=True)) if x["header"] != y["header"]]
+    if found:
+        rows.append(f"| Lobby found differently (index: found other/Rust) | {', '.join(found)} | |")
     diff = [i for i, (x, y) in enumerate(zip(base["frames"], rust["frames"], strict=True)) if x["names"] != y["names"]]
     if diff:
         shown = ", ".join(f"{i}:{base['frames'][i]['read']}/{rust['frames'][i]['read']}" for i in diff[:20])
