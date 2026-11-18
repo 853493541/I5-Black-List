@@ -8,6 +8,7 @@
 #![deny(unsafe_code)]
 
 mod headless;
+mod kit;
 
 use std::path::PathBuf;
 

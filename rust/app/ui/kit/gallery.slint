@@ -1,0 +1,56 @@
+// KitGallery: every kit component, the light palette on the left and the dark one on the right, for the
+// side-by-side shots (src/kit/render.rs). in accent: which accent both halves use (default 蓝色).
+
+import { Palette, Palettes, Theme, Tokens } from "../theme.slint";
+import { LineIcon, IconPaths } from "icons.slint";
+
+component Swatches inherits VerticalLayout {
+    in property <Palette> p;
+    spacing: 6px;
+    Text { text: "颜色"; font-size: Tokens.section; color: p.text; }
+    HorizontalLayout {
+        spacing: 4px;
+        for c in [p.bg, p.surface, p.surface-alt, p.border, p.text, p.muted, p.hover, p.selected, p.accent, p.accent-line,
+                  p.accent-wash, p.red, p.red-wash, p.green, p.green-wash, p.blue, p.blue-wash, p.rose, p.gray, p.chip-bg]:
+            Rectangle { width: 18px; height: 18px; border-radius: 4px; background: c; border-width: 1px; border-color: p.border; }
+    }
+}
+
+component Icons inherits VerticalLayout {
+    in property <Palette> p;
+    spacing: 6px;
+    Text { text: "图标"; font-size: Tokens.section; color: p.text; }
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: start;
+        for n in IconPaths.names: LineIcon { name: n; size: 16px; tone: p.muted; }
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: start;
+        for n in IconPaths.names: LineIcon { name: n; size: 24px; tone: p.text; }
+    }
+}
+
+component Half inherits Rectangle {
+    in property <Palette> p;
+    background: p.bg;
+    VerticalLayout {
+        padding: Tokens.pad;
+        spacing: Tokens.gap;
+        alignment: start;
+        Swatches { p: p; }
+        Icons { p: p; }
+    }
+}
+
+export component KitGallery inherits Window {
+    in property <string> accent: "蓝色";
+    width: 1400px;
+    height: 900px;
+    background: #808080;
+    HorizontalLayout {
+        Half { p: Palettes.get(accent, false); }
+        Half { p: Palettes.get(accent, true); }
+    }
+}
