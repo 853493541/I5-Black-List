@@ -18,12 +18,14 @@ min(dst + src, 1), a)`). The round window's added light does the same in the sha
 under it.
 
 Pictures (1920x1080 over the sample lobby, made-up names):
-- `side_t<t>.png`: Python left, Rust right, at half size, t = 0.5, 1.5, 3.0, 4.0 s (4.0 is after the reveal).
-- `crop_t<t>.png`: full-size crops, Python left, Rust right: the top left corner (top) and the round window (bottom).
+- `side_t<t>.jpg`: Python left, Rust right, at half size, t = 0.5, 1.5, 3.0, 4.0 s (4.0 is after the reveal).
+- `crop_t1.5.jpg`, `crop_t4.0.jpg`: full-size crops, Python left, Rust right: the top left corner (top) and the round window (bottom).
+
+The bin writes `side_t*.png`. The `.jpg` copies in git are those saved at quality 90. The full-size frames (`py_t*.png`, `rust_t*.png`) are not in git. `angel::parity` needs `py_t*.png` and is skipped without them.
 
 Remake them (from the root, then from rust/):
 
-    PYTHONPATH=. python rust/scenes/angel/py_frames.py      # py_t*.png (lobby from ../spike/lobby_1920.png)
+    PYTHONPATH=. python rust/scenes/angel/py_frames.py      # py_t*.png, which angel::parity reads
     cargo run --release -p scenes --bin angel_frames          # rust_t*.png, side_*, the numbers
 
 Results on this container (Mesa llvmpipe through Vulkan, no GPU). `angel::parity` asserts the floors

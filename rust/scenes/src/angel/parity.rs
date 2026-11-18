@@ -1,6 +1,6 @@
 //! 金色传说 on the graphics chip against the Python frames (angel/py_t*.png, made by angel/py_frames.py):
 //! the PSNR floor each frame reached when it was ported. Skipped when there is no Vulkan, Metal or
-//! DX12 adapter at all.
+//! DX12 adapter, or when the Python frames are not made yet (they are not in git: run py_frames.py).
 
 use std::path::Path;
 
@@ -22,6 +22,10 @@ fn psnr(a: &[u8], b: &[u8]) -> f64 {
 #[test]
 fn frames_match_python() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    if !root.join("angel/py_t4.0.png").exists() {
+        eprintln!("skipped: no Python frames; run PYTHONPATH=. python rust/scenes/angel/py_frames.py from the root");
+        return;
+    }
     let lobby = image::open(root.join("spike/lobby_1920.png")).expect("lobby").to_rgba8();
     let scene = Angel::sample(1920.0, 1080.0);
     let (atlas, art) = scene.bake();
