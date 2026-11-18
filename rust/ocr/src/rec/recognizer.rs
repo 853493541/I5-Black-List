@@ -67,7 +67,7 @@ impl Recognizer {
                 .with_inter_threads(1)?
                 .with_config_entry("session.intra_op.allow_spinning", "0")?
                 .with_config_entry("session.set_denormal_as_zero", "1")?
-                .commit_from_file(model_dir.join("inference.onnx"))
+                .commit_from_file(crate::model_file(model_dir))
         })()?;
         Ok(Self { session, image_shape: resize.image_shape, characters: ctc::characters(&config.post.character_dict), batch_size })
     }

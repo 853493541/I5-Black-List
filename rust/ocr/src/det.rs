@@ -71,7 +71,7 @@ impl TextDetector {
             // Between reads the threads sleep instead of spinning; denormals flushed, as onnx_ocr.session() sets.
             .with_config_entry("session.intra_op.allow_spinning", "0")?
             .with_config_entry("session.set_denormal_as_zero", "1")?
-            .commit_from_file(model_dir.join("inference.onnx"))?;
+            .commit_from_file(crate::model_file(model_dir))?;
         Ok(Self { alpha, beta, session })
     }
 

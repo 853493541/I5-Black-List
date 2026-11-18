@@ -36,6 +36,17 @@ impl std::fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
+/// The model file in `model_dir`: inference.ort (ONNX Runtime's own format, which a minimal ONNX Runtime build needs;
+/// tools/size/ort_build.txt) when there is one, else inference.onnx.
+pub fn model_file(model_dir: &std::path::Path) -> std::path::PathBuf {
+    let ort_format = model_dir.join("inference.ort");
+    if ort_format.is_file() {
+        ort_format
+    } else {
+        model_dir.join("inference.onnx")
+    }
+}
+
 impl From<opencv::Error> for Error {
     fn from(err: opencv::Error) -> Self {
         Error::OpenCv(err)
@@ -49,3 +60,19 @@ impl<T> From<ort::Error<T>> for Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+#[cfg(test)]
+mod model_file_tests {
+    use super::model_file;
+
+    #[test]
+    fn prefers_the_ort_format_model_when_there_is_one() {
+        let dir = std::env::temp_dir().join(format!("ocr-model-file-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("inference.onnx"), b"").unwrap();
+        assert_eq!(model_file(&dir), dir.join("inference.onnx"));
+        std::fs::write(dir.join("inference.ort"), b"").unwrap();
+        assert_eq!(model_file(&dir), dir.join("inference.ort"));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+}

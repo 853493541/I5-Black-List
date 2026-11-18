@@ -1,0 +1,18 @@
+ONNX Runtime for exactly the app's three OCR models (workflow: .github/workflows/rust-size-ort.yml)
+
+Variants, all ORT 1.32.0 from source on windows-latest, shared library, /MT, no ML ops, Ninja:
+- ops          Release, full build, only the kernels in ort_ops.config. Opens inference.onnx and optimizes it at
+               ORT_ENABLE_ALL exactly as the stock DLL does, so the graph it runs is the stock graph.
+- ops-minsize  the same at MinSizeRel (/O1).
+- minimal      MinSizeRel minimal build: ORT-format models only (inference.ort, converted with --optimization_style
+               Fixed), kernels and their types from ort_ops_minimal.config. No optimizer at run time: the graph is
+               fixed at conversion, without the NCHWc layout the stock DLL picks at run time.
+
+ort_ops.config: tools/size/ort_ops.py, the union of each model's operators and those of the model after stock ORT's
+ORT_ENABLE_ALL optimization (FusedMatMul, Gelu, QuickGelu, LayerNormalization, the NCHWc ops). A model or optimizer
+change that needs another operator shows as a failed --check in the models job and as a failed load test.
+
+rust/ocr opens inference.ort when the model folder has one, else inference.onnx (ocr::model_file).
+
+Gate per variant: tools/size/ort_load_test.py (all three models open and one lobby reads) and
+tools/rust_golden_ocr_parity.py, Python on the stock DLL against Rust on the variant, 85 corpus frames + the fixture.

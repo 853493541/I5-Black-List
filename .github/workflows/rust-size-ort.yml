@@ -1,0 +1,264 @@
+name: rust-size-ort
+
+# How small ONNX Runtime can be for exactly the app's three OCR models (tools/size/ort_build.txt). ORT 1.32 built from
+# source with only the operators the models need, in three variants, each proven against the stock 1.32 DLL on the
+# lobby corpus with the Rust reader, and timed. Artifacts only: nothing here releases, tags or touches main / 1.x.
+on:
+  push:
+    branches: ["feature/rust-size-ort"]
+  workflow_dispatch:
+
+concurrency:
+  group: rust-size-ort-${{ github.ref }}
+  # Queued, not cancelled: a cancelled run would lose its ONNX Runtime and OpenCV builds before the cache saves them.
+  cancel-in-progress: false
+
+env:
+  ORT_VERSION: "1.32.0"
+
+jobs:
+  # The models as rust-preview.yml converts them, plus each one in ONNX Runtime's own format (optimizations fixed at
+  # conversion, for the minimal build), and the operator lists, checked against the committed ones.
+  models:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PADDLE2ONNX_VERSION: "2.1.0"
+      MODEL_URL: https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cache OCR models
+        id: models-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/models
+          key: ocr-models-v5det-v5rec-v6rec-pd3.2.2-paddle3.0.0-p2o${{ env.PADDLE2ONNX_VERSION }}-op11-v1
+      - name: Convert OCR models
+        if: steps.models-cache.outputs.cache-hit != 'true'
+        working-directory: ${{ runner.temp }}
+        run: |
+          python -m pip install -q setuptools packaging paddlepaddle==3.2.2 paddle2onnx==$PADDLE2ONNX_VERSION
+          mkdir -p tarballs models
+          for model in PP-OCRv5_mobile_det PP-OCRv5_mobile_rec PP-OCRv6_medium_rec; do
+            curl -sSfL --retry 3 -o "tarballs/$model.tar" "$MODEL_URL/${model}_infer.tar"
+            tar xf "tarballs/$model.tar" -C tarballs
+            src="tarballs/${model}_infer"
+            program="$src/inference.json"; [ -f "$program" ] || program="$src/inference.pdmodel"
+            mkdir -p "models/$model"
+            python -I -c "import sys, paddle2onnx; paddle2onnx.export(*sys.argv[1:4], opset_version=11)" \
+              "$program" "$src/inference.pdiparams" "models/$model/inference.onnx"
+            cp "$src/inference.yml" "models/$model/"
+          done
+      - name: Operator lists and ORT-format models
+        run: |
+          python -m pip install -q onnx onnxruntime==$ORT_VERSION
+          python -I tools/size/ort_ops.py "$RUNNER_TEMP/models" "$RUNNER_TEMP/ort_ops.config" --check tools/size/ort_ops.config
+          ortm="$RUNNER_TEMP/models-ort"
+          cp -r "$RUNNER_TEMP/models" "$ortm"
+          python -m onnxruntime.tools.convert_onnx_models_to_ort "$ortm" --optimization_style Fixed --enable_type_reduction \
+            2>&1 | grep -v "W:onnxruntime" | tail -3
+          mv "$ortm/required_operators_and_types.config" "$RUNNER_TEMP/ort_ops_minimal.config"
+          diff <(grep -v '^#' tools/size/ort_ops_minimal.config) <(grep -v '^#' "$RUNNER_TEMP/ort_ops_minimal.config") \
+            || { echo "::error::the minimal build's operator list differs from tools/size/ort_ops_minimal.config"; exit 1; }
+          ls -lR "$ortm"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ocr-models-size
+          path: |
+            ${{ runner.temp }}/models
+            ${{ runner.temp }}/models-ort
+          retention-days: 2
+
+  # ONNX Runtime from source, cached per variant and operator list. ops: a full build (it opens inference.onnx and
+  # optimizes it as the stock DLL does) with only the listed kernels; ops-minsize: the same at MinSizeRel; minimal: the
+  # minimal build (inference.ort only, no runtime optimizer) with the listed kernels for the listed types only.
+  ort:
+    runs-on: windows-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [ops, ops-minsize, minimal]
+        include:
+          - variant: ops
+            config: Release
+            flags: --include_ops_by_config tools/size/ort_ops.config
+          - variant: ops-minsize
+            config: MinSizeRel
+            flags: --include_ops_by_config tools/size/ort_ops.config
+          - variant: minimal
+            config: MinSizeRel
+            flags: --minimal_build --include_ops_by_config tools/size/ort_ops_minimal.config --enable_reduced_operator_type_support
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cache ONNX Runtime build
+        id: ort-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/ort-out
+          # Bump the -v suffix when the build flags change.
+          key: ort-${{ env.ORT_VERSION }}-${{ matrix.variant }}-${{ matrix.config }}-${{ hashFiles('tools/size/ort_ops*.config') }}-v1
+      - uses: actions/checkout@v5
+        if: steps.ort-cache.outputs.cache-hit != 'true'
+        with:
+          repository: microsoft/onnxruntime
+          ref: v${{ env.ORT_VERSION }}
+          path: ort-src
+      - name: Build
+        if: steps.ort-cache.outputs.cache-hit != 'true'
+        shell: cmd
+        run: |
+          for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do call "%%i\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
+          python -m pip install -q ninja flatbuffers numpy packaging || exit /b 1
+          copy /y tools\size\ort_ops*.config ort-src\ || exit /b 1
+          cd ort-src
+          set FLAGS=${{ matrix.flags }}
+          set FLAGS=%FLAGS:tools/size/=%
+          python tools\ci_build\build.py --build_dir ..\ortb --config ${{ matrix.config }} --update --build --parallel ^
+            --build_shared_lib --skip_tests --skip_submodule_sync --compile_no_warning_as_error --cmake_generator Ninja ^
+            --disable_ml_ops --enable_msvc_static_runtime --target onnxruntime ^
+            --cmake_extra_defines onnxruntime_BUILD_UNIT_TESTS=OFF %FLAGS% || exit /b 1
+      - name: Keep the DLL
+        if: steps.ort-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/ort-out"
+          dll=$(find ortb -name onnxruntime.dll | head -1)
+          [ -n "$dll" ] || { echo "::error::no onnxruntime.dll"; exit 1; }
+          cp "$dll" "$RUNNER_TEMP/ort-out/onnxruntime.dll"
+      - run: ls -la "$RUNNER_TEMP/ort-out"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ort-${{ matrix.variant }}
+          path: ${{ runner.temp }}/ort-out/onnxruntime.dll
+          retention-days: 14
+
+  # Every variant against the stock 1.32 DLL: it must open all three models and read one lobby (the loud failure for a
+  # missing kernel), then tools/rust_golden_ocr_parity.py on the corpus and the reference lobby, Python on the stock
+  # DLL against Rust on the variant: identical names, lines and lobbies, scores within 1e-4, with the time per check.
+  # The frames are fetched here and never uploaded; the summary holds counts only.
+  parity:
+    needs: [models, ort]
+    if: ${{ !cancelled() && needs.models.result == 'success' }}
+    runs-on: windows-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
+    env:
+      CARGO_TERM_COLOR: always
+      OPENCV_VERSION: "4.10.0"
+      OPENCV_CLANG_ARGS: -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # OpenCV 4.10 static with IPP and /MT, as rust.yml builds it (same key; a branch reads only its own caches).
+      - name: Cache OpenCV
+        id: opencv-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: C:\opencv-static
+          key: opencv-${{ env.OPENCV_VERSION }}-static-ipp-mt-v1
+      - name: Build OpenCV static
+        if: steps.opencv-cache.outputs.cache-hit != 'true'
+        working-directory: ${{ runner.temp }}
+        shell: cmd
+        run: |
+          for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do call "%%i\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
+          python -m pip install -q ninja || exit /b 1
+          curl -sSfL -o opencv.tar.gz "https://github.com/opencv/opencv/archive/refs/tags/%OPENCV_VERSION%.tar.gz" || exit /b 1
+          tar xzf opencv.tar.gz || exit /b 1
+          cmake -S "opencv-%OPENCV_VERSION%" -B cvbuild -G Ninja -DCMAKE_BUILD_TYPE=Release ^
+            -DCMAKE_INSTALL_PREFIX=C:/opencv-static -DBUILD_SHARED_LIBS=OFF -DBUILD_WITH_STATIC_CRT=ON ^
+            -DBUILD_LIST=core,imgproc,imgcodecs -DWITH_IPP=ON -DBUILD_IPP_IW=ON ^
+            -DWITH_ITT=OFF -DWITH_OPENCL=OFF -DWITH_EIGEN=OFF -DWITH_LAPACK=OFF -DWITH_PROTOBUF=OFF -DWITH_ADE=OFF ^
+            -DWITH_TIFF=OFF -DWITH_WEBP=OFF -DWITH_OPENJPEG=OFF -DWITH_JASPER=OFF -DWITH_OPENEXR=OFF -DWITH_AVIF=OFF ^
+            -DWITH_FFMPEG=OFF -DWITH_DSHOW=OFF -DWITH_MSMF=OFF -DWITH_DIRECTX=OFF -DWITH_WIN32UI=OFF ^
+            -DBUILD_PNG=ON -DBUILD_JPEG=ON -DBUILD_ZLIB=ON ^
+            -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_opencv_apps=OFF ^
+            -DBUILD_JAVA=OFF -DBUILD_opencv_python3=OFF -DBUILD_opencv_python2=OFF > cmake.log || (type cmake.log & exit /b 1)
+          cmake --build cvbuild --target install || exit /b 1
+      - uses: actions/cache/save@v4
+        if: steps.opencv-cache.outputs.cache-hit != 'true'
+        with:
+          path: C:\opencv-static
+          key: opencv-${{ env.OPENCV_VERSION }}-static-ipp-mt-v1
+      - name: Point the opencv crate at it
+        run: |
+          libdir=$(dirname "$(find /c/opencv-static -name 'opencv_core*.lib' | head -1)")
+          libs=$(ls "$libdir" | sed -n 's/\.lib$//p' | paste -sd, -)
+          {
+            echo "OPENCV_LINK_LIBS=$libs"
+            echo "OPENCV_LINK_PATHS=$(cygpath -w "$libdir")"
+            echo 'OPENCV_INCLUDE_PATHS=C:\opencv-static\include'
+            echo 'LIBCLANG_PATH=C:\Program Files\LLVM\bin'
+            echo 'RUSTFLAGS=-C target-feature=+crt-static'
+          } | tee -a "$GITHUB_ENV"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: rust-size-ort-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: rust-size-ort-
+      - name: The ocr crate's own tests (model_file)
+        run: cd rust && cargo test -p ocr --lib model_file
+      - name: Python side and the Rust reader's module
+        run: |
+          python -m pip install -q numpy==2.3.5 Pillow==12.1.0 opencv-python-headless==4.10.0.84 onnxruntime==$ORT_VERSION \
+            PySide6==6.12.0 pyyaml pyclipper maturin
+          (cd rust/pyocr && maturin build --release -o "$RUNNER_TEMP/wheels")
+          python -m pip install -q "$RUNNER_TEMP"/wheels/*.whl
+          stock=$(python -c "import onnxruntime, os; print(os.path.join(os.path.dirname(onnxruntime.__file__), 'capi', 'onnxruntime.dll'))")
+          echo "STOCK_DLL=$stock" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@v4
+        with:
+          name: ocr-models-size
+          path: ${{ runner.temp }}/m
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ort-*
+          path: ${{ runner.temp }}/dlls
+      - name: Corpus (never uploaded)
+        run: |
+          git fetch -q --depth 1 origin data/lobby-corpus
+          mkdir -p "$RUNNER_TEMP/corpus"
+          git archive FETCH_HEAD tests/lobby_corpus | tar x -C "$RUNNER_TEMP/corpus"
+          echo "corpus frames: $(ls "$RUNNER_TEMP/corpus/tests/lobby_corpus" | grep -ciE '\.(png|jpg)$')"
+      - name: Sizes
+        run: |
+          args=("stock=$STOCK_DLL")
+          for v in ops ops-minsize minimal; do
+            [ -f "$RUNNER_TEMP/dlls/ort-$v/onnxruntime.dll" ] && args+=("$v=$RUNNER_TEMP/dlls/ort-$v/onnxruntime.dll")
+          done
+          { echo '### ONNX Runtime sizes'; python tools/size/ort_sizes.py "${args[@]}"; } | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Load and parity
+        run: |
+          fixture="$GITHUB_WORKSPACE/tests/fixtures/reference-lobby.png"
+          status=0
+          for v in stock ops ops-minsize minimal; do
+            if [ "$v" = stock ]; then dll="$STOCK_DLL"; else dll="$RUNNER_TEMP/dlls/ort-$v/onnxruntime.dll"; fi
+            models="$RUNNER_TEMP/m/models"; [ "$v" = minimal ] && models="$RUNNER_TEMP/m/models-ort"
+            if [ ! -f "$dll" ]; then echo "::error::$v: no DLL (its build failed)"; status=1; continue; fi
+            echo "### $v" | tee -a "$GITHUB_STEP_SUMMARY"
+            python tools/size/ort_load_test.py "$dll" "$models" "$fixture" 2>&1 | grep -v "W:onnxruntime" | tail -3 \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+            [ "${PIPESTATUS[0]}" -eq 0 ] || { status=1; continue; }
+            ORT_DYLIB_PATH="$dll" python tools/rust_golden_ocr_parity.py "$models" "$RUNNER_TEMP/parity-$v" \
+              "$RUNNER_TEMP/corpus/tests/lobby_corpus" "$fixture" --repeat 3 2>&1 | grep -v "W:onnxruntime" | tail -4 \
+              | sed 's/^/    /' | tee -a "$GITHUB_STEP_SUMMARY"
+            [ "${PIPESTATUS[0]}" -eq 0 ] || status=1
+          done
+          exit $status
