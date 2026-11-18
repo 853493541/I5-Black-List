@@ -76,6 +76,8 @@ pub struct Started {
     pub models: Option<(PathBuf, PathBuf)>,
     /// The single-instance mutex: held while this lives.
     pub claim: Option<Box<dyn std::any::Any>>,
+    /// The release folder (root\runtime\模仿者小工具.exe beside a launcher); None for a build run from source.
+    pub install: Option<PathBuf>,
 }
 
 /// How start-up ended.
@@ -85,9 +87,14 @@ pub enum Outcome {
     AlreadyRunning,
 }
 
-/// The folder the exe is in: the install folder.
+/// The folder the exe is in.
 pub fn exe_dir() -> Option<PathBuf> {
     std::env::current_exe().ok()?.parent().map(Path::to_path_buf)
+}
+
+/// The release folder this exe runs from (switchover.install_root), None for a build run from source.
+pub fn install_root() -> Option<PathBuf> {
+    data::update::switchover::install_root(&std::env::current_exe().ok()?)
 }
 
 pub fn start(options: &Options) -> Result<Outcome, String> {
@@ -100,7 +107,8 @@ pub fn start(options: &Options) -> Result<Outcome, String> {
         log.warn("The last run ended without closing: it was ended from outside (Task Manager, a tool, or a power loss).");
     }
     log.info("Start-up: logs ok");
-    let claim = match one_copy(options, &log) {
+    let install = install_root();
+    let claim = match one_copy(options, install.clone(), &log) {
         Some(claim) => claim,
         None => {
             log.info(if options.background { "Already running." } else { "Already running. Brought the open window forward." });
@@ -113,15 +121,15 @@ pub fn start(options: &Options) -> Result<Outcome, String> {
     }
     log.info(&format!("Settings: {}", settings_line(&store)));
     log.info("Start-up: settings ok");
-    autostart_refresh();
+    autostart_refresh(install.as_deref());
     log.info("Start-up: autostart ok");
-    let models = model_dirs(&model_roots());
+    let models = model_dirs(&model_roots(install.as_deref()));
     match &models {
         Some((det, rec)) => log.info(&format!("Start-up: models ok ({}, {})", det.display(), rec.display())),
         // Not fatal: the window opens and says the models are missing, as the Python app does.
-        None => log.warn("Start-up: models missing (checked BLACKLIST_DETECT_MODEL_DIR, models beside the exe and here)"),
+        None => log.warn("Start-up: models missing (checked BLACKLIST_DETECT_MODEL_DIR, blacklist_detect\\ocr, models here)"),
     }
-    Ok(Outcome::Run(Box::new(Started { root, log, store, models, claim })))
+    Ok(Outcome::Run(Box::new(Started { root, log, store, models, claim, install })))
 }
 
 /// The end of a run: the marker that says the app closed by itself goes (logs.mark_closed).
@@ -146,12 +154,12 @@ pub fn settings_line(store: &Store) -> String {
 
 /// One copy (single.claim, single.settle): Some(claim) to go on, None when another copy answered.
 #[cfg(windows)]
-fn one_copy(options: &Options, log: &AppLog) -> Option<Option<Box<dyn std::any::Any>>> {
+fn one_copy(options: &Options, install: Option<PathBuf>, log: &AppLog) -> Option<Option<Box<dyn std::any::Any>>> {
     let key = win::instance::instance_key();
     let claim = win::process::claim(&key);
     let message: &[u8] = if options.background { b"" } else { b"show" };
     let mut host = win::process::SystemHost {
-        root: exe_dir(),
+        root: install,
         logs: data::logs::log_dir(&options.root.clone().unwrap_or_else(files::app_dir)),
         answers: || win::instance::message_running_copy(message, &key),
         start: std::time::Instant::now(),
@@ -164,23 +172,25 @@ fn one_copy(options: &Options, log: &AppLog) -> Option<Option<Box<dyn std::any::
 }
 
 #[cfg(not(windows))]
-fn one_copy(_options: &Options, log: &AppLog) -> Option<Option<Box<dyn std::any::Any>>> {
+fn one_copy(_options: &Options, _install: Option<PathBuf>, log: &AppLog) -> Option<Option<Box<dyn std::any::Any>>> {
     log.info("Start-up: single instance ok (no mutex off Windows)");
     Some(None)
 }
 
 /// 开机启动: an existing entry follows this copy when the app moved (autostart.refresh).
-fn autostart_refresh() {
+fn autostart_refresh(_install: Option<&Path>) {
     #[cfg(windows)]
     {
-        let launcher = exe_dir().and_then(|dir| win::autostart::launcher_in(&dir));
+        let launcher = _install.and_then(win::autostart::launcher_in);
         win::autostart::RunEntry::app().refresh(launcher.as_deref());
     }
 }
 
-/// Where the models may be (ocr_engine.model_dirs): BLACKLIST_DETECT_MODEL_DIR, models beside the exe, models here.
-pub fn model_roots() -> Vec<PathBuf> {
+/// Where the models may be (ocr_engine.model_dirs): BLACKLIST_DETECT_MODEL_DIR, the release's blacklist_detect\ocr
+/// (rust-switchover.md), models beside the exe, models here.
+pub fn model_roots(install: Option<&Path>) -> Vec<PathBuf> {
     let mut roots: Vec<PathBuf> = std::env::var_os("BLACKLIST_DETECT_MODEL_DIR").map(PathBuf::from).into_iter().collect();
+    roots.extend(install.map(|root| root.join("blacklist_detect").join("ocr")));
     roots.extend(exe_dir().map(|dir| dir.join("models")));
     roots.extend(std::env::current_dir().ok().map(|dir| dir.join("models")));
     roots

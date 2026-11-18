@@ -8,7 +8,7 @@ use app::wiring::flow::Ports;
 use app::wiring::life::{self, Close, Do};
 use app::wiring::records::StoreRecords;
 use app::wiring::runner::{Keys, Parts, Runner};
-use app::wiring::startup::{self, exe_dir, Options, Outcome, Started, VERSION};
+use app::wiring::startup::{self, Options, Outcome, Started, VERSION};
 use app::wiring::stubs::{NoChecker, Quiet, Tray, TrayAction};
 use app::wiring::worker::{RealScreen, Worker};
 use std::cell::RefCell;
@@ -19,7 +19,8 @@ use std::time::Duration;
 slint::include_modules!();
 
 fn main() -> ExitCode {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    // v1.0.1's launcher starts runtime\模仿者小工具.exe as "-m blacklist_detect [args]" (rust-switchover.md).
+    let args = data::update::switchover::app_args(std::env::args().skip(1));
     let options = Options::parse(&args);
     let started = match startup::start(&options) {
         Ok(Outcome::Run(started)) => started,
@@ -55,7 +56,7 @@ fn keys(_store: &data::store::Store, _log: &startup::AppLog) -> Box<dyn Keys> {
 }
 
 fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Error>> {
-    let Started { root, log, store, models, claim } = started;
+    let Started { root, log, store, models, claim, install } = started;
     if models.is_none() {
         log.warn("No OCR models: checks will say 检查失败 until they are installed.");
     }
@@ -81,7 +82,7 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
         update_check: Box::new(Quiet), // stub: updater
         tray: Box::new(tray),
         tray_actions,
-        installed: exe_dir().and_then(|dir| win::autostart::launcher_in(&dir)).is_some(),
+        installed: install.is_some(),
     };
     let runner = Rc::new(RefCell::new(Runner::new(root, log, claim, store.clone(), parts)));
 
@@ -92,6 +93,20 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
         runner.borrow().log.info("Started with Windows; staying in the tray.");
     } else {
         window.show()?;
+    }
+    if let Some(install) = install {
+        // Up and running: tell the launcher, and sweep what the release no longer ships, off the window's thread.
+        let data_root = runner.borrow().root.clone();
+        let started = std::thread::Builder::new().name("AfterStart".into()).spawn(move || {
+            let cleaned = data::update::switchover::after_good_start(&install, VERSION);
+            startup::AppLog::open(&data_root).info(&format!(
+                "After start: confirmed {}, {} old files deleted, {} left for the next start.",
+                cleaned.confirmed, cleaned.files, cleaned.failed
+            ));
+        });
+        if let Err(error) = started {
+            runner.borrow().log.warn(&format!("After start: not run: {error}"));
+        }
     }
     let on_close = runner.clone();
     window.window().on_close_requested(move || {

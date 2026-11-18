@@ -70,3 +70,21 @@ fn a_run_that_never_closed_is_said_at_the_next_start() {
     assert!(ok);
     assert!(log.contains("The last run ended without closing"), "{log}");
 }
+
+#[test]
+fn the_launchers_module_arguments_are_dropped() {
+    // v1.0.1's launcher starts runtime\模仿者小工具.exe as "-m blacklist_detect [args]".
+    let dir = tempfile::tempdir().unwrap();
+    let (ok, log) = {
+        let status = Command::new(env!("CARGO_BIN_EXE_blacklist-detect"))
+            .args(["-m", "blacklist_detect", "--quit-after-start", "--data"])
+            .arg(dir.path())
+            .env("APPDATA", dir.path())
+            .env("HOME", dir.path())
+            .env("USERPROFILE", dir.path())
+            .status()
+            .unwrap();
+        (status.success(), std::fs::read_to_string(dir.path().join("logs").join("app.log")).unwrap_or_default())
+    };
+    assert!(ok && log.contains("Start-up done; quitting (--quit-after-start)."), "{log}");
+}
