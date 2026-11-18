@@ -20,6 +20,18 @@ struct Prim {
 @group(0) @binding(4) var<uniform> size: vec4<f32>;
 @group(0) @binding(5) var atlas: texture_2d<f32>;
 @group(0) @binding(6) var times: texture_2d<f32>;
+@group(0) @binding(7) var under: texture_2d<f32>;
+
+// Qt's Plus under an opacity o outside the round window: d + o * min(s, 1 - d), added by the blend
+// (alpha 0) against a copy of the frame made before the run (gpu.rs splits the passes there).
+fn faded(pr: Prim, p: vec2<f32>, c: vec4<f32>) -> vec4<f32> {
+    let flags = pr.kind.w;
+    if (flags & 2u) == 0u || (flags & 128u) != 0u || pr.s1.w >= 1.0 {
+        return c;
+    }
+    let d = textureLoad(under, vec2<i32>(p), 0).rgb;
+    return vec4(min(c.rgb, pr.s1.w * (vec3(1.0) - d)), 0.0);
+}
 
 // One pixel of a picture in the atlas, held to the picture's edge.
 fn texel(o: vec2<f32>, wh: vec2<f32>, q: vec2<i32>) -> vec4<f32> {
@@ -206,7 +218,7 @@ fn fs(in: Out) -> @location(0) vec4<f32> {
             }
             return textureLoad(galaxy, at, 0) * keep * pr.colors[0].a;
         }
-        case 7u: { return image(pr, p); }
+        case 7u: { return faded(pr, p, image(pr, p)); }
         default: {}
     }
     return paint(pr, p) * cover;
