@@ -1,0 +1,187 @@
+// 设置 as the Python app draws it today (blacklist_detect/ui.py _settings_page, ui_kit.py, ui_theme.py):
+// the header with its tabs, a catalog on the left (常规, 帮助, 关于), and one row per setting on the right.
+// A look mock-up: fixed values and made-up data, no logic.
+
+import { Palette, Light, Dark } from "theme.slint";
+import { ChoiceBox, PlainButton, Icon, Hairline } from "kit.slint";
+
+component Tab inherits Rectangle {
+    in property <string> label;
+    in property <string> count;
+    in property <bool> chosen;
+    in property <Palette> p;
+    width: words.preferred-width + (count == "" ? 0px : 25px) + 28px;
+    words := Text {
+        x: 14px;
+        y: (parent.height - self.height) / 2;
+        text: label;
+        font-size: 14px;
+        font-weight: chosen ? 700 : 400;
+        color: chosen ? p.accent : p.muted;
+    }
+    if count != "": Rectangle {
+        x: words.x + words.width + 5px;
+        y: (parent.height - 18px) / 2;
+        width: 20px;
+        height: 18px;
+        border-radius: 9px;
+        background: p.chip-bg;
+        Text { text: count; font-size: 12px; color: p.muted; }
+    }
+    if chosen: Rectangle {
+        x: words.x;
+        y: parent.height - 2px;
+        width: words.width;
+        height: 2px;
+        background: p.accent;
+    }
+}
+
+// One setting: its name (and a gray line under it where needed) on the left, its control on the right.
+component Row inherits Rectangle {
+    in property <string> name;
+    in property <string> description;
+    in property <Palette> p;
+    min-height: 56px;
+    HorizontalLayout {
+        padding-top: 12px;
+        padding-bottom: 12px;
+        spacing: 12px;
+        VerticalLayout {
+            alignment: center;
+            spacing: 0px;
+            Text { text: name; font-size: 14px; color: p.text; }
+            if description != "": Text { text: description; font-size: 12px; color: p.muted; }
+        }
+        @children
+    }
+}
+
+component CatalogRow inherits Rectangle {
+    in property <string> label;
+    in property <string> icon;
+    in property <bool> chosen;
+    in property <Palette> p;
+    callback clicked;
+    height: 36px;
+    border-radius: 6px;
+    background: chosen ? p.selected : touch.has-hover ? p.hover : transparent;
+    Icon { x: 12px; y: 9px; name: icon; size: 18px; tone: chosen ? p.text : p.muted; }
+    Text { x: 40px; y: (parent.height - self.height) / 2; text: label; font-size: 14px; color: p.text; }
+    touch := TouchArea { clicked => { root.clicked(); } }
+}
+
+export component SettingsWindow inherits Window {
+    in-out property <bool> dark: false;
+    in-out property <string> section: "general";
+    property <Palette> p: dark ? Dark.palette : Light.palette;
+    title: "模仿者小工具";
+    preferred-width: 900px;
+    preferred-height: 560px;
+    background: p.bg;
+    default-font-family: "Noto Sans CJK SC";
+
+    // The header: the page tabs on the left, the check's status pill and the player's name on the right.
+    HorizontalLayout {
+        x: 22px;
+        y: 26px;
+        height: 32px;
+        width: 400px;
+        alignment: start;
+        Tab { label: "记录"; p: p; }
+        Tab { label: "黑名单"; count: "5"; p: p; }
+        Tab { label: "嘉宾"; count: "3"; p: p; }
+        Tab { label: "设置"; chosen: true; p: p; }
+    }
+    Rectangle {
+        x: 598px;
+        y: 26px;
+        width: 140px;
+        height: 30px;
+        border-radius: 15px;
+        background: p.red-wash;
+        border-width: 1px;
+        border-color: p.red-edge;
+        Rectangle { x: 14px; y: 11px; width: 8px; height: 8px; border-radius: 4px; background: p.red; }
+        Text { x: 32px; y: (parent.height - self.height) / 2; text: "读不到游戏画面"; font-size: 14px; color: p.red; }
+    }
+    Rectangle { x: 748px; y: 31px; width: 1px; height: 20px; background: p.border; }
+    Rectangle {
+        x: 760px;
+        y: 29px;
+        width: 24px;
+        height: 24px;
+        border-radius: 12px;
+        background: p.accent-wash;
+        Text { text: "测"; font-size: 12px; font-weight: 700; color: p.accent; }
+    }
+    Text { x: 792px; y: 32px; text: "测试主播"; font-size: 14px; color: p.text; }
+    Icon { x: 855px; y: 36px; name: "pencil"; size: 10px; tone: p.text; }
+    Rectangle { x: 24px; y: 59px; width: 852px; height: 1px; background: p.border; }
+
+    // The catalog.
+    VerticalLayout {
+        x: 24px;
+        y: 72px;
+        width: 180px;
+        height: 108px;
+        CatalogRow { label: "常规"; icon: "settings"; chosen: section == "general"; p: p; clicked => { section = "general"; } }
+        CatalogRow { label: "帮助"; icon: "help"; chosen: section == "help"; p: p; clicked => { section = "help"; } }
+        CatalogRow { label: "关于"; icon: "info"; chosen: section == "about"; p: p; clicked => { section = "about"; } }
+    }
+
+    // The chosen section: its name in bold, then one row per setting with thin lines between.
+    VerticalLayout {
+        x: 228px;
+        y: 73px;
+        width: 648px;
+        alignment: start;
+        Text {
+            text: section == "general" ? "常规" : section == "help" ? "帮助" : "关于";
+            font-size: 16px;
+            font-weight: 700;
+            color: p.text;
+        }
+        Rectangle { height: 6px; }
+        if section == "general": VerticalLayout {
+            Row {
+                name: "开机启动";
+                description: "Windows 启动时自动打开";
+                p: p;
+                ChoiceBox { choices: ["关闭", "开启"]; value: "关闭"; enabled: false; p: p; }
+            }
+            Hairline { p: p; }
+            Row { name: "关闭窗口时"; p: p; ChoiceBox { choices: ["最小化到托盘", "退出程序"]; value: "退出程序"; p: p; } }
+            Hairline { p: p; }
+            Row { name: "全局声音"; p: p; ChoiceBox { choices: ["播放", "静音"]; value: "播放"; p: p; } }
+            Hairline { p: p; }
+            Row {
+                name: "主题";
+                p: p;
+                ChoiceBox {
+                    choices: ["浅色", "深色", "跟随系统"];
+                    value: dark ? "深色" : "浅色";
+                    p: p;
+                    chosen(v) => { dark = v == "深色"; }
+                }
+            }
+        }
+        if section == "help": VerticalLayout {
+            Row { name: "环境测试"; p: p; PlainButton { label: "开始"; p: p; } }
+            Hairline { p: p; }
+            Row { name: "导出日志"; p: p; PlainButton { label: "导出"; p: p; } }
+        }
+        if section == "about": VerticalLayout {
+            Row { name: "检查更新"; description: "当前版本 1.2.0"; p: p; PlainButton { label: "检查更新"; p: p; } }
+            Hairline { p: p; }
+            Row { name: "使用声明"; description: "免费自制工具，和官方无关"; p: p; PlainButton { label: "查看"; p: p; } }
+            Hairline { p: p; }
+            Row {
+                name: "清空数据";
+                description: "删除黑名单、嘉宾、记录和全部设置";
+                p: p;
+                PlainButton { label: "清空"; danger: true; p: p; }
+            }
+        }
+    }
+}

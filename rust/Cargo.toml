@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["ocr", "lobby", "data", "win", "scenes"]
+members = ["ocr", "lobby", "data", "win", "scenes", "app"]
 
 [workspace.package]
 edition = "2021"

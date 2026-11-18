@@ -1,0 +1,108 @@
+// The controls of blacklist_detect/ui_kit.py that 设置 uses, drawn the same way.
+
+import { Palette } from "theme.slint";
+
+// The line icons of ui_kit.line_pixmap, on a 24 x 24 grid.
+export component Icon inherits Rectangle {
+    in property <string> name;
+    in property <length> size: 18px;
+    in property <color> tone;
+    width: size;
+    height: size;
+    Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        stroke: tone;
+        stroke-width: name == "chevron" ? 1.2px : name == "pencil" ? 1.4px : 1.6px;
+        fill: transparent;
+        commands: name == "settings"
+            ? "M3 6 L21 6 M3 12 L21 12 M3 18 L21 18 M9 4 A2 2 0 1 0 9 8 A2 2 0 1 0 9 4 M15 10 A2 2 0 1 0 15 14 A2 2 0 1 0 15 10 M8 16 A2 2 0 1 0 8 20 A2 2 0 1 0 8 16"
+            : name == "help"
+            ? "M12 3 A9 9 0 1 0 12 21 A9 9 0 1 0 12 3 M9.3 9.5 A2.8 2.8 0 1 1 13.4 11.8 C12.4 12.4 12 13 12 14 M12 16.6 L12 17.4"
+            : name == "info"
+            ? "M12 3 A9 9 0 1 0 12 21 A9 9 0 1 0 12 3 M12 11 L12 16.5 M12 7.6 L12 8.4"
+            : name == "chevron"
+            ? "M6 9 L12 15 L18 9"
+            : "M4 20 L4 16 L15 5 L19 9 L8 20 Z";
+    }
+}
+
+// ChoiceBox: only its words and a chevron until it is clicked, the list then drops under the words.
+export component ChoiceBox inherits Rectangle {
+    in property <[string]> choices;
+    in-out property <string> value;
+    in property <bool> enabled: true;
+    in property <Palette> p;
+    callback chosen(string);
+    height: 32px;
+    width: words.preferred-width + 10px + 8px + 10px + 10px;
+    border-radius: 6px;
+    background: touch.has-hover && enabled ? p.hover : transparent;
+    words := Text {
+        x: 10px;
+        y: (parent.height - self.height) / 2;
+        text: value;
+        font-size: 14px;
+        color: enabled ? p.text : p.muted;
+    }
+    Icon {
+        x: parent.width - 20px;
+        y: 11px;
+        name: "chevron";
+        size: 10px;
+        tone: touch.has-hover && enabled ? p.text : p.muted;
+        opacity: enabled ? 1 : 0.5;
+    }
+    touch := TouchArea {
+        enabled: enabled;
+        clicked => { list.show(); }
+    }
+    list := PopupWindow {
+        x: parent.width - 150px;
+        y: parent.height + 4px;
+        width: 150px;
+        Rectangle {
+            background: p.surface;
+            border-radius: 8px;
+            border-width: 1px;
+            border-color: p.border;
+            drop-shadow-blur: 12px;
+            drop-shadow-color: #0000002a;
+            VerticalLayout {
+                padding: 4px;
+                for choice in choices: Rectangle {
+                    height: 30px;
+                    border-radius: 6px;
+                    background: item.has-hover ? p.hover : transparent;
+                    Text { x: 10px; y: (parent.height - self.height) / 2; text: choice; font-size: 14px; color: p.text; }
+                    if choice == value: Text { x: parent.width - 24px; y: (parent.height - self.height) / 2; text: "✓"; color: p.text; }
+                    item := TouchArea { clicked => { value = choice; chosen(choice); } }
+                }
+            }
+        }
+    }
+}
+
+// The outlined button (QPushButton), or the danger one in red.
+export component PlainButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> danger;
+    in property <Palette> p;
+    height: 32px;
+    width: words.preferred-width + 28px;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: danger ? p.danger : touch.has-hover ? p.accent-line : p.border;
+    background: touch.has-hover ? p.hover : p.surface;
+    words := Text { text: label; font-size: 14px; color: danger ? p.danger : p.text; }
+    touch := TouchArea { }
+}
+
+// The thin line between two settings.
+export component Hairline inherits Rectangle {
+    in property <Palette> p;
+    height: 1px;
+    background: p.border;
+}
