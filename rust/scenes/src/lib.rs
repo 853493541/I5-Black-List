@@ -5,6 +5,7 @@
 //! frame (`prim`), and `gpu` shades every pixel of every shape in WGSL.
 #![forbid(unsafe_code)]
 
+pub mod angel;
 pub mod draw;
 pub mod gpu;
 pub mod prim;
