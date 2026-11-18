@@ -1,0 +1,172 @@
+// Every colour of blacklist_detect/ui_theme.py, by role, for each accent in light and dark: _palette() exactly.
+// Written from rust/app/src/kit/golden_theme.json (tools/rust_golden_theme.py); kit::tests checks they still match.
+//
+// Palette: one field per ui_theme role (snake_case there, kebab-case here), plus red-edge, the outline of a
+// red tag in the 设置 mock-up. Palettes.get(accent, dark) gives one; an unknown accent falls back to 蓝色,
+// as use_theme does.
+
+export struct Palette {
+    bg: color,
+    surface: color,
+    surface-alt: color,
+    border: color,
+    text: color,
+    muted: color,
+    hover: color,
+    selected: color,
+    accent: color,
+    accent-line: color,
+    accent-hover: color,
+    accent-press: color,
+    accent-wash: color,
+    on-accent: color,
+    red: color,
+    red-wash: color,
+    red-hover: color,
+    green: color,
+    green-wash: color,
+    green-hover: color,
+    blue: color,
+    blue-wash: color,
+    rose: color,
+    rose-wash: color,
+    rose-hover: color,
+    gray: color,
+    gray-wash: color,
+    gray-hover: color,
+    danger: color,
+    danger-hover: color,
+    warning: color,
+    chip-bg: color,
+    chip-text: color,
+    chip-off-bg: color,
+    chip-off-line: color,
+    field-line: color,
+    toast-bg: color,
+    toast-text: color,
+    toast-action: color,
+    red-edge: color,
+    // ui_theme's scheme == "dark".
+    scheme-dark: bool,
+}
+
+export global Palettes {
+    // 蓝色, 浅色
+    out property <Palette> blue-light: {
+        bg: #f2f6fb, surface: #ffffff, surface-alt: #e4eef8, border: #d3deec, text: #172033, muted: #5d6d82, hover: #e4eef8,
+        selected: #cfdbe8, accent: #12325a, accent-line: #2c6cb3, accent-hover: #1a4578, accent-press: #0c243f,
+        accent-wash: #e1eaf4, on-accent: #f4f8ff, red: #c23b2e, red-wash: #fff3f2, red-hover: #fde4e1, green: #1c7a3e,
+        green-wash: #effaf3, green-hover: #e3f6eb, blue: #1f5fb8, blue-wash: #eef4fd, rose: #c2306b, rose-wash: #fff1f6,
+        rose-hover: #fde3ee, gray: #626977, gray-wash: #f3f4f6, gray-hover: #e6e8ec, danger: #b3261e, danger-hover: #fbe9e7,
+        warning: #b45309, chip-bg: #eef0f3, chip-text: #3f4654, chip-off-bg: #f7f8fa, chip-off-line: #8b93a1,
+        field-line: #8b93a1, toast-bg: #1f2633, toast-text: #f3f5f8, toast-action: #6aa6f0, red-edge: #f0c9c5,
+        scheme-dark: false,
+    };
+    // 蓝色, 深色
+    out property <Palette> blue-dark: {
+        bg: #15171b, surface: #1d2025, surface-alt: #252930, border: #343944, text: #e7e9ee, muted: #9aa2b0, hover: #2a2e36,
+        selected: #31435a, accent: #6aa6f0, accent-line: #86b8f4, accent-hover: #86b8f4, accent-press: #4f8fdc,
+        accent-wash: #2b384a, on-accent: #0e1116, red: #f0817a, red-wash: #3a2325, red-hover: #4a2b2d, green: #5fcb8c,
+        green-wash: #1b3125, green-hover: #22402f, blue: #82b4f5, blue-wash: #1e2b3e, rose: #f08bb0, rose-wash: #3a2330,
+        rose-hover: #4a2b3c, gray: #8d95a3, gray-wash: #24282f, gray-hover: #2c313a, danger: #f0817a, danger-hover: #3a2325,
+        warning: #e0a245, chip-bg: #2d323b, chip-text: #d5d9e0, chip-off-bg: #22262d, chip-off-line: #6e7685,
+        field-line: #6e7685, toast-bg: #e7e9ee, toast-text: #15171b, toast-action: #12325a, red-edge: #6a3a3a,
+        scheme-dark: true,
+    };
+    // 棕色, 浅色
+    out property <Palette> brown-light: {
+        bg: #f7f3ee, surface: #ffffff, surface-alt: #f3ebe3, border: #e6d9cc, text: #2a2118, muted: #6f6256, hover: #f3ebe3,
+        selected: #e5dad0, accent: #6b4428, accent-line: #a67c52, accent-hover: #7d5334, accent-press: #4a2e1a,
+        accent-wash: #f3ede7, on-accent: #fff8f2, red: #c23b2e, red-wash: #fff3f2, red-hover: #fde4e1, green: #1c7a3e,
+        green-wash: #effaf3, green-hover: #e3f6eb, blue: #1f5fb8, blue-wash: #eef4fd, rose: #c2306b, rose-wash: #fff1f6,
+        rose-hover: #fde3ee, gray: #626977, gray-wash: #f3f4f6, gray-hover: #e6e8ec, danger: #b3261e, danger-hover: #fbe9e7,
+        warning: #b45309, chip-bg: #eef0f3, chip-text: #3f4654, chip-off-bg: #f7f8fa, chip-off-line: #8b93a1,
+        field-line: #8b93a1, toast-bg: #1f2633, toast-text: #f3f5f8, toast-action: #d0a06e, red-edge: #f0c9c5,
+        scheme-dark: false,
+    };
+    // 棕色, 深色
+    out property <Palette> brown-dark: {
+        bg: #15171b, surface: #1d2025, surface-alt: #252930, border: #343944, text: #e7e9ee, muted: #9aa2b0, hover: #2a2e36,
+        selected: #4c4138, accent: #d0a06e, accent-line: #dcb285, accent-hover: #dcb285, accent-press: #b98955,
+        accent-wash: #3d3732, on-accent: #0e1116, red: #f0817a, red-wash: #3a2325, red-hover: #4a2b2d, green: #5fcb8c,
+        green-wash: #1b3125, green-hover: #22402f, blue: #82b4f5, blue-wash: #1e2b3e, rose: #f08bb0, rose-wash: #3a2330,
+        rose-hover: #4a2b3c, gray: #8d95a3, gray-wash: #24282f, gray-hover: #2c313a, danger: #f0817a, danger-hover: #3a2325,
+        warning: #e0a245, chip-bg: #2d323b, chip-text: #d5d9e0, chip-off-bg: #22262d, chip-off-line: #6e7685,
+        field-line: #6e7685, toast-bg: #e7e9ee, toast-text: #15171b, toast-action: #6b4428, red-edge: #6a3a3a,
+        scheme-dark: true,
+    };
+    // 紫色, 浅色
+    out property <Palette> purple-light: {
+        bg: #f6f4fb, surface: #ffffff, surface-alt: #eee8f6, border: #ddd4ec, text: #241833, muted: #6a5d80, hover: #eee8f6,
+        selected: #ded5e9, accent: #4a2d73, accent-line: #7a5caf, accent-hover: #5c3b8c, accent-press: #321d52,
+        accent-wash: #ece8f4, on-accent: #f8f5ff, red: #c23b2e, red-wash: #fff3f2, red-hover: #fde4e1, green: #1c7a3e,
+        green-wash: #effaf3, green-hover: #e3f6eb, blue: #1f5fb8, blue-wash: #eef4fd, rose: #c2306b, rose-wash: #fff1f6,
+        rose-hover: #fde3ee, gray: #626977, gray-wash: #f3f4f6, gray-hover: #e6e8ec, danger: #b3261e, danger-hover: #fbe9e7,
+        warning: #b45309, chip-bg: #eef0f3, chip-text: #3f4654, chip-off-bg: #f7f8fa, chip-off-line: #8b93a1,
+        field-line: #8b93a1, toast-bg: #1f2633, toast-text: #f3f5f8, toast-action: #ad91e6, red-edge: #f0c9c5,
+        scheme-dark: false,
+    };
+    // 紫色, 深色
+    out property <Palette> purple-dark: {
+        bg: #15171b, surface: #1d2025, surface-alt: #252930, border: #343944, text: #e7e9ee, muted: #9aa2b0, hover: #2a2e36,
+        selected: #423d57, accent: #ad91e6, accent-line: #bea6ec, accent-hover: #bea6ec, accent-press: #957ad2,
+        accent-wash: #373448, on-accent: #0e1116, red: #f0817a, red-wash: #3a2325, red-hover: #4a2b2d, green: #5fcb8c,
+        green-wash: #1b3125, green-hover: #22402f, blue: #82b4f5, blue-wash: #1e2b3e, rose: #f08bb0, rose-wash: #3a2330,
+        rose-hover: #4a2b3c, gray: #8d95a3, gray-wash: #24282f, gray-hover: #2c313a, danger: #f0817a, danger-hover: #3a2325,
+        warning: #e0a245, chip-bg: #2d323b, chip-text: #d5d9e0, chip-off-bg: #22262d, chip-off-line: #6e7685,
+        field-line: #6e7685, toast-bg: #e7e9ee, toast-text: #15171b, toast-action: #4a2d73, red-edge: #6a3a3a,
+        scheme-dark: true,
+    };
+    // 绿色, 浅色
+    out property <Palette> green-light: {
+        bg: #f3f7f4, surface: #ffffff, surface-alt: #e5f0ea, border: #d2e2d8, text: #17241c, muted: #5c6e64, hover: #e5f0ea,
+        selected: #d1e0d9, accent: #1b5340, accent-line: #3d8f6e, accent-hover: #24664e, accent-press: #12382b,
+        accent-wash: #e4efeb, on-accent: #f4fbf7, red: #c23b2e, red-wash: #fff3f2, red-hover: #fde4e1, green: #1c7a3e,
+        green-wash: #effaf3, green-hover: #e3f6eb, blue: #1f5fb8, blue-wash: #eef4fd, rose: #c2306b, rose-wash: #fff1f6,
+        rose-hover: #fde3ee, gray: #626977, gray-wash: #f3f4f6, gray-hover: #e6e8ec, danger: #b3261e, danger-hover: #fbe9e7,
+        warning: #b45309, chip-bg: #eef0f3, chip-text: #3f4654, chip-off-bg: #f7f8fa, chip-off-line: #8b93a1,
+        field-line: #8b93a1, toast-bg: #1f2633, toast-text: #f3f5f8, toast-action: #5cbf95, red-edge: #f0c9c5,
+        scheme-dark: false,
+    };
+    // 绿色, 深色
+    out property <Palette> green-dark: {
+        bg: #15171b, surface: #1d2025, surface-alt: #252930, border: #343944, text: #e7e9ee, muted: #9aa2b0, hover: #2a2e36,
+        selected: #2d4942, accent: #5cbf95, accent-line: #79cda9, accent-hover: #79cda9, accent-press: #47a67f,
+        accent-wash: #283d39, on-accent: #0e1116, red: #f0817a, red-wash: #3a2325, red-hover: #4a2b2d, green: #5fcb8c,
+        green-wash: #1b3125, green-hover: #22402f, blue: #82b4f5, blue-wash: #1e2b3e, rose: #f08bb0, rose-wash: #3a2330,
+        rose-hover: #4a2b3c, gray: #8d95a3, gray-wash: #24282f, gray-hover: #2c313a, danger: #f0817a, danger-hover: #3a2325,
+        warning: #e0a245, chip-bg: #2d323b, chip-text: #d5d9e0, chip-off-bg: #22262d, chip-off-line: #6e7685,
+        field-line: #6e7685, toast-bg: #e7e9ee, toast-text: #15171b, toast-action: #1b5340, red-edge: #6a3a3a,
+        scheme-dark: true,
+    };
+    // 红色, 浅色
+    out property <Palette> red-light: {
+        bg: #fbf5f4, surface: #ffffff, surface-alt: #f6e8e6, border: #ead8d4, text: #2c1818, muted: #7a6565, hover: #f6e8e6,
+        selected: #eed9d3, accent: #a24f28, accent-line: #c46a3e, accent-hover: #92471f, accent-press: #6e3416,
+        accent-wash: #f7eae4, on-accent: #fdf6ec, red: #c23b2e, red-wash: #fff3f2, red-hover: #fde4e1, green: #1c7a3e,
+        green-wash: #effaf3, green-hover: #e3f6eb, blue: #1f5fb8, blue-wash: #eef4fd, rose: #c2306b, rose-wash: #fff1f6,
+        rose-hover: #fde3ee, gray: #626977, gray-wash: #f3f4f6, gray-hover: #e6e8ec, danger: #b3261e, danger-hover: #fbe9e7,
+        warning: #b45309, chip-bg: #eef0f3, chip-text: #3f4654, chip-off-bg: #f7f8fa, chip-off-line: #8b93a1,
+        field-line: #8b93a1, toast-bg: #1f2633, toast-text: #f3f5f8, toast-action: #e8936a, red-edge: #f0c9c5,
+        scheme-dark: false,
+    };
+    // 红色, 深色
+    out property <Palette> red-dark: {
+        bg: #15171b, surface: #1d2025, surface-alt: #252930, border: #343944, text: #e7e9ee, muted: #9aa2b0, hover: #2a2e36,
+        selected: #523e37, accent: #e8936a, accent-line: #eea683, accent-hover: #eea683, accent-press: #d47c52,
+        accent-wash: #423531, on-accent: #0e1116, red: #f0817a, red-wash: #3a2325, red-hover: #4a2b2d, green: #5fcb8c,
+        green-wash: #1b3125, green-hover: #22402f, blue: #82b4f5, blue-wash: #1e2b3e, rose: #f08bb0, rose-wash: #3a2330,
+        rose-hover: #4a2b3c, gray: #8d95a3, gray-wash: #24282f, gray-hover: #2c313a, danger: #f0817a, danger-hover: #3a2325,
+        warning: #e0a245, chip-bg: #2d323b, chip-text: #d5d9e0, chip-off-bg: #22262d, chip-off-line: #6e7685,
+        field-line: #6e7685, toast-bg: #e7e9ee, toast-text: #15171b, toast-action: #a24f28, red-edge: #6a3a3a,
+        scheme-dark: true,
+    };
+
+    public pure function get(accent: string, dark: bool) -> Palette {
+        if accent == "棕色" { return dark ? self.brown-dark : self.brown-light; }
+        if accent == "紫色" { return dark ? self.purple-dark : self.purple-light; }
+        if accent == "绿色" { return dark ? self.green-dark : self.green-light; }
+        if accent == "红色" { return dark ? self.red-dark : self.red-light; }
+        dark ? self.blue-dark : self.blue-light
+    }
+}

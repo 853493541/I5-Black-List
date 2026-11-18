@@ -3889,6 +3889,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b330c9d1b92dfe68442ca20b009c717d5f0b1e3cf4965e62f704c3c6e95a1305"
 
 [[package]]
+name = "pipeline"
+version = "0.1.0"
+dependencies = [
+ "lobby",
+ "ocr",
+ "opencv",
+ "ort",
+ "serde_json",
+ "sha2",
+ "windows 0.61.3",
+]
+
+[[package]]
 name = "piper"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4436,6 +4449,7 @@ dependencies = [
 name = "scenes"
 version = "0.1.0"
 dependencies = [
+ "ab_glyph",
  "bytemuck",
  "image",
  "pollster",
@@ -4936,6 +4950,20 @@ name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
+
+[[package]]
+name = "stage"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "lobby",
+ "pollster",
+ "scenes",
+ "serde",
+ "serde_json",
+ "wgpu 25.0.2",
+ "windows 0.61.3",
+]
 
 [[package]]
 name = "static_assertions"
