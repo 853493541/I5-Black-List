@@ -4,9 +4,8 @@ name: rust-size
 # release profile in rust/Cargo.toml, on the Windows runner, each measured the same way: exe size, zipped size, start-up
 # (--quit-after-start), one `check` of the sample lobby, and the stage's frame time on WARP. Artifacts only: nothing
 # here signs, releases or ships.
+# Run by hand (Actions, rust-size, Run workflow): set BASE to the commit to compare against.
 on:
-  push:
-    branches: ["feature/rust-size-exe"]
   workflow_dispatch:
 
 concurrency:
