@@ -3889,6 +3889,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b330c9d1b92dfe68442ca20b009c717d5f0b1e3cf4965e62f704c3c6e95a1305"
 
 [[package]]
+name = "pipeline"
+version = "0.1.0"
+dependencies = [
+ "lobby",
+ "ocr",
+ "opencv",
+ "ort",
+ "serde_json",
+ "sha2",
+ "windows 0.61.3",
+]
+
+[[package]]
 name = "piper"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
