@@ -17,6 +17,7 @@ mod settings;
 mod shell;
 mod notices;
 mod kit;
+mod list;
 
 use std::path::PathBuf;
 

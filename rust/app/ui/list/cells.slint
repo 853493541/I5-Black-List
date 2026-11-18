@@ -1,0 +1,96 @@
+// The 黑名单 page's tag rows (TagListDelegate) and column titles (_ColumnHeader).
+
+import { Palette } from "../theme.slint";
+import { Pill, Glyph } from "parts.slint";
+export struct TagRow { tag: string, count: int }
+
+export component TagSideRow inherits Rectangle {
+    in property <TagRow> tag-row;
+    in property <bool> chosen;
+    in property <Palette> p;
+    in property <color> wash;
+    in property <bool> dark;
+    callback picked();
+    callback edit();
+    callback menu(length, length);
+    height: 34px;
+    border-radius: 6px;
+    background: chosen ? p.selected : touch.has-hover ? p.hover : transparent;
+    if tag-row.tag == "": Text {
+        x: 12px;
+        vertical-alignment: center;
+        height: parent.height;
+        text: "全部";
+        font-size: 14px;
+        color: p.text;
+    }
+    if tag-row.tag != "": Pill {
+        x: 12px;
+        label: tag-row.tag;
+        wash: wash;
+        p: p;
+        dark: dark;
+        max-width: parent.width - 12px - 44px;
+    }
+    if tag-row.tag != "" && touch.has-hover: Glyph {
+        x: parent.width - 12px - 16px;
+        name: "pencil";
+        tone: p.muted;
+        line: 1.4px;
+    }
+    if !(tag-row.tag != "" && touch.has-hover) && tag-row.count > 0: Text {
+        x: parent.width - 12px - self.width;
+        height: parent.height;
+        vertical-alignment: center;
+        text: tag-row.count;
+        font-size: 12px;
+        color: p.muted;
+    }
+    touch := TouchArea {
+        mouse-cursor: pointer;
+        pointer-event(event) => {
+            if event.kind == PointerEventKind.down && event.button == PointerEventButton.right {
+                root.menu(self.mouse-x, self.mouse-y);
+            }
+        }
+        clicked => {
+            if tag-row.tag != "" && self.mouse-x > parent.width - 36px { root.edit(); } else { root.picked(); }
+        }
+        double-clicked => { if tag-row.tag != "" { root.edit(); } }
+    }
+}
+
+export component HeaderCell inherits Rectangle {
+    in property <string> label;
+    in property <bool> sorted;
+    in property <bool> up;
+    in property <bool> eye;
+    in property <bool> eye-off;
+    in property <bool> eye-locked;
+    in property <bool> first;
+    in property <Palette> p;
+    callback clicked();
+    callback eye-clicked();
+    words := Text {
+        x: 14px;
+        height: parent.height;
+        vertical-alignment: center;
+        text: label;
+        font-size: 13px;
+        color: p.muted;
+    }
+    if !first: Rectangle { x: 0px; y: parent.height * 0.25; width: 1px; height: parent.height * 0.5; background: p.border; }
+    if sorted: Glyph { x: words.x + words.width + (eye ? 40px : 4px); name: up ? "up" : "down"; tone: p.muted; size: 14px; }
+    touch := TouchArea { clicked => { root.clicked(); } }
+    if eye: Rectangle {
+        x: words.x + words.width + 8px;
+        y: (parent.height - self.height) / 2;
+        width: 26px;
+        height: 26px;
+        border-radius: 6px;
+        background: eye-touch.has-hover && !eye-locked ? p.hover : transparent;
+        Glyph { name: eye-off ? "eye-off" : "eye"; tone: p.muted; size: 18px; opacity: eye-locked ? 0.5 : 1; }
+        eye-touch := TouchArea { enabled: !eye-locked; clicked => { root.eye-clicked(); } }
+    }
+}
+

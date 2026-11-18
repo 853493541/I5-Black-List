@@ -1,0 +1,380 @@
+// 黑名单, the list page (blacklist_detect/ui.py _list_page and _list_side): 标签 on the left, picking which names show;
+// on the right the search box, 批量导入, 添加 and 更多 over the table (名字, 标签, 原因, 最近遇到), or the empty state.
+// Rust fills it (src/list/bind.rs) and gets each callback as a ListAction.
+
+import { ListView } from "std-widgets.slint";
+import { Palette, Light, Dark } from "../theme.slint";
+import { Pill, Button, IconButton, Glyph, Field, MenuItem, MenuLine, MenuCard } from "parts.slint";
+import { TagSideRow, HeaderCell, TagRow } from "cells.slint";
+export { TagRow }
+
+export struct ListRow {
+    index: int,
+    name: string,
+    tags: [string],
+    more: string,
+    reason: string,
+    met: string,
+    met-known: bool,
+}
+
+
+// What Rust fills the page with and what the page asks of Rust (src/list/bind.rs); the window that shows ListPage
+// carries it.
+export global ListData {
+    // The table's width, for the columns and the +N pills.
+    in-out property <length> table-width;
+    in-out property <[ListRow]> rows;
+    in-out property <[TagRow]> tags;
+    in-out property <int> picked-tag;
+    // How many names are on the list in all (the toolbar and the empty state follow it, not the rows shown).
+    in-out property <int> count;
+    in-out property <string> empty-text: "黑名单还是空的";
+    in-out property <bool> names-hidden;
+    in-out property <bool> names-locked;
+    // -1 unsorted, 0 名字, 3 最近遇到; up is the arrow's way.
+    in-out property <int> sort-column: -1;
+    in-out property <bool> sort-up;
+    // The column at each place, and each column's width (原因's is what is left).
+    in-out property <[int]> column-order: [0, 1, 2, 3];
+    in-out property <[length]> widths: [200px, 176px, 340px, 120px];
+    in-out property <string> notice;
+    in-out property <bool> notice-undo;
+    in-out property <string> search;
+    callback search-edited(string);
+    callback tag-chosen(int);
+    callback add();
+    callback add-many();
+    callback share();
+    callback recheck();
+    callback clear();
+    callback edit(int);
+    callback copy-name(int);
+    callback delete(int);
+    callback sort(int);
+    callback eye(bool);
+    callback undo();
+    callback new-tag-named(string);
+    callback rename-tag(string, string);
+    callback remove-tag(string);
+}
+
+export component ListPage inherits Rectangle {
+    in property <bool> dark;
+    property <Palette> p: dark ? Dark.palette : Light.palette;
+    // The tag list's pills sit on the page, so they get a slightly stronger wash (red_wash mixed 10 % with red).
+    property <color> side-wash: dark ? #3d2628 : #f9e1de;
+
+    property <[ListRow]> rows <=> ListData.rows;
+    property <[TagRow]> tags <=> ListData.tags;
+    property <int> picked-tag <=> ListData.picked-tag;
+    property <int> count <=> ListData.count;
+    property <string> empty-text <=> ListData.empty-text;
+    property <bool> names-hidden <=> ListData.names-hidden;
+    property <bool> names-locked <=> ListData.names-locked;
+    property <int> sort-column <=> ListData.sort-column;
+    property <bool> sort-up <=> ListData.sort-up;
+    property <[int]> column-order <=> ListData.column-order;
+    property <[length]> widths <=> ListData.widths;
+    property <string> notice <=> ListData.notice;
+    property <bool> notice-undo <=> ListData.notice-undo;
+    property <string> search <=> ListData.search;
+    out property <length> table-width: table.width;
+    changed table-width => { ListData.table-width = self.table-width; }
+    init => { ListData.table-width = table.width; }
+    // 原因 takes what the others leave (ui._FLEX_COLUMN); Rust has already narrowed the others to fit.
+    function col-width(column: int) -> length {
+        if column == 2 { return max(72px, table.width - 2px - widths[0] - widths[1] - widths[3]); }
+        return widths[column];
+    }
+    property <int> hover: -1;
+    property <int> menu-index: -1;
+    property <length> menu-x;
+    property <length> menu-y;
+    property <string> menu-tag;
+    property <string> editing-tag;
+    property <bool> new-tag;
+
+    background: p.bg;
+
+    HorizontalLayout {
+        padding-left: 24px;
+        padding-right: 24px;
+        padding-top: 12px;
+        padding-bottom: 24px;
+        spacing: 12px;
+        // 标签 beside the list, as wide as 记录's list of records.
+        side := VerticalLayout {
+            width: 168px;
+            spacing: 12px;
+            Rectangle {
+                height: 32px;
+                if !new-tag: Text {
+                    x: 12px;
+                    height: parent.height;
+                    vertical-alignment: center;
+                    text: "标签";
+                    font-size: 12px;
+                    font-weight: 600;
+                    color: p.muted;
+                }
+                if !new-tag: IconButton {
+                    x: parent.width - self.width;
+                    icon: "add";
+                    p: p;
+                    clicked => { new-tag = true; editing-tag = ""; }
+                }
+                if new-tag: new-box := Field {
+                    x: 4px;
+                    width: parent.width - 4px;
+                    placeholder: "新标签";
+                    p: p;
+                    init => { self.grab(); }
+                    accepted(text) => { new-tag = false; ListData.new-tag-named(text); }
+                    cancelled => { new-tag = false; }
+                }
+            }
+            Flickable {
+                content-height: tag-column.preferred-height;
+                tag-column := VerticalLayout {
+                    alignment: start;
+                    spacing: 2px;
+                    for row[i] in tags: Rectangle {
+                        height: 34px;
+                        TagSideRow {
+                            tag-row: row;
+                            chosen: i == picked-tag;
+                            p: p;
+                            wash: side-wash;
+                            dark: dark;
+                            picked => { picked-tag = i; ListData.tag-chosen(i); }
+                            edit => { new-tag = false; editing-tag = row.tag; }
+                            menu(x, y) => {
+                                if row.tag != "" {
+                                    menu-tag = row.tag;
+                                    menu-x = side.x + 12px + x;
+                                    menu-y = 16px + 44px + i * 36px + y;
+                                    tag-menu.show();
+                                }
+                            }
+                        }
+                        if editing-tag != "" && editing-tag == row.tag: Field {
+                            x: 4px;
+                            width: parent.width - 8px;
+                            height: parent.height - 6px;
+                            y: 3px;
+                            text: row.tag;
+                            p: p;
+                            init => { self.grab(); self.select-all(); }
+                            accepted(text) => { editing-tag = ""; ListData.rename-tag(row.tag, text); }
+                            cancelled => { editing-tag = ""; }
+                        }
+                    }
+                }
+            }
+        }
+        VerticalLayout {
+            spacing: 12px;
+            if count > 0 || search != "": HorizontalLayout {
+                height: 32px;
+                spacing: 8px;
+                Field {
+                    max-width: 360px;
+                    horizontal-stretch: 1;
+                    placeholder: "搜索";
+                    icon: "search";
+                    p: p;
+                    text <=> search;
+                    edited(text) => { ListData.search-edited(text); }
+                    cancelled => { search = ""; ListData.search-edited(""); }
+                }
+                Rectangle { horizontal-stretch: 1; }
+                if count > 0: Button { label: "批量导入"; p: p; clicked => { ListData.add-many(); } }
+                if count > 0: Button { label: "添加"; primary: true; p: p; clicked => { ListData.add(); } }
+                if count > 0: more := IconButton {
+                    icon: "more";
+                    p: p;
+                    clicked => { more-menu.show(); }
+                }
+            }
+            table := Rectangle {
+                vertical-stretch: 1;
+                border-radius: 8px;
+                border-width: rows.length > 0 ? 1px : 0px;
+                border-color: p.border;
+                background: rows.length > 0 ? p.surface : transparent;
+                clip: true;
+                if rows.length > 0: VerticalLayout {
+                    padding: 1px;
+                    HorizontalLayout {
+                        height: 38px;
+                        for column[place] in column-order: HeaderCell {
+                            width: col-width(column);
+                            first: place == 0;
+                            background: p.hover;
+                            label: column == 0 ? "名字" : column == 1 ? "标签" : column == 2 ? "原因" : "最近遇到";
+                            sorted: column == sort-column;
+                            up: sort-up;
+                            eye: column == 0;
+                            eye-off: names-hidden;
+                            eye-locked: names-locked;
+                            p: p;
+                            clicked => { ListData.sort(column); }
+                            eye-clicked => { ListData.eye(!names-hidden); }
+                        }
+                    }
+                    list := ListView {
+                        for row[i] in rows: Rectangle {
+                            height: 40px;
+                            background: i == hover ? p.hover : transparent;
+                            width: col-width(0) + col-width(1) + col-width(2) + col-width(3);
+                            Rectangle { y: parent.height - 1px; height: 1px; background: p.border; }
+                            HorizontalLayout {
+                                for column in column-order: Rectangle {
+                                    width: col-width(column);
+                                    clip: true;
+                                    if column == 0 || column == 2 || column == 3: Text {
+                                        x: 14px;
+                                        width: parent.width - 26px;
+                                        height: parent.height;
+                                        vertical-alignment: center;
+                                        overflow: elide;
+                                        text: column == 0 ? row.name : column == 2 ? row.reason : row.met;
+                                        font-size: 14px;
+                                        color: column == 3 && !row.met-known ? p.muted : p.text;
+                                    }
+                                    if column == 1: HorizontalLayout {
+                                        padding-left: 5px;
+                                        spacing: 6px;
+                                        alignment: start;
+                                        for tag in row.tags: Pill { y: (40px - 21px) / 2; label: tag; wash: p.red-wash; p: p; dark: dark; }
+                                        if row.more != "": Pill { y: (40px - 21px) / 2; label: row.more; active: false; p: p; dark: dark; }
+                                    }
+                                }
+                            }
+                            TouchArea {
+                                mouse-cursor: pointer;
+                                moved => { hover = i; }
+                                changed has-hover => { if self.has-hover { hover = i; } else if hover == i { hover = -1; } }
+                                clicked => { keys.focus(); ListData.edit(row.index); }
+                                pointer-event(event) => {
+                                    if event.kind == PointerEventKind.down && event.button == PointerEventButton.right {
+                                        hover = i;
+                                        menu-index = row.index;
+                                        menu-x = self.absolute-position.x - root.absolute-position.x + self.mouse-x;
+                                        menu-y = self.absolute-position.y - root.absolute-position.y + self.mouse-y;
+                                        row-menu.show();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if rows.length == 0: VerticalLayout {
+                    alignment: center;
+                    spacing: 0px;
+                    HorizontalLayout {
+                        alignment: center;
+                        Glyph { name: count > 0 ? "search" : "users"; size: 34px; tone: p.muted; line: 1.4px; }
+                    }
+                    Rectangle { height: 12px; }
+                    Text { horizontal-alignment: center; text: empty-text; font-size: 20px; color: p.text; }
+                    if count == 0: Rectangle { height: 22px; }
+                    if count == 0: HorizontalLayout {
+                        alignment: center;
+                        spacing: 8px;
+                        Button { label: "批量导入"; p: p; clicked => { ListData.add-many(); } }
+                        Button { label: "添加"; primary: true; p: p; clicked => { ListData.add(); } }
+                    }
+                }
+            }
+        }
+    }
+
+    // Enter opens the row under the pointer, Delete removes it (ui._list_key).
+    keys := FocusScope {
+        width: 0px;
+        height: 0px;
+        key-pressed(event) => {
+            if hover >= 0 && hover < rows.length {
+                if event.text == Key.Return {
+                    ListData.edit(rows[hover].index);
+                    return accept;
+                }
+                if event.text == Key.Delete {
+                    ListData.delete(rows[hover].index);
+                    return accept;
+                }
+            }
+            reject
+        }
+    }
+
+    // The toast (ui_notice's, stub: ui-notice): the words, and 撤销 when the change can be taken back.
+    if notice != "": Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: parent.height - self.height - 24px;
+        height: 40px;
+        width: toast-row.preferred-width;
+        border-radius: 8px;
+        background: dark ? #2d323b : #172033;
+        toast-row := HorizontalLayout {
+            padding-left: 16px;
+            padding-right: 16px;
+            spacing: 16px;
+            Text { vertical-alignment: center; text: notice; font-size: 14px; color: #ffffff; }
+            if notice-undo: Text {
+                vertical-alignment: center;
+                text: "撤销";
+                font-size: 14px;
+                font-weight: 600;
+                color: #86b8f4;
+                TouchArea { mouse-cursor: pointer; clicked => { ListData.undo(); } }
+            }
+        }
+    }
+
+    more-menu := PopupWindow {
+        x: parent.width - 16px - 170px;
+        y: 16px + 36px;
+        width: 170px;
+        MenuCard {
+            p: p;
+            MenuItem { label: "复制名单"; icon: "copy"; p: p; clicked => { ListData.share(); } }
+            MenuItem { label: "按原因补标签"; icon: "reload"; p: p; clicked => { ListData.recheck(); } }
+            MenuLine { p: p; }
+            MenuItem { label: "清空黑名单"; icon: "delete"; danger: true; p: p; clicked => { ListData.clear(); } }
+        }
+    }
+    row-menu := PopupWindow {
+        x: menu-x;
+        y: menu-y;
+        width: 140px;
+        MenuCard {
+            p: p;
+            MenuItem { label: "编辑"; p: p; clicked => { ListData.edit(menu-index); } }
+            MenuItem { label: "复制名字"; p: p; clicked => { ListData.copy-name(menu-index); } }
+            MenuLine { p: p; }
+            MenuItem { label: "删除"; danger: true; p: p; clicked => { ListData.delete(menu-index); } }
+        }
+    }
+    tag-menu := PopupWindow {
+        x: menu-x;
+        y: menu-y;
+        width: 120px;
+        MenuCard {
+            p: p;
+            MenuItem { label: "编辑"; p: p; clicked => { editing-tag = menu-tag; } }
+            MenuLine { p: p; }
+            MenuItem { label: "删除"; danger: true; p: p; clicked => { ListData.remove-tag(menu-tag); } }
+        }
+    }
+}
+
+// ListPage in a window of its own, for the headless pictures and a page shown by itself.
+export component ListWindow inherits Window {
+    in property <bool> dark;
+    preferred-width: 900px;
+    preferred-height: 501px;
+    ListPage { dark: dark; }
+}
