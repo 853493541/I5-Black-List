@@ -35,24 +35,33 @@ pub fn look_of(scene: &str) -> overlay::Look {
     }
 }
 
+/// The marks fade in over 120 ms (ui_overlay._fade_in, linear): the opacity `ms` after they showed, None once done.
+pub const FADE_MS: u128 = 120;
+
+pub fn fade_opacity(ms: u128) -> Option<u8> {
+    (ms < FADE_MS).then(|| (ms * 255 / FADE_MS) as u8)
+}
+
 #[cfg(windows)]
 pub use self::windows::ScreenMarks;
 
 #[cfg(windows)]
 mod windows {
     use super::super::stubs::{CheckResult, Look, Overlay, Rect, Target};
-    use super::{look_of, ltrb, overlay_result};
+    use super::{fade_opacity, look_of, ltrb, overlay_result};
+    use std::time::Instant;
 
     /// The layered window of marks, made at the first check that shows any.
     pub struct ScreenMarks {
         window: Option<overlay::window::Overlay>,
         look: overlay::Look,
+        fading: Option<Instant>,
         pub errors: Vec<String>,
     }
 
     impl Default for ScreenMarks {
         fn default() -> Self {
-            ScreenMarks { window: None, look: overlay::rose(), errors: Vec::new() }
+            ScreenMarks { window: None, look: overlay::rose(), fading: None, errors: Vec::new() }
         }
     }
 
@@ -76,12 +85,25 @@ mod windows {
             let game = ltrb(result.game_box.unwrap_or(game_rect));
             // 我's 场景 with nobody listed: the rose ring and badge alone.
             let extras = overlay::Extras { checking: None, mine: look == Look::Liked && result.likes.is_empty() };
-            if let Err(error) = window.show_with(game, &overlay_result(result), &self.look, extras) {
-                self.errors.push(format!("Overlay: not shown: {error}"));
+            match window.show_faded(game, &overlay_result(result), &self.look, extras, 0) {
+                Ok(shown) => self.fading = shown.then(Instant::now),
+                Err(error) => self.errors.push(format!("Overlay: not shown: {error}")),
+            }
+        }
+
+        fn tick(&mut self) {
+            let (Some(since), Some(window)) = (self.fading, self.window.as_mut()) else { return };
+            let opacity = fade_opacity(since.elapsed().as_millis());
+            if opacity.is_none() {
+                self.fading = None;
+            }
+            if let Err(error) = window.set_opacity(opacity.unwrap_or(255)) {
+                self.errors.push(format!("Overlay: fade: {error}"));
             }
         }
 
         fn hide(&mut self) {
+            self.fading = None;
             if let Some(window) = self.window.as_mut() {
                 window.hide();
             }
@@ -110,6 +132,14 @@ mod tests {
         assert_eq!(shown.seats[0].rect, [10, 20, 110, 50]);
         assert_eq!(shown.seats[0].kind, overlay::SeatKind::Blacklist { tags: vec!["挂机".into()] });
         assert_eq!(shown.seats[1].kind, overlay::SeatKind::Guest);
+    }
+
+    #[test]
+    fn the_marks_fade_in_over_120_ms() {
+        assert_eq!(fade_opacity(0), Some(0));
+        assert_eq!(fade_opacity(60), Some(127));
+        assert_eq!(fade_opacity(119), Some(252));
+        assert_eq!(fade_opacity(120), None);
     }
 
     #[test]
