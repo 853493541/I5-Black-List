@@ -31,7 +31,7 @@ On push to `feature/rust` or `feature/rust-preview`, or by hand (workflow_dispat
 
 1. OpenCV 4.10 static (cache shared with `rust.yml`), `cargo build --release --features preview`.
 2. Models: PP-OCRv5_mobile_det, PP-OCRv5_mobile_rec, PP-OCRv6_medium_rec from PaddleX's `paddle3.0.0` tarballs,
-   converted with paddle2onnx 2.1.0 at opset 11 (paddlepaddle 3.0.0), cached.
+   converted with paddle2onnx 2.1.0 at opset 11 (paddlepaddle 3.2.2, the oldest release paddle2onnx 2.1.0 takes after 3.0.0), cached.
 3. Folder `模仿者小工具 Rust 预览\`: the exe, `onnxruntime.dll` (1.32, from the pip wheel), `models\`, `assets\`,
    `使用说明.txt` (`rust/app/preview/使用说明.txt`, written as UTF-8 with BOM and CRLF).
 4. Smoke: a temp `%APPDATA%` with a made-up v1.0.1 list; `--quit-after-start` must log every start-up step ok, the

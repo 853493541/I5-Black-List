@@ -86,12 +86,12 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/models
-          key: ocr-models-v5det-v5rec-v6rec-paddle3.0.0-p2o${{ env.PADDLE2ONNX_VERSION }}-op11-v1
+          key: ocr-models-v5det-v5rec-v6rec-pd3.2.2-paddle3.0.0-p2o${{ env.PADDLE2ONNX_VERSION }}-op11-v1
       - name: Convert OCR models
         if: steps.models-cache.outputs.cache-hit != 'true'
         working-directory: ${{ runner.temp }}
         run: |
-          python -m pip install -q setuptools paddlepaddle==3.0.0 paddle2onnx==$PADDLE2ONNX_VERSION
+          python -m pip install -q setuptools paddlepaddle==3.2.2 paddle2onnx==$PADDLE2ONNX_VERSION
           mkdir -p tarballs models
           for model in PP-OCRv5_mobile_det PP-OCRv5_mobile_rec PP-OCRv6_medium_rec; do
             curl -sSfL --retry 3 -o "tarballs/$model.tar" "$MODEL_URL/${model}_infer.tar"
