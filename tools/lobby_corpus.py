@@ -283,7 +283,7 @@ def parts(video: dict) -> list[dict]:
     if len(pages) <= 1:
         return [video]
     return [{"id": f"{video['id']}_p{n}", "url": f"https://www.bilibili.com/video/{found.group(1)}?p={n}",
-             "title": f"{video['title']} P{n}"} for n in range(1, len(pages) + 1)]
+             "title": video["title"] and f"{video['title']} P{n}"} for n in range(1, len(pages) + 1)]
 
 
 def list_videos(url: str) -> list[dict]:
@@ -352,13 +352,22 @@ def process(video: dict, per_video: int) -> int:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("url")
+    parser.add_argument("urls", nargs="+", help="a series list URL, or one or more video URLs or BV ids")
     parser.add_argument("--max-videos", type=int, default=1)
     parser.add_argument("--per-video", type=int, default=0, help="keep at most this many lobbies per video (0: all)")
+    parser.add_argument("--part", type=int, default=0, help="scan only this part of each replay (0: every part)")
     args = parser.parse_args()
+    videos = []
+    for url in args.urls:
+        if url.startswith("BV"):
+            url = f"https://www.bilibili.com/video/{url}"
+        videos += list_videos(url) if "space.bilibili.com" in url else [{"id": url.rsplit("/", 1)[-1], "url": url,
+                                                                         "title": None}]
     total = 0
-    for video in list_videos(args.url)[: args.max_videos]:
+    for video in videos[: args.max_videos]:
         for part in parts(video):
+            if args.part and not part["id"].endswith(f"_p{args.part}") and not (args.part == 1 and "_p" not in part["id"]):
+                continue
             try:
                 total += process(part, args.per_video)
             except (RuntimeError, OSError, subprocess.SubprocessError) as error:
