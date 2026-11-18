@@ -293,34 +293,49 @@ impl Checker {
                 confidence,
                 unclear,
             };
-            let label = NameLabel { raw: normalize_text(&raw), visible: slot.visible.clone(), truncated: slot.truncated, unclear };
-            let shown = if slot.visible.is_empty() { visible } else { slot.visible.clone() };
-            for found in match_label(&label, blacklist) {
-                let entry = &blacklist[found.index];
-                let note = describe_entry(entry);
-                result.hits.push(Hit {
-                    index,
-                    read_text: shown.clone(),
-                    entry: found.index,
-                    entry_name: entry.name.clone(),
-                    line: lobby::format_hit(&shown, &entry.name, &note),
-                    note,
-                    truncated: slot.truncated,
-                    tags: entry.tags.clone(),
-                });
-            }
             result.names.push(slot);
         }
-        result.likes = likes_in(&result, likes);
+        (result.hits, result.likes) = mark_names(&result.names, blacklist, likes);
         result.message = message(anchor, &result);
         Ok(result)
     }
 }
 
+/// The warnings of _read_names and the 嘉宾 of ui._likes_in for seats already read.
+pub fn mark_names(names: &[NameSlot], blacklist: &[Entry], likes: &[Entry]) -> (Vec<Hit>, Vec<(usize, usize)>) {
+    let mut hits = Vec::new();
+    for slot in names {
+        let label = NameLabel { raw: normalize_text(&slot.raw), visible: slot.visible.clone(), truncated: slot.truncated, unclear: slot.unclear };
+        // shown: what was read, the ellipsis restored, even when too unclear to keep.
+        let shown = if slot.visible.is_empty() { shown_read(&slot.raw) } else { slot.visible.clone() };
+        for found in match_label(&label, blacklist) {
+            let entry = &blacklist[found.index];
+            let note = describe_entry(entry);
+            hits.push(Hit {
+                index: slot.index,
+                read_text: shown.clone(),
+                entry: found.index,
+                entry_name: entry.name.clone(),
+                line: lobby::format_hit(&shown, &entry.name, &note),
+                note,
+                truncated: slot.truncated,
+                tags: entry.tags.clone(),
+            });
+        }
+    }
+    let likes = likes_in(names, &hits, likes);
+    (hits, likes)
+}
+
+/// The visible part of a read, as _read_names keeps it for a seat too unclear to show.
+fn shown_read(raw: &str) -> String {
+    strip_noise(&split_ellipsis(raw).0)
+}
+
 /// ui._likes_in: 嘉宾 in the lobby, in seat order, each once; a 黑名单 player's seat is no 嘉宾's.
-pub fn likes_in(result: &CheckResult, likes: &[Entry]) -> Vec<(usize, usize)> {
+pub fn likes_in(names: &[NameSlot], hits: &[Hit], likes: &[Entry]) -> Vec<(usize, usize)> {
     let mut found: Vec<(usize, usize)> = Vec::new();
-    for slot in result.names.iter().filter(|slot| result.hits.iter().all(|hit| hit.index != slot.index)) {
+    for slot in names.iter().filter(|slot| hits.iter().all(|hit| hit.index != slot.index)) {
         let label = NameLabel { raw: slot.raw.clone(), visible: slot.visible.clone(), truncated: slot.truncated, unclear: slot.unclear };
         for matched in match_label(&label, likes) {
             if found.iter().all(|seen| seen.1 != matched.index) {
