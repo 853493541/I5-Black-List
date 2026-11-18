@@ -1,0 +1,513 @@
+	-	-	
+ 	-	-	 
+  	-	-	  
+  + x +0	-	-	  + x +0
+  + x +ab	-	-	  + x +ab
+  ++	-	-	  ++
+  +++ x 	-	-	  +++ x 
+  +++A	-	-	  +++A
+  +++V	-	-	  +++V
+  +++shift	-	-	  +++shift
+  +0+Alt	-	-	  +0+Alt
+  +9+F01	-	-	  +9+F01
+  +Alt	-	-	  +Alt
+  +Ctrl	-	-	  +Ctrl
+  +F12	-	-	  +F12
+  +c	-	-	  +c
+  +f1	-	-	  +f1
+  +super	-	-	  +super
+ x 	-	-	 x 
+ x +Ctrl	-	-	 x +Ctrl
+ x +F+b	-	-	 x +F+b
+ x +F+meta	-	-	 x +F+meta
+ x +F8	-	-	 x +F8
+ x +F8+z	-	-	 x +F8+z
+ x +alt	Alt+X	88:16385	 x +alt
+ x +f1+z	-	-	 x +f1+z
+ x +f13	-	-	 x +f13
+ x +super	-	-	 x +super
+ x +win	-	-	 x +win
+ x +win+F12	-	-	 x +win+F12
+ x +z+Ctrl	-	-	 x +z+Ctrl
+ x +z+f1	-	-	 x +z+f1
+ x +é+F8	-	-	 x +é+F8
++	-	-	+
+++ x 	-	-	++ x 
+++F10	-	-	++F10
+++F8+K	-	-	++F8+K
+++K	-	-	++K
+++V	-	-	++V
+++alt	-	-	++alt
+++ctrl	-	-	++ctrl
+++shift	-	-	++shift
++9+CONTROL	-	-	+9+CONTROL
++F+A	-	-	+F+A
++F0+b	-	-	+F0+b
++F12+F0	-	-	+F12+F0
++F8	-	-	+F8
++K	-	-	+K
++V+meta	-	-	+V+meta
++ab+F12	-	-	+ab+F12
++alt+F12	-	-	+alt+F12
++c+  	-	-	+c+  
++é+win	-	-	+é+win
+0	-	-	0
+0+	-	-	0+
+0+A+V	-	-	0+A+V
+0+Alt	Alt+0	48:16385	0+Alt
+0+Alt+  	-	-	0+Alt+  
+0+Ctrl	Ctrl+0	48:16386	0+Ctrl
+0+F01	-	-	0+F01
+0+F8	-	-	0+F8
+0+K	-	-	0+K
+0+Q+Q	-	-	0+Q+Q
+0+ab	-	-	0+ab
+0+ab+V	-	-	0+ab+V
+0+ctrl	Ctrl+0	48:16386	0+ctrl
+0+ctrl+F0	-	-	0+ctrl+F0
+0+f1+F10	-	-	0+f1+F10
+0+f13+F01	-	-	0+f13+F01
+0+super	-	-	0+super
+0+super+é	-	-	0+super+é
+0+win+win	-	-	0+win+win
+0+z+F10	-	-	0+z+F10
+0+z+Q	-	-	0+z+Q
+9	-	-	9
+9+	-	-	9+
+9+  +F4	-	-	9+  +F4
+9+9+meta	-	-	9+9+meta
+9+Alt	Alt+9	57:16385	9+Alt
+9+CONTROL+é	-	-	9+CONTROL+é
+9+F0	-	-	9+F0
+9+K+	-	-	9+K+
+9+ctrl+c	-	-	9+ctrl+c
+9+shift	-	-	9+shift
+9+shift+ab	-	-	9+shift+ab
+A	-	-	A
+A+  	-	-	A+  
+A++	-	-	A++
+A+A	-	-	A+A
+A+A+F01	-	-	A+A+F01
+A+A+F8	-	-	A+A+F8
+A+CONTROL	-	-	A+CONTROL
+A+Ctrl+Ctrl	-	-	A+Ctrl+Ctrl
+A+F0	-	-	A+F0
+A+F12	-	-	A+F12
+A+F4	-	-	A+F4
+A+F8+0	-	-	A+F8+0
+A+K	-	-	A+K
+A+V	-	-	A+V
+A+V+alt	-	-	A+V+alt
+A+ab	-	-	A+ab
+A+z	-	-	A+z
+Alt	-	-	Alt
+Alt+  	-	-	Alt+  
+Alt+ x 	Alt+X	88:16385	Alt+ x 
+Alt+++  	-	-	Alt+++  
+Alt++F12	-	-	Alt++F12
+Alt+9	Alt+9	57:16385	Alt+9
+Alt+CONTROL+Alt	-	-	Alt+CONTROL+Alt
+Alt+CONTROL+F4	Ctrl+Alt+F4	115:16387	Ctrl+F4
+Alt+F01	Alt+F1	112:16385	Alt+F01
+Alt+F01+alt	Alt+F1	112:16385	Alt+F01+alt
+Alt+F12	Alt+F12	123:16385	Alt+F12
+Alt+F4	-	-	Alt+F4
+Alt+Q+F12	-	-	Alt+Q+F12
+Alt+Shift+K	Alt+Shift+K	75:16389	Alt+K
+Alt+ab	-	-	Alt+ab
+Alt+b+A	-	-	Alt+b+A
+Alt+meta	-	-	Alt+meta
+CONTROL	-	-	CONTROL
+CONTROL+9+F12	-	-	CONTROL+9+F12
+CONTROL+9+ctrl	Ctrl+9	57:16386	CONTROL+9+ctrl
+CONTROL+CONTROL+F	-	-	CONTROL+CONTROL+F
+CONTROL+CONTROL+shift	-	-	CONTROL+CONTROL+shift
+CONTROL+Ctrl+alt	-	-	CONTROL+Ctrl+alt
+CONTROL+Ctrl+meta	-	-	CONTROL+Ctrl+meta
+CONTROL+F0+f1	-	-	CONTROL+F0+f1
+CONTROL+F01	Ctrl+F1	112:16386	CONTROL+F01
+CONTROL+F01+K	-	-	CONTROL+F01+K
+CONTROL+F10	Ctrl+F10	121:16386	CONTROL+F10
+CONTROL+F10+Alt	Ctrl+Alt+F10	121:16387	Ctrl+F10
+CONTROL+F12+9	-	-	CONTROL+F12+9
+CONTROL+Q+b	-	-	CONTROL+Q+b
+CONTROL+c	-	-	CONTROL+c
+CONTROL+ctrl	-	-	CONTROL+ctrl
+CONTROL+f1+A	-	-	CONTROL+f1+A
+CONTROL+meta++	-	-	CONTROL+meta++
+CONTROL+super+CONTROL	-	-	CONTROL+super+CONTROL
+Ctrl	-	-	Ctrl
+Ctrl+ x 	-	-	Ctrl+ x 
+Ctrl++B	-	-	Ctrl++B
+Ctrl+0	Ctrl+0	48:16386	Ctrl+0
+Ctrl+A+B	-	-	Ctrl+A+B
+Ctrl+A+F12	-	-	Ctrl+A+F12
+Ctrl+Alt+F11	Ctrl+Alt+F11	122:16387	Ctrl+F11
+Ctrl+Alt+meta	-	-	Ctrl+Alt+meta
+Ctrl+CONTROL	-	-	Ctrl+CONTROL
+Ctrl+F12	Ctrl+F12	123:16386	Ctrl+F12
+Ctrl+F8	Ctrl+F8	119:16386	Ctrl+F8
+Ctrl+Q	Ctrl+Q	81:16386	Ctrl+Q
+Ctrl+V	-	-	Ctrl+V
+Ctrl+V+Ctrl	-	-	Ctrl+V+Ctrl
+Ctrl+V+F8	-	-	Ctrl+V+F8
+Ctrl+ab	-	-	Ctrl+ab
+Ctrl+c+f1	-	-	Ctrl+c+f1
+Ctrl+f1+win	Ctrl+Win+F1	112:16394	Ctrl+F1
+Ctrl+super	-	-	Ctrl+super
+F	-	-	F
+F+  +CONTROL	-	-	F+  +CONTROL
+F+  +F4	-	-	F+  +F4
+F++	-	-	F++
+F++b	-	-	F++b
+F+0	-	-	F+0
+F+0+K	-	-	F+0+K
+F+Alt	Alt+F	70:16385	F+Alt
+F+F12	-	-	F+F12
+F+F4	-	-	F+F4
+F+F8	-	-	F+F8
+F+V+  	-	-	F+V+  
+F+ab	-	-	F+ab
+F+b+c	-	-	F+b+c
+F+meta	-	-	F+meta
+F+shift	-	-	F+shift
+F+é	-	-	F+é
+F0	-	-	F0
+F0+ x 	-	-	F0+ x 
+F0+0+F	-	-	F0+0+F
+F0+A	-	-	F0+A
+F0+CONTROL	-	-	F0+CONTROL
+F0+F++	-	-	F0+F++
+F0+F01	-	-	F0+F01
+F0+F10	-	-	F0+F10
+F0+F12	-	-	F0+F12
+F0+F4+win	-	-	F0+F4+win
+F0+ab	-	-	F0+ab
+F0+alt+ctrl	-	-	F0+alt+ctrl
+F0+b+f1	-	-	F0+b+f1
+F0+c+V	-	-	F0+c+V
+F0+é	-	-	F0+é
+F01	F1	112:16384	F01
+F01++V	-	-	F01++V
+F01+9	-	-	F01+9
+F01+9+Q	-	-	F01+9+Q
+F01+F+ctrl	-	-	F01+F+ctrl
+F01+F01	-	-	F01+F01
+F01+F10	-	-	F01+F10
+F01+F4	-	-	F01+F4
+F01+V+F01	-	-	F01+V+F01
+F01+V+alt	-	-	F01+V+alt
+F01+alt	Alt+F1	112:16385	F01+alt
+F01+c+f13	-	-	F01+c+f13
+F01+c+shift	-	-	F01+c+shift
+F01+ctrl+Alt	Ctrl+Alt+F1	112:16387	Ctrl+F1
+F01+meta	Win+F1	112:16392	F01+meta
+F01+shift	Shift+F1	112:16388	F01+shift
+F01+super	Win+F1	112:16392	F01+super
+F01+super+CONTROL	Ctrl+Win+F1	112:16394	Ctrl+F1
+F10	F10	121:16384	F10
+F10+  +shift	-	-	F10+  +shift
+F10+ x +F12	-	-	F10+ x +F12
+F10+9+z	-	-	F10+9+z
+F10+A+F12	-	-	F10+A+F12
+F10+CONTROL+ctrl	Ctrl+F10	121:16386	F10+CONTROL+ctrl
+F10+Ctrl+V	-	-	F10+Ctrl+V
+F10+F10	-	-	F10+F10
+F10+F8+ab	-	-	F10+F8+ab
+F10+V	-	-	F10+V
+F10+b+super	-	-	F10+b+super
+F10+c+F	-	-	F10+c+F
+F10+super+CONTROL	Ctrl+Win+F10	121:16394	Ctrl+F10
+F12	-	-	F12
+F12+  	-	-	F12+  
+F12+0	-	-	F12+0
+F12+F+f13	-	-	F12+F+f13
+F12+F01	-	-	F12+F01
+F12+F12	-	-	F12+F12
+F12+F12+0	-	-	F12+F12+0
+F12+Q	-	-	F12+Q
+F12+ab+F8	-	-	F12+ab+F8
+F12+alt+f13	-	-	F12+alt+f13
+F12+c	-	-	F12+c
+F12+c+F4	-	-	F12+c+F4
+F12+c+ab	-	-	F12+c+ab
+F12+c+é	-	-	F12+c+é
+F12+ctrl+win	Ctrl+Win+F12	123:16394	Ctrl+F12
+F12+f1	-	-	F12+f1
+F12+win+V	-	-	F12+win+V
+F12+win+b	-	-	F12+win+b
+F4	F4	115:16384	F4
+F4+Alt+V	-	-	F4+Alt+V
+F4+Ctrl	-	-	F4+Ctrl
+F4+F+alt	-	-	F4+F+alt
+F4+F10+K	-	-	F4+F10+K
+F4+F12	-	-	F4+F12
+F4+F4+ctrl	-	-	F4+F4+ctrl
+F4+F8	-	-	F4+F8
+F4+ab+Ctrl	-	-	F4+ab+Ctrl
+F4+alt	-	-	F4+alt
+F4+alt+9	-	-	F4+alt+9
+F4+ctrl+K	-	-	F4+ctrl+K
+F4+z+9	-	-	F4+z+9
+F4+é	-	-	F4+é
+F8	F8	119:16384	F8
+F8+	-	-	F8+
+F8+ x +F10	-	-	F8+ x +F10
+F8+0	-	-	F8+0
+F8+0+b	-	-	F8+0+b
+F8+9	-	-	F8+9
+F8+A+ x 	-	-	F8+A+ x 
+F8+F+0	-	-	F8+F+0
+F8+F+F	-	-	F8+F+F
+F8+F0	-	-	F8+F0
+F8+F4	-	-	F8+F4
+F8+F8	-	-	F8+F8
+F8+F8+A	-	-	F8+F8+A
+F8+K	-	-	F8+K
+F8+Q+b	-	-	F8+Q+b
+F8+ab+f1	-	-	F8+ab+f1
+F8+c	-	-	F8+c
+F8+c+K	-	-	F8+c+K
+F8+f13	-	-	F8+f13
+F8+meta	Win+F8	119:16392	F8+meta
+K	-	-	K
+K+  +A	-	-	K+  +A
+K++	-	-	K++
+K++meta	-	-	K++meta
+K+9	-	-	K+9
+K+b+F12	-	-	K+b+F12
+K+f13	-	-	K+f13
+K+shift+b	-	-	K+shift+b
+K+win+F8	-	-	K+win+F8
+K+é+0	-	-	K+é+0
+K+é+win	-	-	K+é+win
+Q	-	-	Q
+Q+	-	-	Q+
+Q+  +F12	-	-	Q+  +F12
+Q+ x 	-	-	Q+ x 
+Q+CONTROL	Ctrl+Q	81:16386	Q+CONTROL
+Q+CONTROL+K	-	-	Q+CONTROL+K
+Q+Ctrl	Ctrl+Q	81:16386	Q+Ctrl
+Q+F01	-	-	Q+F01
+Q+F10	-	-	Q+F10
+Q+F8	-	-	Q+F8
+Q+K	-	-	Q+K
+Q+ab	-	-	Q+ab
+Q+ab+meta	-	-	Q+ab+meta
+Q+c+f1	-	-	Q+c+f1
+Q+ctrl+F8	-	-	Q+ctrl+F8
+Q+meta	-	-	Q+meta
+Q+shift+  	-	-	Q+shift+  
+Q+é	-	-	Q+é
+Shift+F10	-	-	Shift+F10
+V	-	-	V
+V+  +Q	-	-	V+  +Q
+V++	-	-	V++
+V+9	-	-	V+9
+V+Ctrl+  	-	-	V+Ctrl+  
+V+F01+super	-	-	V+F01+super
+V+F10+F8	-	-	V+F10+F8
+V+K	-	-	V+K
+V+f13	-	-	V+f13
+V+meta	-	-	V+meta
+V+super	-	-	V+super
+V+é+ x 	-	-	V+é+ x 
+Win+D	-	-	Win+D
+ab	-	-	ab
+ab+  +alt	-	-	ab+  +alt
+ab+0	-	-	ab+0
+ab+0+Q	-	-	ab+0+Q
+ab+9	-	-	ab+9
+ab+Alt+9	-	-	ab+Alt+9
+ab+CONTROL+CONTROL	-	-	ab+CONTROL+CONTROL
+ab+Ctrl	-	-	ab+Ctrl
+ab+F0	-	-	ab+F0
+ab+F0+F10	-	-	ab+F0+F10
+ab+F4	-	-	ab+F4
+ab+F4+9	-	-	ab+F4+9
+ab+F4+F0	-	-	ab+F4+F0
+ab+F8	-	-	ab+F8
+ab+K+super	-	-	ab+K+super
+ab+Q	-	-	ab+Q
+ab+b+A	-	-	ab+b+A
+ab+c	-	-	ab+c
+ab+ctrl	-	-	ab+ctrl
+ab+shift+alt	-	-	ab+shift+alt
+ab+super	-	-	ab+super
+ab+z	-	-	ab+z
+ab+z+ x 	-	-	ab+z+ x 
+ab+é	-	-	ab+é
+alt	-	-	alt
+alt+	-	-	alt+
+alt+  +F	-	-	alt+  +F
+alt+9+Ctrl	Ctrl+Alt+9	57:16387	Ctrl+9
+alt+A+Q	-	-	alt+A+Q
+alt+Ctrl+Q	Ctrl+Alt+Q	81:16387	Ctrl+Q
+alt+F0+F12	-	-	alt+F0+F12
+alt+F12+0	-	-	alt+F12+0
+alt+F4+0	-	-	alt+F4+0
+alt+V	Alt+V	86:16385	alt+V
+alt+ctrl+Alt	-	-	alt+ctrl+Alt
+alt+f13	-	-	alt+f13
+alt+super	-	-	alt+super
+alt+win+ctrl	-	-	alt+win+ctrl
+alt+z	Alt+Z	90:16385	alt+z
+alt+z+Q	-	-	alt+z+Q
+b	-	-	b
+b+0+	-	-	b+0+
+b+Alt+win	Alt+Win+B	66:16393	Alt+B
+b+F+f13	-	-	b+F+f13
+b+F0+9	-	-	b+F0+9
+b+F12	-	-	b+F12
+b+F4	-	-	b+F4
+b+F8+V	-	-	b+F8+V
+b+K+f1	-	-	b+K+f1
+b+alt	Alt+B	66:16385	b+alt
+b+b	-	-	b+b
+b+c	-	-	b+c
+b+c+meta	-	-	b+c+meta
+b+ctrl	Ctrl+B	66:16386	b+ctrl
+b+ctrl+CONTROL	Ctrl+B	66:16386	b+ctrl+CONTROL
+b+f1	-	-	b+f1
+b+f13+F	-	-	b+f13+F
+b+super+ctrl	Ctrl+Win+B	66:16394	Ctrl+B
+b+win+ctrl	Ctrl+Win+B	66:16394	Ctrl+B
+c	-	-	c
+c+  +f1	-	-	c+  +f1
+c+Alt	Alt+C	67:16385	c+Alt
+c+F01	-	-	c+F01
+c+F10+shift	-	-	c+F10+shift
+c+F12+Ctrl	-	-	c+F12+Ctrl
+c+F12+F0	-	-	c+F12+F0
+c+V+f1	-	-	c+V+f1
+c+ab	-	-	c+ab
+c+ctrl+0	-	-	c+ctrl+0
+c+f13	-	-	c+f13
+c+super	-	-	c+super
+c+win+	-	-	c+win+
+c+é	-	-	c+é
+ctrl	-	-	ctrl
+ctrl++	-	-	ctrl++
+ctrl++F01	-	-	ctrl++F01
+ctrl+Alt	-	-	ctrl+Alt
+ctrl+F01+A	-	-	ctrl+F01+A
+ctrl+F10	Ctrl+F10	121:16386	ctrl+F10
+ctrl+F12	Ctrl+F12	123:16386	ctrl+F12
+ctrl+alt+	-	-	ctrl+alt+
+ctrl+alt+A	Ctrl+Alt+A	65:16387	Ctrl+A
+ctrl+b+F12	-	-	ctrl+b+F12
+ctrl+ctrl	-	-	ctrl+ctrl
+ctrl+super	-	-	ctrl+super
+ctrl+é+F10	-	-	ctrl+é+F10
+f1	F1	112:16384	f1
+f1+ x 	-	-	f1+ x 
+f1+ x +  	-	-	f1+ x +  
+f1++	-	-	f1++
+f1+CONTROL	Ctrl+F1	112:16386	f1+CONTROL
+f1+F10	-	-	f1+F10
+f1+F12+F0	-	-	f1+F12+F0
+f1+Q+0	-	-	f1+Q+0
+f1+shift	Shift+F1	112:16388	f1+shift
+f1+super++	-	-	f1+super++
+f1+win	Win+F1	112:16392	f1+win
+f1+z+meta	-	-	f1+z+meta
+f1+é+V	-	-	f1+é+V
+f1+é+b	-	-	f1+é+b
+f13	-	-	f13
+f13+	-	-	f13+
+f13+ x 	-	-	f13+ x 
+f13+++CONTROL	-	-	f13+++CONTROL
+f13+9+K	-	-	f13+9+K
+f13+CONTROL	-	-	f13+CONTROL
+f13+Ctrl	-	-	f13+Ctrl
+f13+F	-	-	f13+F
+f13+K+Q	-	-	f13+K+Q
+f13+Q+F12	-	-	f13+Q+F12
+f13+V+F0	-	-	f13+V+F0
+f13+ab	-	-	f13+ab
+f13+f13+  	-	-	f13+f13+  
+f13+meta	-	-	f13+meta
+meta	-	-	meta
+meta+0	-	-	meta+0
+meta+F0+F0	-	-	meta+F0+F0
+meta+F10	Win+F10	121:16392	meta+F10
+meta+K+F10	-	-	meta+K+F10
+meta+alt	-	-	meta+alt
+meta+alt+  	-	-	meta+alt+  
+meta+alt+0	Alt+Win+0	48:16393	Alt+0
+meta+shift+é	-	-	meta+shift+é
+meta+win	-	-	meta+win
+shift	-	-	shift
+shift+ x +ab	-	-	shift+ x +ab
+shift+9+win	Shift+Win+9	57:16396	Shift+9
+shift+A	-	-	shift+A
+shift+Alt	-	-	shift+Alt
+shift+CONTROL	-	-	shift+CONTROL
+shift+F0+b	-	-	shift+F0+b
+shift+F12	Shift+F12	123:16388	shift+F12
+shift+F12+f1	-	-	shift+F12+f1
+shift+F4	Shift+F4	115:16388	shift+F4
+shift+K	-	-	shift+K
+shift+Q+  	-	-	shift+Q+  
+shift+b++	-	-	shift+b++
+shift+b+Q	-	-	shift+b+Q
+shift+c+Ctrl	Ctrl+Shift+C	67:16390	Ctrl+C
+shift+ctrl+b	Ctrl+Shift+B	66:16390	Ctrl+B
+shift+f1	Shift+F1	112:16388	shift+f1
+shift+f13	-	-	shift+f13
+shift+f13+shift	-	-	shift+f13+shift
+shift+z	-	-	shift+z
+super	-	-	super
+super+  	-	-	super+  
+super+CONTROL	-	-	super+CONTROL
+super+F10	Win+F10	121:16392	super+F10
+super+ab	-	-	super+ab
+super+c	-	-	super+c
+super+ctrl	-	-	super+ctrl
+super+shift+F	Shift+Win+F	70:16396	Shift+F
+super+win+9	-	-	super+win+9
+super+é+f1	-	-	super+é+f1
+super+é+z	-	-	super+é+z
+win	-	-	win
+win++f1	-	-	win++f1
+win+0+K	-	-	win+0+K
+win+9	-	-	win+9
+win+Alt+A	Alt+Win+A	65:16393	Alt+A
+win+Alt+F12	Alt+Win+F12	123:16393	Alt+F12
+win+Alt+super	-	-	win+Alt+super
+win+F+	-	-	win+F+
+win+F10	Win+F10	121:16392	win+F10
+win+F10+9	-	-	win+F10+9
+win+F10+CONTROL	Ctrl+Win+F10	121:16394	Ctrl+F10
+win+F12+f1	-	-	win+F12+f1
+win+K	-	-	win+K
+win+Q+A	-	-	win+Q+A
+win+Q+Q	-	-	win+Q+Q
+win+ab	-	-	win+ab
+win+alt	-	-	win+alt
+win+b+	-	-	win+b+
+win+ctrl+F4	Ctrl+Win+F4	115:16394	Ctrl+F4
+win+f1	Win+F1	112:16392	win+f1
+win+é+z	-	-	win+é+z
+z	-	-	z
+z+F+ctrl	-	-	z+F+ctrl
+z+F01+Alt	-	-	z+F01+Alt
+z+F4+Q	-	-	z+F4+Q
+z+F8+b	-	-	z+F8+b
+z+ab+F01	-	-	z+ab+F01
+z+b	-	-	z+b
+z+ctrl	-	-	z+ctrl
+z+f1+super	-	-	z+f1+super
+z+f13	-	-	z+f13
+é	-	-	é
+é+ x 	-	-	é+ x 
+é+0+F01	-	-	é+0+F01
+é+CONTROL++	-	-	é+CONTROL++
+é+F	-	-	é+F
+é+F0	-	-	é+F0
+é+F12	-	-	é+F12
+é+K	-	-	é+K
+é+V	-	-	é+V
+é+f13	-	-	é+f13
+é+z+é	-	-	é+z+é
+é+é	-	-	é+é
