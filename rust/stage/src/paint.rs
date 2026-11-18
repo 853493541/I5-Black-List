@@ -42,7 +42,10 @@ impl Gpu {
         let adapter =
             pollster::block_on(instance.request_adapter(&options)).map_err(|e| e.to_string())?;
         let (device, queue) =
-            pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
+            pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+                required_limits: adapter.limits(),
+                ..Default::default()
+            }))
                 .map_err(|e| e.to_string())?;
         Ok(Self {
             instance,
@@ -268,6 +271,11 @@ impl Painter {
     pub fn set_still(&self, gpu: &Gpu, frame: &Frame) {
         let view = self.still.create_view(&Default::default());
         self.draw(gpu, frame, &self.still_pipeline, &view, &self.blank);
+    }
+
+    /// The still picture's texture (Rgba8Unorm, this painter's size), for `Scene::draw_into`.
+    pub fn still_texture(&self) -> &wgpu::Texture {
+        &self.still
     }
 
     /// A frame a scene drew itself (`Scene::pixels`): premultiplied RGBA bytes of this painter's size

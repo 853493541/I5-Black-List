@@ -30,6 +30,30 @@ pub trait Scene {
     fn pixels(&mut self, _t: f64) -> Option<Vec<u8>> {
         None
     }
+    /// A scene made on the stage's device (`make_on`): draws its frame at t straight into `still` (the
+    /// window's still texture, `Overlay::still_texture`) by a copy on the chip; false when it cannot
+    /// (shapes, or a device of its own), and `shoot` is used instead.
+    fn draw_into(&mut self, _t: f64, _still: &wgpu::Texture) -> bool {
+        false
+    }
+}
+
+/// What the window shows at t when the still texture can be written on the chip: the frame, the scene's
+/// own picture (if any) copied into `still` first, read back only for a scene on a device of its own.
+pub fn shoot_into(scene: &mut dyn Scene, t: f64, still: &wgpu::Texture) -> (Frame, Option<Vec<u8>>) {
+    if scene.draw_into(t, still) {
+        return (scene.frame(t), None);
+    }
+    shoot(scene, t)
+}
+
+/// `make` on the stage's device, so `shoot_into` copies frames on the chip; the app's path.
+pub fn make_on(key: &str, stage: &Stage, gpu: &crate::paint::Gpu) -> Option<Box<dyn Scene + Send>> {
+    let scene: Box<dyn Scene + Send> = match key {
+        "stars" => Box::new(Stars::make(stage)),
+        _ => Box::new(crate::scene_own::make_own_on(key, stage, gpu).ok()?),
+    };
+    Some(scene)
 }
 
 /// What the window shows at t: the frame, and the still picture's bytes to set first, when there are any.

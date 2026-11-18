@@ -68,11 +68,13 @@ fn pipeline(device: &wgpu::Device, layout: Option<&wgpu::PipelineLayout>, shader
 impl Renderer {
     /// A renderer for `scene` (its width a multiple of 64) over `lobby`, RGBA bytes of its size.
     pub fn new(scene: &Ice, lobby: &[u8]) -> Result<Self, String> {
+        Self::on(&crate::render::open()?, scene, lobby)
+    }
+
+    /// The same on a given device (the stage's, in the app).
+    pub fn on(chip: &crate::render::Chip, scene: &Ice, lobby: &[u8]) -> Result<Self, String> {
         let (width, height) = (scene.width as u32, scene.height as u32);
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor { backends: wgpu::Backends::all(), ..Default::default() });
-        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default())).map_err(|e| e.to_string())?;
-        let info = adapter.get_info();
-        let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default())).map_err(|e| e.to_string())?;
+        let (device, queue, info) = (chip.device.clone(), chip.queue.clone(), chip.info.clone());
         let storage = wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Storage { read_only: true }, has_dynamic_offset: false, min_binding_size: None };
         let tex = wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: true }, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false };
         let uniform = wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None };
@@ -181,6 +183,11 @@ impl Renderer {
     }
 
     /// The last frame as RGBA bytes.
+    /// The device, its queue and the texture the last frame was drawn into (for `render::deliver`).
+    pub fn drawn(&self) -> (&wgpu::Device, &wgpu::Queue, &wgpu::Texture) {
+        (&self.device, &self.queue, &self.target)
+    }
+
     pub fn read(&self) -> Vec<u8> {
         crate::render::read(&self.device, &self.queue, &self.target)
     }
