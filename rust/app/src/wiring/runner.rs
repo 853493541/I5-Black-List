@@ -4,6 +4,7 @@
 use super::flow::{Flow, Job, Ports};
 use super::life::{self, Close, Do, UpdateClock, UpdateLook};
 use super::startup::AppLog;
+use super::startup::VERSION;
 use super::stubs::{Tray, TrayAction, UpdateCheck};
 use super::watch::GLANCE_INTERVAL_MS;
 use super::worker::Worker;
@@ -65,6 +66,11 @@ impl Keys for SystemKeys {
 
 pub struct Runner {
     pub flow: Flow,
+    /// A newer release the last look found, for 发现新版本 to offer.
+    pub offer: Option<data::update::Release>,
+    /// The update being downloaded, and what it said since the window last took it (for the update dialog).
+    installing: Option<Receiver<super::updates::Install>>,
+    pub install_events: Vec<super::updates::Install>,
     pub store: Rc<RefCell<Store>>,
     pub log: AppLog,
     pub root: PathBuf,
@@ -73,6 +79,7 @@ pub struct Runner {
     keys: Box<dyn Keys>,
     update_check: Box<dyn UpdateCheck>,
     before_check: Option<BeforeCheck>,
+    placed: Option<Receiver<super::stubs::Rect>>,
     tray: Box<dyn Tray>,
     tray_actions: Receiver<TrayAction>,
     started_at: Instant,
@@ -96,6 +103,8 @@ pub struct Parts {
     pub installed: bool,
     /// Copies what the worker reads from the store (the lists, the scenes' sounds) before each check.
     pub before_check: Option<BeforeCheck>,
+    /// The button's box from a check that found the lobby (the checker's `placed`).
+    pub placed: Option<Receiver<super::stubs::Rect>>,
 }
 
 impl Runner {
@@ -103,6 +112,9 @@ impl Runner {
         let mode = life::mode_of(&store.borrow().settings);
         Runner {
             flow: Flow::new(mode, parts.ports),
+            offer: None,
+            installing: None,
+            install_events: Vec::new(),
             store,
             log,
             root,
@@ -111,6 +123,7 @@ impl Runner {
             keys: parts.keys,
             update_check: parts.update_check,
             before_check: parts.before_check,
+            placed: parts.placed,
             tray: parts.tray,
             tray_actions: parts.tray_actions,
             started_at: Instant::now(),
@@ -143,6 +156,9 @@ impl Runner {
     pub fn pump(&mut self) -> Vec<Do> {
         let now = self.now_ms();
         let seconds = now as f64 / 1000.0;
+        while let Some(button) = self.placed.as_ref().and_then(|placed| placed.try_recv().ok()) {
+            self.flow.lobby_placed(button);
+        }
         while let Ok(done) = self.worker.results.try_recv() {
             let next = self.flow.done(done, seconds);
             self.request(next);
@@ -151,7 +167,10 @@ impl Runner {
             if id == CHECK_HOTKEY {
                 self.check_now();
             }
-            // stub: stage (the 场景 hotkey's quick play, play_quick_scene)
+            if id == SCENE_HOTKEY {
+                let scene = self.store.borrow().settings.quick_scene.clone();
+                self.flow.quick_play(&scene, screen_rect(), seconds);
+            }
         }
         if now >= self.next_glance {
             self.next_glance = now + GLANCE_INTERVAL_MS;
@@ -164,6 +183,27 @@ impl Runner {
         self.flow.ports.scenes.tick();
         self.flow.ports.overlay.tick();
         self.flow.ports.notice.tick();
+        if let Some(events) = &self.installing {
+            let said: Vec<_> = events.try_iter().collect();
+            if said.iter().any(|event| !matches!(event, super::updates::Install::Progress(..))) {
+                self.installing = None;
+            }
+            for event in &said {
+                if !matches!(event, super::updates::Install::Progress(..)) {
+                    self.log.info(&format!("Update: {event:?}"));
+                }
+            }
+            self.install_events.extend(said);
+        }
+        match self.update_check.poll() {
+            Some(Ok(Some(release))) => {
+                self.log.info(&format!("Update: {} is out.", release.version));
+                self.offer = Some(release);
+            }
+            Some(Ok(None)) => self.log.info("Update: this is the newest."),
+            Some(Err(error)) => self.log.warn(&format!("Update: {}", error.message())),
+            None => {}
+        }
         let mut asks = Vec::new();
         while let Ok(action) = self.tray_actions.try_recv() {
             match life::on_tray(action) {
@@ -179,6 +219,34 @@ impl Runner {
         if self.update_check.check() {
             self.log.info(&format!("Update: looking ({look:?})."));
         }
+    }
+
+    /// 检查更新 in 设置: a look now.
+    pub fn check_updates_now(&mut self) {
+        self.look_for_update(UpdateLook::Install);
+    }
+
+    /// 更新: download the release offered and stage it; false when there is none, or no release folder to stage in.
+    pub fn start_install(&mut self) -> bool {
+        let (Some(release), Some(install)) = (self.offer.clone(), super::startup::install_root()) else { return false };
+        if self.installing.is_some() {
+            return false;
+        }
+        let agent = VERSION.to_string();
+        let connect: super::updates::Connect = Box::new(move || Box::new(data::update::net::Net::new(&agent)));
+        self.log.info(&format!("Update: downloading {}.", release.version));
+        self.installing = Some(super::updates::install(release, self.root.clone(), install, connect));
+        true
+    }
+
+    /// 全局声音: 静音 stops what plays now.
+    pub fn set_muted(&mut self, muted: bool) {
+        self.flow.ports.player.set_muted(muted);
+    }
+
+    /// The hotkeys changed in 设置: the new ones replace the old.
+    pub fn set_keys(&mut self, keys: Box<dyn Keys>) {
+        self.keys = keys;
     }
 
     /// The window is in front again.
@@ -231,3 +299,15 @@ impl Runner {
     }
 }
 
+
+/// The whole desktop, where the 场景 hotkey plays with no lobby found yet.
+#[cfg(windows)]
+fn screen_rect() -> super::stubs::Rect {
+    let screen = win::capture::virtual_screen();
+    super::stubs::Rect { x: screen.left, y: screen.top, w: screen.width, h: screen.height }
+}
+
+#[cfg(not(windows))]
+fn screen_rect() -> super::stubs::Rect {
+    super::stubs::Rect { x: 0, y: 0, w: 1920, h: 1080 }
+}

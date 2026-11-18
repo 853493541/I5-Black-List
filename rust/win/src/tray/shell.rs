@@ -169,7 +169,7 @@ fn add_icon(hwnd: HWND, state: &State) {
     data.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP | NIF_SHOWTIP;
     data.uCallbackMessage = CALLBACK;
     data.hIcon = state.icon;
-    data.szTip = model::wide_fixed(model::TOOLTIP);
+    data.szTip = model::wide_fixed(model::tooltip());
     // SAFETY: data is a whole NOTIFYICONDATAW with its size set, alive for the call.
     let added = unsafe { Shell_NotifyIconW(NIM_ADD, &data) }.as_bool();
     if added {

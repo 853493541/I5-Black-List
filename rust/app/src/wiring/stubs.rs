@@ -118,6 +118,10 @@ pub trait Overlay {
     fn dress(&mut self, _scene: &str) {}
     /// One turn of the window's timer.
     fn tick(&mut self) {}
+    /// The gold 检查中 block on 准备案件还原 while a check reads the names.
+    fn checking(&mut self, _button: Rect) {}
+    /// The 400 ms glance: the marks move with the game's window.
+    fn follow(&mut self) {}
     fn show(&mut self, game_rect: Rect, result: &CheckResult, look: Look, target: Target);
     fn hide(&mut self);
 }
@@ -205,6 +209,10 @@ pub trait LiveHimeWatch {
 pub trait UpdateCheck {
     /// Starts a look; false when one is already running.
     fn check(&mut self) -> bool;
+    /// The answer of the look that ran, once.
+    fn poll(&mut self) -> Option<super::updates::Found> {
+        None
+    }
 }
 
 // ---- the stand-ins -------------------------------------------------------------------------------

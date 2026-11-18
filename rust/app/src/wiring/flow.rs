@@ -2,7 +2,7 @@
 //! marks, the corner message, the 嘉宾 scene and its music. A state machine with time passed in, so it is tested
 //! with fakes; the runner does the jobs it asks for on a worker thread and hands back what they found.
 
-use super::stubs::{CheckError, CheckResult, Look, Notice, NoticeKind, Overlay, Player, ScenePlayer, Stage, Target};
+use super::stubs::{CheckError, CheckResult, Look, Rect, Notice, NoticeKind, Overlay, Player, ScenePlayer, Stage, Target};
 use super::watch::LobbyWatch;
 
 /// Work for the worker thread: one at a time (CheckWorker).
@@ -98,6 +98,10 @@ pub struct Flow {
     glance_pause_until: f64,
     check_started: Option<f64>,
     played: Option<Greeting>,
+    /// The last lobby's game and button, as a check found them (the 场景 hotkey plays there).
+    pub(super) last_game: Option<(Rect, Rect)>,
+    /// When the 场景 hotkey's play ends.
+    pub(super) quick_until: Option<f64>,
 }
 
 impl Flow {
@@ -117,11 +121,18 @@ impl Flow {
             glance_pause_until: 0.0,
             check_started: None,
             played: None,
+            last_game: None,
+            quick_until: None,
         }
     }
 
     pub fn busy(&self) -> bool {
         self.busy
+    }
+
+    /// Whether a lobby's marks are up.
+    pub fn marks_shown(&self) -> bool {
+        self.panel_shown
     }
 
     /// Whether the 400 ms glance timer runs: in 自动检查, and while marks are up (to take them down).
@@ -147,6 +158,12 @@ impl Flow {
 
     /// The glance timer (_auto_tick).
     pub fn tick(&mut self, now: f64) -> Option<Job> {
+        if self.quick_until.is_some_and(|until| now >= until) {
+            self.end_quick();
+        }
+        if self.panel_shown {
+            self.ports.overlay.follow();
+        }
         if !self.watching() || now < self.glance_pause_until || self.ports.scenes.covers_screen() || self.busy {
             return None;
         }
@@ -160,11 +177,16 @@ impl Flow {
             return false;
         }
         // A real lobby comes first: the 场景 hotkey's play gives way.
+        self.end_quick();
         self.ports.scenes.stop();
         self.live = true;
         self.busy = true;
         self.check_started = Some(now);
         if !self.rescan {
+            if let (true, Some((_, button))) = (self.panel_shown, self.last_game) {
+                // The marks up turn into 检查中 at once.
+                self.ports.overlay.checking(button);
+            }
             self.status = Status::Checking;
             if self.mode.safe {
                 self.ports.notice.show(NoticeKind::Checking);
@@ -327,6 +349,7 @@ impl Flow {
             self.hide_marks();
             return;
         };
+        self.last_game = Some((result.game_box.unwrap_or(game), game));
         self.ports.overlay.dress(&greeting.scene);
         self.ports.overlay.show(game, result, look, target);
         self.panel_shown = true;
@@ -338,6 +361,14 @@ impl Flow {
             self.played = Some(greeting);
         }
         self.say(format!("Check {} shown: {look:?}.", self.check_number));
+    }
+
+    /// The check found the lobby and its button, before reading the names (_on_lobby_placed): 检查中 on it.
+    pub fn lobby_placed(&mut self, button: Rect) {
+        if !self.live || !self.busy || self.mode.target().is_none() {
+            return;
+        }
+        self.ports.overlay.checking(button);
     }
 
     /// Everything over the game comes down (_hide_panel_after_title).

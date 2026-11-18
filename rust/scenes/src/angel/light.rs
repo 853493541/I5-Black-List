@@ -64,7 +64,7 @@ pub fn shafts(width: f64, height: f64, gap: Rect, center: [f64; 2], radius: f64,
         })
         .collect();
     let (warm, pale) = (rgb("#ffd486"), rgb("#fff3d6"));
-    let layers = [3, 9].map(|seed| {
+    let layers = [3u64, 9].map(|seed| {
         let mut rnd = Pcg64::new(seed);
         let a = wave(&angle, 0.05, &mut rnd);
         let b = wave(&angle, 0.017, &mut rnd);

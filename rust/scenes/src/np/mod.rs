@@ -1,19 +1,22 @@
-//! numpy's default_rng(seed): SeedSequence feeding PCG64 (XSL-RR 128/64), with the draws the neon
-//! scene makes: random() as float64 and float32, and uniform. The same numbers as numpy for the same seed.
+//! numpy's default_rng(seed), the one port every scene draws from: SeedSequence feeding PCG64 (XSL-RR
+//! 128/64), and the draws the scenes make: random() as float64 and float32, uniform, and the standard
+//! normal and exponential by numpy's ziggurats (`zig`, its tables as numpy ships them). The same numbers
+//! as numpy for the same seed.
 
-use super::zig;
+mod zig;
 
 const MULT: u128 = 0x2360_ed05_1fc6_5da4_4385_df64_9fcc_f645;
 
-pub struct Rng {
+pub struct Pcg64 {
     state: u128,
     inc: u128,
     /// numpy's PCG64 hands out a 64-bit draw in two 32-bit halves, low half first.
     half: Option<u32>,
 }
 
-/// numpy.random.SeedSequence(seed).generate_state(4, uint64) for a seed below 2**32.
-fn seed_state(seed: u32) -> [u64; 4] {
+/// numpy.random.SeedSequence(seed).generate_state(4, uint64) for a seed below 2**64 (one or two words of
+/// entropy, low word first).
+fn seed_state(seed: u64) -> [u64; 4] {
     const INIT_A: u32 = 0x43b0_d7e5;
     const MULT_A: u32 = 0x931e_8875;
     const INIT_B: u32 = 0x8b51_f9dd;
@@ -31,7 +34,12 @@ fn seed_state(seed: u32) -> [u64; 4] {
     };
     let mut pool = [0u32; 4];
     for (i, slot) in pool.iter_mut().enumerate() {
-        *slot = hashmix(if i == 0 { seed } else { 0 });
+        let word = match i {
+            0 => seed as u32,
+            1 => (seed >> 32) as u32,
+            _ => 0,
+        };
+        *slot = hashmix(word);
     }
     for src in 0..4 {
         for dst in 0..4 {
@@ -53,9 +61,12 @@ fn seed_state(seed: u32) -> [u64; 4] {
     std::array::from_fn(|i| u64::from(words[2 * i]) | (u64::from(words[2 * i + 1]) << 32))
 }
 
-impl Rng {
-    pub fn new(seed: u32) -> Self {
-        let s = seed_state(seed);
+/// The name some scenes know it by.
+pub type Rng = Pcg64;
+
+impl Pcg64 {
+    pub fn new(seed: impl Into<u64>) -> Self {
+        let s = seed_state(seed.into());
         let initstate = (u128::from(s[0]) << 64) | u128::from(s[1]);
         let initseq = (u128::from(s[2]) << 64) | u128::from(s[3]);
         let mut rng = Self { state: 0, inc: (initseq << 1) | 1, half: None };
@@ -151,7 +162,23 @@ impl Rng {
     }
 
     /// rng.uniform(lo, hi, n).
-    pub fn uniform(&mut self, lo: f64, hi: f64, n: usize) -> Vec<f64> {
+    /// rng.uniform(lo, hi): one float64.
+    pub fn uniform(&mut self, lo: f64, hi: f64) -> f64 {
+        lo + (hi - lo) * self.random()
+    }
+
+    /// rng.random(n, dtype=float32).
+    pub fn f32s(&mut self, n: usize) -> Vec<f32> {
+        (0..n).map(|_| self.random_f32()).collect()
+    }
+
+    /// rng.random((rows, cols), dtype=float32), row by row.
+    pub fn grid(&mut self, rows: usize, cols: usize) -> Vec<f32> {
+        self.f32s(rows * cols)
+    }
+
+    /// rng.uniform(lo, hi, n).
+    pub fn uniforms(&mut self, lo: f64, hi: f64, n: usize) -> Vec<f64> {
         (0..n).map(|_| lo + (hi - lo) * self.random()).collect()
     }
 }
@@ -164,7 +191,7 @@ mod tests {
     #[allow(clippy::excessive_precision)]
     fn matches_numpy() {
         // numpy.random.default_rng(31).random() and .random(dtype=np.float32) twice after it.
-        let mut r = Rng::new(31);
+        let mut r = Rng::new(31u64);
         assert_eq!(super::seed_state(31)[0], 11_917_523_879_341_755_967);
         assert_eq!(r.random(), 0.903_171_810_914_860_4);
         assert_eq!(r.random_f32(), 0.493_322_134_017_944_34);
@@ -175,7 +202,7 @@ mod tests {
     #[test]
     fn normal_and_exponential_match_numpy() {
         // default_rng(5): normal(0, 1, 3), exponential(1, 3), then the last of normal(0, 1, 2000).
-        let mut r = Rng::new(5);
+        let mut r = Rng::new(5u64);
         let n: Vec<f64> = (0..3).map(|_| r.normal()).collect();
         assert_eq!(n, [-0.801_931_425_253_447_4, -1.324_358_995_628_145, -0.248_361_622_095_248_54]);
         let e: Vec<f64> = (0..3).map(|_| r.exponential()).collect();
@@ -184,3 +211,7 @@ mod tests {
         assert_eq!(last, Some(-0.439_412_119_943_975_1));
     }
 }
+
+#[cfg(test)]
+#[path = "golden.rs"]
+mod golden;

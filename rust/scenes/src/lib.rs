@@ -21,6 +21,7 @@ pub mod lace;
 pub mod classic;
 pub mod claw;
 pub mod neon;
+pub mod np;
 
 /// The overlay's look for a scene key: a scene that draws its own marks brings its look (claw, lyre), the
 /// rest are ui_overlay.LOOKS' (overlay::look_for). `assets`: blacklist_detect/assets (claw's role picture).

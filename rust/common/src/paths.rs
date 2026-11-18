@@ -1,23 +1,48 @@
 //! paths.py: where the lists and settings live, the environment a started program gets, and the OCR's threads.
 
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
-/// paths.app_dir: Windows %APPDATA%\BlackListDetect, elsewhere the XDG config dir. `windows` and `var` stand for
+/// The data folder's name in %APPDATA% (the Python app's and every release's).
+pub const FOLDER_NAME: &str = "BlackListDetect";
+static FOLDER: OnceLock<&'static str> = OnceLock::new();
+
+/// A build of its own (the Rust preview) keeps its data in a folder of its own name. Set once, before any path is
+/// read; a second call changes nothing.
+pub fn use_folder_name(name: &'static str) {
+    let _ = FOLDER.set(name);
+}
+
+/// The data folder's name this process uses: FOLDER_NAME unless `use_folder_name` set another.
+pub fn folder_name() -> &'static str {
+    FOLDER.get().copied().unwrap_or(FOLDER_NAME)
+}
+
+/// Where the data folders live: Windows %APPDATA%, elsewhere the XDG config dir. `windows` and `var` stand for
 /// sys.platform and os.environ, so both sides are testable anywhere.
-pub fn app_dir_for(windows: bool, var: impl Fn(&str) -> Option<String>, home: &Path) -> PathBuf {
+pub fn base_dir_for(windows: bool, var: impl Fn(&str) -> Option<String>, home: &Path) -> PathBuf {
     let set = |name: &str| var(name).filter(|v| !v.is_empty());
-    let base = if windows {
+    if windows {
         set("APPDATA").map_or_else(|| home.join("AppData").join("Roaming"), PathBuf::from)
     } else {
         set("XDG_CONFIG_HOME").map_or_else(|| home.join(".config"), PathBuf::from)
-    };
-    base.join("BlackListDetect")
+    }
+}
+
+/// paths.app_dir: Windows %APPDATA%\BlackListDetect, elsewhere the XDG config dir.
+pub fn app_dir_for(windows: bool, var: impl Fn(&str) -> Option<String>, home: &Path) -> PathBuf {
+    base_dir_for(windows, var, home).join(folder_name())
+}
+
+/// base_dir_for this PC.
+pub fn base_dir() -> PathBuf {
+    let home = std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).map_or_else(PathBuf::new, PathBuf::from);
+    base_dir_for(cfg!(windows), |name| std::env::var(name).ok(), &home)
 }
 
 /// paths.app_dir for this PC.
 pub fn app_dir() -> PathBuf {
-    let home = std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).map_or_else(PathBuf::new, PathBuf::from);
-    app_dir_for(cfg!(windows), |name| std::env::var(name).ok(), &home)
+    base_dir().join(folder_name())
 }
 
 /// paths.custom_sound_dir: the player's own 场景 sounds.

@@ -16,6 +16,7 @@ use std::time::Duration;
 
 mod cli;
 mod corner_port;
+mod ui_wiring;
 
 // The UI areas, each its own package's; the shell's MainWindow takes their pages.
 mod dialogs;
@@ -38,6 +39,8 @@ mod ui_events;
 slint::include_modules!();
 
 fn main() -> ExitCode {
+    // The Rust preview's name, data folder and tray (a no-op in the normal build).
+    app::preview::install();
     // The OCR's own thread count (paths.ocr_threads); the one this copy was started with is only logged.
     let inherited = std::env::var("OMP_NUM_THREADS").ok();
     std::env::set_var("OMP_NUM_THREADS", common::paths::ocr_threads().to_string());
@@ -169,15 +172,21 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
         ports: parts.ports,
         worker: Worker::start(Box::new(RealScreen), Box::new(parts.checker)),
         keys,
-        update_check: Box::new(app::wiring::stubs::Quiet), // stub: updater (data::update has no HTTP client yet)
+        // The preview never looks for updates: it gets Quiet, and NetUpdate is not even made.
+        update_check: if app::preview::ON {
+            app::preview::updater(Box::new(app::wiring::stubs::Quiet), true)
+        } else {
+            Box::new(app::wiring::updates::NetUpdate::online(VERSION, root.clone()))
+        },
         tray: parts.tray,
         tray_actions: parts.tray_actions,
         installed: install.is_some(),
         before_check: Some(parts.before_check),
+        placed: Some(parts.placed),
     };
     let runner = Rc::new(RefCell::new(Runner::new(root, log, claim, store.clone(), parts)));
 
-    let ui = Rc::new(ui_app::MainUi::new(store.clone(), VERSION)?);
+    let ui = Rc::new(ui_app::MainUi::new(store.clone(), &app::preview::shown_version(VERSION, app::preview::ON))?);
     let window = ui.window.clone_strong();
     let quiet = life::start_quiet(options.background, tray_visible, first_run, &store.borrow().settings, VERSION);
     if quiet {
@@ -185,7 +194,8 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
     } else {
         window.show()?;
     }
-    if let Some(install) = install {
+    // Never in the preview: install_root is None there, and the sweep must not touch anything outside its folder.
+    if let Some(install) = install.filter(|_| !app::preview::ON) {
         // Up and running: tell the launcher, and sweep what the release no longer ships, off the window's thread.
         let data_root = runner.borrow().root.clone();
         let started = std::thread::Builder::new().name("AfterStart".into()).spawn(move || {
@@ -209,11 +219,17 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
     let timer = slint::Timer::default();
     let (pumped, shown) = (runner.clone(), window.as_weak());
     let pages = ui.clone();
+    let mut hotkeys = {
+        let settings = &store.borrow().settings;
+        (settings.hotkey.clone(), settings.effect_hotkey.clone())
+    };
     timer.start(slint::TimerMode::Repeated, Duration::from_millis(50), move || {
         for event in pages.pump() {
-            // stub: assemble-ui (the runner takes these in the next wiring round: hotkey, 检查 mode, sounds, update)
-            pumped.borrow().log.info(&format!("UI: {event:?}"));
+            if !ui_wiring::handle(&mut pumped.borrow_mut(), &event) {
+                pumped.borrow().log.info(&format!("UI: {event:?}"));
+            }
         }
+        ui_wiring::rekey(&mut pumped.borrow_mut(), &mut hotkeys);
         let asks = pumped.borrow_mut().pump();
         for ask in asks {
             match ask {

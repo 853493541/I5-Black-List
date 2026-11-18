@@ -14,6 +14,11 @@ path = "src/main.rs"
 name = "settings-mock"
 path = "src/bin/settings_mock.rs"
 
+[features]
+default = []
+# The Rust preview (docs/dev/preview.md): its own name, data folder and single-instance key; no updater, no sweep.
+preview = []
+
 [dependencies]
 slint = { version = "1.14", default-features = false, features = [
     "std",
@@ -21,7 +26,9 @@ slint = { version = "1.14", default-features = false, features = [
     "backend-winit",
     "renderer-software",
     "software-renderer-systemfonts",
+    "raw-window-handle-06",
 ] }
+raw-window-handle = "0.6"
 png = "0.17"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 data = { path = "../data" }
@@ -31,6 +38,7 @@ common = { path = "../common" }
 pipeline = { path = "../pipeline" }
 overlay = { path = "../overlay" }
 stage = { path = "../stage" }
+scenes = { path = "../scenes" }
 sound = { path = "../sound" }
 opencv = { version = "0.102", default-features = false, features = ["imgproc", "imgcodecs"] }
 caseless = "0.2"

@@ -1,0 +1,222 @@
+name: rust-preview
+
+# The Rust preview (docs/dev/preview.md): a Windows build with `--features preview`, laid out as a folder the player
+# unzips and runs beside v1.0.1, uploaded as this run's artifact only. Never a release, tag or update offer: nothing
+# here signs, publishes or touches main / 1.x.
+on:
+  push:
+    branches: ["feature/rust", "feature/rust-preview"]
+  workflow_dispatch:
+
+concurrency:
+  group: rust-preview-${{ github.ref }}
+  # Queued, not cancelled: a cancelled first run would lose its OpenCV build before the cache saves it.
+  cancel-in-progress: false
+
+jobs:
+  # The three OCR models, from PaddleX's official tarballs, converted to ONNX (paddle2onnx 2.1.0, opset 11), each an
+  # inference.onnx beside its inference.yml (the dictionary). On Linux: paddle2onnx's Windows wheel fails to load its
+  # DLL. Cached: they change only with these versions. Handed to the Windows job as a one-day artifact.
+  models:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PADDLE2ONNX_VERSION: "2.1.0"
+      MODEL_URL: https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cache OCR models
+        id: models-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/models
+          key: ocr-models-v5det-v5rec-v6rec-pd3.2.2-paddle3.0.0-p2o${{ env.PADDLE2ONNX_VERSION }}-op11-v1
+      - name: Convert OCR models
+        if: steps.models-cache.outputs.cache-hit != 'true'
+        working-directory: ${{ runner.temp }}
+        run: |
+          python -m pip install -q setuptools packaging paddlepaddle==3.2.2 paddle2onnx==$PADDLE2ONNX_VERSION
+          mkdir -p tarballs models
+          for model in PP-OCRv5_mobile_det PP-OCRv5_mobile_rec PP-OCRv6_medium_rec; do
+            curl -sSfL --retry 3 -o "tarballs/$model.tar" "$MODEL_URL/${model}_infer.tar"
+            tar xf "tarballs/$model.tar" -C tarballs
+            src="tarballs/${model}_infer"
+            program="$src/inference.json"; [ -f "$program" ] || program="$src/inference.pdmodel"
+            mkdir -p "models/$model"
+            python -I -c "import sys, paddle2onnx; paddle2onnx.export(*sys.argv[1:4], opset_version=11)" \
+              "$program" "$src/inference.pdiparams" "models/$model/inference.onnx"
+            cp "$src/inference.yml" "models/$model/"
+          done
+      - run: ls -lR "$RUNNER_TEMP/models"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ocr-models
+          path: ${{ runner.temp }}/models
+          retention-days: 1
+
+  preview:
+    needs: models
+    runs-on: windows-latest
+    timeout-minutes: 75
+    defaults:
+      run:
+        working-directory: rust
+        shell: bash
+    env:
+      CARGO_TERM_COLOR: always
+      OPENCV_VERSION: "4.10.0"
+      OPENCV_CLANG_ARGS: -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH
+      ORT_VERSION: "1.32.0"
+      APP_NAME: 模仿者小工具 Rust 预览 11月 v1
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # OpenCV 4.10 static with IPP and /MT, as in rust.yml (same cache key, so either workflow's build is reused).
+      - name: Cache OpenCV
+        id: opencv-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: C:\opencv-static
+          key: opencv-${{ env.OPENCV_VERSION }}-static-ipp-mt-v1
+      - name: Build OpenCV static
+        if: steps.opencv-cache.outputs.cache-hit != 'true'
+        working-directory: ${{ runner.temp }}
+        shell: cmd
+        run: |
+          for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do call "%%i\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
+          python -m pip install -q ninja || exit /b 1
+          curl -sSfL -o opencv.tar.gz "https://github.com/opencv/opencv/archive/refs/tags/%OPENCV_VERSION%.tar.gz" || exit /b 1
+          tar xzf opencv.tar.gz || exit /b 1
+          cmake -S "opencv-%OPENCV_VERSION%" -B cvbuild -G Ninja -DCMAKE_BUILD_TYPE=Release ^
+            -DCMAKE_INSTALL_PREFIX=C:/opencv-static -DBUILD_SHARED_LIBS=OFF -DBUILD_WITH_STATIC_CRT=ON ^
+            -DBUILD_LIST=core,imgproc,imgcodecs -DWITH_IPP=ON -DBUILD_IPP_IW=ON ^
+            -DWITH_ITT=OFF -DWITH_OPENCL=OFF -DWITH_EIGEN=OFF -DWITH_LAPACK=OFF -DWITH_PROTOBUF=OFF -DWITH_ADE=OFF ^
+            -DWITH_TIFF=OFF -DWITH_WEBP=OFF -DWITH_OPENJPEG=OFF -DWITH_JASPER=OFF -DWITH_OPENEXR=OFF -DWITH_AVIF=OFF ^
+            -DWITH_FFMPEG=OFF -DWITH_DSHOW=OFF -DWITH_MSMF=OFF -DWITH_DIRECTX=OFF -DWITH_WIN32UI=OFF ^
+            -DBUILD_PNG=ON -DBUILD_JPEG=ON -DBUILD_ZLIB=ON ^
+            -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_opencv_apps=OFF ^
+            -DBUILD_JAVA=OFF -DBUILD_opencv_python3=OFF -DBUILD_opencv_python2=OFF > cmake.log || (type cmake.log & exit /b 1)
+          cmake --build cvbuild --target install || exit /b 1
+      - uses: actions/cache/save@v4
+        if: steps.opencv-cache.outputs.cache-hit != 'true'
+        with:
+          path: C:\opencv-static
+          key: opencv-${{ env.OPENCV_VERSION }}-static-ipp-mt-v1
+      - name: Point the opencv crate at it
+        run: |
+          libdir=$(dirname "$(find /c/opencv-static -name 'opencv_core*.lib' | head -1)")
+          libs=$(ls "$libdir" | sed -n 's/\.lib$//p' | paste -sd, -)
+          {
+            echo "OPENCV_LINK_LIBS=$libs"
+            echo "OPENCV_LINK_PATHS=$(cygpath -w "$libdir")"
+            echo 'OPENCV_INCLUDE_PATHS=C:\opencv-static\include'
+            echo 'LIBCLANG_PATH=C:\Program Files\LLVM\bin'
+            echo 'RUSTFLAGS=-C target-feature=+crt-static'
+          } | tee -a "$GITHUB_ENV"
+
+      - name: OCR models (from the models job)
+        uses: actions/download-artifact@v4
+        with:
+          name: ocr-models
+          path: ${{ runner.temp }}/models
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: rust-preview-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            rust-preview-
+            rust-windows-latest-
+      - name: Preview tests
+        run: cargo test -p app --features preview --test preview --lib preview
+      - name: Build
+        run: cargo build --release -p app --bin blacklist-detect --features preview
+
+      # The folder the player unzips: the exe, ONNX Runtime from the pip wheel, the models, the assets, 使用说明.txt.
+      - name: Lay out the folder
+        working-directory: .
+        run: |
+          python -m pip install -q onnxruntime==$ORT_VERSION
+          ort=$(python -c "import onnxruntime, os; print(os.path.join(os.path.dirname(onnxruntime.__file__), 'capi', 'onnxruntime.dll'))")
+          out="$RUNNER_TEMP/preview/$APP_NAME"
+          mkdir -p "$out"
+          cp rust/target/release/blacklist-detect.exe "$out/$APP_NAME.exe"
+          cp "$ort" "$out/onnxruntime.dll"
+          cp -r "$RUNNER_TEMP/models" "$out/models"
+          cp -r blacklist_detect/assets "$out/assets"
+          # Notepad-friendly: UTF-8 with a BOM and CRLF line ends.
+          { printf '\xef\xbb\xbf'; sed 's/$/\r/' rust/app/preview/使用说明.txt; } > "$out/使用说明.txt"
+          echo "PREVIEW_DIR=$out" >> "$GITHUB_ENV"
+          echo "SHORT_SHA=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          du -sh "$out"; ls -la "$out"
+      - name: Import tables
+        working-directory: .
+        run: |
+          python - "$PREVIEW_DIR/$APP_NAME.exe" <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, "build")
+          from make_rust_release import foreign_imports
+          foreign = foreign_imports(Path(sys.argv[1]))
+          print(f"- preview exe: not a system DLL: {foreign or 'none'}")
+          sys.exit(bool(foreign))
+          PY
+
+      # Smoke: a %APPDATA% of its own with a made-up v1.0.1 folder; start-up must pass every step, find the models and
+      # copy the old list once; then `check` reads the made-up names of the sample lobby.
+      - name: Smoke
+        working-directory: .
+        run: |
+          home="$RUNNER_TEMP/smoke-home"
+          mkdir -p "$home/BlackListDetect"
+          printf '%s' '{"entries": [{"name": "示例坏人", "reason": "", "tags": []}]}' > "$home/BlackListDetect/blacklist.json"
+          before=$(sha1sum "$home/BlackListDetect/blacklist.json")
+          export APPDATA="$home" USERPROFILE="$home" HOME="$home"
+          unset BLACKLIST_DETECT_MODEL_DIR BLACKLIST_DETECT_SOUND
+          cd "$RUNNER_TEMP"
+          "$PREVIEW_DIR/$APP_NAME.exe" --quit-after-start
+          log="$home/BlackListDetect-RustPreview/logs/app.log"
+          {
+            echo '### Smoke: start-up log'
+            echo '```'
+            cat "$log"
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+          for step in "data folder" "logs" "single instance" "settings" "autostart" "models"; do
+            grep -q "Start-up: $step ok" "$log" || { echo "::error::start-up step '$step' not ok"; exit 1; }
+          done
+          grep -q "Preview: copied " "$log" || { echo "::error::the old list was not copied"; exit 1; }
+          [ "$(sha1sum "$home/BlackListDetect/blacklist.json")" = "$before" ] || { echo "::error::old list changed"; exit 1; }
+          [ ! -e "$home/BlackListDetect/logs" ] || { echo "::error::the preview wrote in the old folder"; exit 1; }
+          set +e
+          "$PREVIEW_DIR/$APP_NAME.exe" check "$GITHUB_WORKSPACE/blacklist_detect/assets/sample-lobby.jpg" > check.txt 2>&1
+          code=$?
+          set -e
+          {
+            echo "### Smoke: check sample-lobby.jpg (exit $code)"
+            echo '```'
+            cat check.txt
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+          # 0 = the lobby was found; then most of the twelve seats must read as whole names.
+          [ "$code" -eq 0 ] || { echo "::error::check found no lobby ($code)"; exit 1; }
+          read=$(grep -cE '^ ?[0-9]+  完整' check.txt || true)
+          echo "Seats read whole: $read of 12" | tee -a "$GITHUB_STEP_SUMMARY"
+          [ "$read" -ge 8 ] || { echo "::error::only $read seats read"; exit 1; }
+
+      # upload-artifact zips what it is given: the download is one zip holding the folder (not a zip in a zip).
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}
+          path: ${{ runner.temp }}/preview
+          retention-days: 14
+          compression-level: 9

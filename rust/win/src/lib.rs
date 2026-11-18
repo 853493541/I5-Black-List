@@ -17,6 +17,8 @@ pub mod wgc;
 #[cfg(windows)]
 pub mod capture;
 #[cfg(windows)]
+pub mod float;
+#[cfg(windows)]
 pub mod global_hotkey;
 #[cfg(windows)]
 pub mod machine;

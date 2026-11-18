@@ -169,11 +169,13 @@ pub struct Overlay {
     face: Option<Face>,
     /// Where the frame is and the game rect it was laid out for, while shown.
     shown: Option<([i32; 2], [i32; 4])>,
+    /// The picture shown, kept to fade it in.
+    pixmap: Option<Pixmap>,
 }
 
 impl Overlay {
     pub fn new() -> Result<Overlay> {
-        Ok(Overlay { window: LayeredWindow::new()?, face: Face::system(), shown: None })
+        Ok(Overlay { window: LayeredWindow::new()?, face: Face::system(), shown: None, pixmap: None })
     }
 
     pub fn window(&self) -> &LayeredWindow {
@@ -193,15 +195,29 @@ impl Overlay {
     }
 
     pub fn show_with(&mut self, game_rect: [i32; 4], result: &CheckResult, look: &Look, extras: Extras) -> Result<bool> {
+        self.show_faded(game_rect, result, look, extras, 255)
+    }
+
+    /// As `show_with`, at `opacity` (0 to 255); `set_opacity` then fades it in.
+    pub fn show_faded(&mut self, game_rect: [i32; 4], result: &CheckResult, look: &Look, extras: Extras, opacity: u8) -> Result<bool> {
         let (area, ratio) = monitor(game_rect);
         let style = Style { look, face: self.face.as_ref(), at: Moment::default(), ratio };
         let Some(frame) = crate::render(result, extras, area, &style) else {
             self.hide();
             return Ok(false);
         };
-        self.window.update(frame.x, frame.y, &frame.pixmap, 255)?;
+        self.window.update(frame.x, frame.y, &frame.pixmap, opacity)?;
         self.shown = Some(([frame.x, frame.y], game_rect));
+        self.pixmap = Some(frame.pixmap);
         Ok(true)
+    }
+
+    /// The picture shown, again at `opacity` (the 120 ms fade-in's steps).
+    pub fn set_opacity(&mut self, opacity: u8) -> Result<()> {
+        if let (Some(([x, y], _)), Some(pixmap)) = (self.shown, self.pixmap.as_ref()) {
+            self.window.update(x, y, pixmap, opacity)?;
+        }
+        Ok(())
     }
 
     /// The game window is now at `game_rect`: the marks move by as much (call it on the app's 400 ms glance).
@@ -219,6 +235,7 @@ impl Overlay {
     pub fn hide(&mut self) {
         self.window.hide();
         self.shown = None;
+        self.pixmap = None;
     }
 
     pub fn is_shown(&self) -> bool {
