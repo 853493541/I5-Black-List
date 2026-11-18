@@ -1,2 +1,7 @@
-# fluffy_frames writes these each run; side_t*.png and crop_t*.png are kept instead.
+# fluffy_frames writes these each run; py_frames.py writes the Python frames and the lobby.
+# Only the half-size side_t*.jpg and the crops are kept.
 rust_t*.png
+py_t*.png
+lobby_1920.png
+side_t*.png
+crop_t*.png
