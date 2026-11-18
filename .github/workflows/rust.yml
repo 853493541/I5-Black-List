@@ -102,12 +102,10 @@ jobs:
           key: rust-${{ matrix.os }}-${{ hashFiles('rust/Cargo.lock') }}
           restore-keys: rust-${{ matrix.os }}-
       - name: OCR against the Python reference
-        run: cargo test -p ocr -- --nocapture
-      - name: Test
-        run: cargo test --workspace
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
-
+        run: |
+          cargo test -p ocr -- --nocapture 2>&1 | tee "$RUNNER_TEMP/ocr.log"
+          echo '--- OCR summary'
+          grep -E 'IPP in use|skipped|^test .*(ipp|fill_poly|byte_for_byte)|test result' "$RUNNER_TEMP/ocr.log"
       - name: Release build of the app (Windows)
         if: runner.os == 'Windows'
         run: |
@@ -128,3 +126,8 @@ jobs:
         with:
           name: app-windows-release
           path: ${{ runner.temp }}/app
+      - name: Test
+        run: cargo test --workspace
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
