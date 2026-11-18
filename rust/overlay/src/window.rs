@@ -145,8 +145,8 @@ impl Drop for LayeredWindow {
 
 /// tiny-skia's premultiplied RGBA to the DIB's premultiplied BGRA.
 pub fn to_bgra(rgba: &[u8], out: &mut [u8]) {
-    for (s, d) in rgba.chunks_exact(4).zip(out.chunks_exact_mut(4)) {
-        d.copy_from_slice(&[s[2], s[1], s[0], s[3]]);
+    for (s, d) in rgba.as_chunks::<4>().0.iter().zip(out.as_chunks_mut::<4>().0) {
+        *d = [s[2], s[1], s[0], s[3]];
     }
 }
 

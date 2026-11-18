@@ -69,7 +69,7 @@ impl WithStream {
 /// tiny-skia's premultiplied RGBA as straight RGBA (Slint's images are straight).
 pub fn straight(premultiplied: &[u8]) -> Vec<u8> {
     let mut out = premultiplied.to_vec();
-    for pixel in out.chunks_exact_mut(4) {
+    for pixel in out.as_chunks_mut::<4>().0 {
         let alpha = u32::from(pixel[3]);
         if alpha > 0 && alpha < 255 {
             for channel in &mut pixel[..3] {
