@@ -1,7 +1,7 @@
 // The main window every page sits in (blacklist_detect/ui.py MainWindow._build): 900 x 560 at least, the header
 // with the page tabs and the 检查 pill, the page area under it, and 检查's panel lying over the window.
 
-import { Palette, Light, Dark } from "../theme.slint";
+import { Palette, Palettes, Light, Dark } from "../theme.slint";
 import { TabButton, StatusChip, UpdatePill, ProfileChip } from "header.slint";
 import { CheckCard } from "check_panel.slint";
 import { HistoryPage } from "../history/page.slint";
@@ -14,8 +14,8 @@ import { SectionData, RowData } from "../settings/rows.slint";
 global Extra {
     out property <color> on-accent-light: #ffffff;
     out property <color> on-accent-dark: #0e1116;
-    out property <color> green-light: #1c7a3e;
-    out property <color> green-dark: #5fcb8c;
+    out property <color> green-light: Palettes.blue-light.green;
+    out property <color> green-dark: Palettes.blue-dark.green;
 }
 
 export struct ShellTab {

@@ -1,7 +1,7 @@
 // The parts every dialog of blacklist_detect/ui_kit.py Modal is built from: the card with its title and ×,
 // the body, the footer band, the buttons, the boxes, the 标签 pill and the line icons.
 
-import { Palette, Light, Dark } from "../theme.slint";
+import { Palette, Palettes, Light, Dark } from "../theme.slint";
 
 // The colours of ui_theme.py the 设置 palette does not carry yet.
 export struct Tones {
@@ -9,15 +9,16 @@ export struct Tones {
     chip-off-line: color, danger-hover: color, backdrop: color,
 }
 
-// stub: ui-kit (these belong in theme.slint once it carries them)
+// The kit palette's colours where they are the same; surface-alt and accent-hover differ from the kit's in dark
+// (#262a31 / #4f8fdc here, #252930 / #86b8f4 there) and the backdrop is the dialogs' own, so those stay.
 export global DialogTones {
     out property <Tones> light: {
-        field-line: #8b93a1, surface-alt: #e4eef8, on-accent: #f4f8ff, accent-hover: #1a4578, chip-off-bg: #f7f8fa,
-        chip-off-line: #8b93a1, danger-hover: #fbe9e7, backdrop: #b8b8b8,
+        field-line: Palettes.blue-light.field-line, surface-alt: #e4eef8, on-accent: Palettes.blue-light.on-accent, accent-hover: #1a4578,
+        chip-off-bg: Palettes.blue-light.chip-off-bg, chip-off-line: Palettes.blue-light.chip-off-line, danger-hover: Palettes.blue-light.danger-hover, backdrop: #b8b8b8,
     };
     out property <Tones> dark: {
-        field-line: #6e7685, surface-alt: #262a31, on-accent: #0e1116, accent-hover: #4f8fdc, chip-off-bg: #22262d,
-        chip-off-line: #6e7685, danger-hover: #3a2325, backdrop: #0b0c0e,
+        field-line: Palettes.blue-dark.field-line, surface-alt: #262a31, on-accent: Palettes.blue-dark.on-accent, accent-hover: #4f8fdc,
+        chip-off-bg: Palettes.blue-dark.chip-off-bg, chip-off-line: Palettes.blue-dark.chip-off-line, danger-hover: Palettes.blue-dark.danger-hover, backdrop: #0b0c0e,
     };
 }
 
