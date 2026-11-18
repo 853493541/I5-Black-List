@@ -138,8 +138,7 @@ jobs:
           fi
           cd "$RUNNER_TEMP/src/rust"
           start=$(date +%s)
-          RUSTFLAGS="$RUSTFLAGS -C link-arg=/MAP:$(cygpath -w "$RUNNER_TEMP/app.map")" \
-            cargo build --profile "$profile" -p app --bin blacklist-detect
+          cargo rustc --profile "$profile" -p app --bin blacklist-detect -- -C "link-arg=/MAP:$(cygpath -w "$RUNNER_TEMP/app.map")"
           echo "BUILD_SECONDS=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
           echo "PROFILE=$profile" >> "$GITHUB_ENV"
           mkdir -p "$RUNNER_TEMP/out"
