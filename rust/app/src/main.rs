@@ -176,6 +176,7 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
         installed: install.is_some(),
         before_check: Some(parts.before_check),
         placed: Some(parts.placed),
+        tester: Some(parts.tester),
     };
     let runner = Rc::new(RefCell::new(Runner::new(root, log, claim, store.clone(), parts)));
 

@@ -33,6 +33,10 @@ pub fn handle(runner: &mut Runner, event: &UiEvent) -> bool {
             autostart(runner, *on);
             true
         }
+        UiEvent::Settings(SettingsAction::RunEnvironmentTest) => {
+            runner.start_env_test();
+            true
+        }
         UiEvent::Settings(SettingsAction::ExportLogs) => {
             export_logs(runner);
             true
@@ -88,7 +92,9 @@ fn autostart(runner: &mut Runner, on: bool) {
 fn export_logs(runner: &mut Runner) {
     use app::wiring::export;
     let account = export::account();
-    let written = export::export_into(&runner.root, &runner.store.borrow(), app::wiring::startup::VERSION, "", &export::desktop(&account), &account);
+    let report = runner.flow_report.clone().unwrap_or_default();
+    let written =
+        export::export_into(&runner.root, &runner.store.borrow(), app::wiring::startup::VERSION, &report, &export::desktop(&account), &account);
     match written {
         Ok(path) => {
             runner.log.info(&format!("Logs exported: {}", path.display()));

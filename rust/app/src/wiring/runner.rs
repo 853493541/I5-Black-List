@@ -80,6 +80,10 @@ pub struct Runner {
     update_check: Box<dyn UpdateCheck>,
     before_check: Option<BeforeCheck>,
     placed: Option<Receiver<super::stubs::Rect>>,
+    tester: Option<(MakeChecker, std::path::PathBuf)>,
+    testing: Option<Receiver<data::diag::FlowTest>>,
+    /// The last 环境测试's report, for 设置 and 导出日志.
+    pub flow_report: Option<String>,
     tray: Box<dyn Tray>,
     tray_actions: Receiver<TrayAction>,
     started_at: Instant,
@@ -105,7 +109,12 @@ pub struct Parts {
     pub before_check: Option<BeforeCheck>,
     /// The button's box from a check that found the lobby (the checker's `placed`).
     pub placed: Option<Receiver<super::stubs::Rect>>,
+    /// Makes a checker for 环境测试, and where the sample lobby is.
+    pub tester: Option<(MakeChecker, std::path::PathBuf)>,
 }
+
+/// A fresh pipeline checker (环境测试 runs on a thread of its own).
+pub type MakeChecker = Box<dyn Fn() -> super::engine::PipelineChecker>;
 
 impl Runner {
     pub fn new(root: PathBuf, log: AppLog, claim: Option<Box<dyn std::any::Any>>, store: Rc<RefCell<Store>>, parts: Parts) -> Runner {
@@ -124,6 +133,9 @@ impl Runner {
             update_check: parts.update_check,
             before_check: parts.before_check,
             placed: parts.placed,
+            tester: parts.tester,
+            testing: None,
+            flow_report: None,
             tray: parts.tray,
             tray_actions: parts.tray_actions,
             started_at: Instant::now(),
@@ -195,6 +207,12 @@ impl Runner {
             }
             self.install_events.extend(said);
         }
+        if let Some(test) = self.testing.as_ref().and_then(|testing| testing.try_recv().ok()) {
+            self.testing = None;
+            let report = test.text();
+            self.log.info(&format!("环境测试:\n{report}"));
+            self.flow_report = Some(report);
+        }
         match self.update_check.poll() {
             Some(Ok(Some(release))) => {
                 self.log.info(&format!("Update: {} is out.", release.version));
@@ -236,6 +254,29 @@ impl Runner {
         let connect: super::updates::Connect = Box::new(move || Box::new(data::update::net::Net::new(&agent)));
         self.log.info(&format!("Update: downloading {}.", release.version));
         self.installing = Some(super::updates::install(release, self.root.clone(), install, connect));
+        true
+    }
+
+    /// 环境测试 › 开始: the test on a thread of its own; false while one runs or there is no checker.
+    pub fn start_env_test(&mut self) -> bool {
+        let Some((make, assets)) = &self.tester else { return false };
+        if self.testing.is_some() {
+            return false;
+        }
+        let Some(lobby) = super::envtest::sample(assets) else {
+            self.log.warn("环境测试: no sample lobby in the assets.");
+            return false;
+        };
+        let mut checker = make();
+        let (sender, answer) = std::sync::mpsc::channel();
+        let started = std::thread::Builder::new().name("EnvironmentTest".into()).spawn(move || {
+            let _ = sender.send(super::envtest::run(&mut checker, &mut super::worker::RealScreen, &lobby, 3));
+        });
+        if started.is_err() {
+            return false;
+        }
+        self.testing = Some(answer);
+        self.log.info("环境测试: started.");
         true
     }
 
