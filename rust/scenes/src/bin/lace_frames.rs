@@ -1,5 +1,5 @@
 //! 玫瑰花边's frames drawn with wgpu at 1920x1080 over the sample lobby, beside the Python frames
-//! (rust/scenes/lace/py_frames.py writes them and lobby_1920.png first).
+//! (rust/scenes/lace/py_frames.py writes them; the lobby is the spike's lobby_1920.png).
 //!
 //! Run from rust/: cargo run --release -p scenes --bin lace_frames
 //! Writes lace/rust_t<t>.png, side_t<t>.png (Python left, Rust right, half size) and crop_t<t>.png
@@ -20,7 +20,7 @@ pub const TIMES: [f64; 4] = [0.5, 1.5, 3.0, 4.2];
 
 fn main() -> Result<(), String> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("lace");
-    let lobby = load(&dir.join("lobby_1920.png"))?;
+    let lobby = load(&dir.join("../spike/lobby_1920.png"))?;
     let gpu = Renderer::new(W, H, lobby.as_raw())?;
     println!("adapter: {}", gpu.adapter);
     let scene = Lace::sample(f64::from(W), f64::from(H));

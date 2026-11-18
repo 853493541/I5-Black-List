@@ -252,4 +252,21 @@ mod tests {
         assert!(s.paint(1.0).prims.len() > 400);
         assert!(s.paint(2.0).prims.len() < s.paint(1.0).prims.len());
     }
+
+    /// Every frame Python drew (py_frames.py) is matched to at least 47 dB PSNR; skipped without a
+    /// Vulkan, Metal or DX12 adapter.
+    #[test]
+    fn matches_the_python_frames() {
+        use crate::lace::{check, gpu::Renderer};
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        let lobby = check::load(&dir.join("spike/lobby_1920.png")).unwrap();
+        let Ok(gpu) = Renderer::new(1920, 1080, lobby.as_raw()) else { return };
+        let s = Lace::sample(1920.0, 1080.0);
+        let [under, over] = s.layers();
+        gpu.set_layer(0, &under);
+        gpu.set_layer(1, &over);
+        let frames: Vec<_> = [0.5, 1.5, 3.0, 4.2].iter().map(|&t| (t, s.paint(t))).collect();
+        let worst = check::worst_psnr(&gpu, &dir.join("lace"), &frames).unwrap();
+        assert!(worst >= 47.0, "{worst:.1} dB");
+    }
 }

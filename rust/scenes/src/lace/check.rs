@@ -48,7 +48,7 @@ pub fn side_by_side(left: &RgbaImage, right: &RgbaImage) -> RgbaImage {
 pub fn crops(left: &RgbaImage, right: &RgbaImage, boxes: &[[u32; 4]]) -> RgbaImage {
     let wide = boxes.iter().map(|b| b[2]).max().unwrap_or(1);
     let tall: u32 = boxes.iter().map(|b| b[3]).sum();
-    let mut out = RgbaImage::new(wide * 2 + 8, tall.max(1));
+    let mut out = RgbaImage::from_pixel(wide * 2 + 8, tall.max(1), image::Rgba([0, 0, 0, 255]));
     let mut y = 0;
     for b in boxes {
         let l = image::imageops::crop_imm(left, b[0], b[1], b[2], b[3]).to_image();
@@ -62,4 +62,16 @@ pub fn crops(left: &RgbaImage, right: &RgbaImage, boxes: &[[u32; 4]]) -> RgbaIma
 
 pub fn load(path: &Path) -> Result<RgbaImage, String> {
     Ok(image::open(path).map_err(|e| format!("{}: {e}", path.display()))?.to_rgba8())
+}
+
+/// Renders `frames` (t, frame) with `gpu` and returns the lowest PSNR against `dir`/py_t<t>.png.
+pub fn worst_psnr(gpu: &crate::lace::gpu::Renderer, dir: &Path, frames: &[(f64, crate::lace::prim::Frame)]) -> Result<f64, String> {
+    let mut worst = f64::MAX;
+    for (t, frame) in frames {
+        gpu.render(frame);
+        let theirs = load(&dir.join(format!("py_t{t:.1}.png")))?;
+        let ours = RgbaImage::from_raw(theirs.width(), theirs.height(), gpu.read()).ok_or("short read")?;
+        worst = worst.min(compare(&ours, &theirs).psnr);
+    }
+    Ok(worst)
 }

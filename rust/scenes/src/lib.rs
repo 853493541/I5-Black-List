@@ -11,3 +11,4 @@ pub mod prim;
 pub mod pyrand;
 pub mod stars;
 pub mod lace;
+pub mod classic;
