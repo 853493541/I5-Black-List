@@ -152,7 +152,7 @@ fn picture(pr: Prim, p: vec2<f32>) -> vec4<f32> {
     let at = vec2<i32>(p);
     let which = u32(pr.s0.x);
     if which == 0u {
-        return vec4(textureLoad(lobby, at, 0).rgb, 1.0);
+        return textureLoad(lobby, at, 0);
     }
     if which == 1u {
         return textureLoad(layer_a, at, 0) * pr.colors[0].a;

@@ -195,7 +195,7 @@ fn fs(in: Out) -> @location(0) vec4<f32> {
         case 6u: {
             let at = vec2<i32>(p);
             if pr.s0.x < 0.5 {
-                return vec4(textureLoad(lobby, at, 0).rgb, 1.0);
+                return textureLoad(lobby, at, 0);
             }
             // The Wash's hole: 12 rounded rects rubbed out over the gap, each taking 62/255 of what is left.
             var keep = 1.0;

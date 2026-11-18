@@ -173,7 +173,7 @@ fn fs(in: Out) -> @location(0) vec4<f32> {
         case 4u: { cover = line(p, pr.s0, pr.s1.x, pr.s1.y); }
         case 5u: { cover = ring(p, pr.s0, pr.s1); }
         case 6u: { return picture(pr, p) * inside; }
-        case 7u: { return vec4(textureLoad(lobby, vec2<i32>(p), 0).rgb, 1.0); }
+        case 7u: { return textureLoad(lobby, vec2<i32>(p), 0); }
         default: {}
     }
     return pr.color * cover * inside;

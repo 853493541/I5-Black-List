@@ -5100,6 +5100,7 @@ name = "stage"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "image",
  "lobby",
  "pollster",
  "scenes",
