@@ -46,7 +46,7 @@ Results on this container (Mesa llvmpipe, no GPU):
 Where it still differs: most of what is left (about 60 % of the squared error) is the tab's words,
 which Qt draws with its glyph rasterizer and the port fills from their outlines; the rest is
 antialiased edges (the ink outlines, the cats' clip at the frame line). Here the words fall back to
-WenQuanYi Micro Hei; on her PC they are YouYuan, so gen_shapes.py should run there once.
+WenQuanYi Micro Hei; on the player's PC they are YouYuan, so gen_shapes.py should run there once.
 
 Frame time on llvmpipe: median 38 ms (Python/Qt raster on the same CPU: 7.6 ms); the worst, 155 ms,
 are the frames while the pens draw, where the page layer is filled again on the CPU each frame.
