@@ -1,0 +1,161 @@
+{
+ "icon_sha1": "dba6b36fc84498d8fbbc3bb56623480f12a4a1de",
+ "states": [
+  {
+   "close_to_tray": true,
+   "appearance": "light",
+   "tooltip": "",
+   "items": [
+    {
+     "text": "显示主窗口",
+     "enabled": true,
+     "checkable": false,
+     "checked": false,
+     "separator": false,
+     "does": [
+      "show"
+     ]
+    },
+    {
+     "text": "退出",
+     "enabled": true,
+     "checkable": false,
+     "checked": false,
+     "separator": false,
+     "does": [
+      "close"
+     ]
+    }
+   ],
+   "clicks": {
+    "Unknown": [],
+    "Context": [],
+    "DoubleClick": [
+     "show"
+    ],
+    "Trigger": [
+     "show"
+    ],
+    "MiddleClick": []
+   },
+   "x_button": "hide"
+  },
+  {
+   "close_to_tray": true,
+   "appearance": "dark",
+   "tooltip": "",
+   "items": [
+    {
+     "text": "显示主窗口",
+     "enabled": true,
+     "checkable": false,
+     "checked": false,
+     "separator": false,
+     "does": [
+      "show"
+     ]
+    },
+    {
+     "text": "退出",
+     "enabled": true,
+     "checkable": false,
+     "checked": false,
+     "separator": false,
+     "does": [
+      "close"
+     ]
+    }
+   ],
+   "clicks": {
+    "Unknown": [],
+    "Context": [],
+    "DoubleClick": [
+     "show"
+    ],
+    "Trigger": [
+     "show"
+    ],
+    "MiddleClick": []
+   },
+   "x_button": "hide"
+  },
+  {
+   "close_to_tray": false,
+   "appearance": "light",
+   "tooltip": "",
+   "items": [
+    {
+     "text": "显示主窗口",
+     "enabled": true,
+     "checkable": false,
+     "checked": false,
+     "separator": false,
+     "does": [
+      "show"
+     ]
+    },
+    {
+     "text": "退出",
+     "enabled": true,
+     "checkable": false,
+     "checked": false,
+     "separator": false,
+     "does": [
+      "close"
+     ]
+    }
+   ],
+   "clicks": {
+    "Unknown": [],
+    "Context": [],
+    "DoubleClick": [
+     "show"
+    ],
+    "Trigger": [
+     "show"
+    ],
+    "MiddleClick": []
+   },
+   "x_button": "quit"
+  },
+  {
+   "close_to_tray": false,
+   "appearance": "dark",
+   "tooltip": "",
+   "items": [
+    {
+     "text": "显示主窗口",
+     "enabled": true,
+     "checkable": false,
+     "checked": false,
+     "separator": false,
+     "does": [
+      "show"
+     ]
+    },
+    {
+     "text": "退出",
+     "enabled": true,
+     "checkable": false,
+     "checked": false,
+     "separator": false,
+     "does": [
+      "close"
+     ]
+    }
+   ],
+   "clicks": {
+    "Unknown": [],
+    "Context": [],
+    "DoubleClick": [
+     "show"
+    ],
+    "Trigger": [
+     "show"
+    ],
+    "MiddleClick": []
+   },
+   "x_button": "quit"
+  }
+ ]
+}
