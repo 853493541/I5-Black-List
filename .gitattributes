@@ -1,0 +1,2 @@
+rust/**/tests/golden/** -text
+rust/**/tests/*.json -text
