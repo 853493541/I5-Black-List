@@ -51,6 +51,7 @@ ASSETS = "blacklist_detect/assets"
 # (runtime\) holds only the exe once the Python runtime is gone, and v1.0.1's updater cannot put a DLL
 # there. So the C runtime is linked in (+crt-static), OpenCV statically, onnxruntime.dll loaded by path.
 SYSTEM_DLLS = {
+    "combase.dll",
     "advapi32.dll", "bcrypt.dll", "bcryptprimitives.dll", "comctl32.dll", "comdlg32.dll", "crypt32.dll",
     "d2d1.dll", "d3d11.dll", "d3d12.dll", "d3dcompiler_47.dll", "dwmapi.dll", "dwrite.dll", "dxgi.dll",
     "gdi32.dll", "gdiplus.dll", "imm32.dll", "kernel32.dll", "ntdll.dll", "ole32.dll", "oleaut32.dll",

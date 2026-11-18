@@ -3,6 +3,7 @@
 
 import { Palette } from "../theme.slint";
 import { SegmentedControl, InfoButton, HotkeyBox } from "parts.slint";
+import { StreamPanel } from "../stream/panel.slint";
 
 component CheckRow inherits Rectangle {
     in property <string> label;
@@ -120,34 +121,14 @@ export component CheckCard inherits Rectangle {
             p: p;
             info: true;
             info-clicked => { stream-guide(); }
-            SegmentedControl {
-                options: [{key: "off", label: "关闭"}, {key: "on", label: "开启"}];
-                current: stream-on ? "on" : "off";
+            // 直播模式's own row (ui/stream): 关闭 | 开启 and 直播姬's state, its room kept so the card keeps its size.
+            StreamPanel {
                 p: p;
-                on-accent: on-accent;
-                accessible-name: "直播模式";
-                changed(key) => { stream-changed(key == "on"); }
-            }
-            // Its room is kept when it says nothing, so the card keeps its size.
-            Rectangle {
-                horizontal-stretch: 1;
-                min-width: 183px;
-                status := Text {
-                    x: 0px;
-                    width: parent.width;
-                    visible: stream-on && stream-state != "";
-                    text: stream-state;
-                    overflow: elide;
-                    font-size: 12px;
-                    color: stream-ok ? green : p.red;
-                }
-                if status.visible && !stream-ok: Rectangle {
-                    x: 0px;
-                    y: status.y + status.height - 2px;
-                    width: min(status.preferred-width, parent.width);
-                    height: 1px;
-                    background: p.red;
-                }
+                on: stream-on;
+                status: stream-on ? stream-state : "";
+                tone-ok: stream-ok;
+                status-room: 183px;
+                choice-changed(on) => { stream-changed(on); }
             }
         }
     }

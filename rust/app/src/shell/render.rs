@@ -1,32 +1,15 @@
 //! The main window without a display: Slint's software renderer at a Windows scale, saved as PNG, and the
 //! side-by-side pictures (Python left, Rust right) in rust/app/shots/shell/.
 
-use std::cell::RefCell;
 use std::path::{Path, PathBuf};
-use std::rc::Rc;
 
-use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType};
-use slint::platform::{Platform, WindowAdapter, WindowEvent};
+use slint::platform::{WindowAdapter, WindowEvent};
 use slint::{ComponentHandle, PhysicalSize, Rgb8Pixel};
 
 use super::{apply, Page, ShellModel, StreamState, Tone};
 use crate::MainWindow;
 
 type Error = Box<dyn std::error::Error>;
-
-thread_local! {
-    static WINDOW: RefCell<Option<Rc<MinimalSoftwareWindow>>> = const { RefCell::new(None) };
-}
-
-struct Headless;
-
-impl Platform for Headless {
-    fn create_window_adapter(&self) -> Result<Rc<dyn WindowAdapter>, slint::PlatformError> {
-        let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
-        WINDOW.with(|slot| *slot.borrow_mut() = Some(window.clone()));
-        Ok(window)
-    }
-}
 
 /// An RGB picture.
 pub struct Picture {
@@ -86,12 +69,9 @@ pub fn shots() -> Vec<Shot> {
 
 /// Draws one shot. The first call on a thread sets Slint's platform to this headless one.
 pub fn draw(shot: &Shot, scale: f32, size: (u32, u32)) -> Result<Picture, Error> {
-    match slint::platform::set_platform(Box::new(Headless)) {
-        Ok(()) | Err(slint::platform::SetPlatformError::AlreadySet) => {}
-        Err(error) => return Err(format!("{error:?}").into()),
-    }
+    crate::shots::init();
     let ui = MainWindow::new()?;
-    let window = WINDOW.with(|slot| slot.borrow().clone()).ok_or("no headless window")?;
+    let window = crate::shots::newest();
     apply(&ui, &shot.model);
     ui.set_panel_open(shot.panel_open);
     let (width, height) = ((size.0 as f32 * scale).round() as u32, (size.1 as f32 * scale).round() as u32);

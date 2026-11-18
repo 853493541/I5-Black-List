@@ -18,10 +18,10 @@ mod cli;
 mod corner_port;
 
 // The UI areas, each its own package's; the shell's MainWindow takes their pages.
-// stub: shell (the pages are put into MainWindow by the next wiring round)
 mod dialogs;
 mod guestedit;
 mod guests;
+mod history;
 #[allow(dead_code)]
 mod kit;
 mod list;
@@ -29,7 +29,10 @@ mod notices;
 #[allow(dead_code)]
 mod settings;
 mod shell;
+mod shots;
 mod stream;
+mod ui_app;
+mod ui_events;
 
 slint::include_modules!();
 
@@ -173,8 +176,8 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
     };
     let runner = Rc::new(RefCell::new(Runner::new(root, log, claim, store.clone(), parts)));
 
-    // stub: shell (MainWindow from ui/shell/main.slint with its pages; the 设置 mock-up until it lands)
-    let window = SettingsWindow::new()?;
+    let ui = Rc::new(ui_app::MainUi::new(store.clone(), VERSION)?);
+    let window = ui.window.clone_strong();
     let quiet = life::start_quiet(options.background, tray_visible, first_run, &store.borrow().settings, VERSION);
     if quiet {
         runner.borrow().log.info("Started with Windows; staying in the tray.");
@@ -204,7 +207,12 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
     });
     let timer = slint::Timer::default();
     let (pumped, shown) = (runner.clone(), window.as_weak());
+    let pages = ui.clone();
     timer.start(slint::TimerMode::Repeated, Duration::from_millis(50), move || {
+        for event in pages.pump() {
+            // stub: assemble-ui (the runner takes these in the next wiring round: hotkey, 检查 mode, sounds, update)
+            pumped.borrow().log.info(&format!("UI: {event:?}"));
+        }
         let asks = pumped.borrow_mut().pump();
         for ask in asks {
             match ask {

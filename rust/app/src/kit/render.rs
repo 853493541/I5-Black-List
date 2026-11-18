@@ -3,26 +3,14 @@
 use std::path::Path;
 use std::rc::Rc;
 
-use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType};
-use slint::platform::{Platform, WindowAdapter};
+use slint::platform::software_renderer::MinimalSoftwareWindow;
+use slint::platform::WindowAdapter;
 use slint::{ComponentHandle, PhysicalSize, Rgb8Pixel};
 
-struct Headless {
-    window: Rc<MinimalSoftwareWindow>,
-}
-
-impl Platform for Headless {
-    fn create_window_adapter(&self) -> Result<Rc<dyn WindowAdapter>, slint::PlatformError> {
-        Ok(self.window.clone())
-    }
-}
-
-/// A software window for this thread: Slint keeps one platform per thread.
+/// The software window of the component made last on this thread (the shared headless platform's).
 pub fn window() -> Rc<MinimalSoftwareWindow> {
-    let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
-    // A second call on the same thread finds the platform set; the first window then serves.
-    let _ = slint::platform::set_platform(Box::new(Headless { window: window.clone() }));
-    window
+    crate::shots::init();
+    crate::shots::newest()
 }
 
 /// Draw `ui` in `window` at `width` x `height` physical pixels, `scale` physical pixels per logical one.

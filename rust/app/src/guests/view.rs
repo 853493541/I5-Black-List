@@ -79,6 +79,46 @@ pub fn apply(ui: &GuestsPreview, page: &Page) {
     ui.set_empty_buttons(page.empty_buttons);
 }
 
+/// A window that shows the 嘉宾 page: its preview, or the main window (whose `guests-*` properties take the same).
+pub trait Surface: ComponentHandle + 'static {
+    fn put(&self, page: &Page);
+    fn search_text(&self) -> SharedString;
+    fn bridge(&self) -> crate::GuestsBridge<'_>;
+}
+
+impl Surface for GuestsPreview {
+    fn put(&self, page: &Page) {
+        apply(self, page);
+    }
+    fn search_text(&self) -> SharedString {
+        self.get_search()
+    }
+    fn bridge(&self) -> crate::GuestsBridge<'_> {
+        self.global::<crate::GuestsBridge>()
+    }
+}
+
+impl Surface for crate::MainWindow {
+    fn put(&self, page: &Page) {
+        self.set_guests_rows(rows(page));
+        self.set_guests_fixed(page.fixed as i32);
+        self.set_guests_show_table(page.show_table);
+        self.set_guests_show_toolbar(page.show_toolbar);
+        self.set_guests_show_search(page.show_search);
+        self.set_guests_show_more(page.show_more);
+        self.set_guests_add_combo_enabled(page.add_combo_enabled);
+        self.set_guests_empty_icon(page.empty_icon.into());
+        self.set_guests_empty_text(page.empty_text.as_str().into());
+        self.set_guests_empty_buttons(page.empty_buttons);
+    }
+    fn search_text(&self) -> SharedString {
+        self.get_guests_search()
+    }
+    fn bridge(&self) -> crate::GuestsBridge<'_> {
+        self.global::<crate::GuestsBridge>()
+    }
+}
+
 /// The page as shown now, so a click on row r means what row r showed.
 pub struct GuestsView {
     page: Rc<RefCell<Page>>,
@@ -87,24 +127,24 @@ pub struct GuestsView {
 impl GuestsView {
     /// Wires the page's callbacks to `act`; the search box's edits redraw it through `search` (the app gives the page
     /// for a query from the store as it is).
-    pub fn new(
-        ui: &GuestsPreview,
+    pub fn new<S: Surface>(
+        ui: &S,
         act: impl Fn(GuestAction) + 'static,
         search: impl Fn(&str) -> Page + 'static,
     ) -> GuestsView {
         let page = Rc::new(RefCell::new(search("")));
-        apply(ui, &page.borrow());
+        ui.put(&page.borrow());
         let act = Rc::new(act);
         let handle = ui.as_weak();
         let held = page.clone();
-        ui.global::<crate::GuestsBridge>().on_search_edited(move |text| {
+        ui.bridge().on_search_edited(move |text| {
             let fresh = search(&text);
             if let Some(ui) = handle.upgrade() {
-                apply(&ui, &fresh);
+                ui.put(&fresh);
             }
             *held.borrow_mut() = fresh;
         });
-        let bridge = ui.global::<crate::GuestsBridge>();
+        let bridge = ui.bridge();
         let send = |pick: fn(&Page, i32, i32) -> Option<GuestAction>| {
             let (page, act) = (page.clone(), act.clone());
             move |a: i32, b: i32| {
@@ -132,9 +172,9 @@ impl GuestsView {
     }
 
     /// The page after the store changed (an action done, or a theme change).
-    pub fn show(&self, ui: &GuestsPreview, lists: &Lists, now: DateTime<FixedOffset>) {
-        let fresh = Page::build(lists, &ui.get_search(), now);
-        apply(ui, &fresh);
+    pub fn show<S: Surface>(&self, ui: &S, lists: &Lists, now: DateTime<FixedOffset>) {
+        let fresh = Page::build(lists, &ui.search_text(), now);
+        ui.put(&fresh);
         *self.page.borrow_mut() = fresh;
     }
 

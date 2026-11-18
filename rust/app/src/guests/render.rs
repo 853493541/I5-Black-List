@@ -2,10 +2,8 @@
 //! as PNG at 900 x 560 logical pixels times `scale`.
 
 use std::path::Path;
-use std::rc::Rc;
 
-use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType};
-use slint::platform::{Platform, WindowAdapter};
+use slint::platform::WindowAdapter;
 use slint::{ComponentHandle, PhysicalSize, Rgb8Pixel};
 
 use super::model::Page;
@@ -15,23 +13,12 @@ use crate::GuestsPreview;
 pub const WIDTH: u32 = 900;
 pub const HEIGHT: u32 = 560;
 
-struct Headless {
-    window: Rc<MinimalSoftwareWindow>,
-}
-
-impl Platform for Headless {
-    fn create_window_adapter(&self) -> Result<Rc<dyn WindowAdapter>, slint::PlatformError> {
-        Ok(self.window.clone())
-    }
-}
-
 /// Draws each (file name, page, dark) into `dir` as `<name>.png`; returns each picture's pixels as RGB bytes.
 pub fn render(dir: &Path, scale: f32, pages: &[(&str, Page, bool)]) -> Result<Vec<Vec<u8>>, Box<dyn std::error::Error>> {
     std::fs::create_dir_all(dir)?;
-    let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
-    // One platform per thread: a second call on the same thread finds it set and draws into a window of its own.
-    slint::platform::set_platform(Box::new(Headless { window: window.clone() })).map_err(|error| format!("{error:?}"))?;
+    crate::shots::init();
     let ui = GuestsPreview::new()?;
+    let window = crate::shots::newest();
     let (width, height) = ((WIDTH as f32 * scale) as u32, (HEIGHT as f32 * scale) as u32);
     window.dispatch_event(slint::platform::WindowEvent::ScaleFactorChanged { scale_factor: scale });
     window.set_size(PhysicalSize::new(width, height));

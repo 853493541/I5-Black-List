@@ -120,6 +120,15 @@ pub fn zh_ago(stamp: &str, now: DateTime<FixedOffset>) -> String {
 
 /// match.last_seen through the lobby crate: when each listed name was last in a record (its record time).
 pub fn last_met(entries: &[Entry], scans: &[Scan]) -> HashMap<usize, String> {
+    seen(entries, scans).0
+}
+
+/// How many seats of each record were on the list (ui._scan_hit_counts, the same pass as 最近遇到), by record.
+pub fn hit_counts(entries: &[Entry], scans: &[Scan]) -> HashMap<usize, usize> {
+    seen(entries, scans).1
+}
+
+fn seen(entries: &[Entry], scans: &[Scan]) -> (HashMap<usize, String>, HashMap<usize, usize>) {
     let entries: Vec<lobby::model::Entry> = entries
         .iter()
         .map(|entry| lobby::model::Entry { name: entry.name.clone(), ..Default::default() })
@@ -135,7 +144,7 @@ pub fn last_met(entries: &[Entry], scans: &[Scan]) -> HashMap<usize, String> {
                 .collect(),
         })
         .collect();
-    lobby::matching::last_seen(&entries, &scans).0
+    lobby::matching::last_seen(&entries, &scans)
 }
 
 /// The page's rows, in ui._ordered_entries' order, as ui._show_list fills them.
