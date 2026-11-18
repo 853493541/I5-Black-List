@@ -253,6 +253,9 @@ jobs:
 
       # 3. Each scene at 1920x1080: Rust on the runner's adapter (WARP), Python's love_frames.py (QPainter).
       - name: Scenes
+        timeout-minutes: 45
+        env:
+          SCENE_FRAMES: "30"
         if: ${{ !cancelled() && steps.layout.outcome == 'success' }}
         working-directory: .
         run: |

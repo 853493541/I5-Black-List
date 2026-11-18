@@ -12,8 +12,11 @@ use stage::scene::{make_on, shoot_into, KEYS};
 
 const W: u32 = 1920;
 const H: u32 = 1080;
-/// At most this many frames per scene, at 30 fps from the start.
-const FRAMES: usize = 150;
+/// At most this many frames per scene (`SCENE_FRAMES`, default 150), spread evenly over the scene at 30 fps or less:
+/// the software adapter on CI takes about a second a frame.
+fn frames_cap() -> usize {
+    std::env::var("SCENE_FRAMES").ok().and_then(|v| v.parse().ok()).filter(|&n| n > 0).unwrap_or(150)
+}
 
 fn main() -> Result<(), String> {
     let asked: Vec<String> = std::env::args().skip(1).collect();
@@ -33,11 +36,12 @@ fn main() -> Result<(), String> {
             painter.set_still(&gpu, &still);
         }
         let off = Offscreen::new(&gpu, W, H, format);
-        let count = ((scene.duration() * 30.0) as usize).clamp(1, FRAMES);
+        let count = ((scene.duration() * 30.0) as usize).clamp(1, frames_cap());
+        let step = scene.duration() / count as f64;
         let mut spent = Vec::with_capacity(count);
         for i in 0..count {
             let start = Instant::now();
-            let (frame, pixels) = shoot_into(scene.as_mut(), i as f64 / 30.0, painter.still_texture());
+            let (frame, pixels) = shoot_into(scene.as_mut(), i as f64 * step, painter.still_texture());
             if let Some(pixels) = pixels {
                 painter.set_still_pixels(&gpu, &pixels);
             }

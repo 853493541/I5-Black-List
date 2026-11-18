@@ -161,7 +161,7 @@ def start(name: str, out: Path, command: list[str], extra: dict[str, str], runs:
 
 def scenes(out: Path, rust_exe: str, python: str, tree: Path) -> None:
     result = {"adapter": None, "rust": {}, "python": {}}
-    done = subprocess.run([rust_exe], capture_output=True, text=True, encoding="utf-8", errors="replace", env=_env(), timeout=1800)
+    done = subprocess.run([rust_exe], capture_output=True, text=True, encoding="utf-8", errors="replace", env=_env(), timeout=1500)
     print(done.stdout, done.stderr[-3000:])
     for line in done.stdout.splitlines():
         parts = line.split("\t")
@@ -175,7 +175,7 @@ def scenes(out: Path, rust_exe: str, python: str, tree: Path) -> None:
     for key in ["classic", "lace", "stars", "ice", "cyber", "neon", "angel", "equation", "fluffy", "claw", "lyre"]:
         try:
             done = subprocess.run([python, "tools/love_frames.py", key, str(frames_dir), "1.0"], cwd=tree, capture_output=True,
-                                  text=True, encoding="utf-8", errors="replace", env=_env({"PYTHONPATH": str(tree)}), timeout=900)
+                                  text=True, encoding="utf-8", errors="replace", env=_env({"PYTHONPATH": str(tree)}), timeout=240)
         except subprocess.TimeoutExpired:
             result["python"][key] = {"skipped": "timed out"}
             continue
