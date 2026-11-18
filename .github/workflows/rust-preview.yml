@@ -14,7 +14,50 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The three OCR models, from PaddleX's official tarballs, converted to ONNX (paddle2onnx 2.1.0, opset 11), each an
+  # inference.onnx beside its inference.yml (the dictionary). On Linux: paddle2onnx's Windows wheel fails to load its
+  # DLL. Cached: they change only with these versions. Handed to the Windows job as a one-day artifact.
+  models:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PADDLE2ONNX_VERSION: "2.1.0"
+      MODEL_URL: https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cache OCR models
+        id: models-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/models
+          key: ocr-models-v5det-v5rec-v6rec-pd3.2.2-paddle3.0.0-p2o${{ env.PADDLE2ONNX_VERSION }}-op11-v1
+      - name: Convert OCR models
+        if: steps.models-cache.outputs.cache-hit != 'true'
+        working-directory: ${{ runner.temp }}
+        run: |
+          python -m pip install -q setuptools packaging paddlepaddle==3.2.2 paddle2onnx==$PADDLE2ONNX_VERSION
+          mkdir -p tarballs models
+          for model in PP-OCRv5_mobile_det PP-OCRv5_mobile_rec PP-OCRv6_medium_rec; do
+            curl -sSfL --retry 3 -o "tarballs/$model.tar" "$MODEL_URL/${model}_infer.tar"
+            tar xf "tarballs/$model.tar" -C tarballs
+            src="tarballs/${model}_infer"
+            program="$src/inference.json"; [ -f "$program" ] || program="$src/inference.pdmodel"
+            mkdir -p "models/$model"
+            python -I -c "import sys, paddle2onnx; paddle2onnx.export(*sys.argv[1:4], opset_version=11)" \
+              "$program" "$src/inference.pdiparams" "models/$model/inference.onnx"
+            cp "$src/inference.yml" "models/$model/"
+          done
+      - run: ls -lR "$RUNNER_TEMP/models"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ocr-models
+          path: ${{ runner.temp }}/models
+          retention-days: 1
+
   preview:
+    needs: models
     runs-on: windows-latest
     timeout-minutes: 75
     defaults:
@@ -26,8 +69,6 @@ jobs:
       OPENCV_VERSION: "4.10.0"
       OPENCV_CLANG_ARGS: -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH
       ORT_VERSION: "1.32.0"
-      PADDLE2ONNX_VERSION: "2.1.0"
-      MODEL_URL: https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0
       APP_NAME: 模仿者小工具 Rust 预览
     steps:
       - uses: actions/checkout@v5
@@ -79,31 +120,11 @@ jobs:
             echo 'RUSTFLAGS=-C target-feature=+crt-static'
           } | tee -a "$GITHUB_ENV"
 
-      # The three OCR models, from PaddleX's official tarballs, converted to ONNX (paddle2onnx 2.1.0, opset 11), each
-      # an inference.onnx beside its inference.yml (the dictionary). Cached: they change only with these versions.
-      - name: Cache OCR models
-        id: models-cache
-        uses: actions/cache@v4
+      - name: OCR models (from the models job)
+        uses: actions/download-artifact@v4
         with:
+          name: ocr-models
           path: ${{ runner.temp }}/models
-          key: ocr-models-v5det-v5rec-v6rec-paddle3.0.0-p2o${{ env.PADDLE2ONNX_VERSION }}-op11-v1
-      - name: Convert OCR models
-        if: steps.models-cache.outputs.cache-hit != 'true'
-        working-directory: ${{ runner.temp }}
-        run: |
-          python -m pip install -q setuptools paddlepaddle==3.0.0 paddle2onnx==$PADDLE2ONNX_VERSION
-          mkdir -p tarballs models
-          for model in PP-OCRv5_mobile_det PP-OCRv5_mobile_rec PP-OCRv6_medium_rec; do
-            curl -sSfL --retry 3 -o "tarballs/$model.tar" "$MODEL_URL/${model}_infer.tar"
-            tar xf "tarballs/$model.tar" -C tarballs
-            src="tarballs/${model}_infer"
-            program="$src/inference.json"; [ -f "$program" ] || program="$src/inference.pdmodel"
-            mkdir -p "models/$model"
-            python -I -c "import sys, paddle2onnx; paddle2onnx.export(*sys.argv[1:4], opset_version=11)" \
-              "$program" "$src/inference.pdiparams" "models/$model/inference.onnx"
-            cp "$src/inference.yml" "models/$model/"
-          done
-          ls -lR models
 
       - uses: actions/cache@v4
         with:
