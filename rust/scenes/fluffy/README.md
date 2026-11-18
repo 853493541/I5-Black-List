@@ -22,15 +22,21 @@ How it is built, as fluffy.py is:
   in its font) comes from Qt once as polygons at unit size: `../src/fluffy/shapes.txt`, written by
   `gen_shapes.py`. They scale with the cat, star and screen sizes.
 
-Pictures (1920x1080 over the sample lobby, made-up names):
-- `side_t<t>.png`: Python left, Rust right, half size, t = 0.5, 1.5, 3.0, 4.5 s.
-- `crop_t<t>.png`: full size, Python left, Rust right: the big cat, the bottom right corner, the tab.
+Pictures (1920x1080 over the sample lobby, made-up names; JPEG quality 90, about 1.2 MB in all):
+- `side_t<t>.jpg`: Python left, Rust right, half size, t = 0.5, 1.5, 3.0, 4.5 s.
+- `crop_t<t>.jpg`: full size, Python left, Rust right, t = 1.5 and 3.0 s: the big cat, the bottom
+  right corner, the tab.
+
+The full-size frames (`py_t*.png`, `rust_t*.png`, `lobby_1920.png`) stay out of git; the commands
+below make them. `tests.rs` compares a frame with `py_t3.0.png` only when it is there.
 
 Remake them (from the root, then from rust/):
 
     PYTHONPATH=. python rust/scenes/fluffy/gen_shapes.py   # only when fluffy.py's shapes change
     PYTHONPATH=. python rust/scenes/fluffy/py_frames.py    # py_t*.png, lobby_1920.png
-    cargo run --release -p scenes --bin fluffy_frames        # rust_t*.png, side_*, the numbers
+    cargo run --release -p scenes --bin fluffy_frames        # rust_t*.png, side_t*.png, the numbers
+
+(the crate's image build writes PNG only; the committed JPEGs are those PNGs saved at quality 90.)
 
 Results on this container (Mesa llvmpipe, no GPU):
 
