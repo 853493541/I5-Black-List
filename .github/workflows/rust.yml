@@ -142,10 +142,11 @@ jobs:
       - name: Release build of the app (Windows)
         if: runner.os == 'Windows'
         run: |
-          cargo build --release -p app
-          cargo build --release -p ocr --examples
-          mkdir -p "$RUNNER_TEMP/app"
-          cp target/release/*.exe target/release/examples/*.exe "$RUNNER_TEMP/app/"
+          # Only the app's exe ships (no helper bins or examples); its .pdb is a separate artifact, for crash dumps.
+          cargo build --release -p app --bin blacklist-detect
+          mkdir -p "$RUNNER_TEMP/app" "$RUNNER_TEMP/pdb"
+          cp target/release/blacklist-detect.exe "$RUNNER_TEMP/app/"
+          cp target/release/blacklist_detect.pdb "$RUNNER_TEMP/pdb/"
           size() { stat -c %s "$2" | awk -v f="$1" '{ printf "| %s | %d | %.1f |\n", f, $1, $1 / 1048576 }'; }
           {
             echo '### Release sizes'
@@ -160,6 +161,11 @@ jobs:
         with:
           name: app-windows-release
           path: ${{ runner.temp }}/app
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Windows'
+        with:
+          name: app-windows-pdb
+          path: ${{ runner.temp }}/pdb
       # The exe may import only DLLs a clean Windows 10 has (build/make_rust_release.py: SYSTEM_DLLS).
       - name: Import tables (Windows)
         if: runner.os == 'Windows'

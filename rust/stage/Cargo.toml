@@ -6,7 +6,9 @@ edition.workspace = true
 [dependencies]
 scenes = { path = "../scenes" }
 lobby = { path = "../lobby" }
-wgpu = "25"
+# DX12 only on Windows (WARP, its software adapter, is part of it) and WGSL shaders only; Vulkan and GL for the
+# Linux tests (rust/README.md: size).
+wgpu = { version = "25", default-features = false, features = ["dx12", "wgsl"] }
 pollster = "0.4"
 bytemuck = "1"
 
@@ -25,6 +27,9 @@ windows = { version = "0.61", features = [
 image = { version = "0.25", default-features = false, features = ["png"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+[target.'cfg(not(windows))'.dependencies]
+wgpu = { version = "25", default-features = false, features = ["vulkan", "gles"] }
 
 [lints]
 workspace = true
