@@ -1,6 +1,18 @@
-// The controls of blacklist_detect/ui_kit.py that 设置 uses, drawn the same way.
+// The controls of blacklist_detect/ui_kit.py that 设置 uses, drawn the same way, and the whole kit re-exported.
+//
+// Icon: in name (settings | help | info | chevron | pencil: ui_kit.line_pixmap's set), in size, in tone.
+// ChoiceBox: in choices, in-out value, in enabled, in p; callback chosen(string). Words and a chevron; the list drops.
+// PlainButton: in label, in danger, in p. The outlined button (KitButton has every kind).
+// Hairline: in p. The 1 px line between two settings.
 
 import { Palette } from "theme.slint";
+
+// The rest of the kit, one file per area under kit/ (each documents its components at its top).
+export { LineIcon, IconPaths } from "kit/icons.slint";
+export { KitButton, IconButton, Switch, SegmentedControl } from "kit/buttons.slint";
+export { TextField, SearchBox } from "kit/fields.slint";
+export { TagPill, SettingsRow, ListRow, SectionCard } from "kit/rows.slint";
+export { DialogFrame, Toast, EmptyState, KitScroll } from "kit/frames.slint";
 
 // The line icons of ui_kit.line_pixmap, on a 24 x 24 grid.
 export component Icon inherits Rectangle {

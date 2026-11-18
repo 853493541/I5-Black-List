@@ -3,6 +3,11 @@
 
 import { Palette, Palettes, Theme, Tokens } from "../theme.slint";
 import { LineIcon, IconPaths } from "icons.slint";
+import { KitButton, IconButton, Switch, SegmentedControl } from "buttons.slint";
+import { TextField, SearchBox } from "fields.slint";
+import { TagPill, SettingsRow, ListRow, SectionCard } from "rows.slint";
+import { DialogFrame, Toast, EmptyState, KitScroll } from "frames.slint";
+import { ChoiceBox } from "../kit.slint";
 
 component Swatches inherits VerticalLayout {
     in property <Palette> p;
@@ -28,12 +33,51 @@ component Icons inherits VerticalLayout {
     HorizontalLayout {
         spacing: 8px;
         alignment: start;
-        for n in IconPaths.names: LineIcon { name: n; size: 24px; tone: p.text; }
+        for n in IconPaths.names: LineIcon { name: n; size: 22px; tone: p.text; }
+    }
+}
+
+component Controls inherits VerticalLayout {
+    in property <Palette> p;
+    spacing: 8px;
+    Text { text: "控件"; font-size: Tokens.section; color: p.text; }
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: start;
+        KitButton { p: p; label: "保存"; kind: "primary"; }
+        KitButton { p: p; label: "取消"; }
+        KitButton { p: p; label: "删除"; kind: "danger"; }
+        KitButton { p: p; label: "不可用"; enabled: false; }
+        KitButton { p: p; label: "查看说明"; kind: "link"; }
+        IconButton { p: p; icon: "more"; }
+        IconButton { p: p; icon: "edit"; }
+    }
+    HorizontalLayout {
+        spacing: 12px;
+        alignment: start;
+        Switch { p: p; text: "直播模式"; checked: true; }
+        Switch { p: p; checked: false; }
+        Switch { p: p; checked: true; enabled: false; }
+        SegmentedControl { p: p; choices: ["基础模式", "完整模式"]; value: "完整模式"; }
+        SegmentedControl { p: p; choices: ["开启", "关闭"]; value: "关闭"; off: "关闭"; }
+    }
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: start;
+        SearchBox { p: p; width: 200px; }
+        SearchBox { p: p; width: 200px; text: "心动"; }
+        TextField { p: p; width: 160px; placeholder: "名字"; }
+        TagPill { p: p; text: "挂机"; }
+        TagPill { p: p; text: "组合"; tone: "blue"; }
+        TagPill { p: p; text: "我"; tone: "green"; }
+        TagPill { p: p; text: "+3"; tone: "off"; }
     }
 }
 
 component Half inherits Rectangle {
     in property <Palette> p;
+    width: 800px;
+    clip: true;
     background: p.bg;
     VerticalLayout {
         padding: Tokens.pad;
@@ -41,12 +85,75 @@ component Half inherits Rectangle {
         alignment: start;
         Swatches { p: p; }
         Icons { p: p; }
+        Controls { p: p; }
+        HorizontalLayout {
+            spacing: Tokens.gap;
+            VerticalLayout {
+                spacing: Tokens.gap;
+                SectionCard {
+                    p: p;
+                    title: "常规";
+                    SettingsRow { p: p; name: "全局声音"; ChoiceBox { p: p; choices: ["播放", "静音"]; value: "播放"; } }
+                    SettingsRow {
+                        p: p;
+                        name: "开机启动";
+                        description: "登录 Windows 后自动打开小工具";
+                        Switch { p: p; checked: true; }
+                    }
+                    SettingsRow { p: p; name: "清空数据"; description: "删除名单和设置"; last: true; KitButton { p: p; label: "清空"; kind: "danger"; } }
+                }
+                Rectangle {
+                    background: p.surface;
+                    border-width: 1px;
+                    border-color: p.border;
+                    border-radius: Tokens.card-radius;
+                    height: 3 * Tokens.row-h + 2px;
+                    clip: true;
+                    KitScroll {
+                        p: p;
+                        y: 1px;
+                        height: parent.height - 2px;
+                        VerticalLayout {
+                            ListRow { p: p; text: "心动小鹿"; me: true; TagPill { p: p; text: "我"; tone: "green"; } }
+                            ListRow { p: p; text: "示例坏人"; selected: true; TagPill { p: p; text: "挂机"; } TagPill { p: p; text: "+2"; tone: "off"; } }
+                            ListRow { p: p; text: "心动星星"; TagPill { p: p; text: "组合"; tone: "blue"; } }
+                            ListRow { p: p; text: "示例坏人二"; TagPill { p: p; text: "骂人"; highlight: true; } }
+                            ListRow { p: p; text: "示例坏人三"; }
+                        }
+                    }
+                }
+            }
+            VerticalLayout {
+                spacing: Tokens.gap;
+                DialogFrame {
+                    p: p;
+                    width: 330px;
+                    title: "添加黑名单";
+                    left-button: "删除";
+                    TextField { p: p; text: "示例坏人"; }
+                    TextField { p: p; placeholder: "原因（可不填）"; }
+                }
+                HorizontalLayout {
+                    spacing: Tokens.gap;
+                    alignment: start;
+                    Toast { p: p; text: "已删除 示例坏人"; action: "撤销"; }
+                }
+            }
+            EmptyState {
+                p: p;
+                width: 200px;
+                icon: "records";
+                title: "还没有记录";
+                hint: "按下快捷键检查一次大厅，这里就会出现记录";
+                action: "去检查";
+            }
+        }
     }
 }
 
 export component KitGallery inherits Window {
     in property <string> accent: "蓝色";
-    width: 1400px;
+    width: 1600px;
     height: 900px;
     background: #808080;
     HorizontalLayout {

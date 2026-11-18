@@ -45,7 +45,7 @@ fn theme_matches_python_and_gallery_renders() {
     let rows = [tokens.get_row_h(), tokens.get_radius(), tokens.get_card_radius()];
     assert_eq!(rows, [space("row_h"), space("radius"), space("card_radius")]);
 
-    let (width, height) = (1400 * 3 / 2, 900 * 3 / 2);
+    let (width, height) = (1600 * 3 / 2, 900 * 3 / 2);
     for accent in ["蓝色", "红色"] {
         ui.set_accent(accent.into());
         let pixels = render::draw(&window, &ui, width, height, 1.5).unwrap();

@@ -1,0 +1,156 @@
+// The buttons of ui_theme._button_rules and ui_kit: KitButton, IconButton, Switch, SegmentedControl.
+//
+// KitButton: in label, in kind ("plain" outlined | "primary" filled | "danger" red outline | "link" small accent
+//   words), in enabled (true), in p (Theme.p); callback clicked. 32 px high, 14 px words, 14 px side padding.
+// IconButton: in icon (a LineIcon name), in tone (p.muted), in p; callback clicked. 28 x 28, no border.
+// Switch: in text (words on its left, optional), in-out checked, in enabled, in p; callback toggled(bool).
+//   A 40 x 22 track; the knob slides in Motion.switch (140 ms, OutCubic).
+// SegmentedControl: in choices, in-out value, in off (a choice drawn red, as 关闭 is), in p; callback chosen(string).
+// Hover and press colours fade in Motion.hover (140 ms), as Qt's style sheets change at once but read softer here.
+
+import { Palette, Theme, Tokens, Motion } from "../theme.slint";
+import { LineIcon } from "icons.slint";
+
+export component KitButton inherits Rectangle {
+    in property <string> label;
+    in property <string> kind: "plain";
+    in property <bool> enabled: true;
+    in property <Palette> p: Theme.p;
+    callback clicked;
+    property <bool> hover: touch.has-hover && enabled;
+    property <bool> down: touch.pressed && enabled;
+    height: kind == "link" ? words.preferred-height + 4px : Tokens.control-h;
+    width: words.preferred-width + (kind == "link" ? 8px : 28px);
+    border-radius: kind == "link" ? 0 : Tokens.radius;
+    border-width: kind == "link" ? 0 : 1px;
+    border-color: !enabled ? p.border
+        : kind == "primary" ? (hover ? p.accent-hover : p.accent)
+        : kind == "danger" ? p.danger
+        : hover ? p.accent-line : p.border;
+    background: kind == "link" ? transparent
+        : !enabled ? p.surface-alt
+        : kind == "primary" ? (down ? p.accent-press : hover ? p.accent-hover : p.accent)
+        : kind == "danger" ? (hover ? p.danger-hover : p.surface)
+        : down ? p.selected : hover ? p.hover : p.surface;
+    animate background, border-color { duration: Motion.hover; easing: cubic-bezier(0.33, 1, 0.68, 1); }
+    words := Text {
+        text: label;
+        font-size: kind == "link" ? Tokens.small : Tokens.body;
+        color: !enabled ? p.muted
+            : kind == "primary" ? p.on-accent
+            : kind == "danger" ? p.danger
+            : kind == "link" ? (hover ? p.accent-hover : p.accent-line)
+            : p.text;
+    }
+    if kind == "link" && hover: Rectangle {
+        x: 4px;
+        y: words.y + words.height - 2px;
+        width: words.width;
+        height: 1px;
+        background: p.accent-hover;
+    }
+    touch := TouchArea {
+        enabled: enabled;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component IconButton inherits Rectangle {
+    in property <string> icon;
+    in property <color> tone: p.muted;
+    in property <bool> enabled: true;
+    in property <Palette> p: Theme.p;
+    callback clicked;
+    width: Tokens.control-h - 4px;
+    height: Tokens.control-h - 4px;
+    border-radius: Tokens.radius;
+    background: touch.pressed ? p.selected : touch.has-hover ? p.hover : transparent;
+    animate background { duration: Motion.hover; easing: cubic-bezier(0.33, 1, 0.68, 1); }
+    LineIcon { name: icon; size: 16px; tone: tone; opacity: enabled ? 1 : 0.5; }
+    touch := TouchArea {
+        enabled: enabled;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component Switch inherits Rectangle {
+    in property <string> text;
+    in-out property <bool> checked;
+    in property <bool> enabled: true;
+    in property <Palette> p: Theme.p;
+    callback toggled(bool);
+    property <float> pos: checked ? 1 : 0;
+    animate pos { duration: Motion.switch; easing: cubic-bezier(0.33, 1, 0.68, 1); }
+    property <length> left: text == "" ? 0 : words.preferred-width + 8px;
+    property <color> on: p.scheme-dark ? p.accent-line : p.accent;
+    width: left + 40px + 4px;
+    height: 22px + 4px;
+    words := Text {
+        x: 0;
+        visible: text != "";
+        text: root.text;
+        font-size: Tokens.body;
+        color: enabled ? p.text : p.muted;
+        vertical-alignment: center;
+        height: parent.height;
+    }
+    track := Rectangle {
+        x: left + 2px;
+        width: 40px;
+        height: 22px;
+        border-radius: 11px;
+        background: !enabled ? p.border : on.mix(p.chip-off-line, pos);
+        Rectangle {
+            x: 3px + pos * (40px - 16px - 6px);
+            y: 3px;
+            width: 16px;
+            height: 16px;
+            border-radius: 8px;
+            background: p.scheme-dark && enabled ? p.on-accent.mix(#ffffff, pos) : #ffffff;
+        }
+    }
+    TouchArea {
+        enabled: enabled;
+        clicked => {
+            checked = !checked;
+            toggled(checked);
+        }
+    }
+}
+
+export component SegmentedControl inherits Rectangle {
+    in property <[string]> choices;
+    in-out property <string> value;
+    in property <string> off;
+    in property <Palette> p: Theme.p;
+    callback chosen(string);
+    height: Tokens.control-h;
+    HorizontalLayout {
+        for choice[i] in choices: Rectangle {
+            property <bool> on: choice == value;
+            property <bool> red: choice == off;
+            property <bool> first: i == 0;
+            property <bool> last: i == choices.length - 1;
+            width: label.preferred-width + 20px;
+            border-top-left-radius: first ? Tokens.radius : 0;
+            border-bottom-left-radius: first ? Tokens.radius : 0;
+            border-top-right-radius: last ? Tokens.radius : 0;
+            border-bottom-right-radius: last ? Tokens.radius : 0;
+            border-width: 1px;
+            border-color: on ? (red ? p.danger : p.accent) : red ? p.danger : p.border;
+            background: on ? (red ? p.danger : p.accent) : seg.has-hover ? (red ? p.danger-hover : p.hover) : p.surface;
+            animate background { duration: Motion.hover; easing: cubic-bezier(0.33, 1, 0.68, 1); }
+            label := Text {
+                text: choice;
+                font-size: Tokens.body;
+                color: on ? p.on-accent : red ? p.danger : p.text;
+            }
+            seg := TouchArea {
+                clicked => {
+                    value = choice;
+                    chosen(choice);
+                }
+            }
+        }
+    }
+}

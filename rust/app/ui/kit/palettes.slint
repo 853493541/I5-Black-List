@@ -46,6 +46,8 @@ export struct Palette {
     toast-text: color,
     toast-action: color,
     red-edge: color,
+    // ui_theme's scheme == "dark".
+    scheme-dark: bool,
 }
 
 export global Palettes {
@@ -58,6 +60,7 @@ export global Palettes {
         rose-hover: #fde3ee, gray: #626977, gray-wash: #f3f4f6, gray-hover: #e6e8ec, danger: #b3261e, danger-hover: #fbe9e7,
         warning: #b45309, chip-bg: #eef0f3, chip-text: #3f4654, chip-off-bg: #f7f8fa, chip-off-line: #8b93a1,
         field-line: #8b93a1, toast-bg: #1f2633, toast-text: #f3f5f8, toast-action: #6aa6f0, red-edge: #f0c9c5,
+        scheme-dark: false,
     };
     // 蓝色, 深色
     out property <Palette> blue-dark: {
@@ -68,6 +71,7 @@ export global Palettes {
         rose-hover: #4a2b3c, gray: #8d95a3, gray-wash: #24282f, gray-hover: #2c313a, danger: #f0817a, danger-hover: #3a2325,
         warning: #e0a245, chip-bg: #2d323b, chip-text: #d5d9e0, chip-off-bg: #22262d, chip-off-line: #6e7685,
         field-line: #6e7685, toast-bg: #e7e9ee, toast-text: #15171b, toast-action: #12325a, red-edge: #6a3a3a,
+        scheme-dark: true,
     };
     // 棕色, 浅色
     out property <Palette> brown-light: {
@@ -78,6 +82,7 @@ export global Palettes {
         rose-hover: #fde3ee, gray: #626977, gray-wash: #f3f4f6, gray-hover: #e6e8ec, danger: #b3261e, danger-hover: #fbe9e7,
         warning: #b45309, chip-bg: #eef0f3, chip-text: #3f4654, chip-off-bg: #f7f8fa, chip-off-line: #8b93a1,
         field-line: #8b93a1, toast-bg: #1f2633, toast-text: #f3f5f8, toast-action: #d0a06e, red-edge: #f0c9c5,
+        scheme-dark: false,
     };
     // 棕色, 深色
     out property <Palette> brown-dark: {
@@ -88,6 +93,7 @@ export global Palettes {
         rose-hover: #4a2b3c, gray: #8d95a3, gray-wash: #24282f, gray-hover: #2c313a, danger: #f0817a, danger-hover: #3a2325,
         warning: #e0a245, chip-bg: #2d323b, chip-text: #d5d9e0, chip-off-bg: #22262d, chip-off-line: #6e7685,
         field-line: #6e7685, toast-bg: #e7e9ee, toast-text: #15171b, toast-action: #6b4428, red-edge: #6a3a3a,
+        scheme-dark: true,
     };
     // 紫色, 浅色
     out property <Palette> purple-light: {
@@ -98,6 +104,7 @@ export global Palettes {
         rose-hover: #fde3ee, gray: #626977, gray-wash: #f3f4f6, gray-hover: #e6e8ec, danger: #b3261e, danger-hover: #fbe9e7,
         warning: #b45309, chip-bg: #eef0f3, chip-text: #3f4654, chip-off-bg: #f7f8fa, chip-off-line: #8b93a1,
         field-line: #8b93a1, toast-bg: #1f2633, toast-text: #f3f5f8, toast-action: #ad91e6, red-edge: #f0c9c5,
+        scheme-dark: false,
     };
     // 紫色, 深色
     out property <Palette> purple-dark: {
@@ -108,6 +115,7 @@ export global Palettes {
         rose-hover: #4a2b3c, gray: #8d95a3, gray-wash: #24282f, gray-hover: #2c313a, danger: #f0817a, danger-hover: #3a2325,
         warning: #e0a245, chip-bg: #2d323b, chip-text: #d5d9e0, chip-off-bg: #22262d, chip-off-line: #6e7685,
         field-line: #6e7685, toast-bg: #e7e9ee, toast-text: #15171b, toast-action: #4a2d73, red-edge: #6a3a3a,
+        scheme-dark: true,
     };
     // 绿色, 浅色
     out property <Palette> green-light: {
@@ -118,6 +126,7 @@ export global Palettes {
         rose-hover: #fde3ee, gray: #626977, gray-wash: #f3f4f6, gray-hover: #e6e8ec, danger: #b3261e, danger-hover: #fbe9e7,
         warning: #b45309, chip-bg: #eef0f3, chip-text: #3f4654, chip-off-bg: #f7f8fa, chip-off-line: #8b93a1,
         field-line: #8b93a1, toast-bg: #1f2633, toast-text: #f3f5f8, toast-action: #5cbf95, red-edge: #f0c9c5,
+        scheme-dark: false,
     };
     // 绿色, 深色
     out property <Palette> green-dark: {
@@ -128,6 +137,7 @@ export global Palettes {
         rose-hover: #4a2b3c, gray: #8d95a3, gray-wash: #24282f, gray-hover: #2c313a, danger: #f0817a, danger-hover: #3a2325,
         warning: #e0a245, chip-bg: #2d323b, chip-text: #d5d9e0, chip-off-bg: #22262d, chip-off-line: #6e7685,
         field-line: #6e7685, toast-bg: #e7e9ee, toast-text: #15171b, toast-action: #1b5340, red-edge: #6a3a3a,
+        scheme-dark: true,
     };
     // 红色, 浅色
     out property <Palette> red-light: {
@@ -138,6 +148,7 @@ export global Palettes {
         rose-hover: #fde3ee, gray: #626977, gray-wash: #f3f4f6, gray-hover: #e6e8ec, danger: #b3261e, danger-hover: #fbe9e7,
         warning: #b45309, chip-bg: #eef0f3, chip-text: #3f4654, chip-off-bg: #f7f8fa, chip-off-line: #8b93a1,
         field-line: #8b93a1, toast-bg: #1f2633, toast-text: #f3f5f8, toast-action: #e8936a, red-edge: #f0c9c5,
+        scheme-dark: false,
     };
     // 红色, 深色
     out property <Palette> red-dark: {
@@ -148,6 +159,7 @@ export global Palettes {
         rose-hover: #4a2b3c, gray: #8d95a3, gray-wash: #24282f, gray-hover: #2c313a, danger: #f0817a, danger-hover: #3a2325,
         warning: #e0a245, chip-bg: #2d323b, chip-text: #d5d9e0, chip-off-bg: #22262d, chip-off-line: #6e7685,
         field-line: #6e7685, toast-bg: #e7e9ee, toast-text: #15171b, toast-action: #a24f28, red-edge: #6a3a3a,
+        scheme-dark: true,
     };
 
     public pure function get(accent: string, dark: bool) -> Palette {
