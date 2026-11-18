@@ -32,6 +32,7 @@ mod shell;
 mod shots;
 mod stream;
 mod ui_app;
+mod ui_dialogs;
 mod ui_events;
 
 slint::include_modules!();
