@@ -15,8 +15,8 @@
   distance; pictures sampled bilinear where Qt smooths them; source-over and Plus runs.
 
 Pictures (1920x1080 over the sample lobby, made-up names):
-- `side_t<t>.png`: Python left, Rust right, at half size.
-- `crop_t<t>.png`: full size, Python left, Rust right: the struck spire with its sparks (top), the
+- `side_t<t>.jpg`: Python left, Rust right, at half size.
+- `crop_t<t>.jpg`: full size, Python left, Rust right: the struck spire with its sparks (top), the
   right towers and ticker or the left tower (bottom).
 
 Remake them (from the root, then from rust/):
@@ -33,7 +33,7 @@ Results on this container (Mesa llvmpipe through Vulkan, a CPU rasterizer):
 | 3.0 s | leader feeling down to the frame | 0.69/255 | 1.97 % | 0.104 % | 41.9 dB |
 | 3.75 s | second strike on the left, surge | 1.12/255 | 5.26 % | 0.163 % | 38.3 dB |
 
-(2.0 s, nothing striking: 43.8 dB.) `check.rs` asserts floors about 3 dB under these.
+(2.0 s, nothing striking: 43.8 dB.) `check.rs` asserts floors about 3 dB under these when the Python frames are there (py_frames.py makes them; they are not committed, so the test skips without them). The committed side_/crop_ pictures are the bin's PNGs saved as JPEG quality 90.
 
 Gaps, written down:
 - Qt's `CompositionMode_Plus` applies the opacity after the saturating add,
