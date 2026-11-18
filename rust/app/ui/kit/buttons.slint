@@ -125,7 +125,9 @@ export component SegmentedControl inherits Rectangle {
     in property <Palette> p: Theme.p;
     callback chosen(string);
     height: Tokens.control-h;
+    // Neighbours overlap by their 1 px edge, as Qt's border-left: none keeps one line between them.
     HorizontalLayout {
+        spacing: -1px;
         for choice[i] in choices: Rectangle {
             property <bool> on: choice == value;
             property <bool> red: choice == off;

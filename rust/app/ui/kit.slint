@@ -79,7 +79,7 @@ export component ChoiceBox inherits Rectangle {
             background: p.surface;
             border-radius: 8px;
             border-width: 1px;
-            border-color: p.border;
+            border-color: p.border.mix(p.surface, 0.55); // ui_theme.choice_colors edge
             drop-shadow-blur: 12px;
             drop-shadow-color: #0000002a;
             VerticalLayout {
