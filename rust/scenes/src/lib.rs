@@ -6,6 +6,7 @@
 #![forbid(unsafe_code)]
 
 pub mod cyber;
+pub mod angel;
 pub mod draw;
 pub mod equation;
 pub mod fluffy;
