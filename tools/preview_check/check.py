@@ -26,6 +26,7 @@ from pathlib import Path
 import psutil
 
 BUDGET_MS = 20.0
+KEYS = ["classic", "lace", "stars", "ice", "cyber", "neon", "angel", "equation", "fluffy", "claw", "lyre"]
 
 
 def _env(extra: dict[str, str] | None = None) -> dict[str, str]:
@@ -161,9 +162,17 @@ def start(name: str, out: Path, command: list[str], extra: dict[str, str], runs:
 
 def scenes(out: Path, rust_exe: str, python: str, tree: Path) -> None:
     result = {"adapter": None, "rust": {}, "python": {}}
-    done = subprocess.run([rust_exe], capture_output=True, text=True, encoding="utf-8", errors="replace", env=_env(), timeout=1500)
-    print(done.stdout, done.stderr[-3000:])
-    for line in done.stdout.splitlines():
+    lines = []
+    for key in KEYS:
+        try:
+            done = subprocess.run([rust_exe, key], capture_output=True, text=True, encoding="utf-8", errors="replace", env=_env(),
+                                  timeout=300)
+        except subprocess.TimeoutExpired:
+            lines.append(f"{key}\tskipped\ttimed out after 300 s")
+            continue
+        print(done.stdout, done.stderr[-1500:])
+        lines += done.stdout.splitlines() or [f"{key}\tskipped\t{(done.stderr.strip().splitlines() or ['no output'])[-1][:160]}"]
+    for line in lines:
         parts = line.split("\t")
         if parts[0] == "adapter":
             result["adapter"] = parts[1]
@@ -172,7 +181,7 @@ def scenes(out: Path, rust_exe: str, python: str, tree: Path) -> None:
         elif len(parts) >= 2:
             result["rust"][parts[0]] = {"skipped": parts[2] if len(parts) > 2 else "?"}
     frames_dir = Path(os.environ.get("RUNNER_TEMP", ".")) / "py-frames"
-    for key in ["classic", "lace", "stars", "ice", "cyber", "neon", "angel", "equation", "fluffy", "claw", "lyre"]:
+    for key in KEYS:
         try:
             done = subprocess.run([python, "tools/love_frames.py", key, str(frames_dir), "1.0"], cwd=tree, capture_output=True,
                                   text=True, encoding="utf-8", errors="replace", env=_env({"PYTHONPATH": str(tree)}), timeout=240)
@@ -193,7 +202,8 @@ def sides(py_dir: Path, rust_dir: Path, out: Path) -> None:
 
     out.mkdir(parents=True, exist_ok=True)
     rust = {p.stem: p for p in rust_dir.glob("*.png")}
-    python = {p.stem: p for p in py_dir.glob("*.png")}
+    # ui_shots numbers its pictures in the order it takes them ("00_page_记录"); the name is what is compared.
+    python = {re.sub(r"^\d+_", "", p.stem): p for p in py_dir.glob("*.png")}
     for name in sorted(rust.keys() | python.keys()):
         left = Image.open(python[name]).convert("RGB") if name in python else None
         right = Image.open(rust[name]).convert("RGB") if name in rust else None
