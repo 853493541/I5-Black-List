@@ -27,7 +27,9 @@ heart, names, with and without seats), 3 sample stages, every scene's DURATION, 
 ## Frame time (星河许愿, 1920x1080, draw + wait, `tests/overlay.rs::frame_time_at_1080p`)
 
 - llvmpipe (this container, CPU rasterizer through Vulkan): median about 100 ms, readback 10 ms (release).
-- WARP (windows-latest CI, DX12 software): see the `STAGE` lines in the CI log.
+- WARP (windows-latest CI, DX12 software, debug build, 4 shared cores): draw median 1126 ms at 1920x1080; in the
+  window at 960x540, DirectComposition present median 269 ms, layered (draw + readback + UpdateLayeredWindow) 309 ms.
+  Both paths open, play and read back with no error on WARP (`tests/windows_overlay.rs`, workflow rust-stage.yml).
 
 Both shade every pixel on the CPU, so they only prove the paths work; they say nothing about a real GPU, where
 the same few hundred quads are well under a millisecond. Python/Qt draws this scene in about 24 ms on the CPU.
