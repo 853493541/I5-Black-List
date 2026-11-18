@@ -4,15 +4,9 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 
+pub use common::limits::{MAX_NAME, MAX_NOTE, MAX_TAG, OLD_SHARE_MARKS, SHARE_MARK, TAGS};
 use super::text::{clean_stored_name, fold, head, len, splitlines, strip};
 
-/// storage.TAGS: the built-in 标签.
-pub const TAGS: [&str; 5] = ["炸房", "贴脸", "挂机", "场外", "不尊重底牌"];
-pub const MAX_TAG: usize = 12;
-pub const MAX_NAME: usize = 64;
-pub const MAX_NOTE: usize = 200;
-pub const SHARE_MARK: &str = "#模仿者小工具 黑名单";
-pub const OLD_SHARE_MARKS: [&str; 1] = ["#黑名单检测 名单"];
 const REASON_MARK: &str = "原因：";
 
 /// storage.clean_tag.
