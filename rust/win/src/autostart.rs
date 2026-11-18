@@ -6,13 +6,8 @@ use std::path::Path;
 pub const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
 pub const VALUE_NAME: &str = "BlackListDetect";
 pub const BACKGROUND: &str = "--background";
-/// The launcher's names, newest first (names.LAUNCHERS).
-pub const LAUNCHERS: [&str; 2] = ["模仿者小工具.exe", "黑名单检测.exe"];
-
-/// The launcher in this folder, under whichever name it has.
-pub fn launcher_in(root: &Path) -> Option<std::path::PathBuf> {
-    LAUNCHERS.iter().map(|name| root.join(name)).find(|path| path.is_file())
-}
+/// The launcher's names, newest first (names.LAUNCHERS), and the one in a folder.
+pub use common::names::{launcher_in, LAUNCHERS};
 
 /// The Run entry's text for a launcher.
 pub fn command(launcher: &Path) -> String {

@@ -1,0 +1,7153 @@
+{
+ "texts": [
+  {
+   "raw": "",
+   "normalize_text": "",
+   "split_ellipsis": [
+    "",
+    false
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": " ",
+   "normalize_text": "",
+   "split_ellipsis": [
+    "",
+    false
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "　",
+   "normalize_text": "",
+   "split_ellipsis": [
+    "",
+    false
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "示例坏人",
+   "normalize_text": "示例坏人",
+   "split_ellipsis": [
+    "示例坏人",
+    false
+   ],
+   "strip_noise": "示例坏人",
+   "fold": "示例坏人",
+   "clean_stored_name": "示例坏人"
+  },
+  {
+   "raw": "心动小鹿...",
+   "normalize_text": "心动小鹿...",
+   "split_ellipsis": [
+    "心动小鹿",
+    true
+   ],
+   "strip_noise": "心动小鹿",
+   "fold": "心动小鹿",
+   "clean_stored_name": "心动小鹿"
+  },
+  {
+   "raw": "心动星星…",
+   "normalize_text": "心动星星...",
+   "split_ellipsis": [
+    "心动星星",
+    true
+   ],
+   "strip_noise": "心动星星",
+   "fold": "心动星星",
+   "clean_stored_name": "心动星星"
+  },
+  {
+   "raw": "心动小鹿⋯⋯",
+   "normalize_text": "心动小鹿⋯⋯",
+   "split_ellipsis": [
+    "心动小鹿",
+    true
+   ],
+   "strip_noise": "心动小鹿",
+   "fold": "心动小鹿",
+   "clean_stored_name": "心动小鹿"
+  },
+  {
+   "raw": "心动星星。",
+   "normalize_text": "心动星星。",
+   "split_ellipsis": [
+    "心动星星",
+    true
+   ],
+   "strip_noise": "心动星星",
+   "fold": "心动星星",
+   "clean_stored_name": "心动星星"
+  },
+  {
+   "raw": "心动小鹿。。",
+   "normalize_text": "心动小鹿。。",
+   "split_ellipsis": [
+    "心动小鹿",
+    true
+   ],
+   "strip_noise": "心动小鹿",
+   "fold": "心动小鹿",
+   "clean_stored_name": "心动小鹿"
+  },
+  {
+   "raw": "心动小鹿·",
+   "normalize_text": "心动小鹿·",
+   "split_ellipsis": [
+    "心动小鹿",
+    true
+   ],
+   "strip_noise": "心动小鹿",
+   "fold": "心动小鹿",
+   "clean_stored_name": "心动小鹿"
+  },
+  {
+   "raw": "心动小鹿··",
+   "normalize_text": "心动小鹿··",
+   "split_ellipsis": [
+    "心动小鹿",
+    true
+   ],
+   "strip_noise": "心动小鹿",
+   "fold": "心动小鹿",
+   "clean_stored_name": "心动小鹿"
+  },
+  {
+   "raw": "示例坏人.…",
+   "normalize_text": "示例坏人....",
+   "split_ellipsis": [
+    "示例坏人",
+    true
+   ],
+   "strip_noise": "示例坏人",
+   "fold": "示例坏人",
+   "clean_stored_name": "示例坏人"
+  },
+  {
+   "raw": "示例坏人·..",
+   "normalize_text": "示例坏人·..",
+   "split_ellipsis": [
+    "示例坏人",
+    true
+   ],
+   "strip_noise": "示例坏人",
+   "fold": "示例坏人",
+   "clean_stored_name": "示例坏人"
+  },
+  {
+   "raw": "ＡＢＣ示例",
+   "normalize_text": "ABC示例",
+   "split_ellipsis": [
+    "ABC示例",
+    false
+   ],
+   "strip_noise": "ABC示例",
+   "fold": "abc示例",
+   "clean_stored_name": "ABC示例"
+  },
+  {
+   "raw": "Ａｂｃ",
+   "normalize_text": "Abc",
+   "split_ellipsis": [
+    "Abc",
+    false
+   ],
+   "strip_noise": "Abc",
+   "fold": "abc",
+   "clean_stored_name": "Abc"
+  },
+  {
+   "raw": "Straße",
+   "normalize_text": "Straße",
+   "split_ellipsis": [
+    "Straße",
+    false
+   ],
+   "strip_noise": "Straße",
+   "fold": "strasse",
+   "clean_stored_name": "Straße"
+  },
+  {
+   "raw": "ǅ心动",
+   "normalize_text": "Dž心动",
+   "split_ellipsis": [
+    "Dž心动",
+    false
+   ],
+   "strip_noise": "Dž心动",
+   "fold": "dž心动",
+   "clean_stored_name": "Dž心动"
+  },
+  {
+   "raw": "x`y",
+   "normalize_text": "x`y",
+   "split_ellipsis": [
+    "x`y",
+    false
+   ],
+   "strip_noise": "xy",
+   "fold": "xy",
+   "clean_stored_name": "xy"
+  },
+  {
+   "raw": "a\u001cb",
+   "normalize_text": "ab",
+   "split_ellipsis": [
+    "ab",
+    false
+   ],
+   "strip_noise": "ab",
+   "fold": "ab",
+   "clean_stored_name": "ab"
+  },
+  {
+   "raw": "a\u000bb",
+   "normalize_text": "ab",
+   "split_ellipsis": [
+    "ab",
+    false
+   ],
+   "strip_noise": "ab",
+   "fold": "ab",
+   "clean_stored_name": "ab"
+  },
+  {
+   "raw": "名字.。",
+   "normalize_text": "名字.。",
+   "split_ellipsis": [
+    "名字.",
+    true
+   ],
+   "strip_noise": "名字",
+   "fold": "名字",
+   "clean_stored_name": "名字"
+  },
+  {
+   "raw": "名字...。",
+   "normalize_text": "名字...。",
+   "split_ellipsis": [
+    "名字...",
+    true
+   ],
+   "strip_noise": "名字",
+   "fold": "名字",
+   "clean_stored_name": "名字"
+  },
+  {
+   "raw": "…",
+   "normalize_text": "...",
+   "split_ellipsis": [
+    "",
+    true
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "......",
+   "normalize_text": "......",
+   "split_ellipsis": [
+    "",
+    true
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "·",
+   "normalize_text": "·",
+   "split_ellipsis": [
+    "",
+    true
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "Ⅻ心动",
+   "normalize_text": "XII心动",
+   "split_ellipsis": [
+    "XII心动",
+    false
+   ],
+   "strip_noise": "XII心动",
+   "fold": "xii心动",
+   "clean_stored_name": "XII心动"
+  },
+  {
+   "raw": "①②",
+   "normalize_text": "12",
+   "split_ellipsis": [
+    "12",
+    false
+   ],
+   "strip_noise": "12",
+   "fold": "12",
+   "clean_stored_name": "12"
+  },
+  {
+   "raw": "ﬁ心动",
+   "normalize_text": "fi心动",
+   "split_ellipsis": [
+    "fi心动",
+    false
+   ],
+   "strip_noise": "fi心动",
+   "fold": "fi心动",
+   "clean_stored_name": "fi心动"
+  },
+  {
+   "raw": "ＭＩＸ星星…",
+   "normalize_text": "MIX星星...",
+   "split_ellipsis": [
+    "MIX星星",
+    true
+   ],
+   "strip_noise": "MIX星星",
+   "fold": "mix星星",
+   "clean_stored_name": "MIX星星"
+  },
+  {
+   "raw": "  心动 小鹿  ",
+   "normalize_text": "心动小鹿",
+   "split_ellipsis": [
+    "心动小鹿",
+    false
+   ],
+   "strip_noise": "心动小鹿",
+   "fold": "心动小鹿",
+   "clean_stored_name": "心动小鹿"
+  },
+  {
+   "raw": "心动\t星星\n",
+   "normalize_text": "心动星星",
+   "split_ellipsis": [
+    "心动星星",
+    false
+   ],
+   "strip_noise": "心动星星",
+   "fold": "心动星星",
+   "clean_stored_name": "心动星星"
+  },
+  {
+   "raw": "İstanbul",
+   "normalize_text": "İstanbul",
+   "split_ellipsis": [
+    "İstanbul",
+    false
+   ],
+   "strip_noise": "İstanbul",
+   "fold": "i̇stanbul",
+   "clean_stored_name": "İstanbul"
+  },
+  {
+   "raw": "ΣΑΣ",
+   "normalize_text": "ΣΑΣ",
+   "split_ellipsis": [
+    "ΣΑΣ",
+    false
+   ],
+   "strip_noise": "ΣΑΣ",
+   "fold": "σασ",
+   "clean_stored_name": "ΣΑΣ"
+  },
+  {
+   "raw": "示例。·。",
+   "normalize_text": "示例。·。",
+   "split_ellipsis": [
+    "示例。·",
+    true
+   ],
+   "strip_noise": "示例",
+   "fold": "示例",
+   "clean_stored_name": "示例"
+  },
+  {
+   "raw": "。。。示例",
+   "normalize_text": "。。。示例",
+   "split_ellipsis": [
+    "。。。示例",
+    false
+   ],
+   "strip_noise": "示例",
+   "fold": "示例",
+   "clean_stored_name": "示例"
+  },
+  {
+   "raw": "a..b..",
+   "normalize_text": "a..b..",
+   "split_ellipsis": [
+    "a..b",
+    true
+   ],
+   "strip_noise": "ab",
+   "fold": "ab",
+   "clean_stored_name": "ab"
+  },
+  {
+   "raw": "示例坏人!!",
+   "normalize_text": "示例坏人!!",
+   "split_ellipsis": [
+    "示例坏人!!",
+    false
+   ],
+   "strip_noise": "示例坏人",
+   "fold": "示例坏人",
+   "clean_stored_name": "示例坏人"
+  },
+  {
+   "raw": "[心动]",
+   "normalize_text": "[心动]",
+   "split_ellipsis": [
+    "[心动]",
+    false
+   ],
+   "strip_noise": "心动",
+   "fold": "心动",
+   "clean_stored_name": "心动"
+  },
+  {
+   "raw": "心动_小鹿",
+   "normalize_text": "心动_小鹿",
+   "split_ellipsis": [
+    "心动_小鹿",
+    false
+   ],
+   "strip_noise": "心动小鹿",
+   "fold": "心动小鹿",
+   "clean_stored_name": "心动小鹿"
+  },
+  {
+   "raw": "x̃心动",
+   "normalize_text": "x̃心动",
+   "split_ellipsis": [
+    "x̃心动",
+    false
+   ],
+   "strip_noise": "x心动",
+   "fold": "x心动",
+   "clean_stored_name": "x心动"
+  },
+  {
+   "raw": "…心坏例",
+   "normalize_text": "...心坏例",
+   "split_ellipsis": [
+    "...心坏例",
+    false
+   ],
+   "strip_noise": "心坏例",
+   "fold": "心坏例",
+   "clean_stored_name": "心坏例"
+  },
+  {
+   "raw": "　·Ⅻ_",
+   "normalize_text": "·XII_",
+   "split_ellipsis": [
+    "·XII_",
+    false
+   ],
+   "strip_noise": "XII",
+   "fold": "xii",
+   "clean_stored_name": "XII"
+  },
+  {
+   "raw": "B示z",
+   "normalize_text": "B示z",
+   "split_ellipsis": [
+    "B示z",
+    false
+   ],
+   "strip_noise": "B示z",
+   "fold": "b示z",
+   "clean_stored_name": "B示z"
+  },
+  {
+   "raw": "人 示B９⋯小\tß",
+   "normalize_text": "人示B9⋯小ß",
+   "split_ellipsis": [
+    "人示B9⋯小ß",
+    false
+   ],
+   "strip_noise": "人示B9小ß",
+   "fold": "人示b9小ss",
+   "clean_stored_name": "人示B9小ß"
+  },
+  {
+   "raw": "　星B\u001c",
+   "normalize_text": "星B",
+   "split_ellipsis": [
+    "星B",
+    false
+   ],
+   "strip_noise": "星B",
+   "fold": "星b",
+   "clean_stored_name": "星B"
+  },
+  {
+   "raw": "小Ⅻ_B",
+   "normalize_text": "小XII_B",
+   "split_ellipsis": [
+    "小XII_B",
+    false
+   ],
+   "strip_noise": "小XIIB",
+   "fold": "小xiib",
+   "clean_stored_name": "小XIIB"
+  },
+  {
+   "raw": "Ａ",
+   "normalize_text": "A",
+   "split_ellipsis": [
+    "A",
+    false
+   ],
+   "strip_noise": "A",
+   "fold": "a",
+   "clean_stored_name": "A"
+  },
+  {
+   "raw": "Σ0星",
+   "normalize_text": "Σ0星",
+   "split_ellipsis": [
+    "Σ0星",
+    false
+   ],
+   "strip_noise": "Σ0星",
+   "fold": "σ0星",
+   "clean_stored_name": "Σ0星"
+  },
+  {
+   "raw": "　⋯人心.…",
+   "normalize_text": "⋯人心....",
+   "split_ellipsis": [
+    "⋯人心",
+    true
+   ],
+   "strip_noise": "人心",
+   "fold": "人心",
+   "clean_stored_name": "人心"
+  },
+  {
+   "raw": "　星`９…鹿b\t９_",
+   "normalize_text": "星`9...鹿b9_",
+   "split_ellipsis": [
+    "星`9...鹿b9_",
+    false
+   ],
+   "strip_noise": "星9鹿b9",
+   "fold": "星9鹿b9",
+   "clean_stored_name": "星9鹿b9"
+  },
+  {
+   "raw": "星Σ星心Z　Ａ",
+   "normalize_text": "星Σ星心ZA",
+   "split_ellipsis": [
+    "星Σ星心ZA",
+    false
+   ],
+   "strip_noise": "星Σ星心ZA",
+   "fold": "星σ星心za",
+   "clean_stored_name": "星Σ星心ZA"
+  },
+  {
+   "raw": "İ例９`动①b",
+   "normalize_text": "İ例9`动1b",
+   "split_ellipsis": [
+    "İ例9`动1b",
+    false
+   ],
+   "strip_noise": "İ例9动1b",
+   "fold": "i̇例9动1b",
+   "clean_stored_name": "İ例9动1b"
+  },
+  {
+   "raw": "⋯",
+   "normalize_text": "⋯",
+   "split_ellipsis": [
+    "",
+    true
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "小",
+   "normalize_text": "小",
+   "split_ellipsis": [
+    "小",
+    false
+   ],
+   "strip_noise": "小",
+   "fold": "小",
+   "clean_stored_name": "小"
+  },
+  {
+   "raw": "0İ`　b小-a",
+   "normalize_text": "0İ`b小-a",
+   "split_ellipsis": [
+    "0İ`b小-a",
+    false
+   ],
+   "strip_noise": "0İb小a",
+   "fold": "0i̇b小a",
+   "clean_stored_name": "0İb小a"
+  },
+  {
+   "raw": "Σ",
+   "normalize_text": "Σ",
+   "split_ellipsis": [
+    "Σ",
+    false
+   ],
+   "strip_noise": "Σ",
+   "fold": "σ",
+   "clean_stored_name": "Σ"
+  },
+  {
+   "raw": "Ｚ",
+   "normalize_text": "Z",
+   "split_ellipsis": [
+    "Z",
+    false
+   ],
+   "strip_noise": "Z",
+   "fold": "z",
+   "clean_stored_name": "Z"
+  },
+  {
+   "raw": "a",
+   "normalize_text": "a",
+   "split_ellipsis": [
+    "a",
+    false
+   ],
+   "strip_noise": "a",
+   "fold": "a",
+   "clean_stored_name": "a"
+  },
+  {
+   "raw": "A-ß",
+   "normalize_text": "A-ß",
+   "split_ellipsis": [
+    "A-ß",
+    false
+   ],
+   "strip_noise": "Aß",
+   "fold": "ass",
+   "clean_stored_name": "Aß"
+  },
+  {
+   "raw": "…`。",
+   "normalize_text": "...`。",
+   "split_ellipsis": [
+    "...`",
+    true
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "A⋯!\u001c例",
+   "normalize_text": "A⋯!例",
+   "split_ellipsis": [
+    "A⋯!例",
+    false
+   ],
+   "strip_noise": "A例",
+   "fold": "a例",
+   "clean_stored_name": "A例"
+  },
+  {
+   "raw": "\u001c\tＡb⋯星",
+   "normalize_text": "Ab⋯星",
+   "split_ellipsis": [
+    "Ab⋯星",
+    false
+   ],
+   "strip_noise": "Ab星",
+   "fold": "ab星",
+   "clean_stored_name": "Ab星"
+  },
+  {
+   "raw": "星星!９",
+   "normalize_text": "星星!9",
+   "split_ellipsis": [
+    "星星!9",
+    false
+   ],
+   "strip_noise": "星星9",
+   "fold": "星星9",
+   "clean_stored_name": "星星9"
+  },
+  {
+   "raw": "ß!Ｚ示星 Σa!９",
+   "normalize_text": "ß!Z示星Σa!9",
+   "split_ellipsis": [
+    "ß!Z示星Σa!9",
+    false
+   ],
+   "strip_noise": "ßZ示星Σa9",
+   "fold": "ssz示星σa9",
+   "clean_stored_name": "ßZ示星Σa9"
+  },
+  {
+   "raw": "b　。İ…",
+   "normalize_text": "b。İ...",
+   "split_ellipsis": [
+    "b。İ",
+    true
+   ],
+   "strip_noise": "bİ",
+   "fold": "bi̇",
+   "clean_stored_name": "bİ"
+  },
+  {
+   "raw": "小",
+   "normalize_text": "小",
+   "split_ellipsis": [
+    "小",
+    false
+   ],
+   "strip_noise": "小",
+   "fold": "小",
+   "clean_stored_name": "小"
+  },
+  {
+   "raw": "z\ta-B\u001czß",
+   "normalize_text": "za-Bzß",
+   "split_ellipsis": [
+    "za-Bzß",
+    false
+   ],
+   "strip_noise": "zaBzß",
+   "fold": "zabzss",
+   "clean_stored_name": "zaBzß"
+  },
+  {
+   "raw": "鹿`①",
+   "normalize_text": "鹿`1",
+   "split_ellipsis": [
+    "鹿`1",
+    false
+   ],
+   "strip_noise": "鹿1",
+   "fold": "鹿1",
+   "clean_stored_name": "鹿1"
+  },
+  {
+   "raw": "!İZⅫＺ.①",
+   "normalize_text": "!İZXIIZ.1",
+   "split_ellipsis": [
+    "!İZXIIZ.1",
+    false
+   ],
+   "strip_noise": "İZXIIZ1",
+   "fold": "i̇zxiiz1",
+   "clean_stored_name": "İZXIIZ1"
+  },
+  {
+   "raw": "a.A　",
+   "normalize_text": "a.A",
+   "split_ellipsis": [
+    "a.A",
+    false
+   ],
+   "strip_noise": "aA",
+   "fold": "aa",
+   "clean_stored_name": "aA"
+  },
+  {
+   "raw": "·\u001c·鹿··a　",
+   "normalize_text": "··鹿··a",
+   "split_ellipsis": [
+    "··鹿··a",
+    false
+   ],
+   "strip_noise": "鹿a",
+   "fold": "鹿a",
+   "clean_stored_name": "鹿a"
+  },
+  {
+   "raw": "`A",
+   "normalize_text": "`A",
+   "split_ellipsis": [
+    "`A",
+    false
+   ],
+   "strip_noise": "A",
+   "fold": "a",
+   "clean_stored_name": "A"
+  },
+  {
+   "raw": "İ…",
+   "normalize_text": "İ...",
+   "split_ellipsis": [
+    "İ",
+    true
+   ],
+   "strip_noise": "İ",
+   "fold": "i̇",
+   "clean_stored_name": "İ"
+  },
+  {
+   "raw": "心aZ心ＡⅫ　",
+   "normalize_text": "心aZ心AXII",
+   "split_ellipsis": [
+    "心aZ心AXII",
+    false
+   ],
+   "strip_noise": "心aZ心AXII",
+   "fold": "心az心axii",
+   "clean_stored_name": "心aZ心AXII"
+  },
+  {
+   "raw": "心示例İ",
+   "normalize_text": "心示例İ",
+   "split_ellipsis": [
+    "心示例İ",
+    false
+   ],
+   "strip_noise": "心示例İ",
+   "fold": "心示例i̇",
+   "clean_stored_name": "心示例İ"
+  },
+  {
+   "raw": "人动İ",
+   "normalize_text": "人动İ",
+   "split_ellipsis": [
+    "人动İ",
+    false
+   ],
+   "strip_noise": "人动İ",
+   "fold": "人动i̇",
+   "clean_stored_name": "人动İ"
+  },
+  {
+   "raw": "示坏A_心示",
+   "normalize_text": "示坏A_心示",
+   "split_ellipsis": [
+    "示坏A_心示",
+    false
+   ],
+   "strip_noise": "示坏A心示",
+   "fold": "示坏a心示",
+   "clean_stored_name": "示坏A心示"
+  },
+  {
+   "raw": "_.动",
+   "normalize_text": "_.动",
+   "split_ellipsis": [
+    "_.动",
+    false
+   ],
+   "strip_noise": "动",
+   "fold": "动",
+   "clean_stored_name": "动"
+  },
+  {
+   "raw": "　星ΣB星⋯①\u001c⋯-",
+   "normalize_text": "星ΣB星⋯1⋯-",
+   "split_ellipsis": [
+    "星ΣB星⋯1⋯-",
+    false
+   ],
+   "strip_noise": "星ΣB星1",
+   "fold": "星σb星1",
+   "clean_stored_name": "星ΣB星1"
+  },
+  {
+   "raw": "A心",
+   "normalize_text": "A心",
+   "split_ellipsis": [
+    "A心",
+    false
+   ],
+   "strip_noise": "A心",
+   "fold": "a心",
+   "clean_stored_name": "A心"
+  },
+  {
+   "raw": "…动星坏Ａ。９例Z９",
+   "normalize_text": "...动星坏A。9例Z9",
+   "split_ellipsis": [
+    "...动星坏A。9例Z9",
+    false
+   ],
+   "strip_noise": "动星坏A9例Z9",
+   "fold": "动星坏a9例z9",
+   "clean_stored_name": "动星坏A9例Z9"
+  },
+  {
+   "raw": "心Ａ",
+   "normalize_text": "心A",
+   "split_ellipsis": [
+    "心A",
+    false
+   ],
+   "strip_noise": "心A",
+   "fold": "心a",
+   "clean_stored_name": "心A"
+  },
+  {
+   "raw": "a`坏动AＡＺ!İ",
+   "normalize_text": "a`坏动AAZ!İ",
+   "split_ellipsis": [
+    "a`坏动AAZ!İ",
+    false
+   ],
+   "strip_noise": "a坏动AAZİ",
+   "fold": "a坏动aazi̇",
+   "clean_stored_name": "a坏动AAZİ"
+  },
+  {
+   "raw": "!心-",
+   "normalize_text": "!心-",
+   "split_ellipsis": [
+    "!心-",
+    false
+   ],
+   "strip_noise": "心",
+   "fold": "心",
+   "clean_stored_name": "心"
+  },
+  {
+   "raw": "示B",
+   "normalize_text": "示B",
+   "split_ellipsis": [
+    "示B",
+    false
+   ],
+   "strip_noise": "示B",
+   "fold": "示b",
+   "clean_stored_name": "示B"
+  },
+  {
+   "raw": "a坏Z①①",
+   "normalize_text": "a坏Z11",
+   "split_ellipsis": [
+    "a坏Z11",
+    false
+   ],
+   "strip_noise": "a坏Z11",
+   "fold": "a坏z11",
+   "clean_stored_name": "a坏Z11"
+  },
+  {
+   "raw": ".İ\t",
+   "normalize_text": ".İ",
+   "split_ellipsis": [
+    ".İ",
+    false
+   ],
+   "strip_noise": "İ",
+   "fold": "i̇",
+   "clean_stored_name": "İ"
+  },
+  {
+   "raw": "Ｚ心!.ΣZ",
+   "normalize_text": "Z心!.ΣZ",
+   "split_ellipsis": [
+    "Z心!.ΣZ",
+    false
+   ],
+   "strip_noise": "Z心ΣZ",
+   "fold": "z心σz",
+   "clean_stored_name": "Z心ΣZ"
+  },
+  {
+   "raw": "示。①AZ　９例鹿b",
+   "normalize_text": "示。1AZ9例鹿b",
+   "split_ellipsis": [
+    "示。1AZ9例鹿b",
+    false
+   ],
+   "strip_noise": "示1AZ9例鹿b",
+   "fold": "示1az9例鹿b",
+   "clean_stored_name": "示1AZ9例鹿b"
+  },
+  {
+   "raw": "星ZＺa示星鹿①",
+   "normalize_text": "星ZZa示星鹿1",
+   "split_ellipsis": [
+    "星ZZa示星鹿1",
+    false
+   ],
+   "strip_noise": "星ZZa示星鹿1",
+   "fold": "星zza示星鹿1",
+   "clean_stored_name": "星ZZa示星鹿1"
+  },
+  {
+   "raw": "Σ动星",
+   "normalize_text": "Σ动星",
+   "split_ellipsis": [
+    "Σ动星",
+    false
+   ],
+   "strip_noise": "Σ动星",
+   "fold": "σ动星",
+   "clean_stored_name": "Σ动星"
+  },
+  {
+   "raw": "Ｚ \u001c９",
+   "normalize_text": "Z9",
+   "split_ellipsis": [
+    "Z9",
+    false
+   ],
+   "strip_noise": "Z9",
+   "fold": "z9",
+   "clean_stored_name": "Z9"
+  },
+  {
+   "raw": "--Ａ\tA",
+   "normalize_text": "--AA",
+   "split_ellipsis": [
+    "--AA",
+    false
+   ],
+   "strip_noise": "AA",
+   "fold": "aa",
+   "clean_stored_name": "AA"
+  },
+  {
+   "raw": ".·动\u001c星",
+   "normalize_text": ".·动星",
+   "split_ellipsis": [
+    ".·动星",
+    false
+   ],
+   "strip_noise": "动星",
+   "fold": "动星",
+   "clean_stored_name": "动星"
+  },
+  {
+   "raw": "⋯0b星ⅫZ心b`.",
+   "normalize_text": "⋯0b星XIIZ心b`.",
+   "split_ellipsis": [
+    "⋯0b星XIIZ心b`",
+    true
+   ],
+   "strip_noise": "0b星XIIZ心b",
+   "fold": "0b星xiiz心b",
+   "clean_stored_name": "0b星XIIZ心b"
+  },
+  {
+   "raw": "星",
+   "normalize_text": "星",
+   "split_ellipsis": [
+    "星",
+    false
+   ],
+   "strip_noise": "星",
+   "fold": "星",
+   "clean_stored_name": "星"
+  },
+  {
+   "raw": "　⋯",
+   "normalize_text": "⋯",
+   "split_ellipsis": [
+    "",
+    true
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "９-ß`示。·⋯",
+   "normalize_text": "9-ß`示。·⋯",
+   "split_ellipsis": [
+    "9-ß`示。",
+    true
+   ],
+   "strip_noise": "9ß示",
+   "fold": "9ss示",
+   "clean_stored_name": "9ß示"
+  },
+  {
+   "raw": "鹿.心心示!人0",
+   "normalize_text": "鹿.心心示!人0",
+   "split_ellipsis": [
+    "鹿.心心示!人0",
+    false
+   ],
+   "strip_noise": "鹿心心示人0",
+   "fold": "鹿心心示人0",
+   "clean_stored_name": "鹿心心示人0"
+  },
+  {
+   "raw": "ß",
+   "normalize_text": "ß",
+   "split_ellipsis": [
+    "ß",
+    false
+   ],
+   "strip_noise": "ß",
+   "fold": "ss",
+   "clean_stored_name": "ß"
+  },
+  {
+   "raw": "\t①İ.例Ａ示.鹿b",
+   "normalize_text": "1İ.例A示.鹿b",
+   "split_ellipsis": [
+    "1İ.例A示.鹿b",
+    false
+   ],
+   "strip_noise": "1İ例A示鹿b",
+   "fold": "1i̇例a示鹿b",
+   "clean_stored_name": "1İ例A示鹿b"
+  },
+  {
+   "raw": "人\u001cİ",
+   "normalize_text": "人İ",
+   "split_ellipsis": [
+    "人İ",
+    false
+   ],
+   "strip_noise": "人İ",
+   "fold": "人i̇",
+   "clean_stored_name": "人İ"
+  },
+  {
+   "raw": " ",
+   "normalize_text": "",
+   "split_ellipsis": [
+    "",
+    false
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": " A动星动!",
+   "normalize_text": "A动星动!",
+   "split_ellipsis": [
+    "A动星动!",
+    false
+   ],
+   "strip_noise": "A动星动",
+   "fold": "a动星动",
+   "clean_stored_name": "A动星动"
+  },
+  {
+   "raw": "ßa小·Z",
+   "normalize_text": "ßa小·Z",
+   "split_ellipsis": [
+    "ßa小·Z",
+    false
+   ],
+   "strip_noise": "ßa小Z",
+   "fold": "ssa小z",
+   "clean_stored_name": "ßa小Z"
+  },
+  {
+   "raw": "_\t…·__①zaA",
+   "normalize_text": "_...·__1zaA",
+   "split_ellipsis": [
+    "_...·__1zaA",
+    false
+   ],
+   "strip_noise": "1zaA",
+   "fold": "1zaa",
+   "clean_stored_name": "1zaA"
+  },
+  {
+   "raw": "９①星_①!例。A",
+   "normalize_text": "91星_1!例。A",
+   "split_ellipsis": [
+    "91星_1!例。A",
+    false
+   ],
+   "strip_noise": "91星1例A",
+   "fold": "91星1例a",
+   "clean_stored_name": "91星1例A"
+  },
+  {
+   "raw": "⋯鹿９Bz",
+   "normalize_text": "⋯鹿9Bz",
+   "split_ellipsis": [
+    "⋯鹿9Bz",
+    false
+   ],
+   "strip_noise": "鹿9Bz",
+   "fold": "鹿9bz",
+   "clean_stored_name": "鹿9Bz"
+  },
+  {
+   "raw": "ßＺ例",
+   "normalize_text": "ßZ例",
+   "split_ellipsis": [
+    "ßZ例",
+    false
+   ],
+   "strip_noise": "ßZ例",
+   "fold": "ssz例",
+   "clean_stored_name": "ßZ例"
+  },
+  {
+   "raw": "A星_。`",
+   "normalize_text": "A星_。`",
+   "split_ellipsis": [
+    "A星_。`",
+    false
+   ],
+   "strip_noise": "A星",
+   "fold": "a星",
+   "clean_stored_name": "A星"
+  },
+  {
+   "raw": "例_AＺＡ·B人例0",
+   "normalize_text": "例_AZA·B人例0",
+   "split_ellipsis": [
+    "例_AZA·B人例0",
+    false
+   ],
+   "strip_noise": "例AZAB人例0",
+   "fold": "例azab人例0",
+   "clean_stored_name": "例AZAB人例0"
+  },
+  {
+   "raw": "①９①A坏Ⅻß",
+   "normalize_text": "191A坏XIIß",
+   "split_ellipsis": [
+    "191A坏XIIß",
+    false
+   ],
+   "strip_noise": "191A坏XIIß",
+   "fold": "191a坏xiiss",
+   "clean_stored_name": "191A坏XIIß"
+  },
+  {
+   "raw": "\u001cß动小。",
+   "normalize_text": "ß动小。",
+   "split_ellipsis": [
+    "ß动小",
+    true
+   ],
+   "strip_noise": "ß动小",
+   "fold": "ss动小",
+   "clean_stored_name": "ß动小"
+  },
+  {
+   "raw": "Ⅻ",
+   "normalize_text": "XII",
+   "split_ellipsis": [
+    "XII",
+    false
+   ],
+   "strip_noise": "XII",
+   "fold": "xii",
+   "clean_stored_name": "XII"
+  },
+  {
+   "raw": "!z鹿①",
+   "normalize_text": "!z鹿1",
+   "split_ellipsis": [
+    "!z鹿1",
+    false
+   ],
+   "strip_noise": "z鹿1",
+   "fold": "z鹿1",
+   "clean_stored_name": "z鹿1"
+  },
+  {
+   "raw": "动z９.`Ａ\u001c",
+   "normalize_text": "动z9.`A",
+   "split_ellipsis": [
+    "动z9.`A",
+    false
+   ],
+   "strip_noise": "动z9A",
+   "fold": "动z9a",
+   "clean_stored_name": "动z9A"
+  },
+  {
+   "raw": "９A例人",
+   "normalize_text": "9A例人",
+   "split_ellipsis": [
+    "9A例人",
+    false
+   ],
+   "strip_noise": "9A例人",
+   "fold": "9a例人",
+   "clean_stored_name": "9A例人"
+  },
+  {
+   "raw": "ＡZ动",
+   "normalize_text": "AZ动",
+   "split_ellipsis": [
+    "AZ动",
+    false
+   ],
+   "strip_noise": "AZ动",
+   "fold": "az动",
+   "clean_stored_name": "AZ动"
+  },
+  {
+   "raw": "动⋯人Σ示aBß\t９",
+   "normalize_text": "动⋯人Σ示aBß9",
+   "split_ellipsis": [
+    "动⋯人Σ示aBß9",
+    false
+   ],
+   "strip_noise": "动人Σ示aBß9",
+   "fold": "动人σ示abss9",
+   "clean_stored_name": "动人Σ示aBß9"
+  },
+  {
+   "raw": "ＺＺ·。动星…0bA",
+   "normalize_text": "ZZ·。动星...0bA",
+   "split_ellipsis": [
+    "ZZ·。动星...0bA",
+    false
+   ],
+   "strip_noise": "ZZ动星0bA",
+   "fold": "zz动星0ba",
+   "clean_stored_name": "ZZ动星0bA"
+  },
+  {
+   "raw": "…例Zß.ß_",
+   "normalize_text": "...例Zß.ß_",
+   "split_ellipsis": [
+    "...例Zß.ß_",
+    false
+   ],
+   "strip_noise": "例Zßß",
+   "fold": "例zssss",
+   "clean_stored_name": "例Zßß"
+  },
+  {
+   "raw": "例Ⅻz。b_",
+   "normalize_text": "例XIIz。b_",
+   "split_ellipsis": [
+    "例XIIz。b_",
+    false
+   ],
+   "strip_noise": "例XIIzb",
+   "fold": "例xiizb",
+   "clean_stored_name": "例XIIzb"
+  },
+  {
+   "raw": "。人!Ⅻ　Ａ例",
+   "normalize_text": "。人!XIIA例",
+   "split_ellipsis": [
+    "。人!XIIA例",
+    false
+   ],
+   "strip_noise": "人XIIA例",
+   "fold": "人xiia例",
+   "clean_stored_name": "人XIIA例"
+  },
+  {
+   "raw": "z_动ß!",
+   "normalize_text": "z_动ß!",
+   "split_ellipsis": [
+    "z_动ß!",
+    false
+   ],
+   "strip_noise": "z动ß",
+   "fold": "z动ss",
+   "clean_stored_name": "z动ß"
+  },
+  {
+   "raw": "`!。坏星星①人\t",
+   "normalize_text": "`!。坏星星1人",
+   "split_ellipsis": [
+    "`!。坏星星1人",
+    false
+   ],
+   "strip_noise": "坏星星1人",
+   "fold": "坏星星1人",
+   "clean_stored_name": "坏星星1人"
+  },
+  {
+   "raw": ".A示小.",
+   "normalize_text": ".A示小.",
+   "split_ellipsis": [
+    ".A示小",
+    true
+   ],
+   "strip_noise": "A示小",
+   "fold": "a示小",
+   "clean_stored_name": "A示小"
+  },
+  {
+   "raw": "Ⅻ小小Ⅻ·\u001c",
+   "normalize_text": "XII小小XII·",
+   "split_ellipsis": [
+    "XII小小XII",
+    true
+   ],
+   "strip_noise": "XII小小XII",
+   "fold": "xii小小xii",
+   "clean_stored_name": "XII小小XII"
+  },
+  {
+   "raw": "İ⋯Σ",
+   "normalize_text": "İ⋯Σ",
+   "split_ellipsis": [
+    "İ⋯Σ",
+    false
+   ],
+   "strip_noise": "İΣ",
+   "fold": "i̇σ",
+   "clean_stored_name": "İΣ"
+  },
+  {
+   "raw": "\t",
+   "normalize_text": "",
+   "split_ellipsis": [
+    "",
+    false
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "\u001caz·①",
+   "normalize_text": "az·1",
+   "split_ellipsis": [
+    "az·1",
+    false
+   ],
+   "strip_noise": "az1",
+   "fold": "az1",
+   "clean_stored_name": "az1"
+  },
+  {
+   "raw": "例_A坏 星b",
+   "normalize_text": "例_A坏星b",
+   "split_ellipsis": [
+    "例_A坏星b",
+    false
+   ],
+   "strip_noise": "例A坏星b",
+   "fold": "例a坏星b",
+   "clean_stored_name": "例A坏星b"
+  },
+  {
+   "raw": "\u001cＺ",
+   "normalize_text": "Z",
+   "split_ellipsis": [
+    "Z",
+    false
+   ],
+   "strip_noise": "Z",
+   "fold": "z",
+   "clean_stored_name": "Z"
+  },
+  {
+   "raw": "人",
+   "normalize_text": "人",
+   "split_ellipsis": [
+    "人",
+    false
+   ],
+   "strip_noise": "人",
+   "fold": "人",
+   "clean_stored_name": "人"
+  },
+  {
+   "raw": "…①A９ ",
+   "normalize_text": "...1A9",
+   "split_ellipsis": [
+    "...1A9",
+    false
+   ],
+   "strip_noise": "1A9",
+   "fold": "1a9",
+   "clean_stored_name": "1A9"
+  },
+  {
+   "raw": "-⋯示小 a",
+   "normalize_text": "-⋯示小a",
+   "split_ellipsis": [
+    "-⋯示小a",
+    false
+   ],
+   "strip_noise": "示小a",
+   "fold": "示小a",
+   "clean_stored_name": "示小a"
+  },
+  {
+   "raw": "　a小",
+   "normalize_text": "a小",
+   "split_ellipsis": [
+    "a小",
+    false
+   ],
+   "strip_noise": "a小",
+   "fold": "a小",
+   "clean_stored_name": "a小"
+  },
+  {
+   "raw": "Ｚ鹿星鹿!小-人Ａ",
+   "normalize_text": "Z鹿星鹿!小-人A",
+   "split_ellipsis": [
+    "Z鹿星鹿!小-人A",
+    false
+   ],
+   "strip_noise": "Z鹿星鹿小人A",
+   "fold": "z鹿星鹿小人a",
+   "clean_stored_name": "Z鹿星鹿小人A"
+  },
+  {
+   "raw": "Ｚ_小Ａ!",
+   "normalize_text": "Z_小A!",
+   "split_ellipsis": [
+    "Z_小A!",
+    false
+   ],
+   "strip_noise": "Z小A",
+   "fold": "z小a",
+   "clean_stored_name": "Z小A"
+  },
+  {
+   "raw": "`示!!Ａ例",
+   "normalize_text": "`示!!A例",
+   "split_ellipsis": [
+    "`示!!A例",
+    false
+   ],
+   "strip_noise": "示A例",
+   "fold": "示a例",
+   "clean_stored_name": "示A例"
+  },
+  {
+   "raw": "`A",
+   "normalize_text": "`A",
+   "split_ellipsis": [
+    "`A",
+    false
+   ],
+   "strip_noise": "A",
+   "fold": "a",
+   "clean_stored_name": "A"
+  },
+  {
+   "raw": "星人0例z人",
+   "normalize_text": "星人0例z人",
+   "split_ellipsis": [
+    "星人0例z人",
+    false
+   ],
+   "strip_noise": "星人0例z人",
+   "fold": "星人0例z人",
+   "clean_stored_name": "星人0例z人"
+  },
+  {
+   "raw": "⋯ß星",
+   "normalize_text": "⋯ß星",
+   "split_ellipsis": [
+    "⋯ß星",
+    false
+   ],
+   "strip_noise": "ß星",
+   "fold": "ss星",
+   "clean_stored_name": "ß星"
+  },
+  {
+   "raw": "Ａa",
+   "normalize_text": "Aa",
+   "split_ellipsis": [
+    "Aa",
+    false
+   ],
+   "strip_noise": "Aa",
+   "fold": "aa",
+   "clean_stored_name": "Aa"
+  },
+  {
+   "raw": "\tİ例",
+   "normalize_text": "İ例",
+   "split_ellipsis": [
+    "İ例",
+    false
+   ],
+   "strip_noise": "İ例",
+   "fold": "i̇例",
+   "clean_stored_name": "İ例"
+  },
+  {
+   "raw": "。",
+   "normalize_text": "。",
+   "split_ellipsis": [
+    "",
+    true
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "９.0小0Σ.９B",
+   "normalize_text": "9.0小0Σ.9B",
+   "split_ellipsis": [
+    "9.0小0Σ.9B",
+    false
+   ],
+   "strip_noise": "90小0Σ9B",
+   "fold": "90小0σ9b",
+   "clean_stored_name": "90小0Σ9B"
+  },
+  {
+   "raw": "星AΣ　…İⅫ",
+   "normalize_text": "星AΣ...İXII",
+   "split_ellipsis": [
+    "星AΣ...İXII",
+    false
+   ],
+   "strip_noise": "星AΣİXII",
+   "fold": "星aσi̇xii",
+   "clean_stored_name": "星AΣİXII"
+  },
+  {
+   "raw": "B　　·A小",
+   "normalize_text": "B·A小",
+   "split_ellipsis": [
+    "B·A小",
+    false
+   ],
+   "strip_noise": "BA小",
+   "fold": "ba小",
+   "clean_stored_name": "BA小"
+  },
+  {
+   "raw": "_`①星z星…心Σ",
+   "normalize_text": "_`1星z星...心Σ",
+   "split_ellipsis": [
+    "_`1星z星...心Σ",
+    false
+   ],
+   "strip_noise": "1星z星心Σ",
+   "fold": "1星z星心σ",
+   "clean_stored_name": "1星z星心Σ"
+  },
+  {
+   "raw": " ",
+   "normalize_text": "",
+   "split_ellipsis": [
+    "",
+    false
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "９。!Ａ_Σ·z",
+   "normalize_text": "9。!A_Σ·z",
+   "split_ellipsis": [
+    "9。!A_Σ·z",
+    false
+   ],
+   "strip_noise": "9AΣz",
+   "fold": "9aσz",
+   "clean_stored_name": "9AΣz"
+  },
+  {
+   "raw": "bΣ-动坏Ｚ。Σ①İ",
+   "normalize_text": "bΣ-动坏Z。Σ1İ",
+   "split_ellipsis": [
+    "bΣ-动坏Z。Σ1İ",
+    false
+   ],
+   "strip_noise": "bΣ动坏ZΣ1İ",
+   "fold": "bσ动坏zσ1i̇",
+   "clean_stored_name": "bΣ动坏ZΣ1İ"
+  },
+  {
+   "raw": "\u001caZ",
+   "normalize_text": "aZ",
+   "split_ellipsis": [
+    "aZ",
+    false
+   ],
+   "strip_noise": "aZ",
+   "fold": "az",
+   "clean_stored_name": "aZ"
+  },
+  {
+   "raw": "Ⅻ小例Ａ·⋯…９.Ｚ",
+   "normalize_text": "XII小例A·⋯...9.Z",
+   "split_ellipsis": [
+    "XII小例A·⋯...9.Z",
+    false
+   ],
+   "strip_noise": "XII小例A9Z",
+   "fold": "xii小例a9z",
+   "clean_stored_name": "XII小例A9Z"
+  },
+  {
+   "raw": "小b0Ⅻ.星",
+   "normalize_text": "小b0XII.星",
+   "split_ellipsis": [
+    "小b0XII.星",
+    false
+   ],
+   "strip_noise": "小b0XII星",
+   "fold": "小b0xii星",
+   "clean_stored_name": "小b0XII星"
+  },
+  {
+   "raw": "示…例",
+   "normalize_text": "示...例",
+   "split_ellipsis": [
+    "示...例",
+    false
+   ],
+   "strip_noise": "示例",
+   "fold": "示例",
+   "clean_stored_name": "示例"
+  },
+  {
+   "raw": "…鹿ßß·",
+   "normalize_text": "...鹿ßß·",
+   "split_ellipsis": [
+    "...鹿ßß",
+    true
+   ],
+   "strip_noise": "鹿ßß",
+   "fold": "鹿ssss",
+   "clean_stored_name": "鹿ßß"
+  },
+  {
+   "raw": "心Ａ例\t示ＺΣ星A",
+   "normalize_text": "心A例示ZΣ星A",
+   "split_ellipsis": [
+    "心A例示ZΣ星A",
+    false
+   ],
+   "strip_noise": "心A例示ZΣ星A",
+   "fold": "心a例示zσ星a",
+   "clean_stored_name": "心A例示ZΣ星A"
+  },
+  {
+   "raw": "…-_",
+   "normalize_text": "...-_",
+   "split_ellipsis": [
+    "...-_",
+    false
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "0",
+   "normalize_text": "0",
+   "split_ellipsis": [
+    "0",
+    false
+   ],
+   "strip_noise": "0",
+   "fold": "0",
+   "clean_stored_name": "0"
+  },
+  {
+   "raw": "\u001c小Ⅻb\u001c示９z",
+   "normalize_text": "小XIIb示9z",
+   "split_ellipsis": [
+    "小XIIb示9z",
+    false
+   ],
+   "strip_noise": "小XIIb示9z",
+   "fold": "小xiib示9z",
+   "clean_stored_name": "小XIIb示9z"
+  },
+  {
+   "raw": "坏Σ-星 坏小",
+   "normalize_text": "坏Σ-星坏小",
+   "split_ellipsis": [
+    "坏Σ-星坏小",
+    false
+   ],
+   "strip_noise": "坏Σ星坏小",
+   "fold": "坏σ星坏小",
+   "clean_stored_name": "坏Σ星坏小"
+  },
+  {
+   "raw": "Ａ",
+   "normalize_text": "A",
+   "split_ellipsis": [
+    "A",
+    false
+   ],
+   "strip_noise": "A",
+   "fold": "a",
+   "clean_stored_name": "A"
+  },
+  {
+   "raw": "Ａ.ß星小__ßß鹿",
+   "normalize_text": "A.ß星小__ßß鹿",
+   "split_ellipsis": [
+    "A.ß星小__ßß鹿",
+    false
+   ],
+   "strip_noise": "Aß星小ßß鹿",
+   "fold": "ass星小ssss鹿",
+   "clean_stored_name": "Aß星小ßß鹿"
+  },
+  {
+   "raw": "动!\u001c\t.例小Z",
+   "normalize_text": "动!.例小Z",
+   "split_ellipsis": [
+    "动!.例小Z",
+    false
+   ],
+   "strip_noise": "动例小Z",
+   "fold": "动例小z",
+   "clean_stored_name": "动例小Z"
+  },
+  {
+   "raw": " 例",
+   "normalize_text": "例",
+   "split_ellipsis": [
+    "例",
+    false
+   ],
+   "strip_noise": "例",
+   "fold": "例",
+   "clean_stored_name": "例"
+  },
+  {
+   "raw": "0小星① 星心A·`",
+   "normalize_text": "0小星1星心A·`",
+   "split_ellipsis": [
+    "0小星1星心A·`",
+    false
+   ],
+   "strip_noise": "0小星1星心A",
+   "fold": "0小星1星心a",
+   "clean_stored_name": "0小星1星心A"
+  },
+  {
+   "raw": "0İ…坏坏①⋯",
+   "normalize_text": "0İ...坏坏1⋯",
+   "split_ellipsis": [
+    "0İ...坏坏1",
+    true
+   ],
+   "strip_noise": "0İ坏坏1",
+   "fold": "0i̇坏坏1",
+   "clean_stored_name": "0İ坏坏1"
+  },
+  {
+   "raw": "Ａ　",
+   "normalize_text": "A",
+   "split_ellipsis": [
+    "A",
+    false
+   ],
+   "strip_noise": "A",
+   "fold": "a",
+   "clean_stored_name": "A"
+  },
+  {
+   "raw": "Ｚ…İ ",
+   "normalize_text": "Z...İ",
+   "split_ellipsis": [
+    "Z...İ",
+    false
+   ],
+   "strip_noise": "Zİ",
+   "fold": "zi̇",
+   "clean_stored_name": "Zİ"
+  },
+  {
+   "raw": "鹿Σ　ß",
+   "normalize_text": "鹿Σß",
+   "split_ellipsis": [
+    "鹿Σß",
+    false
+   ],
+   "strip_noise": "鹿Σß",
+   "fold": "鹿σss",
+   "clean_stored_name": "鹿Σß"
+  },
+  {
+   "raw": "\tZB例!0·动Z。",
+   "normalize_text": "ZB例!0·动Z。",
+   "split_ellipsis": [
+    "ZB例!0·动Z",
+    true
+   ],
+   "strip_noise": "ZB例0动Z",
+   "fold": "zb例0动z",
+   "clean_stored_name": "ZB例0动Z"
+  },
+  {
+   "raw": "星0星心动 人 ",
+   "normalize_text": "星0星心动人",
+   "split_ellipsis": [
+    "星0星心动人",
+    false
+   ],
+   "strip_noise": "星0星心动人",
+   "fold": "星0星心动人",
+   "clean_stored_name": "星0星心动人"
+  },
+  {
+   "raw": "Ａ坏",
+   "normalize_text": "A坏",
+   "split_ellipsis": [
+    "A坏",
+    false
+   ],
+   "strip_noise": "A坏",
+   "fold": "a坏",
+   "clean_stored_name": "A坏"
+  },
+  {
+   "raw": "９⋯",
+   "normalize_text": "9⋯",
+   "split_ellipsis": [
+    "9",
+    true
+   ],
+   "strip_noise": "9",
+   "fold": "9",
+   "clean_stored_name": "9"
+  },
+  {
+   "raw": "星!动小ßA Z",
+   "normalize_text": "星!动小ßAZ",
+   "split_ellipsis": [
+    "星!动小ßAZ",
+    false
+   ],
+   "strip_noise": "星动小ßAZ",
+   "fold": "星动小ssaz",
+   "clean_stored_name": "星动小ßAZ"
+  },
+  {
+   "raw": "　人Ａ例星·",
+   "normalize_text": "人A例星·",
+   "split_ellipsis": [
+    "人A例星",
+    true
+   ],
+   "strip_noise": "人A例星",
+   "fold": "人a例星",
+   "clean_stored_name": "人A例星"
+  },
+  {
+   "raw": "…。…A!-Ｚ人b。",
+   "normalize_text": "...。...A!-Z人b。",
+   "split_ellipsis": [
+    "...。...A!-Z人b",
+    true
+   ],
+   "strip_noise": "AZ人b",
+   "fold": "az人b",
+   "clean_stored_name": "AZ人b"
+  },
+  {
+   "raw": "人\u001ca小\t。Z",
+   "normalize_text": "人a小。Z",
+   "split_ellipsis": [
+    "人a小。Z",
+    false
+   ],
+   "strip_noise": "人a小Z",
+   "fold": "人a小z",
+   "clean_stored_name": "人a小Z"
+  },
+  {
+   "raw": "Ｚ星星`Ａ⋯BBΣa",
+   "normalize_text": "Z星星`A⋯BBΣa",
+   "split_ellipsis": [
+    "Z星星`A⋯BBΣa",
+    false
+   ],
+   "strip_noise": "Z星星ABBΣa",
+   "fold": "z星星abbσa",
+   "clean_stored_name": "Z星星ABBΣa"
+  },
+  {
+   "raw": "\t!。。0b…",
+   "normalize_text": "!。。0b...",
+   "split_ellipsis": [
+    "!。。0b",
+    true
+   ],
+   "strip_noise": "0b",
+   "fold": "0b",
+   "clean_stored_name": "0b"
+  },
+  {
+   "raw": "B…⋯a。B星Ａ⋯Σ",
+   "normalize_text": "B...⋯a。B星A⋯Σ",
+   "split_ellipsis": [
+    "B...⋯a。B星A⋯Σ",
+    false
+   ],
+   "strip_noise": "BaB星AΣ",
+   "fold": "bab星aσ",
+   "clean_stored_name": "BaB星AΣ"
+  },
+  {
+   "raw": "①\u001c…人·",
+   "normalize_text": "1...人·",
+   "split_ellipsis": [
+    "1...人",
+    true
+   ],
+   "strip_noise": "1人",
+   "fold": "1人",
+   "clean_stored_name": "1人"
+  },
+  {
+   "raw": "　　ΣB_ 0",
+   "normalize_text": "ΣB_0",
+   "split_ellipsis": [
+    "ΣB_0",
+    false
+   ],
+   "strip_noise": "ΣB0",
+   "fold": "σb0",
+   "clean_stored_name": "ΣB0"
+  },
+  {
+   "raw": "\t",
+   "normalize_text": "",
+   "split_ellipsis": [
+    "",
+    false
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "0Ⅻß　人A`",
+   "normalize_text": "0XIIß人A`",
+   "split_ellipsis": [
+    "0XIIß人A`",
+    false
+   ],
+   "strip_noise": "0XIIß人A",
+   "fold": "0xiiss人a",
+   "clean_stored_name": "0XIIß人A"
+  },
+  {
+   "raw": "z.",
+   "normalize_text": "z.",
+   "split_ellipsis": [
+    "z",
+    true
+   ],
+   "strip_noise": "z",
+   "fold": "z",
+   "clean_stored_name": "z"
+  },
+  {
+   "raw": "B",
+   "normalize_text": "B",
+   "split_ellipsis": [
+    "B",
+    false
+   ],
+   "strip_noise": "B",
+   "fold": "b",
+   "clean_stored_name": "B"
+  },
+  {
+   "raw": "星Z小心",
+   "normalize_text": "星Z小心",
+   "split_ellipsis": [
+    "星Z小心",
+    false
+   ],
+   "strip_noise": "星Z小心",
+   "fold": "星z小心",
+   "clean_stored_name": "星Z小心"
+  },
+  {
+   "raw": "⋯鹿示Z",
+   "normalize_text": "⋯鹿示Z",
+   "split_ellipsis": [
+    "⋯鹿示Z",
+    false
+   ],
+   "strip_noise": "鹿示Z",
+   "fold": "鹿示z",
+   "clean_stored_name": "鹿示Z"
+  },
+  {
+   "raw": "坏Zzİb⋯鹿ⅫΣ-",
+   "normalize_text": "坏Zzİb⋯鹿XIIΣ-",
+   "split_ellipsis": [
+    "坏Zzİb⋯鹿XIIΣ-",
+    false
+   ],
+   "strip_noise": "坏Zzİb鹿XIIΣ",
+   "fold": "坏zzi̇b鹿xiiσ",
+   "clean_stored_name": "坏Zzİb鹿XIIΣ"
+  },
+  {
+   "raw": "人坏Σ",
+   "normalize_text": "人坏Σ",
+   "split_ellipsis": [
+    "人坏Σ",
+    false
+   ],
+   "strip_noise": "人坏Σ",
+   "fold": "人坏σ",
+   "clean_stored_name": "人坏Σ"
+  },
+  {
+   "raw": "。b　动Ａ。鹿!",
+   "normalize_text": "。b动A。鹿!",
+   "split_ellipsis": [
+    "。b动A。鹿!",
+    false
+   ],
+   "strip_noise": "b动A鹿",
+   "fold": "b动a鹿",
+   "clean_stored_name": "b动A鹿"
+  },
+  {
+   "raw": "ß…·0\u001c",
+   "normalize_text": "ß...·0",
+   "split_ellipsis": [
+    "ß...·0",
+    false
+   ],
+   "strip_noise": "ß0",
+   "fold": "ss0",
+   "clean_stored_name": "ß0"
+  },
+  {
+   "raw": "z…心\t",
+   "normalize_text": "z...心",
+   "split_ellipsis": [
+    "z...心",
+    false
+   ],
+   "strip_noise": "z心",
+   "fold": "z心",
+   "clean_stored_name": "z心"
+  },
+  {
+   "raw": "İA\u001c星星\t。`\u001c",
+   "normalize_text": "İA星星。`",
+   "split_ellipsis": [
+    "İA星星。`",
+    false
+   ],
+   "strip_noise": "İA星星",
+   "fold": "i̇a星星",
+   "clean_stored_name": "İA星星"
+  },
+  {
+   "raw": ".⋯-İ星",
+   "normalize_text": ".⋯-İ星",
+   "split_ellipsis": [
+    ".⋯-İ星",
+    false
+   ],
+   "strip_noise": "İ星",
+   "fold": "i̇星",
+   "clean_stored_name": "İ星"
+  },
+  {
+   "raw": "小坏Z",
+   "normalize_text": "小坏Z",
+   "split_ellipsis": [
+    "小坏Z",
+    false
+   ],
+   "strip_noise": "小坏Z",
+   "fold": "小坏z",
+   "clean_stored_name": "小坏Z"
+  },
+  {
+   "raw": "Σ鹿0ß星",
+   "normalize_text": "Σ鹿0ß星",
+   "split_ellipsis": [
+    "Σ鹿0ß星",
+    false
+   ],
+   "strip_noise": "Σ鹿0ß星",
+   "fold": "σ鹿0ss星",
+   "clean_stored_name": "Σ鹿0ß星"
+  },
+  {
+   "raw": "B!",
+   "normalize_text": "B!",
+   "split_ellipsis": [
+    "B!",
+    false
+   ],
+   "strip_noise": "B",
+   "fold": "b",
+   "clean_stored_name": "B"
+  },
+  {
+   "raw": "坏示例。`",
+   "normalize_text": "坏示例。`",
+   "split_ellipsis": [
+    "坏示例。`",
+    false
+   ],
+   "strip_noise": "坏示例",
+   "fold": "坏示例",
+   "clean_stored_name": "坏示例"
+  },
+  {
+   "raw": "心!··",
+   "normalize_text": "心!··",
+   "split_ellipsis": [
+    "心!",
+    true
+   ],
+   "strip_noise": "心",
+   "fold": "心",
+   "clean_stored_name": "心"
+  },
+  {
+   "raw": "Ｚ` 人`例例①",
+   "normalize_text": "Z`人`例例1",
+   "split_ellipsis": [
+    "Z`人`例例1",
+    false
+   ],
+   "strip_noise": "Z人例例1",
+   "fold": "z人例例1",
+   "clean_stored_name": "Z人例例1"
+  },
+  {
+   "raw": "星`0…",
+   "normalize_text": "星`0...",
+   "split_ellipsis": [
+    "星`0",
+    true
+   ],
+   "strip_noise": "星0",
+   "fold": "星0",
+   "clean_stored_name": "星0"
+  },
+  {
+   "raw": "心\u001c",
+   "normalize_text": "心",
+   "split_ellipsis": [
+    "心",
+    false
+   ],
+   "strip_noise": "心",
+   "fold": "心",
+   "clean_stored_name": "心"
+  },
+  {
+   "raw": "·⋯心aⅫİ_",
+   "normalize_text": "·⋯心aXIIİ_",
+   "split_ellipsis": [
+    "·⋯心aXIIİ_",
+    false
+   ],
+   "strip_noise": "心aXIIİ",
+   "fold": "心axiii̇",
+   "clean_stored_name": "心aXIIİ"
+  },
+  {
+   "raw": "①⋯\u001c坏①.B",
+   "normalize_text": "1⋯坏1.B",
+   "split_ellipsis": [
+    "1⋯坏1.B",
+    false
+   ],
+   "strip_noise": "1坏1B",
+   "fold": "1坏1b",
+   "clean_stored_name": "1坏1B"
+  },
+  {
+   "raw": "zＺİ鹿Zz",
+   "normalize_text": "zZİ鹿Zz",
+   "split_ellipsis": [
+    "zZİ鹿Zz",
+    false
+   ],
+   "strip_noise": "zZİ鹿Zz",
+   "fold": "zzi̇鹿zz",
+   "clean_stored_name": "zZİ鹿Zz"
+  },
+  {
+   "raw": "B　⋯小",
+   "normalize_text": "B⋯小",
+   "split_ellipsis": [
+    "B⋯小",
+    false
+   ],
+   "strip_noise": "B小",
+   "fold": "b小",
+   "clean_stored_name": "B小"
+  },
+  {
+   "raw": "Ⅻz",
+   "normalize_text": "XIIz",
+   "split_ellipsis": [
+    "XIIz",
+    false
+   ],
+   "strip_noise": "XIIz",
+   "fold": "xiiz",
+   "clean_stored_name": "XIIz"
+  },
+  {
+   "raw": "-　z①.坏Ⅻ。Ⅻz",
+   "normalize_text": "-z1.坏XII。XIIz",
+   "split_ellipsis": [
+    "-z1.坏XII。XIIz",
+    false
+   ],
+   "strip_noise": "z1坏XIIXIIz",
+   "fold": "z1坏xiixiiz",
+   "clean_stored_name": "z1坏XIIXIIz"
+  },
+  {
+   "raw": "例９…人_①鹿",
+   "normalize_text": "例9...人_1鹿",
+   "split_ellipsis": [
+    "例9...人_1鹿",
+    false
+   ],
+   "strip_noise": "例9人1鹿",
+   "fold": "例9人1鹿",
+   "clean_stored_name": "例9人1鹿"
+  },
+  {
+   "raw": "例人①",
+   "normalize_text": "例人1",
+   "split_ellipsis": [
+    "例人1",
+    false
+   ],
+   "strip_noise": "例人1",
+   "fold": "例人1",
+   "clean_stored_name": "例人1"
+  },
+  {
+   "raw": "_\u001c例Z。",
+   "normalize_text": "_例Z。",
+   "split_ellipsis": [
+    "_例Z",
+    true
+   ],
+   "strip_noise": "例Z",
+   "fold": "例z",
+   "clean_stored_name": "例Z"
+  },
+  {
+   "raw": "。心人心Bz人ß!Ⅻ",
+   "normalize_text": "。心人心Bz人ß!XII",
+   "split_ellipsis": [
+    "。心人心Bz人ß!XII",
+    false
+   ],
+   "strip_noise": "心人心Bz人ßXII",
+   "fold": "心人心bz人ssxii",
+   "clean_stored_name": "心人心Bz人ßXII"
+  },
+  {
+   "raw": "B!.\u001c",
+   "normalize_text": "B!.",
+   "split_ellipsis": [
+    "B!",
+    true
+   ],
+   "strip_noise": "B",
+   "fold": "b",
+   "clean_stored_name": "B"
+  },
+  {
+   "raw": "\t",
+   "normalize_text": "",
+   "split_ellipsis": [
+    "",
+    false
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "Ⅻ!⋯",
+   "normalize_text": "XII!⋯",
+   "split_ellipsis": [
+    "XII!",
+    true
+   ],
+   "strip_noise": "XII",
+   "fold": "xii",
+   "clean_stored_name": "XII"
+  },
+  {
+   "raw": "⋯ＡＺ",
+   "normalize_text": "⋯AZ",
+   "split_ellipsis": [
+    "⋯AZ",
+    false
+   ],
+   "strip_noise": "AZ",
+   "fold": "az",
+   "clean_stored_name": "AZ"
+  },
+  {
+   "raw": "鹿",
+   "normalize_text": "鹿",
+   "split_ellipsis": [
+    "鹿",
+    false
+   ],
+   "strip_noise": "鹿",
+   "fold": "鹿",
+   "clean_stored_name": "鹿"
+  },
+  {
+   "raw": "\u001c`İ①ΣZA0",
+   "normalize_text": "`İ1ΣZA0",
+   "split_ellipsis": [
+    "`İ1ΣZA0",
+    false
+   ],
+   "strip_noise": "İ1ΣZA0",
+   "fold": "i̇1σza0",
+   "clean_stored_name": "İ1ΣZA0"
+  },
+  {
+   "raw": "小心",
+   "normalize_text": "小心",
+   "split_ellipsis": [
+    "小心",
+    false
+   ],
+   "strip_noise": "小心",
+   "fold": "小心",
+   "clean_stored_name": "小心"
+  },
+  {
+   "raw": "小小`",
+   "normalize_text": "小小`",
+   "split_ellipsis": [
+    "小小`",
+    false
+   ],
+   "strip_noise": "小小",
+   "fold": "小小",
+   "clean_stored_name": "小小"
+  },
+  {
+   "raw": "人--",
+   "normalize_text": "人--",
+   "split_ellipsis": [
+    "人--",
+    false
+   ],
+   "strip_noise": "人",
+   "fold": "人",
+   "clean_stored_name": "人"
+  },
+  {
+   "raw": "Ⅻ星A例星",
+   "normalize_text": "XII星A例星",
+   "split_ellipsis": [
+    "XII星A例星",
+    false
+   ],
+   "strip_noise": "XII星A例星",
+   "fold": "xii星a例星",
+   "clean_stored_name": "XII星A例星"
+  },
+  {
+   "raw": "⋯aabＡbİ",
+   "normalize_text": "⋯aabAbİ",
+   "split_ellipsis": [
+    "⋯aabAbİ",
+    false
+   ],
+   "strip_noise": "aabAbİ",
+   "fold": "aababi̇",
+   "clean_stored_name": "aabAbİ"
+  },
+  {
+   "raw": "b·",
+   "normalize_text": "b·",
+   "split_ellipsis": [
+    "b",
+    true
+   ],
+   "strip_noise": "b",
+   "fold": "b",
+   "clean_stored_name": "b"
+  },
+  {
+   "raw": "B`Σ①`Ⅻ",
+   "normalize_text": "B`Σ1`XII",
+   "split_ellipsis": [
+    "B`Σ1`XII",
+    false
+   ],
+   "strip_noise": "BΣ1XII",
+   "fold": "bσ1xii",
+   "clean_stored_name": "BΣ1XII"
+  },
+  {
+   "raw": "示",
+   "normalize_text": "示",
+   "split_ellipsis": [
+    "示",
+    false
+   ],
+   "strip_noise": "示",
+   "fold": "示",
+   "clean_stored_name": "示"
+  },
+  {
+   "raw": "　",
+   "normalize_text": "",
+   "split_ellipsis": [
+    "",
+    false
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "动\u001c_ＺⅫ",
+   "normalize_text": "动_ZXII",
+   "split_ellipsis": [
+    "动_ZXII",
+    false
+   ],
+   "strip_noise": "动ZXII",
+   "fold": "动zxii",
+   "clean_stored_name": "动ZXII"
+  },
+  {
+   "raw": "动人İ.动星b\t星",
+   "normalize_text": "动人İ.动星b星",
+   "split_ellipsis": [
+    "动人İ.动星b星",
+    false
+   ],
+   "strip_noise": "动人İ动星b星",
+   "fold": "动人i̇动星b星",
+   "clean_stored_name": "动人İ动星b星"
+  },
+  {
+   "raw": "İz鹿.Σ",
+   "normalize_text": "İz鹿.Σ",
+   "split_ellipsis": [
+    "İz鹿.Σ",
+    false
+   ],
+   "strip_noise": "İz鹿Σ",
+   "fold": "i̇z鹿σ",
+   "clean_stored_name": "İz鹿Σ"
+  },
+  {
+   "raw": "９·\t0ⅫB",
+   "normalize_text": "9·0XIIB",
+   "split_ellipsis": [
+    "9·0XIIB",
+    false
+   ],
+   "strip_noise": "90XIIB",
+   "fold": "90xiib",
+   "clean_stored_name": "90XIIB"
+  },
+  {
+   "raw": "鹿AZßⅫ0Z９９９",
+   "normalize_text": "鹿AZßXII0Z999",
+   "split_ellipsis": [
+    "鹿AZßXII0Z999",
+    false
+   ],
+   "strip_noise": "鹿AZßXII0Z999",
+   "fold": "鹿azssxii0z999",
+   "clean_stored_name": "鹿AZßXII0Z999"
+  },
+  {
+   "raw": " 小\t\u001c`_。",
+   "normalize_text": "小`_。",
+   "split_ellipsis": [
+    "小`_",
+    true
+   ],
+   "strip_noise": "小",
+   "fold": "小",
+   "clean_stored_name": "小"
+  },
+  {
+   "raw": "…星\t９",
+   "normalize_text": "...星9",
+   "split_ellipsis": [
+    "...星9",
+    false
+   ],
+   "strip_noise": "星9",
+   "fold": "星9",
+   "clean_stored_name": "星9"
+  },
+  {
+   "raw": "⋯B",
+   "normalize_text": "⋯B",
+   "split_ellipsis": [
+    "⋯B",
+    false
+   ],
+   "strip_noise": "B",
+   "fold": "b",
+   "clean_stored_name": "B"
+  },
+  {
+   "raw": "z⋯动ß\tＺ星`\t动",
+   "normalize_text": "z⋯动ßZ星`动",
+   "split_ellipsis": [
+    "z⋯动ßZ星`动",
+    false
+   ],
+   "strip_noise": "z动ßZ星动",
+   "fold": "z动ssz星动",
+   "clean_stored_name": "z动ßZ星动"
+  },
+  {
+   "raw": "鹿Z坏坏ZßⅫB",
+   "normalize_text": "鹿Z坏坏ZßXIIB",
+   "split_ellipsis": [
+    "鹿Z坏坏ZßXIIB",
+    false
+   ],
+   "strip_noise": "鹿Z坏坏ZßXIIB",
+   "fold": "鹿z坏坏zssxiib",
+   "clean_stored_name": "鹿Z坏坏ZßXIIB"
+  },
+  {
+   "raw": "９鹿\tb鹿aBZ例示",
+   "normalize_text": "9鹿b鹿aBZ例示",
+   "split_ellipsis": [
+    "9鹿b鹿aBZ例示",
+    false
+   ],
+   "strip_noise": "9鹿b鹿aBZ例示",
+   "fold": "9鹿b鹿abz例示",
+   "clean_stored_name": "9鹿b鹿aBZ例示"
+  },
+  {
+   "raw": "小\t0示\t例Ｚ",
+   "normalize_text": "小0示例Z",
+   "split_ellipsis": [
+    "小0示例Z",
+    false
+   ],
+   "strip_noise": "小0示例Z",
+   "fold": "小0示例z",
+   "clean_stored_name": "小0示例Z"
+  },
+  {
+   "raw": "Z鹿",
+   "normalize_text": "Z鹿",
+   "split_ellipsis": [
+    "Z鹿",
+    false
+   ],
+   "strip_noise": "Z鹿",
+   "fold": "z鹿",
+   "clean_stored_name": "Z鹿"
+  },
+  {
+   "raw": "。",
+   "normalize_text": "。",
+   "split_ellipsis": [
+    "",
+    true
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "①",
+   "normalize_text": "1",
+   "split_ellipsis": [
+    "1",
+    false
+   ],
+   "strip_noise": "1",
+   "fold": "1",
+   "clean_stored_name": "1"
+  },
+  {
+   "raw": "-①",
+   "normalize_text": "-1",
+   "split_ellipsis": [
+    "-1",
+    false
+   ],
+   "strip_noise": "1",
+   "fold": "1",
+   "clean_stored_name": "1"
+  },
+  {
+   "raw": "0９B\tz…B９鹿ß",
+   "normalize_text": "09Bz...B9鹿ß",
+   "split_ellipsis": [
+    "09Bz...B9鹿ß",
+    false
+   ],
+   "strip_noise": "09BzB9鹿ß",
+   "fold": "09bzb9鹿ss",
+   "clean_stored_name": "09BzB9鹿ß"
+  },
+  {
+   "raw": "例示ß动Ａ",
+   "normalize_text": "例示ß动A",
+   "split_ellipsis": [
+    "例示ß动A",
+    false
+   ],
+   "strip_noise": "例示ß动A",
+   "fold": "例示ss动a",
+   "clean_stored_name": "例示ß动A"
+  },
+  {
+   "raw": "ß动\u001c!`⋯①ＺＺ-",
+   "normalize_text": "ß动!`⋯1ZZ-",
+   "split_ellipsis": [
+    "ß动!`⋯1ZZ-",
+    false
+   ],
+   "strip_noise": "ß动1ZZ",
+   "fold": "ss动1zz",
+   "clean_stored_name": "ß动1ZZ"
+  },
+  {
+   "raw": "0Ｚ坏",
+   "normalize_text": "0Z坏",
+   "split_ellipsis": [
+    "0Z坏",
+    false
+   ],
+   "strip_noise": "0Z坏",
+   "fold": "0z坏",
+   "clean_stored_name": "0Z坏"
+  },
+  {
+   "raw": "。",
+   "normalize_text": "。",
+   "split_ellipsis": [
+    "",
+    true
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "星①坏Σ",
+   "normalize_text": "星1坏Σ",
+   "split_ellipsis": [
+    "星1坏Σ",
+    false
+   ],
+   "strip_noise": "星1坏Σ",
+   "fold": "星1坏σ",
+   "clean_stored_name": "星1坏Σ"
+  },
+  {
+   "raw": "①.。",
+   "normalize_text": "1.。",
+   "split_ellipsis": [
+    "1.",
+    true
+   ],
+   "strip_noise": "1",
+   "fold": "1",
+   "clean_stored_name": "1"
+  },
+  {
+   "raw": "Σ",
+   "normalize_text": "Σ",
+   "split_ellipsis": [
+    "Σ",
+    false
+   ],
+   "strip_noise": "Σ",
+   "fold": "σ",
+   "clean_stored_name": "Σ"
+  },
+  {
+   "raw": "-　`坏星星a",
+   "normalize_text": "-`坏星星a",
+   "split_ellipsis": [
+    "-`坏星星a",
+    false
+   ],
+   "strip_noise": "坏星星a",
+   "fold": "坏星星a",
+   "clean_stored_name": "坏星星a"
+  },
+  {
+   "raw": "a心…aa.。",
+   "normalize_text": "a心...aa.。",
+   "split_ellipsis": [
+    "a心...aa.",
+    true
+   ],
+   "strip_noise": "a心aa",
+   "fold": "a心aa",
+   "clean_stored_name": "a心aa"
+  },
+  {
+   "raw": "人",
+   "normalize_text": "人",
+   "split_ellipsis": [
+    "人",
+    false
+   ],
+   "strip_noise": "人",
+   "fold": "人",
+   "clean_stored_name": "人"
+  },
+  {
+   "raw": " \t",
+   "normalize_text": "",
+   "split_ellipsis": [
+    "",
+    false
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "Ｚ①aⅫß",
+   "normalize_text": "Z1aXIIß",
+   "split_ellipsis": [
+    "Z1aXIIß",
+    false
+   ],
+   "strip_noise": "Z1aXIIß",
+   "fold": "z1axiiss",
+   "clean_stored_name": "Z1aXIIß"
+  },
+  {
+   "raw": "例",
+   "normalize_text": "例",
+   "split_ellipsis": [
+    "例",
+    false
+   ],
+   "strip_noise": "例",
+   "fold": "例",
+   "clean_stored_name": "例"
+  },
+  {
+   "raw": "。鹿Z\t星`",
+   "normalize_text": "。鹿Z星`",
+   "split_ellipsis": [
+    "。鹿Z星`",
+    false
+   ],
+   "strip_noise": "鹿Z星",
+   "fold": "鹿z星",
+   "clean_stored_name": "鹿Z星"
+  },
+  {
+   "raw": "星９",
+   "normalize_text": "星9",
+   "split_ellipsis": [
+    "星9",
+    false
+   ],
+   "strip_noise": "星9",
+   "fold": "星9",
+   "clean_stored_name": "星9"
+  },
+  {
+   "raw": "示",
+   "normalize_text": "示",
+   "split_ellipsis": [
+    "示",
+    false
+   ],
+   "strip_noise": "示",
+   "fold": "示",
+   "clean_stored_name": "示"
+  },
+  {
+   "raw": "心·-Z",
+   "normalize_text": "心·-Z",
+   "split_ellipsis": [
+    "心·-Z",
+    false
+   ],
+   "strip_noise": "心Z",
+   "fold": "心z",
+   "clean_stored_name": "心Z"
+  },
+  {
+   "raw": "示Ⅻ`_小",
+   "normalize_text": "示XII`_小",
+   "split_ellipsis": [
+    "示XII`_小",
+    false
+   ],
+   "strip_noise": "示XII小",
+   "fold": "示xii小",
+   "clean_stored_name": "示XII小"
+  },
+  {
+   "raw": "。\u001c",
+   "normalize_text": "。",
+   "split_ellipsis": [
+    "",
+    true
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "９Ｚ心`Σ例",
+   "normalize_text": "9Z心`Σ例",
+   "split_ellipsis": [
+    "9Z心`Σ例",
+    false
+   ],
+   "strip_noise": "9Z心Σ例",
+   "fold": "9z心σ例",
+   "clean_stored_name": "9Z心Σ例"
+  },
+  {
+   "raw": "人人Ⅻ\u001cz Ⅻ",
+   "normalize_text": "人人XIIzXII",
+   "split_ellipsis": [
+    "人人XIIzXII",
+    false
+   ],
+   "strip_noise": "人人XIIzXII",
+   "fold": "人人xiizxii",
+   "clean_stored_name": "人人XIIzXII"
+  },
+  {
+   "raw": "示\u001cz小Σ。Ⅻ人９Ⅻ",
+   "normalize_text": "示z小Σ。XII人9XII",
+   "split_ellipsis": [
+    "示z小Σ。XII人9XII",
+    false
+   ],
+   "strip_noise": "示z小ΣXII人9XII",
+   "fold": "示z小σxii人9xii",
+   "clean_stored_name": "示z小ΣXII人9XII"
+  },
+  {
+   "raw": "\u001c…zⅫ",
+   "normalize_text": "...zXII",
+   "split_ellipsis": [
+    "...zXII",
+    false
+   ],
+   "strip_noise": "zXII",
+   "fold": "zxii",
+   "clean_stored_name": "zXII"
+  },
+  {
+   "raw": "Z示",
+   "normalize_text": "Z示",
+   "split_ellipsis": [
+    "Z示",
+    false
+   ],
+   "strip_noise": "Z示",
+   "fold": "z示",
+   "clean_stored_name": "Z示"
+  },
+  {
+   "raw": "。小 示\u001cＺb心心z",
+   "normalize_text": "。小示Zb心心z",
+   "split_ellipsis": [
+    "。小示Zb心心z",
+    false
+   ],
+   "strip_noise": "小示Zb心心z",
+   "fold": "小示zb心心z",
+   "clean_stored_name": "小示Zb心心z"
+  },
+  {
+   "raw": "a-⋯.B鹿",
+   "normalize_text": "a-⋯.B鹿",
+   "split_ellipsis": [
+    "a-⋯.B鹿",
+    false
+   ],
+   "strip_noise": "aB鹿",
+   "fold": "ab鹿",
+   "clean_stored_name": "aB鹿"
+  },
+  {
+   "raw": " .0　ß",
+   "normalize_text": ".0ß",
+   "split_ellipsis": [
+    ".0ß",
+    false
+   ],
+   "strip_noise": "0ß",
+   "fold": "0ss",
+   "clean_stored_name": "0ß"
+  },
+  {
+   "raw": "\t·`小",
+   "normalize_text": "·`小",
+   "split_ellipsis": [
+    "·`小",
+    false
+   ],
+   "strip_noise": "小",
+   "fold": "小",
+   "clean_stored_name": "小"
+  },
+  {
+   "raw": "　za９Ⅻ··0Ⅻ",
+   "normalize_text": "za9XII··0XII",
+   "split_ellipsis": [
+    "za9XII··0XII",
+    false
+   ],
+   "strip_noise": "za9XII0XII",
+   "fold": "za9xii0xii",
+   "clean_stored_name": "za9XII0XII"
+  },
+  {
+   "raw": "\u001cİ_`　小",
+   "normalize_text": "İ_`小",
+   "split_ellipsis": [
+    "İ_`小",
+    false
+   ],
+   "strip_noise": "İ小",
+   "fold": "i̇小",
+   "clean_stored_name": "İ小"
+  },
+  {
+   "raw": "Ｚ",
+   "normalize_text": "Z",
+   "split_ellipsis": [
+    "Z",
+    false
+   ],
+   "strip_noise": "Z",
+   "fold": "z",
+   "clean_stored_name": "Z"
+  },
+  {
+   "raw": "①İ 星动",
+   "normalize_text": "1İ星动",
+   "split_ellipsis": [
+    "1İ星动",
+    false
+   ],
+   "strip_noise": "1İ星动",
+   "fold": "1i̇星动",
+   "clean_stored_name": "1İ星动"
+  },
+  {
+   "raw": "İ示 …·Ⅻ-星",
+   "normalize_text": "İ示...·XII-星",
+   "split_ellipsis": [
+    "İ示...·XII-星",
+    false
+   ],
+   "strip_noise": "İ示XII星",
+   "fold": "i̇示xii星",
+   "clean_stored_name": "İ示XII星"
+  },
+  {
+   "raw": "　Σİ…鹿星",
+   "normalize_text": "Σİ...鹿星",
+   "split_ellipsis": [
+    "Σİ...鹿星",
+    false
+   ],
+   "strip_noise": "Σİ鹿星",
+   "fold": "σi̇鹿星",
+   "clean_stored_name": "Σİ鹿星"
+  },
+  {
+   "raw": "星B　①\u001c`人",
+   "normalize_text": "星B1`人",
+   "split_ellipsis": [
+    "星B1`人",
+    false
+   ],
+   "strip_noise": "星B1人",
+   "fold": "星b1人",
+   "clean_stored_name": "星B1人"
+  },
+  {
+   "raw": "bΣß!　!小\u001c",
+   "normalize_text": "bΣß!!小",
+   "split_ellipsis": [
+    "bΣß!!小",
+    false
+   ],
+   "strip_noise": "bΣß小",
+   "fold": "bσss小",
+   "clean_stored_name": "bΣß小"
+  },
+  {
+   "raw": "。",
+   "normalize_text": "。",
+   "split_ellipsis": [
+    "",
+    true
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "人Z人Ｚ星心",
+   "normalize_text": "人Z人Z星心",
+   "split_ellipsis": [
+    "人Z人Z星心",
+    false
+   ],
+   "strip_noise": "人Z人Z星心",
+   "fold": "人z人z星心",
+   "clean_stored_name": "人Z人Z星心"
+  },
+  {
+   "raw": "·人",
+   "normalize_text": "·人",
+   "split_ellipsis": [
+    "·人",
+    false
+   ],
+   "strip_noise": "人",
+   "fold": "人",
+   "clean_stored_name": "人"
+  },
+  {
+   "raw": "⋯…",
+   "normalize_text": "⋯...",
+   "split_ellipsis": [
+    "",
+    true
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "⋯Ａ动-Ⅻ例动Ａ",
+   "normalize_text": "⋯A动-XII例动A",
+   "split_ellipsis": [
+    "⋯A动-XII例动A",
+    false
+   ],
+   "strip_noise": "A动XII例动A",
+   "fold": "a动xii例动a",
+   "clean_stored_name": "A动XII例动A"
+  },
+  {
+   "raw": "人",
+   "normalize_text": "人",
+   "split_ellipsis": [
+    "人",
+    false
+   ],
+   "strip_noise": "人",
+   "fold": "人",
+   "clean_stored_name": "人"
+  },
+  {
+   "raw": "İA示ß　星Ｚ",
+   "normalize_text": "İA示ß星Z",
+   "split_ellipsis": [
+    "İA示ß星Z",
+    false
+   ],
+   "strip_noise": "İA示ß星Z",
+   "fold": "i̇a示ss星z",
+   "clean_stored_name": "İA示ß星Z"
+  },
+  {
+   "raw": "ß星Ｚ９Ａ_星Z",
+   "normalize_text": "ß星Z9A_星Z",
+   "split_ellipsis": [
+    "ß星Z9A_星Z",
+    false
+   ],
+   "strip_noise": "ß星Z9A星Z",
+   "fold": "ss星z9a星z",
+   "clean_stored_name": "ß星Z9A星Z"
+  },
+  {
+   "raw": "ZＺ·心",
+   "normalize_text": "ZZ·心",
+   "split_ellipsis": [
+    "ZZ·心",
+    false
+   ],
+   "strip_noise": "ZZ心",
+   "fold": "zz心",
+   "clean_stored_name": "ZZ心"
+  },
+  {
+   "raw": "İ坏。",
+   "normalize_text": "İ坏。",
+   "split_ellipsis": [
+    "İ坏",
+    true
+   ],
+   "strip_noise": "İ坏",
+   "fold": "i̇坏",
+   "clean_stored_name": "İ坏"
+  },
+  {
+   "raw": "0星İ坏小\u001cİ",
+   "normalize_text": "0星İ坏小İ",
+   "split_ellipsis": [
+    "0星İ坏小İ",
+    false
+   ],
+   "strip_noise": "0星İ坏小İ",
+   "fold": "0星i̇坏小i̇",
+   "clean_stored_name": "0星İ坏小İ"
+  },
+  {
+   "raw": ".!…ß星İ",
+   "normalize_text": ".!...ß星İ",
+   "split_ellipsis": [
+    ".!...ß星İ",
+    false
+   ],
+   "strip_noise": "ß星İ",
+   "fold": "ss星i̇",
+   "clean_stored_name": "ß星İ"
+  },
+  {
+   "raw": "·ßßß小…星Z",
+   "normalize_text": "·ßßß小...星Z",
+   "split_ellipsis": [
+    "·ßßß小...星Z",
+    false
+   ],
+   "strip_noise": "ßßß小星Z",
+   "fold": "ssssss小星z",
+   "clean_stored_name": "ßßß小星Z"
+  },
+  {
+   "raw": "Ｚ!Σ鹿星例坏Ⅻ_①",
+   "normalize_text": "Z!Σ鹿星例坏XII_1",
+   "split_ellipsis": [
+    "Z!Σ鹿星例坏XII_1",
+    false
+   ],
+   "strip_noise": "ZΣ鹿星例坏XII1",
+   "fold": "zσ鹿星例坏xii1",
+   "clean_stored_name": "ZΣ鹿星例坏XII1"
+  },
+  {
+   "raw": "….!z①人",
+   "normalize_text": "....!z1人",
+   "split_ellipsis": [
+    "....!z1人",
+    false
+   ],
+   "strip_noise": "z1人",
+   "fold": "z1人",
+   "clean_stored_name": "z1人"
+  },
+  {
+   "raw": "例星\u001c①……",
+   "normalize_text": "例星1......",
+   "split_ellipsis": [
+    "例星1",
+    true
+   ],
+   "strip_noise": "例星1",
+   "fold": "例星1",
+   "clean_stored_name": "例星1"
+  },
+  {
+   "raw": "B星ßB0。",
+   "normalize_text": "B星ßB0。",
+   "split_ellipsis": [
+    "B星ßB0",
+    true
+   ],
+   "strip_noise": "B星ßB0",
+   "fold": "b星ssb0",
+   "clean_stored_name": "B星ßB0"
+  },
+  {
+   "raw": "…A心",
+   "normalize_text": "...A心",
+   "split_ellipsis": [
+    "...A心",
+    false
+   ],
+   "strip_noise": "A心",
+   "fold": "a心",
+   "clean_stored_name": "A心"
+  },
+  {
+   "raw": "-Ｚ0动-Σ。。",
+   "normalize_text": "-Z0动-Σ。。",
+   "split_ellipsis": [
+    "-Z0动-Σ",
+    true
+   ],
+   "strip_noise": "Z0动Σ",
+   "fold": "z0动σ",
+   "clean_stored_name": "Z0动Σ"
+  },
+  {
+   "raw": "\t　",
+   "normalize_text": "",
+   "split_ellipsis": [
+    "",
+    false
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "`_ \u001c⋯…例坏",
+   "normalize_text": "`_⋯...例坏",
+   "split_ellipsis": [
+    "`_⋯...例坏",
+    false
+   ],
+   "strip_noise": "例坏",
+   "fold": "例坏",
+   "clean_stored_name": "例坏"
+  },
+  {
+   "raw": "心`例",
+   "normalize_text": "心`例",
+   "split_ellipsis": [
+    "心`例",
+    false
+   ],
+   "strip_noise": "心例",
+   "fold": "心例",
+   "clean_stored_name": "心例"
+  },
+  {
+   "raw": "ß Σa…鹿\u001c动",
+   "normalize_text": "ßΣa...鹿动",
+   "split_ellipsis": [
+    "ßΣa...鹿动",
+    false
+   ],
+   "strip_noise": "ßΣa鹿动",
+   "fold": "ssσa鹿动",
+   "clean_stored_name": "ßΣa鹿动"
+  },
+  {
+   "raw": "小\tZ\u001c",
+   "normalize_text": "小Z",
+   "split_ellipsis": [
+    "小Z",
+    false
+   ],
+   "strip_noise": "小Z",
+   "fold": "小z",
+   "clean_stored_name": "小Z"
+  },
+  {
+   "raw": "①星。鹿示Bß",
+   "normalize_text": "1星。鹿示Bß",
+   "split_ellipsis": [
+    "1星。鹿示Bß",
+    false
+   ],
+   "strip_noise": "1星鹿示Bß",
+   "fold": "1星鹿示bss",
+   "clean_stored_name": "1星鹿示Bß"
+  },
+  {
+   "raw": "0①①星示星\u001c示B",
+   "normalize_text": "011星示星示B",
+   "split_ellipsis": [
+    "011星示星示B",
+    false
+   ],
+   "strip_noise": "011星示星示B",
+   "fold": "011星示星示b",
+   "clean_stored_name": "011星示星示B"
+  },
+  {
+   "raw": "①·B",
+   "normalize_text": "1·B",
+   "split_ellipsis": [
+    "1·B",
+    false
+   ],
+   "strip_noise": "1B",
+   "fold": "1b",
+   "clean_stored_name": "1B"
+  },
+  {
+   "raw": "·动Σ坏·bＡA例",
+   "normalize_text": "·动Σ坏·bAA例",
+   "split_ellipsis": [
+    "·动Σ坏·bAA例",
+    false
+   ],
+   "strip_noise": "动Σ坏bAA例",
+   "fold": "动σ坏baa例",
+   "clean_stored_name": "动Σ坏bAA例"
+  },
+  {
+   "raw": "-Σ0Σ坏zΣ例人…",
+   "normalize_text": "-Σ0Σ坏zΣ例人...",
+   "split_ellipsis": [
+    "-Σ0Σ坏zΣ例人",
+    true
+   ],
+   "strip_noise": "Σ0Σ坏zΣ例人",
+   "fold": "σ0σ坏zσ例人",
+   "clean_stored_name": "Σ0Σ坏zΣ例人"
+  },
+  {
+   "raw": "心Z` ＺⅫ..",
+   "normalize_text": "心Z`ZXII..",
+   "split_ellipsis": [
+    "心Z`ZXII",
+    true
+   ],
+   "strip_noise": "心ZZXII",
+   "fold": "心zzxii",
+   "clean_stored_name": "心ZZXII"
+  },
+  {
+   "raw": "ß!动 星。例",
+   "normalize_text": "ß!动星。例",
+   "split_ellipsis": [
+    "ß!动星。例",
+    false
+   ],
+   "strip_noise": "ß动星例",
+   "fold": "ss动星例",
+   "clean_stored_name": "ß动星例"
+  },
+  {
+   "raw": "0",
+   "normalize_text": "0",
+   "split_ellipsis": [
+    "0",
+    false
+   ],
+   "strip_noise": "0",
+   "fold": "0",
+   "clean_stored_name": "0"
+  },
+  {
+   "raw": "Ⅻ。动Ｚ",
+   "normalize_text": "XII。动Z",
+   "split_ellipsis": [
+    "XII。动Z",
+    false
+   ],
+   "strip_noise": "XII动Z",
+   "fold": "xii动z",
+   "clean_stored_name": "XII动Z"
+  },
+  {
+   "raw": "。baBaＡ星…",
+   "normalize_text": "。baBaA星...",
+   "split_ellipsis": [
+    "。baBaA星",
+    true
+   ],
+   "strip_noise": "baBaA星",
+   "fold": "babaa星",
+   "clean_stored_name": "baBaA星"
+  },
+  {
+   "raw": "⋯星·。例.坏Ａ`",
+   "normalize_text": "⋯星·。例.坏A`",
+   "split_ellipsis": [
+    "⋯星·。例.坏A`",
+    false
+   ],
+   "strip_noise": "星例坏A",
+   "fold": "星例坏a",
+   "clean_stored_name": "星例坏A"
+  },
+  {
+   "raw": "\t例ΣbＺ",
+   "normalize_text": "例ΣbZ",
+   "split_ellipsis": [
+    "例ΣbZ",
+    false
+   ],
+   "strip_noise": "例ΣbZ",
+   "fold": "例σbz",
+   "clean_stored_name": "例ΣbZ"
+  },
+  {
+   "raw": "星Ｚ\u001c",
+   "normalize_text": "星Z",
+   "split_ellipsis": [
+    "星Z",
+    false
+   ],
+   "strip_noise": "星Z",
+   "fold": "星z",
+   "clean_stored_name": "星Z"
+  },
+  {
+   "raw": "Ａ",
+   "normalize_text": "A",
+   "split_ellipsis": [
+    "A",
+    false
+   ],
+   "strip_noise": "A",
+   "fold": "a",
+   "clean_stored_name": "A"
+  },
+  {
+   "raw": "。",
+   "normalize_text": "。",
+   "split_ellipsis": [
+    "",
+    true
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": " -例",
+   "normalize_text": "-例",
+   "split_ellipsis": [
+    "-例",
+    false
+   ],
+   "strip_noise": "例",
+   "fold": "例",
+   "clean_stored_name": "例"
+  },
+  {
+   "raw": "\ta",
+   "normalize_text": "a",
+   "split_ellipsis": [
+    "a",
+    false
+   ],
+   "strip_noise": "a",
+   "fold": "a",
+   "clean_stored_name": "a"
+  },
+  {
+   "raw": "Ｚ!Ⅻ小İ-Ⅻa",
+   "normalize_text": "Z!XII小İ-XIIa",
+   "split_ellipsis": [
+    "Z!XII小İ-XIIa",
+    false
+   ],
+   "strip_noise": "ZXII小İXIIa",
+   "fold": "zxii小i̇xiia",
+   "clean_stored_name": "ZXII小İXIIa"
+  },
+  {
+   "raw": "星星心.星动",
+   "normalize_text": "星星心.星动",
+   "split_ellipsis": [
+    "星星心.星动",
+    false
+   ],
+   "strip_noise": "星星心星动",
+   "fold": "星星心星动",
+   "clean_stored_name": "星星心星动"
+  },
+  {
+   "raw": ".Ａ-·例鹿小⋯",
+   "normalize_text": ".A-·例鹿小⋯",
+   "split_ellipsis": [
+    ".A-·例鹿小",
+    true
+   ],
+   "strip_noise": "A例鹿小",
+   "fold": "a例鹿小",
+   "clean_stored_name": "A例鹿小"
+  },
+  {
+   "raw": "心B星Σb.",
+   "normalize_text": "心B星Σb.",
+   "split_ellipsis": [
+    "心B星Σb",
+    true
+   ],
+   "strip_noise": "心B星Σb",
+   "fold": "心b星σb",
+   "clean_stored_name": "心B星Σb"
+  },
+  {
+   "raw": "·Ⅻ-。心。z`鹿",
+   "normalize_text": "·XII-。心。z`鹿",
+   "split_ellipsis": [
+    "·XII-。心。z`鹿",
+    false
+   ],
+   "strip_noise": "XII心z鹿",
+   "fold": "xii心z鹿",
+   "clean_stored_name": "XII心z鹿"
+  },
+  {
+   "raw": "İ小zＺb_",
+   "normalize_text": "İ小zZb_",
+   "split_ellipsis": [
+    "İ小zZb_",
+    false
+   ],
+   "strip_noise": "İ小zZb",
+   "fold": "i̇小zzb",
+   "clean_stored_name": "İ小zZb"
+  },
+  {
+   "raw": "示小　\t",
+   "normalize_text": "示小",
+   "split_ellipsis": [
+    "示小",
+    false
+   ],
+   "strip_noise": "示小",
+   "fold": "示小",
+   "clean_stored_name": "示小"
+  },
+  {
+   "raw": "`…",
+   "normalize_text": "`...",
+   "split_ellipsis": [
+    "`",
+    true
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "星",
+   "normalize_text": "星",
+   "split_ellipsis": [
+    "星",
+    false
+   ],
+   "strip_noise": "星",
+   "fold": "星",
+   "clean_stored_name": "星"
+  },
+  {
+   "raw": "!ＡＺ心",
+   "normalize_text": "!AZ心",
+   "split_ellipsis": [
+    "!AZ心",
+    false
+   ],
+   "strip_noise": "AZ心",
+   "fold": "az心",
+   "clean_stored_name": "AZ心"
+  },
+  {
+   "raw": "_b示",
+   "normalize_text": "_b示",
+   "split_ellipsis": [
+    "_b示",
+    false
+   ],
+   "strip_noise": "b示",
+   "fold": "b示",
+   "clean_stored_name": "b示"
+  },
+  {
+   "raw": "0人",
+   "normalize_text": "0人",
+   "split_ellipsis": [
+    "0人",
+    false
+   ],
+   "strip_noise": "0人",
+   "fold": "0人",
+   "clean_stored_name": "0人"
+  },
+  {
+   "raw": "坏Ｚ动Σ９\t_.-",
+   "normalize_text": "坏Z动Σ9_.-",
+   "split_ellipsis": [
+    "坏Z动Σ9_.-",
+    false
+   ],
+   "strip_noise": "坏Z动Σ9",
+   "fold": "坏z动σ9",
+   "clean_stored_name": "坏Z动Σ9"
+  },
+  {
+   "raw": "心星0!.",
+   "normalize_text": "心星0!.",
+   "split_ellipsis": [
+    "心星0!",
+    true
+   ],
+   "strip_noise": "心星0",
+   "fold": "心星0",
+   "clean_stored_name": "心星0"
+  },
+  {
+   "raw": "\t",
+   "normalize_text": "",
+   "split_ellipsis": [
+    "",
+    false
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "……",
+   "normalize_text": "......",
+   "split_ellipsis": [
+    "",
+    true
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "…坏示心①坏z",
+   "normalize_text": "...坏示心1坏z",
+   "split_ellipsis": [
+    "...坏示心1坏z",
+    false
+   ],
+   "strip_noise": "坏示心1坏z",
+   "fold": "坏示心1坏z",
+   "clean_stored_name": "坏示心1坏z"
+  },
+  {
+   "raw": "·Σ 示①",
+   "normalize_text": "·Σ示1",
+   "split_ellipsis": [
+    "·Σ示1",
+    false
+   ],
+   "strip_noise": "Σ示1",
+   "fold": "σ示1",
+   "clean_stored_name": "Σ示1"
+  },
+  {
+   "raw": "a_…·ß例ß",
+   "normalize_text": "a_...·ß例ß",
+   "split_ellipsis": [
+    "a_...·ß例ß",
+    false
+   ],
+   "strip_noise": "aß例ß",
+   "fold": "ass例ss",
+   "clean_stored_name": "aß例ß"
+  },
+  {
+   "raw": "　星。Σ\t",
+   "normalize_text": "星。Σ",
+   "split_ellipsis": [
+    "星。Σ",
+    false
+   ],
+   "strip_noise": "星Σ",
+   "fold": "星σ",
+   "clean_stored_name": "星Σ"
+  },
+  {
+   "raw": "示小⋯鹿人",
+   "normalize_text": "示小⋯鹿人",
+   "split_ellipsis": [
+    "示小⋯鹿人",
+    false
+   ],
+   "strip_noise": "示小鹿人",
+   "fold": "示小鹿人",
+   "clean_stored_name": "示小鹿人"
+  },
+  {
+   "raw": "!Ａ0…。.　\t　b",
+   "normalize_text": "!A0...。.b",
+   "split_ellipsis": [
+    "!A0...。.b",
+    false
+   ],
+   "strip_noise": "A0b",
+   "fold": "a0b",
+   "clean_stored_name": "A0b"
+  },
+  {
+   "raw": "９\u001c动坏BbＺ……`",
+   "normalize_text": "9动坏BbZ......`",
+   "split_ellipsis": [
+    "9动坏BbZ......`",
+    false
+   ],
+   "strip_noise": "9动坏BbZ",
+   "fold": "9动坏bbz",
+   "clean_stored_name": "9动坏BbZ"
+  },
+  {
+   "raw": "Ａ\t动`Zİ示例",
+   "normalize_text": "A动`Zİ示例",
+   "split_ellipsis": [
+    "A动`Zİ示例",
+    false
+   ],
+   "strip_noise": "A动Zİ示例",
+   "fold": "a动zi̇示例",
+   "clean_stored_name": "A动Zİ示例"
+  },
+  {
+   "raw": "Z.!",
+   "normalize_text": "Z.!",
+   "split_ellipsis": [
+    "Z.!",
+    false
+   ],
+   "strip_noise": "Z",
+   "fold": "z",
+   "clean_stored_name": "Z"
+  },
+  {
+   "raw": "Ａ_B。\u001c⋯_ \t示",
+   "normalize_text": "A_B。⋯_示",
+   "split_ellipsis": [
+    "A_B。⋯_示",
+    false
+   ],
+   "strip_noise": "AB示",
+   "fold": "ab示",
+   "clean_stored_name": "AB示"
+  },
+  {
+   "raw": ".鹿Z①",
+   "normalize_text": ".鹿Z1",
+   "split_ellipsis": [
+    ".鹿Z1",
+    false
+   ],
+   "strip_noise": "鹿Z1",
+   "fold": "鹿z1",
+   "clean_stored_name": "鹿Z1"
+  },
+  {
+   "raw": " İ星Ａ鹿!-坏人",
+   "normalize_text": "İ星A鹿!-坏人",
+   "split_ellipsis": [
+    "İ星A鹿!-坏人",
+    false
+   ],
+   "strip_noise": "İ星A鹿坏人",
+   "fold": "i̇星a鹿坏人",
+   "clean_stored_name": "İ星A鹿坏人"
+  },
+  {
+   "raw": "_z人星①鹿Ａ示ß",
+   "normalize_text": "_z人星1鹿A示ß",
+   "split_ellipsis": [
+    "_z人星1鹿A示ß",
+    false
+   ],
+   "strip_noise": "z人星1鹿A示ß",
+   "fold": "z人星1鹿a示ss",
+   "clean_stored_name": "z人星1鹿A示ß"
+  },
+  {
+   "raw": "坏…\t_坏Σ",
+   "normalize_text": "坏..._坏Σ",
+   "split_ellipsis": [
+    "坏..._坏Σ",
+    false
+   ],
+   "strip_noise": "坏坏Σ",
+   "fold": "坏坏σ",
+   "clean_stored_name": "坏坏Σ"
+  },
+  {
+   "raw": "Σ坏B…。",
+   "normalize_text": "Σ坏B...。",
+   "split_ellipsis": [
+    "Σ坏B...",
+    true
+   ],
+   "strip_noise": "Σ坏B",
+   "fold": "σ坏b",
+   "clean_stored_name": "Σ坏B"
+  },
+  {
+   "raw": "Ⅻ鹿ß.",
+   "normalize_text": "XII鹿ß.",
+   "split_ellipsis": [
+    "XII鹿ß",
+    true
+   ],
+   "strip_noise": "XII鹿ß",
+   "fold": "xii鹿ss",
+   "clean_stored_name": "XII鹿ß"
+  },
+  {
+   "raw": ".!Σ\tＡİBA",
+   "normalize_text": ".!ΣAİBA",
+   "split_ellipsis": [
+    ".!ΣAİBA",
+    false
+   ],
+   "strip_noise": "ΣAİBA",
+   "fold": "σai̇ba",
+   "clean_stored_name": "ΣAİBA"
+  },
+  {
+   "raw": "-星",
+   "normalize_text": "-星",
+   "split_ellipsis": [
+    "-星",
+    false
+   ],
+   "strip_noise": "星",
+   "fold": "星",
+   "clean_stored_name": "星"
+  },
+  {
+   "raw": "z",
+   "normalize_text": "z",
+   "split_ellipsis": [
+    "z",
+    false
+   ],
+   "strip_noise": "z",
+   "fold": "z",
+   "clean_stored_name": "z"
+  },
+  {
+   "raw": "９",
+   "normalize_text": "9",
+   "split_ellipsis": [
+    "9",
+    false
+   ],
+   "strip_noise": "9",
+   "fold": "9",
+   "clean_stored_name": "9"
+  },
+  {
+   "raw": "·",
+   "normalize_text": "·",
+   "split_ellipsis": [
+    "",
+    true
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "\u001c…Ｚ鹿Ab",
+   "normalize_text": "...Z鹿Ab",
+   "split_ellipsis": [
+    "...Z鹿Ab",
+    false
+   ],
+   "strip_noise": "Z鹿Ab",
+   "fold": "z鹿ab",
+   "clean_stored_name": "Z鹿Ab"
+  },
+  {
+   "raw": "ß",
+   "normalize_text": "ß",
+   "split_ellipsis": [
+    "ß",
+    false
+   ],
+   "strip_noise": "ß",
+   "fold": "ss",
+   "clean_stored_name": "ß"
+  },
+  {
+   "raw": "小·　…人A坏",
+   "normalize_text": "小·...人A坏",
+   "split_ellipsis": [
+    "小·...人A坏",
+    false
+   ],
+   "strip_noise": "小人A坏",
+   "fold": "小人a坏",
+   "clean_stored_name": "小人A坏"
+  },
+  {
+   "raw": "A动星",
+   "normalize_text": "A动星",
+   "split_ellipsis": [
+    "A动星",
+    false
+   ],
+   "strip_noise": "A动星",
+   "fold": "a动星",
+   "clean_stored_name": "A动星"
+  },
+  {
+   "raw": "!.　a\u001c",
+   "normalize_text": "!.a",
+   "split_ellipsis": [
+    "!.a",
+    false
+   ],
+   "strip_noise": "a",
+   "fold": "a",
+   "clean_stored_name": "a"
+  },
+  {
+   "raw": "ＺAA小Ｚ小Ｚ",
+   "normalize_text": "ZAA小Z小Z",
+   "split_ellipsis": [
+    "ZAA小Z小Z",
+    false
+   ],
+   "strip_noise": "ZAA小Z小Z",
+   "fold": "zaa小z小z",
+   "clean_stored_name": "ZAA小Z小Z"
+  },
+  {
+   "raw": "aß动-９A`⋯",
+   "normalize_text": "aß动-9A`⋯",
+   "split_ellipsis": [
+    "aß动-9A`",
+    true
+   ],
+   "strip_noise": "aß动9A",
+   "fold": "ass动9a",
+   "clean_stored_name": "aß动9A"
+  },
+  {
+   "raw": "示Ｚ-星ß示坏",
+   "normalize_text": "示Z-星ß示坏",
+   "split_ellipsis": [
+    "示Z-星ß示坏",
+    false
+   ],
+   "strip_noise": "示Z星ß示坏",
+   "fold": "示z星ss示坏",
+   "clean_stored_name": "示Z星ß示坏"
+  },
+  {
+   "raw": "…__星·鹿b",
+   "normalize_text": "...__星·鹿b",
+   "split_ellipsis": [
+    "...__星·鹿b",
+    false
+   ],
+   "strip_noise": "星鹿b",
+   "fold": "星鹿b",
+   "clean_stored_name": "星鹿b"
+  },
+  {
+   "raw": "　!…·①动动星",
+   "normalize_text": "!...·1动动星",
+   "split_ellipsis": [
+    "!...·1动动星",
+    false
+   ],
+   "strip_noise": "1动动星",
+   "fold": "1动动星",
+   "clean_stored_name": "1动动星"
+  },
+  {
+   "raw": "B例Z",
+   "normalize_text": "B例Z",
+   "split_ellipsis": [
+    "B例Z",
+    false
+   ],
+   "strip_noise": "B例Z",
+   "fold": "b例z",
+   "clean_stored_name": "B例Z"
+  },
+  {
+   "raw": "Ⅻ人_星·",
+   "normalize_text": "XII人_星·",
+   "split_ellipsis": [
+    "XII人_星",
+    true
+   ],
+   "strip_noise": "XII人星",
+   "fold": "xii人星",
+   "clean_stored_name": "XII人星"
+  },
+  {
+   "raw": "zz",
+   "normalize_text": "zz",
+   "split_ellipsis": [
+    "zz",
+    false
+   ],
+   "strip_noise": "zz",
+   "fold": "zz",
+   "clean_stored_name": "zz"
+  },
+  {
+   "raw": "鹿人坏鹿",
+   "normalize_text": "鹿人坏鹿",
+   "split_ellipsis": [
+    "鹿人坏鹿",
+    false
+   ],
+   "strip_noise": "鹿人坏鹿",
+   "fold": "鹿人坏鹿",
+   "clean_stored_name": "鹿人坏鹿"
+  },
+  {
+   "raw": "人⋯",
+   "normalize_text": "人⋯",
+   "split_ellipsis": [
+    "人",
+    true
+   ],
+   "strip_noise": "人",
+   "fold": "人",
+   "clean_stored_name": "人"
+  },
+  {
+   "raw": "0\t",
+   "normalize_text": "0",
+   "split_ellipsis": [
+    "0",
+    false
+   ],
+   "strip_noise": "0",
+   "fold": "0",
+   "clean_stored_name": "0"
+  },
+  {
+   "raw": "Σİ坏",
+   "normalize_text": "Σİ坏",
+   "split_ellipsis": [
+    "Σİ坏",
+    false
+   ],
+   "strip_noise": "Σİ坏",
+   "fold": "σi̇坏",
+   "clean_stored_name": "Σİ坏"
+  },
+  {
+   "raw": "……Σb⋯",
+   "normalize_text": "......Σb⋯",
+   "split_ellipsis": [
+    "......Σb",
+    true
+   ],
+   "strip_noise": "Σb",
+   "fold": "σb",
+   "clean_stored_name": "Σb"
+  },
+  {
+   "raw": "B A\u001cab鹿",
+   "normalize_text": "BAab鹿",
+   "split_ellipsis": [
+    "BAab鹿",
+    false
+   ],
+   "strip_noise": "BAab鹿",
+   "fold": "baab鹿",
+   "clean_stored_name": "BAab鹿"
+  },
+  {
+   "raw": "0-aß小.星鹿",
+   "normalize_text": "0-aß小.星鹿",
+   "split_ellipsis": [
+    "0-aß小.星鹿",
+    false
+   ],
+   "strip_noise": "0aß小星鹿",
+   "fold": "0ass小星鹿",
+   "clean_stored_name": "0aß小星鹿"
+  },
+  {
+   "raw": "\u001c",
+   "normalize_text": "",
+   "split_ellipsis": [
+    "",
+    false
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "A\tＺ",
+   "normalize_text": "AZ",
+   "split_ellipsis": [
+    "AZ",
+    false
+   ],
+   "strip_noise": "AZ",
+   "fold": "az",
+   "clean_stored_name": "AZ"
+  },
+  {
+   "raw": "鹿BＺ ZＡaＺ。",
+   "normalize_text": "鹿BZZAaZ。",
+   "split_ellipsis": [
+    "鹿BZZAaZ",
+    true
+   ],
+   "strip_noise": "鹿BZZAaZ",
+   "fold": "鹿bzzaaz",
+   "clean_stored_name": "鹿BZZAaZ"
+  },
+  {
+   "raw": "Ａ①Ⅻ\t动心坏Ⅻ⋯",
+   "normalize_text": "A1XII动心坏XII⋯",
+   "split_ellipsis": [
+    "A1XII动心坏XII",
+    true
+   ],
+   "strip_noise": "A1XII动心坏XII",
+   "fold": "a1xii动心坏xii",
+   "clean_stored_name": "A1XII动心坏XII"
+  },
+  {
+   "raw": "动0９\tzb",
+   "normalize_text": "动09zb",
+   "split_ellipsis": [
+    "动09zb",
+    false
+   ],
+   "strip_noise": "动09zb",
+   "fold": "动09zb",
+   "clean_stored_name": "动09zb"
+  },
+  {
+   "raw": "- ",
+   "normalize_text": "-",
+   "split_ellipsis": [
+    "-",
+    false
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "ß\u001c-.ＺＺß",
+   "normalize_text": "ß-.ZZß",
+   "split_ellipsis": [
+    "ß-.ZZß",
+    false
+   ],
+   "strip_noise": "ßZZß",
+   "fold": "sszzss",
+   "clean_stored_name": "ßZZß"
+  },
+  {
+   "raw": "Σb示\tA 星示",
+   "normalize_text": "Σb示A星示",
+   "split_ellipsis": [
+    "Σb示A星示",
+    false
+   ],
+   "strip_noise": "Σb示A星示",
+   "fold": "σb示a星示",
+   "clean_stored_name": "Σb示A星示"
+  },
+  {
+   "raw": "-!星星A",
+   "normalize_text": "-!星星A",
+   "split_ellipsis": [
+    "-!星星A",
+    false
+   ],
+   "strip_noise": "星星A",
+   "fold": "星星a",
+   "clean_stored_name": "星星A"
+  },
+  {
+   "raw": "z-Ｚ。示",
+   "normalize_text": "z-Z。示",
+   "split_ellipsis": [
+    "z-Z。示",
+    false
+   ],
+   "strip_noise": "zZ示",
+   "fold": "zz示",
+   "clean_stored_name": "zZ示"
+  },
+  {
+   "raw": "…a心`Σ示①Σ星人",
+   "normalize_text": "...a心`Σ示1Σ星人",
+   "split_ellipsis": [
+    "...a心`Σ示1Σ星人",
+    false
+   ],
+   "strip_noise": "a心Σ示1Σ星人",
+   "fold": "a心σ示1σ星人",
+   "clean_stored_name": "a心Σ示1Σ星人"
+  },
+  {
+   "raw": "人人b动示Ａ心_…",
+   "normalize_text": "人人b动示A心_...",
+   "split_ellipsis": [
+    "人人b动示A心_",
+    true
+   ],
+   "strip_noise": "人人b动示A心",
+   "fold": "人人b动示a心",
+   "clean_stored_name": "人人b动示A心"
+  },
+  {
+   "raw": "示bΣ",
+   "normalize_text": "示bΣ",
+   "split_ellipsis": [
+    "示bΣ",
+    false
+   ],
+   "strip_noise": "示bΣ",
+   "fold": "示bσ",
+   "clean_stored_name": "示bΣ"
+  },
+  {
+   "raw": " !",
+   "normalize_text": "!",
+   "split_ellipsis": [
+    "!",
+    false
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "a_\tΣ。例鹿",
+   "normalize_text": "a_Σ。例鹿",
+   "split_ellipsis": [
+    "a_Σ。例鹿",
+    false
+   ],
+   "strip_noise": "aΣ例鹿",
+   "fold": "aσ例鹿",
+   "clean_stored_name": "aΣ例鹿"
+  },
+  {
+   "raw": "鹿bZ`",
+   "normalize_text": "鹿bZ`",
+   "split_ellipsis": [
+    "鹿bZ`",
+    false
+   ],
+   "strip_noise": "鹿bZ",
+   "fold": "鹿bz",
+   "clean_stored_name": "鹿bZ"
+  },
+  {
+   "raw": "b`\t⋯星",
+   "normalize_text": "b`⋯星",
+   "split_ellipsis": [
+    "b`⋯星",
+    false
+   ],
+   "strip_noise": "b星",
+   "fold": "b星",
+   "clean_stored_name": "b星"
+  },
+  {
+   "raw": "İ星İ心",
+   "normalize_text": "İ星İ心",
+   "split_ellipsis": [
+    "İ星İ心",
+    false
+   ],
+   "strip_noise": "İ星İ心",
+   "fold": "i̇星i̇心",
+   "clean_stored_name": "İ星İ心"
+  },
+  {
+   "raw": "①!坏星ß-星--İ",
+   "normalize_text": "1!坏星ß-星--İ",
+   "split_ellipsis": [
+    "1!坏星ß-星--İ",
+    false
+   ],
+   "strip_noise": "1坏星ß星İ",
+   "fold": "1坏星ss星i̇",
+   "clean_stored_name": "1坏星ß星İ"
+  },
+  {
+   "raw": "示·\t",
+   "normalize_text": "示·",
+   "split_ellipsis": [
+    "示",
+    true
+   ],
+   "strip_noise": "示",
+   "fold": "示",
+   "clean_stored_name": "示"
+  },
+  {
+   "raw": "\t\tＡ",
+   "normalize_text": "A",
+   "split_ellipsis": [
+    "A",
+    false
+   ],
+   "strip_noise": "A",
+   "fold": "a",
+   "clean_stored_name": "A"
+  },
+  {
+   "raw": "b示z",
+   "normalize_text": "b示z",
+   "split_ellipsis": [
+    "b示z",
+    false
+   ],
+   "strip_noise": "b示z",
+   "fold": "b示z",
+   "clean_stored_name": "b示z"
+  },
+  {
+   "raw": "Z　\tİ",
+   "normalize_text": "Zİ",
+   "split_ellipsis": [
+    "Zİ",
+    false
+   ],
+   "strip_noise": "Zİ",
+   "fold": "zi̇",
+   "clean_stored_name": "Zİ"
+  },
+  {
+   "raw": "A_0·Ｚ-",
+   "normalize_text": "A_0·Z-",
+   "split_ellipsis": [
+    "A_0·Z-",
+    false
+   ],
+   "strip_noise": "A0Z",
+   "fold": "a0z",
+   "clean_stored_name": "A0Z"
+  },
+  {
+   "raw": "…_z·",
+   "normalize_text": "..._z·",
+   "split_ellipsis": [
+    "..._z",
+    true
+   ],
+   "strip_noise": "z",
+   "fold": "z",
+   "clean_stored_name": "z"
+  },
+  {
+   "raw": "心bAΣ９Ⅻ 鹿aⅫ",
+   "normalize_text": "心bAΣ9XII鹿aXII",
+   "split_ellipsis": [
+    "心bAΣ9XII鹿aXII",
+    false
+   ],
+   "strip_noise": "心bAΣ9XII鹿aXII",
+   "fold": "心baσ9xii鹿axii",
+   "clean_stored_name": "心bAΣ9XII鹿aXII"
+  },
+  {
+   "raw": "。　İ_",
+   "normalize_text": "。İ_",
+   "split_ellipsis": [
+    "。İ_",
+    false
+   ],
+   "strip_noise": "İ",
+   "fold": "i̇",
+   "clean_stored_name": "İ"
+  },
+  {
+   "raw": "。Ⅻ　Ⅻ ⋯\tbİ",
+   "normalize_text": "。XIIXII⋯bİ",
+   "split_ellipsis": [
+    "。XIIXII⋯bİ",
+    false
+   ],
+   "strip_noise": "XIIXIIbİ",
+   "fold": "xiixiibi̇",
+   "clean_stored_name": "XIIXIIbİ"
+  },
+  {
+   "raw": "a人动\t`0。星Σß",
+   "normalize_text": "a人动`0。星Σß",
+   "split_ellipsis": [
+    "a人动`0。星Σß",
+    false
+   ],
+   "strip_noise": "a人动0星Σß",
+   "fold": "a人动0星σss",
+   "clean_stored_name": "a人动0星Σß"
+  },
+  {
+   "raw": "A鹿…",
+   "normalize_text": "A鹿...",
+   "split_ellipsis": [
+    "A鹿",
+    true
+   ],
+   "strip_noise": "A鹿",
+   "fold": "a鹿",
+   "clean_stored_name": "A鹿"
+  },
+  {
+   "raw": "Ba示坏 a①小示",
+   "normalize_text": "Ba示坏a1小示",
+   "split_ellipsis": [
+    "Ba示坏a1小示",
+    false
+   ],
+   "strip_noise": "Ba示坏a1小示",
+   "fold": "ba示坏a1小示",
+   "clean_stored_name": "Ba示坏a1小示"
+  },
+  {
+   "raw": "示例…ＡA例A９示Ｚ",
+   "normalize_text": "示例...AA例A9示Z",
+   "split_ellipsis": [
+    "示例...AA例A9示Z",
+    false
+   ],
+   "strip_noise": "示例AA例A9示Z",
+   "fold": "示例aa例a9示z",
+   "clean_stored_name": "示例AA例A9示Z"
+  },
+  {
+   "raw": "人Ⅻ·a0　\u001cB!",
+   "normalize_text": "人XII·a0B!",
+   "split_ellipsis": [
+    "人XII·a0B!",
+    false
+   ],
+   "strip_noise": "人XIIa0B",
+   "fold": "人xiia0b",
+   "clean_stored_name": "人XIIa0B"
+  },
+  {
+   "raw": "小鹿星例",
+   "normalize_text": "小鹿星例",
+   "split_ellipsis": [
+    "小鹿星例",
+    false
+   ],
+   "strip_noise": "小鹿星例",
+   "fold": "小鹿星例",
+   "clean_stored_name": "小鹿星例"
+  },
+  {
+   "raw": "Ⅻ人星ß⋯0a",
+   "normalize_text": "XII人星ß⋯0a",
+   "split_ellipsis": [
+    "XII人星ß⋯0a",
+    false
+   ],
+   "strip_noise": "XII人星ß0a",
+   "fold": "xii人星ss0a",
+   "clean_stored_name": "XII人星ß0a"
+  },
+  {
+   "raw": "_①⋯_\t 小B例",
+   "normalize_text": "_1⋯_小B例",
+   "split_ellipsis": [
+    "_1⋯_小B例",
+    false
+   ],
+   "strip_noise": "1小B例",
+   "fold": "1小b例",
+   "clean_stored_name": "1小B例"
+  },
+  {
+   "raw": "９!!\u001c…\u001caz!",
+   "normalize_text": "9!!...az!",
+   "split_ellipsis": [
+    "9!!...az!",
+    false
+   ],
+   "strip_noise": "9az",
+   "fold": "9az",
+   "clean_stored_name": "9az"
+  },
+  {
+   "raw": "鹿_A·ZⅫA",
+   "normalize_text": "鹿_A·ZXIIA",
+   "split_ellipsis": [
+    "鹿_A·ZXIIA",
+    false
+   ],
+   "strip_noise": "鹿AZXIIA",
+   "fold": "鹿azxiia",
+   "clean_stored_name": "鹿AZXIIA"
+  },
+  {
+   "raw": "Ⅻ９A小",
+   "normalize_text": "XII9A小",
+   "split_ellipsis": [
+    "XII9A小",
+    false
+   ],
+   "strip_noise": "XII9A小",
+   "fold": "xii9a小",
+   "clean_stored_name": "XII9A小"
+  },
+  {
+   "raw": "人·Ⅻ星Ａ…①",
+   "normalize_text": "人·XII星A...1",
+   "split_ellipsis": [
+    "人·XII星A...1",
+    false
+   ],
+   "strip_noise": "人XII星A1",
+   "fold": "人xii星a1",
+   "clean_stored_name": "人XII星A1"
+  },
+  {
+   "raw": "ß动·A",
+   "normalize_text": "ß动·A",
+   "split_ellipsis": [
+    "ß动·A",
+    false
+   ],
+   "strip_noise": "ß动A",
+   "fold": "ss动a",
+   "clean_stored_name": "ß动A"
+  },
+  {
+   "raw": "0-`\u001cΣ例 ",
+   "normalize_text": "0-`Σ例",
+   "split_ellipsis": [
+    "0-`Σ例",
+    false
+   ],
+   "strip_noise": "0Σ例",
+   "fold": "0σ例",
+   "clean_stored_name": "0Σ例"
+  },
+  {
+   "raw": "ＺＡA",
+   "normalize_text": "ZAA",
+   "split_ellipsis": [
+    "ZAA",
+    false
+   ],
+   "strip_noise": "ZAA",
+   "fold": "zaa",
+   "clean_stored_name": "ZAA"
+  },
+  {
+   "raw": "９`　小…",
+   "normalize_text": "9`小...",
+   "split_ellipsis": [
+    "9`小",
+    true
+   ],
+   "strip_noise": "9小",
+   "fold": "9小",
+   "clean_stored_name": "9小"
+  },
+  {
+   "raw": "·星动",
+   "normalize_text": "·星动",
+   "split_ellipsis": [
+    "·星动",
+    false
+   ],
+   "strip_noise": "星动",
+   "fold": "星动",
+   "clean_stored_name": "星动"
+  },
+  {
+   "raw": "ß…坏 ß 心",
+   "normalize_text": "ß...坏ß心",
+   "split_ellipsis": [
+    "ß...坏ß心",
+    false
+   ],
+   "strip_noise": "ß坏ß心",
+   "fold": "ss坏ss心",
+   "clean_stored_name": "ß坏ß心"
+  },
+  {
+   "raw": "B!鹿",
+   "normalize_text": "B!鹿",
+   "split_ellipsis": [
+    "B!鹿",
+    false
+   ],
+   "strip_noise": "B鹿",
+   "fold": "b鹿",
+   "clean_stored_name": "B鹿"
+  },
+  {
+   "raw": "\u001c… Ⅻ-`-\t",
+   "normalize_text": "...XII-`-",
+   "split_ellipsis": [
+    "...XII-`-",
+    false
+   ],
+   "strip_noise": "XII",
+   "fold": "xii",
+   "clean_stored_name": "XII"
+  },
+  {
+   "raw": "⋯　…_小-人`\u001c",
+   "normalize_text": "⋯..._小-人`",
+   "split_ellipsis": [
+    "⋯..._小-人`",
+    false
+   ],
+   "strip_noise": "小人",
+   "fold": "小人",
+   "clean_stored_name": "小人"
+  },
+  {
+   "raw": "ＺA_",
+   "normalize_text": "ZA_",
+   "split_ellipsis": [
+    "ZA_",
+    false
+   ],
+   "strip_noise": "ZA",
+   "fold": "za",
+   "clean_stored_name": "ZA"
+  },
+  {
+   "raw": "Σ　",
+   "normalize_text": "Σ",
+   "split_ellipsis": [
+    "Σ",
+    false
+   ],
+   "strip_noise": "Σ",
+   "fold": "σ",
+   "clean_stored_name": "Σ"
+  },
+  {
+   "raw": "……人",
+   "normalize_text": "......人",
+   "split_ellipsis": [
+    "......人",
+    false
+   ],
+   "strip_noise": "人",
+   "fold": "人",
+   "clean_stored_name": "人"
+  },
+  {
+   "raw": "心Aß小①`",
+   "normalize_text": "心Aß小1`",
+   "split_ellipsis": [
+    "心Aß小1`",
+    false
+   ],
+   "strip_noise": "心Aß小1",
+   "fold": "心ass小1",
+   "clean_stored_name": "心Aß小1"
+  },
+  {
+   "raw": "!-``Ⅻ00坏Ⅻ",
+   "normalize_text": "!-``XII00坏XII",
+   "split_ellipsis": [
+    "!-``XII00坏XII",
+    false
+   ],
+   "strip_noise": "XII00坏XII",
+   "fold": "xii00坏xii",
+   "clean_stored_name": "XII00坏XII"
+  },
+  {
+   "raw": "星\tＡ",
+   "normalize_text": "星A",
+   "split_ellipsis": [
+    "星A",
+    false
+   ],
+   "strip_noise": "星A",
+   "fold": "星a",
+   "clean_stored_name": "星A"
+  },
+  {
+   "raw": "`例!! ",
+   "normalize_text": "`例!!",
+   "split_ellipsis": [
+    "`例!!",
+    false
+   ],
+   "strip_noise": "例",
+   "fold": "例",
+   "clean_stored_name": "例"
+  },
+  {
+   "raw": "Z星",
+   "normalize_text": "Z星",
+   "split_ellipsis": [
+    "Z星",
+    false
+   ],
+   "strip_noise": "Z星",
+   "fold": "z星",
+   "clean_stored_name": "Z星"
+  },
+  {
+   "raw": "zＡ\u001c-Z星Σ",
+   "normalize_text": "zA-Z星Σ",
+   "split_ellipsis": [
+    "zA-Z星Σ",
+    false
+   ],
+   "strip_noise": "zAZ星Σ",
+   "fold": "zaz星σ",
+   "clean_stored_name": "zAZ星Σ"
+  },
+  {
+   "raw": "⋯Ａ①b星\u001c坏Ａ",
+   "normalize_text": "⋯A1b星坏A",
+   "split_ellipsis": [
+    "⋯A1b星坏A",
+    false
+   ],
+   "strip_noise": "A1b星坏A",
+   "fold": "a1b星坏a",
+   "clean_stored_name": "A1b星坏A"
+  },
+  {
+   "raw": "Σ",
+   "normalize_text": "Σ",
+   "split_ellipsis": [
+    "Σ",
+    false
+   ],
+   "strip_noise": "Σ",
+   "fold": "σ",
+   "clean_stored_name": "Σ"
+  },
+  {
+   "raw": "-小……例·B!例b",
+   "normalize_text": "-小......例·B!例b",
+   "split_ellipsis": [
+    "-小......例·B!例b",
+    false
+   ],
+   "strip_noise": "小例B例b",
+   "fold": "小例b例b",
+   "clean_stored_name": "小例B例b"
+  },
+  {
+   "raw": "·心·bbBZ人.A",
+   "normalize_text": "·心·bbBZ人.A",
+   "split_ellipsis": [
+    "·心·bbBZ人.A",
+    false
+   ],
+   "strip_noise": "心bbBZ人A",
+   "fold": "心bbbz人a",
+   "clean_stored_name": "心bbBZ人A"
+  },
+  {
+   "raw": "鹿b_0人",
+   "normalize_text": "鹿b_0人",
+   "split_ellipsis": [
+    "鹿b_0人",
+    false
+   ],
+   "strip_noise": "鹿b0人",
+   "fold": "鹿b0人",
+   "clean_stored_name": "鹿b0人"
+  },
+  {
+   "raw": "!ＡAaBZ\t",
+   "normalize_text": "!AAaBZ",
+   "split_ellipsis": [
+    "!AAaBZ",
+    false
+   ],
+   "strip_noise": "AAaBZ",
+   "fold": "aaabz",
+   "clean_stored_name": "AAaBZ"
+  },
+  {
+   "raw": "0。.鹿z-. ",
+   "normalize_text": "0。.鹿z-.",
+   "split_ellipsis": [
+    "0。.鹿z-",
+    true
+   ],
+   "strip_noise": "0鹿z",
+   "fold": "0鹿z",
+   "clean_stored_name": "0鹿z"
+  },
+  {
+   "raw": " ⋯",
+   "normalize_text": "⋯",
+   "split_ellipsis": [
+    "",
+    true
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "·…例星·Ｚİa动İ",
+   "normalize_text": "·...例星·Zİa动İ",
+   "split_ellipsis": [
+    "·...例星·Zİa动İ",
+    false
+   ],
+   "strip_noise": "例星Zİa动İ",
+   "fold": "例星zi̇a动i̇",
+   "clean_stored_name": "例星Zİa动İ"
+  },
+  {
+   "raw": "小…!心",
+   "normalize_text": "小...!心",
+   "split_ellipsis": [
+    "小...!心",
+    false
+   ],
+   "strip_noise": "小心",
+   "fold": "小心",
+   "clean_stored_name": "小心"
+  },
+  {
+   "raw": "`星A",
+   "normalize_text": "`星A",
+   "split_ellipsis": [
+    "`星A",
+    false
+   ],
+   "strip_noise": "星A",
+   "fold": "星a",
+   "clean_stored_name": "星A"
+  },
+  {
+   "raw": "`动",
+   "normalize_text": "`动",
+   "split_ellipsis": [
+    "`动",
+    false
+   ],
+   "strip_noise": "动",
+   "fold": "动",
+   "clean_stored_name": "动"
+  },
+  {
+   "raw": "动动",
+   "normalize_text": "动动",
+   "split_ellipsis": [
+    "动动",
+    false
+   ],
+   "strip_noise": "动动",
+   "fold": "动动",
+   "clean_stored_name": "动动"
+  },
+  {
+   "raw": "B坏９\t\tＺ",
+   "normalize_text": "B坏9Z",
+   "split_ellipsis": [
+    "B坏9Z",
+    false
+   ],
+   "strip_noise": "B坏9Z",
+   "fold": "b坏9z",
+   "clean_stored_name": "B坏9Z"
+  },
+  {
+   "raw": "星①Σ９　\u001c星示a",
+   "normalize_text": "星1Σ9星示a",
+   "split_ellipsis": [
+    "星1Σ9星示a",
+    false
+   ],
+   "strip_noise": "星1Σ9星示a",
+   "fold": "星1σ9星示a",
+   "clean_stored_name": "星1Σ9星示a"
+  },
+  {
+   "raw": "!`",
+   "normalize_text": "!`",
+   "split_ellipsis": [
+    "!`",
+    false
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "⋯a心",
+   "normalize_text": "⋯a心",
+   "split_ellipsis": [
+    "⋯a心",
+    false
+   ],
+   "strip_noise": "a心",
+   "fold": "a心",
+   "clean_stored_name": "a心"
+  },
+  {
+   "raw": "心⋯星A",
+   "normalize_text": "心⋯星A",
+   "split_ellipsis": [
+    "心⋯星A",
+    false
+   ],
+   "strip_noise": "心星A",
+   "fold": "心星a",
+   "clean_stored_name": "心星A"
+  },
+  {
+   "raw": "\u001c例",
+   "normalize_text": "例",
+   "split_ellipsis": [
+    "例",
+    false
+   ],
+   "strip_noise": "例",
+   "fold": "例",
+   "clean_stored_name": "例"
+  },
+  {
+   "raw": "z",
+   "normalize_text": "z",
+   "split_ellipsis": [
+    "z",
+    false
+   ],
+   "strip_noise": "z",
+   "fold": "z",
+   "clean_stored_name": "z"
+  },
+  {
+   "raw": "İ示Σİ①A",
+   "normalize_text": "İ示Σİ1A",
+   "split_ellipsis": [
+    "İ示Σİ1A",
+    false
+   ],
+   "strip_noise": "İ示Σİ1A",
+   "fold": "i̇示σi̇1a",
+   "clean_stored_name": "İ示Σİ1A"
+  },
+  {
+   "raw": "Ｚ坏·b",
+   "normalize_text": "Z坏·b",
+   "split_ellipsis": [
+    "Z坏·b",
+    false
+   ],
+   "strip_noise": "Z坏b",
+   "fold": "z坏b",
+   "clean_stored_name": "Z坏b"
+  },
+  {
+   "raw": "Σ示…--!Ｚz坏人",
+   "normalize_text": "Σ示...--!Zz坏人",
+   "split_ellipsis": [
+    "Σ示...--!Zz坏人",
+    false
+   ],
+   "strip_noise": "Σ示Zz坏人",
+   "fold": "σ示zz坏人",
+   "clean_stored_name": "Σ示Zz坏人"
+  },
+  {
+   "raw": "坏 ",
+   "normalize_text": "坏",
+   "split_ellipsis": [
+    "坏",
+    false
+   ],
+   "strip_noise": "坏",
+   "fold": "坏",
+   "clean_stored_name": "坏"
+  },
+  {
+   "raw": "人鹿坏人ß",
+   "normalize_text": "人鹿坏人ß",
+   "split_ellipsis": [
+    "人鹿坏人ß",
+    false
+   ],
+   "strip_noise": "人鹿坏人ß",
+   "fold": "人鹿坏人ss",
+   "clean_stored_name": "人鹿坏人ß"
+  },
+  {
+   "raw": ".动动鹿",
+   "normalize_text": ".动动鹿",
+   "split_ellipsis": [
+    ".动动鹿",
+    false
+   ],
+   "strip_noise": "动动鹿",
+   "fold": "动动鹿",
+   "clean_stored_name": "动动鹿"
+  },
+  {
+   "raw": "例B坏…a坏İ.",
+   "normalize_text": "例B坏...a坏İ.",
+   "split_ellipsis": [
+    "例B坏...a坏İ",
+    true
+   ],
+   "strip_noise": "例B坏a坏İ",
+   "fold": "例b坏a坏i̇",
+   "clean_stored_name": "例B坏a坏İ"
+  },
+  {
+   "raw": "Ａ",
+   "normalize_text": "A",
+   "split_ellipsis": [
+    "A",
+    false
+   ],
+   "strip_noise": "A",
+   "fold": "a",
+   "clean_stored_name": "A"
+  },
+  {
+   "raw": " Ａ İ例a鹿示",
+   "normalize_text": "Aİ例a鹿示",
+   "split_ellipsis": [
+    "Aİ例a鹿示",
+    false
+   ],
+   "strip_noise": "Aİ例a鹿示",
+   "fold": "ai̇例a鹿示",
+   "clean_stored_name": "Aİ例a鹿示"
+  },
+  {
+   "raw": "心 B",
+   "normalize_text": "心B",
+   "split_ellipsis": [
+    "心B",
+    false
+   ],
+   "strip_noise": "心B",
+   "fold": "心b",
+   "clean_stored_name": "心B"
+  },
+  {
+   "raw": "星bbＡ",
+   "normalize_text": "星bbA",
+   "split_ellipsis": [
+    "星bbA",
+    false
+   ],
+   "strip_noise": "星bbA",
+   "fold": "星bba",
+   "clean_stored_name": "星bbA"
+  },
+  {
+   "raw": "Z· 动Ｚ",
+   "normalize_text": "Z·动Z",
+   "split_ellipsis": [
+    "Z·动Z",
+    false
+   ],
+   "strip_noise": "Z动Z",
+   "fold": "z动z",
+   "clean_stored_name": "Z动Z"
+  },
+  {
+   "raw": " ",
+   "normalize_text": "",
+   "split_ellipsis": [
+    "",
+    false
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "鹿İ·Ａ",
+   "normalize_text": "鹿İ·A",
+   "split_ellipsis": [
+    "鹿İ·A",
+    false
+   ],
+   "strip_noise": "鹿İA",
+   "fold": "鹿i̇a",
+   "clean_stored_name": "鹿İA"
+  },
+  {
+   "raw": "动\t９Ⅻ…Ab-",
+   "normalize_text": "动9XII...Ab-",
+   "split_ellipsis": [
+    "动9XII...Ab-",
+    false
+   ],
+   "strip_noise": "动9XIIAb",
+   "fold": "动9xiiab",
+   "clean_stored_name": "动9XIIAb"
+  },
+  {
+   "raw": "星",
+   "normalize_text": "星",
+   "split_ellipsis": [
+    "星",
+    false
+   ],
+   "strip_noise": "星",
+   "fold": "星",
+   "clean_stored_name": "星"
+  },
+  {
+   "raw": "_!人Z",
+   "normalize_text": "_!人Z",
+   "split_ellipsis": [
+    "_!人Z",
+    false
+   ],
+   "strip_noise": "人Z",
+   "fold": "人z",
+   "clean_stored_name": "人Z"
+  },
+  {
+   "raw": "·.Σ示ß!心",
+   "normalize_text": "·.Σ示ß!心",
+   "split_ellipsis": [
+    "·.Σ示ß!心",
+    false
+   ],
+   "strip_noise": "Σ示ß心",
+   "fold": "σ示ss心",
+   "clean_stored_name": "Σ示ß心"
+  },
+  {
+   "raw": "\t",
+   "normalize_text": "",
+   "split_ellipsis": [
+    "",
+    false
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "`.鹿Z…",
+   "normalize_text": "`.鹿Z...",
+   "split_ellipsis": [
+    "`.鹿Z",
+    true
+   ],
+   "strip_noise": "鹿Z",
+   "fold": "鹿z",
+   "clean_stored_name": "鹿Z"
+  },
+  {
+   "raw": "ⅫＡ",
+   "normalize_text": "XIIA",
+   "split_ellipsis": [
+    "XIIA",
+    false
+   ],
+   "strip_noise": "XIIA",
+   "fold": "xiia",
+   "clean_stored_name": "XIIA"
+  },
+  {
+   "raw": "Ａ人动Ⅻ①!A",
+   "normalize_text": "A人动XII1!A",
+   "split_ellipsis": [
+    "A人动XII1!A",
+    false
+   ],
+   "strip_noise": "A人动XII1A",
+   "fold": "a人动xii1a",
+   "clean_stored_name": "A人动XII1A"
+  },
+  {
+   "raw": "-",
+   "normalize_text": "-",
+   "split_ellipsis": [
+    "-",
+    false
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "·人ab  ",
+   "normalize_text": "·人ab",
+   "split_ellipsis": [
+    "·人ab",
+    false
+   ],
+   "strip_noise": "人ab",
+   "fold": "人ab",
+   "clean_stored_name": "人ab"
+  },
+  {
+   "raw": "。A心_",
+   "normalize_text": "。A心_",
+   "split_ellipsis": [
+    "。A心_",
+    false
+   ],
+   "strip_noise": "A心",
+   "fold": "a心",
+   "clean_stored_name": "A心"
+  },
+  {
+   "raw": "b",
+   "normalize_text": "b",
+   "split_ellipsis": [
+    "b",
+    false
+   ],
+   "strip_noise": "b",
+   "fold": "b",
+   "clean_stored_name": "b"
+  },
+  {
+   "raw": "小小①ＺＺ９",
+   "normalize_text": "小小1ZZ9",
+   "split_ellipsis": [
+    "小小1ZZ9",
+    false
+   ],
+   "strip_noise": "小小1ZZ9",
+   "fold": "小小1zz9",
+   "clean_stored_name": "小小1ZZ9"
+  },
+  {
+   "raw": "_\u001c-b例!　·Ⅻ人",
+   "normalize_text": "_-b例!·XII人",
+   "split_ellipsis": [
+    "_-b例!·XII人",
+    false
+   ],
+   "strip_noise": "b例XII人",
+   "fold": "b例xii人",
+   "clean_stored_name": "b例XII人"
+  },
+  {
+   "raw": "!_",
+   "normalize_text": "!_",
+   "split_ellipsis": [
+    "!_",
+    false
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "　　人Ⅻ星人·B",
+   "normalize_text": "人XII星人·B",
+   "split_ellipsis": [
+    "人XII星人·B",
+    false
+   ],
+   "strip_noise": "人XII星人B",
+   "fold": "人xii星人b",
+   "clean_stored_name": "人XII星人B"
+  },
+  {
+   "raw": "心b心ⅫⅫ 。　.",
+   "normalize_text": "心b心XIIXII。.",
+   "split_ellipsis": [
+    "心b心XIIXII。",
+    true
+   ],
+   "strip_noise": "心b心XIIXII",
+   "fold": "心b心xiixii",
+   "clean_stored_name": "心b心XIIXII"
+  },
+  {
+   "raw": "ß。",
+   "normalize_text": "ß。",
+   "split_ellipsis": [
+    "ß",
+    true
+   ],
+   "strip_noise": "ß",
+   "fold": "ss",
+   "clean_stored_name": "ß"
+  },
+  {
+   "raw": "坏`",
+   "normalize_text": "坏`",
+   "split_ellipsis": [
+    "坏`",
+    false
+   ],
+   "strip_noise": "坏",
+   "fold": "坏",
+   "clean_stored_name": "坏"
+  },
+  {
+   "raw": "人ⅫB　９⋯",
+   "normalize_text": "人XIIB9⋯",
+   "split_ellipsis": [
+    "人XIIB9",
+    true
+   ],
+   "strip_noise": "人XIIB9",
+   "fold": "人xiib9",
+   "clean_stored_name": "人XIIB9"
+  },
+  {
+   "raw": "Ｚ\u001cb…Ｚ Σ",
+   "normalize_text": "Zb...ZΣ",
+   "split_ellipsis": [
+    "Zb...ZΣ",
+    false
+   ],
+   "strip_noise": "ZbZΣ",
+   "fold": "zbzσ",
+   "clean_stored_name": "ZbZΣ"
+  },
+  {
+   "raw": "İ　。①`",
+   "normalize_text": "İ。1`",
+   "split_ellipsis": [
+    "İ。1`",
+    false
+   ],
+   "strip_noise": "İ1",
+   "fold": "i̇1",
+   "clean_stored_name": "İ1"
+  },
+  {
+   "raw": "\tＡ!星\u001c。鹿`心\t",
+   "normalize_text": "A!星。鹿`心",
+   "split_ellipsis": [
+    "A!星。鹿`心",
+    false
+   ],
+   "strip_noise": "A星鹿心",
+   "fold": "a星鹿心",
+   "clean_stored_name": "A星鹿心"
+  },
+  {
+   "raw": "B",
+   "normalize_text": "B",
+   "split_ellipsis": [
+    "B",
+    false
+   ],
+   "strip_noise": "B",
+   "fold": "b",
+   "clean_stored_name": "B"
+  },
+  {
+   "raw": "\t`①人",
+   "normalize_text": "`1人",
+   "split_ellipsis": [
+    "`1人",
+    false
+   ],
+   "strip_noise": "1人",
+   "fold": "1人",
+   "clean_stored_name": "1人"
+  },
+  {
+   "raw": "坏动小Ａ例B…Σ　示",
+   "normalize_text": "坏动小A例B...Σ示",
+   "split_ellipsis": [
+    "坏动小A例B...Σ示",
+    false
+   ],
+   "strip_noise": "坏动小A例BΣ示",
+   "fold": "坏动小a例bσ示",
+   "clean_stored_name": "坏动小A例BΣ示"
+  },
+  {
+   "raw": "Ａzb·①İ。",
+   "normalize_text": "Azb·1İ。",
+   "split_ellipsis": [
+    "Azb·1İ",
+    true
+   ],
+   "strip_noise": "Azb1İ",
+   "fold": "azb1i̇",
+   "clean_stored_name": "Azb1İ"
+  },
+  {
+   "raw": "动例星",
+   "normalize_text": "动例星",
+   "split_ellipsis": [
+    "动例星",
+    false
+   ],
+   "strip_noise": "动例星",
+   "fold": "动例星",
+   "clean_stored_name": "动例星"
+  },
+  {
+   "raw": "_a动\tΣＡ-人",
+   "normalize_text": "_a动ΣA-人",
+   "split_ellipsis": [
+    "_a动ΣA-人",
+    false
+   ],
+   "strip_noise": "a动ΣA人",
+   "fold": "a动σa人",
+   "clean_stored_name": "a动ΣA人"
+  },
+  {
+   "raw": "鹿ßß　…人",
+   "normalize_text": "鹿ßß...人",
+   "split_ellipsis": [
+    "鹿ßß...人",
+    false
+   ],
+   "strip_noise": "鹿ßß人",
+   "fold": "鹿ssss人",
+   "clean_stored_name": "鹿ßß人"
+  },
+  {
+   "raw": "_",
+   "normalize_text": "_",
+   "split_ellipsis": [
+    "_",
+    false
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "İİ人９_心b例Σ",
+   "normalize_text": "İİ人9_心b例Σ",
+   "split_ellipsis": [
+    "İİ人9_心b例Σ",
+    false
+   ],
+   "strip_noise": "İİ人9心b例Σ",
+   "fold": "i̇i̇人9心b例σ",
+   "clean_stored_name": "İİ人9心b例Σ"
+  },
+  {
+   "raw": " 小Ⅻ!",
+   "normalize_text": "小XII!",
+   "split_ellipsis": [
+    "小XII!",
+    false
+   ],
+   "strip_noise": "小XII",
+   "fold": "小xii",
+   "clean_stored_name": "小XII"
+  },
+  {
+   "raw": "a-人Σ心….",
+   "normalize_text": "a-人Σ心....",
+   "split_ellipsis": [
+    "a-人Σ心",
+    true
+   ],
+   "strip_noise": "a人Σ心",
+   "fold": "a人σ心",
+   "clean_stored_name": "a人Σ心"
+  },
+  {
+   "raw": "·心_　İ`星Ｚ①",
+   "normalize_text": "·心_İ`星Z1",
+   "split_ellipsis": [
+    "·心_İ`星Z1",
+    false
+   ],
+   "strip_noise": "心İ星Z1",
+   "fold": "心i̇星z1",
+   "clean_stored_name": "心İ星Z1"
+  },
+  {
+   "raw": "`Ａ\u001c.Ａ人\u001c",
+   "normalize_text": "`A.A人",
+   "split_ellipsis": [
+    "`A.A人",
+    false
+   ],
+   "strip_noise": "AA人",
+   "fold": "aa人",
+   "clean_stored_name": "AA人"
+  },
+  {
+   "raw": "00　 星_`",
+   "normalize_text": "00星_`",
+   "split_ellipsis": [
+    "00星_`",
+    false
+   ],
+   "strip_noise": "00星",
+   "fold": "00星",
+   "clean_stored_name": "00星"
+  },
+  {
+   "raw": "动Z\u001c!Σ",
+   "normalize_text": "动Z!Σ",
+   "split_ellipsis": [
+    "动Z!Σ",
+    false
+   ],
+   "strip_noise": "动ZΣ",
+   "fold": "动zσ",
+   "clean_stored_name": "动ZΣ"
+  },
+  {
+   "raw": "ＡΣ⋯星A",
+   "normalize_text": "AΣ⋯星A",
+   "split_ellipsis": [
+    "AΣ⋯星A",
+    false
+   ],
+   "strip_noise": "AΣ星A",
+   "fold": "aσ星a",
+   "clean_stored_name": "AΣ星A"
+  },
+  {
+   "raw": "_-zz!例⋯ß0",
+   "normalize_text": "_-zz!例⋯ß0",
+   "split_ellipsis": [
+    "_-zz!例⋯ß0",
+    false
+   ],
+   "strip_noise": "zz例ß0",
+   "fold": "zz例ss0",
+   "clean_stored_name": "zz例ß0"
+  },
+  {
+   "raw": "-z示Ｚ.b。。·",
+   "normalize_text": "-z示Z.b。。·",
+   "split_ellipsis": [
+    "-z示Z.b。。",
+    true
+   ],
+   "strip_noise": "z示Zb",
+   "fold": "z示zb",
+   "clean_stored_name": "z示Zb"
+  },
+  {
+   "raw": "①a-",
+   "normalize_text": "1a-",
+   "split_ellipsis": [
+    "1a-",
+    false
+   ],
+   "strip_noise": "1a",
+   "fold": "1a",
+   "clean_stored_name": "1a"
+  },
+  {
+   "raw": "!心心-动⋯.\t!",
+   "normalize_text": "!心心-动⋯.!",
+   "split_ellipsis": [
+    "!心心-动⋯.!",
+    false
+   ],
+   "strip_noise": "心心动",
+   "fold": "心心动",
+   "clean_stored_name": "心心动"
+  },
+  {
+   "raw": "坏Ｚ示例",
+   "normalize_text": "坏Z示例",
+   "split_ellipsis": [
+    "坏Z示例",
+    false
+   ],
+   "strip_noise": "坏Z示例",
+   "fold": "坏z示例",
+   "clean_stored_name": "坏Z示例"
+  },
+  {
+   "raw": "动小_·",
+   "normalize_text": "动小_·",
+   "split_ellipsis": [
+    "动小_",
+    true
+   ],
+   "strip_noise": "动小",
+   "fold": "动小",
+   "clean_stored_name": "动小"
+  },
+  {
+   "raw": "0…ß９星心",
+   "normalize_text": "0...ß9星心",
+   "split_ellipsis": [
+    "0...ß9星心",
+    false
+   ],
+   "strip_noise": "0ß9星心",
+   "fold": "0ss9星心",
+   "clean_stored_name": "0ß9星心"
+  },
+  {
+   "raw": "Ⅻ动b星示坏心星-",
+   "normalize_text": "XII动b星示坏心星-",
+   "split_ellipsis": [
+    "XII动b星示坏心星-",
+    false
+   ],
+   "strip_noise": "XII动b星示坏心星",
+   "fold": "xii动b星示坏心星",
+   "clean_stored_name": "XII动b星示坏心星"
+  },
+  {
+   "raw": "９",
+   "normalize_text": "9",
+   "split_ellipsis": [
+    "9",
+    false
+   ],
+   "strip_noise": "9",
+   "fold": "9",
+   "clean_stored_name": "9"
+  },
+  {
+   "raw": "ß",
+   "normalize_text": "ß",
+   "split_ellipsis": [
+    "ß",
+    false
+   ],
+   "strip_noise": "ß",
+   "fold": "ss",
+   "clean_stored_name": "ß"
+  },
+  {
+   "raw": "ß人ß",
+   "normalize_text": "ß人ß",
+   "split_ellipsis": [
+    "ß人ß",
+    false
+   ],
+   "strip_noise": "ß人ß",
+   "fold": "ss人ss",
+   "clean_stored_name": "ß人ß"
+  },
+  {
+   "raw": "例\t\t示z\t",
+   "normalize_text": "例示z",
+   "split_ellipsis": [
+    "例示z",
+    false
+   ],
+   "strip_noise": "例示z",
+   "fold": "例示z",
+   "clean_stored_name": "例示z"
+  },
+  {
+   "raw": "A·",
+   "normalize_text": "A·",
+   "split_ellipsis": [
+    "A",
+    true
+   ],
+   "strip_noise": "A",
+   "fold": "a",
+   "clean_stored_name": "A"
+  },
+  {
+   "raw": "\u001cB·\u001c人Σ",
+   "normalize_text": "B·人Σ",
+   "split_ellipsis": [
+    "B·人Σ",
+    false
+   ],
+   "strip_noise": "B人Σ",
+   "fold": "b人σ",
+   "clean_stored_name": "B人Σ"
+  },
+  {
+   "raw": "Ｚ９\u001c0",
+   "normalize_text": "Z90",
+   "split_ellipsis": [
+    "Z90",
+    false
+   ],
+   "strip_noise": "Z90",
+   "fold": "z90",
+   "clean_stored_name": "Z90"
+  },
+  {
+   "raw": "A-⋯",
+   "normalize_text": "A-⋯",
+   "split_ellipsis": [
+    "A-",
+    true
+   ],
+   "strip_noise": "A",
+   "fold": "a",
+   "clean_stored_name": "A"
+  },
+  {
+   "raw": "例Σ９…星`İ",
+   "normalize_text": "例Σ9...星`İ",
+   "split_ellipsis": [
+    "例Σ9...星`İ",
+    false
+   ],
+   "strip_noise": "例Σ9星İ",
+   "fold": "例σ9星i̇",
+   "clean_stored_name": "例Σ9星İ"
+  },
+  {
+   "raw": "İ…人 A示…鹿",
+   "normalize_text": "İ...人A示...鹿",
+   "split_ellipsis": [
+    "İ...人A示...鹿",
+    false
+   ],
+   "strip_noise": "İ人A示鹿",
+   "fold": "i̇人a示鹿",
+   "clean_stored_name": "İ人A示鹿"
+  },
+  {
+   "raw": "Ａ!",
+   "normalize_text": "A!",
+   "split_ellipsis": [
+    "A!",
+    false
+   ],
+   "strip_noise": "A",
+   "fold": "a",
+   "clean_stored_name": "A"
+  },
+  {
+   "raw": "\u001c\u001c",
+   "normalize_text": "",
+   "split_ellipsis": [
+    "",
+    false
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "９ß鹿心",
+   "normalize_text": "9ß鹿心",
+   "split_ellipsis": [
+    "9ß鹿心",
+    false
+   ],
+   "strip_noise": "9ß鹿心",
+   "fold": "9ss鹿心",
+   "clean_stored_name": "9ß鹿心"
+  },
+  {
+   "raw": "_`A\u001c心ＡΣB鹿",
+   "normalize_text": "_`A心AΣB鹿",
+   "split_ellipsis": [
+    "_`A心AΣB鹿",
+    false
+   ],
+   "strip_noise": "A心AΣB鹿",
+   "fold": "a心aσb鹿",
+   "clean_stored_name": "A心AΣB鹿"
+  },
+  {
+   "raw": "\u001ca._z坏",
+   "normalize_text": "a._z坏",
+   "split_ellipsis": [
+    "a._z坏",
+    false
+   ],
+   "strip_noise": "az坏",
+   "fold": "az坏",
+   "clean_stored_name": "az坏"
+  },
+  {
+   "raw": "例",
+   "normalize_text": "例",
+   "split_ellipsis": [
+    "例",
+    false
+   ],
+   "strip_noise": "例",
+   "fold": "例",
+   "clean_stored_name": "例"
+  },
+  {
+   "raw": "BA",
+   "normalize_text": "BA",
+   "split_ellipsis": [
+    "BA",
+    false
+   ],
+   "strip_noise": "BA",
+   "fold": "ba",
+   "clean_stored_name": "BA"
+  },
+  {
+   "raw": "示Ⅻ\u001c·z0星　心",
+   "normalize_text": "示XII·z0星心",
+   "split_ellipsis": [
+    "示XII·z0星心",
+    false
+   ],
+   "strip_noise": "示XIIz0星心",
+   "fold": "示xiiz0星心",
+   "clean_stored_name": "示XIIz0星心"
+  },
+  {
+   "raw": "a",
+   "normalize_text": "a",
+   "split_ellipsis": [
+    "a",
+    false
+   ],
+   "strip_noise": "a",
+   "fold": "a",
+   "clean_stored_name": "a"
+  },
+  {
+   "raw": "0ß　…bB_b",
+   "normalize_text": "0ß...bB_b",
+   "split_ellipsis": [
+    "0ß...bB_b",
+    false
+   ],
+   "strip_noise": "0ßbBb",
+   "fold": "0ssbbb",
+   "clean_stored_name": "0ßbBb"
+  },
+  {
+   "raw": "B①`星示　人",
+   "normalize_text": "B1`星示人",
+   "split_ellipsis": [
+    "B1`星示人",
+    false
+   ],
+   "strip_noise": "B1星示人",
+   "fold": "b1星示人",
+   "clean_stored_name": "B1星示人"
+  },
+  {
+   "raw": "\u001c",
+   "normalize_text": "",
+   "split_ellipsis": [
+    "",
+    false
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": " …。_-.İ　",
+   "normalize_text": "...。_-.İ",
+   "split_ellipsis": [
+    "...。_-.İ",
+    false
+   ],
+   "strip_noise": "İ",
+   "fold": "i̇",
+   "clean_stored_name": "İ"
+  },
+  {
+   "raw": "①0星心bba动\t",
+   "normalize_text": "10星心bba动",
+   "split_ellipsis": [
+    "10星心bba动",
+    false
+   ],
+   "strip_noise": "10星心bba动",
+   "fold": "10星心bba动",
+   "clean_stored_name": "10星心bba动"
+  },
+  {
+   "raw": "例Σ",
+   "normalize_text": "例Σ",
+   "split_ellipsis": [
+    "例Σ",
+    false
+   ],
+   "strip_noise": "例Σ",
+   "fold": "例σ",
+   "clean_stored_name": "例Σ"
+  },
+  {
+   "raw": "-a示zZ　ΣBⅫz",
+   "normalize_text": "-a示zZΣBXIIz",
+   "split_ellipsis": [
+    "-a示zZΣBXIIz",
+    false
+   ],
+   "strip_noise": "a示zZΣBXIIz",
+   "fold": "a示zzσbxiiz",
+   "clean_stored_name": "a示zZΣBXIIz"
+  },
+  {
+   "raw": "b·９鹿.0Σ",
+   "normalize_text": "b·9鹿.0Σ",
+   "split_ellipsis": [
+    "b·9鹿.0Σ",
+    false
+   ],
+   "strip_noise": "b9鹿0Σ",
+   "fold": "b9鹿0σ",
+   "clean_stored_name": "b9鹿0Σ"
+  },
+  {
+   "raw": "⋯鹿 a",
+   "normalize_text": "⋯鹿a",
+   "split_ellipsis": [
+    "⋯鹿a",
+    false
+   ],
+   "strip_noise": "鹿a",
+   "fold": "鹿a",
+   "clean_stored_name": "鹿a"
+  },
+  {
+   "raw": "ⅫzΣ例例\u001c",
+   "normalize_text": "XIIzΣ例例",
+   "split_ellipsis": [
+    "XIIzΣ例例",
+    false
+   ],
+   "strip_noise": "XIIzΣ例例",
+   "fold": "xiizσ例例",
+   "clean_stored_name": "XIIzΣ例例"
+  },
+  {
+   "raw": "鹿ßZ心AＡ例",
+   "normalize_text": "鹿ßZ心AA例",
+   "split_ellipsis": [
+    "鹿ßZ心AA例",
+    false
+   ],
+   "strip_noise": "鹿ßZ心AA例",
+   "fold": "鹿ssz心aa例",
+   "clean_stored_name": "鹿ßZ心AA例"
+  },
+  {
+   "raw": "。 Ｚ⋯人ß例９",
+   "normalize_text": "。Z⋯人ß例9",
+   "split_ellipsis": [
+    "。Z⋯人ß例9",
+    false
+   ],
+   "strip_noise": "Z人ß例9",
+   "fold": "z人ss例9",
+   "clean_stored_name": "Z人ß例9"
+  },
+  {
+   "raw": "·①\t星",
+   "normalize_text": "·1星",
+   "split_ellipsis": [
+    "·1星",
+    false
+   ],
+   "strip_noise": "1星",
+   "fold": "1星",
+   "clean_stored_name": "1星"
+  },
+  {
+   "raw": "…①.例９-Ｚ动",
+   "normalize_text": "...1.例9-Z动",
+   "split_ellipsis": [
+    "...1.例9-Z动",
+    false
+   ],
+   "strip_noise": "1例9Z动",
+   "fold": "1例9z动",
+   "clean_stored_name": "1例9Z动"
+  },
+  {
+   "raw": "小z 例İ。Σ９ß",
+   "normalize_text": "小z例İ。Σ9ß",
+   "split_ellipsis": [
+    "小z例İ。Σ9ß",
+    false
+   ],
+   "strip_noise": "小z例İΣ9ß",
+   "fold": "小z例i̇σ9ss",
+   "clean_stored_name": "小z例İΣ9ß"
+  },
+  {
+   "raw": "ⅫB0!ß示!.小.",
+   "normalize_text": "XIIB0!ß示!.小.",
+   "split_ellipsis": [
+    "XIIB0!ß示!.小",
+    true
+   ],
+   "strip_noise": "XIIB0ß示小",
+   "fold": "xiib0ss示小",
+   "clean_stored_name": "XIIB0ß示小"
+  },
+  {
+   "raw": "İΣ\t-示动",
+   "normalize_text": "İΣ-示动",
+   "split_ellipsis": [
+    "İΣ-示动",
+    false
+   ],
+   "strip_noise": "İΣ示动",
+   "fold": "i̇σ示动",
+   "clean_stored_name": "İΣ示动"
+  },
+  {
+   "raw": "-İZ`星!",
+   "normalize_text": "-İZ`星!",
+   "split_ellipsis": [
+    "-İZ`星!",
+    false
+   ],
+   "strip_noise": "İZ星",
+   "fold": "i̇z星",
+   "clean_stored_name": "İZ星"
+  },
+  {
+   "raw": " 动`",
+   "normalize_text": "动`",
+   "split_ellipsis": [
+    "动`",
+    false
+   ],
+   "strip_noise": "动",
+   "fold": "动",
+   "clean_stored_name": "动"
+  },
+  {
+   "raw": "星示",
+   "normalize_text": "星示",
+   "split_ellipsis": [
+    "星示",
+    false
+   ],
+   "strip_noise": "星示",
+   "fold": "星示",
+   "clean_stored_name": "星示"
+  },
+  {
+   "raw": "星",
+   "normalize_text": "星",
+   "split_ellipsis": [
+    "星",
+    false
+   ],
+   "strip_noise": "星",
+   "fold": "星",
+   "clean_stored_name": "星"
+  },
+  {
+   "raw": "za心",
+   "normalize_text": "za心",
+   "split_ellipsis": [
+    "za心",
+    false
+   ],
+   "strip_noise": "za心",
+   "fold": "za心",
+   "clean_stored_name": "za心"
+  },
+  {
+   "raw": "⋯Σ",
+   "normalize_text": "⋯Σ",
+   "split_ellipsis": [
+    "⋯Σ",
+    false
+   ],
+   "strip_noise": "Σ",
+   "fold": "σ",
+   "clean_stored_name": "Σ"
+  },
+  {
+   "raw": "坏`示`　小⋯Ⅻ。·",
+   "normalize_text": "坏`示`小⋯XII。·",
+   "split_ellipsis": [
+    "坏`示`小⋯XII。",
+    true
+   ],
+   "strip_noise": "坏示小XII",
+   "fold": "坏示小xii",
+   "clean_stored_name": "坏示小XII"
+  },
+  {
+   "raw": "①zaＡ星Z例a。\u001c",
+   "normalize_text": "1zaA星Z例a。",
+   "split_ellipsis": [
+    "1zaA星Z例a",
+    true
+   ],
+   "strip_noise": "1zaA星Z例a",
+   "fold": "1zaa星z例a",
+   "clean_stored_name": "1zaA星Z例a"
+  },
+  {
+   "raw": "鹿Ⅻ ",
+   "normalize_text": "鹿XII",
+   "split_ellipsis": [
+    "鹿XII",
+    false
+   ],
+   "strip_noise": "鹿XII",
+   "fold": "鹿xii",
+   "clean_stored_name": "鹿XII"
+  },
+  {
+   "raw": "①Bb.Σ-鹿 …",
+   "normalize_text": "1Bb.Σ-鹿...",
+   "split_ellipsis": [
+    "1Bb.Σ-鹿",
+    true
+   ],
+   "strip_noise": "1BbΣ鹿",
+   "fold": "1bbσ鹿",
+   "clean_stored_name": "1BbΣ鹿"
+  },
+  {
+   "raw": "AＺ小Z人!。\u001cA",
+   "normalize_text": "AZ小Z人!。A",
+   "split_ellipsis": [
+    "AZ小Z人!。A",
+    false
+   ],
+   "strip_noise": "AZ小Z人A",
+   "fold": "az小z人a",
+   "clean_stored_name": "AZ小Z人A"
+  },
+  {
+   "raw": "鹿⋯",
+   "normalize_text": "鹿⋯",
+   "split_ellipsis": [
+    "鹿",
+    true
+   ],
+   "strip_noise": "鹿",
+   "fold": "鹿",
+   "clean_stored_name": "鹿"
+  },
+  {
+   "raw": ".人`。…",
+   "normalize_text": ".人`。...",
+   "split_ellipsis": [
+    ".人`",
+    true
+   ],
+   "strip_noise": "人",
+   "fold": "人",
+   "clean_stored_name": "人"
+  },
+  {
+   "raw": "0",
+   "normalize_text": "0",
+   "split_ellipsis": [
+    "0",
+    false
+   ],
+   "strip_noise": "0",
+   "fold": "0",
+   "clean_stored_name": "0"
+  },
+  {
+   "raw": "b",
+   "normalize_text": "b",
+   "split_ellipsis": [
+    "b",
+    false
+   ],
+   "strip_noise": "b",
+   "fold": "b",
+   "clean_stored_name": "b"
+  },
+  {
+   "raw": "…ΣⅫb心Ｚ",
+   "normalize_text": "...ΣXIIb心Z",
+   "split_ellipsis": [
+    "...ΣXIIb心Z",
+    false
+   ],
+   "strip_noise": "ΣXIIb心Z",
+   "fold": "σxiib心z",
+   "clean_stored_name": "ΣXIIb心Z"
+  },
+  {
+   "raw": ".…bbİ",
+   "normalize_text": "....bbİ",
+   "split_ellipsis": [
+    "....bbİ",
+    false
+   ],
+   "strip_noise": "bbİ",
+   "fold": "bbi̇",
+   "clean_stored_name": "bbİ"
+  },
+  {
+   "raw": "坏９0９ZİΣ`zＺ",
+   "normalize_text": "坏909ZİΣ`zZ",
+   "split_ellipsis": [
+    "坏909ZİΣ`zZ",
+    false
+   ],
+   "strip_noise": "坏909ZİΣzZ",
+   "fold": "坏909zi̇σzz",
+   "clean_stored_name": "坏909ZİΣzZ"
+  },
+  {
+   "raw": "Z示星0小①坏Ｚİ",
+   "normalize_text": "Z示星0小1坏Zİ",
+   "split_ellipsis": [
+    "Z示星0小1坏Zİ",
+    false
+   ],
+   "strip_noise": "Z示星0小1坏Zİ",
+   "fold": "z示星0小1坏zi̇",
+   "clean_stored_name": "Z示星0小1坏Zİ"
+  },
+  {
+   "raw": "心B小星例A",
+   "normalize_text": "心B小星例A",
+   "split_ellipsis": [
+    "心B小星例A",
+    false
+   ],
+   "strip_noise": "心B小星例A",
+   "fold": "心b小星例a",
+   "clean_stored_name": "心B小星例A"
+  },
+  {
+   "raw": "ZİBＡİ小b　 。",
+   "normalize_text": "ZİBAİ小b。",
+   "split_ellipsis": [
+    "ZİBAİ小b",
+    true
+   ],
+   "strip_noise": "ZİBAİ小b",
+   "fold": "zi̇bai̇小b",
+   "clean_stored_name": "ZİBAİ小b"
+  },
+  {
+   "raw": "９心BΣ",
+   "normalize_text": "9心BΣ",
+   "split_ellipsis": [
+    "9心BΣ",
+    false
+   ],
+   "strip_noise": "9心BΣ",
+   "fold": "9心bσ",
+   "clean_stored_name": "9心BΣ"
+  },
+  {
+   "raw": "星·人鹿_-·z　Z",
+   "normalize_text": "星·人鹿_-·zZ",
+   "split_ellipsis": [
+    "星·人鹿_-·zZ",
+    false
+   ],
+   "strip_noise": "星人鹿zZ",
+   "fold": "星人鹿zz",
+   "clean_stored_name": "星人鹿zZ"
+  },
+  {
+   "raw": "Σ",
+   "normalize_text": "Σ",
+   "split_ellipsis": [
+    "Σ",
+    false
+   ],
+   "strip_noise": "Σ",
+   "fold": "σ",
+   "clean_stored_name": "Σ"
+  },
+  {
+   "raw": "小B坏\u001c坏A·…",
+   "normalize_text": "小B坏坏A·...",
+   "split_ellipsis": [
+    "小B坏坏A",
+    true
+   ],
+   "strip_noise": "小B坏坏A",
+   "fold": "小b坏坏a",
+   "clean_stored_name": "小B坏坏A"
+  },
+  {
+   "raw": "ＡzA。`B动",
+   "normalize_text": "AzA。`B动",
+   "split_ellipsis": [
+    "AzA。`B动",
+    false
+   ],
+   "strip_noise": "AzAB动",
+   "fold": "azab动",
+   "clean_stored_name": "AzAB动"
+  },
+  {
+   "raw": "0心A",
+   "normalize_text": "0心A",
+   "split_ellipsis": [
+    "0心A",
+    false
+   ],
+   "strip_noise": "0心A",
+   "fold": "0心a",
+   "clean_stored_name": "0心A"
+  },
+  {
+   "raw": "\t\u001cz a`⋯",
+   "normalize_text": "za`⋯",
+   "split_ellipsis": [
+    "za`",
+    true
+   ],
+   "strip_noise": "za",
+   "fold": "za",
+   "clean_stored_name": "za"
+  },
+  {
+   "raw": "星ß例a",
+   "normalize_text": "星ß例a",
+   "split_ellipsis": [
+    "星ß例a",
+    false
+   ],
+   "strip_noise": "星ß例a",
+   "fold": "星ss例a",
+   "clean_stored_name": "星ß例a"
+  },
+  {
+   "raw": "动·心B①Ⅻ",
+   "normalize_text": "动·心B1XII",
+   "split_ellipsis": [
+    "动·心B1XII",
+    false
+   ],
+   "strip_noise": "动心B1XII",
+   "fold": "动心b1xii",
+   "clean_stored_name": "动心B1XII"
+  },
+  {
+   "raw": "ＡＡ 心　星!示例鹿",
+   "normalize_text": "AA心星!示例鹿",
+   "split_ellipsis": [
+    "AA心星!示例鹿",
+    false
+   ],
+   "strip_noise": "AA心星示例鹿",
+   "fold": "aa心星示例鹿",
+   "clean_stored_name": "AA心星示例鹿"
+  },
+  {
+   "raw": "⋯.A-９_坏",
+   "normalize_text": "⋯.A-9_坏",
+   "split_ellipsis": [
+    "⋯.A-9_坏",
+    false
+   ],
+   "strip_noise": "A9坏",
+   "fold": "a9坏",
+   "clean_stored_name": "A9坏"
+  },
+  {
+   "raw": "İ.·\tＡ例",
+   "normalize_text": "İ.·A例",
+   "split_ellipsis": [
+    "İ.·A例",
+    false
+   ],
+   "strip_noise": "İA例",
+   "fold": "i̇a例",
+   "clean_stored_name": "İA例"
+  },
+  {
+   "raw": "`。…　鹿星坏小",
+   "normalize_text": "`。...鹿星坏小",
+   "split_ellipsis": [
+    "`。...鹿星坏小",
+    false
+   ],
+   "strip_noise": "鹿星坏小",
+   "fold": "鹿星坏小",
+   "clean_stored_name": "鹿星坏小"
+  },
+  {
+   "raw": "…示Ⅻ",
+   "normalize_text": "...示XII",
+   "split_ellipsis": [
+    "...示XII",
+    false
+   ],
+   "strip_noise": "示XII",
+   "fold": "示xii",
+   "clean_stored_name": "示XII"
+  },
+  {
+   "raw": "。Ⅻ心",
+   "normalize_text": "。XII心",
+   "split_ellipsis": [
+    "。XII心",
+    false
+   ],
+   "strip_noise": "XII心",
+   "fold": "xii心",
+   "clean_stored_name": "XII心"
+  },
+  {
+   "raw": "①B例①İ示",
+   "normalize_text": "1B例1İ示",
+   "split_ellipsis": [
+    "1B例1İ示",
+    false
+   ],
+   "strip_noise": "1B例1İ示",
+   "fold": "1b例1i̇示",
+   "clean_stored_name": "1B例1İ示"
+  },
+  {
+   "raw": "①A示A动",
+   "normalize_text": "1A示A动",
+   "split_ellipsis": [
+    "1A示A动",
+    false
+   ],
+   "strip_noise": "1A示A动",
+   "fold": "1a示a动",
+   "clean_stored_name": "1A示A动"
+  },
+  {
+   "raw": "ßb0　ＡⅫ\t星",
+   "normalize_text": "ßb0AXII星",
+   "split_ellipsis": [
+    "ßb0AXII星",
+    false
+   ],
+   "strip_noise": "ßb0AXII星",
+   "fold": "ssb0axii星",
+   "clean_stored_name": "ßb0AXII星"
+  },
+  {
+   "raw": "_Ｚ人",
+   "normalize_text": "_Z人",
+   "split_ellipsis": [
+    "_Z人",
+    false
+   ],
+   "strip_noise": "Z人",
+   "fold": "z人",
+   "clean_stored_name": "Z人"
+  },
+  {
+   "raw": "动`ＡZ0B星aＡ",
+   "normalize_text": "动`AZ0B星aA",
+   "split_ellipsis": [
+    "动`AZ0B星aA",
+    false
+   ],
+   "strip_noise": "动AZ0B星aA",
+   "fold": "动az0b星aa",
+   "clean_stored_name": "动AZ0B星aA"
+  },
+  {
+   "raw": "小星zＺ动0",
+   "normalize_text": "小星zZ动0",
+   "split_ellipsis": [
+    "小星zZ动0",
+    false
+   ],
+   "strip_noise": "小星zZ动0",
+   "fold": "小星zz动0",
+   "clean_stored_name": "小星zZ动0"
+  },
+  {
+   "raw": "心b星.Ａ",
+   "normalize_text": "心b星.A",
+   "split_ellipsis": [
+    "心b星.A",
+    false
+   ],
+   "strip_noise": "心b星A",
+   "fold": "心b星a",
+   "clean_stored_name": "心b星A"
+  },
+  {
+   "raw": "0!!",
+   "normalize_text": "0!!",
+   "split_ellipsis": [
+    "0!!",
+    false
+   ],
+   "strip_noise": "0",
+   "fold": "0",
+   "clean_stored_name": "0"
+  },
+  {
+   "raw": "b…\u001c星0坏.Ｚ９…",
+   "normalize_text": "b...星0坏.Z9...",
+   "split_ellipsis": [
+    "b...星0坏.Z9",
+    true
+   ],
+   "strip_noise": "b星0坏Z9",
+   "fold": "b星0坏z9",
+   "clean_stored_name": "b星0坏Z9"
+  },
+  {
+   "raw": "za_ΣZ!。",
+   "normalize_text": "za_ΣZ!。",
+   "split_ellipsis": [
+    "za_ΣZ!",
+    true
+   ],
+   "strip_noise": "zaΣZ",
+   "fold": "zaσz",
+   "clean_stored_name": "zaΣZ"
+  },
+  {
+   "raw": "星!Σ-例B星A\u001c!",
+   "normalize_text": "星!Σ-例B星A!",
+   "split_ellipsis": [
+    "星!Σ-例B星A!",
+    false
+   ],
+   "strip_noise": "星Σ例B星A",
+   "fold": "星σ例b星a",
+   "clean_stored_name": "星Σ例B星A"
+  },
+  {
+   "raw": "星９ 动0动ßA",
+   "normalize_text": "星9动0动ßA",
+   "split_ellipsis": [
+    "星9动0动ßA",
+    false
+   ],
+   "strip_noise": "星9动0动ßA",
+   "fold": "星9动0动ssa",
+   "clean_stored_name": "星9动0动ßA"
+  },
+  {
+   "raw": "星·　…星b",
+   "normalize_text": "星·...星b",
+   "split_ellipsis": [
+    "星·...星b",
+    false
+   ],
+   "strip_noise": "星星b",
+   "fold": "星星b",
+   "clean_stored_name": "星星b"
+  },
+  {
+   "raw": "\t①",
+   "normalize_text": "1",
+   "split_ellipsis": [
+    "1",
+    false
+   ],
+   "strip_noise": "1",
+   "fold": "1",
+   "clean_stored_name": "1"
+  },
+  {
+   "raw": "İ",
+   "normalize_text": "İ",
+   "split_ellipsis": [
+    "İ",
+    false
+   ],
+   "strip_noise": "İ",
+   "fold": "i̇",
+   "clean_stored_name": "İ"
+  },
+  {
+   "raw": "\u001c星·ß９例a",
+   "normalize_text": "星·ß9例a",
+   "split_ellipsis": [
+    "星·ß9例a",
+    false
+   ],
+   "strip_noise": "星ß9例a",
+   "fold": "星ss9例a",
+   "clean_stored_name": "星ß9例a"
+  },
+  {
+   "raw": "示Ａb鹿鹿动示",
+   "normalize_text": "示Ab鹿鹿动示",
+   "split_ellipsis": [
+    "示Ab鹿鹿动示",
+    false
+   ],
+   "strip_noise": "示Ab鹿鹿动示",
+   "fold": "示ab鹿鹿动示",
+   "clean_stored_name": "示Ab鹿鹿动示"
+  },
+  {
+   "raw": "_人!ZⅫ\t0Ⅻa",
+   "normalize_text": "_人!ZXII0XIIa",
+   "split_ellipsis": [
+    "_人!ZXII0XIIa",
+    false
+   ],
+   "strip_noise": "人ZXII0XIIa",
+   "fold": "人zxii0xiia",
+   "clean_stored_name": "人ZXII0XIIa"
+  },
+  {
+   "raw": "0鹿…",
+   "normalize_text": "0鹿...",
+   "split_ellipsis": [
+    "0鹿",
+    true
+   ],
+   "strip_noise": "0鹿",
+   "fold": "0鹿",
+   "clean_stored_name": "0鹿"
+  },
+  {
+   "raw": "·…Ａ",
+   "normalize_text": "·...A",
+   "split_ellipsis": [
+    "·...A",
+    false
+   ],
+   "strip_noise": "A",
+   "fold": "a",
+   "clean_stored_name": "A"
+  },
+  {
+   "raw": "·0ß　!星９Ｚ",
+   "normalize_text": "·0ß!星9Z",
+   "split_ellipsis": [
+    "·0ß!星9Z",
+    false
+   ],
+   "strip_noise": "0ß星9Z",
+   "fold": "0ss星9z",
+   "clean_stored_name": "0ß星9Z"
+  },
+  {
+   "raw": "示星İ⋯星b坏动_",
+   "normalize_text": "示星İ⋯星b坏动_",
+   "split_ellipsis": [
+    "示星İ⋯星b坏动_",
+    false
+   ],
+   "strip_noise": "示星İ星b坏动",
+   "fold": "示星i̇星b坏动",
+   "clean_stored_name": "示星İ星b坏动"
+  },
+  {
+   "raw": "例例小示小`\t\u001c",
+   "normalize_text": "例例小示小`",
+   "split_ellipsis": [
+    "例例小示小`",
+    false
+   ],
+   "strip_noise": "例例小示小",
+   "fold": "例例小示小",
+   "clean_stored_name": "例例小示小"
+  },
+  {
+   "raw": "小a星心动 ",
+   "normalize_text": "小a星心动",
+   "split_ellipsis": [
+    "小a星心动",
+    false
+   ],
+   "strip_noise": "小a星心动",
+   "fold": "小a星心动",
+   "clean_stored_name": "小a星心动"
+  },
+  {
+   "raw": "星\t。星人。",
+   "normalize_text": "星。星人。",
+   "split_ellipsis": [
+    "星。星人",
+    true
+   ],
+   "strip_noise": "星星人",
+   "fold": "星星人",
+   "clean_stored_name": "星星人"
+  },
+  {
+   "raw": "。",
+   "normalize_text": "。",
+   "split_ellipsis": [
+    "",
+    true
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "Az心Ｚ鹿星坏小",
+   "normalize_text": "Az心Z鹿星坏小",
+   "split_ellipsis": [
+    "Az心Z鹿星坏小",
+    false
+   ],
+   "strip_noise": "Az心Z鹿星坏小",
+   "fold": "az心z鹿星坏小",
+   "clean_stored_name": "Az心Z鹿星坏小"
+  },
+  {
+   "raw": "\u001c坏坏９９a\u001cＺＡ-",
+   "normalize_text": "坏坏99aZA-",
+   "split_ellipsis": [
+    "坏坏99aZA-",
+    false
+   ],
+   "strip_noise": "坏坏99aZA",
+   "fold": "坏坏99aza",
+   "clean_stored_name": "坏坏99aZA"
+  },
+  {
+   "raw": "①baΣⅫ",
+   "normalize_text": "1baΣXII",
+   "split_ellipsis": [
+    "1baΣXII",
+    false
+   ],
+   "strip_noise": "1baΣXII",
+   "fold": "1baσxii",
+   "clean_stored_name": "1baΣXII"
+  },
+  {
+   "raw": "９Σ①Ｚ\u001cbß９",
+   "normalize_text": "9Σ1Zbß9",
+   "split_ellipsis": [
+    "9Σ1Zbß9",
+    false
+   ],
+   "strip_noise": "9Σ1Zbß9",
+   "fold": "9σ1zbss9",
+   "clean_stored_name": "9Σ1Zbß9"
+  },
+  {
+   "raw": "　0心 ΣＺ",
+   "normalize_text": "0心ΣZ",
+   "split_ellipsis": [
+    "0心ΣZ",
+    false
+   ],
+   "strip_noise": "0心ΣZ",
+   "fold": "0心σz",
+   "clean_stored_name": "0心ΣZ"
+  },
+  {
+   "raw": "⋯①　星⋯星-_示",
+   "normalize_text": "⋯1星⋯星-_示",
+   "split_ellipsis": [
+    "⋯1星⋯星-_示",
+    false
+   ],
+   "strip_noise": "1星星示",
+   "fold": "1星星示",
+   "clean_stored_name": "1星星示"
+  },
+  {
+   "raw": "A",
+   "normalize_text": "A",
+   "split_ellipsis": [
+    "A",
+    false
+   ],
+   "strip_noise": "A",
+   "fold": "a",
+   "clean_stored_name": "A"
+  },
+  {
+   "raw": "\u001c⋯",
+   "normalize_text": "⋯",
+   "split_ellipsis": [
+    "",
+    true
+   ],
+   "strip_noise": "",
+   "fold": "",
+   "clean_stored_name": ""
+  },
+  {
+   "raw": "!! 人…!`⋯",
+   "normalize_text": "!!人...!`⋯",
+   "split_ellipsis": [
+    "!!人...!`",
+    true
+   ],
+   "strip_noise": "人",
+   "fold": "人",
+   "clean_stored_name": "人"
+  },
+  {
+   "raw": "人!心人心",
+   "normalize_text": "人!心人心",
+   "split_ellipsis": [
+    "人!心人心",
+    false
+   ],
+   "strip_noise": "人心人心",
+   "fold": "人心人心",
+   "clean_stored_name": "人心人心"
+  },
+  {
+   "raw": "Ａ``A鹿①①!⋯",
+   "normalize_text": "A``A鹿11!⋯",
+   "split_ellipsis": [
+    "A``A鹿11!",
+    true
+   ],
+   "strip_noise": "AA鹿11",
+   "fold": "aa鹿11",
+   "clean_stored_name": "AA鹿11"
+  },
+  {
+   "raw": "星坏小Ba_0-_\t",
+   "normalize_text": "星坏小Ba_0-_",
+   "split_ellipsis": [
+    "星坏小Ba_0-_",
+    false
+   ],
+   "strip_noise": "星坏小Ba0",
+   "fold": "星坏小ba0",
+   "clean_stored_name": "星坏小Ba0"
+  },
+  {
+   "raw": "\t.!９\tB`0",
+   "normalize_text": ".!9B`0",
+   "split_ellipsis": [
+    ".!9B`0",
+    false
+   ],
+   "strip_noise": "9B0",
+   "fold": "9b0",
+   "clean_stored_name": "9B0"
+  },
+  {
+   "raw": "９.Z动",
+   "normalize_text": "9.Z动",
+   "split_ellipsis": [
+    "9.Z动",
+    false
+   ],
+   "strip_noise": "9Z动",
+   "fold": "9z动",
+   "clean_stored_name": "9Z动"
+  },
+  {
+   "raw": "\u001cΣ鹿坏心心小⋯",
+   "normalize_text": "Σ鹿坏心心小⋯",
+   "split_ellipsis": [
+    "Σ鹿坏心心小",
+    true
+   ],
+   "strip_noise": "Σ鹿坏心心小",
+   "fold": "σ鹿坏心心小",
+   "clean_stored_name": "Σ鹿坏心心小"
+  },
+  {
+   "raw": "!动小…人人　",
+   "normalize_text": "!动小...人人",
+   "split_ellipsis": [
+    "!动小...人人",
+    false
+   ],
+   "strip_noise": "动小人人",
+   "fold": "动小人人",
+   "clean_stored_name": "动小人人"
+  },
+  {
+   "raw": "心Ⅻ坏0坏星…",
+   "normalize_text": "心XII坏0坏星...",
+   "split_ellipsis": [
+    "心XII坏0坏星",
+    true
+   ],
+   "strip_noise": "心XII坏0坏星",
+   "fold": "心xii坏0坏星",
+   "clean_stored_name": "心XII坏0坏星"
+  },
+  {
+   "raw": "示坏",
+   "normalize_text": "示坏",
+   "split_ellipsis": [
+    "示坏",
+    false
+   ],
+   "strip_noise": "示坏",
+   "fold": "示坏",
+   "clean_stored_name": "示坏"
+  },
+  {
+   "raw": "心９·",
+   "normalize_text": "心9·",
+   "split_ellipsis": [
+    "心9",
+    true
+   ],
+   "strip_noise": "心9",
+   "fold": "心9",
+   "clean_stored_name": "心9"
+  },
+  {
+   "raw": "…①⋯Ｚß",
+   "normalize_text": "...1⋯Zß",
+   "split_ellipsis": [
+    "...1⋯Zß",
+    false
+   ],
+   "strip_noise": "1Zß",
+   "fold": "1zss",
+   "clean_stored_name": "1Zß"
+  },
+  {
+   "raw": "…Az",
+   "normalize_text": "...Az",
+   "split_ellipsis": [
+    "...Az",
+    false
+   ],
+   "strip_noise": "Az",
+   "fold": "az",
+   "clean_stored_name": "Az"
+  },
+  {
+   "raw": " 星示A心İ",
+   "normalize_text": "星示A心İ",
+   "split_ellipsis": [
+    "星示A心İ",
+    false
+   ],
+   "strip_noise": "星示A心İ",
+   "fold": "星示a心i̇",
+   "clean_stored_name": "星示A心İ"
+  }
+ ],
+ "min_prefix_chars": 4,
+ "app_dirs": [
+  {
+   "windows": true,
+   "env": {
+    "APPDATA": "C:/Users/u/AppData/Roaming"
+   },
+   "dir": "C:/Users/u/AppData/Roaming/BlackListDetect"
+  },
+  {
+   "windows": true,
+   "env": {
+    "APPDATA": ""
+   },
+   "dir": "/home/u/AppData/Roaming/BlackListDetect"
+  },
+  {
+   "windows": true,
+   "env": {},
+   "dir": "/home/u/AppData/Roaming/BlackListDetect"
+  },
+  {
+   "windows": false,
+   "env": {
+    "XDG_CONFIG_HOME": "/x/config"
+   },
+   "dir": "/x/config/BlackListDetect"
+  },
+  {
+   "windows": false,
+   "env": {
+    "XDG_CONFIG_HOME": ""
+   },
+   "dir": "/home/u/.config/BlackListDetect"
+  },
+  {
+   "windows": false,
+   "env": {},
+   "dir": "/home/u/.config/BlackListDetect"
+  }
+ ],
+ "child_env_in": {
+  "PATH": "/bin",
+  "OMP_NUM_THREADS": "1",
+  "omp_num_threads": "4",
+  "__KMP_REGISTERED_LIB_77": "x",
+  "__kmp_registered_lib_9": "y",
+  "PADDLE_PDX_CPU_NUM_THREADS": "6",
+  "KEEP": "1"
+ },
+ "child_env_out": {
+  "PATH": "/bin",
+  "PADDLE_PDX_CPU_NUM_THREADS": "6",
+  "KEEP": "1"
+ },
+ "ocr_threads": {
+  "1": 2,
+  "2": 2,
+  "3": 3,
+  "4": 4,
+  "5": 5,
+  "6": 6,
+  "7": 7,
+  "8": 8,
+  "9": 8,
+  "10": 8,
+  "11": 8,
+  "12": 8,
+  "13": 8,
+  "14": 8,
+  "15": 8,
+  "16": 8
+ },
+ "custom_sound_dir": "/data/root/custom_sounds",
+ "launchers": [
+  "模仿者小工具.exe",
+  "黑名单检测.exe"
+ ],
+ "processes": [
+  "模仿者小工具.exe",
+  "I5黑名单.exe"
+ ],
+ "tags": [
+  "炸房",
+  "贴脸",
+  "挂机",
+  "场外",
+  "不尊重底牌"
+ ],
+ "max_name": 64,
+ "max_note": 200,
+ "max_tag": 12,
+ "share_mark": "#模仿者小工具 黑名单",
+ "old_share_marks": [
+  "#黑名单检测 名单"
+ ],
+ "scene_keys": [
+  "classic",
+  "lace",
+  "ice",
+  "stars",
+  "cyber",
+  "neon",
+  "angel",
+  "equation",
+  "fluffy",
+  "claw",
+  "lyre"
+ ]
+}
