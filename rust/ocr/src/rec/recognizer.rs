@@ -72,6 +72,11 @@ impl Recognizer {
         Ok(Self { session, image_shape: resize.image_shape, characters: ctc::characters(&config.post.character_dict), batch_size })
     }
 
+    /// The batch size later reads use (one model can serve readers that batch differently).
+    pub fn set_batch_size(&mut self, batch_size: usize) {
+        self.batch_size = batch_size;
+    }
+
     /// Reads every line (BGR), in batches of the recognizer's size, in order.
     pub fn read(&mut self, images: &[Mat]) -> Result<Vec<Read>> {
         let mut out = Vec::with_capacity(images.len());
