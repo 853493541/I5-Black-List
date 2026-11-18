@@ -196,6 +196,21 @@ impl Runner {
         }
     }
 
+    /// 检查更新 in 设置: a look now.
+    pub fn check_updates_now(&mut self) {
+        self.look_for_update(UpdateLook::Install);
+    }
+
+    /// 全局声音: 静音 stops what plays now.
+    pub fn set_muted(&mut self, muted: bool) {
+        self.flow.ports.player.set_muted(muted);
+    }
+
+    /// The hotkeys changed in 设置: the new ones replace the old.
+    pub fn set_keys(&mut self, keys: Box<dyn Keys>) {
+        self.keys = keys;
+    }
+
     /// The window is in front again.
     pub fn window_returned(&mut self) {
         if let Some(look) = self.updates.on_return(self.now_ms()) {

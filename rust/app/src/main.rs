@@ -16,6 +16,7 @@ use std::time::Duration;
 
 mod cli;
 mod corner_port;
+mod ui_wiring;
 
 // The UI areas, each its own package's; the shell's MainWindow takes their pages.
 mod dialogs;
@@ -210,8 +211,9 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
     let pages = ui.clone();
     timer.start(slint::TimerMode::Repeated, Duration::from_millis(50), move || {
         for event in pages.pump() {
-            // stub: assemble-ui (the runner takes these in the next wiring round: hotkey, 检查 mode, sounds, update)
-            pumped.borrow().log.info(&format!("UI: {event:?}"));
+            if !ui_wiring::handle(&mut pumped.borrow_mut(), &event) {
+                pumped.borrow().log.info(&format!("UI: {event:?}"));
+            }
         }
         let asks = pumped.borrow_mut().pump();
         for ask in asks {
