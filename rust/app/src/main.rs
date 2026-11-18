@@ -17,6 +17,7 @@ use std::time::Duration;
 mod cli;
 mod corner_port;
 mod stream_marks;
+mod update_port;
 mod ui_wiring;
 
 // The UI areas, each its own package's; the shell's MainWindow takes their pages.
@@ -215,17 +216,21 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
     let timer = slint::Timer::default();
     let (pumped, shown) = (runner.clone(), window.as_weak());
     let pages = ui.clone();
+    let mut updates = update_port::UpdatePort::default();
     let mut hotkeys = {
         let settings = &store.borrow().settings;
         (settings.hotkey.clone(), settings.effect_hotkey.clone())
     };
     timer.start(slint::TimerMode::Repeated, Duration::from_millis(50), move || {
         for event in pages.pump() {
-            if !ui_wiring::handle(&mut pumped.borrow_mut(), &event) {
+            if event == ui_events::UiEvent::Shell(shell::ShellAction::OpenUpdate) {
+                updates.open(&mut pumped.borrow_mut());
+            } else if !ui_wiring::handle(&mut pumped.borrow_mut(), &event) {
                 pumped.borrow().log.info(&format!("UI: {event:?}"));
             }
         }
         ui_wiring::rekey(&mut pumped.borrow_mut(), &mut hotkeys);
+        updates.pump(&mut pumped.borrow_mut());
         let asks = pumped.borrow_mut().pump();
         for ask in asks {
             match ask {

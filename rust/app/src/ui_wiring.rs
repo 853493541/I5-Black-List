@@ -106,7 +106,7 @@ fn export_logs(runner: &mut Runner) {
 }
 
 /// 前往下载: the releases page in the browser.
-fn open_url(url: &str) {
+pub fn open_url(url: &str) {
     #[cfg(windows)]
     let _ = std::process::Command::new("explorer").arg(url).spawn();
     #[cfg(not(windows))]
@@ -131,7 +131,7 @@ pub fn rekey(runner: &mut Runner, last: &mut (String, String)) {
 }
 
 /// After `ms`, the launcher starts to lay the update over, and this app ends.
-fn restart_after(runner: &mut Runner, ms: u64) {
+pub fn restart_after(runner: &mut Runner, ms: u64) {
     let Some(install) = app::wiring::startup::install_root() else {
         runner.log.warn("Update: no release folder to restart into.");
         return;
