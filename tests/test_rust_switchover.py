@@ -49,7 +49,8 @@ def test_pe_imports_reads_the_import_table(tmp_path: Path) -> None:
     exe.write_bytes(_pe(["KERNEL32.dll", "api-ms-win-crt-runtime-l1-1-0.dll", "VCRUNTIME140.dll", "opencv_world4100.dll"]))
     assert release.pe_imports(exe.read_bytes())[:2] == ["kernel32.dll", "api-ms-win-crt-runtime-l1-1-0.dll"]
     assert release.foreign_imports(exe) == ["opencv_world4100.dll", "vcruntime140.dll"]
-    exe.write_bytes(_pe(["user32.dll", "d3d12.dll"]))
+    # dcomp.dll: DirectComposition, in Windows since 8; the scenes' see-through window draws through it.
+    exe.write_bytes(_pe(["user32.dll", "d3d12.dll", "dcomp.dll"]))
     assert release.foreign_imports(exe) == []
     exe.write_bytes(b"\x7fELF")
     assert release.foreign_imports(exe) is None
