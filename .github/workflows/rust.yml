@@ -10,7 +10,7 @@ on:
   pull_request:
     paths: ["rust/**", ".github/workflows/rust.yml", "tools/rust_golden_ipp.py"]
 
-# 30 branches push at once: a newer push to a branch cancels its older run instead of queueing behind it.
+# Many branches push at once: a newer push to a branch cancels its older run instead of queueing behind it.
 concurrency:
   group: rust-${{ github.ref }}
   cancel-in-progress: true
@@ -31,6 +31,9 @@ jobs:
       CARGO_TERM_COLOR: always
       RUST_BACKTRACE: "1"
       OPENCV_VERSION: "4.10.0"
+      # Images with Visual Studio 18 (MSVC 14.52) ship an STL that rejects the runner's older libclang, which the
+      # opencv crate parses headers with ("STL1000: expected Clang 22"); harmless elsewhere.
+      OPENCV_CLANG_ARGS: -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -94,9 +97,6 @@ jobs:
             echo 'OPENCV_INCLUDE_PATHS=C:\opencv-static\include'
             echo 'LIBCLANG_PATH=C:\Program Files\LLVM\bin'
             echo 'RUSTFLAGS=-C target-feature=+crt-static'
-            # Images with Visual Studio 18 (MSVC 14.52) ship an STL that rejects the runner's older libclang, which
-            # the opencv crate parses the headers with: "STL1000: Unexpected compiler version, expected Clang 22".
-            echo 'OPENCV_CLANG_ARGS=-D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH'
           } | tee -a "$GITHUB_ENV"
 
       # Golden data from the Python side (opencv-python 4.10 with IPP), and onnxruntime.dll for ort's load-dynamic.
