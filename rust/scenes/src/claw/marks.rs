@@ -13,6 +13,7 @@
 
 use super::art::{LILAC, PURPLE};
 use super::frame::Frame;
+use super::geom::Affine;
 use super::gpu::Renderer;
 use super::light::{Pic, Pt};
 use super::marks_art::{claw_marks, disc, glass, note, role};
@@ -95,13 +96,18 @@ impl Marks {
         self.tex = self.pics.iter().map(|p| gpu.add(p.w, p.h, &p.bytes())).collect();
     }
 
-    fn draw(&self, f: &mut Frame, which: usize, r: [f64; 4], clip: Option<[f64; 4]>) {
+    /// The marks' pictures, in the order `Pen::picture` numbers them when nothing was uploaded.
+    pub fn pics(&self) -> &[Pic] {
+        &self.pics
+    }
+
+    fn draw(&self, f: &mut impl Pen, which: usize, r: [f64; 4], clip: Option<[f64; 4]>) {
         let p = &self.pics[which];
-        f.image(self.tex[which], (p.w, p.h), r, clip, None);
+        f.picture(self.tex.get(which).copied().unwrap_or(which), (p.w, p.h), r, clip);
     }
 
     /// A fine lilac rim round the button in a purple haze, claw marks torn across two corners.
-    pub fn ring(&self, f: &mut Frame, cover: [f64; 4], t: f64) {
+    pub fn ring(&self, f: &mut impl Pen, cover: [f64; 4], t: f64) {
         let [x, y, w, h] = cover;
         let radius = (h * 0.3).min(18.0);
         let c = [x + w / 2.0, y + h / 2.0];
@@ -116,8 +122,8 @@ impl Marks {
         for (corner, at) in [(0.0, [x + side * 0.26, y + side * 0.24]), (1.0, [x + w - side * 0.26, y + h - side * 0.24])] {
             let strike = clamp((cycle - corner * 0.12) / 0.12);
             f.save();
-            f.tf = f.tf.translate(at[0], at[1]);
-            f.opacity = 0.75 + 0.25 * (t * 2.4 + corner).sin();
+            f.set_tf(f.tf().translate(at[0], at[1]));
+            f.set_opacity(0.75 + 0.25 * (t * 2.4 + corner).sin());
             let clip = (strike < 1.0).then_some([-side / 2.0, -side / 2.0, side * strike, side]);
             self.draw(f, RING, [-side / 2.0, -side / 2.0, side, side], clip);
             f.restore();
@@ -125,15 +131,15 @@ impl Marks {
     }
 
     /// A dark misty disc in a lilac rim with the 指挥家's icon glowing on it, the baton's tip glinting.
-    pub fn badge(&self, f: &mut Frame, b: [f64; 4], t: f64) {
+    pub fn badge(&self, f: &mut impl Pen, b: [f64; 4], t: f64) {
         let side = b[2];
         let c = [b[0] + side / 2.0, b[1] + b[3] / 2.0];
         f.ellipse(c[0], c[1], side * 0.75, &Paint::Radial(c, side * 0.75, stops(&[(0.55, PURPLE, 0.35), (1.0, PURPLE, 0.0)])));
         self.draw(f, DISC, b, None);
-        let o = f.opacity;
-        f.opacity = 0.75 + 0.25 * (t * 3.0).sin();
+        let o = f.opacity();
+        f.set_opacity(0.75 + 0.25 * (t * 3.0).sin());
         self.draw(f, GLOW, b, None);
-        f.opacity = o;
+        f.set_opacity(o);
         self.draw(f, ROLE, b, None);
         let glint = clamp(1.0 - ((t % 3.4) - 0.3).abs() / 0.3);
         if glint > 0.0 {
@@ -144,22 +150,74 @@ impl Marks {
     }
 
     /// Misty slate glass, a lilac edge, and the 指挥家's ♫ glowing on its top right corner.
-    pub fn card(&self, f: &mut Frame, r: [f64; 4], t: f64) {
+    pub fn card(&self, f: &mut impl Pen, r: [f64; 4], t: f64) {
         self.draw(f, GLASS, r, None);
         let high = ((r[3] - CARD_TOP) * 0.35).min(28.0);
         let (w, h) = (self.pics[NOTE].w as f64 / self.scale, self.pics[NOTE].h as f64 / self.scale);
         let beat = (t * 2.2).sin();
         f.save();
-        f.tf = f.tf.translate(r[0] + r[2] - high * 0.75, r[1] + CARD_TOP - 1.5 - 0.6 * beat);
+        f.set_tf(f.tf().translate(r[0] + r[2] - high * 0.75, r[1] + CARD_TOP - 1.5 - 0.6 * beat));
         f.soft_dot(0.0, 0.0, high * 0.8, PURPLE, 0.22 + 0.1 * (t * 4.4).sin());
-        f.tf = f.tf.rotate(-5.0 + 4.0 * beat);
+        f.set_tf(f.tf().rotate(-5.0 + 4.0 * beat));
         self.draw(f, NOTE, [-w / 2.0, -h / 2.0, w, h], None);
         f.restore();
     }
 
     /// The small claw mark before the index-th name, its top left at `at` (made at 3 pixels a point).
-    pub fn lead(&self, f: &mut Frame, at: Pt, index: usize) {
+    pub fn lead(&self, f: &mut impl Pen, at: Pt, index: usize) {
         let p = &self.pics[LEAD + index % 2];
         self.draw(f, LEAD + index % 2, [at[0], at[1], p.w as f64 / 3.0, p.h as f64 / 3.0], None);
+    }
+}
+
+/// What the marks draw with: claw's GPU frame (pictures by uploaded texture) or the overlay's canvas
+/// (`hook`, pictures by their place in `Marks::pics`).
+pub trait Pen {
+    fn tf(&self) -> Affine;
+    fn set_tf(&mut self, tf: Affine);
+    fn opacity(&self) -> f64;
+    fn set_opacity(&mut self, opacity: f64);
+    fn save(&mut self);
+    fn restore(&mut self);
+    fn ellipse(&mut self, x: f64, y: f64, r: f64, paint: &Paint);
+    fn rrect(&mut self, r: [f64; 4], radius: f64, paint: &Paint);
+    fn rrect_pen(&mut self, r: [f64; 4], radius: f64, width: f64, paint: &Paint);
+    fn soft_dot(&mut self, x: f64, y: f64, r: f64, color: &str, alpha: f64);
+    fn picture(&mut self, id: usize, size: (usize, usize), r: [f64; 4], clip: Option<[f64; 4]>);
+}
+
+impl Pen for Frame {
+    fn tf(&self) -> Affine {
+        self.tf
+    }
+    fn set_tf(&mut self, tf: Affine) {
+        self.tf = tf;
+    }
+    fn opacity(&self) -> f64 {
+        self.opacity
+    }
+    fn set_opacity(&mut self, opacity: f64) {
+        self.opacity = opacity;
+    }
+    fn save(&mut self) {
+        Frame::save(self);
+    }
+    fn restore(&mut self) {
+        Frame::restore(self);
+    }
+    fn ellipse(&mut self, x: f64, y: f64, r: f64, paint: &Paint) {
+        Frame::ellipse(self, x, y, r, paint);
+    }
+    fn rrect(&mut self, r: [f64; 4], radius: f64, paint: &Paint) {
+        Frame::rrect(self, r, radius, paint);
+    }
+    fn rrect_pen(&mut self, r: [f64; 4], radius: f64, width: f64, paint: &Paint) {
+        Frame::rrect_pen(self, r, radius, width, paint);
+    }
+    fn soft_dot(&mut self, x: f64, y: f64, r: f64, color: &str, alpha: f64) {
+        Frame::soft_dot(self, x, y, r, color, alpha);
+    }
+    fn picture(&mut self, id: usize, size: (usize, usize), r: [f64; 4], clip: Option<[f64; 4]>) {
+        self.image(id, size, r, clip, None);
     }
 }

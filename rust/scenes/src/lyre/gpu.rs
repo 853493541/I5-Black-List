@@ -49,10 +49,12 @@ fn texture(device: &wgpu::Device, w: u32, h: u32, usage: wgpu::TextureUsages) ->
 impl Renderer {
     /// A renderer for frames of width x height over `lobby` (RGBA bytes), with the scene's pictures.
     pub fn new(width: u32, height: u32, lobby: &[u8], art: &Art) -> Result<Self, String> {
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor { backends: wgpu::Backends::all(), ..Default::default() });
-        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default())).map_err(|e| e.to_string())?;
-        let info = adapter.get_info();
-        let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default())).map_err(|e| e.to_string())?;
+        Self::on(&crate::render::open()?, width, height, lobby, art)
+    }
+
+    /// The same on a given device (the stage's, in the app).
+    pub fn on(chip: &crate::render::Chip, width: u32, height: u32, lobby: &[u8], art: &Art) -> Result<Self, String> {
+        let (device, queue, info) = (chip.device.clone(), chip.queue.clone(), chip.info.clone());
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: None, source: wgpu::ShaderSource::Wgsl(include_str!("lyre.wgsl").into()) });
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
@@ -166,6 +168,11 @@ impl Renderer {
     }
 
     /// The last frame as RGBA bytes.
+    /// The device, its queue and the texture the last frame was drawn into (for `render::deliver`).
+    pub fn drawn(&self) -> (&wgpu::Device, &wgpu::Queue, &wgpu::Texture) {
+        (&self.device, &self.queue, &self.target)
+    }
+
     pub fn read(&self) -> Vec<u8> {
         crate::render::read(&self.device, &self.queue, &self.target)
     }

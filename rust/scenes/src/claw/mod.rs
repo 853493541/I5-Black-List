@@ -11,6 +11,7 @@ pub mod art;
 pub mod frame;
 pub mod geom;
 pub mod glyphs;
+pub mod hook;
 pub mod gpu;
 pub mod light;
 pub mod marks;

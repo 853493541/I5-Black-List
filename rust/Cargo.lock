@@ -4601,7 +4601,9 @@ dependencies = [
  "ab_glyph",
  "bytemuck",
  "image",
+ "overlay",
  "pollster",
+ "tiny-skia 0.11.4",
  "wgpu 25.0.2",
 ]
 

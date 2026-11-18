@@ -69,3 +69,66 @@ fn make_knows_every_key_and_shoot_gives_pixels_for_own_scenes() {
     let (_, pixels) = shoot(make("stars", &stage).unwrap().as_mut(), 1.0);
     assert!(pixels.is_none());
 }
+
+#[test]
+fn on_the_stages_device_frames_are_copied_not_read_back() {
+    use crate::paint::{Adapter, Gpu, Offscreen, Painter};
+    use crate::scene::{make_on, shoot_into};
+    let Ok(gpu) = Gpu::new(Adapter::Default) else { return };
+    let stage = sample_stage(640.0, 360.0);
+    let format = wgpu::TextureFormat::Rgba8Unorm;
+    let painter = Painter::new(&gpu, 640, 360, format, None);
+    let off = Offscreen::new(&gpu, 640, 360, format);
+    for key in ["angel", "neon", "claw"] {
+        let mut shared = make_on(key, &stage, &gpu).expect(key);
+        let (frame, pixels) = shoot_into(shared.as_mut(), 1.5, painter.still_texture());
+        assert!(pixels.is_none(), "{key}: nothing read back");
+        painter.render(&gpu, &frame, &off.view);
+        let copied = off.read(&gpu);
+        let mut own = make_own(key, &stage).expect(key);
+        let (frame, pixels) = shoot(&mut own, 1.5);
+        painter.set_still_pixels(&gpu, &pixels.expect("pixels"));
+        painter.render(&gpu, &frame, &off.view);
+        let read = off.read(&gpu);
+        assert!(psnr(&copied, &read) > 60.0, "{key}: {:.1} dB", psnr(&copied, &read));
+        assert!(copied.chunks(4).any(|p| p[3] > 0), "{key}: drawn");
+    }
+}
+
+/// Median ms a frame at 1920x1080, scene drawn and shown through the painter, read back vs copied on the
+/// chip: `cargo test --release -p stage frame_times -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn frame_times() {
+    use crate::paint::{finish, Adapter, Gpu, Offscreen, Painter};
+    use crate::scene::{make_on, shoot_into};
+    let Ok(gpu) = Gpu::new(Adapter::Default) else { return };
+    let stage = sample_stage(1920.0, 1080.0);
+    let format = wgpu::TextureFormat::Rgba8Unorm;
+    let painter = Painter::new(&gpu, 1920, 1080, format, None);
+    let off = Offscreen::new(&gpu, 1920, 1080, format);
+    let median = |mut v: Vec<f64>| {
+        v.sort_by(f64::total_cmp);
+        v[v.len() / 2]
+    };
+    for key in KEYS.iter().filter(|k| **k != "stars") {
+        let (mut read, mut copied) = (Vec::new(), Vec::new());
+        let mut own = make_own(key, &stage).expect(key);
+        let mut shared = make_on(key, &stage, &gpu).expect(key);
+        for i in 0..30 {
+            let t = f64::from(i) / 6.0;
+            let start = std::time::Instant::now();
+            let (frame, pixels) = shoot(&mut own, t);
+            painter.set_still_pixels(&gpu, &pixels.expect("pixels"));
+            painter.render(&gpu, &frame, &off.view);
+            finish(&gpu);
+            read.push(start.elapsed().as_secs_f64() * 1000.0);
+            let start = std::time::Instant::now();
+            let (frame, _) = shoot_into(shared.as_mut(), t, painter.still_texture());
+            painter.render(&gpu, &frame, &off.view);
+            finish(&gpu);
+            copied.push(start.elapsed().as_secs_f64() * 1000.0);
+        }
+        eprintln!("{key}: read back {:.1} ms, on the chip {:.1} ms", median(read), median(copied));
+    }
+}
