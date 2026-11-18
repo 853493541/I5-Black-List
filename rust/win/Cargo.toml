@@ -6,10 +6,27 @@ edition.workspace = true
 [dependencies]
 common = { path = "../common" }
 sha1 = "0.10"
+serde_json = { version = "1", features = ["float_roundtrip"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-registry = "0.5"
 windows = { version = "0.61", features = [
+    "Foundation",
+    "Graphics",
+    "Graphics_Capture",
+    "Graphics_DirectX",
+    "Graphics_DirectX_Direct3D11",
+    "Win32_Graphics_Direct3D",
+    "Win32_Graphics_Direct3D11",
+    "Win32_Graphics_Dwm",
+    "Win32_Graphics_Dxgi",
+    "Win32_Graphics_Dxgi_Common",
+    "Win32_System_Com",
+    "Win32_System_LibraryLoader",
+    "Win32_System_WinRT",
+    "Win32_System_WinRT_Direct3D11",
+    "Win32_System_WinRT_Graphics_Capture",
+    "Win32_UI_Shell",
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
     "Win32_Security",
@@ -31,6 +48,7 @@ windows = { version = "0.61", features = [
 [dev-dependencies]
 proptest = "1"
 serde_json = "1"
+serde = { version = "1", features = ["derive"] }
 
 [lints]
 workspace = true

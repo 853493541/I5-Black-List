@@ -9,8 +9,10 @@ pub mod autostart;
 pub mod frame;
 pub mod hotkey;
 pub mod instance;
+pub mod livehime;
 pub mod settle;
 pub mod tray;
+pub mod wgc;
 
 #[cfg(windows)]
 pub mod capture;
