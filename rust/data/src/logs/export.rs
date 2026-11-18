@@ -109,7 +109,7 @@ fn thousands(number: usize) -> String {
     let digits = number.to_string();
     let mut out = String::new();
     for (at, c) in digits.chars().enumerate() {
-        if at > 0 && (digits.len() - at) % 3 == 0 {
+        if at > 0 && (digits.len() - at).is_multiple_of(3) {
             out.push(',');
         }
         out.push(c);
@@ -163,7 +163,7 @@ pub fn export_logs(root: &Path, summary: &str, folder: &Path, report: &str, stam
                 .collect()
         })
         .unwrap_or_default();
-    files.sort_by(|a, b| b.0.cmp(&a.0));
+    files.sort_by_key(|file| std::cmp::Reverse(file.0));
     let mut files: Vec<PathBuf> = files.into_iter().map(|(_, path)| path).collect();
     files.extend(["app.log", "crash.log"].map(|name| logs.join(name)).into_iter().filter(|path| path.is_file()));
     for path in files {

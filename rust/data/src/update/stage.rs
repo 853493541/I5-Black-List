@@ -163,7 +163,7 @@ pub fn note_restart(root: Option<&Path>, version: &str, now: f64) -> bool {
 pub fn confirm_started(root: Option<&Path>, current: &str) -> bool {
     let Some(root) = root else { return false };
     let saved = read_json(&root.join(TRIES))
-        .and_then(|saved| Some(py::str_of(saved.as_object()?.get("version").unwrap_or(&Value::String(String::new())))?))
+        .and_then(|saved| py::str_of(saved.as_object()?.get("version").unwrap_or(&Value::String(String::new()))))
         .unwrap_or_default();
     if parse_version(&saved) <= parse_version(current) {
         let _ = std::fs::remove_file(root.join(TRIES));
