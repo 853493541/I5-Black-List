@@ -2,82 +2,13 @@
 //! hotkey.py's parse_hotkey and two_keys, and love_scenes' keys.
 
 use super::py::{cut, is_space, strip};
-use unicode_general_category::{get_general_category as category, GeneralCategory as G};
-use unicode_normalization::UnicodeNormalization;
-
-pub const MIN_PREFIX_CHARS: usize = 4;
-pub const MAX_NAME: usize = 64;
-pub const MAX_NOTE: usize = 200;
-pub const TAGS: [&str; 5] = ["炸房", "贴脸", "挂机", "场外", "不尊重底牌"];
-const MAX_TAG: usize = 12;
-
-/// love_scenes.KEYS, in 设置's order.
-pub const SCENE_KEYS: [&str; 11] = ["classic", "lace", "ice", "stars", "cyber", "neon", "angel", "equation", "fluffy", "claw", "lyre"];
+use common::limits::MAX_TAG;
+pub use common::limits::{MAX_NAME, MAX_NOTE, SCENE_KEYS, TAGS};
+pub use common::text::{clean_stored_name, fold, normalize_text as normalize, split_ellipsis, strip_noise, MIN_PREFIX_CHARS};
 
 /// love_scenes.shown: a scene that was replaced is its replacement.
 pub fn shown(key: &str) -> String {
     if key == "champagne" { "angel".into() } else { key.into() }
-}
-
-/// match.normalize_text: NFKC, no whitespace.
-pub fn normalize(raw: &str) -> String {
-    raw.nfkc().filter(|c| *c != '\u{3000}' && !is_space(*c)).collect()
-}
-
-fn letter_or_number(c: char) -> bool {
-    matches!(
-        category(c),
-        G::UppercaseLetter
-            | G::LowercaseLetter
-            | G::TitlecaseLetter
-            | G::ModifierLetter
-            | G::OtherLetter
-            | G::DecimalNumber
-            | G::LetterNumber
-            | G::OtherNumber
-    )
-}
-
-/// match.strip_noise: letters and numbers only.
-pub fn strip_noise(text: &str) -> String {
-    normalize(text).chars().filter(|c| letter_or_number(*c)).collect()
-}
-
-/// match.fold: the comparison form.
-pub fn fold(text: &str) -> String {
-    caseless::default_case_fold_str(&strip_noise(text))
-}
-
-/// match.split_ellipsis: the visible text, without a trailing ellipsis or the single dot it is sometimes read as.
-pub fn split_ellipsis(raw: &str) -> (String, bool) {
-    let mut chars: Vec<char> = normalize(raw).chars().collect();
-    let mut truncated = false;
-    loop {
-        match chars.last() {
-            Some('…' | '⋯') => {
-                chars.pop();
-            }
-            Some(&c @ ('.' | '·' | '。')) => {
-                let run = chars.iter().rev().take_while(|x| **x == c).count();
-                if run < 2 {
-                    break;
-                }
-                chars.truncate(chars.len() - run);
-            }
-            _ => break,
-        }
-        truncated = true;
-    }
-    if matches!(chars.last(), Some('.' | '。' | '·')) {
-        chars.pop();
-        truncated = true;
-    }
-    (chars.into_iter().collect(), truncated)
-}
-
-/// match.clean_stored_name.
-pub fn clean_stored_name(raw: &str) -> String {
-    strip_noise(&split_ellipsis(raw).0)
 }
 
 /// storage._same_person.
