@@ -9,51 +9,31 @@ license = "UNLICENSED"
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
 
-# The shipped exe (rust/README.md: size): one codegen unit and whole-program LTO. Debug info is line tables only and,
-# with MSVC, lands in blacklist-detect.pdb beside the exe, never in it: CI keeps the .pdb as an artifact so crash dumps
-# decode; the release ships the exe alone. panic stays unwind: a panic is logged, then the app goes on or exits cleanly.
+# The shipped exe (rust/README.md: size): one codegen unit, whole-program LTO and opt-level "z", measured on the
+# Windows runner (.github/workflows/rust-size.yml) against 3 and "s": the smallest, with start-up and the time per check
+# the same and the same names read. The crates that draw every frame of a scene stay at 3. Debug info is line tables
+# only and, with MSVC, lands in blacklist_detect.pdb beside the exe, never in it: CI keeps the .pdb as an artifact so
+# crash dumps decode; the release ships the exe alone. panic stays unwind: a panic is logged, then handled as before.
 [profile.release]
 lto = "fat"
 codegen-units = 1
+opt-level = "z"
 debug = "line-tables-only"
 
-# Measured against release on the Windows runner (.github/workflows/rust-size.yml): size first, speed held by keeping
-# the hot crates (the OCR, the pipeline, the scenes, the stage and the GPU) at opt-level 3.
-[profile.release-s]
-inherits = "release"
-opt-level = "s"
-
-[profile.release-z]
-inherits = "release"
-opt-level = "z"
-
-[profile.release-zhot]
-inherits = "release"
-opt-level = "z"
-
-[profile.release-zhot.package.ocr]
+[profile.release.package.scenes]
 opt-level = 3
 
-[profile.release-zhot.package.pipeline]
+[profile.release.package.stage]
 opt-level = 3
 
-[profile.release-zhot.package.scenes]
+[profile.release.package.overlay]
 opt-level = 3
 
-[profile.release-zhot.package.stage]
+[profile.release.package.tiny-skia]
 opt-level = 3
 
-[profile.release-zhot.package.lobby]
+[profile.release.package.wgpu-core]
 opt-level = 3
 
-[profile.release-zhot.package.wgpu-core]
-opt-level = 3
-
-[profile.release-zhot.package.wgpu-hal]
-opt-level = 3
-
-[profile.release-zhot.package.tiny-skia]
-opt-level = 3
-
-[profile.release-zhot.package.ndarray]
+[profile.release.package.wgpu-hal]
 opt-level = 3

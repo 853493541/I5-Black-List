@@ -21,7 +21,8 @@ Rules for every crate (taken in part from google/skills migrate-to-rust):
 
 Build and test: `cd rust && cargo test && cargo clippy --all-targets`.
 
-Size (the shipped exe, `blacklist-detect` only): `[profile.release]` in Cargo.toml is fat LTO, one codegen unit,
+Size (the shipped exe, `blacklist-detect` only): `[profile.release]` in Cargo.toml is fat LTO, one codegen unit, opt-level "z"
+(the crates that draw a scene's frames at 3),
 line-table debug info that MSVC writes to `blacklist_detect.pdb` (a CI artifact, never shipped); panic stays unwind.
 wgpu is DX12 only on Windows (WARP covers PCs without a DX12 GPU) with WGSL as its one shader language; Vulkan and GL
 are there for the Linux tests only. Slint is winit with the software renderer and system fonts (it embeds no font on
