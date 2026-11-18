@@ -10,6 +10,7 @@ pub mod angel;
 pub mod draw;
 pub mod equation;
 pub mod fluffy;
+pub mod lyre;
 pub mod gpu;
 pub mod ice;
 pub mod prim;
