@@ -5,8 +5,8 @@
 //!   LoveBorder.play makes it from the game's screen and the button.
 //! - `pick`: which scene plays (love_scenes.choose, LoveBorder.pick / draw_again / heard).
 //! - `clock`: the lifecycle: play, a 33 ms tick, the scene's clock, stop, waiting for a heavy scene's pictures.
-//! - `scene`: the `Scene` trait every scene package implements, the adapter for stars.rs's shape, and
-//!   `make`, the scenes this build has.
+//! - `scene`: the `Scene` trait every scene implements, the adapter for stars.rs's shapes, and `make`,
+//!   every scene by key; `scene_own`: the scenes drawn by a renderer of their own, shown as pixels.
 //! - `paint`: the scenes shader drawing onto any texture (offscreen, or a swap chain's).
 //! - `window` (Windows): the topmost, click-through, see-through window the frames show in:
 //!   DirectComposition first, a layered window fed by GPU readback as the fallback.
@@ -25,5 +25,6 @@ pub mod geom;
 pub mod paint;
 pub mod pick;
 pub mod scene;
+pub mod scene_own;
 #[cfg(windows)]
 pub mod window;

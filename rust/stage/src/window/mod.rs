@@ -146,6 +146,16 @@ impl Overlay {
         self.painter.set_still(gpu, frame);
     }
 
+    /// The still texture, for `stage::scene::shoot_into` (a scene from `make_on` copies its frame in).
+    pub fn still_texture(&self) -> &wgpu::Texture {
+        self.painter.still_texture()
+    }
+
+    /// A frame the scene drew itself (`stage::scene::shoot`), set before `present`.
+    pub fn set_still_pixels(&self, gpu: &Gpu, rgba: &[u8]) {
+        self.painter.set_still_pixels(gpu, rgba);
+    }
+
     /// Shows the window, topmost, without taking focus (the first frame).
     pub fn show(&self) -> Result<(), String> {
         let [x, y, w, h] = self.area;

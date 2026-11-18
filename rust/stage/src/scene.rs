@@ -22,8 +22,44 @@ pub trait Scene {
     fn still(&self) -> Option<Frame> {
         None
     }
-    /// Everything drawn t seconds in.
+    /// Everything drawn t seconds in. For a scene with its own renderer, one picture of the still (layer 1).
     fn frame(&mut self, t: f64) -> Frame;
+    /// A scene drawn by its own renderer (`scene_own`): its frame at t as premultiplied RGBA bytes of the
+    /// stage's size, to be made the still picture (`Painter::set_still_pixels`) before `frame(t)` is drawn
+    /// (see `shoot`). None for a scene drawn as shapes (stars).
+    fn pixels(&mut self, _t: f64) -> Option<Vec<u8>> {
+        None
+    }
+    /// A scene made on the stage's device (`make_on`): draws its frame at t straight into `still` (the
+    /// window's still texture, `Overlay::still_texture`) by a copy on the chip; false when it cannot
+    /// (shapes, or a device of its own), and `shoot` is used instead.
+    fn draw_into(&mut self, _t: f64, _still: &wgpu::Texture) -> bool {
+        false
+    }
+}
+
+/// What the window shows at t when the still texture can be written on the chip: the frame, the scene's
+/// own picture (if any) copied into `still` first, read back only for a scene on a device of its own.
+pub fn shoot_into(scene: &mut dyn Scene, t: f64, still: &wgpu::Texture) -> (Frame, Option<Vec<u8>>) {
+    if scene.draw_into(t, still) {
+        return (scene.frame(t), None);
+    }
+    shoot(scene, t)
+}
+
+/// `make` on the stage's device, so `shoot_into` copies frames on the chip; the app's path.
+pub fn make_on(key: &str, stage: &Stage, gpu: &crate::paint::Gpu) -> Option<Box<dyn Scene + Send>> {
+    let scene: Box<dyn Scene + Send> = match key {
+        "stars" => Box::new(Stars::make(stage)),
+        _ => Box::new(crate::scene_own::make_own_on(key, stage, gpu).ok()?),
+    };
+    Some(scene)
+}
+
+/// What the window shows at t: the frame, and the still picture's bytes to set first, when there are any.
+pub fn shoot(scene: &mut dyn Scene, t: f64) -> (Frame, Option<Vec<u8>>) {
+    let pixels = scene.pixels(t);
+    (scene.frame(t), pixels)
 }
 
 /// A scene that can be made for a stage; `make` below lists them by key.
@@ -51,12 +87,16 @@ impl MakeScene for Stars {
     }
 }
 
-/// The scene with this key made for a stage; None for a key whose port is not in this build yet.
-pub fn make(key: &str, stage: &Stage) -> Option<Box<dyn Scene>> {
-    let scene: Box<dyn Scene> = match key {
+/// Every scene key (love_scenes.SCENES).
+pub const KEYS: [&str; 11] = ["classic", "lace", "stars", "ice", "cyber", "neon", "angel", "equation", "fluffy", "claw", "lyre"];
+
+/// The scene with this key made for a stage, its pictures baked (heavy for claw and lyre: call it off the
+/// screen's thread for those, clock::WARMED); None for an unknown key, or when it cannot be made here (no
+/// graphics chip, a missing font or picture).
+pub fn make(key: &str, stage: &Stage) -> Option<Box<dyn Scene + Send>> {
+    let scene: Box<dyn Scene + Send> = match key {
         "stars" => Box::new(Stars::make(stage)),
-        // stub: scene-<key>. Each scene package adds its line here: "ice" => Box::new(Ice::make(stage)).
-        _ => return None,
+        _ => Box::new(crate::scene_own::make_own(key, stage).ok()?),
     };
     debug_assert_eq!(scene.duration(), duration(key));
     Some(scene)
@@ -80,6 +120,7 @@ mod tests {
             .zip(&direct.prims)
             .all(|(a, b)| bytemuck::bytes_of(a) == bytemuck::bytes_of(b)));
         assert!(scene.still().is_some());
-        assert!(make("ice", &stage).is_none());
+        assert!(scene.pixels(1.5).is_none());
+        assert!(make("nothing", &stage).is_none());
     }
 }

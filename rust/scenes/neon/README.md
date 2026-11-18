@@ -29,18 +29,17 @@ Results on this container (Mesa llvmpipe through Vulkan, a CPU rasterizer):
 | t | what is on | mean abs diff | pixels off by > 8 | > 32 | PSNR |
 |---|---|---|---|---|---|
 | 0.5 s | night, spark round the frame, rain | 0.30/255 | 0.00 % | 0.001 % | 51.8 dB |
-| 1.5 s | strike on the left spire, sparks, glitching screen | 1.16/255 | 5.83 % | 0.233 % | 37.0 dB |
-| 3.0 s | leader feeling down to the frame | 0.69/255 | 1.97 % | 0.104 % | 41.9 dB |
-| 3.75 s | second strike on the left, surge | 1.12/255 | 5.26 % | 0.163 % | 38.3 dB |
+| 1.5 s | strike on the left spire, sparks, glitching screen | 0.86/255 | 3.11 % | 0.149 % | 40.0 dB |
+| 3.0 s | leader feeling down to the frame | 0.66/255 | 1.77 % | 0.035 % | 42.9 dB |
+| 3.75 s | second strike on the left, surge | 0.84/255 | 2.04 % | 0.120 % | 41.5 dB |
 
 (2.0 s, nothing striking: 43.8 dB.) `check.rs` asserts floors about 3 dB under these when the Python frames are there (py_frames.py makes them; they are not committed, so the test skips without them). The committed side_/crop_ pictures are the bin's PNGs saved as JPEG quality 90.
 
 Gaps, written down:
-- Qt's `CompositionMode_Plus` applies the opacity after the saturating add,
-  d·(1−o) + o·min(d+s, 1); the blend unit can only do min(d + o·s, 1). Where added light saturates
-  (the strike's flash, the frame's surge, the tubes in their own glow) Rust is up to ~20/255 brighter.
-  That is most of the error at 1.5 and 3.75 s. Fixing it needs the destination in the shader (a
-  copy per Plus run).
+- Qt's `CompositionMode_Plus` applies the opacity after the saturating add, d·(1−o) + o·min(d+s, 1).
+  Runs of Plus under an opacity are FADED: the frame so far is copied before each and the shader adds
+  min(s, o·(1−d)) (1.5 s went from 37.0 to 40.0 dB, 3.75 s from 38.3 to 41.5 dB, about 4 ms a frame).
+  Shapes in one run read the frame as it was before the run.
 - The lit frame tubes are drawn as their two strokes each frame; Python bakes them into strips and
   lays the strips at an opacity, which composes the glass and core differently by a few levels.
 - Masks Qt rasterizes (tower outlines, glyphs, the frame for its glow) are exact area for rects and

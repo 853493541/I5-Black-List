@@ -14,8 +14,6 @@ pub struct Renderer {
     pipeline: wgpu::RenderPipeline,
     target: wgpu::Texture,
     textures: Vec<wgpu::Texture>,
-    width: u32,
-    height: u32,
     /// The adapter's name and kind, e.g. "llvmpipe (LLVM ...), Cpu".
     pub adapter: String,
 }
@@ -36,10 +34,12 @@ fn texture(device: &wgpu::Device, w: u32, h: u32, usage: wgpu::TextureUsages) ->
 impl Renderer {
     /// A renderer for frames of width x height (width a multiple of 64).
     pub fn new(width: u32, height: u32) -> Result<Self, String> {
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor { backends: wgpu::Backends::all(), ..Default::default() });
-        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default())).map_err(|e| e.to_string())?;
-        let info = adapter.get_info();
-        let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default())).map_err(|e| e.to_string())?;
+        Self::on(&crate::render::open()?, width, height)
+    }
+
+    /// The same on a given device (the stage's, in the app).
+    pub fn on(chip: &crate::render::Chip, width: u32, height: u32) -> Result<Self, String> {
+        let (device, queue, info) = (chip.device.clone(), chip.queue.clone(), chip.info.clone());
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: None, source: wgpu::ShaderSource::Wgsl(include_str!("claw.wgsl").into()) });
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
@@ -58,7 +58,7 @@ impl Renderer {
             cache: None,
         });
         let target = texture(&device, width, height, wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC);
-        let mut gpu = Self { device, queue, pipeline, target, textures: Vec::new(), width, height, adapter: format!("{} ({:?}, {:?})", info.name, info.device_type, info.backend) };
+        let mut gpu = Self { device, queue, pipeline, target, textures: Vec::new(), adapter: format!("{} ({:?}, {:?})", info.name, info.device_type, info.backend) };
         // Texture 0: a blank texel, read by draws that read none.
         gpu.add(1, 1, &[0; 4]);
         Ok(gpu)
@@ -137,24 +137,12 @@ impl Renderer {
     }
 
     /// The last frame as RGBA bytes.
+    /// The device, its queue and the texture the last frame was drawn into (for `render::deliver`).
+    pub fn drawn(&self) -> (&wgpu::Device, &wgpu::Queue, &wgpu::Texture) {
+        (&self.device, &self.queue, &self.target)
+    }
+
     pub fn read(&self) -> Vec<u8> {
-        let row = self.width * 4;
-        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: None,
-            size: u64::from(row * self.height),
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
-        let mut encoder = self.device.create_command_encoder(&Default::default());
-        encoder.copy_texture_to_buffer(
-            self.target.as_image_copy(),
-            wgpu::TexelCopyBufferInfo { buffer: &buffer, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(row), rows_per_image: None } },
-            self.target.size(),
-        );
-        self.queue.submit([encoder.finish()]);
-        buffer.slice(..).map_async(wgpu::MapMode::Read, |_| {});
-        let _ = self.device.poll(wgpu::PollType::Wait);
-        let bytes = buffer.slice(..).get_mapped_range().to_vec();
-        bytes
+        crate::render::read(&self.device, &self.queue, &self.target)
     }
 }

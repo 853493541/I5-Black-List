@@ -65,6 +65,8 @@ impl Keys for SystemKeys {
 
 pub struct Runner {
     pub flow: Flow,
+    /// A newer release the last look found, for 发现新版本 to offer.
+    pub offer: Option<data::update::Release>,
     pub store: Rc<RefCell<Store>>,
     pub log: AppLog,
     pub root: PathBuf,
@@ -103,6 +105,7 @@ impl Runner {
         let mode = life::mode_of(&store.borrow().settings);
         Runner {
             flow: Flow::new(mode, parts.ports),
+            offer: None,
             store,
             log,
             root,
@@ -151,7 +154,10 @@ impl Runner {
             if id == CHECK_HOTKEY {
                 self.check_now();
             }
-            // stub: stage (the 场景 hotkey's quick play, play_quick_scene)
+            if id == SCENE_HOTKEY {
+                let scene = self.store.borrow().settings.quick_scene.clone();
+                self.flow.quick_play(&scene, screen_rect(), seconds);
+            }
         }
         if now >= self.next_glance {
             self.next_glance = now + GLANCE_INTERVAL_MS;
@@ -164,6 +170,15 @@ impl Runner {
         self.flow.ports.scenes.tick();
         self.flow.ports.overlay.tick();
         self.flow.ports.notice.tick();
+        match self.update_check.poll() {
+            Some(Ok(Some(release))) => {
+                self.log.info(&format!("Update: {} is out.", release.version));
+                self.offer = Some(release);
+            }
+            Some(Ok(None)) => self.log.info("Update: this is the newest."),
+            Some(Err(error)) => self.log.warn(&format!("Update: {}", error.message())),
+            None => {}
+        }
         let mut asks = Vec::new();
         while let Ok(action) = self.tray_actions.try_recv() {
             match life::on_tray(action) {
@@ -179,6 +194,21 @@ impl Runner {
         if self.update_check.check() {
             self.log.info(&format!("Update: looking ({look:?})."));
         }
+    }
+
+    /// 检查更新 in 设置: a look now.
+    pub fn check_updates_now(&mut self) {
+        self.look_for_update(UpdateLook::Install);
+    }
+
+    /// 全局声音: 静音 stops what plays now.
+    pub fn set_muted(&mut self, muted: bool) {
+        self.flow.ports.player.set_muted(muted);
+    }
+
+    /// The hotkeys changed in 设置: the new ones replace the old.
+    pub fn set_keys(&mut self, keys: Box<dyn Keys>) {
+        self.keys = keys;
     }
 
     /// The window is in front again.
@@ -231,3 +261,15 @@ impl Runner {
     }
 }
 
+
+/// The whole desktop, where the 场景 hotkey plays with no lobby found yet.
+#[cfg(windows)]
+fn screen_rect() -> super::stubs::Rect {
+    let screen = win::capture::virtual_screen();
+    super::stubs::Rect { x: screen.left, y: screen.top, w: screen.width, h: screen.height }
+}
+
+#[cfg(not(windows))]
+fn screen_rect() -> super::stubs::Rect {
+    super::stubs::Rect { x: 0, y: 0, w: 1920, h: 1080 }
+}

@@ -1,13 +1,13 @@
 // Pieces the stream UI needs that ui/kit.slint does not have yet.
 // stub: ui-kit (SegmentedControl, IconButton, the green and on-accent colours); swap for the kit's when it lands.
 
-import { Palette } from "../theme.slint";
+import { Palette, Palettes } from "../theme.slint";
 import { Icon } from "../kit.slint";
 
 // The colours ui/theme.slint's Palette does not carry yet (ui_theme.py's green and on_accent).
 export global StreamTones {
     in property <bool> dark;
-    out property <color> green: dark ? #5fcb8c : #1c7a3e;
+    out property <color> green: dark ? Palettes.blue-dark.green : Palettes.blue-light.green;
     out property <color> on-accent: dark ? #0e1116 : #ffffff;
 }
 

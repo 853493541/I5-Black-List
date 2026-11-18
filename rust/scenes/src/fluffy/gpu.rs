@@ -21,7 +21,6 @@ pub struct Renderer {
     shown: std::cell::Cell<[[f64; 2]; 2]>,
     size: wgpu::Buffer,
     width: u32,
-    height: u32,
     /// The adapter's name and kind, e.g. "llvmpipe (LLVM ...), Cpu".
     pub adapter: String,
 }
@@ -47,11 +46,13 @@ fn upload(queue: &wgpu::Queue, onto: &wgpu::Texture, bytes: &[u8], width: u32) {
 impl Renderer {
     /// A renderer for the scene's frames over `lobby`, RGBA bytes of its size (width a multiple of 64).
     pub fn new(scene: &Fluffy, lobby: &[u8]) -> Result<Self, String> {
+        Self::on(&crate::render::open()?, scene, lobby)
+    }
+
+    /// The same on a given device (the stage's, in the app).
+    pub fn on(chip: &crate::render::Chip, scene: &Fluffy, lobby: &[u8]) -> Result<Self, String> {
         let (width, height) = (scene.width.ceil() as u32, scene.height.ceil() as u32);
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor { backends: wgpu::Backends::all(), ..Default::default() });
-        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default())).map_err(|e| e.to_string())?;
-        let info = adapter.get_info();
-        let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default())).map_err(|e| e.to_string())?;
+        let (device, queue, info) = (chip.device.clone(), chip.queue.clone(), chip.info.clone());
         let shader =
             device.create_shader_module(wgpu::ShaderModuleDescriptor { label: None, source: wgpu::ShaderSource::Wgsl(include_str!("fluffy.wgsl").into()) });
         let blend = wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING;
@@ -97,7 +98,6 @@ impl Renderer {
             shown: std::cell::Cell::new([[-1.0; 2]; 2]),
             size,
             width,
-            height,
             adapter,
         })
     }
@@ -161,24 +161,12 @@ impl Renderer {
     }
 
     /// The last frame as RGBA bytes.
+    /// The device, its queue and the texture the last frame was drawn into (for `render::deliver`).
+    pub fn drawn(&self) -> (&wgpu::Device, &wgpu::Queue, &wgpu::Texture) {
+        (&self.device, &self.queue, &self.target)
+    }
+
     pub fn read(&self) -> Vec<u8> {
-        let row = self.width * 4;
-        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: None,
-            size: u64::from(row * self.height),
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
-        let mut encoder = self.device.create_command_encoder(&Default::default());
-        encoder.copy_texture_to_buffer(
-            self.target.as_image_copy(),
-            wgpu::TexelCopyBufferInfo { buffer: &buffer, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(row), rows_per_image: None } },
-            self.target.size(),
-        );
-        self.queue.submit([encoder.finish()]);
-        buffer.slice(..).map_async(wgpu::MapMode::Read, |_| {});
-        let _ = self.device.poll(wgpu::PollType::Wait);
-        let bytes = buffer.slice(..).get_mapped_range().to_vec();
-        bytes
+        crate::render::read(&self.device, &self.queue, &self.target)
     }
 }

@@ -29,7 +29,7 @@ fn frames_stay_close_to_python() {
     let atlas = scene.atlas(4096);
     let Ok(gpu) = Renderer::new(1920, 1080, lobby.as_raw(), &atlas, scene.gap) else { return };
     // The floors: what this port reaches on llvmpipe, less about 3 dB for another rasterizer's rounding.
-    for (t, name, floor) in [(0.5, "py_t0.5.png", 49.0), (1.5, "py_t1.5.png", 34.0), (3.0, "py_t3.0.png", 39.0), (3.75, "py_t3.8.png", 35.0)] {
+    for (t, name, floor) in [(0.5, "py_t0.5.png", 49.0), (1.5, "py_t1.5.png", 37.0), (3.0, "py_t3.0.png", 40.0), (3.75, "py_t3.8.png", 38.5)] {
         gpu.render(&scene.paint(t, &atlas.at));
         let Ok(theirs) = image::open(dir.join(name)) else { return };
         let theirs = theirs.to_rgba8();

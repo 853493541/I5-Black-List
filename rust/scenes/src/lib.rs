@@ -14,9 +14,20 @@ pub mod lyre;
 pub mod gpu;
 pub mod ice;
 pub mod prim;
+pub mod render;
 pub mod pyrand;
 pub mod stars;
 pub mod lace;
 pub mod classic;
 pub mod claw;
 pub mod neon;
+
+/// The overlay's look for a scene key: a scene that draws its own marks brings its look (claw, lyre), the
+/// rest are ui_overlay.LOOKS' (overlay::look_for). `assets`: blacklist_detect/assets (claw's role picture).
+pub fn look(key: &str, assets: &std::path::Path) -> overlay::Look {
+    match key {
+        "lyre" => lyre::hook::look(),
+        "claw" => claw::hook::look(assets.to_path_buf()),
+        _ => overlay::look_for(key),
+    }
+}

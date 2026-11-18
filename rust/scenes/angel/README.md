@@ -29,14 +29,14 @@ Remake them (from the root, then from rust/):
     cargo run --release -p scenes --bin angel_frames          # rust_t*.png, side_*, the numbers
 
 Results on this container (Mesa llvmpipe through Vulkan, no GPU). `angel::parity` asserts the floors
-47.5 / 45 / 44 / 42.5 dB:
+51 / 46 / 45.5 / 45 dB:
 
 | t | mean abs diff | pixels off by > 8 | > 32 | PSNR |
 |---|---|---|---|---|
-| 0.5 s | 0.11/255 | 0.24 % | 0.041 % | 48.7 dB |
-| 1.5 s | 0.40/255 | 0.58 % | 0.027 % | 45.6 dB |
-| 3.0 s | 0.48/255 | 0.67 % | 0.076 % | 44.6 dB |
-| 4.0 s | 0.62/255 | 1.50 % | 0.053 % | 43.2 dB |
+| 0.5 s | 0.10/255 | 0.15 % | 0.006 % | 51.9 dB |
+| 1.5 s | 0.38/255 | 0.41 % | 0.004 % | 46.9 dB |
+| 3.0 s | 0.44/255 | 0.45 % | 0.005 % | 46.6 dB |
+| 4.0 s | 0.54/255 | 0.39 % | 0.005 % | 45.8 dB |
 
 Baking the pictures takes 0.43 s (release), into a 2048x1486 atlas. Frame time on llvmpipe: median
 78 ms, worst 145 ms (Python/Qt raster on the same CPU: 15.7 ms once its pictures are made). Building
@@ -44,9 +44,11 @@ the shape list takes 0.035 ms of that. llvmpipe shades every pixel on the CPU, s
 about a real GPU. Measure it on a PC.
 
 Gaps:
-- Qt's clipped Plus is matched only in the round window. Elsewhere (the halo's second pass, the pens'
-  and glints' sparks over bright gold) the GPU adds and then clips, so those spots are 2-5/255 brighter.
-  Matching them would need the target read back in the middle of a frame.
+- Qt's clipped Plus: the round window's in the shader against the gold under it; every other Plus
+  picture under an opacity (the halo's second pass, the sparks over bright gold) reads a copy of the
+  frame made before its run (`faded` in angel.wgsl; gpu.rs splits the passes), which took 0.5-4.0 s
+  from 48.7 / 45.6 / 44.6 / 43.2 dB to the table's. Pictures in one run read the frame from before it.
+  The copies cost about 17 ms a frame on llvmpipe (median 83 -> 100 ms).
 - Python bakes its pictures a frame or two before each is needed. Rust bakes all of them up front,
   which gives the same pictures; only the first frame takes longer.
 - The line masks use exact distances, not Qt's rasterizer, so the edges of the gold wire differ by a

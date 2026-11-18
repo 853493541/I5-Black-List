@@ -16,6 +16,7 @@ use std::time::Duration;
 
 mod cli;
 mod corner_port;
+mod ui_wiring;
 
 // The UI areas, each its own package's; the shell's MainWindow takes their pages.
 mod dialogs;
@@ -32,6 +33,7 @@ mod shell;
 mod shots;
 mod stream;
 mod ui_app;
+mod ui_dialogs;
 mod ui_events;
 
 slint::include_modules!();
@@ -170,8 +172,12 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
         ports: parts.ports,
         worker: Worker::start(Box::new(RealScreen), Box::new(parts.checker)),
         keys,
-        // stub: updater (data::update has no HTTP client yet); the preview never looks, whatever is wired here.
-        update_check: app::preview::updater(Box::new(app::wiring::stubs::Quiet), app::preview::ON),
+        // The preview never looks for updates: it gets Quiet, and NetUpdate is not even made.
+        update_check: if app::preview::ON {
+            app::preview::updater(Box::new(app::wiring::stubs::Quiet), true)
+        } else {
+            Box::new(app::wiring::updates::NetUpdate::online(VERSION, root.clone()))
+        },
         tray: parts.tray,
         tray_actions: parts.tray_actions,
         installed: install.is_some(),
@@ -214,8 +220,9 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
     let pages = ui.clone();
     timer.start(slint::TimerMode::Repeated, Duration::from_millis(50), move || {
         for event in pages.pump() {
-            // stub: assemble-ui (the runner takes these in the next wiring round: hotkey, 检查 mode, sounds, update)
-            pumped.borrow().log.info(&format!("UI: {event:?}"));
+            if !ui_wiring::handle(&mut pumped.borrow_mut(), &event) {
+                pumped.borrow().log.info(&format!("UI: {event:?}"));
+            }
         }
         let asks = pumped.borrow_mut().pump();
         for ask in asks {

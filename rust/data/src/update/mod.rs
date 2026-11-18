@@ -7,6 +7,7 @@
 
 pub mod fetch;
 pub mod mirrors;
+pub mod net;
 pub mod py;
 pub mod stage;
 pub mod switchover;

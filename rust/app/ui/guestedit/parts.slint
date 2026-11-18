@@ -1,13 +1,13 @@
 // The pieces 添加嘉宾 / 编辑嘉宾, 添加组合 / 编辑组合 and 场景管理 share: the dialog card (ui_kit.Modal), the scene
 // preview (ui_love_pick.ScenePreview), a scene's row (SceneChoice), the boxes (paint_box, TickBox) and ScenePane.
 
-import { Palette, Light, Dark } from "../theme.slint";
+import { Palette, Palettes, Light, Dark } from "../theme.slint";
 
-// stub: ui-kit. The two colours of ui_theme.py these dialogs need that theme.slint's Palette lacks yet.
+// The colours these dialogs take from the kit's palette (ui_theme.py's), by scheme.
 export struct GuestTones { field-line: color, on-accent: color, danger-hover: color }
 export global Tones {
-    out property <GuestTones> light: { field-line: #8b93a1, on-accent: #f4f8ff, danger-hover: #fbe9e7 };
-    out property <GuestTones> dark: { field-line: #6e7685, on-accent: #0e1116, danger-hover: #3a2325 };
+    out property <GuestTones> light: { field-line: Palettes.blue-light.field-line, on-accent: Palettes.blue-light.on-accent, danger-hover: Palettes.blue-light.danger-hover };
+    out property <GuestTones> dark: { field-line: Palettes.blue-dark.field-line, on-accent: Palettes.blue-dark.on-accent, danger-hover: Palettes.blue-dark.danger-hover };
 }
 
 // One scene in a list, as the Rust side gives it (src/guestedit/mod.rs, SceneRow).

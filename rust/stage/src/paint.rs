@@ -42,7 +42,10 @@ impl Gpu {
         let adapter =
             pollster::block_on(instance.request_adapter(&options)).map_err(|e| e.to_string())?;
         let (device, queue) =
-            pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
+            pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
+                required_limits: adapter.limits(),
+                ..Default::default()
+            }))
                 .map_err(|e| e.to_string())?;
         Ok(Self {
             instance,
@@ -160,7 +163,9 @@ impl Painter {
             width,
             height,
             STILL,
-            wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_DST,
         );
         let blank = texture(device, 1, 1, STILL, usage).create_view(&Default::default());
         let dims = [width as f32, height as f32, 0.0, 0.0];
@@ -266,6 +271,23 @@ impl Painter {
     pub fn set_still(&self, gpu: &Gpu, frame: &Frame) {
         let view = self.still.create_view(&Default::default());
         self.draw(gpu, frame, &self.still_pipeline, &view, &self.blank);
+    }
+
+    /// The still picture's texture (Rgba8Unorm, this painter's size), for `Scene::draw_into`.
+    pub fn still_texture(&self) -> &wgpu::Texture {
+        &self.still
+    }
+
+    /// A frame a scene drew itself (`Scene::pixels`): premultiplied RGBA bytes of this painter's size
+    /// become the still picture, which the scene's `frame` shows.
+    pub fn set_still_pixels(&self, gpu: &Gpu, rgba: &[u8]) {
+        let size = self.still.size();
+        let layout = wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(size.width * 4),
+            rows_per_image: None,
+        };
+        gpu.queue.write_texture(self.still.as_image_copy(), rgba, layout, size);
     }
 
     /// Draws one frame onto `onto` (a view of a texture in this painter's format and size).

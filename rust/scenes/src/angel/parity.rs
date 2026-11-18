@@ -31,7 +31,7 @@ fn frames_match_python() {
     let (atlas, art) = scene.bake();
     let Ok(gpu) = Renderer::new(1920, 1080, lobby.as_raw(), &atlas) else { return };
     gpu.set_galaxy(&scene.warmth());
-    for (t, floor) in [(0.5, 47.5), (1.5, 45.0), (3.0, 44.0), (4.0, 42.5)] {
+    for (t, floor) in [(0.5, 51.0), (1.5, 46.0), (3.0, 45.5), (4.0, 45.0)] {
         gpu.render(&scene.paint(t, &art));
         let theirs = image::open(root.join(format!("angel/py_t{t:.1}.png"))).expect("python frame").to_rgba8();
         let got = psnr(&gpu.read(), theirs.as_raw());
