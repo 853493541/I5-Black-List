@@ -1,0 +1,57 @@
+// The line icons of blacklist_detect/ui_icons.py: the same shapes on its 24-unit grid, as SVG path commands.
+//
+// LineIcon: in name (a ui_icons.DRAWINGS key, e.g. "add", "chevron_down"), in size (default 16px), in tone
+// (default: the palette's muted), in stroke (0 = ui_icons' own: 1.4px up to 20px, 2px above; "more" draws
+// its dots 2.4 times as thick). Round caps, no fill, as pixmap() draws them.
+
+export global IconPaths {
+    out property <[string]> names: ["add", "heart", "ban", "close", "check", "search", "edit", "delete", "copy", "import", "more", "chevron_down", "folder", "eye", "eye_off", "warning", "info", "help", "palette", "play", "records", "settings", "users", "picture", "reload"];
+    public pure function path(name: string) -> string {
+        if name == "add" { return "M12 5 L12 19 M5 12 L19 12"; }
+        if name == "heart" { return "M12 19.5 C5.5 15 3.5 11.5 3.5 8.8 C3.5 6.2 5.5 4.5 7.8 4.5 C9.6 4.5 11.1 5.6 12 7.2 C12.9 5.6 14.4 4.5 16.2 4.5 C18.5 4.5 20.5 6.2 20.5 8.8 C20.5 11.5 18.5 15 12 19.5 Z"; }
+        if name == "ban" { return "M3.5 12 A8.5 8.5 0 1 0 20.5 12 A8.5 8.5 0 1 0 3.5 12 M5.99 5.99 L18.01 18.01"; }
+        if name == "close" { return "M6 6 L18 18 M18 6 L6 18"; }
+        if name == "check" { return "M5 12.5 L10 17.5 L19 7"; }
+        if name == "search" { return "M4.5 10.5 A6 6 0 1 0 16.5 10.5 A6 6 0 1 0 4.5 10.5 M15 15 L20 20"; }
+        if name == "edit" { return "M5 19 L5.6 15.2 L15.5 5.3 L18.7 8.5 L8.8 18.4 Z M13.3 7.5 L16.5 10.7"; }
+        if name == "delete" { return "M4.5 7 L19.5 7 M9.5 7 L10 4.5 L14 4.5 L14.5 7 M6.5 7 L7.5 19.5 L16.5 19.5 L17.5 7 M10.2 10.5 L10.2 16 M13.8 10.5 L13.8 16"; }
+        if name == "copy" { return "M10.5 8.5 L17.5 8.5 A2 2 0 0 1 19.5 10.5 L19.5 17.5 A2 2 0 0 1 17.5 19.5 L10.5 19.5 A2 2 0 0 1 8.5 17.5 L8.5 10.5 A2 2 0 0 1 10.5 8.5 Z M15.5 8.5 L15.5 5.5 Q15.5 4.5 14.5 4.5 L5.5 4.5 Q4.5 4.5 4.5 5.5 L4.5 14.5 Q4.5 15.5 5.5 15.5 L8.5 15.5"; }
+        if name == "import" { return "M12 4 L12 14 M8 10.5 L12 14.5 L16 10.5 M4.5 14 L4.5 19.5 L19.5 19.5 L19.5 14"; }
+        if name == "more" { return "M6 12 L6.2 12 M12 12 L12.2 12 M18 12 L18.2 12"; }
+        if name == "chevron_down" { return "M7 10 L12 15 L17 10"; }
+        if name == "folder" { return "M4 18.5 L4 6.5 Q4 5.5 5 5.5 L9.5 5.5 L11.5 7.5 L19 7.5 Q20 7.5 20 8.5 L20 18.5 Q20 19.5 19 19.5 L5 19.5 Q4 19.5 4 18.5"; }
+        if name == "eye" { return "M3 12 Q12 3.5 21 12 Q12 20.5 3 12 M9 12 A3 3 0 1 0 15 12 A3 3 0 1 0 9 12"; }
+        if name == "eye_off" { return "M3 12 Q12 3.5 21 12 Q12 20.5 3 12 M9 12 A3 3 0 1 0 15 12 A3 3 0 1 0 9 12 M4.5 19.5 L19.5 4.5"; }
+        if name == "warning" { return "M12 4 L21 19.5 L3 19.5 Z M12 9.5 L12 14 M12 17 L12.2 17"; }
+        if name == "info" { return "M3.5 12 A8.5 8.5 0 1 0 20.5 12 A8.5 8.5 0 1 0 3.5 12 M12 11 L12 16.5 M12 8 L12.2 8"; }
+        if name == "help" { return "M3.5 12 A8.5 8.5 0 1 0 20.5 12 A8.5 8.5 0 1 0 3.5 12 M9.4 9.6 C9.4 6.4 14.6 6.4 14.6 9.6 C14.6 11.6 12 11.8 12 13.8 M12 16.8 L12.2 16.8"; }
+        if name == "palette" { return "M12 20.5 A8.5 8.5 0 1 1 19.987 14.907 Q19.2 16.2 16.6 15.6 Q13.2 15 13.6 17.6 Q14 20.5 12 20.5 M7 11.5 A1.2 1.2 0 1 0 9.4 11.5 A1.2 1.2 0 1 0 7 11.5 M9.3 7.8 A1.2 1.2 0 1 0 11.7 7.8 A1.2 1.2 0 1 0 9.3 7.8 M13.6 7.8 A1.2 1.2 0 1 0 16 7.8 A1.2 1.2 0 1 0 13.6 7.8"; }
+        if name == "play" { return "M3.5 12 A8.5 8.5 0 1 0 20.5 12 A8.5 8.5 0 1 0 3.5 12 M10.2 8.6 L15.6 12 L10.2 15.4 Z"; }
+        if name == "records" { return "M7 4.5 L17 4.5 A2.5 2.5 0 0 1 19.5 7 L19.5 17 A2.5 2.5 0 0 1 17 19.5 L7 19.5 A2.5 2.5 0 0 1 4.5 17 L4.5 7 A2.5 2.5 0 0 1 7 4.5 Z M8 9 L16 9 M8 12.5 L16 12.5 M8 16 L16 16"; }
+        if name == "settings" { return "M4 7 L20 7 M7.2 7 A1.8 1.8 0 1 0 10.8 7 A1.8 1.8 0 1 0 7.2 7 M4 12 L20 12 M13.2 12 A1.8 1.8 0 1 0 16.8 12 A1.8 1.8 0 1 0 13.2 12 M4 17 L20 17 M9.2 17 A1.8 1.8 0 1 0 12.8 17 A1.8 1.8 0 1 0 9.2 17"; }
+        if name == "users" { return "M5.8 9 A3.2 3.2 0 1 0 12.2 9 A3.2 3.2 0 1 0 5.8 9 M3.5 19 Q3.5 13.8 9 13.8 Q14.5 13.8 14.5 19 M14 8.5 A2.5 2.5 0 1 0 19 8.5 A2.5 2.5 0 1 0 14 8.5 M16 12.8 Q20.5 12.8 20.5 17.5"; }
+        if name == "picture" { return "M6 5 L18 5 A2 2 0 0 1 20 7 L20 17 A2 2 0 0 1 18 19 L6 19 A2 2 0 0 1 4 17 L4 7 A2 2 0 0 1 6 5 Z M7.4 10 A1.6 1.6 0 1 0 10.6 10 A1.6 1.6 0 1 0 7.4 10 M4.5 17.5 L10 13 L13.5 15.5 L16.5 12.5 L19.5 15.5"; }
+        if name == "reload" { return "M15.75 5.805 A7.5 7.5 0 1 1 8.25 5.805 M15.75 5.805 L20.514 5.553 M15.75 5.805 L17.914 10.057"; }
+        ""
+    }
+}
+
+export component LineIcon inherits Rectangle {
+    in property <string> name;
+    in property <length> size: 16px;
+    in property <color> tone: #5d6d82;
+    in property <length> stroke: 0px;
+    width: size;
+    height: size;
+    Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        fill: transparent;
+        stroke: tone;
+        stroke-line-cap: round;
+        stroke-width: (stroke > 0 ? stroke : size <= 20px ? 1.4px : 2px) * (name == "more" ? 2.4 : 1);
+        commands: IconPaths.path(name);
+    }
+}

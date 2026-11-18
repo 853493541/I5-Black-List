@@ -1,0 +1,59 @@
+// The toast (blacklist_detect/ui_kit.py Toast): a short message at the bottom of a window, with an
+// optional action such as 撤销. src/notices/toast.rs says where it sits and how long it stays.
+
+import { Palette, Light, Dark } from "../theme.slint";
+
+export component ToastPill inherits Rectangle {
+    in property <string> text;
+    in property <string> action;
+    in property <bool> dark;
+    callback act();
+    out property <length> natural-width: row.preferred-width;
+    out property <length> natural-height: row.preferred-height;
+    background: dark ? #1f2633 : #e7e9ee;
+    border-radius: 8px;
+    row := HorizontalLayout {
+        padding-left: 16px;
+        padding-top: 8px;
+        padding-right: 10px;
+        padding-bottom: 8px;
+        spacing: 12px;
+        Text { text: root.text; font-size: 14px; color: dark ? #f3f5f8 : #15171b; vertical-alignment: center; }
+        if action != "": Rectangle {
+            width: words.preferred-width + 12px;
+            min-height: 24px;
+            words := Text {
+                text: action;
+                font-size: 14px;
+                font-weight: 600;
+                color: dark ? Dark.palette.accent : Light.palette.accent;
+            }
+            TouchArea { mouse-cursor: pointer; clicked => { root.act(); } }
+        }
+    }
+}
+
+// A window's page with the toast over it, for the pictures; the app puts ToastPill in its own window.
+export component ToastWindow inherits Window {
+    in property <string> text;
+    in property <string> action;
+    in property <bool> dark;
+    in property <float> fade: 1;
+    callback act();
+    property <Palette> p: dark ? Dark.palette : Light.palette;
+    default-font-family: "Microsoft YaHei";
+    width: 900px;
+    height: 560px;
+    background: p.bg;
+    pill := ToastPill {
+        text: root.text;
+        action: root.action;
+        dark: root.dark;
+        opacity: fade;
+        width: min(self.natural-width, max(200px, root.width - 48px));
+        height: self.natural-height;
+        x: (root.width - self.width) / 2;
+        y: root.height - self.height - 40px;
+        act => { root.act(); }
+    }
+}
