@@ -1,0 +1,199 @@
+// Frames: DialogFrame (ui_kit.Modal.frame + footer), Toast (ui_kit.Toast), EmptyState (ui_kit.EmptyState) and
+// KitScroll (ui_theme._scroll_rules). No tooltip: the Python app eats every one (ui_theme.NoHoverText, ask #71).
+//
+// DialogFrame: in title, in right-buttons (the footer's buttons, main action last), in primary (which of them is
+//   filled; -1 = none, default the last), in left-button (a danger button standing apart on the left; "" = none),
+//   in shake (set true to shake it once, as a refused 保存 does; Motion.shake, 320 ms), in p; callbacks clicked(string),
+//   close. The card: surface, border, 12 px radius, a soft drop shadow; the title 18 px semibold with the × in the
+//   corner; children are the content, 16 px apart; the footer band on the page colour under a hairline.
+// Toast: in text, in action (e.g. 撤销; "" = none), in shown (fades in and out in Motion.fade, 150 ms), in p;
+//   callback act. toast-bg, card-radius 8, 16 / 10 px sides.
+// EmptyState: in icon (a LineIcon name), in title (20 px), in hint (12 px gray, wraps), in action (a plain button;
+//   "" = none), in p; callback act.
+// KitScroll: a Flickable with the app's thin bar: 10 px wide, no arrows, border-coloured handle at least 24 px long that
+//   turns accent-line on hover. in p; children scroll.
+
+import { Palette, Theme, Tokens, Motion } from "../theme.slint";
+import { LineIcon } from "icons.slint";
+import { KitButton, IconButton } from "buttons.slint";
+
+export component DialogFrame inherits Rectangle {
+    in property <string> title;
+    in property <[string]> right-buttons: ["取消", "保存"];
+    in property <int> primary: right-buttons.length - 1;
+    in property <string> left-button;
+    in property <bool> shake;
+    in property <Palette> p: Theme.p;
+    callback clicked(string);
+    callback close;
+    property <float> wobble: shake ? 1 : 0;
+    animate wobble { duration: Motion.shake; easing: linear; }
+    // Three swings that die away, as the Qt shake's keyframes do.
+    property <length> offset: wobble > 0 && wobble < 1 ? 10px * sin(wobble * 6 * 180deg) * (1 - wobble) : 0;
+    card := Rectangle {
+        x: offset;
+        background: p.surface;
+        border-width: 1px;
+        border-color: p.border;
+        border-radius: 12px;
+        drop-shadow-blur: 22px;
+        drop-shadow-offset-y: 6px;
+        drop-shadow-color: p.scheme-dark ? #00000080 : #0000002e;
+        clip: true;
+        VerticalLayout {
+            VerticalLayout {
+                padding-left: Tokens.dialog-pad;
+                padding-top: 18px;
+                padding-right: 12px;
+                padding-bottom: Tokens.dialog-pad;
+                spacing: 16px;
+                HorizontalLayout {
+                    spacing: 8px;
+                    Text {
+                        horizontal-stretch: 1;
+                        vertical-stretch: 0;
+                        vertical-alignment: center;
+                        text: title;
+                        font-size: Tokens.dialog-title;
+                        font-weight: 600;
+                        color: p.text;
+                        wrap: word-wrap;
+                    }
+                    VerticalLayout {
+                        alignment: start;
+                        IconButton { icon: "close"; p: p; clicked => { root.close(); } }
+                    }
+                }
+                VerticalLayout {
+                    padding-right: Tokens.dialog-pad - 12px;
+                    spacing: 16px;
+                    @children
+                }
+                // A taller card keeps its title and fields at the top and its footer at the bottom.
+                Rectangle { vertical-stretch: 1; }
+            }
+            Rectangle {
+                background: p.bg;
+                height: 1px + 14px + Tokens.control-h + 14px;
+                Rectangle { y: 0; height: 1px; background: p.border; }
+                HorizontalLayout {
+                    y: 1px;
+                    height: parent.height - 1px;
+                    padding-left: Tokens.dialog-pad;
+                    padding-right: Tokens.dialog-pad;
+                    padding-top: 14px;
+                    padding-bottom: 14px;
+                    spacing: 8px;
+                    if left-button != "": KitButton {
+                        label: left-button;
+                        kind: "danger";
+                        p: p;
+                        clicked => { root.clicked(left-button); }
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                    for label[i] in right-buttons: KitButton {
+                        label: label;
+                        kind: i == primary ? "primary" : "plain";
+                        p: p;
+                        clicked => { root.clicked(label); }
+                    }
+                }
+            }
+        }
+    }
+}
+
+export component Toast inherits Rectangle {
+    in property <string> text;
+    in property <string> action;
+    in property <bool> shown: true;
+    in property <Palette> p: Theme.p;
+    callback act;
+    opacity: shown ? 1 : 0;
+    animate opacity { duration: Motion.fade; }
+    background: p.toast-bg;
+    border-radius: Tokens.card-radius;
+    HorizontalLayout {
+        padding-left: 16px;
+        padding-right: 10px;
+        padding-top: 8px;
+        padding-bottom: 8px;
+        spacing: 12px;
+        Text { vertical-alignment: center; text: root.text; font-size: Tokens.body; color: p.toast-text; }
+        if action != "": Rectangle {
+            width: act-words.preferred-width + 12px;
+            act-words := Text {
+                text: action;
+                font-size: Tokens.body;
+                font-weight: 600;
+                color: p.toast-action;
+            }
+            if act-touch.has-hover: Rectangle {
+                x: 6px;
+                y: act-words.y + act-words.height - 2px;
+                width: act-words.width;
+                height: 1px;
+                background: p.toast-action;
+            }
+            act-touch := TouchArea { clicked => { root.act(); } }
+        }
+    }
+}
+
+export component EmptyState inherits Rectangle {
+    in property <string> icon: "records";
+    in property <string> title;
+    in property <string> hint;
+    in property <string> action;
+    in property <Palette> p: Theme.p;
+    callback act;
+    VerticalLayout {
+        padding-left: 24px;
+        padding-right: 24px;
+        alignment: center;
+        HorizontalLayout {
+            alignment: center;
+            LineIcon { name: icon; size: 40px; tone: p.muted; }
+        }
+        Rectangle { height: 12px; }
+        Text { text: title; font-size: Tokens.title; color: p.text; horizontal-alignment: center; }
+        if hint != "": Rectangle { height: 6px; }
+        if hint != "": Text {
+            text: hint;
+            font-size: Tokens.small;
+            color: p.muted;
+            horizontal-alignment: center;
+            wrap: word-wrap;
+        }
+        Rectangle { height: 16px; }
+        if action != "": HorizontalLayout {
+            alignment: center;
+            KitButton { label: action; p: p; clicked => { root.act(); } }
+        }
+    }
+}
+
+export component KitScroll inherits Rectangle {
+    in property <Palette> p: Theme.p;
+    in-out property <length> content-y <=> flick.content-y;
+    flick := Flickable {
+        width: parent.width;
+        height: parent.height;
+        @children
+    }
+    property <length> room: flick.content-height - flick.height;
+    if room > 0: Rectangle {
+        x: parent.width - 10px;
+        width: 10px;
+        height: max(24px, parent.height * parent.height / flick.content-height);
+        y: room > 0 ? (-flick.content-y) / room * (parent.height - self.height) : 0;
+        border-radius: 5px;
+        background: drag.has-hover || drag.pressed ? p.accent-line : p.border;
+        drag := TouchArea {
+            moved => {
+                flick.content-y = clamp(flick.content-y - (self.mouse-y - self.pressed-y) * flick.content-height
+                    / root.height, -room, 0);
+            }
+        }
+    }
+}

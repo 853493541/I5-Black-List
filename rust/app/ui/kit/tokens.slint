@@ -1,0 +1,36 @@
+// The type scale, spacing and timings of blacklist_detect/ui_theme.py and ui_kit.py, in px at 100 % (1 pt = 4/3 px).
+//
+// Tokens: body 14, small 12, section 16, title 20, dialog-title 18, overlay 18 (font sizes); pad 24, gap 12,
+// dialog-pad 24, control-h 32, row-h 40, radius 6, card-radius 8 (spacing).
+// Motion: the durations ui_kit and ui_widgets give their QPropertyAnimations, all with Qt's OutCubic easing.
+
+export global Tokens {
+    out property <length> body: 14px;
+    out property <length> small: 12px;
+    out property <length> section: 16px;
+    out property <length> title: 20px;
+    out property <length> dialog-title: 18px;
+    out property <length> overlay: 18px;
+    out property <length> pad: 24px;
+    out property <length> gap: 12px;
+    out property <length> dialog-pad: 24px;
+    out property <length> control-h: 32px;
+    out property <length> row-h: 40px;
+    out property <length> radius: 6px;
+    out property <length> card-radius: 8px;
+}
+
+export global Motion {
+    // Switch knob slide (ui_kit.Switch).
+    out property <duration> switch: 140ms;
+    // Toast and popup fade (ui_kit.Toast, the menu fade).
+    out property <duration> fade: 150ms;
+    // A refused dialog's shake (ui_kit.Modal).
+    out property <duration> shake: 320ms;
+    // A tag pill's highlight (ui_widgets.TagPill).
+    out property <duration> highlight: 200ms;
+    // Hover wash on cards and folders (ui_widgets.DayFolderIcon).
+    out property <duration> hover: 140ms;
+    // A folder or chevron turning open (ui_widgets.DayFolderIcon).
+    out property <duration> turn: 160ms;
+}

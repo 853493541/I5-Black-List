@@ -1,0 +1,28 @@
+// 直播画面: the window a streaming app captures (ui_stream.StreamMirror). Clear behind the marks, 16:9, as wide
+// as the game's screen; the win package places it (src/stream/mirror.rs says where) and never shows it to the
+// streamer. The marks are the overlay package's pictures, each drawn where it is over the game, scaled by `fit`.
+
+export struct MirrorMark {
+    picture: image,
+    // Where it goes in this window, in its own pixels (mirror::to_window of the mark's corner on the screen).
+    x: length,
+    y: length,
+    width: length,
+    height: length,
+}
+
+export component StreamMirrorWindow inherits Window {
+    in property <[MirrorMark]> marks;
+    title: "模仿者小工具·直播画面";
+    no-frame: true;
+    // Clear behind the marks: 直播姬 captures the window with its transparency.
+    background: transparent;
+    for mark in marks: Image {
+        x: mark.x;
+        y: mark.y;
+        width: mark.width;
+        height: mark.height;
+        source: mark.picture;
+        image-fit: fill;
+    }
+}

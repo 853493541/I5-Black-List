@@ -1,0 +1,228 @@
+// 正在更新 (blacklist_detect/ui_update.py UpdateDialog) and 发现新版本, the card under 有更新 in the
+// header (ui.py _update_card). src/notices/update.rs decides what is in view and what each button does.
+
+import { Palette, Light, Dark } from "../theme.slint";
+import { PlainButton } from "../kit.slint";
+
+// stub: ui-kit — the accent button (QPushButton#primary) until kit.slint has one.
+export component PrimaryButton inherits Rectangle {
+    in property <string> label;
+    in property <Palette> p;
+    callback clicked();
+    height: 32px;
+    width: words.preferred-width + 28px;
+    border-radius: 6px;
+    background: touch.has-hover ? p.accent-line : p.accent;
+    words := Text { text: label; font-size: 14px; color: #ffffff; }
+    touch := TouchArea { mouse-cursor: pointer; clicked => { root.clicked(); } }
+}
+
+// stub: ui-kit — the dialog's × (IconButton "close").
+component CloseButton inherits Rectangle {
+    in property <Palette> p;
+    callback clicked();
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: touch.has-hover ? p.hover : transparent;
+    Path {
+        x: 6px;
+        y: 6px;
+        width: 16px;
+        height: 16px;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        stroke: p.muted;
+        stroke-width: 1.6px;
+        commands: "M6 6 L18 18 M18 6 L6 18";
+    }
+    touch := TouchArea { mouse-cursor: pointer; clicked => { root.clicked(); } }
+}
+
+export component UpdateDialogCard inherits Rectangle {
+    in property <Palette> p;
+    in property <string> title-text;
+    in property <string> summary;
+    in property <[string]> notes;
+    in property <string> status;
+    // The progress bar, 0 to 1000; below 0 while it is out of view.
+    in property <int> bar: -1;
+    in property <bool> close-visible;
+    in property <bool> band-visible;
+    in property <bool> skip-visible: true;
+    in property <string> action: "重试";
+    callback close-clicked();
+    callback skip();
+    callback act();
+    out property <length> natural-height: column.preferred-height;
+    min-width: 460px;
+    background: p.surface;
+    border-radius: 12px;
+    border-width: 1px;
+    border-color: p.border;
+    drop-shadow-blur: 22px;
+    drop-shadow-offset-y: 6px;
+    drop-shadow-color: #00000030;
+    column := VerticalLayout {
+        spacing: 0px;
+        VerticalLayout {
+            padding-left: 24px;
+            padding-top: 18px;
+            padding-right: 12px;
+            padding-bottom: 24px;
+            spacing: 16px;
+            HorizontalLayout {
+                spacing: 8px;
+                Text {
+                    text: title-text;
+                    font-size: 18px;
+                    font-weight: 600;
+                    color: p.text;
+                    vertical-alignment: center;
+                    wrap: word-wrap;
+                    min-height: 28px;
+                }
+                if close-visible: VerticalLayout { alignment: start; CloseButton { p: p; clicked => { root.close-clicked(); } } }
+            }
+            VerticalLayout {
+                padding-right: 12px;
+                spacing: 16px;
+                Text { text: summary; font-size: 12px; color: p.muted; }
+                if notes.length > 0: VerticalLayout {
+                    for line in notes: Text { text: line; font-size: 14px; color: p.text; wrap: word-wrap; }
+                }
+                if bar >= 0: Rectangle {
+                    height: 6px;
+                    border-radius: 3px;
+                    background: p.border;
+                    Rectangle {
+                        x: 0px;
+                        width: parent.width * bar / 1000;
+                        height: 6px;
+                        border-radius: 3px;
+                        background: p.accent-line;
+                    }
+                }
+                if status != "": Text { text: status; font-size: 12px; color: p.muted; wrap: word-wrap; }
+            }
+        }
+        if band-visible: Rectangle {
+            background: p.bg;
+            border-bottom-left-radius: 11px;
+            border-bottom-right-radius: 11px;
+            Rectangle { y: 0px; height: 1px; background: p.border; }
+            HorizontalLayout {
+                padding-left: 24px;
+                padding-right: 24px;
+                padding-top: 14px;
+                padding-bottom: 14px;
+                spacing: 8px;
+                alignment: end;
+                if skip-visible: PlainButton { label: "跳过"; p: p; TouchArea { clicked => { root.skip(); } } }
+                PrimaryButton { label: action; p: p; clicked => { root.act(); } }
+            }
+        }
+    }
+}
+
+// The dialog over the window, for the pictures and the app: the card in the middle of a dimmed page.
+export component UpdateDialogWindow inherits Window {
+    in property <bool> dark;
+    in property <string> title-text;
+    in property <string> summary;
+    in property <[string]> notes;
+    in property <string> status;
+    in property <int> bar: -1;
+    in property <bool> close-visible;
+    in property <bool> band-visible;
+    in property <bool> skip-visible: true;
+    in property <string> action: "重试";
+    callback close-clicked();
+    callback skip();
+    callback act();
+    callback click-outside();
+    out property <length> card-height: card.natural-height;
+    property <Palette> p: dark ? Dark.palette : Light.palette;
+    default-font-family: "Microsoft YaHei";
+    width: 900px;
+    height: 560px;
+    background: p.bg;
+    Rectangle { background: #0000004a; TouchArea { clicked => { root.click-outside(); } } }
+    card := UpdateDialogCard {
+        width: 460px;
+        height: self.natural-height;
+        x: (root.width - self.width) / 2;
+        // Modal keeps more shadow below the card than above it: the card sits 6 px above the middle.
+        y: (root.height - self.height) / 2 - 6px;
+        p: p;
+        title-text: title-text;
+        summary: summary;
+        notes: notes;
+        status: status;
+        bar: bar;
+        close-visible: close-visible;
+        band-visible: band-visible;
+        skip-visible: skip-visible;
+        action: action;
+        close-clicked => { root.close-clicked(); }
+        skip => { root.skip(); }
+        act => { root.act(); }
+    }
+}
+
+// 发现新版本: the version, what is new in it (at most three lines), 稍后 and 立即更新.
+export component UpdateOfferCard inherits Rectangle {
+    in property <Palette> p;
+    in property <string> title-text;
+    in property <[string]> notes;
+    callback later();
+    callback now();
+    out property <length> natural-height: column.preferred-height;
+    width: 300px;
+    background: p.surface;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: p.border;
+    drop-shadow-blur: 12px;
+    drop-shadow-color: #0000002a;
+    column := VerticalLayout {
+        padding-left: 20px;
+        padding-right: 20px;
+        padding-top: 16px;
+        padding-bottom: 16px;
+        spacing: 6px;
+        Text { text: title-text; font-size: 16px; font-weight: 600; color: p.text; }
+        Rectangle { height: 4px; }
+        for line in notes: Text { text: line; font-size: 14px; color: p.text; wrap: word-wrap; }
+        Rectangle { height: 8px; }
+        HorizontalLayout {
+            spacing: 8px;
+            alignment: end;
+            PlainButton { label: "稍后"; p: p; TouchArea { clicked => { root.later(); } } }
+            PrimaryButton { label: "立即更新"; p: p; clicked => { root.now(); } }
+        }
+    }
+}
+
+export component UpdateOfferWindow inherits Window {
+    in property <bool> dark;
+    in property <string> title-text;
+    in property <[string]> notes;
+    callback later();
+    callback now();
+    property <Palette> p: dark ? Dark.palette : Light.palette;
+    default-font-family: "Microsoft YaHei";
+    width: 340px;
+    height: offer.natural-height + 40px;
+    background: p.bg;
+    offer := UpdateOfferCard {
+        x: 20px;
+        y: 20px;
+        height: self.natural-height;
+        p: p;
+        title-text: title-text;
+        notes: notes;
+        later => { root.later(); }
+        now => { root.now(); }
+    }
+}

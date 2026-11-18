@@ -7,7 +7,16 @@
 // deny, not forbid: the code Slint generates from ui/ allows unsafe in its own items.
 #![deny(unsafe_code)]
 
+mod guestedit;
+mod guests;
+mod dialogs;
 mod headless;
+mod stream;
+#[allow(dead_code)] // wired by the app-wiring package
+mod settings;
+mod shell;
+mod notices;
+mod kit;
 
 use std::path::PathBuf;
 

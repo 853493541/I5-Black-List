@@ -1,0 +1,175 @@
+// The main window every page sits in (blacklist_detect/ui.py MainWindow._build): 900 x 560 at least, the header
+// with the page tabs and the 检查 pill, the page area under it, and 检查's panel lying over the window.
+
+import { Palette, Light, Dark } from "../theme.slint";
+import { TabButton, StatusChip, UpdatePill, ProfileChip } from "header.slint";
+import { CheckCard } from "check_panel.slint";
+import { HistoryPage, ListPage, GuestsPage, SettingsPage } from "stubs.slint";
+
+// The colours theme.slint's Palette lacks yet (ui_theme.py on_accent, green), by scheme.
+global Extra {
+    out property <color> on-accent-light: #ffffff;
+    out property <color> on-accent-dark: #0e1116;
+    out property <color> green-light: #1c7a3e;
+    out property <color> green-dark: #5fcb8c;
+}
+
+export struct ShellTab {
+    label: string,
+    count: int,
+}
+
+export component MainWindow inherits Window {
+    in property <bool> dark;
+    // Microsoft YaHei on Windows (the Rust side sets it); Noto Sans CJK SC elsewhere.
+    in property <string> font-family: "Noto Sans CJK SC";
+    in property <string> version;
+    // 0 记录, 1 黑名单, 2 嘉宾, 3 设置.
+    in-out property <int> page: 0;
+    in property <[ShellTab]> tabs: [
+        {label: "记录", count: 0}, {label: "黑名单", count: 0}, {label: "嘉宾", count: 0}, {label: "设置", count: 0},
+    ];
+    in property <string> status-text: "手动检查";
+    in property <string> status-tone: "watchOff";
+    in property <string> status-key;
+    in property <bool> has-update;
+    in property <string> player-name;
+    in property <string> player-initial;
+    in-out property <bool> panel-open;
+    in property <bool> safe-mode: true;
+    in property <bool> auto-capture;
+    in property <string> hotkey;
+    in property <bool> hotkey-waiting;
+    in property <string> hotkey-note;
+    in property <bool> stream-on;
+    in property <string> stream-state;
+    in property <bool> stream-ok;
+
+    callback page-changed(int);
+    callback update-clicked;
+    callback player-renamed(string);
+    callback display-changed(bool);
+    callback auto-changed(bool);
+    callback hotkey-clicked;
+    callback stream-changed(bool);
+    callback display-guide;
+    callback stream-guide;
+
+    property <Palette> p: dark ? Dark.palette : Light.palette;
+    property <color> on-accent: dark ? Extra.on-accent-dark : Extra.on-accent-light;
+
+    title: "模仿者小工具 " + version;
+    icon: @image-url("../../../../blacklist_detect/assets/app.png");
+    min-width: 900px;
+    min-height: 560px;
+    preferred-width: 900px;
+    preferred-height: 560px;
+    background: p.bg;
+    default-font-family: font-family;
+    default-font-size: 14px;
+
+    function show-page(index: int) {
+        if index != page {
+            page = index;
+            panel-open = false;
+            page-changed(index);
+        }
+    }
+
+    // Esc closes the panel and nothing else here; every other key goes on to the page.
+    keys := FocusScope {
+        key-pressed(event) => {
+            if event.text == Key.Escape && panel-open { panel-open = false; return accept; }
+            reject
+        }
+    }
+
+    // The header: tabs at the bottom-left, the right part 4 px clear of its line.
+    header := Rectangle {
+        x: 24px;
+        y: 24px;
+        width: parent.width - 48px;
+        height: 36px;
+        HorizontalLayout {
+            spacing: 4px;
+            alignment: start;
+            for tab[index] in tabs: TabButton {
+                label: tab.label;
+                count: tab.count;
+                chosen: index == page;
+                dark: dark;
+                p: p;
+                clicked => { show-page(index); }
+            }
+        }
+        right := HorizontalLayout {
+            x: parent.width - self.preferred-width;
+            width: self.preferred-width;
+            y: 0px;
+            height: 32px;
+            spacing: 0px;
+            alignment: end;
+            if has-update: UpdatePill { y: 2px; p: p; on-accent: on-accent; clicked => { update-clicked(); } }
+            if has-update: Rectangle { width: 8px; }
+            pill := StatusChip {
+                y: 1px;
+                text: status-text;
+                tone: status-tone;
+                key: status-key;
+                dark: dark;
+                p: p;
+                clicked => { panel-open = !panel-open; }
+            }
+            Rectangle { width: 10px; }
+            Rectangle { width: 1px; height: 18px; y: 7px; background: p.border; }
+            Rectangle { width: 8px; }
+            ProfileChip {
+                y: 1px;
+                name: player-name;
+                initial: player-initial;
+                dark: dark;
+                p: p;
+                renamed(name) => { player-renamed(name); }
+            }
+        }
+        Rectangle { y: parent.height - 1px; height: 1px; background: p.border; }
+    }
+
+    // The page area.
+    Rectangle {
+        x: 24px;
+        y: header.y + header.height;
+        width: parent.width - 48px;
+        height: parent.height - self.y - 24px;
+        if page == 0: HistoryPage { p: p; }
+        if page == 1: ListPage { p: p; }
+        if page == 2: GuestsPage { p: p; }
+        if page == 3: SettingsPage { p: p; }
+    }
+
+    // A click anywhere else in the window closes the panel, as a menu does.
+    if panel-open: TouchArea { clicked => { panel-open = false; } }
+    if panel-open: CheckCard {
+        // Its right edge under the pill's, kept inside the window; 6 px under it.
+        x: max(0px, min(header.x + right.x + pill.x + pill.width - self.width, root.width - self.width));
+        y: header.y + 1px + 30px + 6px;
+        height: self.preferred-height;
+        p: p;
+        on-accent: on-accent;
+        green: dark ? Extra.green-dark : Extra.green-light;
+        safe-mode: safe-mode;
+        auto-capture: auto-capture;
+        hotkey: hotkey;
+        hotkey-waiting: hotkey-waiting;
+        hotkey-note: hotkey-note;
+        stream-on: stream-on;
+        stream-state: stream-state;
+        stream-ok: stream-ok;
+        display-changed(safe) => { display-changed(safe); }
+        auto-changed(on) => { auto-changed(on); }
+        hotkey-clicked => { hotkey-clicked(); }
+        stream-changed(on) => { stream-changed(on); }
+        display-guide => { display-guide(); }
+        stream-guide => { stream-guide(); }
+    }
+}

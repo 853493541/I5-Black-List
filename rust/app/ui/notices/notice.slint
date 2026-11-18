@@ -1,0 +1,293 @@
+// 基础模式's result card at the bottom right of the screen (blacklist_detect/ui_notice.py _Card):
+// a badge, a title and a line under it, then the people, on a block of color. Its colors come from
+// src/notices/corner.rs Kind::look, so they stay the same in 浅色 and 深色.
+
+export struct NoticePerson { name: string, tags: [string] }
+
+export struct NoticeLook {
+    top: color, bottom: color, edge: color, ink: color, soft: color, accent: color,
+    badge-top: color, badge-bottom: color, mark: string, mark-ink: color,
+}
+
+// The round mark at the start of a message: what kind of news it is, at a glance.
+component Badge inherits Rectangle {
+    in property <NoticeLook> look;
+    in property <float> spin;
+    width: 30px;
+    height: 30px;
+    if look.mark == "spin": Path {
+        width: 30px;
+        height: 30px;
+        viewbox-width: 30;
+        viewbox-height: 30;
+        stroke: look.accent.with-alpha(0.22);
+        stroke-width: 2.6px;
+        commands: "M 15 6 A 9 9 0 1 0 15 24 A 9 9 0 1 0 15 6";
+    }
+    if look.mark == "spin": Path {
+        // 100 degrees of the ring, turning with spin (Qt counts angles counter-clockwise from 3 o'clock).
+        property <angle> from: -spin * 1rad;
+        property <angle> to: from + 100deg;
+        width: 30px;
+        height: 30px;
+        viewbox-width: 30;
+        viewbox-height: 30;
+        stroke: look.accent;
+        stroke-width: 2.6px;
+        commands: "M \{15 + 9 * cos(from)} \{15 - 9 * sin(from)} A 9 9 0 0 0 \{15 + 9 * cos(to)} \{15 - 9 * sin(to)}";
+    }
+    if look.mark != "spin": Rectangle {
+        x: 1px;
+        y: 1px;
+        width: 28px;
+        height: 28px;
+        border-radius: 14px;
+        background: @linear-gradient(180deg, look.badge-top 0%, look.badge-bottom 100%);
+        border-width: 1.2px;
+        border-color: look.accent.with-alpha(0.9);
+    }
+    if look.mark == "warning": Rectangle {
+        x: 13.5px;
+        y: 7px;
+        width: 3px;
+        height: 10.5px;
+        border-radius: 1.5px;
+        background: look.mark-ink;
+    }
+    if look.mark == "warning": Rectangle {
+        x: 15px - 1.8px;
+        y: 21.5px - 1.8px;
+        width: 3.6px;
+        height: 3.6px;
+        border-radius: 1.8px;
+        background: look.mark-ink;
+    }
+    if look.mark == "heart": Path {
+        width: 30px;
+        height: 30px;
+        viewbox-width: 30;
+        viewbox-height: 30;
+        fill: look.mark-ink;
+        commands: "M 15 22 C 9 17.5 7.6 14.6 7.6 12.4 C 7.6 10.2 9.3 8.6 11.3 8.6 C 12.9 8.6 14.2 9.5 15 10.9 C 15.8 9.5 17.1 8.6 18.7 8.6 C 20.7 8.6 22.4 10.2 22.4 12.4 C 22.4 14.6 21 17.5 15 22 Z";
+    }
+    if look.mark == "check": Path {
+        width: 30px;
+        height: 30px;
+        viewbox-width: 30;
+        viewbox-height: 30;
+        stroke: look.mark-ink;
+        stroke-width: 2.2px;
+        fill: transparent;
+        commands: "M 9 15.5 L 13.2 19.5 L 21 11";
+    }
+    if look.mark == "search": Path {
+        width: 30px;
+        height: 30px;
+        viewbox-width: 30;
+        viewbox-height: 30;
+        stroke: look.mark-ink;
+        stroke-width: 2.2px;
+        fill: transparent;
+        commands: "M 14 9 A 5 5 0 1 0 14 19 A 5 5 0 1 0 14 9 M 17.6 17.6 L 21 21";
+    }
+}
+
+// A small five-petal flower beside each 嘉宾 name, pink and blue in turn.
+component Bloom inherits Rectangle {
+    in property <bool> blue;
+    in property <length> r: 7.5px;
+    width: 2 * r;
+    height: 2 * r;
+    for petal in 5: Rectangle {
+        property <angle> turn: petal * 72deg - 90deg;
+        x: r + r * 0.48 * cos(turn) - r * 0.5;
+        y: r + r * 0.48 * sin(turn) - r * 0.5;
+        width: r;
+        height: r;
+        border-radius: r / 2;
+        background: blue ? #9cc8f2 : #f7a1c4;
+    }
+    Rectangle {
+        x: r * 0.7;
+        y: r * 0.7;
+        width: r * 0.6;
+        height: r * 0.6;
+        border-radius: r * 0.3;
+        background: #ffe08a;
+    }
+}
+
+// The red-on-dark tag beside a 黑名单 name.
+component Tag inherits Rectangle {
+    in property <string> label;
+    height: 23px;
+    width: words.preferred-width + 18px;
+    border-radius: 11.5px;
+    background: #2a0a0e;
+    words := Text { text: label; font-size: 12px; font-weight: 600; color: #ffcf9e; }
+}
+
+export component NoticeCard inherits Rectangle {
+    in property <NoticeLook> look;
+    in property <string> kind;
+    in property <string> title;
+    in property <string> note;
+    in property <[NoticePerson]> people;
+    in property <string> more;
+    // How much of the line along the foot is left, 1 to 0; below 0 while there is none (检查中).
+    in property <float> left: -1;
+    in property <float> spin;
+    callback clicked();
+    callback hovered(bool);
+    out property <length> natural-width: column.preferred-width;
+    out property <length> natural-height: column.preferred-height;
+    background: @linear-gradient(180deg, look.top 0%, look.bottom 100%);
+    border-width: 1px;
+    border-color: look.edge;
+    // A faint sheen along the top, like the light on silk or lacquer.
+    Rectangle {
+        x: 1px;
+        y: 1px;
+        width: parent.width - 2px;
+        height: 1px;
+        background: #ffffff.with-alpha(look.top.red > 0.9 ? 0.16 : 0.09);
+    }
+    column := VerticalLayout {
+        padding-left: 16px;
+        padding-top: 14px;
+        padding-right: 18px;
+        padding-bottom: 16px;
+        spacing: 0px;
+        HorizontalLayout {
+            spacing: 12px;
+            padding-right: kind == "liked" ? 30px : 0px;
+            VerticalLayout {
+                alignment: start;
+                Badge { look: look; spin: spin; }
+            }
+            VerticalLayout {
+                spacing: 1px;
+                Text {
+                    min-height: 30px;
+                    text: title;
+                    font-size: 16px;
+                    font-weight: 600;
+                    color: look.ink;
+                    vertical-alignment: center;
+                }
+                if note != "": Text { text: note; font-size: 14px; color: look.soft; }
+            }
+        }
+        if people.length > 0: VerticalLayout {
+            padding-left: 42px;
+            padding-top: 12px;
+            spacing: 6px;
+            // The thin rule under the title.
+            Rectangle {
+                height: 0px;
+                Rectangle { x: 0px; y: -6.5px; width: parent.width; height: 1px; background: look.accent.with-alpha(0.38); }
+            }
+            HorizontalLayout {
+                spacing: 6px;
+                alignment: start;
+                if kind == "liked": VerticalLayout {
+                    spacing: 6px;
+                    for person[index] in people: HorizontalLayout {
+                        height: 25px;
+                        alignment: center;
+                        VerticalLayout { alignment: center; Bloom { blue: mod(index, 2) == 1; } }
+                    }
+                }
+                // The names, in one column: their tags start after the longest.
+                VerticalLayout {
+                    spacing: 6px;
+                    for person in people: Text {
+                        height: 25px;
+                        text: person.name;
+                        font-size: 18px;
+                        font-weight: 600;
+                        color: look.ink;
+                        vertical-alignment: center;
+                    }
+                }
+                VerticalLayout {
+                    spacing: 6px;
+                    padding-left: 6px;
+                    for person in people: HorizontalLayout {
+                        height: 25px;
+                        spacing: 6px;
+                        alignment: start;
+                        for tag in person.tags: VerticalLayout { alignment: center; Tag { label: tag; } }
+                    }
+                }
+            }
+            if more != "": Text { text: more; font-size: 14px; color: look.soft; }
+        }
+    }
+    // 嘉宾's knot of flowers at the top right.
+    if kind == "liked": Rectangle {
+        x: parent.width - 26px - 12px;
+        y: 22px - 12px;
+        width: 24px;
+        height: 24px;
+        Bloom { x: 0px; y: 6px; r: 5.6px; }
+        Bloom { x: 11px; y: 4px; r: 5px; blue: true; }
+        Bloom { x: 5px; y: -2px; r: 6.8px; }
+    }
+    // The line along the foot runs down until the message goes.
+    if left >= 0: Rectangle {
+        x: 14px;
+        y: parent.height - 6px;
+        width: parent.width - 28px;
+        height: 2px;
+        border-radius: 1px;
+        background: look.accent.with-alpha(0.16);
+        Rectangle {
+            x: 0px;
+            width: parent.width * max(0, min(1, left));
+            height: 2px;
+            border-radius: 1px;
+            background: look.accent.with-alpha(0.85);
+        }
+    }
+    TouchArea {
+        clicked => { root.clicked(); }
+        changed has-hover => { root.hovered(self.has-hover); }
+    }
+}
+
+// One card in a window of its own, never taking the focus: the app shows one per message.
+export component NoticeWindow inherits Window {
+    in property <NoticeLook> look;
+    in property <string> kind;
+    in property <string> title-text;
+    in property <string> note;
+    in property <[NoticePerson]> people;
+    in property <string> more;
+    in property <float> left: -1;
+    in property <float> spin;
+    // The width the app picked for every card of the result (300 to 440).
+    in property <length> card-width: 300px;
+    out property <length> natural-width: card.natural-width;
+    out property <length> natural-height: card.natural-height;
+    callback clicked();
+    callback hovered(bool);
+    no-frame: true;
+    always-on-top: true;
+    default-font-family: "Microsoft YaHei";
+    width: card-width;
+    card := NoticeCard {
+        width: parent.width;
+        height: parent.height;
+        look: look;
+        kind: kind;
+        title: title-text;
+        note: note;
+        people: people;
+        more: more;
+        left: left;
+        spin: spin;
+        clicked => { root.clicked(); }
+        hovered(inside) => { root.hovered(inside); }
+    }
+}

@@ -1,0 +1,124 @@
+// Tags and rows: TagPill (ui_widgets._draw_pill, TagPill), SettingsRow (ui_kit.SettingsRow), ListRow, SectionCard.
+//
+// TagPill: in text, in tone ("red" 黑名单 tags | "blue" the 嘉宾 list's 组合 | "green" the 我 row | "off" outlined gray,
+//   also +N), in highlight (fades to the tone's hover wash in Motion.highlight, 200 ms), in p. 12 px semibold words,
+//   9 px side padding, round ends.
+// SettingsRow: in name, in description (the gray line; "" = none, then the name sits level with the controls),
+//   in last (no hairline under it), in p; its children are the controls on the right. 12 px above and below.
+// ListRow: in text, in selected, in me (the green 我 row), in p; children go on the right (tags, buttons).
+//   Row-h (40 px) high, a hairline under it; callback clicked.
+// SectionCard: a card (surface, border, card-radius 8) with an optional title; children are its rows.
+
+import { Palette, Theme, Tokens, Motion } from "../theme.slint";
+
+export component TagPill inherits Rectangle {
+    in property <string> text;
+    in property <string> tone: "red";
+    in property <bool> highlight;
+    in property <Palette> p: Theme.p;
+    property <color> ink: tone == "blue" ? p.blue : tone == "green" ? p.green : tone == "off" ? p.gray : p.red;
+    property <color> wash: tone == "blue" ? p.blue-wash : tone == "green" ? p.green-wash : tone == "off" ? p.chip-off-bg
+        : p.red-wash;
+    property <color> lit: tone == "blue" ? p.selected : tone == "green" ? p.green-hover : tone == "off" ? p.gray-hover
+        : p.red-hover;
+    property <length> h: words.preferred-height + 7px;
+    width: words.preferred-width + 18px;
+    min-height: h;
+    preferred-height: h;
+    Rectangle {
+        y: (parent.height - h) / 2 + 1px;
+        height: h - 2px;
+        width: parent.width - 1px;
+        x: 0;
+        border-radius: self.height / 2;
+        background: highlight ? lit : wash;
+        animate background { duration: Motion.highlight; easing: cubic-bezier(0.33, 1, 0.68, 1); }
+        border-width: tone == "off" ? 1px : 0;
+        border-color: p.chip-off-line;
+    }
+    words := Text {
+        text: root.text;
+        font-size: Tokens.small;
+        font-weight: 600;
+        color: ink;
+    }
+}
+
+export component SettingsRow inherits Rectangle {
+    in property <string> name;
+    in property <string> description;
+    in property <bool> last;
+    in property <bool> enabled: true;
+    in property <Palette> p: Theme.p;
+    HorizontalLayout {
+        padding-top: 12px;
+        padding-bottom: 12px;
+        spacing: 12px;
+        VerticalLayout {
+            horizontal-stretch: 1;
+            alignment: center;
+            spacing: 2px;
+            Text { text: name; font-size: Tokens.body; color: enabled ? p.text : p.muted; }
+            if description != "": Text {
+                text: description;
+                font-size: Tokens.small;
+                color: p.muted;
+                overflow: elide;
+            }
+        }
+        @children
+    }
+    if !last: Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: p.border;
+    }
+}
+
+export component ListRow inherits Rectangle {
+    in property <string> text;
+    in property <bool> selected;
+    in property <bool> me;
+    in property <Palette> p: Theme.p;
+    callback clicked;
+    height: Tokens.row-h;
+    background: selected ? p.selected : me ? p.green-wash : touch.has-hover ? p.hover : transparent;
+    animate background { duration: Motion.hover; easing: cubic-bezier(0.33, 1, 0.68, 1); }
+    touch := TouchArea { clicked => { root.clicked(); } }
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 6px;
+        Text {
+            horizontal-stretch: 1;
+            vertical-alignment: center;
+            text: root.text;
+            font-size: Tokens.body;
+            color: me ? p.green : p.text;
+            overflow: elide;
+        }
+        @children
+    }
+    Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: p.border;
+    }
+}
+
+export component SectionCard inherits Rectangle {
+    in property <string> title;
+    in property <Palette> p: Theme.p;
+    background: p.surface;
+    border-width: 1px;
+    border-color: p.border;
+    border-radius: Tokens.card-radius;
+    VerticalLayout {
+        padding-left: 16px;
+        padding-right: 16px;
+        padding-top: title == "" ? 4px : 14px;
+        padding-bottom: 4px;
+        if title != "": Text { text: title; font-size: Tokens.section; font-weight: 600; color: p.text; }
+        @children
+    }
+}
