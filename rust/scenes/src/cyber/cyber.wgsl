@@ -12,6 +12,7 @@ struct Prim {
     clip: vec4<f32>,
     xf: vec4<f32>,
     xf2: vec4<f32>,
+    fade: vec4<f32>,
 };
 
 @group(0) @binding(0) var<storage, read> prims: array<Prim>;
@@ -24,6 +25,7 @@ struct Prim {
 @group(0) @binding(7) var layer_a: texture_2d<f32>;
 @group(0) @binding(8) var layer_b: texture_2d<f32>;
 @group(0) @binding(9) var text: texture_2d<f32>;
+@group(0) @binding(10) var under: texture_2d<f32>;
 
 struct Out {
     @builtin(position) pos: vec4<f32>,
@@ -142,6 +144,17 @@ fn picture(pr: Prim, p: vec2<f32>) -> vec4<f32> {
 
 @fragment
 fn fs(in: Out) -> @location(0) vec4<f32> {
+    let c = shade(in);
+    let o = prims[in.index].fade.x;
+    if o <= 0.0 {
+        return c;
+    }
+    // Qt's Plus under an opacity: d + o * min(s, 1 - d), added onto d by the blend; c already carries o.
+    let d = textureLoad(under, vec2<i32>(in.pos.xy), 0);
+    return min(c, o * (vec4(1.0) - d));
+}
+
+fn shade(in: Out) -> vec4<f32> {
     let pr = prims[in.index];
     let p = in.pos.xy;
     let c = pr.clip;

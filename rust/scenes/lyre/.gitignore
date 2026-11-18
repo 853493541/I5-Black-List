@@ -1,0 +1,3 @@
+# Made by py_frames.py and the lyre_frames bin; the JPEGs are committed.
+*.png
+!mark_*.png

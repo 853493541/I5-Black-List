@@ -4,11 +4,15 @@
 use wgpu::util::DeviceExt;
 
 use super::atlas::Atlas;
+use super::frame::PLUS;
 use crate::prim::{Frame, Prim};
 
 const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 
 pub struct Renderer {
+    /// The frame as it was before a run of Plus pictures under an opacity, and its texture.
+    under: wgpu::TextureView,
+    under_tex: wgpu::Texture,
     device: wgpu::Device,
     queue: wgpu::Queue,
     pipeline: wgpu::RenderPipeline,
@@ -19,8 +23,6 @@ pub struct Renderer {
     size: wgpu::Buffer,
     atlas: wgpu::TextureView,
     times: wgpu::TextureView,
-    width: u32,
-    height: u32,
     /// The adapter's name and kind, e.g. "llvmpipe (LLVM ...), Cpu".
     pub adapter: String,
 }
@@ -76,7 +78,8 @@ impl Renderer {
             lobby_tex.size(),
         );
         let target = texture(&device, width, height, wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC);
-        let galaxy = texture(&device, width, height, wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING);
+        let galaxy = texture(&device, width, height, wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_SRC);
+        let under = texture(&device, width, height, wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST);
         let blank = texture(&device, 1, 1, usage).create_view(&Default::default());
         let dims = [width as f32, height as f32, 0.0, 0.0];
         let size = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: None, contents: bytemuck::cast_slice(&dims), usage: wgpu::BufferUsages::UNIFORM });
@@ -87,7 +90,7 @@ impl Renderer {
         queue.write_texture(times.as_image_copy(), bytemuck::cast_slice(&art.times), wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(aw * 4), rows_per_image: None }, times.size());
         let (atlas, times) = (atlas.create_view(&Default::default()), times.create_view(&Default::default()));
         let adapter = format!("{} ({:?}, {:?})", info.name, info.device_type, info.backend);
-        Ok(Self { device, queue, pipeline, target, lobby: lobby_tex.create_view(&Default::default()), galaxy, blank, size, atlas, times, width, height, adapter })
+        Ok(Self { device, queue, pipeline, under: under.create_view(&Default::default()), under_tex: under, target, lobby: lobby_tex.create_view(&Default::default()), galaxy, blank, size, atlas, times, adapter })
     }
 
     fn draw(&self, frame: &Frame, onto: &wgpu::Texture, galaxy: &wgpu::TextureView) {
@@ -107,23 +110,32 @@ impl Renderer {
                 wgpu::BindGroupEntry { binding: 4, resource: self.size.as_entire_binding() },
                 wgpu::BindGroupEntry { binding: 5, resource: wgpu::BindingResource::TextureView(&self.atlas) },
                 wgpu::BindGroupEntry { binding: 6, resource: wgpu::BindingResource::TextureView(&self.times) },
+                wgpu::BindGroupEntry { binding: 7, resource: wgpu::BindingResource::TextureView(&self.under) },
             ],
         });
         let view = onto.create_view(&Default::default());
         let mut encoder = self.device.create_command_encoder(&Default::default());
-        {
+        // One pass per stretch; a stretch of faded Plus pictures (angel.wgsl's `faded`) reads a copy of the frame so far.
+        let faded = |p: &Prim| p.kind[0] == 7 && p.kind[3] & PLUS != 0 && p.kind[3] & 128 == 0 && p.s1[3] < 1.0;
+        let n = frame.prims.len();
+        let mut i = 0;
+        while i == 0 || i < n {
+            let fade = frame.prims.get(i).is_some_and(faded);
+            let j = (i..n).find(|&k| frame.prims.get(k).is_some_and(faded) != fade).unwrap_or(n).max(i + 1);
+            if fade {
+                encoder.copy_texture_to_texture(onto.as_image_copy(), self.under_tex.as_image_copy(), onto.size());
+            }
+            let load = if i == 0 { wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT) } else { wgpu::LoadOp::Load };
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT), store: wgpu::StoreOp::Store },
-                })],
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment { view: &view, resolve_target: None, ops: wgpu::Operations { load, store: wgpu::StoreOp::Store } })],
                 ..Default::default()
             });
             pass.set_pipeline(&self.pipeline);
             pass.set_bind_group(0, &group, &[]);
-            pass.draw(0..6, 0..frame.prims.len() as u32);
+            pass.draw(0..6, i as u32..j.min(n) as u32);
+            drop(pass);
+            i = j;
         }
         self.queue.submit([encoder.finish()]);
     }
@@ -142,23 +154,6 @@ impl Renderer {
 
     /// The last frame as RGBA bytes.
     pub fn read(&self) -> Vec<u8> {
-        let row = self.width * 4;
-        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: None,
-            size: u64::from(row * self.height),
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
-        let mut encoder = self.device.create_command_encoder(&Default::default());
-        encoder.copy_texture_to_buffer(
-            self.target.as_image_copy(),
-            wgpu::TexelCopyBufferInfo { buffer: &buffer, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(row), rows_per_image: None } },
-            self.target.size(),
-        );
-        self.queue.submit([encoder.finish()]);
-        buffer.slice(..).map_async(wgpu::MapMode::Read, |_| {});
-        let _ = self.device.poll(wgpu::PollType::Wait);
-        let bytes = buffer.slice(..).get_mapped_range().to_vec();
-        bytes
+        crate::render::read(&self.device, &self.queue, &self.target)
     }
 }

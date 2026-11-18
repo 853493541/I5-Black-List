@@ -62,15 +62,15 @@ impl Atlas {
 pub struct Renderer {
     device: wgpu::Device,
     queue: wgpu::Queue,
-    pipelines: [wgpu::RenderPipeline; 4],
+    pipelines: [wgpu::RenderPipeline; 5],
+    /// The screen as it was before a PlusFaded run.
+    under: wgpu::Texture,
     /// lobby, atlas, wash, layer A, layer B
     textures: Vec<wgpu::Texture>,
     target: wgpu::Texture,
     blank: wgpu::TextureView,
     sampler: wgpu::Sampler,
     size: wgpu::Buffer,
-    width: u32,
-    height: u32,
     pub adapter: String,
 }
 
@@ -92,7 +92,7 @@ fn blend_state(b: Blend) -> wgpu::BlendState {
     let c = |s, d| C { src_factor: s, dst_factor: d, operation: O::Add };
     match b {
         Blend::Over => wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING,
-        Blend::Plus => wgpu::BlendState { color: c(F::One, F::One), alpha: c(F::One, F::One) },
+        Blend::Plus | Blend::PlusFaded => wgpu::BlendState { color: c(F::One, F::One), alpha: c(F::One, F::One) },
         Blend::Atop => wgpu::BlendState { color: c(F::DstAlpha, F::OneMinusSrcAlpha), alpha: c(F::Zero, F::One) },
         Blend::Out => wgpu::BlendState { color: c(F::Zero, F::OneMinusSrcAlpha), alpha: c(F::Zero, F::OneMinusSrcAlpha) },
     }
@@ -107,7 +107,7 @@ impl Renderer {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: None, source: wgpu::ShaderSource::Wgsl(include_str!("cyber.wgsl").into()) });
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
-            entries: &(0..10u32)
+            entries: &(0..11u32)
                 .map(|binding| wgpu::BindGroupLayoutEntry {
                     binding,
                     visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
@@ -122,7 +122,7 @@ impl Renderer {
                 .collect::<Vec<_>>(),
         });
         let pipe_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: None, bind_group_layouts: &[&layout], push_constant_ranges: &[] });
-        let pipelines = [Blend::Over, Blend::Plus, Blend::Atop, Blend::Out].map(|b| {
+        let pipelines = [Blend::Over, Blend::Plus, Blend::Atop, Blend::Out, Blend::PlusFaded].map(|b| {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: None,
                 layout: Some(&pipe_layout),
@@ -153,12 +153,13 @@ impl Renderer {
         textures.extend((0..3).map(|_| texture(&device, width, height, drawn)));
         textures.push(texture(&device, 1024, 512, read));
         let target = texture(&device, width, height, wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC);
+        let under = texture(&device, width, height, read);
         let blank = texture(&device, 1, 1, read).create_view(&Default::default());
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor { mag_filter: wgpu::FilterMode::Linear, min_filter: wgpu::FilterMode::Linear, ..Default::default() });
         let dims = [width as f32, height as f32, 0.0, 0.0];
         let size = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: None, contents: bytemuck::cast_slice(&dims), usage: wgpu::BufferUsages::UNIFORM });
         let adapter = format!("{} ({:?}, {:?})", info.name, info.device_type, info.backend);
-        Ok(Self { device, queue, pipelines, textures, target, blank, sampler, size, width, height, adapter })
+        Ok(Self { device, queue, pipelines, under, textures, target, blank, sampler, size, adapter })
     }
 
     /// Draws canvas: the screen is left in the target to read; the wash and layers stay as drawn.
@@ -172,6 +173,7 @@ impl Renderer {
         let prims = storage(bytemuck::cast_slice(if canvas.prims.is_empty() { &one } else { &canvas.prims }));
         let none = [[0.0f32; 2]];
         let points = storage(bytemuck::cast_slice(if canvas.points.is_empty() { &none } else { &canvas.points }));
+        let under = self.under.create_view(&Default::default());
         let views: Vec<wgpu::TextureView> = self.textures.iter().map(|t| t.create_view(&Default::default())).collect();
         // One bind group per target: the texture drawn into is not read in its own pass.
         let groups: Vec<wgpu::BindGroup> = (0..TARGETS)
@@ -186,6 +188,8 @@ impl Renderer {
                     let own = target > 0 && i == target;
                     entries.push(wgpu::BindGroupEntry { binding: 4 + i as u32, resource: wgpu::BindingResource::TextureView(if own { &self.blank } else { view }) });
                 }
+                let under = if target == 0 { &under } else { &self.blank };
+                entries.push(wgpu::BindGroupEntry { binding: 10, resource: wgpu::BindingResource::TextureView(under) });
                 self.device.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &self.pipelines[0].get_bind_group_layout(0), entries: &entries })
             })
             .collect();
@@ -195,8 +199,11 @@ impl Renderer {
         while i < canvas.runs.len() {
             let target = canvas.runs[i].target as usize;
             let mut j = i + 1;
-            while j < canvas.runs.len() && canvas.runs[j].target as usize == target && !canvas.runs[j].clear {
+            while j < canvas.runs.len() && canvas.runs[j].target as usize == target && !canvas.runs[j].clear && canvas.runs[j].blend != Blend::PlusFaded {
                 j += 1;
+            }
+            if canvas.runs[i].blend == Blend::PlusFaded {
+                encoder.copy_texture_to_texture(self.target.as_image_copy(), self.under.as_image_copy(), self.target.size());
             }
             let view = if target == 0 { &screen } else { &views[target] };
             let load = if canvas.runs[i].clear { wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT) } else { wgpu::LoadOp::Load };
@@ -218,23 +225,6 @@ impl Renderer {
     }
 
     pub fn read(&self) -> Vec<u8> {
-        let row = self.width * 4;
-        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: None,
-            size: u64::from(row * self.height),
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
-        let mut encoder = self.device.create_command_encoder(&Default::default());
-        encoder.copy_texture_to_buffer(
-            self.target.as_image_copy(),
-            wgpu::TexelCopyBufferInfo { buffer: &buffer, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(row), rows_per_image: None } },
-            self.target.size(),
-        );
-        self.queue.submit([encoder.finish()]);
-        buffer.slice(..).map_async(wgpu::MapMode::Read, |_| {});
-        let _ = self.device.poll(wgpu::PollType::Wait);
-        let bytes = buffer.slice(..).get_mapped_range().to_vec();
-        bytes
+        crate::render::read(&self.device, &self.queue, &self.target)
     }
 }

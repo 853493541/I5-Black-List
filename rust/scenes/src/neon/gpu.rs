@@ -3,7 +3,7 @@
 
 use wgpu::util::DeviceExt;
 
-use super::frame::{Atlas, Frame, Prim};
+use super::frame::{Atlas, Frame, Prim, FADED};
 
 const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 
@@ -12,12 +12,12 @@ pub struct Renderer {
     queue: wgpu::Queue,
     over: wgpu::RenderPipeline,
     plus: wgpu::RenderPipeline,
+    /// The frame as it was before a FADED run.
+    under: wgpu::Texture,
     target: wgpu::Texture,
     lobby: wgpu::TextureView,
     atlas: wgpu::TextureView,
     size: wgpu::Buffer,
-    width: u32,
-    height: u32,
     /// The adapter's name and kind, e.g. "llvmpipe (LLVM ...), Cpu".
     pub adapter: String,
 }
@@ -60,6 +60,7 @@ impl Renderer {
                 entry(2, tex_binding()),
                 entry(3, tex_binding()),
                 entry(4, wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None }),
+                entry(5, tex_binding()),
             ],
         });
         let pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: None, bind_group_layouts: &[&layout], push_constant_ranges: &[] });
@@ -87,10 +88,11 @@ impl Renderer {
         let lobby = upload(&device, &queue, width, height, lobby);
         let atlas = upload(&device, &queue, atlas.w, atlas.h, &atlas.bytes);
         let target = texture(&device, width, height, wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC);
+        let under = texture(&device, width, height, wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST);
         let dims = [width as f32, height as f32, 0.0, 0.0, gap[0] as f32, gap[1] as f32, gap[2] as f32, gap[3] as f32];
         let size = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: None, contents: bytemuck::cast_slice(&dims), usage: wgpu::BufferUsages::UNIFORM });
         let adapter = format!("{} ({:?}, {:?})", info.name, info.device_type, info.backend);
-        Ok(Self { device, queue, over, plus, target, lobby, atlas, size, width, height, adapter })
+        Ok(Self { device, queue, over, plus, under, target, lobby, atlas, size, adapter })
     }
 
     /// Draws one frame and waits until the chip is done.
@@ -100,6 +102,7 @@ impl Renderer {
         let prims = storage(bytemuck::cast_slice(if frame.prims.is_empty() { &one } else { &frame.prims }));
         let none = [[0.0f32; 2]];
         let points = storage(bytemuck::cast_slice(if frame.points.is_empty() { &none } else { &frame.points }));
+        let under = self.under.create_view(&Default::default());
         let group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: None,
             layout: &self.over.get_bind_group_layout(0),
@@ -109,25 +112,34 @@ impl Renderer {
                 wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&self.lobby) },
                 wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::TextureView(&self.atlas) },
                 wgpu::BindGroupEntry { binding: 4, resource: self.size.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 5, resource: wgpu::BindingResource::TextureView(&under) },
             ],
         });
         let view = self.target.create_view(&Default::default());
         let mut encoder = self.device.create_command_encoder(&Default::default());
-        {
+        // One pass per stretch of runs; a FADED run starts a new one, after the frame so far is copied for it to read.
+        let mut i = 0;
+        while i == 0 || i < frame.runs.len() {
+            let mut j = i + 1;
+            while j < frame.runs.len() && frame.runs[j].2 != FADED {
+                j += 1;
+            }
+            if frame.runs.get(i).is_some_and(|r| r.2 == FADED) {
+                encoder.copy_texture_to_texture(self.target.as_image_copy(), self.under.as_image_copy(), self.target.size());
+            }
+            let load = if i == 0 { wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT) } else { wgpu::LoadOp::Load };
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT), store: wgpu::StoreOp::Store },
-                })],
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment { view: &view, resolve_target: None, ops: wgpu::Operations { load, store: wgpu::StoreOp::Store } })],
                 ..Default::default()
             });
             pass.set_bind_group(0, &group, &[]);
-            for &(first, end, added) in &frame.runs {
-                pass.set_pipeline(if added { &self.plus } else { &self.over });
+            for &(first, end, how) in frame.runs.get(i..j.min(frame.runs.len())).unwrap_or(&[]) {
+                pass.set_pipeline(if how == 0 { &self.over } else { &self.plus });
                 pass.draw(0..6, first..end);
             }
+            drop(pass);
+            i = j;
         }
         self.queue.submit([encoder.finish()]);
         let _ = self.device.poll(wgpu::PollType::Wait);
@@ -135,24 +147,7 @@ impl Renderer {
 
     /// The last frame as RGBA bytes.
     pub fn read(&self) -> Vec<u8> {
-        let row = self.width * 4;
-        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: None,
-            size: u64::from(row * self.height),
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
-        let mut encoder = self.device.create_command_encoder(&Default::default());
-        encoder.copy_texture_to_buffer(
-            self.target.as_image_copy(),
-            wgpu::TexelCopyBufferInfo { buffer: &buffer, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(row), rows_per_image: None } },
-            self.target.size(),
-        );
-        self.queue.submit([encoder.finish()]);
-        buffer.slice(..).map_async(wgpu::MapMode::Read, |_| {});
-        let _ = self.device.poll(wgpu::PollType::Wait);
-        let bytes = buffer.slice(..).get_mapped_range().to_vec();
-        bytes
+        crate::render::read(&self.device, &self.queue, &self.target)
     }
 }
 

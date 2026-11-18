@@ -19,8 +19,6 @@ pub struct Renderer {
     atlas: wgpu::TextureView,
     blank: wgpu::TextureView,
     size: wgpu::Buffer,
-    width: u32,
-    height: u32,
     /// The adapter's name and kind, e.g. "llvmpipe (LLVM ...), Cpu".
     pub adapter: String,
 }
@@ -87,7 +85,7 @@ impl Renderer {
         let dims = [width as f32, height as f32, 0.0, 0.0];
         let size = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: None, contents: bytemuck::cast_slice(&dims), usage: wgpu::BufferUsages::UNIFORM });
         let adapter = format!("{} ({:?}, {:?})", info.name, info.device_type, info.backend);
-        Ok(Self { device, queue, pipeline, target, lobby: lobby_tex.create_view(&Default::default()), galaxy, atlas: atlas_tex.create_view(&Default::default()), blank, size, width, height, adapter })
+        Ok(Self { device, queue, pipeline, target, lobby: lobby_tex.create_view(&Default::default()), galaxy, atlas: atlas_tex.create_view(&Default::default()), blank, size, adapter })
     }
 
     fn draw(&self, frame: &Frame, onto: &wgpu::Texture, galaxy: &wgpu::TextureView) {
@@ -141,24 +139,7 @@ impl Renderer {
 
     /// The last frame as RGBA bytes.
     pub fn read(&self) -> Vec<u8> {
-        let row = self.width * 4;
-        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: None,
-            size: u64::from(row * self.height),
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
-        let mut encoder = self.device.create_command_encoder(&Default::default());
-        encoder.copy_texture_to_buffer(
-            self.target.as_image_copy(),
-            wgpu::TexelCopyBufferInfo { buffer: &buffer, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(row), rows_per_image: None } },
-            self.target.size(),
-        );
-        self.queue.submit([encoder.finish()]);
-        buffer.slice(..).map_async(wgpu::MapMode::Read, |_| {});
-        let _ = self.device.poll(wgpu::PollType::Wait);
-        let bytes = buffer.slice(..).get_mapped_range().to_vec();
-        bytes
+        crate::render::read(&self.device, &self.queue, &self.target)
     }
 }
 
