@@ -7,30 +7,9 @@ use serde_json::Value;
 use std::io;
 use std::path::{Path, PathBuf};
 
+pub use common::paths::{app_dir, app_dir_for, custom_sound_dir};
+
 const BACKUP_DAYS: usize = 7;
-
-/// paths.app_dir: Windows %APPDATA%\BlackListDetect, elsewhere the XDG config dir. `windows` and `var` stand for
-/// sys.platform and os.environ, so both sides are testable anywhere.
-pub fn app_dir_for(windows: bool, var: impl Fn(&str) -> Option<String>, home: &Path) -> PathBuf {
-    let set = |name: &str| var(name).filter(|v| !v.is_empty());
-    let base = if windows {
-        set("APPDATA").map_or_else(|| home.join("AppData").join("Roaming"), PathBuf::from)
-    } else {
-        set("XDG_CONFIG_HOME").map_or_else(|| home.join(".config"), PathBuf::from)
-    };
-    base.join("BlackListDetect")
-}
-
-/// paths.app_dir for this PC.
-pub fn app_dir() -> PathBuf {
-    let home = std::env::var_os(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).map_or_else(PathBuf::new, PathBuf::from);
-    app_dir_for(cfg!(windows), |name| std::env::var(name).ok(), &home)
-}
-
-/// paths.custom_sound_dir: the player's own 场景 sounds.
-pub fn custom_sound_dir(root: &Path) -> PathBuf {
-    root.join("custom_sounds")
-}
 
 fn with_suffix(path: &Path, extra: &str) -> PathBuf {
     let mut name = path.file_name().unwrap_or_default().to_os_string();
