@@ -230,7 +230,7 @@ pub fn band(g: &Geo, lyre: Pt, scale: f64) -> Placed {
     })
     .blur(30.0 * d);
     let clouds = img::noise(w, h, 140.0 * d, 4, 23);
-    let fine = super::npr::Pcg64::new(5).f32s(w * h);
+    let fine = super::npr::Pcg64::new(5u64).f32s(w * h);
     let stops: [(f32, &str); 5] = [(0.0, PINE), (0.16, "#14573f"), (0.38, JADE), (0.72, ANEMO), (1.0, ANEMO)];
     let (meadow, pale) = (rgb(MEADOW), rgb("#bff5dc"));
     let mut color = Color::new(w, h, [0.0; 3]);

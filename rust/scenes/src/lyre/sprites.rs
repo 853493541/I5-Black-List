@@ -160,7 +160,7 @@ pub fn feather(length: f64, angle: f64, seed: u32, ss: f64, bend: f64) -> Pic {
     let down = dc.done().zip(&m, |d, m| d * (1.0 - m));
     let light = local_light(angle, 1.0);
     let mut lr = Pcg64::new(u64::from(seed));
-    let raw: Vec<f32> = (0..4096).map(|_| lr.f64() as f32).collect();
+    let raw: Vec<f32> = (0..4096).map(|_| lr.random() as f32).collect();
     let line: Vec<f64> = (0..4096).map(|i| 0.5 * f64::from(raw[i]) + if i > 0 { 0.5 * f64::from(raw[i - 1]) } else { 0.0 }).collect();
     let fluff = noise(size, size, 2.5 * ss, 2, u64::from(seed));
     let (shade_c, white, mint) = (rgb(FEATHER_SHADE), rgb(FEATHER), rgb(MINT));

@@ -69,7 +69,7 @@ jobs:
       OPENCV_VERSION: "4.10.0"
       OPENCV_CLANG_ARGS: -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH
       ORT_VERSION: "1.32.0"
-      APP_NAME: 模仿者小工具 Rust 预览
+      APP_NAME: 模仿者小工具 Rust 预览 11月 v1
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -216,7 +216,7 @@ jobs:
       # upload-artifact zips what it is given: the download is one zip holding the folder (not a zip in a zip).
       - uses: actions/upload-artifact@v4
         with:
-          name: rust-preview-${{ env.SHORT_SHA }}
+          name: ${{ env.APP_NAME }}
           path: ${{ runner.temp }}/preview
           retention-days: 14
           compression-level: 9

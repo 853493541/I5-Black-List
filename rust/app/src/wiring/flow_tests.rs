@@ -29,6 +29,9 @@ impl Overlay for Fake {
     fn hide(&mut self) {
         self.note("overlay hide".into());
     }
+    fn checking(&mut self, _button: Rect) {
+        self.note("overlay checking".into());
+    }
 }
 
 impl Notice for Fake {
@@ -213,7 +216,8 @@ fn the_same_lobby_checked_again_does_not_replay_its_scene() {
     rig.press(0.0);
     rig.calls();
     rig.press(10.0);
-    assert_eq!(rig.calls(), ["overlay Liked Screen 0"]);
+    // The marks turn into 检查中 while it reads, then back: no tune, no scene again.
+    assert_eq!(rig.calls(), ["overlay checking", "overlay Liked Screen 0"]);
 }
 
 #[test]
@@ -335,4 +339,33 @@ fn switching_to_basic_mode_takes_the_marks_off() {
     rig.flow.set_mode(Mode { safe: true, ..full() });
     assert_eq!(rig.calls(), ["overlay hide"]);
     assert!(!rig.flow.watching());
+}
+
+#[test]
+fn checking_shows_on_the_button_once_the_lobby_is_placed_and_on_marks_already_up() {
+    let mut rig = Rig::new(full(), vec![Ok(lobby(&["示例坏人"], &[0])), Ok(lobby(&["示例坏人"], &[0]))]);
+    let button = Rect { x: 100, y: 100, w: 800, h: 450 };
+    rig.flow.lobby_placed(button);
+    assert!(rig.calls().is_empty(), "no check runs: nothing to place");
+    rig.press(0.0);
+    rig.calls();
+    let job = rig.flow.hotkey(1.0);
+    assert_eq!(rig.calls(), ["overlay checking"], "the marks up turn into 检查中 at once");
+    rig.flow.lobby_placed(button);
+    assert_eq!(rig.calls(), ["overlay checking"]);
+    rig.drive(job, 1.0);
+    assert_eq!(rig.calls(), ["overlay Hit Screen 1", "alert"]);
+}
+
+#[test]
+fn the_scene_hotkey_plays_over_the_last_lobby_and_ends_on_its_own() {
+    let mut rig = Rig::new(Mode { disclaimer: false, ..full() }, Vec::new());
+    let screen = Rect { x: 0, y: 0, w: 1920, h: 1080 };
+    assert!(!rig.flow.quick_play("stars", screen, 0.0), "not before 使用声明");
+    rig.flow.set_mode(full());
+    rig.calls();
+    assert!(rig.flow.quick_play("stars", screen, 0.0));
+    assert_eq!(rig.calls(), ["tune stars", "overlay Liked Screen 0", "scene stars Screen"]);
+    rig.flow.tick(stage::clock::duration("stars") + 0.1);
+    assert_eq!(rig.calls(), ["overlay hide"]);
 }

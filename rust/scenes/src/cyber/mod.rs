@@ -11,7 +11,7 @@ mod hud;
 mod panels;
 pub mod gfx;
 pub mod light;
-pub mod npr;
+pub use crate::np as npr;
 mod pics;
 mod sparks;
 mod text;

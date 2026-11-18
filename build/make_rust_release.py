@@ -53,7 +53,7 @@ ASSETS = "blacklist_detect/assets"
 SYSTEM_DLLS = {
     "combase.dll",
     "advapi32.dll", "bcrypt.dll", "bcryptprimitives.dll", "comctl32.dll", "comdlg32.dll", "crypt32.dll",
-    "d2d1.dll", "d3d11.dll", "d3d12.dll", "d3dcompiler_47.dll", "dwmapi.dll", "dwrite.dll", "dxgi.dll",
+    "d2d1.dll", "d3d11.dll", "d3d12.dll", "d3dcompiler_47.dll", "dcomp.dll", "dwmapi.dll", "dwrite.dll", "dxgi.dll",
     "gdi32.dll", "gdiplus.dll", "imm32.dll", "kernel32.dll", "ntdll.dll", "ole32.dll", "oleaut32.dll",
     "opengl32.dll", "propsys.dll", "secur32.dll", "setupapi.dll", "shcore.dll", "shell32.dll", "shlwapi.dll",
     "user32.dll", "userenv.dll", "uxtheme.dll", "version.dll", "winmm.dll", "ws2_32.dll", "msimg32.dll",

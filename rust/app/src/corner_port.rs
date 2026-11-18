@@ -42,6 +42,11 @@ impl CornerPort {
         self.started.elapsed().as_millis() as u64
     }
 
+    /// The screen's free area, where the cards rise.
+    fn area() -> Option<crate::notices::corner::Area> {
+        work_area().map(|(x, y, width, height)| crate::notices::corner::Area { x, y, width, height })
+    }
+
     fn draw(&mut self) {
         let cards = self.queue.cards().to_vec();
         while self.windows.len() < cards.len() {
@@ -56,7 +61,11 @@ impl CornerPort {
                     fill_notice(window, &card.message, card.left, card.spin);
                     window.set_card_width(card.width as f32);
                     window.window().set_position(slint::LogicalPosition::new(card.pos.0 as f32, card.pos.1 as f32));
+                    let fresh = !window.window().is_visible();
                     let _ = window.show();
+                    if fresh {
+                        float(window);
+                    }
                 }
                 None => {
                     let _ = window.hide();
@@ -81,14 +90,13 @@ impl Notice for CornerPort {
         }
         let Some(measure) = self.measurer.take() else { return };
         let now = self.now();
-        // The screen's work area is the cards' own default until the win crate gives it (None: the primary's).
         match kind {
-            NoticeKind::Checking => self.queue.show_checking(now, None, &measure),
-            NoticeKind::Missing => self.queue.show_missing(now, None, &measure),
-            NoticeKind::Failed(detail) => self.queue.show_error(now, &detail, None, &measure),
+            NoticeKind::Checking => self.queue.show_checking(now, Self::area(), &measure),
+            NoticeKind::Missing => self.queue.show_missing(now, Self::area(), &measure),
+            NoticeKind::Failed(detail) => self.queue.show_error(now, &detail, Self::area(), &measure),
             NoticeKind::Result { unclear, .. } => {
                 let (hits, likes) = std::mem::take(&mut self.people);
-                self.queue.show_result(now, &hits, &likes, unclear, None, &measure);
+                self.queue.show_result(now, &hits, &likes, unclear, Self::area(), &measure);
             }
         }
         self.measurer = Some(measure);
@@ -107,4 +115,28 @@ impl Notice for CornerPort {
             self.draw();
         }
     }
+}
+
+/// Topmost, never taking the focus, out of the taskbar (ui_notice's window flags).
+#[cfg(windows)]
+fn float(window: &NoticeWindow) {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    if let Ok(handle) = window.window().window_handle().window_handle() {
+        if let RawWindowHandle::Win32(handle) = handle.as_raw() {
+            win::float::float_window(handle.hwnd.get());
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn float(_window: &NoticeWindow) {}
+
+#[cfg(windows)]
+fn work_area() -> Option<(i32, i32, i32, i32)> {
+    win::float::work_area()
+}
+
+#[cfg(not(windows))]
+fn work_area() -> Option<(i32, i32, i32, i32)> {
+    None
 }

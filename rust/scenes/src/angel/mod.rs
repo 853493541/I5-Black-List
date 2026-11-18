@@ -14,7 +14,7 @@ mod lines;
 mod paint;
 #[cfg(test)]
 mod parity;
-pub mod pcg;
+pub use crate::np as pcg;
 pub mod px;
 
 use atlas::{Atlas, Region};

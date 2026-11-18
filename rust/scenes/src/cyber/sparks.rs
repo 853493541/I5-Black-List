@@ -68,11 +68,11 @@ pub fn shower(at: Pt, aim: f64, count: usize, u: f64, seed: u32, width: f64, hei
     let n = count + embers;
     let mut draw = |k: usize, f: &mut dyn FnMut(&mut Rng) -> f64| (0..k).map(|_| f(&mut rng)).collect::<Vec<f64>>();
     let fast = draw(count, &mut |r| r.uniform(170.0, 480.0));
-    let boost = draw(count, &mut |r| r.exponential(0.25));
+    let boost = draw(count, &mut |r| 0.25 * r.exponential());
     let slow_ = draw(embers, &mut |r| r.uniform(40.0, 150.0));
     let speed: Vec<f64> = fast.iter().zip(&boost).map(|(a, b)| a * (1.0 + b)).chain(slow_).collect();
-    let angle = draw(n, &mut |r| aim + r.normal(0.0, 0.7));
-    let jitter = draw(2 * n, &mut |r| r.normal(0.0, 3.0 * u));
+    let angle = draw(n, &mut |r| aim + 0.7 * r.normal());
+    let jitter = draw(2 * n, &mut |r| 3.0 * u * r.normal());
     let life_a = draw(count, &mut |r| r.uniform(0.4, 1.0));
     let life_b = draw(embers, &mut |r| r.uniform(0.8, 1.15));
     let life: Vec<f64> = life_a.into_iter().chain(life_b).zip(&speed).map(|(l, s)| l * (1.15 - 0.3 * (s / 600.0).clamp(0.0, 1.0))).collect();
