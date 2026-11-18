@@ -3409,7 +3409,7 @@ name = "ocr"
 version = "0.1.0"
 dependencies = [
  "clipper-sys",
- "num_cpus",
+ "common",
  "opencv",
  "ort",
  "png 0.17.16",
