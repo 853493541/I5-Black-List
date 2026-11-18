@@ -7,7 +7,10 @@ is the union of each model's own operators and those of the same model after the
 optimizations at ORT_ENABLE_ALL (the level the app's sessions run at), because the optimizers put in fused operators
 (FusedConv, NCHWc Conv, ReorderInput, ...) whose kernels a build with only the model's own operators would not have.
 The output is ONNX Runtime's --include_ops_by_config format: one `domain;opset;op,op` line per domain and opset.
-With --check, exits 1 when the written list differs from the committed one (a model or optimizer change).
+Which fused operators the optimizers put in depends on the machine (a Linux runner adds SkipLayerNormalization where
+another PC does not), so the list also carries EXTRA, the fusions ORT's CPU optimizers can make from these graphs' ops,
+and a player's PC must never need an operator outside it. With --check, exits 1 when this machine needs an operator
+the committed list lacks.
 """
 
 from __future__ import annotations
@@ -19,6 +22,14 @@ from collections import defaultdict
 from pathlib import Path
 
 MODELS = ("PP-OCRv5_mobile_det", "PP-OCRv5_mobile_rec", "PP-OCRv6_medium_rec")
+EXTRA = {
+    ("ai.onnx", 11): {"Cast", "Constant", "Gemm", "Identity", "LayerNormalization",
+                        "SimplifiedLayerNormalization"},
+    ("com.microsoft", 1): {"BiasGelu", "FastGelu", "FusedConv", "FusedGemm", "FusedMatMul", "Gelu", "QuickGelu",
+                           "SimplifiedLayerNormalization", "SkipLayerNormalization", "SkipSimplifiedLayerNormalization"},
+    ("com.microsoft.nchwc", 1): {"AveragePool", "Conv", "GlobalAveragePool", "MaxPool", "ReorderInput", "ReorderOutput",
+                                 "Upsample"},
+}
 
 
 def graph_ops(graph, opsets: dict[str, int], out: dict) -> None:  # noqa: ANN001
@@ -51,13 +62,30 @@ def optimized(path: Path, folder: Path) -> Path:
     return Path(options.optimized_model_filepath)
 
 
-def config(models: Path) -> str:
+def needed(models: Path) -> dict:
+    """What this machine's stock onnxruntime runs: each model's operators and those of its optimized form."""
     ops: dict = defaultdict(set)
     with tempfile.TemporaryDirectory() as tmp:
         for name in MODELS:
             path = models / name / "inference.onnx"
             model_ops(path, ops)
             model_ops(optimized(path, Path(tmp)), ops)
+    return ops
+
+
+def parse(text: str) -> set[tuple[str, int, str]]:
+    found = set()
+    for line in text.splitlines():
+        if line.strip() and not line.startswith("#"):
+            domain, opset, names = line.split(";")
+            found |= {(domain, int(opset), name) for name in names.split(",")}
+    return found
+
+
+def config(ops: dict) -> str:
+    ops = defaultdict(set, {key: set(names) for key, names in ops.items()})
+    for key, names in EXTRA.items():
+        ops[key] |= names
     lines = ["# The app's three OCR models and their ORT_ENABLE_ALL optimized forms (tools/size/ort_ops.py)."]
     lines += [f"{domain};{opset};{','.join(sorted(names))}" for (domain, opset), names in sorted(ops.items())]
     return "\n".join(lines) + "\n"
@@ -69,12 +97,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("out", type=Path)
     parser.add_argument("--check", type=Path)
     args = parser.parse_args(argv)
-    text = config(args.models)
+    ops = needed(args.models)
+    text = config(ops)
     args.out.write_text(text, "utf-8")
     print(text, end="")
-    if args.check and args.check.read_text("utf-8") != text:
-        print(f"::warning::the operator list differs from {args.check}")
-        return 1
+    if args.check:
+        missing = {(d, o, n) for (d, o), names in ops.items() for n in names} - parse(args.check.read_text("utf-8"))
+        if missing:
+            print(f"::error::this machine's ONNX Runtime needs operators missing from {args.check}: {sorted(missing)}")
+            return 1
+        print(f"every operator this machine needs is in {args.check}")
     return 0
 
 

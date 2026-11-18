@@ -5,7 +5,7 @@ Variants, all ORT 1.32.0 from source on windows-latest, shared library, /MT, no 
                ORT_ENABLE_ALL exactly as the stock DLL does, so the graph it runs is the stock graph.
 - ops-minsize  the same at MinSizeRel (/O1).
 - minimal      MinSizeRel minimal build: ORT-format models only (inference.ort, converted with --optimization_style
-               Fixed), kernels and their types from ort_ops_minimal.config. No optimizer at run time: the graph is
+               Fixed), kernels and their types from the list the converter writes for those .ort files (models job, artifact ort-configs). No optimizer at run time: the graph is
                fixed at conversion, without the NCHWc layout the stock DLL picks at run time.
 
 ort_ops.config: tools/size/ort_ops.py, the union of each model's operators and those of the model after stock ORT's
