@@ -107,12 +107,13 @@ jobs:
           path: ${{ runner.temp }}/ort-out
           # Bump the -v suffix when the build flags change.
           key: ort-${{ env.ORT_VERSION }}-${{ matrix.variant }}-${{ matrix.config }}-${{ hashFiles('tools/size/ort_ops*.config') }}-v1
-      - uses: actions/checkout@v5
+      # The release's source tarball (a checkout of microsoft/onnxruntime with this run's token is refused).
+      - name: ONNX Runtime source
         if: steps.ort-cache.outputs.cache-hit != 'true'
-        with:
-          repository: microsoft/onnxruntime
-          ref: v${{ env.ORT_VERSION }}
-          path: ort-src
+        run: |
+          curl -sSfL --retry 3 -o ort-src.tar.gz "https://github.com/microsoft/onnxruntime/archive/refs/tags/v$ORT_VERSION.tar.gz"
+          mkdir ort-src && tar xzf ort-src.tar.gz -C ort-src --strip-components 1
+          ls ort-src | head -30
       - name: Build
         if: steps.ort-cache.outputs.cache-hit != 'true'
         shell: cmd
