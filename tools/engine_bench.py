@@ -15,6 +15,10 @@ PaddleX's steps ported, on ONNX Runtime, with no Paddle, PaddleX or PaddleOCR ne
 installed, give it --reference (paddle.json from a run where it was) and --onnx-models (the onnx_models
 folder that run made).
 
+rust is the Rust reader (rust/ocr) through its Python module (rust/pyocr, built with `maturin develop --release` in
+rust/pyocr): the app's own check with every OCR step in Rust (detection, sorting, crops, line reading, and the name
+strips' preparation and reading), on the same ONNX models and ONNX Runtime library as app-onnxruntime.
+
 Pass rule: an engine passes only if every name on every image is identical to Paddle's. One
 difference is a fail.
 
@@ -46,6 +50,8 @@ IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".bmp", ".webp")
 CHALLENGERS = ("onnxruntime", "openvino")
 # The app's own ONNX Runtime reader (BLACKLIST_DETECT_ENGINE=onnxruntime): no Paddle, PaddleX or PaddleOCR.
 APP_ONNX = "app-onnxruntime"
+# The Rust reader (rust/pyocr), on the same ONNX model folders.
+RUST = "rust"
 # How far a name's confidence may be from Paddle's; reported beside the verdict.
 CONFIDENCE_TOLERANCE = 1e-4
 PASS_RULE = "An engine passes only if every name on every image is identical to Paddle's. One difference = fail."
@@ -285,6 +291,82 @@ def app_engine(backend: str, model_root: Path):  # noqa: ANN201
     return engine
 
 
+def ort_library() -> Path:
+    """The ONNX Runtime library the Rust reader loads: ORT_DYLIB_PATH, else the one inside the onnxruntime package here."""
+    if os.environ.get("ORT_DYLIB_PATH"):
+        return Path(os.environ["ORT_DYLIB_PATH"])
+    import onnxruntime
+
+    capi = Path(onnxruntime.__file__).parent / "capi"
+    found = [*capi.glob("onnxruntime.dll"), *sorted(capi.glob("libonnxruntime.so*")), *sorted(capi.glob("libonnxruntime*.dylib"))]
+    if not found:
+        raise FileNotFoundError(f"no ONNX Runtime library in {capi}")
+    return found[0]
+
+
+class RustLines:
+    """onnx_ocr.OnnxOcr's face on the Rust reader: what OcrEngine reaches for, each step run in Rust."""
+
+    def __init__(self, det_dir: Path, rec_dir: Path, threads: int) -> None:
+        import pyocr
+
+        from blacklist_detect import onnx_ocr
+
+        self._pyocr = pyocr
+        self._ocr = pyocr.Ocr(det_dir, rec_dir, threads)
+        self.text_rec_score_thresh = onnx_ocr.REC_SCORE_THRESH
+        self.params = dict(onnx_ocr.DET_PARAMS)
+
+    def get_text_det_params(self) -> dict:
+        return dict(self.params)
+
+    def text_det_model(self, images: list[np.ndarray], **params):  # noqa: ANN003, ANN201
+        if any(self.params.get(key) != value for key, value in params.items() if value is not None):
+            raise ValueError(f"the Rust reader runs only DET_PARAMS, not {params}")
+        for image in images:
+            polys, scores = self._ocr.detect(np.ascontiguousarray(image, dtype=np.uint8))
+            yield {"dt_polys": [np.asarray(poly, dtype=np.int16) for poly in polys], "dt_scores": scores}
+
+    def text_rec_model(self, images: list[np.ndarray]):  # noqa: ANN201
+        for text, score in self._ocr.read([np.ascontiguousarray(image, dtype=np.uint8) for image in images]):
+            yield {"rec_text": text, "rec_score": score}
+
+    def _sort_boxes(self, polys) -> list[np.ndarray]:  # noqa: ANN001
+        return [np.asarray(poly, dtype=np.int16) for poly in self._pyocr.sort_boxes([np.asarray(p).tolist() for p in polys])]
+
+    def _crop_by_polys(self, bgr: np.ndarray, polys) -> list[np.ndarray]:  # noqa: ANN001
+        return self._pyocr.crop_by_polys(np.ascontiguousarray(bgr, dtype=np.uint8), [np.asarray(p).tolist() for p in polys])
+
+    def predict(self, bgr: np.ndarray) -> list[dict]:
+        result = self._ocr.predict(np.ascontiguousarray(bgr, dtype=np.uint8))
+        result["rec_polys"] = [np.asarray(poly, dtype=np.int16) for poly in result["rec_polys"]]
+        return [result]
+
+
+def rust_engine(model_root: Path):  # noqa: ANN201
+    """An OcrEngine whose every OCR step runs in Rust (rust/pyocr), its models read from model_root, its threads as
+    onnx_ocr.session() sets them."""
+    import pyocr
+
+    from blacklist_detect.ocr_engine import OcrEngine, _find_model_dir
+    from blacklist_detect.paths import ocr_threads
+
+    pyocr.init(ort_library())
+    count = os.environ.get("PADDLE_PDX_CPU_NUM_THREADS", "")
+    threads = int(count) if count.isdigit() and int(count) > 0 else int(ocr_threads())
+
+    class RustEngine(OcrEngine):
+        def read_names(self, images: list[np.ndarray]) -> list[tuple[str, float]]:
+            strips = [np.ascontiguousarray(image, dtype=np.uint8) for image in images]
+            return [(text, float(score)) for text, score in self._ensure_name_rec().read_names(strips)]
+
+    engine = RustEngine(backend="onnxruntime")
+    engine._ocr = RustLines(_find_model_dir(model_root, "det"), _find_model_dir(model_root, "rec"), threads)
+    engine._name_rec = pyocr.Recognizer(model_root / "PP-OCRv6_medium_rec", 12)
+    engine.warmup()
+    return engine
+
+
 def load_reads(path: Path) -> list[Read]:
     return [Read(r["image"], r["found"], [Name(**n) for n in r["names"]], r.get("seconds", [])) for r in json.loads(path.read_text("utf-8"))]
 
@@ -297,7 +379,8 @@ def bench(images: list[Path], out: Path, engines: list[str], threads: int, repea
     report: dict = {"rule": PASS_RULE, "threads": threads, "repeat": repeat, "images": [p.name for p in images], "engines": {}}
     report["versions"] = versions()
     engine = None
-    if reference_file is None or any(kind in CHALLENGERS for kind in engines) or (APP_ONNX in engines and onnx_models is None):
+    if reference_file is None or any(kind in CHALLENGERS for kind in engines) or (APP_ONNX in engines and onnx_models is None) \
+            or (RUST in engines and onnx_models is None):
         engine = OcrEngine(backend="paddle")
         engine.warmup()
     if reference_file is not None:
@@ -317,6 +400,11 @@ def bench(images: list[Path], out: Path, engines: list[str], threads: int, repea
                 root = onnx_models or onnx_model_folders(engine, out)
                 entry["models"] = {"folder": str(root)}
                 reader = app_engine("onnxruntime", root)
+                reads = [read_image(reader, path, repeat) for path in images]
+            elif kind == RUST:
+                root = onnx_models or onnx_model_folders(engine, out)
+                entry["models"] = {"folder": str(root)}
+                reader = rust_engine(root)
                 reads = [read_image(reader, path, repeat) for path in images]
             else:
                 reads = swapped_reads(engine, kind, images, out, threads, repeat, entry)
@@ -433,7 +521,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("images", type=Path, help="a lobby image, or a folder of them (searched recursively)")
     parser.add_argument("out", type=Path)
-    parser.add_argument("--engines", nargs="+", choices=[*CHALLENGERS, APP_ONNX], default=[*CHALLENGERS, APP_ONNX])
+    parser.add_argument("--engines", nargs="+", choices=[*CHALLENGERS, APP_ONNX, RUST], default=[*CHALLENGERS, APP_ONNX])
     parser.add_argument("--threads", type=int, default=os.cpu_count() or 4)
     parser.add_argument("--repeat", type=int, default=3, help="reads per lobby for the time")
     parser.add_argument("--reference", type=Path, help="Paddle's reads (paddle.json of an earlier run) instead of reading with Paddle")
