@@ -26,12 +26,13 @@ pub fn overlay_result(result: &CheckResult) -> overlay::CheckResult {
     overlay::CheckResult { seats, button_box: result.button_box.map(ltrb), game_box: result.game_box.map(ltrb) }
 }
 
-/// The look for the scene that greets the lobby: its own (LOOKS), the rose for none.
+/// The look for the scene that greets the lobby: its own (LOOKS; 竖琴清风 and 演说家遇袭 draw their own marks), the
+/// rose for none.
 pub fn look_of(scene: &str) -> overlay::Look {
     if scene.is_empty() {
         overlay::rose()
     } else {
-        overlay::look_for(scene)
+        scenes::look(scene, &stage::scene_own::assets_dir())
     }
 }
 
@@ -146,5 +147,6 @@ mod tests {
     fn the_marks_wear_the_greeting_scenes_look() {
         assert_eq!(look_of("").key, overlay::rose().key);
         assert_eq!(look_of("ice").key, overlay::look_for("ice").key);
+        assert!(look_of("lyre").marks.is_some(), "竖琴清风 draws its own marks");
     }
 }

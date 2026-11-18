@@ -141,6 +141,7 @@ dependencies = [
  "pipeline",
  "png 0.17.16",
  "raw-window-handle",
+ "scenes",
  "serde_json",
  "slint",
  "slint-build",

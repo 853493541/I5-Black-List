@@ -24,7 +24,7 @@ pub use self::windows::StageScenes;
 mod windows {
     use super::super::stubs::{ScenePlayer, Stage, Target};
     use stage::paint::{Adapter, Gpu};
-    use stage::scene::{shoot, Scene};
+    use stage::scene::{shoot_into, Scene};
     use std::sync::mpsc::{channel, Receiver};
     use std::time::Instant;
 
@@ -48,7 +48,8 @@ mod windows {
 
     /// Draws the scene at t: its shapes, and the picture a scene that paints itself hands over.
     fn draw(gpu: &Gpu, window: &mut stage::window::Overlay, scene: &mut dyn Scene, t: f64) -> Result<(), String> {
-        let (frame, pixels) = shoot(scene, t);
+        // A scene with its own renderer draws straight into the window's still picture; nothing is read back.
+        let (frame, pixels) = shoot_into(scene, t, window.still_texture());
         if let Some(pixels) = pixels {
             window.set_still_pixels(gpu, &pixels);
         }
@@ -57,28 +58,37 @@ mod windows {
 
     impl StageScenes {
         fn start(&mut self, key: &str, stage: Stage) -> Result<(), String> {
+            if self.gpu.is_none() {
+                self.gpu = Some(Gpu::new(Adapter::Default).or_else(|_| Gpu::new(Adapter::Software))?);
+            }
+            let Some(gpu) = self.gpu.as_ref() else { return Ok(()) };
+            let inner = super::placement(&stage).stage();
             if stage::clock::WARMED.contains(&key) {
+                // Its pictures take 0.6 to 2.5 s: made on a thread, on the same device.
+                let gpu = Gpu {
+                    instance: gpu.instance.clone(),
+                    adapter: gpu.adapter.clone(),
+                    device: gpu.device.clone(),
+                    queue: gpu.queue.clone(),
+                };
                 let (sender, made) = channel();
                 let key = key.to_string();
                 std::thread::Builder::new()
                     .name("SceneWarm".into())
                     .spawn(move || {
-                        let _ = sender.send(super::make(&key, &stage));
+                        let _ = sender.send(stage::scene::make_on(&key, &inner, &gpu));
                     })
                     .map_err(|error| error.to_string())?;
                 self.warming = Some((made, stage));
                 return Ok(());
             }
-            match super::make(key, &stage) {
+            match stage::scene::make_on(key, &inner, gpu) {
                 Some(scene) => self.show(scene, stage),
                 None => Ok(()),
             }
         }
 
         fn show(&mut self, mut scene: Box<dyn Scene + Send>, stage: Stage) -> Result<(), String> {
-            if self.gpu.is_none() {
-                self.gpu = Some(Gpu::new(Adapter::Default).or_else(|_| Gpu::new(Adapter::Software))?);
-            }
             let Some(gpu) = self.gpu.as_ref() else { return Ok(()) };
             let mut window = stage::window::Overlay::open(gpu, super::xywh(stage.game), None)?;
             if let Some(still) = scene.still() {
