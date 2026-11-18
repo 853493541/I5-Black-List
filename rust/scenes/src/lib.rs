@@ -6,6 +6,7 @@
 #![forbid(unsafe_code)]
 
 pub mod draw;
+pub mod equation;
 pub mod gpu;
 pub mod ice;
 pub mod prim;
