@@ -105,6 +105,18 @@ mod tests {
     }
 
     #[test]
+    fn without_the_line_model_the_name_reader_reads_the_lines() {
+        let root = std::env::temp_dir().join(format!("pipeline-one-reader-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        folder(&root, "PP-OCRv5_mobile_det", "inference.yml");
+        folder(&root, NAME_MODEL, "inference.yml");
+        let dirs = ModelDirs::under(&root).unwrap();
+        assert_eq!(dirs.rec, root.join(NAME_MODEL));
+        assert_eq!(dirs.rec, dirs.names, "Engine::new loads one reader when both are the same folder");
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
     fn a_model_folder_named_as_the_root_is_the_root() {
         let root = std::env::temp_dir().join(format!("pipeline-det-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
