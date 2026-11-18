@@ -12,8 +12,11 @@ rects, transformed pictures, and drawable layers (the night's wash, the baked tu
 on folded, torn into color-split slices, surging, flaring under the beam).
 
 Pictures (1920x1080 over the sample lobby, made-up names):
-- `side_t<t>.png`: Python left, Rust right, half size.
-- `crop_t3.0.png`: the radar panel, Python above, Rust below. `crop_t1.5.png`: the mesh panel.
+- `side_t<t>.jpg`: Python left, Rust right, half size (the tool writes them as PNG; the JPEGs are committed).
+- `crop_t3.0.jpg`: the radar panel, Python above, Rust below. `crop_t1.5.jpg`: the mesh panel.
+
+The full-size frames (`py_t*.png`, `rust_t*.png`, `lobby_1920.png`) stay out of git; the floor test runs
+only once py_frames.py has written them.
 
 Remake (from the root, then from rust/):
 
