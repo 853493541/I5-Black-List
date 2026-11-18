@@ -10,6 +10,7 @@ pub mod frame;
 pub mod hotkey;
 pub mod instance;
 pub mod settle;
+pub mod tray;
 
 #[cfg(windows)]
 pub mod capture;
