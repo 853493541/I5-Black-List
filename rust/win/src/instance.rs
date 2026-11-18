@@ -3,7 +3,7 @@
 use sha1::{Digest, Sha1};
 
 /// Program names the app's runtime has had (names.PROCESSES).
-pub const PROCESSES: [&str; 2] = ["模仿者小工具.exe", "I5黑名单.exe"];
+pub use common::names::PROCESSES;
 
 /// The user name as Python's getpass.getuser() finds it: the first set of LOGNAME, USER, LNAME, USERNAME.
 pub fn user_name(var: impl Fn(&str) -> Option<String>) -> String {
