@@ -10,6 +10,8 @@
 mod guestedit;
 mod guests;
 mod dialogs;
+mod dialogs;
+mod guestedit;
 mod headless;
 mod stream;
 #[allow(dead_code)] // wired by the app-wiring package
