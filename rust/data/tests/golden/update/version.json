@@ -1,0 +1,20 @@
+{
+  "version": "v1.0.1",
+  "base": "v0.3.0",
+  "notes": [
+    "检查更快，检查时游戏更流畅"
+  ],
+  "mirrors": [
+    "https://gh-proxy.org/",
+    "https://ghproxy.net/",
+    "https://cdn.gh-proxy.org/",
+    "https://edgeone.gh-proxy.org/",
+    "https://ghfast.top/",
+    "https://wget.la/"
+  ],
+  "update": {
+    "url": "https://github.com/853493541/I5-Black-List/releases/download/v1.0.1/BlackListDetect-v1.0.1-update.zip",
+    "sha256": "19bd6ecc4f5f979ca43d5573ef9fab1decf62115543a112d29c94c247cce353c",
+    "size": 9101938
+  }
+}

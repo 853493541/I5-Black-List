@@ -1,0 +1,1198 @@
+{
+ "public": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+ "versions": {
+  "v0.10.0": [
+   0,
+   10,
+   0
+  ],
+  "v0.9.9": [
+   0,
+   9,
+   9
+  ],
+  "0.4.0": [
+   0,
+   4,
+   0
+  ],
+  "dev": [],
+  "V1.2": [
+   1,
+   2
+  ],
+  "vv1.0": [
+   1,
+   0
+  ],
+  " v1.0.1 ": [
+   1,
+   0,
+   1
+  ],
+  "1._0": [],
+  "1_0.2": [
+   10,
+   2
+  ],
+  "+1.-2": [
+   1,
+   -2
+  ],
+  "1..2": [],
+  "": [],
+  "v": [],
+  "1.0a": [],
+  "１.0": [
+   1,
+   0
+  ],
+  "99999999999.1": [
+   99999999999,
+   1
+  ],
+  "v1.0.1\n": [
+   1,
+   0,
+   1
+  ],
+  "　1.0": [
+   1,
+   0
+  ]
+ },
+ "good_mirror": {
+  "": true,
+  "https://gh-proxy.org/": true,
+  "https://a.b:8080/x/y/": true,
+  "http://plain.example/": false,
+  "https://x.example/a b/": false,
+  "https://x/": true,
+  "javascript:alert(1)//": false,
+  "https://x.example": false,
+  "https://x.example//": false,
+  "https://:80/": false,
+  "https://x:/": false,
+  "https://x.example/a/b": false,
+  "https://ex.com/~a._-/": true,
+  "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/": true,
+  "https://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/": false,
+  "HTTPS://x/": false,
+  "https://x_y/": false
+ },
+ "mirrors": [
+  {
+   "file": null,
+   "order": [
+    "",
+    "https://gh-proxy.org/",
+    "https://ghproxy.net/",
+    "https://cdn.gh-proxy.org/",
+    "https://edgeone.gh-proxy.org/",
+    "https://ghfast.top/",
+    "https://wget.la/"
+   ]
+  },
+  {
+   "file": "",
+   "order": [
+    "",
+    "https://gh-proxy.org/",
+    "https://ghproxy.net/",
+    "https://cdn.gh-proxy.org/",
+    "https://edgeone.gh-proxy.org/",
+    "https://ghfast.top/",
+    "https://wget.la/"
+   ]
+  },
+  {
+   "file": "{",
+   "order": [
+    "",
+    "https://gh-proxy.org/",
+    "https://ghproxy.net/",
+    "https://cdn.gh-proxy.org/",
+    "https://edgeone.gh-proxy.org/",
+    "https://ghfast.top/",
+    "https://wget.la/"
+   ]
+  },
+  {
+   "file": "[]",
+   "order": [
+    "",
+    "https://gh-proxy.org/",
+    "https://ghproxy.net/",
+    "https://cdn.gh-proxy.org/",
+    "https://edgeone.gh-proxy.org/",
+    "https://ghfast.top/",
+    "https://wget.la/"
+   ]
+  },
+  {
+   "file": "[\"preferred\"]",
+   "order": [
+    "",
+    "https://gh-proxy.org/",
+    "https://ghproxy.net/",
+    "https://cdn.gh-proxy.org/",
+    "https://edgeone.gh-proxy.org/",
+    "https://ghfast.top/",
+    "https://wget.la/"
+   ]
+  },
+  {
+   "file": "\"preferred\"",
+   "order": [
+    "",
+    "https://gh-proxy.org/",
+    "https://ghproxy.net/",
+    "https://cdn.gh-proxy.org/",
+    "https://edgeone.gh-proxy.org/",
+    "https://ghfast.top/",
+    "https://wget.la/"
+   ]
+  },
+  {
+   "file": "3",
+   "order": [
+    "",
+    "https://gh-proxy.org/",
+    "https://ghproxy.net/",
+    "https://cdn.gh-proxy.org/",
+    "https://edgeone.gh-proxy.org/",
+    "https://ghfast.top/",
+    "https://wget.la/"
+   ]
+  },
+  {
+   "file": "{}",
+   "order": [
+    "",
+    "https://gh-proxy.org/",
+    "https://ghproxy.net/",
+    "https://cdn.gh-proxy.org/",
+    "https://edgeone.gh-proxy.org/",
+    "https://ghfast.top/",
+    "https://wget.la/"
+   ]
+  },
+  {
+   "file": "{\"preferred\": \"\"}",
+   "order": [
+    "",
+    "https://gh-proxy.org/",
+    "https://ghproxy.net/",
+    "https://cdn.gh-proxy.org/",
+    "https://edgeone.gh-proxy.org/",
+    "https://ghfast.top/",
+    "https://wget.la/"
+   ]
+  },
+  {
+   "file": "{\"preferred\": \"https://ghproxy.net/\"}",
+   "order": [
+    "https://ghproxy.net/",
+    "",
+    "https://gh-proxy.org/",
+    "https://cdn.gh-proxy.org/",
+    "https://edgeone.gh-proxy.org/",
+    "https://ghfast.top/",
+    "https://wget.la/"
+   ]
+  },
+  {
+   "file": "{\"preferred\": \"https://new.example/\", \"listed\": [\"https://new.example/\"]}",
+   "order": [
+    "https://new.example/",
+    "",
+    "https://gh-proxy.org/",
+    "https://ghproxy.net/",
+    "https://cdn.gh-proxy.org/",
+    "https://edgeone.gh-proxy.org/",
+    "https://ghfast.top/",
+    "https://wget.la/"
+   ]
+  },
+  {
+   "file": "{\"preferred\": \"https://not-listed.example/\"}",
+   "order": [
+    "",
+    "https://gh-proxy.org/",
+    "https://ghproxy.net/",
+    "https://cdn.gh-proxy.org/",
+    "https://edgeone.gh-proxy.org/",
+    "https://ghfast.top/",
+    "https://wget.la/"
+   ]
+  },
+  {
+   "file": "{\"listed\": [\"https://a.example/\", \"bad\", \"https://gh-proxy.org/\"]}",
+   "order": [
+    "",
+    "https://gh-proxy.org/",
+    "https://ghproxy.net/",
+    "https://cdn.gh-proxy.org/",
+    "https://edgeone.gh-proxy.org/",
+    "https://ghfast.top/",
+    "https://wget.la/",
+    "https://a.example/"
+   ]
+  },
+  {
+   "file": "{\"preferred\": 3, \"listed\": \"ab\"}",
+   "order": [
+    "",
+    "https://gh-proxy.org/",
+    "https://ghproxy.net/",
+    "https://cdn.gh-proxy.org/",
+    "https://edgeone.gh-proxy.org/",
+    "https://ghfast.top/",
+    "https://wget.la/"
+   ]
+  },
+  {
+   "file": "{\"preferred\": null, \"listed\": null}",
+   "order": [
+    "",
+    "https://gh-proxy.org/",
+    "https://ghproxy.net/",
+    "https://cdn.gh-proxy.org/",
+    "https://edgeone.gh-proxy.org/",
+    "https://ghfast.top/",
+    "https://wget.la/"
+   ]
+  },
+  {
+   "file": "{\"listed\": {\"https://k.example/\": 1}}",
+   "order": [
+    "",
+    "https://gh-proxy.org/",
+    "https://ghproxy.net/",
+    "https://cdn.gh-proxy.org/",
+    "https://edgeone.gh-proxy.org/",
+    "https://ghfast.top/",
+    "https://wget.la/",
+    "https://k.example/"
+   ]
+  },
+  {
+   "file": "{\"preferred\": \"https://wget.la/\", \"listed\": [1, \"https://b.example/\"]}",
+   "order": [
+    "https://wget.la/",
+    "",
+    "https://gh-proxy.org/",
+    "https://ghproxy.net/",
+    "https://cdn.gh-proxy.org/",
+    "https://edgeone.gh-proxy.org/",
+    "https://ghfast.top/",
+    "https://b.example/"
+   ]
+  },
+  {
+   "file": "{\"preferred\": true}",
+   "order": [
+    "",
+    "https://gh-proxy.org/",
+    "https://ghproxy.net/",
+    "https://cdn.gh-proxy.org/",
+    "https://edgeone.gh-proxy.org/",
+    "https://ghfast.top/",
+    "https://wget.la/"
+   ]
+  }
+ ],
+ "remember": [
+  {
+   "before": null,
+   "preferred": "",
+   "listed": [],
+   "after": "{\"preferred\": \"\", \"listed\": []}"
+  },
+  {
+   "before": "{\"listed\": [\"https://a.example/\", \"x\", \"\"]}",
+   "preferred": "https://ghproxy.net/",
+   "listed": [],
+   "after": "{\"preferred\": \"https://ghproxy.net/\", \"listed\": [\"https://a.example/\", \"\"]}"
+  },
+  {
+   "before": "{\"listed\": \"ab\"}",
+   "preferred": "",
+   "listed": [],
+   "after": "{\"preferred\": \"\", \"listed\": []}"
+  },
+  {
+   "before": "[1]",
+   "preferred": "",
+   "listed": [],
+   "after": "{\"preferred\": \"\", \"listed\": []}"
+  },
+  {
+   "before": null,
+   "preferred": "https://wget.la/",
+   "listed": [
+    "https://n.example/",
+    "bad"
+   ],
+   "after": "{\"preferred\": \"https://wget.la/\", \"listed\": [\"https://n.example/\"]}"
+  }
+ ],
+ "manifests": [
+  {
+   "text": "{\"version\": \"v9.0.0\", \"base\": \"v0.1.0\", \"notes\": [\"嘉宾列表\"], \"update\": {\"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip\", \"sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"size\": 3}}",
+   "release": {
+    "version": "v9.0.0",
+    "url": "https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "size": 3,
+    "base": "v0.1.0",
+    "notes": [
+     "嘉宾列表"
+    ],
+    "mirrors": []
+   }
+  },
+  {
+   "text": "{\"version\": \"v9.0.0\", \"base\": \"v0.1.0\", \"notes\": [\"嘉宾列表\"], \"update\": {\"url\": \"https://example.com/x.zip\", \"sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"size\": 3}}",
+   "error": "读不到更新信息，等会儿再试"
+  },
+  {
+   "text": "{not json",
+   "error": "读不到更新信息，等会儿再试"
+  },
+  {
+   "text": "[]",
+   "error": "读不到更新信息，等会儿再试"
+  },
+  {
+   "text": "{\"version\": \"v9.0.0\", \"base\": \"v0.1.0\", \"notes\": [\"嘉宾列表\"], \"update\": {\"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip\", \"sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"size\": 0}}",
+   "error": "读不到更新信息，等会儿再试"
+  },
+  {
+   "text": "{\"version\": \"v9.0.0\", \"base\": \"v0.1.0\", \"notes\": [\"嘉宾列表\"], \"update\": {\"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip\", \"sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"size\": 100000001}}",
+   "error": "读不到更新信息，等会儿再试"
+  },
+  {
+   "text": "{\"version\": \"v9.0.0\", \"base\": \"v0.1.0\", \"notes\": [\"嘉宾列表\"], \"update\": {\"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip\", \"sha256\": \"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\", \"size\": 3}}",
+   "release": {
+    "version": "v9.0.0",
+    "url": "https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "size": 3,
+    "base": "v0.1.0",
+    "notes": [
+     "嘉宾列表"
+    ],
+    "mirrors": []
+   }
+  },
+  {
+   "text": "{\"version\": \"v9.0.0\", \"base\": \"v0.1.0\", \"notes\": [\"嘉宾列表\"], \"update\": {\"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip\", \"sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"size\": 3}}",
+   "error": "读不到更新信息，等会儿再试"
+  },
+  {
+   "text": "{\"version\": \"dev\", \"base\": \"v0.1.0\", \"notes\": [\"嘉宾列表\"], \"update\": {\"url\": \"https://github.com/853493541/I5-Black-List/releases/download/dev/x.zip\", \"sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"size\": 3}}",
+   "error": "读不到更新信息，等会儿再试"
+  },
+  {
+   "text": "{\"version\": \"v9.0.0\", \"base\": \"v0.1.0\", \"notes\": [\"嘉宾列表\"], \"update\": {\"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip\", \"sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"size\": \"12\"}}",
+   "release": {
+    "version": "v9.0.0",
+    "url": "https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "size": 12,
+    "base": "v0.1.0",
+    "notes": [
+     "嘉宾列表"
+    ],
+    "mirrors": []
+   }
+  },
+  {
+   "text": "{\"version\": \"v9.0.0\", \"base\": \"v0.1.0\", \"notes\": [\"嘉宾列表\"], \"update\": {\"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip\", \"sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"size\": 5.9}}",
+   "release": {
+    "version": "v9.0.0",
+    "url": "https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "size": 5,
+    "base": "v0.1.0",
+    "notes": [
+     "嘉宾列表"
+    ],
+    "mirrors": []
+   }
+  },
+  {
+   "text": "{\"version\": \"v9.0.0\", \"base\": \"v0.1.0\", \"notes\": [\"嘉宾列表\"], \"update\": {\"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip\", \"sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"size\": true}}",
+   "release": {
+    "version": "v9.0.0",
+    "url": "https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "size": 1,
+    "base": "v0.1.0",
+    "notes": [
+     "嘉宾列表"
+    ],
+    "mirrors": []
+   }
+  },
+  {
+   "text": "{\"version\": \"v9.0.0\", \"base\": \"v0.1.0\", \"notes\": [\"嘉宾列表\"], \"update\": {\"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip\", \"sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"size\": null}}",
+   "error": "读不到更新信息，等会儿再试"
+  },
+  {
+   "text": "{\"version\": 1.5, \"base\": \"v0.1.0\", \"notes\": [\"嘉宾列表\"], \"update\": {\"url\": \"https://github.com/853493541/I5-Black-List/releases/download/1.5/x.zip\", \"sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"size\": 3}}",
+   "release": {
+    "version": "1.5",
+    "url": "https://github.com/853493541/I5-Black-List/releases/download/1.5/x.zip",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "size": 3,
+    "base": "v0.1.0",
+    "notes": [
+     "嘉宾列表"
+    ],
+    "mirrors": []
+   }
+  },
+  {
+   "text": "{\"version\": \"v9.0.0\", \"base\": \"v0.1.0\", \"notes\": \"ab\", \"update\": {\"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip\", \"sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"size\": 3}}",
+   "release": {
+    "version": "v9.0.0",
+    "url": "https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "size": 3,
+    "base": "v0.1.0",
+    "notes": [
+     "a",
+     "b"
+    ],
+    "mirrors": []
+   }
+  },
+  {
+   "text": "{\"version\": \"v9.0.0\", \"base\": \"v0.1.0\", \"notes\": 3, \"update\": {\"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip\", \"sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"size\": 3}}",
+   "error": "读不到更新信息，等会儿再试"
+  },
+  {
+   "text": "{\"version\": \"v9.0.0\", \"base\": \"v0.1.0\", \"notes\": [\"嘉宾列表\"], \"update\": {\"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip\", \"sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"size\": 3}, \"mirrors\": [\"https://new.example/\", \"http://plain/\", \"x\"]}",
+   "release": {
+    "version": "v9.0.0",
+    "url": "https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "size": 3,
+    "base": "v0.1.0",
+    "notes": [
+     "嘉宾列表"
+    ],
+    "mirrors": [
+     "https://new.example/"
+    ]
+   }
+  },
+  {
+   "text": "{\"version\": \"v9.0.0\", \"base\": null, \"notes\": [\"嘉宾列表\"], \"update\": {\"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip\", \"sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"size\": 3}}",
+   "release": {
+    "version": "v9.0.0",
+    "url": "https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "size": 3,
+    "base": "None",
+    "notes": [
+     "嘉宾列表"
+    ],
+    "mirrors": []
+   }
+  },
+  {
+   "text": "{\"version\": \"v2.0\", \"update\": {\"url\": \"https://github.com/853493541/I5-Black-List/releases/download/a\", \"sha256\": \"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\", \"size\": \" 7 \"}}",
+   "release": {
+    "version": "v2.0",
+    "url": "https://github.com/853493541/I5-Black-List/releases/download/a",
+    "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "size": 7,
+    "base": "v2.0",
+    "notes": [],
+    "mirrors": []
+   }
+  },
+  {
+   "text": "{\"version\": \"v2.0\", \"update\": []}",
+   "error": "读不到更新信息，等会儿再试"
+  },
+  {
+   "text": "{\n  \"version\": \"v1.0.1\",\n  \"base\": \"v0.3.0\",\n  \"notes\": [\n    \"检查更快，检查时游戏更流畅\"\n  ],\n  \"mirrors\": [\n    \"https://gh-proxy.org/\",\n    \"https://ghproxy.net/\",\n    \"https://cdn.gh-proxy.org/\",\n    \"https://edgeone.gh-proxy.org/\",\n    \"https://ghfast.top/\",\n    \"https://wget.la/\"\n  ],\n  \"update\": {\n    \"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v1.0.1/BlackListDetect-v1.0.1-update.zip\",\n    \"sha256\": \"19bd6ecc4f5f979ca43d5573ef9fab1decf62115543a112d29c94c247cce353c\",\n    \"size\": 9101938\n  }\n}",
+   "release": {
+    "version": "v1.0.1",
+    "url": "https://github.com/853493541/I5-Black-List/releases/download/v1.0.1/BlackListDetect-v1.0.1-update.zip",
+    "sha256": "19bd6ecc4f5f979ca43d5573ef9fab1decf62115543a112d29c94c247cce353c",
+    "size": 9101938,
+    "base": "v0.3.0",
+    "notes": [
+     "检查更快，检查时游戏更流畅"
+    ],
+    "mirrors": [
+     "https://gh-proxy.org/",
+     "https://ghproxy.net/",
+     "https://cdn.gh-proxy.org/",
+     "https://edgeone.gh-proxy.org/",
+     "https://ghfast.top/",
+     "https://wget.la/"
+    ]
+   }
+  }
+ ],
+ "verify": [
+  {
+   "manifest": "{\n  \"version\": \"v1.0.1\",\n  \"base\": \"v0.3.0\",\n  \"notes\": [\n    \"检查更快，检查时游戏更流畅\"\n  ],\n  \"mirrors\": [\n    \"https://gh-proxy.org/\",\n    \"https://ghproxy.net/\",\n    \"https://cdn.gh-proxy.org/\",\n    \"https://edgeone.gh-proxy.org/\",\n    \"https://ghfast.top/\",\n    \"https://wget.la/\"\n  ],\n  \"update\": {\n    \"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v1.0.1/BlackListDetect-v1.0.1-update.zip\",\n    \"sha256\": \"19bd6ecc4f5f979ca43d5573ef9fab1decf62115543a112d29c94c247cce353c\",\n    \"size\": 9101938\n  }\n}",
+   "signature": "iKCJcdIMcfSaF/75yAVkmCMms2rllkxxb/BMUDtYWDY2Xz3HE6IP5ZDE4m0Zw3oBRjsmJ0YFmlMu8u/6YaCJAQ==\n",
+   "key": null,
+   "ok": true
+  },
+  {
+   "manifest": "{\n  \"version\": \"v1.0.1\",\n  \"base\": \"v0.3.0\",\n  \"notes\": [\n    \"检查更快，检查时游戏更流畅\"\n  ],\n  \"mirrors\": [\n    \"https://gh-proxy.org/\",\n    \"https://ghproxy.net/\",\n    \"https://cdn.gh-proxy.org/\",\n    \"https://edgeone.gh-proxy.org/\",\n    \"https://ghfast.top/\",\n    \"https://wget.la/\"\n  ],\n  \"update\": {\n    \"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v1.0.1/BlackListDetect-v1.0.1-update.zip\",\n    \"sha256\": \"19bd6ecc4f5f979ca43d5573ef9fab1decf62115543a112d29c94c247cce353c\",\n    \"size\": 9101939\n  }\n}",
+   "signature": "iKCJcdIMcfSaF/75yAVkmCMms2rllkxxb/BMUDtYWDY2Xz3HE6IP5ZDE4m0Zw3oBRjsmJ0YFmlMu8u/6YaCJAQ==\n",
+   "key": null,
+   "ok": false
+  },
+  {
+   "manifest": "{\n  \"version\": \"v1.0.1\",\n  \"base\": \"v0.3.0\",\n  \"notes\": [\n    \"检查更快，检查时游戏更流畅\"\n  ],\n  \"mirrors\": [\n    \"https://gh-proxy.org/\",\n    \"https://ghproxy.net/\",\n    \"https://cdn.gh-proxy.org/\",\n    \"https://edgeone.gh-proxy.org/\",\n    \"https://ghfast.top/\",\n    \"https://wget.la/\"\n  ],\n  \"update\": {\n    \"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v1.0.1/BlackListDetect-v1.0.1-update.zip\",\n    \"sha256\": \"19bd6ecc4f5f979ca43d5573ef9fab1decf62115543a112d29c94c247cce353c\",\n    \"size\": 9101938\n  }\n}\n",
+   "signature": "iKCJcdIMcfSaF/75yAVkmCMms2rllkxxb/BMUDtYWDY2Xz3HE6IP5ZDE4m0Zw3oBRjsmJ0YFmlMu8u/6YaCJAQ==\n",
+   "key": null,
+   "ok": false
+  },
+  {
+   "manifest": "{\n  \"version\": \"v1.0.1\",\n  \"base\": \"v0.3.0\",\n  \"notes\": [\n    \"检查更快，检查时游戏更流畅\"\n  ],\n  \"mirrors\": [\n    \"https://gh-proxy.org/\",\n    \"https://ghproxy.net/\",\n    \"https://cdn.gh-proxy.org/\",\n    \"https://edgeone.gh-proxy.org/\",\n    \"https://ghfast.top/\",\n    \"https://wget.la/\"\n  ],\n  \"update\": {\n    \"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v1.0.1/BlackListDetect-v1.0.1-update.zip\",\n    \"sha256\": \"19bd6ecc4f5f979ca43d5573ef9fab1decf62115543a112d29c94c247cce353c\",\n    \"size\": 9101938\n  }\n}",
+   "signature": "AKCJcdIMcfSaF/75yAVkmCMms2rllkxxb/BMUDtYWDY2Xz3HE6IP5ZDE4m0Zw3oBRjsmJ0YFmlMu8u/6YaCJAQ==\n",
+   "key": null,
+   "ok": false
+  },
+  {
+   "manifest": "{\n  \"version\": \"v1.0.1\",\n  \"base\": \"v0.3.0\",\n  \"notes\": [\n    \"检查更快，检查时游戏更流畅\"\n  ],\n  \"mirrors\": [\n    \"https://gh-proxy.org/\",\n    \"https://ghproxy.net/\",\n    \"https://cdn.gh-proxy.org/\",\n    \"https://edgeone.gh-proxy.org/\",\n    \"https://ghfast.top/\",\n    \"https://wget.la/\"\n  ],\n  \"update\": {\n    \"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v1.0.1/BlackListDetect-v1.0.1-update.zip\",\n    \"sha256\": \"19bd6ecc4f5f979ca43d5573ef9fab1decf62115543a112d29c94c247cce353c\",\n    \"size\": 9101938\n  }\n}",
+   "signature": "iKCJcdIMcfSaF/75yAVkmCMms2rllkxxb/BMUDtYWDY2Xz3HE6IP5ZDE4m0Zw3oBRjsmJ0YFmlMu8u/6YaCJAQ",
+   "key": null,
+   "ok": false
+  },
+  {
+   "manifest": "{\n  \"version\": \"v1.0.1\",\n  \"base\": \"v0.3.0\",\n  \"notes\": [\n    \"检查更快，检查时游戏更流畅\"\n  ],\n  \"mirrors\": [\n    \"https://gh-proxy.org/\",\n    \"https://ghproxy.net/\",\n    \"https://cdn.gh-proxy.org/\",\n    \"https://edgeone.gh-proxy.org/\",\n    \"https://ghfast.top/\",\n    \"https://wget.la/\"\n  ],\n  \"update\": {\n    \"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v1.0.1/BlackListDetect-v1.0.1-update.zip\",\n    \"sha256\": \"19bd6ecc4f5f979ca43d5573ef9fab1decf62115543a112d29c94c247cce353c\",\n    \"size\": 9101938\n  }\n}",
+   "signature": " \niKCJcdIMcf!*\nSaF/75yAVkmCMms2rllkxxb/BMUDtYWDY2Xz3HE6IP5ZDE4m0Zw3oBRjsmJ0YFmlMu8u/6YaCJAQ==\n",
+   "key": null,
+   "ok": true
+  },
+  {
+   "manifest": "{\n  \"version\": \"v1.0.1\",\n  \"base\": \"v0.3.0\",\n  \"notes\": [\n    \"检查更快，检查时游戏更流畅\"\n  ],\n  \"mirrors\": [\n    \"https://gh-proxy.org/\",\n    \"https://ghproxy.net/\",\n    \"https://cdn.gh-proxy.org/\",\n    \"https://edgeone.gh-proxy.org/\",\n    \"https://ghfast.top/\",\n    \"https://wget.la/\"\n  ],\n  \"update\": {\n    \"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v1.0.1/BlackListDetect-v1.0.1-update.zip\",\n    \"sha256\": \"19bd6ecc4f5f979ca43d5573ef9fab1decf62115543a112d29c94c247cce353c\",\n    \"size\": 9101938\n  }\n}",
+   "signature": "iKCJcdIMcfSaF/75yAVkmCMms2rllkxxb/BMUDtYWDY2Xz3HE6IP5ZDE4m0Zw3oBRjsmJ0YFmlMu8u/6YaCJAQ==AAAA",
+   "key": null,
+   "ok": true
+  },
+  {
+   "manifest": "{\n  \"version\": \"v1.0.1\",\n  \"base\": \"v0.3.0\",\n  \"notes\": [\n    \"检查更快，检查时游戏更流畅\"\n  ],\n  \"mirrors\": [\n    \"https://gh-proxy.org/\",\n    \"https://ghproxy.net/\",\n    \"https://cdn.gh-proxy.org/\",\n    \"https://edgeone.gh-proxy.org/\",\n    \"https://ghfast.top/\",\n    \"https://wget.la/\"\n  ],\n  \"update\": {\n    \"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v1.0.1/BlackListDetect-v1.0.1-update.zip\",\n    \"sha256\": \"19bd6ecc4f5f979ca43d5573ef9fab1decf62115543a112d29c94c247cce353c\",\n    \"size\": 9101938\n  }\n}",
+   "signature": "iKCJcdIMcfSaF/75yAVkmCMms2rllkxxb/BMUDtYWDY2Xz3HE6IP5ZDE4m0Zw3oBRjsmJ0YFmlMu8u/6YaCJAQ====AAAA",
+   "key": null,
+   "ok": true
+  },
+  {
+   "manifest": "{\n  \"version\": \"v1.0.1\",\n  \"base\": \"v0.3.0\",\n  \"notes\": [\n    \"检查更快，检查时游戏更流畅\"\n  ],\n  \"mirrors\": [\n    \"https://gh-proxy.org/\",\n    \"https://ghproxy.net/\",\n    \"https://cdn.gh-proxy.org/\",\n    \"https://edgeone.gh-proxy.org/\",\n    \"https://ghfast.top/\",\n    \"https://wget.la/\"\n  ],\n  \"update\": {\n    \"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v1.0.1/BlackListDetect-v1.0.1-update.zip\",\n    \"sha256\": \"19bd6ecc4f5f979ca43d5573ef9fab1decf62115543a112d29c94c247cce353c\",\n    \"size\": 9101938\n  }\n}",
+   "signature": "not base64!",
+   "key": null,
+   "ok": false
+  },
+  {
+   "manifest": "{\n  \"version\": \"v1.0.1\",\n  \"base\": \"v0.3.0\",\n  \"notes\": [\n    \"检查更快，检查时游戏更流畅\"\n  ],\n  \"mirrors\": [\n    \"https://gh-proxy.org/\",\n    \"https://ghproxy.net/\",\n    \"https://cdn.gh-proxy.org/\",\n    \"https://edgeone.gh-proxy.org/\",\n    \"https://ghfast.top/\",\n    \"https://wget.la/\"\n  ],\n  \"update\": {\n    \"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v1.0.1/BlackListDetect-v1.0.1-update.zip\",\n    \"sha256\": \"19bd6ecc4f5f979ca43d5573ef9fab1decf62115543a112d29c94c247cce353c\",\n    \"size\": 9101938\n  }\n}",
+   "signature": "",
+   "key": null,
+   "ok": false
+  },
+  {
+   "manifest": "{\n  \"version\": \"v1.0.1\",\n  \"base\": \"v0.3.0\",\n  \"notes\": [\n    \"检查更快，检查时游戏更流畅\"\n  ],\n  \"mirrors\": [\n    \"https://gh-proxy.org/\",\n    \"https://ghproxy.net/\",\n    \"https://cdn.gh-proxy.org/\",\n    \"https://edgeone.gh-proxy.org/\",\n    \"https://ghfast.top/\",\n    \"https://wget.la/\"\n  ],\n  \"update\": {\n    \"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v1.0.1/BlackListDetect-v1.0.1-update.zip\",\n    \"sha256\": \"19bd6ecc4f5f979ca43d5573ef9fab1decf62115543a112d29c94c247cce353c\",\n    \"size\": 9101938\n  }\n}",
+   "signature": "iKCJcdIMcfSaF/75yAVkmCMms2rllkxxb/BMUDtYWDY2Xz3HE6IP5ZDE4m0Zw3oBRjsmJ0YFmlMu8u/6YaCJAQ==\n",
+   "key": "",
+   "ok": false
+  },
+  {
+   "manifest": "{\n  \"version\": \"v1.0.1\",\n  \"base\": \"v0.3.0\",\n  \"notes\": [\n    \"检查更快，检查时游戏更流畅\"\n  ],\n  \"mirrors\": [\n    \"https://gh-proxy.org/\",\n    \"https://ghproxy.net/\",\n    \"https://cdn.gh-proxy.org/\",\n    \"https://edgeone.gh-proxy.org/\",\n    \"https://ghfast.top/\",\n    \"https://wget.la/\"\n  ],\n  \"update\": {\n    \"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v1.0.1/BlackListDetect-v1.0.1-update.zip\",\n    \"sha256\": \"19bd6ecc4f5f979ca43d5573ef9fab1decf62115543a112d29c94c247cce353c\",\n    \"size\": 9101938\n  }\n}",
+   "signature": "iKCJcdIMcfSaF/75yAVkmCMms2rllkxxb/BMUDtYWDY2Xz3HE6IP5ZDE4m0Zw3oBRjsmJ0YFmlMu8u/6YaCJAQ==\n",
+   "key": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+   "ok": false
+  },
+  {
+   "manifest": "{\n  \"version\": \"v1.0.1\",\n  \"base\": \"v0.3.0\",\n  \"notes\": [\n    \"检查更快，检查时游戏更流畅\"\n  ],\n  \"mirrors\": [\n    \"https://gh-proxy.org/\",\n    \"https://ghproxy.net/\",\n    \"https://cdn.gh-proxy.org/\",\n    \"https://edgeone.gh-proxy.org/\",\n    \"https://ghfast.top/\",\n    \"https://wget.la/\"\n  ],\n  \"update\": {\n    \"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v1.0.1/BlackListDetect-v1.0.1-update.zip\",\n    \"sha256\": \"19bd6ecc4f5f979ca43d5573ef9fab1decf62115543a112d29c94c247cce353c\",\n    \"size\": 9101938\n  }\n}",
+   "signature": "JgznYdXD55S1510oSWASGd+M9wD+lfkK4/x9dlp0LaK84p97lLaCLCzSXxh/4MsO0ZtBxPphuIBbSn4VfanuCA==",
+   "key": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg=",
+   "ok": true
+  },
+  {
+   "manifest": "{\n  \"version\": \"v1.0.1\",\n  \"base\": \"v0.3.0\",\n  \"notes\": [\n    \"检查更快，检查时游戏更流畅\"\n  ],\n  \"mirrors\": [\n    \"https://gh-proxy.org/\",\n    \"https://ghproxy.net/\",\n    \"https://cdn.gh-proxy.org/\",\n    \"https://edgeone.gh-proxy.org/\",\n    \"https://ghfast.top/\",\n    \"https://wget.la/\"\n  ],\n  \"update\": {\n    \"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v1.0.1/BlackListDetect-v1.0.1-update.zip\",\n    \"sha256\": \"19bd6ecc4f5f979ca43d5573ef9fab1decf62115543a112d29c94c247cce353c\",\n    \"size\": 9101938\n  }\n}",
+   "signature": "JgznYdXD55S1510oSWASGd+M9wD+lfkK4/x9dlp0LaK84p97lLaCLCzSXxh/4MsO0ZtBxPphuIBbSn4VfanuCA==",
+   "key": null,
+   "ok": false
+  },
+  {
+   "manifest": "{\n  \"version\": \"v1.0.1\",\n  \"base\": \"v0.3.0\",\n  \"notes\": [\n    \"检查更快，检查时游戏更流畅\"\n  ],\n  \"mirrors\": [\n    \"https://gh-proxy.org/\",\n    \"https://ghproxy.net/\",\n    \"https://cdn.gh-proxy.org/\",\n    \"https://edgeone.gh-proxy.org/\",\n    \"https://ghfast.top/\",\n    \"https://wget.la/\"\n  ],\n  \"update\": {\n    \"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v1.0.1/BlackListDetect-v1.0.1-update.zip\",\n    \"sha256\": \"19bd6ecc4f5f979ca43d5573ef9fab1decf62115543a112d29c94c247cce353c\",\n    \"size\": 9101938\n  }\n}",
+   "signature": "iKCJcdIMcfSaF/75yAVkmCMms2rllkxxb/BMUDtYWDY2Xz3HE6IP5ZDE4m0Zw3oBRjsmJ0YFmlMu8u/6YaCJAQ==\n　",
+   "key": null,
+   "ok": true
+  },
+  {
+   "manifest": "{\n  \"version\": \"v1.0.1\",\n  \"base\": \"v0.3.0\",\n  \"notes\": [\n    \"检查更快，检查时游戏更流畅\"\n  ],\n  \"mirrors\": [\n    \"https://gh-proxy.org/\",\n    \"https://ghproxy.net/\",\n    \"https://cdn.gh-proxy.org/\",\n    \"https://edgeone.gh-proxy.org/\",\n    \"https://ghfast.top/\",\n    \"https://wget.la/\"\n  ],\n  \"update\": {\n    \"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v1.0.1/BlackListDetect-v1.0.1-update.zip\",\n    \"sha256\": \"19bd6ecc4f5f979ca43d5573ef9fab1decf62115543a112d29c94c247cce353c\",\n    \"size\": 9101938\n  }\n}",
+   "signature": "éiKCJcdIMcfSaF/75yAVkmCMms2rllkxxb/BMUDtYWDY2Xz3HE6IP5ZDE4m0Zw3oBRjsmJ0YFmlMu8u/6YaCJAQ==\n",
+   "key": null,
+   "ok": false
+  },
+  {
+   "manifest": "{\n  \"version\": \"v1.0.1\",\n  \"base\": \"v0.3.0\",\n  \"notes\": [\n    \"检查更快，检查时游戏更流畅\"\n  ],\n  \"mirrors\": [\n    \"https://gh-proxy.org/\",\n    \"https://ghproxy.net/\",\n    \"https://cdn.gh-proxy.org/\",\n    \"https://edgeone.gh-proxy.org/\",\n    \"https://ghfast.top/\",\n    \"https://wget.la/\"\n  ],\n  \"update\": {\n    \"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v1.0.1/BlackListDetect-v1.0.1-update.zip\",\n    \"sha256\": \"19bd6ecc4f5f979ca43d5573ef9fab1decf62115543a112d29c94c247cce353c\",\n    \"size\": 9101938\n  }\n}",
+   "signature": "iKCJcdIMcfSaF/75yAVkmCMms2rllkxxb/BMUDtYWDY2Xz3HE6IP5ZDE4m0Zw3oBRjsmJ0YFmlMu8u/6YaCJAQ==\n",
+   "key": "A6EHv/POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJV",
+   "ok": false
+  }
+ ],
+ "fetch": [
+  {
+   "name": "found",
+   "pages": {
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json": {
+     "status": 200,
+     "body": "{\"version\": \"v9.0.0\", \"base\": \"v0.1.0\", \"notes\": [\"嘉宾列表\"], \"update\": {\"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip\", \"sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"size\": 3}, \"mirrors\": [\"https://new.example/\"]}"
+    },
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json.sig": {
+     "status": 200,
+     "body": "BI9tbj7evtzGFqpdvgGGmrpz/lpakLGLKAPP0KqS8w7b0oT+r20LGiyKIVNZJSa+brNazSQvVWghkt7Lseo7Aw=="
+    }
+   },
+   "current": "v0.3.0",
+   "before": null,
+   "release": {
+    "version": "v9.0.0",
+    "mirror": "",
+    "mirrors": [
+     "https://new.example/"
+    ]
+   },
+   "error": null,
+   "asked": [
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json.sig"
+   ],
+   "after": "{\"preferred\": \"\", \"listed\": [\"https://new.example/\"]}"
+  },
+  {
+   "name": "same version",
+   "pages": {
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json": {
+     "status": 200,
+     "body": "{\"version\": \"v9.0.0\", \"base\": \"v0.1.0\", \"notes\": [\"嘉宾列表\"], \"update\": {\"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip\", \"sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"size\": 3}, \"mirrors\": [\"https://new.example/\"]}"
+    },
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json.sig": {
+     "status": 200,
+     "body": "BI9tbj7evtzGFqpdvgGGmrpz/lpakLGLKAPP0KqS8w7b0oT+r20LGiyKIVNZJSa+brNazSQvVWghkt7Lseo7Aw=="
+    }
+   },
+   "current": "v9.0.0",
+   "before": null,
+   "release": null,
+   "error": null,
+   "asked": [
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json.sig"
+   ],
+   "after": "{\"preferred\": \"\", \"listed\": [\"https://new.example/\"]}"
+  },
+  {
+   "name": "nothing published",
+   "pages": {},
+   "current": "v0.3.0",
+   "before": null,
+   "release": null,
+   "error": null,
+   "asked": [
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://gh-proxy.org/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://ghproxy.net/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://cdn.gh-proxy.org/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://edgeone.gh-proxy.org/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://ghfast.top/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://wget.la/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json"
+   ],
+   "after": null
+  },
+  {
+   "name": "forged",
+   "pages": {
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json": {
+     "status": 200,
+     "body": "{\"version\": \"v9.0.0\", \"base\": \"v0.1.0\", \"notes\": [\"嘉宾列表\"], \"update\": {\"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip\", \"sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"size\": 3}, \"mirrors\": [\"https://new.example/\"]}"
+    },
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json.sig": {
+     "status": 200,
+     "body": "rN6fyq1cCGaqL6iDpUMadq4Ys/EPFNreM17+tFt3CXILI1l5XAKvjhapIdMpBl9DminCR0vh8DpXIAeYVdk5DA=="
+    }
+   },
+   "current": "v0.3.0",
+   "before": null,
+   "release": null,
+   "error": "读不到更新信息，等会儿再试",
+   "asked": [
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json.sig",
+    "https://gh-proxy.org/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://ghproxy.net/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://cdn.gh-proxy.org/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://edgeone.gh-proxy.org/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://ghfast.top/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://wget.la/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json"
+   ],
+   "after": null
+  },
+  {
+   "name": "github cut off",
+   "pages": {
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json": "error",
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json.sig": "error",
+    "https://ghproxy.net/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json": {
+     "status": 200,
+     "body": "{\"version\": \"v9.0.0\", \"base\": \"v0.1.0\", \"notes\": [\"嘉宾列表\"], \"update\": {\"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip\", \"sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"size\": 3}, \"mirrors\": [\"https://new.example/\"]}"
+    },
+    "https://ghproxy.net/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json.sig": {
+     "status": 200,
+     "body": "BI9tbj7evtzGFqpdvgGGmrpz/lpakLGLKAPP0KqS8w7b0oT+r20LGiyKIVNZJSa+brNazSQvVWghkt7Lseo7Aw=="
+    }
+   },
+   "current": "v0.3.0",
+   "before": null,
+   "release": {
+    "version": "v9.0.0",
+    "mirror": "https://ghproxy.net/",
+    "mirrors": [
+     "https://new.example/"
+    ]
+   },
+   "error": null,
+   "asked": [
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://gh-proxy.org/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://ghproxy.net/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://ghproxy.net/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json.sig"
+   ],
+   "after": "{\"preferred\": \"https://ghproxy.net/\", \"listed\": [\"https://new.example/\"]}"
+  },
+  {
+   "name": "proxy changes it",
+   "pages": {
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json": "error",
+    "https://gh-proxy.org/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json": {
+     "status": 200,
+     "body": "{\"version\": \"v9.0.0\", \"base\": \"v0.0.1\", \"notes\": [\"嘉宾列表\"], \"update\": {\"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip\", \"sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"size\": 3}, \"mirrors\": [\"https://new.example/\"]}"
+    },
+    "https://gh-proxy.org/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json.sig": {
+     "status": 200,
+     "body": "BI9tbj7evtzGFqpdvgGGmrpz/lpakLGLKAPP0KqS8w7b0oT+r20LGiyKIVNZJSa+brNazSQvVWghkt7Lseo7Aw=="
+    },
+    "https://ghproxy.net/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json": {
+     "status": 200,
+     "body": "{\"version\": \"v9.0.0\", \"base\": \"v0.1.0\", \"notes\": [\"嘉宾列表\"], \"update\": {\"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip\", \"sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"size\": 3}, \"mirrors\": [\"https://new.example/\"]}"
+    },
+    "https://ghproxy.net/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json.sig": {
+     "status": 200,
+     "body": "BI9tbj7evtzGFqpdvgGGmrpz/lpakLGLKAPP0KqS8w7b0oT+r20LGiyKIVNZJSa+brNazSQvVWghkt7Lseo7Aw=="
+    }
+   },
+   "current": "v0.3.0",
+   "before": null,
+   "release": {
+    "version": "v9.0.0",
+    "mirror": "https://ghproxy.net/",
+    "mirrors": [
+     "https://new.example/"
+    ]
+   },
+   "error": null,
+   "asked": [
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://gh-proxy.org/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://gh-proxy.org/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json.sig",
+    "https://ghproxy.net/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://ghproxy.net/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json.sig"
+   ],
+   "after": "{\"preferred\": \"https://ghproxy.net/\", \"listed\": [\"https://new.example/\"]}"
+  },
+  {
+   "name": "all blocked",
+   "pages": {
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json": "error",
+    "https://gh-proxy.org/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json": "error",
+    "https://ghproxy.net/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json": "error",
+    "https://cdn.gh-proxy.org/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json": "error",
+    "https://edgeone.gh-proxy.org/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json": "error",
+    "https://ghfast.top/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json": "error",
+    "https://wget.la/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json": "error"
+   },
+   "current": "v0.3.0",
+   "before": null,
+   "release": null,
+   "error": "连不上更新服务器，等会儿再试",
+   "asked": [
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://gh-proxy.org/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://ghproxy.net/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://cdn.gh-proxy.org/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://edgeone.gh-proxy.org/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://ghfast.top/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://wget.la/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json"
+   ],
+   "after": null
+  },
+  {
+   "name": "server error",
+   "pages": {
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json": {
+     "status": 500,
+     "body": ""
+    }
+   },
+   "current": "v0.3.0",
+   "before": null,
+   "release": null,
+   "error": "连不上更新服务器，等会儿再试",
+   "asked": [
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://gh-proxy.org/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://ghproxy.net/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://cdn.gh-proxy.org/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://edgeone.gh-proxy.org/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://ghfast.top/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://wget.la/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json"
+   ],
+   "after": null
+  },
+  {
+   "name": "sig missing",
+   "pages": {
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json": {
+     "status": 200,
+     "body": "{\"version\": \"v9.0.0\", \"base\": \"v0.1.0\", \"notes\": [\"嘉宾列表\"], \"update\": {\"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip\", \"sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"size\": 3}, \"mirrors\": [\"https://new.example/\"]}"
+    }
+   },
+   "current": "v0.3.0",
+   "before": null,
+   "release": null,
+   "error": "连不上更新服务器，等会儿再试",
+   "asked": [
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json.sig",
+    "https://gh-proxy.org/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://ghproxy.net/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://cdn.gh-proxy.org/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://edgeone.gh-proxy.org/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://ghfast.top/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://wget.la/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json"
+   ],
+   "after": null
+  },
+  {
+   "name": "remembered first",
+   "pages": {
+    "https://ghproxy.net/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json": {
+     "status": 200,
+     "body": "{\"version\": \"v9.0.0\", \"base\": \"v0.1.0\", \"notes\": [\"嘉宾列表\"], \"update\": {\"url\": \"https://github.com/853493541/I5-Black-List/releases/download/v9.0.0/x.zip\", \"sha256\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"size\": 3}, \"mirrors\": [\"https://new.example/\"]}"
+    },
+    "https://ghproxy.net/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json.sig": {
+     "status": 200,
+     "body": "BI9tbj7evtzGFqpdvgGGmrpz/lpakLGLKAPP0KqS8w7b0oT+r20LGiyKIVNZJSa+brNazSQvVWghkt7Lseo7Aw=="
+    }
+   },
+   "current": "v0.3.0",
+   "before": "{\"preferred\": \"https://ghproxy.net/\", \"listed\": []}",
+   "release": {
+    "version": "v9.0.0",
+    "mirror": "https://ghproxy.net/",
+    "mirrors": [
+     "https://new.example/"
+    ]
+   },
+   "error": null,
+   "asked": [
+    "https://ghproxy.net/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://ghproxy.net/https://github.com/853493541/I5-Black-List/releases/latest/download/version.json.sig"
+   ],
+   "after": "{\"preferred\": \"https://ghproxy.net/\", \"listed\": [\"https://new.example/\"]}"
+  },
+  {
+   "name": "signed but unreadable",
+   "pages": {
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json": {
+     "status": 200,
+     "body": "[]"
+    },
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json.sig": {
+     "status": 200,
+     "body": "EIPnYuFyUP4F/eD9l4QZTJduZIE6MFhV4iI1LRX6kNKWJu2MdItwgI0xEHvKrFI2eGa34kOCTu9AumNeFQn+BA=="
+    }
+   },
+   "current": "v0.3.0",
+   "before": null,
+   "release": null,
+   "error": "读不到更新信息，等会儿再试",
+   "asked": [
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json",
+    "https://github.com/853493541/I5-Black-List/releases/latest/download/version.json.sig"
+   ],
+   "after": null
+  }
+ ],
+ "restarts": [
+  {
+   "version": "v9.0.0",
+   "now": 1000.0,
+   "ok": true,
+   "file": "{\"version\": \"v9.0.0\", \"count\": 1, \"at\": 1000.0}"
+  },
+  {
+   "version": "v9.0.0",
+   "now": 1010.0,
+   "ok": true,
+   "file": "{\"version\": \"v9.0.0\", \"count\": 2, \"at\": 1010.0}"
+  },
+  {
+   "version": "v9.0.0",
+   "now": 1020.25,
+   "ok": false,
+   "file": "{\"version\": \"v9.0.0\", \"count\": 2, \"at\": 1010.0}"
+  },
+  {
+   "version": "v9.0.1",
+   "now": 1030.0,
+   "ok": true,
+   "file": "{\"version\": \"v9.0.1\", \"count\": 1, \"at\": 1030.0}"
+  },
+  {
+   "version": "v9.0.0",
+   "now": 1630.0,
+   "ok": true,
+   "file": "{\"version\": \"v9.0.0\", \"count\": 1, \"at\": 1630.0}"
+  },
+  {
+   "version": "v9.0.0",
+   "now": 1731940000.123456,
+   "ok": true,
+   "file": "{\"version\": \"v9.0.0\", \"count\": 1, \"at\": 1731940000.123456}"
+  }
+ ],
+ "logs": {
+  "lines": [
+   {
+    "created": 1760377403,
+    "msecs": 317,
+    "level": "INFO",
+    "thread": "MainThread",
+    "message": "Check 12 (hotkey): lobby found",
+    "line": "2025-10-13 17:43:23.317 INFO    ui     Check 12 (hotkey): lobby found"
+   },
+   {
+    "created": 0,
+    "msecs": 5,
+    "level": "WARNING",
+    "thread": "update-check",
+    "message": "a\nb\n  c",
+    "line": "1970-01-01 00:00:00.005 WARNING update a\n    b\n      c"
+   },
+   {
+    "created": 1760377403,
+    "msecs": 999,
+    "level": "CRITICAL",
+    "thread": "",
+    "message": "x",
+    "line": "2025-10-13 17:43:23.999 CRITICAL ?      x"
+   },
+   {
+    "created": 1760377403,
+    "msecs": 0,
+    "level": "ERROR",
+    "thread": "Thread-12 (worker)",
+    "message": "错误 示***",
+    "line": "2025-10-13 17:43:23.000 ERROR   Thread 错误 示***"
+   },
+   {
+    "created": 1,
+    "msecs": 1,
+    "level": "INFO",
+    "thread": "watchdog",
+    "message": "",
+    "line": "1970-01-01 00:00:01.001 INFO    watch  "
+   }
+  ],
+  "rotation": {
+   "max_bytes": 200,
+   "backups": 4,
+   "written": [
+    "",
+    "第1行 xxxxxxxxxxxxx",
+    "第2行 第2行 xxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "第3行 第3行 第3行 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "第4行 第4行 第4行 第4行 xx",
+    "第5行 第5行 第5行 第5行 第5行 xxxxxxxxxxxxxxx",
+    "第6行 第6行 第6行 第6行 第6行 第6行 xxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "第8行 xxxx",
+    "第9行 第9行 xxxxxxxxxxxxxxxxx",
+    "第10行 第10行 第10行 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "第11行 第11行 第11行 第11行 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "第12行 第12行 第12行 第12行 第12行 xxxxxx",
+    "第13行 第13行 第13行 第13行 第13行 第13行 xxxxxxxxxxxxxxxxxxx",
+    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "第15行 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "第16行 第16行 xxxxxxxx",
+    "第17行 第17行 第17行 xxxxxxxxxxxxxxxxxxxxx",
+    "第18行 第18行 第18行 第18行 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "第19行 第19行 第19行 第19行 第19行 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "第20行 第20行 第20行 第20行 第20行 第20行 xxxxxxxxxx",
+    "xxxxxxxxxxxxxxxxxxxxxxx",
+    "第22行 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "第23行 第23行 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "第24行 第24行 第24行 xxxxxxxxxxxx",
+    "第25行 第25行 第25行 第25行 xxxxxxxxxxxxxxxxxxxxxxxxx",
+    "第26行 第26行 第26行 第26行 第26行 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "第27行 第27行 第27行 第27行 第27行 第27行 x",
+    "xxxxxxxxxxxxxx",
+    "第29行 xxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "第30行 第30行 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "第31行 第31行 第31行 xxx",
+    "第32行 第32行 第32行 第32行 xxxxxxxxxxxxxxxx",
+    "第33行 第33行 第33行 第33行 第33行 xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "第34行 第34行 第34行 第34行 第34行 第34行 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "xxxxx",
+    "第36行 xxxxxxxxxxxxxxxxxx",
+    "第37行 第37行 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "第38行 第38行 第38行 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "第39行 第39行 第39行 第39行 xxxxxxx",
+    "第40行 第40行 第40行 第40行 第40行 xxxxxxxxxxxxxxxxxxxx",
+    "第41行 第41行 第41行 第41行 第41行 第41行 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "第43行 xxxxxxxxx",
+    "第44行 第44行 xxxxxxxxxxxxxxxxxxxxxx",
+    "第45行 第45行 第45行 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "第46行 第46行 第46行 第46行 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "第47行 第47行 第47行 第47行 第47行 xxxxxxxxxxx",
+    "第48行 第48行 第48行 第48行 第48行 第48行 xxxxxxxxxxxxxxxxxxxxxxxx",
+    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "第50行 ",
+    "第51行 第51行 xxxxxxxxxxxxx",
+    "第52行 第52行 第52行 xxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "第53行 第53行 第53行 第53行 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "第54行 第54行 第54行 第54行 第54行 xx",
+    "第55行 第55行 第55行 第55行 第55行 第55行 xxxxxxxxxxxxxxx",
+    "xxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "第57行 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "第58行 第58行 xxxx",
+    "第59行 第59行 第59行 xxxxxxxxxxxxxxxxx",
+    "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+    "z"
+   ],
+   "files": {
+    "app.log": "z\n",
+    "app.log.1": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\n",
+    "app.log.2": "第58行 第58行 xxxx\n第59行 第59行 第59行 xxxxxxxxxxxxxxxxx\n",
+    "app.log.3": "第54行 第54行 第54行 第54行 第54行 xx\n第55行 第55行 第55行 第55行 第55行 第55行 xxxxxxxxxxxxxxx\nxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n第57行 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n",
+    "app.log.4": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n第50行 \n第51行 第51行 xxxxxxxxxxxxx\n第52行 第52行 第52行 xxxxxxxxxxxxxxxxxxxxxxxxxx\n第53行 第53行 第53行 第53行 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n"
+   }
+  },
+  "masked": {
+   "示例坏人": "示***",
+   "a": "a",
+   "": "",
+   "心动小鹿🦌": "心****"
+  },
+  "hidden": [
+   {
+    "home": "C:\\Users\\Zhangsan",
+    "user": "Zhangsan",
+    "text": "at C:\\Users\\Zhangsan\\AppData\\x.py and C:/Users/Zhangsan/y and Zhangsan alone",
+    "out": "at ~\\AppData\\x.py and ~/y and <user> alone"
+   },
+   {
+    "home": "C:\\Users\\Zhangsan",
+    "user": "Zhangsan",
+    "text": "C:\\Users\\张三\\桌面 张三",
+    "out": "C:\\Users\\张三\\桌面 张三"
+   },
+   {
+    "home": "C:\\Users\\Zhangsan",
+    "user": "Zhangsan",
+    "text": "ab C:\\Users\\ab",
+    "out": "ab C:\\Users\\ab"
+   },
+   {
+    "home": "C:\\Users\\张三",
+    "user": "张三",
+    "text": "at C:\\Users\\Zhangsan\\AppData\\x.py and C:/Users/Zhangsan/y and Zhangsan alone",
+    "out": "at C:\\Users\\Zhangsan\\AppData\\x.py and C:/Users/Zhangsan/y and Zhangsan alone"
+   },
+   {
+    "home": "C:\\Users\\张三",
+    "user": "张三",
+    "text": "C:\\Users\\张三\\桌面 张三",
+    "out": "~\\桌面 张三"
+   },
+   {
+    "home": "C:\\Users\\张三",
+    "user": "张三",
+    "text": "ab C:\\Users\\ab",
+    "out": "ab C:\\Users\\ab"
+   },
+   {
+    "home": "C:\\Users\\ab",
+    "user": "ab",
+    "text": "at C:\\Users\\Zhangsan\\AppData\\x.py and C:/Users/Zhangsan/y and Zhangsan alone",
+    "out": "at C:\\Users\\Zhangsan\\AppData\\x.py and C:/Users/Zhangsan/y and Zhangsan alone"
+   },
+   {
+    "home": "C:\\Users\\ab",
+    "user": "ab",
+    "text": "C:\\Users\\张三\\桌面 张三",
+    "out": "C:\\Users\\张三\\桌面 张三"
+   },
+   {
+    "home": "C:\\Users\\ab",
+    "user": "ab",
+    "text": "ab C:\\Users\\ab",
+    "out": "ab ~"
+   },
+   {
+    "home": "",
+    "user": "",
+    "text": "at C:\\Users\\Zhangsan\\AppData\\x.py and C:/Users/Zhangsan/y and Zhangsan alone",
+    "out": "at C:\\Users\\Zhangsan\\AppData\\x.py and C:/Users/Zhangsan/y and Zhangsan alone"
+   },
+   {
+    "home": "",
+    "user": "",
+    "text": "C:\\Users\\张三\\桌面 张三",
+    "out": "C:\\Users\\张三\\桌面 张三"
+   },
+   {
+    "home": "",
+    "user": "",
+    "text": "ab C:\\Users\\ab",
+    "out": "ab C:\\Users\\ab"
+   }
+  ],
+  "dumps": [
+   {
+    "home": "C:/Users/Zhangsan",
+    "user": "Zhangsan",
+    "data": "433a5c55736572735c7a68616e6753414e5c612e646c6c20433a2f75736572732fe5bca0e4b8892f622055534552535c5a68616e6773616e7843003a005c00550073006500720073005c005a00680061006e006700530061006e005c0063002e0064006c006c007c0043003a002f00550073006500720073002f00205f094e2f006400",
+    "out": "433a5c55736572735c78787878787878785c612e646c6c20433a2f75736572732fe5bca0e4b8892f622055534552535c78787878787878787843003a005c00550073006500720073005c00780078007800780078007800780078005c0063002e0064006c006c007c0043003a002f00550073006500720073002f00205f094e2f006400"
+   },
+   {
+    "home": "C:/Users/张三",
+    "user": "张三",
+    "data": "433a5c55736572735c7a68616e6753414e5c612e646c6c20433a2f75736572732fe5bca0e4b8892f622055534552535c5a68616e6773616e7843003a005c00550073006500720073005c005a00680061006e006700530061006e005c0063002e0064006c006c007c0043003a002f00550073006500720073002f00205f094e2f006400",
+    "out": "433a5c55736572735c7a68616e6753414e5c612e646c6c20433a2f75736572732f7878787878782f622055534552535c5a68616e6773616e7843003a005c00550073006500720073005c005a00680061006e006700530061006e005c0063002e0064006c006c007c0043003a002f00550073006500720073002f00780078002f006400"
+   },
+   {
+    "home": "C:/Users/x",
+    "user": "",
+    "data": "433a5c55736572735c7a68616e6753414e5c612e646c6c20433a2f75736572732fe5bca0e4b8892f622055534552535c5a68616e6773616e7843003a005c00550073006500720073005c005a00680061006e006700530061006e005c0063002e0064006c006c007c0043003a002f00550073006500720073002f00205f094e2f006400",
+    "out": "433a5c55736572735c7a68616e6753414e5c612e646c6c20433a2f75736572732fe5bca0e4b8892f622055534552535c5a68616e6773616e7843003a005c00550073006500720073005c005a00680061006e006700530061006e005c0063002e0064006c006c007c0043003a002f00550073006500720073002f00205f094e2f006400"
+   }
+  ]
+ }
+}

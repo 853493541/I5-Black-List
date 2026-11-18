@@ -2,3 +2,5 @@
 #![forbid(unsafe_code)]
 
 pub mod import;
+pub mod logs;
+pub mod update;
