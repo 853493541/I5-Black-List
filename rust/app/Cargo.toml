@@ -3,9 +3,16 @@ name = "app"
 version = "0.1.0"
 edition.workspace = true
 
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "blacklist-detect"
+path = "src/main.rs"
+
 [[bin]]
 name = "settings-mock"
-path = "src/main.rs"
+path = "src/bin/settings_mock.rs"
 
 [dependencies]
 slint = { version = "1.14", default-features = false, features = [
@@ -16,6 +23,14 @@ slint = { version = "1.14", default-features = false, features = [
     "software-renderer-systemfonts",
 ] }
 png = "0.17"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+data = { path = "../data" }
+lobby = { path = "../lobby" }
+win = { path = "../win" }
+
+[dev-dependencies]
+tempfile = "3"
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
 
 [build-dependencies]
 slint-build = "1.14"
