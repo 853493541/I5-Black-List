@@ -1,3 +1,3 @@
 fn main() {
-    slint_build::compile("ui/settings.slint").expect("settings.slint compiles");
+    slint_build::compile("ui/all.slint").expect("ui/all.slint compiles");
 }

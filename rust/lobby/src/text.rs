@@ -2,33 +2,7 @@
 //! Unicode categories and `str.casefold`.
 
 use unicode_general_category::{get_general_category, GeneralCategory as G};
-use unicode_normalization::UnicodeNormalization;
-
-/// `unicodedata.normalize("NFKC", text)`.
-pub fn nfkc(text: &str) -> String {
-    text.nfkc().collect()
-}
-
-/// Python's `str.isspace`, which is what `\s` matches in a `str` pattern: White_Space plus the
-/// four separators U+001C to U+001F.
-pub fn is_space(ch: char) -> bool {
-    ch.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&ch)
-}
-
-/// The first letter of the Unicode category is L (a letter) or N (a number).
-pub fn is_letter_or_number(ch: char) -> bool {
-    matches!(
-        get_general_category(ch),
-        G::UppercaseLetter
-            | G::LowercaseLetter
-            | G::TitlecaseLetter
-            | G::ModifierLetter
-            | G::OtherLetter
-            | G::DecimalNumber
-            | G::LetterNumber
-            | G::OtherNumber
-    )
-}
+pub use common::text::{casefold, drop_space, is_letter_or_number, is_space, nfkc};
 
 /// Python's `\w` in a `str` pattern: `str.isalnum()` or the underscore.
 pub fn is_word(ch: char) -> bool {
@@ -63,16 +37,6 @@ pub fn digits_value(digits: &[char]) -> i64 {
     digits
         .iter()
         .fold(0, |total, &ch| total * 10 + i64::from(digit_value(ch)))
-}
-
-/// `str.casefold()`: full case folding.
-pub fn casefold(text: &str) -> String {
-    caseless::default_case_fold_str(text)
-}
-
-/// Drop every `\s` character.
-pub fn drop_space(text: &str) -> String {
-    text.chars().filter(|&ch| !is_space(ch)).collect()
 }
 
 /// The length of the run of decimal digits starting at `start`.
