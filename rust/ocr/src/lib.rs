@@ -9,6 +9,7 @@ mod clip;
 pub mod crop;
 pub mod db;
 pub mod det;
+pub mod read;
 pub mod rec;
 
 pub use crop::{crop_by_polys, rotate_crop, sort_boxes};
