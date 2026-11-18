@@ -8,3 +8,52 @@ license = "UNLICENSED"
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
+
+# The shipped exe (rust/README.md: size): one codegen unit and whole-program LTO. Debug info is line tables only and,
+# with MSVC, lands in blacklist-detect.pdb beside the exe, never in it: CI keeps the .pdb as an artifact so crash dumps
+# decode; the release ships the exe alone. panic stays unwind: a panic is logged, then the app goes on or exits cleanly.
+[profile.release]
+lto = "fat"
+codegen-units = 1
+debug = "line-tables-only"
+
+# Measured against release on the Windows runner (.github/workflows/rust-size.yml): size first, speed held by keeping
+# the hot crates (the OCR, the pipeline, the scenes, the stage and the GPU) at opt-level 3.
+[profile.release-s]
+inherits = "release"
+opt-level = "s"
+
+[profile.release-z]
+inherits = "release"
+opt-level = "z"
+
+[profile.release-zhot]
+inherits = "release"
+opt-level = "z"
+
+[profile.release-zhot.package.ocr]
+opt-level = 3
+
+[profile.release-zhot.package.pipeline]
+opt-level = 3
+
+[profile.release-zhot.package.scenes]
+opt-level = 3
+
+[profile.release-zhot.package.stage]
+opt-level = 3
+
+[profile.release-zhot.package.lobby]
+opt-level = 3
+
+[profile.release-zhot.package.wgpu-core]
+opt-level = 3
+
+[profile.release-zhot.package.wgpu-hal]
+opt-level = 3
+
+[profile.release-zhot.package.tiny-skia]
+opt-level = 3
+
+[profile.release-zhot.package.ndarray]
+opt-level = 3

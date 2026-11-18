@@ -1,0 +1,187 @@
+name: rust-size
+
+# Measurement for the exe size work (rust/README.md: size): the app exe built before (the base commit) and with each
+# release profile in rust/Cargo.toml, on the Windows runner, each measured the same way: exe size, zipped size, start-up
+# (--quit-after-start), one `check` of the sample lobby, and the stage's frame time on WARP. Artifacts only: nothing
+# here signs, releases or ships.
+on:
+  push:
+    branches: ["feature/rust-size-exe"]
+  workflow_dispatch:
+
+concurrency:
+  group: rust-size-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The three OCR models, as rust-preview.yml makes them (PaddleX tarballs to ONNX, on Linux).
+  models:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PADDLE2ONNX_VERSION: "2.1.0"
+      MODEL_URL: https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cache OCR models
+        id: models-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/models
+          key: ocr-models-v5det-v5rec-v6rec-pd3.2.2-paddle3.0.0-p2o${{ env.PADDLE2ONNX_VERSION }}-op11-v1
+      - name: Convert OCR models
+        if: steps.models-cache.outputs.cache-hit != 'true'
+        working-directory: ${{ runner.temp }}
+        run: |
+          python -m pip install -q setuptools packaging paddlepaddle==3.2.2 paddle2onnx==$PADDLE2ONNX_VERSION
+          mkdir -p tarballs models
+          for model in PP-OCRv5_mobile_det PP-OCRv5_mobile_rec PP-OCRv6_medium_rec; do
+            curl -sSfL --retry 3 -o "tarballs/$model.tar" "$MODEL_URL/${model}_infer.tar"
+            tar xf "tarballs/$model.tar" -C tarballs
+            src="tarballs/${model}_infer"
+            program="$src/inference.json"; [ -f "$program" ] || program="$src/inference.pdmodel"
+            mkdir -p "models/$model"
+            python -I -c "import sys, paddle2onnx; paddle2onnx.export(*sys.argv[1:4], opset_version=11)" \
+              "$program" "$src/inference.pdiparams" "models/$model/inference.onnx"
+            cp "$src/inference.yml" "models/$model/"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ocr-models
+          path: ${{ runner.temp }}/models
+          retention-days: 1
+
+  measure:
+    needs: models
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [before, release, release-s, release-z, release-zhot]
+    runs-on: windows-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    env:
+      CARGO_TERM_COLOR: always
+      OPENCV_VERSION: "4.10.0"
+      OPENCV_CLANG_ARGS: -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH
+      ORT_VERSION: "1.32.0"
+      BASE: 26a45046629ec3695077c76def2caeb7ead32546
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cache OpenCV
+        id: opencv-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: C:\opencv-static
+          key: opencv-${{ env.OPENCV_VERSION }}-static-ipp-mt-v1
+      - name: Build OpenCV static
+        if: steps.opencv-cache.outputs.cache-hit != 'true'
+        working-directory: ${{ runner.temp }}
+        shell: cmd
+        run: |
+          for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do call "%%i\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
+          python -m pip install -q ninja || exit /b 1
+          curl -sSfL -o opencv.tar.gz "https://github.com/opencv/opencv/archive/refs/tags/%OPENCV_VERSION%.tar.gz" || exit /b 1
+          tar xzf opencv.tar.gz || exit /b 1
+          cmake -S "opencv-%OPENCV_VERSION%" -B cvbuild -G Ninja -DCMAKE_BUILD_TYPE=Release ^
+            -DCMAKE_INSTALL_PREFIX=C:/opencv-static -DBUILD_SHARED_LIBS=OFF -DBUILD_WITH_STATIC_CRT=ON ^
+            -DBUILD_LIST=core,imgproc,imgcodecs -DWITH_IPP=ON -DBUILD_IPP_IW=ON ^
+            -DWITH_ITT=OFF -DWITH_OPENCL=OFF -DWITH_EIGEN=OFF -DWITH_LAPACK=OFF -DWITH_PROTOBUF=OFF -DWITH_ADE=OFF ^
+            -DWITH_TIFF=OFF -DWITH_WEBP=OFF -DWITH_OPENJPEG=OFF -DWITH_JASPER=OFF -DWITH_OPENEXR=OFF -DWITH_AVIF=OFF ^
+            -DWITH_FFMPEG=OFF -DWITH_DSHOW=OFF -DWITH_MSMF=OFF -DWITH_DIRECTX=OFF -DWITH_WIN32UI=OFF ^
+            -DBUILD_PNG=ON -DBUILD_JPEG=ON -DBUILD_ZLIB=ON ^
+            -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_opencv_apps=OFF ^
+            -DBUILD_JAVA=OFF -DBUILD_opencv_python3=OFF -DBUILD_opencv_python2=OFF > cmake.log || (type cmake.log & exit /b 1)
+          cmake --build cvbuild --target install || exit /b 1
+      - uses: actions/cache/save@v4
+        if: steps.opencv-cache.outputs.cache-hit != 'true' && matrix.variant == 'release'
+        with:
+          path: C:\opencv-static
+          key: opencv-${{ env.OPENCV_VERSION }}-static-ipp-mt-v1
+      - name: Point the opencv crate at it
+        run: |
+          libdir=$(dirname "$(find /c/opencv-static -name 'opencv_core*.lib' | head -1)")
+          libs=$(ls "$libdir" | sed -n 's/\.lib$//p' | paste -sd, -)
+          {
+            echo "OPENCV_LINK_LIBS=$libs"
+            echo "OPENCV_LINK_PATHS=$(cygpath -w "$libdir")"
+            echo 'OPENCV_INCLUDE_PATHS=C:\opencv-static\include'
+            echo 'LIBCLANG_PATH=C:\Program Files\LLVM\bin'
+            echo 'RUSTFLAGS=-C target-feature=+crt-static'
+          } | tee -a "$GITHUB_ENV"
+      - name: OCR models
+        uses: actions/download-artifact@v4
+        with:
+          name: ocr-models
+          path: ${{ runner.temp }}/models
+
+      # "before" is the base commit with its own (default) release profile; the others are this commit's profiles.
+      - name: Build
+        run: |
+          if [ "${{ matrix.variant }}" = before ]; then
+            git worktree add "$RUNNER_TEMP/src" "$BASE"
+            profile=release
+          else
+            git worktree add "$RUNNER_TEMP/src" HEAD
+            profile=${{ matrix.variant }}
+          fi
+          cd "$RUNNER_TEMP/src/rust"
+          start=$(date +%s)
+          cargo build --profile "$profile" -p app --bin blacklist-detect
+          echo "BUILD_SECONDS=$(( $(date +%s) - start ))" >> "$GITHUB_ENV"
+          echo "PROFILE=$profile" >> "$GITHUB_ENV"
+          echo "EXE=$RUNNER_TEMP/src/rust/target/$profile/blacklist-detect.exe" >> "$GITHUB_ENV"
+      - name: Measure
+        run: |
+          python -m pip install -q onnxruntime==$ORT_VERSION
+          ort=$(python -c "import onnxruntime, os; print(os.path.join(os.path.dirname(onnxruntime.__file__), 'capi', 'onnxruntime.dll'))")
+          run="$RUNNER_TEMP/run"; mkdir -p "$run"
+          cp "$EXE" "$run/blacklist-detect.exe"; cp "$ort" "$run/onnxruntime.dll"
+          home="$RUNNER_TEMP/home"; mkdir -p "$home"
+          export APPDATA="$home" USERPROFILE="$home" HOME="$home" BLACKLIST_DETECT_MODEL_DIR="$RUNNER_TEMP/models"
+          unset BLACKLIST_DETECT_SOUND
+          ms() { local s=$(date +%s%N); "$@" > /dev/null 2>&1; echo $(( ($(date +%s%N) - s) / 1000000 )); }
+          median() { sort -n | awk '{ a[NR] = $1 } END { print a[int((NR + 1) / 2)] }'; }
+          "$run/blacklist-detect.exe" --quit-after-start || true
+          start_ms=$(for i in 1 2 3 4 5; do ms "$run/blacklist-detect.exe" --quit-after-start; done | median)
+          "$run/blacklist-detect.exe" check "$GITHUB_WORKSPACE/blacklist_detect/assets/sample-lobby.jpg" | tee "$RUNNER_TEMP/check.txt" || true
+          check_ms=$(for i in 1 2 3 4 5; do ms "$run/blacklist-detect.exe" check "$GITHUB_WORKSPACE/blacklist_detect/assets/sample-lobby.jpg"; done | median)
+          python - "$run/blacklist-detect.exe" "$RUNNER_TEMP/exe.zip" <<'PY' > "$RUNNER_TEMP/zip.txt"
+          import sys, zipfile
+          with zipfile.ZipFile(sys.argv[2], "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+              z.write(sys.argv[1], "blacklist-detect.exe")
+          PY
+          exe=$(stat -c %s "$EXE"); zip=$(stat -c %s "$RUNNER_TEMP/exe.zip")
+          pdb=$(stat -c %s "${EXE%.exe}.pdb" 2>/dev/null || echo 0)
+          seats=$(grep -cE '^ ?[0-9]+  完整' "$RUNNER_TEMP/check.txt" || true)
+          line="| ${{ matrix.variant }} | $exe | $(awk -v b=$exe 'BEGIN { printf "%.2f", b / 1048576 }') | $(awk -v b=$zip 'BEGIN { printf "%.2f", b / 1048576 }') | $pdb | $start_ms | $check_ms | $seats | $BUILD_SECONDS |"
+          echo "$line" > "$RUNNER_TEMP/row.md"
+          echo "$line"
+      # The stage's frame time at 1920x1080 on this runner (WARP: no GPU), with the variant's profile.
+      - name: Frame time
+        continue-on-error: true
+        working-directory: ${{ runner.temp }}/src/rust
+        run: |
+          cargo test --profile "$PROFILE" -p stage --test overlay -- --nocapture 2>&1 | tee "$RUNNER_TEMP/stage.log" | grep -E "STAGE|test result" || true
+      - name: Report
+        if: always()
+        run: |
+          frame=$(grep -oE 'draw median [0-9.]+ ms' "$RUNNER_TEMP/stage.log" 2>/dev/null | head -1)
+          {
+            echo "### ${{ matrix.variant }}"
+            echo '| Variant | Exe bytes | Exe MiB | Zip MiB | PDB bytes | Start ms | Check ms | Seats read | Build s |'
+            echo '|---|---|---|---|---|---|---|---|---|'
+            cat "$RUNNER_TEMP/row.md" 2>/dev/null
+            echo
+            echo "Stage frame: ${frame:-n/a}"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
