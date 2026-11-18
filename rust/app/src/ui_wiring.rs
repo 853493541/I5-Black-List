@@ -33,6 +33,10 @@ pub fn handle(runner: &mut Runner, event: &UiEvent) -> bool {
             autostart(runner, *on);
             true
         }
+        UiEvent::Settings(SettingsAction::ExportLogs) => {
+            export_logs(runner);
+            true
+        }
         UiEvent::Update(Effect::OpenUrl(url)) => {
             open_url(url);
             true
@@ -70,10 +74,42 @@ fn autostart(runner: &mut Runner, on: bool) {
     runner.log.info(&format!("Autostart {on}: only on Windows."));
 }
 
+/// 导出日志: the file on the Desktop, shown in Explorer.
+fn export_logs(runner: &mut Runner) {
+    use app::wiring::export;
+    let account = export::account();
+    let written = export::export_into(&runner.root, &runner.store.borrow(), app::wiring::startup::VERSION, "", &export::desktop(&account), &account);
+    match written {
+        Ok(path) => {
+            runner.log.info(&format!("Logs exported: {}", path.display()));
+            #[cfg(windows)]
+            let _ = std::process::Command::new("explorer").arg(format!("/select,{}", path.display())).spawn();
+        }
+        Err(error) => runner.log.warn(&format!("Logs not exported: {error}")),
+    }
+}
+
 /// 前往下载: the releases page in the browser.
 fn open_url(url: &str) {
     #[cfg(windows)]
     let _ = std::process::Command::new("explorer").arg(url).spawn();
     #[cfg(not(windows))]
     let _ = url;
+}
+
+/// The 检查 and 场景 hotkeys as last registered: when 设置 changes them, the old ones go and the new ones are taken.
+pub fn rekey(runner: &mut Runner, last: &mut (String, String)) {
+    let now = {
+        let settings = &runner.store.borrow().settings;
+        (settings.hotkey.clone(), settings.effect_hotkey.clone())
+    };
+    if now == *last {
+        return;
+    }
+    *last = now;
+    // Released first: Windows refuses a key this window still holds.
+    runner.set_keys(Box::new(app::wiring::runner::NoKeys));
+    let keys = super::keys(&runner.store.borrow(), &runner.log);
+    runner.set_keys(keys);
+    runner.log.info(&format!("Hotkeys: {} / {}", last.0, last.1));
 }
