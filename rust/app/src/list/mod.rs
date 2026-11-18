@@ -27,7 +27,7 @@ pub mod collate;
 pub mod model;
 pub mod ops;
 #[cfg(test)]
-mod render;
+pub(crate) mod render;
 #[cfg(test)]
 mod tests;
 

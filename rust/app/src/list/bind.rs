@@ -12,6 +12,23 @@ use super::model::{self, SortColumn, View};
 use super::{ops, ListAction};
 use crate::{ListData, ListRow, ListWindow, TagRow};
 
+/// A window the 黑名单 page is in: ListWindow alone, or the main window. Only its ListData is used.
+pub trait ListHost: ComponentHandle {
+    fn data(&self) -> ListData<'_>;
+}
+
+impl ListHost for ListWindow {
+    fn data(&self) -> ListData<'_> {
+        self.global::<ListData>()
+    }
+}
+
+impl ListHost for crate::MainWindow {
+    fn data(&self) -> ListData<'_> {
+        self.global::<ListData>()
+    }
+}
+
 /// 原因 takes whatever width is left (ui._FLEX_COLUMN).
 const FLEX: usize = 2;
 const MIN_COLUMN: i64 = 72;
@@ -45,8 +62,8 @@ pub struct Page {
 impl Page {
     /// Hook the page's callbacks up. Searching, picking a tag and sorting are done here; everything else waits in
     /// `take_actions` for the app.
-    pub fn new(window: &ListWindow) -> Page {
-        let ui = window.global::<ListData>();
+    pub fn new(window: &impl ListHost) -> Page {
+        let ui = window.data();
         let page = Page {
             state: Rc::new(RefCell::new(State::default())),
             rows: Rc::new(VecModel::default()),
@@ -127,7 +144,7 @@ impl Page {
 
     /// Everything asked since the last call: redraw for a search, tag or sort; do what needs no dialog through
     /// [`Page::apply`] (then refresh and show the toast); hand back the rest (dialogs, questions, the clipboard).
-    pub fn handle(&self, window: &ListWindow, store: &mut Store, undo: &mut ops::Undo) -> std::io::Result<Vec<ListAction>> {
+    pub fn handle(&self, window: &impl ListHost, store: &mut Store, undo: &mut ops::Undo) -> std::io::Result<Vec<ListAction>> {
         let redraw = self.state.borrow().asked.iter().any(|asked| matches!(asked, Asked::Redraw));
         let mut rest = Vec::new();
         let mut changed = false;
@@ -163,14 +180,14 @@ impl Page {
     }
 
     /// The list, the tags or the records changed: work 最近遇到 out again, then redraw.
-    pub fn refresh(&self, window: &ListWindow, store: &Store) {
+    pub fn refresh(&self, window: &impl ListHost, store: &Store) {
         self.state.borrow_mut().met = model::last_met(&store.entries, &store.scans);
         self.redraw(window, store, Local::now().fixed_offset());
     }
 
     /// Redraw from what is kept (after a search letter, a tag picked or a sort).
-    pub fn redraw(&self, window: &ListWindow, store: &Store, now: DateTime<FixedOffset>) {
-        let ui = window.global::<ListData>();
+    pub fn redraw(&self, window: &impl ListHost, store: &Store, now: DateTime<FixedOffset>) {
+        let ui = window.data();
         let mut state = self.state.borrow_mut();
         // First, since a tag that is gone also drops out of the filter.
         let catalog = store.tag_catalog();
@@ -212,8 +229,8 @@ impl Page {
     }
 
     /// The toast after an action (ui._say).
-    pub fn say(window: &ListWindow, outcome: &ops::Outcome) {
-        let ui = window.global::<ListData>();
+    pub fn say(window: &impl ListHost, outcome: &ops::Outcome) {
+        let ui = window.data();
         ui.set_notice(outcome.say.as_str().into());
         ui.set_notice_undo(outcome.undo);
     }

@@ -1,45 +1,25 @@
 //! Drawing the notices without a display, at Windows scale 150 %, through Slint's software renderer.
 //! Each test thread gets a platform of its own (Slint keeps it per thread).
 
-use std::cell::RefCell;
 use std::path::Path;
 use std::rc::Rc;
 
-use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType};
-use slint::platform::{Platform, WindowAdapter, WindowEvent};
+use slint::platform::software_renderer::MinimalSoftwareWindow;
+use slint::platform::{WindowAdapter, WindowEvent};
 use slint::{ComponentHandle, LogicalSize, Rgb8Pixel};
 
 pub const SCALE: f32 = 1.5;
 
-thread_local! {
-    static LAST: RefCell<Option<Rc<MinimalSoftwareWindow>>> = const { RefCell::new(None) };
-    static READY: RefCell<bool> = const { RefCell::new(false) };
-}
-
-struct Headless;
-
-impl Platform for Headless {
-    fn create_window_adapter(&self) -> Result<Rc<dyn WindowAdapter>, slint::PlatformError> {
-        let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
-        window.dispatch_event(WindowEvent::ScaleFactorChanged { scale_factor: SCALE });
-        LAST.with(|last| *last.borrow_mut() = Some(window.clone()));
-        Ok(window)
-    }
-}
-
 /// Set this thread's platform once; call before making any window.
 pub fn init() {
-    READY.with(|ready| {
-        if !*ready.borrow() {
-            slint::platform::set_platform(Box::new(Headless)).expect("one platform per thread");
-            *ready.borrow_mut() = true;
-        }
-    });
+    crate::shots::init();
 }
 
 /// The software window behind the component made last on this thread.
 pub fn last_window() -> Rc<MinimalSoftwareWindow> {
-    LAST.with(|last| last.borrow().clone()).expect("a window was made")
+    let window = crate::shots::newest();
+    window.dispatch_event(WindowEvent::ScaleFactorChanged { scale_factor: SCALE });
+    window
 }
 
 /// A picture: its size in physical pixels and its pixels.

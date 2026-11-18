@@ -1,36 +1,18 @@
 //! 设置 and 环境测试's card drawn without a display (Slint's software renderer), as PNG, at a Windows scale.
 
-use std::cell::RefCell;
 use std::path::Path;
-use std::rc::Rc;
 
-use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType};
-use slint::platform::{Platform, WindowAdapter, WindowEvent};
+use slint::platform::{WindowAdapter, WindowEvent};
 use slint::{ComponentHandle, PhysicalSize, Rgb8Pixel};
-
-thread_local! {
-    static LAST: RefCell<Option<Rc<MinimalSoftwareWindow>>> = const { RefCell::new(None) };
-}
-
-/// Every new component gets a window of its own; the last one made is the one drawn.
-struct Headless;
-
-impl Platform for Headless {
-    fn create_window_adapter(&self) -> Result<Rc<dyn WindowAdapter>, slint::PlatformError> {
-        let window = MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer);
-        LAST.with(|last| *last.borrow_mut() = Some(window.clone()));
-        Ok(window)
-    }
-}
 
 /// Once per process (Slint takes one platform); a no-op after.
 pub fn init() {
-    let _ = slint::platform::set_platform(Box::new(Headless));
+    crate::shots::init();
 }
 
 /// The last component made, shown at `width` x `height` logical pixels times `scale`: its pixels (RGB) and size.
 pub fn draw(component: &impl ComponentHandle, width: u32, height: u32, scale: f32) -> Result<(Vec<u8>, u32, u32), String> {
-    let window = LAST.with(|last| last.borrow().clone()).ok_or("no window made")?;
+    let window = crate::shots::newest();
     let (w, h) = ((width as f32 * scale).round() as u32, (height as f32 * scale).round() as u32);
     window.dispatch_event(WindowEvent::ScaleFactorChanged { scale_factor: scale });
     window.set_size(PhysicalSize::new(w, h));
