@@ -108,6 +108,7 @@ name = "app"
 version = "0.1.0"
 dependencies = [
  "png 0.17.16",
+ "serde_json",
  "slint",
  "slint-build",
 ]
