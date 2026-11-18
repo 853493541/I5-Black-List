@@ -3,7 +3,9 @@
 
 use std::sync::LazyLock;
 
-use crate::header::{assemble_countdown, assemble_mode, center, norm, pick_tight, ready_search, x_overlap};
+use crate::header::{
+    assemble_countdown, assemble_mode, center, norm, pick_tight, ready_search, x_overlap,
+};
 use crate::model::{OcrLine, Rect};
 use crate::text::nfkc;
 
@@ -50,8 +52,16 @@ fn widen_name_row(boxes: &[Rect]) -> Vec<Rect> {
         .enumerate()
         .map(|(index, &[left, top, right, bottom])| {
             let middle = mid(&boxes[index]);
-            let left_limit = if index == 0 { 0.0 } else { (mid(&boxes[index - 1]) + middle) / 2.0 };
-            let right_limit = if index == last { 1.0 } else { (middle + mid(&boxes[index + 1])) / 2.0 };
+            let left_limit = if index == 0 {
+                0.0
+            } else {
+                (mid(&boxes[index - 1]) + middle) / 2.0
+            };
+            let right_limit = if index == last {
+                1.0
+            } else {
+                (middle + mid(&boxes[index + 1])) / 2.0
+            };
             let left = (left - grow).max(left_limit + gap / 2.0);
             let right = (right + grow).min(right_limit - gap / 2.0);
             [round4(left), top, round4(right), bottom]
@@ -86,12 +96,21 @@ pub struct Anchor {
 
 impl Anchor {
     fn missing(reason: &str, ready_count: Option<i64>) -> Self {
-        Self { reason: reason.to_string(), ready_count, ..Self::default() }
+        Self {
+            reason: reason.to_string(),
+            ready_count,
+            ..Self::default()
+        }
     }
 }
 
 fn frac_to_px(rect: &Rect, width: f64, height: f64) -> Rect {
-    [rect[0] * width, rect[1] * height, rect[2] * width, rect[3] * height]
+    [
+        rect[0] * width,
+        rect[1] * height,
+        rect[2] * width,
+        rect[3] * height,
+    ]
 }
 
 fn ready_line(line: &OcrLine) -> Option<i64> {
@@ -134,7 +153,10 @@ const NOT_WHOLE: &str = "没找到「推演成功」大厅，请用完整的大�
 
 /// Require 推演成功, 模仿者狂欢（12人狂欢）, and 倒计时 <seconds> 秒, stacked in that order.
 pub fn find_anchor(lines: &[OcrLine], image_width: i64, image_height: i64) -> Anchor {
-    let titles: Vec<&OcrLine> = lines.iter().filter(|line| norm(&line.text).contains("推演成功")).collect();
+    let titles: Vec<&OcrLine> = lines
+        .iter()
+        .filter(|line| norm(&line.text).contains("推演成功"))
+        .collect();
     let title = pick_tight(&titles, "推演成功");
     let mode = assemble_mode(lines);
     let countdown = assemble_countdown(lines);
@@ -153,9 +175,14 @@ pub fn find_anchor(lines: &[OcrLine], image_width: i64, image_height: i64) -> An
     };
     let ref_title_c = center(&frac_to_px(&TITLE_BOX, REF_W, REF_H));
     let ref_dy = center(&frac_to_px(&COUNTDOWN_BOX, REF_W, REF_H)).1 - ref_title_c.1;
-    let (title_c, mode_c, count_c) = (center(&title.bbox), center(&mode.bbox), center(&countdown.bbox));
+    let (title_c, mode_c, count_c) = (
+        center(&title.bbox),
+        center(&mode.bbox),
+        center(&countdown.bbox),
+    );
     let stacked = title_c.1 < mode_c.1 && mode_c.1 < count_c.1;
-    let overlapping = x_overlap(&title.bbox, &mode.bbox) > 0.0 && x_overlap(&mode.bbox, &countdown.bbox) > 0.0;
+    let overlapping =
+        x_overlap(&title.bbox, &mode.bbox) > 0.0 && x_overlap(&mode.bbox, &countdown.bbox) > 0.0;
     let det_dy = count_c.1 - title_c.1;
     let scale = det_dy / ref_dy;
     if !stacked || !overlapping || det_dy < 8.0 || !(0.15..=6.0).contains(&scale) {
@@ -195,17 +222,37 @@ pub fn game_screen(anchor: &Anchor) -> Option<Rect> {
     let height = GAME_HEIGHT_GAPS * gap;
     let width = height * GAME_ASPECT;
     let top = title_y - GAME_TOP_GAPS * gap;
-    Some([title_x - width / 2.0, top, title_x + width / 2.0, top + height])
+    Some([
+        title_x - width / 2.0,
+        top,
+        title_x + width / 2.0,
+        top + height,
+    ])
 }
 
 /// Place a reference box onto this capture, using the title as the anchor.
-fn map_box(frac: &Rect, title_c: (f64, f64), ref_title_c: (f64, f64), scale: f64, width: i64, height: i64) -> PxBox {
+fn map_box(
+    frac: &Rect,
+    title_c: (f64, f64),
+    ref_title_c: (f64, f64),
+    scale: f64,
+    width: i64,
+    height: i64,
+) -> PxBox {
     let r = frac_to_px(frac, REF_W, REF_H);
-    let points = [(r[0], r[1]), (r[2], r[1]), (r[0], r[3]), (r[2], r[3])]
-        .map(|(x, y)| (title_c.0 + (x - ref_title_c.0) * scale, title_c.1 + (y - ref_title_c.1) * scale));
+    let points = [(r[0], r[1]), (r[2], r[1]), (r[0], r[3]), (r[2], r[3])].map(|(x, y)| {
+        (
+            title_c.0 + (x - ref_title_c.0) * scale,
+            title_c.1 + (y - ref_title_c.1) * scale,
+        )
+    });
     let edge = |pick: fn(&(f64, f64)) -> f64, low: bool| {
         let values = points.iter().map(pick);
-        let value = if low { values.fold(f64::INFINITY, f64::min) } else { values.fold(f64::NEG_INFINITY, f64::max) };
+        let value = if low {
+            values.fold(f64::INFINITY, f64::min)
+        } else {
+            values.fold(f64::NEG_INFINITY, f64::max)
+        };
         value.round_ties_even() as i64
     };
     let left = edge(|p| p.0, true).min(width - 1).max(0);

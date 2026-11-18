@@ -11,7 +11,10 @@ pub fn norm(text: &str) -> String {
 
 /// `_plain`: a piece of text as `norm` gives it, without symbols: letters, digits, Chinese and colons stay.
 pub fn plain(text: &str) -> String {
-    norm(text).chars().filter(|&ch| is_word(ch) || ch == ':' || ch == '：').collect()
+    norm(text)
+        .chars()
+        .filter(|&ch| is_word(ch) || ch == ':' || ch == '：')
+        .collect()
 }
 
 pub fn center(rect: &Rect) -> (f64, f64) {
@@ -21,7 +24,12 @@ pub fn center(rect: &Rect) -> (f64, f64) {
 pub fn union(rects: &[Rect]) -> Rect {
     let mut out = rects[0];
     for rect in &rects[1..] {
-        out = [out[0].min(rect[0]), out[1].min(rect[1]), out[2].max(rect[2]), out[3].max(rect[3])];
+        out = [
+            out[0].min(rect[0]),
+            out[1].min(rect[1]),
+            out[2].max(rect[2]),
+            out[3].max(rect[3]),
+        ];
     }
     out
 }
@@ -77,7 +85,8 @@ pub fn countdown_search(text: &str) -> Option<i64> {
         let at = skip_space(&chars, skip_colon(&chars, skip_space(&chars, start + 3)));
         let digits = digit_run(&chars, at);
         let after = skip_space(&chars, at + digits);
-        ((1..=3).contains(&digits) && chars.get(after) == Some(&'秒')).then(|| digits_value(&chars[at..at + digits]))
+        ((1..=3).contains(&digits) && chars.get(after) == Some(&'秒'))
+            .then(|| digits_value(&chars[at..at + digits]))
     })
 }
 
@@ -92,7 +101,8 @@ pub fn ready_search(text: &str) -> Option<i64> {
         }
         let slash = skip_space(&chars, at + digits);
         let twelve = skip_space(&chars, slash + 1);
-        let fits = chars.get(slash) == Some(&'/') && chars.get(twelve..twelve + 2) == Some(&['1', '2'][..]);
+        let fits = chars.get(slash) == Some(&'/')
+            && chars.get(twelve..twelve + 2) == Some(&['1', '2'][..]);
         fits.then(|| digits_value(&chars[at..at + digits]))
     })
 }
@@ -109,35 +119,65 @@ pub fn ready_in(text: &str) -> Option<i64> {
 
 /// True when this frame shows the match-found title 推演成功.
 pub fn contains_title(lines: &[OcrLine]) -> bool {
-    lines.iter().any(|line| norm(&line.text).contains("推演成功"))
+    lines
+        .iter()
+        .any(|line| norm(&line.text).contains("推演成功"))
 }
 
 /// Prefer the line that is the phrase, not the phrase plus a neighbor; of those, the tallest.
 pub fn pick_tight<'a>(candidates: &[&'a OcrLine], phrase: &str) -> Option<&'a OcrLine> {
     let folded_len = norm(phrase).chars().count();
-    let key = |line: &OcrLine| (norm(&line.text).chars().count().saturating_sub(folded_len), -height(&line.bbox));
-    candidates.iter().copied().min_by(|a, b| key(a).partial_cmp(&key(b)).unwrap_or(std::cmp::Ordering::Equal))
+    let key = |line: &OcrLine| {
+        (
+            norm(&line.text).chars().count().saturating_sub(folded_len),
+            -height(&line.bbox),
+        )
+    };
+    candidates.iter().copied().min_by(|a, b| {
+        key(a)
+            .partial_cmp(&key(b))
+            .unwrap_or(std::cmp::Ordering::Equal)
+    })
 }
 
 /// 模仿者狂欢（12人狂欢）, as one line or two pieces on one row (the nearest pair).
 pub fn assemble_mode(lines: &[OcrLine]) -> Option<OcrLine> {
     let has = |line: &OcrLine, part: &str| norm(&line.text).contains(part);
-    let direct: Vec<&OcrLine> = lines.iter().filter(|line| has(line, "模仿者狂欢") && has(line, "12人狂欢")).collect();
+    let direct: Vec<&OcrLine> = lines
+        .iter()
+        .filter(|line| has(line, "模仿者狂欢") && has(line, "12人狂欢"))
+        .collect();
     if let Some(chosen) = pick_tight(&direct, "模仿者狂欢（12人狂欢）") {
         return Some(chosen.clone());
     }
     let mut best = None;
     let mut best_gap = 1e9;
-    for (ia, a) in lines.iter().enumerate().filter(|(_, line)| has(line, "模仿者狂欢")) {
-        for (ib, b) in lines.iter().enumerate().filter(|(_, line)| has(line, "12人狂欢")) {
+    for (ia, a) in lines
+        .iter()
+        .enumerate()
+        .filter(|(_, line)| has(line, "模仿者狂欢"))
+    {
+        for (ib, b) in lines
+            .iter()
+            .enumerate()
+            .filter(|(_, line)| has(line, "12人狂欢"))
+        {
             if ia == ib || !same_row(&a.bbox, &b.bbox) {
                 continue;
             }
             let gap = (center(&a.bbox).0 - center(&b.bbox).0).abs();
             if gap < best_gap {
                 best_gap = gap;
-                let text = if a.bbox[0] <= b.bbox[0] { format!("{}{}", a.text, b.text) } else { format!("{}{}", b.text, a.text) };
-                best = Some(OcrLine::new(text, a.confidence.min(b.confidence), union(&[a.bbox, b.bbox])));
+                let text = if a.bbox[0] <= b.bbox[0] {
+                    format!("{}{}", a.text, b.text)
+                } else {
+                    format!("{}{}", b.text, a.text)
+                };
+                best = Some(OcrLine::new(
+                    text,
+                    a.confidence.min(b.confidence),
+                    union(&[a.bbox, b.bbox]),
+                ));
             }
         }
     }
@@ -149,13 +189,18 @@ fn is_count_piece(token: &str) -> bool {
     let chars: Vec<char> = token.chars().collect();
     let digits = digit_run(&chars, 0);
     let rest = &chars[digits..];
-    (digits == 0 && rest == ['秒']) || ((1..=3).contains(&digits) && (rest.is_empty() || rest == ['秒']))
+    (digits == 0 && rest == ['秒'])
+        || ((1..=3).contains(&digits) && (rest.is_empty() || rest == ['秒']))
 }
 
 /// 倒计时, a seconds count, and 秒, joined from the pieces on its row; of several, the tallest.
 pub fn assemble_countdown(lines: &[OcrLine]) -> Option<(OcrLine, i64)> {
     let mut best: Option<(f64, OcrLine, i64)> = None;
-    for (ib, base) in lines.iter().enumerate().filter(|(_, line)| norm(&line.text).contains("倒计时")) {
+    for (ib, base) in lines
+        .iter()
+        .enumerate()
+        .filter(|(_, line)| norm(&line.text).contains("倒计时"))
+    {
         let mut group = vec![base];
         let limit = 4.0 * height(&base.bbox).max(16.0);
         for (io, other) in lines.iter().enumerate() {
@@ -169,12 +214,21 @@ pub fn assemble_countdown(lines: &[OcrLine]) -> Option<(OcrLine, i64)> {
                 group.push(other);
             }
         }
-        group.sort_by(|a, b| a.bbox[0].partial_cmp(&b.bbox[0]).unwrap_or(std::cmp::Ordering::Equal));
+        group.sort_by(|a, b| {
+            a.bbox[0]
+                .partial_cmp(&b.bbox[0])
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         let text: String = group.iter().map(|line| plain(&line.text)).collect();
-        let Some(count) = countdown_search(&text) else { continue };
+        let Some(count) = countdown_search(&text) else {
+            continue;
+        };
         let rects: Vec<Rect> = group.iter().map(|line| line.bbox).collect();
         let bbox = union(&rects);
-        let confidence = group.iter().map(|line| line.confidence).fold(f64::INFINITY, f64::min);
+        let confidence = group
+            .iter()
+            .map(|line| line.confidence)
+            .fold(f64::INFINITY, f64::min);
         let score = height(&bbox);
         if best.as_ref().is_none_or(|(top, _, _)| score > *top) {
             best = Some((score, OcrLine::new(text, confidence, bbox), count));

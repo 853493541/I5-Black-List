@@ -60,7 +60,9 @@ pub fn digit_value(ch: char) -> u32 {
 
 /// `int(digits)` for a short run of decimal digits.
 pub fn digits_value(digits: &[char]) -> i64 {
-    digits.iter().fold(0, |total, &ch| total * 10 + i64::from(digit_value(ch)))
+    digits
+        .iter()
+        .fold(0, |total, &ch| total * 10 + i64::from(digit_value(ch)))
 }
 
 /// `str.casefold()`: full case folding.
@@ -75,7 +77,10 @@ pub fn drop_space(text: &str) -> String {
 
 /// The length of the run of decimal digits starting at `start`.
 pub fn digit_run(chars: &[char], start: usize) -> usize {
-    chars[start.min(chars.len())..].iter().take_while(|&&ch| is_digit(ch)).count()
+    chars[start.min(chars.len())..]
+        .iter()
+        .take_while(|&&ch| is_digit(ch))
+        .count()
 }
 
 /// The positions where `needle` starts in `chars`, in order.
@@ -84,5 +89,7 @@ pub fn find_all(chars: &[char], needle: &str) -> Vec<usize> {
     if needle.is_empty() || chars.len() < needle.len() {
         return Vec::new();
     }
-    (0..=chars.len() - needle.len()).filter(|&at| chars[at..at + needle.len()] == needle[..]).collect()
+    (0..=chars.len() - needle.len())
+        .filter(|&at| chars[at..at + needle.len()] == needle[..])
+        .collect()
 }

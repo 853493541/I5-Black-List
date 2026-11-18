@@ -65,7 +65,10 @@ pub fn with_game_ellipsis(visible: &str, truncated: bool) -> String {
 
 /// Drop punctuation and symbols. A backtick in the middle of a name is not part of it.
 pub fn strip_noise(text: &str) -> String {
-    normalize_text(text).chars().filter(|&ch| is_letter_or_number(ch)).collect()
+    normalize_text(text)
+        .chars()
+        .filter(|&ch| is_letter_or_number(ch))
+        .collect()
 }
 
 /// Comparison form. Latin letters compare case-insensitively. Chinese is unchanged.
@@ -81,7 +84,9 @@ pub fn listed_tail(read: &str, listed: &str) -> Option<String> {
     }
     let cut = read.chars().count();
     let listed_chars: Vec<char> = listed.chars().collect();
-    if listed_chars.len() > cut && fold(&listed_chars[..cut].iter().collect::<String>()) == fold(read) {
+    if listed_chars.len() > cut
+        && fold(&listed_chars[..cut].iter().collect::<String>()) == fold(read)
+    {
         return Some(listed_chars[cut..].iter().collect());
     }
     None
@@ -104,7 +109,10 @@ fn is_countdown_chrome(folded: &str) -> bool {
         at += 1;
     }
     let digits = digit_run(&chars, at);
-    digits > 0 && at + digits + 1 == chars.len() && chars[at + digits] == '秒' && chars[at..at + digits].iter().all(|&c| is_digit(c))
+    digits > 0
+        && at + digits + 1 == chars.len()
+        && chars[at + digits] == '秒'
+        && chars[at..at + digits].iter().all(|&c| is_digit(c))
 }
 
 /// Lobby status, not a player name. 准备就绪 is one of these lines.
@@ -154,7 +162,11 @@ pub struct NameMatch {
 }
 
 fn match_refs(label: &NameLabel, entries: &[&Entry]) -> Vec<NameMatch> {
-    if label.unclear || label.visible.is_empty() || is_lobby_chrome(&label.raw) || is_lobby_chrome(&label.visible) {
+    if label.unclear
+        || label.visible.is_empty()
+        || is_lobby_chrome(&label.raw)
+        || is_lobby_chrome(&label.visible)
+    {
         return Vec::new();
     }
     let folded_visible: Vec<char> = fold(&label.visible).chars().collect();
@@ -169,13 +181,19 @@ fn match_refs(label: &NameLabel, entries: &[&Entry]) -> Vec<NameMatch> {
         if folded_entry.is_empty() || is_lobby_chrome(&entry.name) {
             continue;
         }
-        let found = |kind, truncated| NameMatch { index, visible: label.visible.clone(), truncated, kind };
+        let found = |kind, truncated| NameMatch {
+            index,
+            visible: label.visible.clone(),
+            truncated,
+            kind,
+        };
         if folded_visible == folded_entry {
             exact.push(found(MatchKind::Exact, label.truncated));
             continue;
         }
         let cut = label.truncated || folded_visible.len() != folded_entry.len();
-        let long_enough = folded_visible.len() >= MIN_PREFIX_CHARS && folded_entry.len() >= MIN_PREFIX_CHARS;
+        let long_enough =
+            folded_visible.len() >= MIN_PREFIX_CHARS && folded_entry.len() >= MIN_PREFIX_CHARS;
         if cut && long_enough && folded_entry.starts_with(head) {
             hits.push(found(MatchKind::Prefix, true));
         }
@@ -213,7 +231,10 @@ fn head_key(folded: &str) -> String {
 }
 
 /// When each listed name was last in a record (records newest first), and how many listed names each record held.
-pub fn last_seen(entries: &[Entry], scans: &[Scan]) -> (HashMap<usize, String>, HashMap<usize, usize>) {
+pub fn last_seen(
+    entries: &[Entry],
+    scans: &[Scan],
+) -> (HashMap<usize, String>, HashMap<usize, usize>) {
     let mut found = HashMap::new();
     let mut hits = HashMap::new();
     let mut groups: HashMap<String, Vec<usize>> = HashMap::new();
@@ -228,15 +249,24 @@ pub fn last_seen(entries: &[Entry], scans: &[Scan]) -> (HashMap<usize, String>, 
             if seat.unclear || seat.name.is_empty() {
                 continue;
             }
-            let Some(candidates) = groups.get(&head_key(&fold(&seat.name))) else { continue };
+            let Some(candidates) = groups.get(&head_key(&fold(&seat.name))) else {
+                continue;
+            };
             let refs: Vec<&Entry> = candidates.iter().map(|&index| &entries[index]).collect();
-            let label = NameLabel { raw: seat.name.clone(), visible: seat.name.clone(), truncated: false, unclear: false };
+            let label = NameLabel {
+                raw: seat.name.clone(),
+                visible: seat.name.clone(),
+                truncated: false,
+                unclear: false,
+            };
             let matches = match_refs(&label, &refs);
             if !matches.is_empty() {
                 *hits.entry(number).or_insert(0) += 1;
             }
             for found_match in matches {
-                found.entry(candidates[found_match.index]).or_insert_with(|| scan.at.clone());
+                found
+                    .entry(candidates[found_match.index])
+                    .or_insert_with(|| scan.at.clone());
             }
         }
     }

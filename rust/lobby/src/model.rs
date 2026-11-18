@@ -13,7 +13,11 @@ pub struct OcrLine {
 
 impl OcrLine {
     pub fn new(text: impl Into<String>, confidence: f64, bbox: Rect) -> Self {
-        Self { text: text.into(), confidence, bbox }
+        Self {
+            text: text.into(),
+            confidence,
+            bbox,
+        }
     }
 }
 
@@ -27,7 +31,10 @@ pub struct Scenes {
 impl Scenes {
     /// 随机: any scene.
     pub fn any() -> Self {
-        Self { keys: Vec::new(), random: true }
+        Self {
+            keys: Vec::new(),
+            random: true,
+        }
     }
 
     /// 不放: neither random nor any scene ticked.
@@ -55,7 +62,10 @@ pub struct Entry {
 
 impl Entry {
     pub fn named(name: impl Into<String>) -> Self {
-        Self { name: name.into(), ..Self::default() }
+        Self {
+            name: name.into(),
+            ..Self::default()
+        }
     }
 
     /// What a lobby shows for this player: the nickname, or the full name.
