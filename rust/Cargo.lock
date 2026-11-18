@@ -5878,6 +5878,8 @@ name = "win"
 version = "0.1.0"
 dependencies = [
  "proptest",
+ "serde",
+ "serde_json",
  "sha1",
  "windows 0.61.3",
  "windows-registry",

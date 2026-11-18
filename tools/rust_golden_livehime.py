@@ -10,7 +10,8 @@ Every case is made up here from a fixed seed (window titles are made-up: 心动�
 - scene: game_and_widnow_info lines grown a piece at a time and read by SceneWatch, with status() and game_capture();
 - follow: StreamMirror._where_livehime_has_it and _fit run on a stand-in window, the scene file, the game's window and
   the screens given;
-- masked: ui_widgets.masked_name.
+- masked: ui_widgets.masked_name;
+- wgc: wgc.read / wgc.words on answers, and wgc_diagnose.verdict on made-up sets of answers, with each test's report line.
 Runs in a data folder of its own and makes no sound.
 """
 
@@ -32,7 +33,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QPoint, QPointF, QRect  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
-from blacklist_detect import livehime, livehime_layout, ui_overlay, ui_stream  # noqa: E402
+from blacklist_detect import livehime, livehime_layout, ui_overlay, ui_stream, wgc, wgc_diagnose  # noqa: E402
 from blacklist_detect.livehime_layout import Placement  # noqa: E402
 from blacklist_detect.ui_widgets import masked_name  # noqa: E402
 
@@ -288,6 +289,34 @@ def follow_cases() -> list:
     return out
 
 
+def wgc_cases() -> dict:
+    pick = random.Random(7)
+    names = [wgc_diagnose.Test("直播画面 itself", 1).name, "control: the game window 直播姬 captures", wgc_diagnose.TASKBAR,
+             *(name for name, *_rest in wgc_diagnose.WIN32), *(name for name, _without in wgc_diagnose.QT), wgc_diagnose.BY_PYTHONW]
+    answers = (None, wgc.ACCEPTED, wgc.REFUSED, 0x80004005)
+    sets = []
+    for index in range(300):
+        chosen = pick.sample(names, pick.randint(0, len(names))) if index % 3 else names
+        bias = pick.random()
+        tests = []
+        for name in chosen:
+            there = wgc.ACCEPTED if pick.random() < bias else pick.choice(answers)
+            hwnd = pick.choice((0, -1, 5, 5, 5)) if name != wgc_diagnose.BY_PYTHONW else -1
+            tests.append(wgc_diagnose.Test(name, hwnd, there=there, here=pick.choice((there, there, *answers))))
+        owned = pick.random() < 0.5
+        lines = []
+        for test in tests:  # the report's own wording for each test (wgc_diagnose.report)
+            shown = wgc.words(test.there) if test.hwnd else "could not be made"
+            if test.hwnd > 0 and test.here != test.there:
+                shown += f" (asked from where it was made: {wgc.words(test.here)})"
+            if test.hwnd > 0 and test.name.endswith("(no taskbar button)"):
+                shown += f"; owned {owned}"
+            lines.append(f"test: {test.name}: {shown}")
+        sets.append({"tests": [asdict(test) for test in tests], "owned": owned, "lines": lines, "verdict": list(wgc_diagnose.verdict(tests))})
+    texts = ["0x00000000", " 0x80070057\n", "none", "", "80070057", "0X1f", "-0x1", "1_0", "zz"]
+    return {"read": [[text, wgc.read(text)] for text in texts], "words": [[code, wgc.words(code)] for code in answers], "sets": sets}
+
+
 def main() -> None:
     target = Path(sys.argv[1] if len(sys.argv) > 1 else "rust/win/tests/golden/livehime.json")
     app = QApplication.instance() or QApplication([])  # noqa: F841 - native_to_logical's primary screen
@@ -302,6 +331,7 @@ def main() -> None:
             "studio": studio_cases(work),
             "scene": scene_cases(work),
             "follow": follow_cases(),
+            "wgc": wgc_cases(),
             "masked": [[name, masked_name(name)] for name in ("", "示", "示例坏人", "心动小鹿", "ab", "😀x", "a😀😀")],
         }
     target.parent.mkdir(parents=True, exist_ok=True)
