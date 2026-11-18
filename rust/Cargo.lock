@@ -478,12 +478,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "block"
-version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d8c1fef690941d3e7788d328517591fecc684c084084702d6ff1641e993699a"
-
-[[package]]
 name = "block-buffer"
 version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2983,21 +2977,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "metal"
-version = "0.31.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f569fb946490b5743ad69813cb19629130ce9374034abe31614a36402d18f99e"
-dependencies = [
- "bitflags 2.13.2",
- "block",
- "core-graphics-types",
- "foreign-types",
- "log",
- "objc",
- "paste",
-]
-
-[[package]]
 name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3895,12 +3874,6 @@ dependencies = [
  "parley_emoji",
  "skrifa",
 ]
-
-[[package]]
-name = "paste"
-version = "1.0.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "percent-encoding"
@@ -5272,6 +5245,7 @@ dependencies = [
  "symphonia-core",
  "symphonia-format-isomp4",
  "symphonia-format-mkv",
+ "symphonia-format-ogg",
  "symphonia-format-riff",
  "symphonia-metadata",
 ]
@@ -5385,6 +5359,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "122d786d2c43a49beb6f397551b4a050d8229eaa54c7ddf9ee4b98899b8742d0"
 dependencies = [
  "lazy_static",
+ "log",
+ "symphonia-core",
+ "symphonia-metadata",
+ "symphonia-utils-xiph",
+]
+
+[[package]]
+name = "symphonia-format-ogg"
+version = "0.5.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b4955c67c1ed3aa8ae8428d04ca8397fbef6a19b2b051e73b5da8b1435639cb"
+dependencies = [
  "log",
  "symphonia-core",
  "symphonia-metadata",
@@ -6297,7 +6283,6 @@ dependencies = [
  "hashbrown 0.15.5",
  "js-sys",
  "log",
- "naga 25.0.1",
  "parking_lot",
  "portable-atomic",
  "profiling",
@@ -6305,7 +6290,6 @@ dependencies = [
  "smallvec",
  "static_assertions",
  "wasm-bindgen",
- "wasm-bindgen-futures",
  "web-sys",
  "wgpu-core 25.0.2",
  "wgpu-hal 25.0.2",
@@ -6360,7 +6344,6 @@ dependencies = [
  "rustc-hash 1.1.0",
  "smallvec",
  "thiserror 2.0.21",
- "wgpu-core-deps-apple 25.0.0",
  "wgpu-core-deps-emscripten",
  "wgpu-core-deps-windows-linux-android 25.0.0",
  "wgpu-hal 25.0.2",
@@ -6393,20 +6376,11 @@ dependencies = [
  "rustc-hash 1.1.0",
  "smallvec",
  "thiserror 2.0.21",
- "wgpu-core-deps-apple 30.0.2",
+ "wgpu-core-deps-apple",
  "wgpu-core-deps-windows-linux-android 30.0.2",
  "wgpu-hal 30.0.2",
  "wgpu-naga-bridge",
  "wgpu-types 30.0.2",
-]
-
-[[package]]
-name = "wgpu-core-deps-apple"
-version = "25.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cfd488b3239b6b7b185c3b045c39ca6bf8af34467a4c5de4e0b1a564135d093d"
-dependencies = [
- "wgpu-hal 25.0.2",
 ]
 
 [[package]]
@@ -6456,11 +6430,9 @@ dependencies = [
  "ash",
  "bit-set 0.8.0",
  "bitflags 2.13.2",
- "block",
  "bytemuck",
  "cfg-if",
  "cfg_aliases",
- "core-graphics-types",
  "glow 0.16.0",
  "glutin_wgl_sys",
  "gpu-alloc",
@@ -6472,7 +6444,6 @@ dependencies = [
  "libc",
  "libloading 0.8.9",
  "log",
- "metal",
  "naga 25.0.1",
  "ndk-sys 0.5.0+25.2.9519653",
  "objc",

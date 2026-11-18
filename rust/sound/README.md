@@ -19,6 +19,13 @@ bit, 1-3 channels, 8-48 kHz, limiter, silence), are exact to the sample; rolling
 greeting script, trim rules, clock and bar levels exact. mp3 decodes to Python's length and loudness; AAC keeps up
 to 1023 samples (< 24 ms) of encoder padding at its end that Windows trimmed (symphonia reads no mp4 edit list).
 
+Compressed tunes: a release ships the scene tunes as Vorbis q6 in .ogg (rust/assets/sounds, written by
+`tools/size/sound_compress.py`, which also stages the release's assets folder and the listening pairs); `tune_path`
+takes a tune's .ogg where its folder has one. 4,569,200 bytes of WAV become 595,834 of .ogg plus 110,400 for
+symphonia's ogg reader (Opus would need libopus too: 850 KB at 64 kbps). `tests/compressed.rs`: each .ogg plays to
+the sample as long as its WAV at every 音量, taste and resume, its difference at most -42 dB RMS, -24 dB peak.
+The Python app and the parity goldens keep the WAVs; a player's own sounds keep their format.
+
 Gaps: .wma and .amr (in the 上传 filter) and Opus in webm have no symphonia decoder: refused with 这个文件放不了.
 No decode timeout (这个文件读不完): symphonia reads on the caller's thread, so the UI package runs it off the UI thread.
 Needs a real PC: hearing every tune, the taste and resume fades, and stop / replace by ear (the user checks sounds).

@@ -26,11 +26,19 @@ pub const LOBBY_TITLE_CANDIDATES: usize = 8;
 const REC_SCORE_THRESH: f64 = 0.0;
 const LINE_BATCH: usize = 16;
 const NAME_BATCH: usize = 12;
+/// Set to 1, the name reader (PP-OCRv6_medium_rec) reads every line too and the line model is not loaded.
+pub const ONE_READER_ENV: &str = "BLACKLIST_DETECT_ONE_READER";
+
+/// Whether BLACKLIST_DETECT_ONE_READER asks for the name reader on every line.
+pub fn one_reader_wanted() -> bool {
+    std::env::var(ONE_READER_ENV).is_ok_and(|value| value == "1")
+}
 
 /// The models a check reads with, loaded once.
 pub struct Engine {
     det: TextDetector,
-    lines: Recognizer,
+    /// The line model; None when the name reader reads every line.
+    lines: Option<Recognizer>,
     names: Recognizer,
 }
 
@@ -52,12 +60,31 @@ fn title_shaped(bbox: &[f64; 4]) -> Option<f64> {
 }
 
 impl Engine {
+    /// The name reader reads every line too when BLACKLIST_DETECT_ONE_READER is 1 or the line model is the same folder.
     pub fn new(env: &Environment, dirs: &ModelDirs, threads: usize) -> Result<Self> {
-        Ok(Self {
-            det: TextDetector::new(env, &dirs.det, threads)?,
-            lines: Recognizer::new(env, &dirs.rec, LINE_BATCH)?,
-            names: Recognizer::new(env, &dirs.names, NAME_BATCH)?,
-        })
+        Self::with_readers(env, dirs, threads, one_reader_wanted() || dirs.rec == dirs.names)
+    }
+
+    /// As `new`, with `one_reader` saying whether the name reader reads every line.
+    pub fn with_readers(env: &Environment, dirs: &ModelDirs, threads: usize, one_reader: bool) -> Result<Self> {
+        let lines = if one_reader { None } else { Some(Recognizer::new(env, &dirs.rec, LINE_BATCH)?) };
+        Ok(Self { det: TextDetector::new(env, &dirs.det, threads)?, lines, names: Recognizer::new(env, &dirs.names, NAME_BATCH)? })
+    }
+
+    /// Whether the name reader reads every line.
+    pub fn one_reader(&self) -> bool {
+        self.lines.is_none()
+    }
+
+    /// The reader of the lobby's own lines, in its line batches.
+    fn lines(&mut self) -> &mut Recognizer {
+        match self.lines.as_mut() {
+            Some(lines) => lines,
+            None => {
+                self.names.set_batch_size(LINE_BATCH);
+                &mut self.names
+            }
+        }
     }
 
     /// The models in these folders, by kind (see ModelDirs).
@@ -85,7 +112,7 @@ impl Engine {
         order.sort_by(|&a, &b| ratio(pairs[a].0).total_cmp(&ratio(pairs[b].0)));
         let batch: Vec<Mat> = order.iter().map(|&i| pairs[i].0.clone()).collect();
         let mut reads: Vec<Read> = vec![(String::new(), 0.0); pairs.len()];
-        for (&slot, read) in order.iter().zip(self.lines.read(&batch)?) {
+        for (&slot, read) in order.iter().zip(self.lines().read(&batch)?) {
             reads[slot] = read;
         }
         Ok(pairs
@@ -98,7 +125,7 @@ impl Engine {
 
     /// read_crops: lines already cut out (BGR), read as they are.
     pub fn read_crops(&mut self, crops: &[Mat]) -> Result<Vec<Read>> {
-        Ok(self.lines.read(crops)?.iter().map(clean).collect())
+        Ok(self.lines().read(crops)?.iter().map(clean).collect())
     }
 
     /// These lines read, by their index; one that reads as nothing is left out. In the order asked.
@@ -108,7 +135,7 @@ impl Engine {
             return Ok(Vec::new());
         }
         let batch: Vec<Mat> = picked.iter().map(|&i| crops[i].clone()).collect();
-        let reads = self.lines.read(&batch)?;
+        let reads = self.lines().read(&batch)?;
         Ok(picked
             .into_iter()
             .zip(reads.iter().map(clean))
@@ -175,6 +202,7 @@ impl Engine {
 
     /// read_names: every name strip (RGB) in one pass.
     pub fn read_names(&mut self, strips: &[Mat]) -> Result<Vec<Read>> {
+        self.names.set_batch_size(NAME_BATCH);
         ocr::rec::read_names(&mut self.names, strips)
     }
 }

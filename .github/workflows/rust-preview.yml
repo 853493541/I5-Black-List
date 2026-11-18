@@ -69,7 +69,7 @@ jobs:
       OPENCV_VERSION: "4.10.0"
       OPENCV_CLANG_ARGS: -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH
       ORT_VERSION: "1.32.0"
-      APP_NAME: 模仿者小工具 Rust 预览 11月 v1
+      APP_NAME: 模仿者小工具 Rust 预览 11月 v2
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -137,11 +137,16 @@ jobs:
             rust-preview-
             rust-windows-latest-
       - name: Preview tests
-        run: cargo test -p app --features preview --test preview --lib preview
+        # And the shipped .ogg tunes decode and play as their WAVs do, on Windows.
+        run: |
+          cargo test -p app --features preview --test preview --lib preview
+          cargo test -p sound --test compressed
       - name: Build
         run: cargo build --release -p app --bin blacklist-detect --features preview
 
-      # The folder the player unzips: the exe, ONNX Runtime from the pip wheel, the models, the assets, 使用说明.txt.
+      # The folder the player unzips: the exe, ONNX Runtime from the pip wheel, two models (no PP-OCRv5_mobile_rec: the
+      # app reads with PP-OCRv6_medium_rec alone), the assets with the tunes as Vorbis .ogg, 使用说明.txt. The exe's
+      # .pdb goes up as an artifact of its own, never in the player's zip.
       - name: Lay out the folder
         working-directory: .
         run: |
@@ -151,8 +156,18 @@ jobs:
           mkdir -p "$out"
           cp rust/target/release/blacklist-detect.exe "$out/$APP_NAME.exe"
           cp "$ort" "$out/onnxruntime.dll"
-          cp -r "$RUNNER_TEMP/models" "$out/models"
+          mkdir -p "$out/models"
+          cp -r "$RUNNER_TEMP/models/PP-OCRv5_mobile_det" "$RUNNER_TEMP/models/PP-OCRv6_medium_rec" "$out/models/"
+          # sound_compress.py --stage's layout, from the committed .ogg (the ones sound's tests check): its --stage
+          # re-encodes with ffmpeg first, which would ship other bytes.
           cp -r blacklist_detect/assets "$out/assets"
+          for ogg in rust/assets/sounds/*.ogg; do
+            name=$(basename "$ogg" .ogg)
+            rm "$out/assets/$name.wav"
+            cp "$ogg" "$out/assets/"
+          done
+          mkdir -p "$RUNNER_TEMP/pdb"
+          cp rust/target/release/blacklist_detect.pdb "$RUNNER_TEMP/pdb/$APP_NAME.pdb"
           # Notepad-friendly: UTF-8 with a BOM and CRLF line ends.
           { printf '\xef\xbb\xbf'; sed 's/$/\r/' rust/app/preview/使用说明.txt; } > "$out/使用说明.txt"
           echo "PREVIEW_DIR=$out" >> "$GITHUB_ENV"
@@ -197,6 +212,13 @@ jobs:
           grep -q "Preview: copied " "$log" || { echo "::error::the old list was not copied"; exit 1; }
           [ "$(sha1sum "$home/BlackListDetect/blacklist.json")" = "$before" ] || { echo "::error::old list changed"; exit 1; }
           [ ! -e "$home/BlackListDetect/logs" ] || { echo "::error::the preview wrote in the old folder"; exit 1; }
+          # The size changes: two models, the tunes as .ogg only, no .pdb in the folder.
+          [ ! -e "$PREVIEW_DIR/models/PP-OCRv5_mobile_rec" ] || { echo "::error::PP-OCRv5_mobile_rec shipped"; exit 1; }
+          ls "$PREVIEW_DIR/models" | tee -a "$GITHUB_STEP_SUMMARY"
+          for tune in wedding-organ theme-ice theme-stars theme-cyber theme-neon wedding-bells wedding-canon theme-fluffy ambush lyre; do
+            [ -f "$PREVIEW_DIR/assets/$tune.ogg" ] && [ ! -e "$PREVIEW_DIR/assets/$tune.wav" ] || { echo "::error::$tune is not .ogg only"; exit 1; }
+          done
+          ! ls "$PREVIEW_DIR"/*.pdb 2>/dev/null || { echo "::error::a .pdb in the player's folder"; exit 1; }
           set +e
           "$PREVIEW_DIR/$APP_NAME.exe" check "$GITHUB_WORKSPACE/blacklist_detect/assets/sample-lobby.jpg" > check.txt 2>&1
           code=$?
@@ -211,7 +233,26 @@ jobs:
           [ "$code" -eq 0 ] || { echo "::error::check found no lobby ($code)"; exit 1; }
           read=$(grep -cE '^ ?[0-9]+  完整' check.txt || true)
           echo "Seats read whole: $read of 12" | tee -a "$GITHUB_STEP_SUMMARY"
-          [ "$read" -ge 8 ] || { echo "::error::only $read seats read"; exit 1; }
+          [ "$read" -eq 12 ] || { echo "::error::only $read of 12 seats read"; exit 1; }
+      - name: Sizes
+        working-directory: ${{ runner.temp }}
+        run: |
+          d="$PREVIEW_DIR"
+          b() { du -sb "$@" | awk '{ s += $1 } END { print s + 0 }'; }
+          exe=$(b "$d/$APP_NAME.exe"); ort=$(b "$d/onnxruntime.dll"); models=$(b "$d/models")
+          sounds=$(b "$d"/assets/*.ogg); assets=$(( $(b "$d/assets") - sounds )); total=$(b "$d")
+          other=$(( total - exe - ort - models - sounds - assets ))
+          (cd preview && 7z a -tzip -mx=9 -bd -bso0 "$RUNNER_TEMP/size.zip" "$APP_NAME" >/dev/null)
+          zip=$(stat -c %s "$RUNNER_TEMP/size.zip")
+          {
+            echo '### Sizes'
+            echo '| Part | Bytes | MB |'
+            echo '|---|---|---|'
+            for row in "exe $exe" "onnxruntime.dll $ort" "models $models" "sounds (.ogg) $sounds" "assets (other) $assets" "other $other" "folder $total" "zip (7z, level 9) $zip" "pdb (own artifact) $(b "$RUNNER_TEMP/pdb")"; do
+              set -- $row; v=${!#}; name=${row% *}
+              awk -v n="$name" -v v="$v" 'BEGIN { printf "| %s | %d | %.1f |\n", n, v, v / 1000000 }'
+            done
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       # upload-artifact zips what it is given: the download is one zip holding the folder (not a zip in a zip).
       - uses: actions/upload-artifact@v4
@@ -220,3 +261,8 @@ jobs:
           path: ${{ runner.temp }}/preview
           retention-days: 14
           compression-level: 9
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }} pdb
+          path: ${{ runner.temp }}/pdb
+          retention-days: 14
