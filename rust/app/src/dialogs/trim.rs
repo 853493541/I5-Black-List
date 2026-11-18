@@ -18,12 +18,22 @@ pub fn peaks(samples: &[i16], columns: usize) -> Vec<f32> {
     if count == 0 {
         return vec![0.0; columns];
     }
-    let starts: Vec<usize> = (0..columns).map(|column| (column * count / columns).min(count - 1)).collect();
+    let starts: Vec<usize> = (0..columns)
+        .map(|column| (column * count / columns).min(count - 1))
+        .collect();
     (0..columns)
         .map(|column| {
             let from = starts[column];
             // reduceat: a stretch whose next start is not past it is that one sample.
-            let to = starts.get(column + 1).copied().filter(|&next| next > from).unwrap_or(if column + 1 == columns { count } else { from + 1 });
+            let to = starts
+                .get(column + 1)
+                .copied()
+                .filter(|&next| next > from)
+                .unwrap_or(if column + 1 == columns {
+                    count
+                } else {
+                    from + 1
+                });
             let part = &samples[from..to];
             let high = part.iter().copied().max().unwrap_or(0) as i32;
             let low = part.iter().copied().min().unwrap_or(0) as i32;
@@ -66,7 +76,14 @@ pub struct Strip {
 impl Strip {
     pub fn new(duration: f64, limit_s: f64) -> Self {
         let limit = limit_s.min(duration);
-        Strip { duration, limit, shortest: MIN_S.min(limit), start: 0.0, length: limit, playhead: 0.0 }
+        Strip {
+            duration,
+            limit,
+            shortest: MIN_S.min(limit),
+            start: 0.0,
+            length: limit,
+            playhead: 0.0,
+        }
     }
 
     /// The window from start, length long, kept within the limit, the shortest and the sound's ends. True
@@ -86,7 +103,12 @@ impl Strip {
     }
 
     pub fn x_of(&self, seconds: f64) -> f64 {
-        INSET + if self.duration > 0.0 { seconds / self.duration * (W - 2.0 * INSET) } else { 0.0 }
+        INSET
+            + if self.duration > 0.0 {
+                seconds / self.duration * (W - 2.0 * INSET)
+            } else {
+                0.0
+            }
     }
 
     pub fn time_at(&self, x: f64) -> f64 {
@@ -117,7 +139,10 @@ impl Strip {
                 self.set_selection(start, end - start);
             }
             Part::Right => {
-                let end = at.max(self.start + self.shortest).min(self.start + self.limit).min(self.duration);
+                let end = at
+                    .max(self.start + self.shortest)
+                    .min(self.start + self.limit)
+                    .min(self.duration);
                 self.set_selection(self.start, end - self.start);
             }
             Part::Seek => self.playhead = at,

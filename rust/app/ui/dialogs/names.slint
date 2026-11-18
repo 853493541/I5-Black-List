@@ -68,7 +68,7 @@ component PreviewTable inherits Rectangle {
                                 if row.checked: Text { text: "✓"; font-size: 12px; color: root.t.on-accent; }
                             }
                         }
-                        Text { text: row.name; font-size: 14px; color: root.p.text; opacity: fade; vertical-alignment: center; overflow: elide; }
+                        Text { text: row.name; font-size: 13px; color: root.p.text; opacity: fade; vertical-alignment: center; overflow: elide; }
                     }
                     HorizontalLayout {
                         width: tag-width;
@@ -80,7 +80,7 @@ component PreviewTable inherits Rectangle {
                             TagPill { text: chip.text; active: true; p: root.p; t: root.t; }
                         }
                     }
-                    Text { text: row.reason; font-size: 14px; color: root.p.muted; opacity: fade; vertical-alignment: center; overflow: elide; }
+                    Text { text: row.reason; font-size: 13px; color: root.p.muted; opacity: fade; vertical-alignment: center; overflow: elide; }
                     if status: Text {
                         text: row.status;
                         font-size: 14px;

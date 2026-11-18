@@ -29,7 +29,11 @@ mod render;
 #[derive(Clone, Debug, PartialEq)]
 pub enum DialogAction {
     /// 添加 / 保存 a 黑名单 record (the name as typed, its 标签 in catalog order, its 原因).
-    SaveName { name: String, tags: Vec<String>, detail: String },
+    SaveName {
+        name: String,
+        tags: Vec<String>,
+        detail: String,
+    },
     /// 删除 the record being edited.
     DeleteName,
     /// 批量导入: the rows left checked, as (name, 标签, 原因, target or -1).
@@ -44,10 +48,19 @@ pub enum DialogAction {
     ExportLog,
     /// 选择片段: play the sound from this many seconds to its end, play the part (start, length), or stop.
     PlayFrom(f64),
-    Preview { start: f64, length: f64 },
+    Preview {
+        start: f64,
+        length: f64,
+    },
     StopSound,
     /// 选择片段's 确定: keep this part, to the millisecond.
-    KeepPart { start: f64, length: f64 },
+    KeepPart {
+        start: f64,
+        length: f64,
+    },
     /// Closed with nothing to do (×, Esc, 知道了, 开始使用).
     Closed,
 }
+
+#[cfg(test)]
+mod golden;
