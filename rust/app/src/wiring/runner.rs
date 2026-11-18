@@ -4,6 +4,7 @@
 use super::flow::{Flow, Job, Ports};
 use super::life::{self, Close, Do, UpdateClock, UpdateLook};
 use super::startup::AppLog;
+use super::startup::VERSION;
 use super::stubs::{Tray, TrayAction, UpdateCheck};
 use super::watch::GLANCE_INTERVAL_MS;
 use super::worker::Worker;
@@ -67,6 +68,9 @@ pub struct Runner {
     pub flow: Flow,
     /// A newer release the last look found, for 发现新版本 to offer.
     pub offer: Option<data::update::Release>,
+    /// The update being downloaded, and what it said since the window last took it (for the update dialog).
+    installing: Option<Receiver<super::updates::Install>>,
+    pub install_events: Vec<super::updates::Install>,
     pub store: Rc<RefCell<Store>>,
     pub log: AppLog,
     pub root: PathBuf,
@@ -109,6 +113,8 @@ impl Runner {
         Runner {
             flow: Flow::new(mode, parts.ports),
             offer: None,
+            installing: None,
+            install_events: Vec::new(),
             store,
             log,
             root,
@@ -177,6 +183,18 @@ impl Runner {
         self.flow.ports.scenes.tick();
         self.flow.ports.overlay.tick();
         self.flow.ports.notice.tick();
+        if let Some(events) = &self.installing {
+            let said: Vec<_> = events.try_iter().collect();
+            if said.iter().any(|event| !matches!(event, super::updates::Install::Progress(..))) {
+                self.installing = None;
+            }
+            for event in &said {
+                if !matches!(event, super::updates::Install::Progress(..)) {
+                    self.log.info(&format!("Update: {event:?}"));
+                }
+            }
+            self.install_events.extend(said);
+        }
         match self.update_check.poll() {
             Some(Ok(Some(release))) => {
                 self.log.info(&format!("Update: {} is out.", release.version));
@@ -206,6 +224,19 @@ impl Runner {
     /// 检查更新 in 设置: a look now.
     pub fn check_updates_now(&mut self) {
         self.look_for_update(UpdateLook::Install);
+    }
+
+    /// 更新: download the release offered and stage it; false when there is none, or no release folder to stage in.
+    pub fn start_install(&mut self) -> bool {
+        let (Some(release), Some(install)) = (self.offer.clone(), super::startup::install_root()) else { return false };
+        if self.installing.is_some() {
+            return false;
+        }
+        let agent = VERSION.to_string();
+        let connect: super::updates::Connect = Box::new(move || Box::new(data::update::net::Net::new(&agent)));
+        self.log.info(&format!("Update: downloading {}.", release.version));
+        self.installing = Some(super::updates::install(release, self.root.clone(), install, connect));
+        true
     }
 
     /// 全局声音: 静音 stops what plays now.

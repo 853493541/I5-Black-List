@@ -37,6 +37,16 @@ pub fn handle(runner: &mut Runner, event: &UiEvent) -> bool {
             export_logs(runner);
             true
         }
+        UiEvent::Update(Effect::StartDownload) => {
+            if !runner.start_install() {
+                runner.log.warn("Update: nothing to download (no release offered, or run from source).");
+            }
+            true
+        }
+        UiEvent::Update(Effect::RestartAfter(ms)) => {
+            restart_after(runner, *ms);
+            true
+        }
         UiEvent::Update(Effect::OpenUrl(url)) => {
             open_url(url);
             true
@@ -112,4 +122,18 @@ pub fn rekey(runner: &mut Runner, last: &mut (String, String)) {
     let keys = super::keys(&runner.store.borrow(), &runner.log);
     runner.set_keys(keys);
     runner.log.info(&format!("Hotkeys: {} / {}", last.0, last.1));
+}
+
+/// After `ms`, the launcher starts to lay the update over, and this app ends.
+fn restart_after(runner: &mut Runner, ms: u64) {
+    let Some(install) = app::wiring::startup::install_root() else {
+        runner.log.warn("Update: no release folder to restart into.");
+        return;
+    };
+    runner.log.info(&format!("Update: restarting into it in {ms} ms."));
+    slint::Timer::single_shot(std::time::Duration::from_millis(ms), move || {
+        if app::wiring::updates::restart_into_update(&install, false) {
+            let _ = slint::quit_event_loop();
+        }
+    });
 }
