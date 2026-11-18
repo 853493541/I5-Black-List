@@ -1,0 +1,110 @@
+// 直播模式说明 (ui_dialogs.StreamGuideDialog, a PictureGuideDialog of one page): what viewers see, and how to add
+// 直播画面 in 直播姬. Each row is its words beside its picture; 知道了 closes it.
+// stub: ui-kit (the Modal frame, its ✕ and the primary button); swap for the kit's when it lands.
+
+import { Palette, Light, Dark } from "../theme.slint";
+import { StreamTones } from "parts.slint";
+
+// One row: words 178 px wide (WORDS_WIDTH 186 less the label's own margins in Qt), the picture fitted in 465 x 150 (PICTURE_BOX) beside it.
+component GuideRow inherits HorizontalLayout {
+    in property <Palette> p;
+    in property <string> heading;
+    in property <string> words;
+    in property <image> picture;
+    in property <length> picture-width;
+    in property <length> picture-height;
+    // A two-half picture's gutter, painted in the dialog's surface (ui_dialogs.GUTTER, at half size).
+    in property <bool> halves;
+    spacing: 16px;
+    alignment: start;
+    VerticalLayout {
+        width: 178px;
+        spacing: 4px;
+        alignment: start;
+        Text { text: heading; font-size: 14px; font-weight: 700; color: p.text; }
+        Text { text: words; font-size: 12px; color: p.muted; wrap: word-wrap; }
+    }
+    Rectangle {
+        width: picture-width;
+        height: picture-height;
+        border-radius: 6px;
+        clip: true;
+        Image { source: picture; width: parent.width; height: parent.height; image-fit: fill; }
+        if halves: Rectangle {
+            x: parent.width * 460 / 930;
+            width: parent.width * 10 / 930;
+            background: p.surface;
+        }
+        Rectangle { border-radius: 6px; border-width: 1px; border-color: p.border; }
+    }
+}
+
+export component StreamGuideDialog inherits Window {
+    in property <bool> dark;
+    property <Palette> p: dark ? Dark.palette : Light.palette;
+    // 知道了 or the ✕: the app closes the dialog.
+    callback done;
+    title: "直播模式";
+    preferred-width: 717px;
+    preferred-height: 446px;
+    background: p.surface;
+    init => { StreamTones.dark = dark; }
+    VerticalLayout {
+        VerticalLayout {
+            padding-left: 25px;
+            padding-right: 25px;
+            padding-top: 16px;
+            padding-bottom: 8px;
+            spacing: 22px;
+            HorizontalLayout {
+                Text { text: "直播模式"; font-size: 18px; font-weight: 700; color: p.text; vertical-alignment: center; }
+                Rectangle { horizontal-stretch: 1; }
+                Rectangle {
+                    width: 28px;
+                    height: 28px;
+                    border-radius: 6px;
+                    background: close.has-hover ? p.hover : transparent;
+                    Text { text: "✕"; font-size: 15px; color: p.muted; }
+                    close := TouchArea { clicked => { done(); } }
+                }
+            }
+            VerticalLayout {
+                padding-left: 6px;
+                spacing: 14px;
+                alignment: start;
+                GuideRow {
+                    p: p;
+                    heading: "观众看到什么";
+                    words: "观众看不到黑名单，能看到嘉宾";
+                    picture: @image-url("../../../../blacklist_detect/assets/stream-diff-1.jpg");
+                    picture-width: 465px;
+                    picture-height: 130px;
+                    halves: true;
+                }
+                GuideRow {
+                    p: p;
+                    heading: "怎么设置";
+                    words: "在直播姬添加窗口捕捉";
+                    picture: @image-url("../../../../blacklist_detect/assets/stream-setup-2.png");
+                    picture-width: 311px;
+                    picture-height: 150px;
+                }
+            }
+            Rectangle { vertical-stretch: 1; }
+        }
+        Rectangle {
+            height: 75px;
+            background: p.bg;
+            Rectangle { y: 0; height: 1px; background: p.border; }
+            Rectangle {
+                x: parent.width - self.width - 23px;
+                width: ok-words.preferred-width + 28px;
+                height: 32px;
+                border-radius: 6px;
+                background: ok.has-hover ? p.accent-line : p.accent;
+                ok-words := Text { text: "知道了"; font-size: 14px; font-weight: 700; color: StreamTones.on-accent; }
+                ok := TouchArea { clicked => { done(); } }
+            }
+        }
+    }
+}

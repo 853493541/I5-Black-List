@@ -1,0 +1,142 @@
+// The pieces the 嘉宾 page draws that ui/kit.slint does not have yet. stub: ui-kit (move them there when it lands).
+
+import { Palette } from "../theme.slint";
+
+// ui_theme.THEME's colours the 嘉宾 page needs beyond the palette: the 我 row's green, the 组合 tag's blue, 昵称's rose.
+export struct GuestTones { green: color, green-wash: color, green-hover: color, blue: color, blue-wash: color, rose: color }
+
+export global GuestColors {
+    out property <GuestTones> light: {
+        green: #1c7a3e, green-wash: #effaf3, green-hover: #e3f6eb, blue: #1f5fb8, blue-wash: #eef4fd, rose: #c2306b,
+    };
+    out property <GuestTones> dark: {
+        green: #5fcb8c, green-wash: #1b3125, green-hover: #22402f, blue: #82b4f5, blue-wash: #1e2b3e, rose: #f08bb0,
+    };
+}
+
+// The line icons ui_icons draws that the page uses: search, heart, more (three dots), copy, delete.
+export component GuestIcon inherits Rectangle {
+    in property <string> name;
+    in property <length> size: 16px;
+    in property <color> tone;
+    width: size;
+    height: size;
+    if name == "more": HorizontalLayout {
+        alignment: center;
+        spacing: size / 8;
+        for i in 3: Rectangle {
+            y: (size - self.height) / 2;
+            width: size / 7;
+            height: size / 7;
+            border-radius: self.width / 2;
+            background: tone;
+        }
+    }
+    if name != "more": Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        stroke: tone;
+        stroke-width: name == "heart" ? 1.5px : 1.8px;
+        fill: transparent;
+        commands: name == "search"
+            ? "M10.5 4 A6.5 6.5 0 1 0 10.5 17 A6.5 6.5 0 1 0 10.5 4 M15.3 15.3 L20 20"
+            : name == "heart"
+            ? "M12 20 C5 15 3 11.5 3 8.5 C3 5.9 5 4 7.4 4 C9.4 4 10.9 5.1 12 6.8 C13.1 5.1 14.6 4 16.6 4 C19 4 21 5.9 21 8.5 C21 11.5 19 15 12 20 Z"
+            : name == "copy"
+            ? "M8 8 L19 8 L19 19 L8 19 Z M5 15 L5 5 L15 5"
+            : "M4 7 L20 7 M9 7 L9 4 L15 4 L15 7 M6 7 L7 20 L17 20 L18 7 M10 11 L10 16 M14 11 L14 16";
+    }
+}
+
+// A toolbar button: outlined, or primary (dark blue, white words) as QPushButton#primary.
+export component GuestButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> primary;
+    in property <bool> enabled: true;
+    in property <Palette> p;
+    callback clicked();
+    height: 32px;
+    width: max(84px, words.preferred-width + 28px);
+    border-radius: 6px;
+    border-width: primary ? 0 : 1px;
+    border-color: touch.has-hover && enabled ? p.accent-line : p.border;
+    background: primary ? (touch.has-hover ? p.accent-line : p.accent) : touch.has-hover && enabled ? p.hover : p.surface;
+    opacity: enabled ? 1 : 0.5;
+    words := Text {
+        text: label;
+        font-size: 14px;
+        font-weight: primary ? 600 : 400;
+        color: primary ? #ffffff : p.text;
+    }
+    touch := TouchArea {
+        enabled: enabled;
+        mouse-cursor: pointer;
+        clicked => { clicked(); }
+    }
+}
+
+// A tag before a row's words: 我 (green on the card's colour) or 组合 (blue on its wash), as ui_widgets._draw_pill.
+export component GuestTag inherits Rectangle {
+    in property <string> label;
+    in property <color> ink;
+    in property <color> wash;
+    height: 22px;
+    width: words.preferred-width + 16px;
+    border-radius: self.height / 2;
+    background: wash;
+    words := Text { text: label; font-size: 12px; font-weight: 700; color: ink; }
+}
+
+// 场景's cell: a dot in each scene's colour, then its words; several dots close up where the cell is narrow.
+export component SceneCell inherits Rectangle {
+    in property <[color]> dots;
+    in property <string> words;
+    in property <color> ink;
+    property <length> dot: 12px;
+    property <length> room: self.width - said.preferred-width - dot - 8px;
+    property <length> step: dots.length <= 1 ? dot + 3px : max(dot / 2, min(dot + 3px, room / (dots.length - 1)));
+    for tone[i] in dots: Rectangle {
+        x: i * step;
+        y: (parent.height - dot) / 2;
+        width: dot;
+        height: dot;
+        border-radius: dot / 2;
+        background: tone;
+    }
+    said := Text {
+        x: dots.length == 0 ? 0 : (dots.length - 1) * step + dot + 8px;
+        width: parent.width - self.x;
+        y: (parent.height - self.height) / 2;
+        text: words;
+        font-size: 14px;
+        color: ink;
+        overflow: elide;
+    }
+}
+
+// A right-click or 更多 menu item, or the line between items when its label is "-".
+export component MenuLine inherits Rectangle {
+    in property <string> label;
+    in property <string> icon;
+    in property <bool> danger;
+    in property <Palette> p;
+    callback chosen();
+    height: label == "-" ? 9px : 32px;
+    border-radius: 6px;
+    background: label != "-" && touch.has-hover ? p.hover : transparent;
+    if label == "-": Rectangle { y: 4px; height: 1px; background: p.border; }
+    if label != "-" && icon != "": GuestIcon { x: 10px; name: icon; size: 16px; tone: danger ? p.danger : p.muted; }
+    if label != "-": Text {
+        x: icon != "" ? 34px : 12px;
+        y: (parent.height - self.height) / 2;
+        text: label;
+        font-size: 14px;
+        color: danger ? p.danger : p.text;
+    }
+    touch := TouchArea {
+        enabled: label != "-";
+        clicked => { chosen(); }
+    }
+}

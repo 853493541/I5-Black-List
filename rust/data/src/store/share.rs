@@ -4,11 +4,8 @@
 use super::py::{cut, is_space, strip};
 use super::text::{clean_stored_name, clean_tag, fold, order_tags, MAX_NAME, MAX_NOTE, TAGS};
 use super::Entry;
+pub use common::limits::{OLD_SHARE_MARKS, SHARE_MARK};
 
-/// First line of a list copied with 分享.
-pub const SHARE_MARK: &str = "#模仿者小工具 黑名单";
-/// Lists copied before the rename start with this.
-pub const OLD_SHARE_MARKS: [&str; 1] = ["#黑名单检测 名单"];
 const REASON_MARK: &str = "原因：";
 
 /// storage.tag_text.

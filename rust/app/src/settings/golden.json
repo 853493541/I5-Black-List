@@ -1,0 +1,165 @@
+{
+ "sections": [
+  {
+   "key": "general",
+   "title": "常规",
+   "rows": [
+    {
+     "name": "开机启动",
+     "description": "Windows 启动时自动打开",
+     "controls": [
+      {
+       "kind": "choice",
+       "choices": [
+        "关闭",
+        "开启"
+       ],
+       "keys": [
+        "off",
+        "on"
+       ],
+       "value": "关闭"
+      }
+     ]
+    },
+    {
+     "name": "关闭窗口时",
+     "description": "",
+     "controls": [
+      {
+       "kind": "choice",
+       "choices": [
+        "最小化到托盘",
+        "退出程序"
+       ],
+       "keys": [
+        "tray",
+        "quit"
+       ],
+       "value": "最小化到托盘"
+      }
+     ]
+    },
+    {
+     "name": "全局声音",
+     "description": "",
+     "controls": [
+      {
+       "kind": "choice",
+       "choices": [
+        "播放",
+        "静音"
+       ],
+       "keys": [
+        "off",
+        "on"
+       ],
+       "value": "播放"
+      }
+     ]
+    },
+    {
+     "name": "主题",
+     "description": "",
+     "controls": [
+      {
+       "kind": "choice",
+       "choices": [
+        "浅色",
+        "深色",
+        "跟随系统"
+       ],
+       "keys": [
+        "light",
+        "dark",
+        "system"
+       ],
+       "value": "浅色"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "key": "help",
+   "title": "帮助",
+   "rows": [
+    {
+     "name": "环境测试",
+     "description": "",
+     "controls": [
+      {
+       "kind": "button",
+       "label": "开始"
+      }
+     ]
+    },
+    {
+     "name": "导出日志",
+     "description": "",
+     "controls": [
+      {
+       "kind": "button",
+       "label": "导出"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "key": "about",
+   "title": "关于",
+   "rows": [
+    {
+     "name": "检查更新",
+     "description": "当前版本 1.0.1",
+     "controls": [
+      {
+       "kind": "note"
+      },
+      {
+       "kind": "button",
+       "label": "检查更新"
+      }
+     ]
+    },
+    {
+     "name": "使用声明",
+     "description": "免费自制工具，和官方无关",
+     "controls": [
+      {
+       "kind": "button",
+       "label": "查看"
+      }
+     ]
+    },
+    {
+     "name": "清空数据",
+     "description": "删除黑名单、嘉宾、记录和全部设置",
+     "controls": [
+      {
+       "kind": "danger",
+       "label": "清空"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "setup": {
+  "steps": [
+   "屏幕截图",
+   "识别功能",
+   "识别测试",
+   "自动检查",
+   "手动检查"
+  ],
+  "running": "正在测试环境",
+  "ok": "准备好了",
+  "failed": "环境测试没通过",
+  "buttons": [
+   "关闭",
+   "重试"
+  ]
+ }
+}
