@@ -154,7 +154,10 @@ impl Runner {
             if id == CHECK_HOTKEY {
                 self.check_now();
             }
-            // stub: stage (the 场景 hotkey's quick play, play_quick_scene)
+            if id == SCENE_HOTKEY {
+                let scene = self.store.borrow().settings.quick_scene.clone();
+                self.flow.quick_play(&scene, screen_rect(), seconds);
+            }
         }
         if now >= self.next_glance {
             self.next_glance = now + GLANCE_INTERVAL_MS;
@@ -243,3 +246,15 @@ impl Runner {
     }
 }
 
+
+/// The whole desktop, where the 场景 hotkey plays with no lobby found yet.
+#[cfg(windows)]
+fn screen_rect() -> super::stubs::Rect {
+    let screen = win::capture::virtual_screen();
+    super::stubs::Rect { x: screen.left, y: screen.top, w: screen.width, h: screen.height }
+}
+
+#[cfg(not(windows))]
+fn screen_rect() -> super::stubs::Rect {
+    super::stubs::Rect { x: 0, y: 0, w: 1920, h: 1080 }
+}

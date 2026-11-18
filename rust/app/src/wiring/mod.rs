@@ -7,6 +7,7 @@ pub mod flow;
 pub mod life;
 pub mod marks;
 pub mod parts;
+pub mod quick;
 pub mod records;
 pub mod runner;
 pub mod scenes;
