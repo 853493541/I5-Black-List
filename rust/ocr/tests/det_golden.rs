@@ -94,5 +94,7 @@ fn detection_matches_the_python_reference() {
         crops += frame["crops"].as_array().unwrap().len();
     }
     eprintln!("{boxes} boxes, {crops} crops compared");
-    assert!(gaps.is_empty(), "{} gaps:\n{}", gaps.len(), gaps.join("\n"));
+    // OpenCV 4.6 draws some slanted fillPoly masks a pixel different from the 4.10 the Python app runs: link 4.10.
+    let version = opencv::core::get_version_string().unwrap();
+    assert!(gaps.is_empty(), "{} gaps on OpenCV {version}:\n{}", gaps.len(), gaps.join("\n"));
 }
