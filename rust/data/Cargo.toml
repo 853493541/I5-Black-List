@@ -20,5 +20,9 @@ zip = { version = "2", default-features = false, features = ["deflate"] }
 proptest = "1.12.0"
 tempfile = "3"
 
+# The report from a real computer, on Windows only (tests/diag_windows.rs).
+[target.'cfg(windows)'.dev-dependencies]
+win = { path = "../win" }
+
 [lints]
 workspace = true

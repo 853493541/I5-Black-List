@@ -981,6 +981,7 @@ dependencies = [
  "tempfile",
  "unicode-general-category",
  "unicode-normalization",
+ "win",
  "zip",
 ]
 
