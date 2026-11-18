@@ -129,6 +129,9 @@ impl Neon {
                 fx::spire(&mut f, age, s.end, self.lights, u, s.seed);
             }
         }
+        for s in &self.strikes {
+            s.shower.paint(&mut f, t - s.when, &self.heats, u);
+        }
         f
     }
 

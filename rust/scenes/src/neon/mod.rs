@@ -13,7 +13,9 @@ mod paint;
 pub mod raster;
 pub mod signs;
 pub mod sky;
+pub mod sparks;
 pub mod towers;
+mod zig;
 
 use frame::Atlas;
 use raster::{noise, round_even, Img, Pt};
@@ -58,6 +60,7 @@ pub struct Strike {
     pub bolts: [fx::Bolt; 2],
     pub bolt_ids: [usize; 2],
     pub cloud: (Rect, usize),
+    pub shower: sparks::Shower,
 }
 
 /// A tower with what was worked out for it: outline, pictures (area, body, lights), its sign's.
@@ -91,6 +94,7 @@ pub struct Neon {
     /// hot, cyan, violet.
     lights: [usize; 3],
     beacon: usize,
+    heats: Vec<sparks::Heat>,
     rain: Vec<fx::Rain>,
     lanes: Vec<fx::Lane>,
 }
@@ -147,14 +151,15 @@ impl Neon {
             let seed = i as u32 + 1;
             let hero = towers.iter().position(|b| b.tower.side == side && side != 0 && (b.tower.show == "screen" || b.tower.show == "ticker"));
             let tip = hero.and_then(|h| towers[h].outline.tip);
-            let (start, end, hero) = match tip {
-                Some(end) => ([end[0] - f64::from(side) * width * 0.05, -height * 0.03], end, hero),
-                None => ([width * 0.2, -height * 0.03], [width * 0.24, 15.0 * u], None),
+            let (start, end, hero, aim, count) = match tip {
+                Some(end) => ([end[0] - f64::from(side) * width * 0.05, -height * 0.03], end, hero, -1.57, 64),
+                None => ([width * 0.2, -height * 0.03], [width * 0.24, 15.0 * u], None, 1.57, 46),
             };
+            let shower = sparks::shower(end, aim, count, u, seed, width, height, &keep);
             let bolts = fx::bolt_shapes(start, end, seed, u, &keep);
             let bolt_ids = [add(bolts[0].light.clone()), add(bolts[1].light.clone())];
             let (rect, img) = sky::cloud_flash(width, height, u, &sky_noise, start[0] / width, title);
-            strikes.push(Strike { when, start, end, hero, seed, bolts, bolt_ids, cloud: (rect, add(img)) });
+            strikes.push(Strike { when, start, end, hero, seed, bolts, bolt_ids, cloud: (rect, add(img)), shower });
         }
         let distant = DISTANT
             .iter()
@@ -165,6 +170,7 @@ impl Neon {
             .collect();
         let lights = [add(sky::dot(rgb("#bff9ff"), 1.0, 64)), add(sky::dot(rgb(CYAN), 0.25, 64)), add(sky::dot(rgb(VIOLET), 0.0, 64))];
         let beacon = add(sky::dot(rgb("#ff2a3a"), 0.5, 32));
+        let heats = sparks::heats(u, &mut add);
         let haze = [-1, 1]
             .iter()
             .map(|&side| {
@@ -176,7 +182,7 @@ impl Neon {
         let beam = (beam_rect, add(beam_img));
         let rain = fx::rain_drops(width, height, u);
         let lanes = LANES.iter().map(|l| fx::lane(l, width, height)).collect();
-        Self { width, height, gap, u, names, images, night, flashes, distant, strikes, towers, haze, beam, glows, outer, inner, lights, beacon, rain, lanes }
+        Self { width, height, gap, u, names, images, night, flashes, distant, strikes, towers, haze, beam, glows, outer, inner, lights, beacon, heats, rain, lanes }
     }
 
     /// The atlas of every picture, `w` texels wide.
