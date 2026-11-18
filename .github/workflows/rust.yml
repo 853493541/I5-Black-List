@@ -1,0 +1,41 @@
+name: rust
+
+# The Rust rewrite (rust/): build, test and lint the whole workspace. The Windows job is where the
+# Windows-only code (rust/win: capture, hotkeys, single instance, autostart) actually runs.
+on:
+  push:
+    branches: ["feature/rust*"]
+  pull_request:
+    paths: ["rust/**", ".github/workflows/rust.yml"]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: rust
+    env:
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: rust-${{ matrix.os }}-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: rust-${{ matrix.os }}-
+      - name: Test
+        run: cargo test --workspace
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
