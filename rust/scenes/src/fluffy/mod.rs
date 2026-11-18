@@ -15,12 +15,14 @@ mod paper;
 mod pcg;
 mod pixels;
 mod sprite;
+#[cfg(test)]
+mod tests;
 
-use bake::{fills, outline, parts, sticker, Ink, Look, Part, Pic, Shapes};
-use lines::{fillet, even, Line};
-use pixels::Canvas;
 use crate::draw::{hex, Pt};
 use crate::pyrand::PyRandom;
+use bake::{fills, outline, parts, sticker, Ink, Look, Part, Pic, Shapes};
+use lines::{even, fillet, Line};
+use pixels::Canvas;
 use sprite::Atlas;
 
 pub use frame::Shot;
@@ -100,7 +102,8 @@ impl Fluffy {
         let routes: Vec<Vec<Pt>> = [(edge, gap[0] - 4.0 * u), (width - right, gap[0] + gap[2] + 4.0 * u)]
             .iter()
             .map(|&(x0, x1)| {
-                let corners = [[width / 2.0, edge, 0.0], [x0, edge, corner], [x0, height - edge, corner], [x1, height - edge, 10.0 * u], [x1, height + 2.0 * u, 0.0]];
+                let corners =
+                    [[width / 2.0, edge, 0.0], [x0, edge, corner], [x0, height - edge, corner], [x1, height - edge, 10.0 * u], [x1, height + 2.0 * u, 0.0]];
                 even(&fillet(&corners), 2.5 * u, false)
             })
             .collect();
@@ -113,31 +116,55 @@ impl Fluffy {
             pics.push(pic.canvas);
             (pics.len() - 1, pic.rect)
         };
-        let cat_at = [([108.0 * u, height - edge], 112.0 * u, 0.0, 1.05, 1.0), ([edge, height * 0.43], 58.0 * u, 90.0, 1.25, 0.0), ([width - 106.0 * u, height - edge], 66.0 * u, 0.0, 1.6, 0.0), ([width - 154.0 * u, height - edge], 50.0 * u, 0.0, 1.72, -1.0)];
+        let cat_at = [
+            ([108.0 * u, height - edge], 112.0 * u, 0.0, 1.05, 1.0),
+            ([edge, height * 0.43], 58.0 * u, 90.0, 1.25, 0.0),
+            ([width - 106.0 * u, height - edge], 66.0 * u, 0.0, 1.6, 0.0),
+            ([width - 154.0 * u, height - edge], 50.0 * u, 0.0, 1.72, -1.0),
+        ];
         let mut cats = Vec::new();
         for (index, &(base, size, turn, when, tail)) in cat_at.iter().enumerate() {
             let coat = index as u32;
             let faces = FACES.map(|face| add(cat_picture(&shapes, index, face, size, scale), &mut pics));
-            let paws = add(fur_picture(&shapes, &format!("paws{index}"), size, scale, Look { soft: size * 0.05, seed: 31 + coat, shadow: size * 0.012, ..fur() }), &mut pics);
-            let tail_pic = add(fur_picture(&shapes, &format!("tail{index}"), size, scale, Look { soft: size * 0.05, seed: 41 + coat, cut: Some(0.0), ..fur() }), &mut pics);
+            let paws = add(
+                fur_picture(&shapes, &format!("paws{index}"), size, scale, Look { soft: size * 0.05, seed: 31 + coat, shadow: size * 0.012, ..fur() }),
+                &mut pics,
+            );
+            let tail_pic = add(
+                fur_picture(&shapes, &format!("tail{index}"), size, scale, Look { soft: size * 0.05, seed: 41 + coat, cut: Some(0.0), ..fur() }),
+                &mut pics,
+            );
             let m = sprite::Affine::ID.translate(base[0], base[1]).rotate(turn);
             let line: pixels::Shape = paper::edge(size, 43 + coat, u).into_iter().map(|(s, p)| (s, p.into_iter().map(|q| m.map(q)).collect())).collect();
             let edge = add(paper::ink_sprite(&line, INK), &mut pics);
             cats.push(Cat { base, size, turn, when, tail, faces, paws, tail_pic, edge });
         }
         let star_at = [
-            (70.0, 74.0, 24.0, MINT, 0.75), (160.0, 160.0, 14.0, BEAD, 1.05), (268.0, 46.0, 12.0, MINT, 0.9), (46.0, 300.0, 17.0, MINT, 1.2), (172.0, 392.0, 11.0, BEAD, 1.45),
+            (70.0, 74.0, 24.0, MINT, 0.75),
+            (160.0, 160.0, 14.0, BEAD, 1.05),
+            (268.0, 46.0, 12.0, MINT, 0.9),
+            (46.0, 300.0, 17.0, MINT, 1.2),
+            (172.0, 392.0, 11.0, BEAD, 1.45),
         ];
         let mut stars: Vec<(f64, f64, f64, &str, f64)> = star_at.iter().map(|&(x, y, r, c, w)| (x * u, y * u, r * u, c, w)).collect();
         stars.extend([
-            (150.0 * u, height - 330.0 * u, 13.0 * u, MINT, 1.6), (width - 405.0 * u, 46.0 * u, 15.0 * u, BEAD, 0.95), (width - 300.0 * u, 136.0 * u, 23.0 * u, MINT, 0.8),
-            (width - 150.0 * u, 72.0 * u, 17.0 * u, MINT, 1.1), (width - 92.0 * u, 236.0 * u, 12.0 * u, BEAD, 1.35), (width - 74.0 * u, height * 0.53, 11.0 * u, MINT, 1.55),
-            (width - 238.0 * u, height - 106.0 * u, 12.0 * u, MINT, 2.0), (width / 2.0 - 215.0 * u, 28.0 * u, 10.0 * u, MINT, 0.6), (width / 2.0 + 215.0 * u, 28.0 * u, 10.0 * u, MINT, 0.65),
+            (150.0 * u, height - 330.0 * u, 13.0 * u, MINT, 1.6),
+            (width - 405.0 * u, 46.0 * u, 15.0 * u, BEAD, 0.95),
+            (width - 300.0 * u, 136.0 * u, 23.0 * u, MINT, 0.8),
+            (width - 150.0 * u, 72.0 * u, 17.0 * u, MINT, 1.1),
+            (width - 92.0 * u, 236.0 * u, 12.0 * u, BEAD, 1.35),
+            (width - 74.0 * u, height * 0.53, 11.0 * u, MINT, 1.55),
+            (width - 238.0 * u, height - 106.0 * u, 12.0 * u, MINT, 2.0),
+            (width / 2.0 - 215.0 * u, 28.0 * u, 10.0 * u, MINT, 0.6),
+            (width / 2.0 + 215.0 * u, 28.0 * u, 10.0 * u, MINT, 0.65),
         ]);
-        let stars = stars.into_iter().map(|(x, y, r, tint, when)| {
-            let (id, rect) = add(star_sticker(&shapes, r, tint, scale), &mut pics);
-            (x, y, r, id, rect, when)
-        }).collect();
+        let stars = stars
+            .into_iter()
+            .map(|(x, y, r, tint, when)| {
+                let (id, rect) = add(star_sticker(&shapes, r, tint, scale), &mut pics);
+                (x, y, r, id, rect, when)
+            })
+            .collect();
         let ring = add(paper::binder(&shapes, 11.0 * u, scale), &mut pics);
         let paw = add(paper::paw_print(&shapes, 34.0 * u, scale), &mut pics);
         let tab_rect = [width / 2.0 - 165.0 * u, 4.0 * u, 330.0 * u, 44.0 * u];
@@ -188,7 +215,8 @@ fn cat_picture(shapes: &Shapes, index: usize, face: &str, s: f64, scale: f64) ->
     let b = shapes.points(&format!("{key}.box"), s);
     let rect = [b[0][0], b[0][1], b[1][0] - b[0][0], b[1][1] - b[0][1]];
     let outlines: Vec<Ink> = (0..).map(|n| format!("{key}.out{n}")).take_while(|k| shapes.has(k)).map(|k| outline(shapes, &k, s)).collect();
-    let look = Look { soft: s * 0.13, seed: 21 + index as u32, middle: Some(b[2]), blush: Some(shapes.shape(&format!("{key}.blush"), s)), cut: Some(0.0), ..fur() };
+    let look =
+        Look { soft: s * 0.13, seed: 21 + index as u32, middle: Some(b[2]), blush: Some(shapes.shape(&format!("{key}.blush"), s)), cut: Some(0.0), ..fur() };
     sticker(rect, scale, &parts(shapes, &key, s), &look, &outlines, &fills(shapes, &key, s))
 }
 
@@ -196,14 +224,19 @@ fn cat_picture(shapes: &Shapes, index: usize, face: &str, s: f64, scale: f64) ->
 fn star_sticker(shapes: &Shapes, r: f64, tint: &str, scale: f64) -> Pic {
     let part = Part { shape: shapes.shape("star.part0", r), color: rgb(tint), lift: 0.0 };
     let ink = Ink { shape: shapes.shape("star.out0", r), width: (r * 0.085).max(0.7), color: rgb(INK) };
-    let look = Look { soft: (r * 0.22).max(1.0), gloss: 0.55, grain: 0.03, seed: 5, shadow: (r * 0.08).max(0.6), fur: false, middle: None, blush: None, cut: None };
+    let look =
+        Look { soft: (r * 0.22).max(1.0), gloss: 0.55, grain: 0.03, seed: 5, shadow: (r * 0.08).max(0.6), fur: false, middle: None, blush: None, cut: None };
     sticker([-r * 1.25, -r * 1.25, r * 2.5, r * 2.5], scale, &[part], &look, &[ink], &[])
 }
 
 /// _tab: the white paper name tab in an inked edge, 毛茸茸保护协会 on it between two ❖.
 fn tab_sticker(shapes: &Shapes, u: f64, scale: f64) -> Pic {
-    let parts = [Part { shape: shapes.shape("tab.part0", u), color: rgb(PAPER), lift: 0.0 }, Part { shape: shapes.shape("tab.part1", u), color: rgb(MINT), lift: 0.8 }];
-    let inks = [Ink { shape: shapes.shape("tab.out0", u), width: 1.8 * u, color: rgb(INK) }, Ink { shape: shapes.shape("tab.out1", u), width: 0.9 * u, color: rgb(INK) }];
+    let parts =
+        [Part { shape: shapes.shape("tab.part0", u), color: rgb(PAPER), lift: 0.0 }, Part { shape: shapes.shape("tab.part1", u), color: rgb(MINT), lift: 0.8 }];
+    let inks = [
+        Ink { shape: shapes.shape("tab.out0", u), width: 1.8 * u, color: rgb(INK) },
+        Ink { shape: shapes.shape("tab.out1", u), width: 0.9 * u, color: rgb(INK) },
+    ];
     let words = Ink { shape: shapes.shape("tab.words", u), width: 1.0, color: rgb(INK) };
     let look = Look { soft: 3.0 * u, gloss: 0.12, grain: 0.04, seed: 9, shadow: 2.5 * u, fur: false, middle: None, blush: None, cut: None };
     sticker([-173.0 * u, -30.0 * u, 346.0 * u, 60.0 * u], scale, &parts, &look, &inks, &[words])

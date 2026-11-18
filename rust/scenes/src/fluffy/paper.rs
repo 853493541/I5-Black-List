@@ -16,7 +16,12 @@ pub fn band(width: f64, height: f64, inside: &[Pt], u: f64, scale: f64) -> Vec<(
     let hole: Shape = vec![(1.0, inside.to_vec())];
     let full = mask(w, h, &hole, &|p| [p[0] * scale, p[1] * scale]).map(|c| 1.0 - c);
     let reach = 64.0 * u;
-    let rects = [[0.0, 0.0, width, reach], [0.0, height - reach, width, reach], [0.0, reach, reach, height - 2.0 * reach], [width - reach, reach, reach, height - 2.0 * reach]];
+    let rects = [
+        [0.0, 0.0, width, reach],
+        [0.0, height - reach, width, reach],
+        [0.0, reach, reach, height - 2.0 * reach],
+        [width - reach, reach, reach, height - 2.0 * reach],
+    ];
     let mut out = Vec::new();
     for (index, r) in rects.iter().enumerate() {
         let (x0, y0) = (pyround(r[0] * scale) as usize, pyround(r[1] * scale) as usize);
@@ -100,7 +105,11 @@ pub fn paw_print(shapes: &Shapes, s: f64, scale: f64) -> Pic {
     let ink = mask(w, w, &shape, &|p| [(p[0] - left) * scale, (p[1] - left) * scale]);
     let speck = noise(w, w, 2.2 * scale, 2, 23);
     let edge = blur(&ink, (s * 0.05 * scale).max(1.0));
-    let alpha = Plane { w, h: w, v: (0..w * w).map(|i| ink.v[i] * (0.78 + 0.22 * ((speck.v[i] - 0.25) * 4.0).clamp(0.0, 1.0)) * (edge.v[i] * 1.5).clamp(0.0, 1.0)).collect() };
+    let alpha = Plane {
+        w,
+        h: w,
+        v: (0..w * w).map(|i| ink.v[i] * (0.78 + 0.22 * ((speck.v[i] - 0.25) * 4.0).clamp(0.0, 1.0)) * (edge.v[i] * 1.5).clamp(0.0, 1.0)).collect(),
+    };
     let pink = rgb(PRINT);
     let color: [Plane; 3] = std::array::from_fn(|k| Plane { w, h: w, v: vec![pink[k]; w * w] });
     let size = w as f64 / scale;

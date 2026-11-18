@@ -46,7 +46,10 @@ fn main() -> Result<(), String> {
     spent.sort_by(f64::total_cmp);
     built.sort_by(f64::total_cmp);
     let (mid, last) = (spent.len() / 2, spent.len() - 1);
-    println!("frame (layers + build + draw + wait): median {:.1} ms, worst {:.1} ms at {W}x{H}; building the shape list alone: median {:.3} ms", spent[mid], spent[last], built[mid]);
+    println!(
+        "frame (layers + build + draw + wait): median {:.1} ms, worst {:.1} ms at {W}x{H}; building the shape list alone: median {:.3} ms",
+        spent[mid], spent[last], built[mid]
+    );
     Ok(())
 }
 

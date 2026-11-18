@@ -111,63 +111,75 @@ pub fn layer(f: &mut Frame, index: u32, size: [f64; 2], alpha: f64) {
     f.prims.push(p);
 }
 
-/// drawImage(rect, picture) under painter transform m: picture `id` of the atlas filling `rect` (points).
-pub fn sprite(f: &mut Frame, atlas: &Atlas, id: usize, rect: [f64; 4], m: Affine, opacity: f64, clip: Option<Clip>, screen: [f64; 2]) {
-    if opacity <= 0.0 {
-        return;
-    }
-    let [w, h] = atlas.size(id).map(|v| v as f64);
-    let place = atlas.places[id];
-    let mut t = m.translate(rect[0], rect[1]).scale(rect[2] / w, rect[3] / h);
-    let nearest = t.moved_only() && (rect[2] - w).abs() < 1e-9 && (rect[3] - h).abs() < 1e-9;
-    if nearest {
-        // Qt lays an only-moved picture at whole pixels, its place rounded.
-        t = Affine([1.0, 0.0, (t.0[2] + 0.5).floor(), 0.0, 1.0, (t.0[5] + 0.5).floor()]);
-    }
-    let corners = [[0.0, 0.0], [w, 0.0], [0.0, h], [w, h]].map(|c| t.map(c));
-    let mut bb = [f64::MAX, f64::MAX, f64::MIN, f64::MIN];
-    for c in corners {
-        bb = [bb[0].min(c[0]), bb[1].min(c[1]), bb[2].max(c[0]), bb[3].max(c[1])];
-    }
-    bb = if nearest { bb } else { [bb[0].floor() - 1.0, bb[1].floor() - 1.0, bb[2].ceil() + 1.0, bb[3].ceil() + 1.0] };
-    let mut flags = u32::from(nearest);
-    let mut p = Prim::default();
-    if let Some(Clip(cm, r)) = clip {
-        if cm.turned() {
-            flags |= 2;
-            let inv = cm.inverse().0;
-            p.grad = f4([inv[0], inv[1], inv[2], 0.0]);
-            p.stops = f4([inv[3], inv[4], inv[5], 0.0]);
-            p.colors[0] = f4([r[0], r[1], r[0] + r[2], r[1] + r[3]]);
-        } else {
-            // A rect clip under a plain transform is cut at whole pixels.
-            let (a, b) = (cm.map([r[0], r[1]]), cm.map([r[0] + r[2], r[1] + r[3]]));
-            let round = |v: f64| (v + 0.5).floor();
-            bb = [bb[0].max(round(a[0].min(b[0]))), bb[1].max(round(a[1].min(b[1]))), bb[2].min(round(a[0].max(b[0]))), bb[3].min(round(a[1].max(b[1])))];
-        }
-    }
-    bb = [bb[0].max(0.0), bb[1].max(0.0), bb[2].min(screen[0]), bb[3].min(screen[1])];
-    if bb[2] <= bb[0] || bb[3] <= bb[1] {
-        return;
-    }
-    let inv = t.inverse().0;
-    let det = (t.0[0] * t.0[4] - t.0[1] * t.0[3]).abs().sqrt();
-    p.kind = [SPRITE, flags, 0, 0];
-    p.bbox = f4(bb);
-    p.s0 = f4([inv[0], inv[1], inv[2], place[0] as f64]);
-    p.s1 = f4([inv[3], inv[4], inv[5], place[1] as f64]);
-    p.s2 = f4([w, h, opacity.clamp(0.0, 1.0), det]);
-    f.prims.push(p);
+/// The atlas and the screen pictures are laid on.
+pub struct Sheet<'a> {
+    pub atlas: &'a Atlas,
+    pub screen: [f64; 2],
 }
 
-/// _place: a picture whose box is `rect` (points round its pivot) put at `at`, turned and sized.
-pub fn place(f: &mut Frame, atlas: &Atlas, id: usize, rect: [f64; 4], at: [f64; 2], angle: f64, size: f64, opacity: f64, screen: [f64; 2]) {
-    if size <= 0.01 {
-        return;
+/// A picture of the atlas and the box (x, y, w, h, in points) it fills.
+pub type Pic = (usize, [f64; 4]);
+
+impl Sheet<'_> {
+    /// drawImage(rect, picture) under painter transform m: the picture filling its box.
+    pub fn sprite(&self, f: &mut Frame, (id, rect): Pic, m: Affine, opacity: f64, clip: Option<Clip>) {
+        let (atlas, screen) = (self.atlas, self.screen);
+        if opacity <= 0.0 {
+            return;
+        }
+        let [w, h] = atlas.size(id).map(|v| v as f64);
+        let place = atlas.places[id];
+        let mut t = m.translate(rect[0], rect[1]).scale(rect[2] / w, rect[3] / h);
+        let nearest = t.moved_only() && (rect[2] - w).abs() < 1e-9 && (rect[3] - h).abs() < 1e-9;
+        if nearest {
+            // Qt lays an only-moved picture at whole pixels, its place rounded.
+            t = Affine([1.0, 0.0, (t.0[2] + 0.5).floor(), 0.0, 1.0, (t.0[5] + 0.5).floor()]);
+        }
+        let corners = [[0.0, 0.0], [w, 0.0], [0.0, h], [w, h]].map(|c| t.map(c));
+        let mut bb = [f64::MAX, f64::MAX, f64::MIN, f64::MIN];
+        for c in corners {
+            bb = [bb[0].min(c[0]), bb[1].min(c[1]), bb[2].max(c[0]), bb[3].max(c[1])];
+        }
+        bb = if nearest { bb } else { [bb[0].floor() - 1.0, bb[1].floor() - 1.0, bb[2].ceil() + 1.0, bb[3].ceil() + 1.0] };
+        let mut flags = u32::from(nearest);
+        let mut p = Prim::default();
+        if let Some(Clip(cm, r)) = clip {
+            if cm.turned() {
+                flags |= 2;
+                let inv = cm.inverse().0;
+                p.grad = f4([inv[0], inv[1], inv[2], 0.0]);
+                p.stops = f4([inv[3], inv[4], inv[5], 0.0]);
+                p.colors[0] = f4([r[0], r[1], r[0] + r[2], r[1] + r[3]]);
+            } else {
+                // A rect clip under a plain transform is cut at whole pixels.
+                let (a, b) = (cm.map([r[0], r[1]]), cm.map([r[0] + r[2], r[1] + r[3]]));
+                let round = |v: f64| (v + 0.5).floor();
+                bb = [bb[0].max(round(a[0].min(b[0]))), bb[1].max(round(a[1].min(b[1]))), bb[2].min(round(a[0].max(b[0]))), bb[3].min(round(a[1].max(b[1])))];
+            }
+        }
+        bb = [bb[0].max(0.0), bb[1].max(0.0), bb[2].min(screen[0]), bb[3].min(screen[1])];
+        if bb[2] <= bb[0] || bb[3] <= bb[1] {
+            return;
+        }
+        let inv = t.inverse().0;
+        let det = (t.0[0] * t.0[4] - t.0[1] * t.0[3]).abs().sqrt();
+        p.kind = [SPRITE, flags, 0, 0];
+        p.bbox = f4(bb);
+        p.s0 = f4([inv[0], inv[1], inv[2], place[0] as f64]);
+        p.s1 = f4([inv[3], inv[4], inv[5], place[1] as f64]);
+        p.s2 = f4([w, h, opacity.clamp(0.0, 1.0), det]);
+        f.prims.push(p);
     }
-    let mut m = Affine::ID.translate(at[0], at[1]).rotate(angle);
-    if (size - 1.0).abs() > 1e-3 {
-        m = m.scale(size, size);
+
+    /// _place: a picture whose box is `rect` (points round its pivot) put at `at`, turned and sized.
+    pub fn place(&self, f: &mut Frame, (id, rect): Pic, at: [f64; 2], angle: f64, size: f64, opacity: f64) {
+        if size <= 0.01 {
+            return;
+        }
+        let mut m = Affine::ID.translate(at[0], at[1]).rotate(angle);
+        if (size - 1.0).abs() > 1e-3 {
+            m = m.scale(size, size);
+        }
+        self.sprite(f, (id, [-rect[2] / 2.0, -rect[3] / 2.0, rect[2], rect[3]]), m, opacity, None);
     }
-    sprite(f, atlas, id, [-rect[2] / 2.0, -rect[3] / 2.0, rect[2], rect[3]], m, opacity, None, screen);
 }

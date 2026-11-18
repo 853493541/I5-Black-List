@@ -52,7 +52,8 @@ impl Renderer {
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default())).map_err(|e| e.to_string())?;
         let info = adapter.get_info();
         let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default())).map_err(|e| e.to_string())?;
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: None, source: wgpu::ShaderSource::Wgsl(include_str!("fluffy.wgsl").into()) });
+        let shader =
+            device.create_shader_module(wgpu::ShaderModuleDescriptor { label: None, source: wgpu::ShaderSource::Wgsl(include_str!("fluffy.wgsl").into()) });
         let blend = wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING;
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
@@ -78,15 +79,35 @@ impl Renderer {
         let target = texture(&device, width, height, wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC);
         let (page, doodles) = (texture(&device, width, height, usage), texture(&device, width, height, usage));
         let dims = [width as f32, height as f32, 0.0, 0.0];
-        let size = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: None, contents: bytemuck::cast_slice(&dims), usage: wgpu::BufferUsages::UNIFORM });
+        let size = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: None,
+            contents: bytemuck::cast_slice(&dims),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
         let adapter = format!("{} ({:?}, {:?})", info.name, info.device_type, info.backend);
-        Ok(Self { device, queue, pipeline, target, lobby: lobby_tex.create_view(&Default::default()), page, doodles, atlas, shown: std::cell::Cell::new([[-1.0; 2]; 2]), size, width, height, adapter })
+        Ok(Self {
+            device,
+            queue,
+            pipeline,
+            target,
+            lobby: lobby_tex.create_view(&Default::default()),
+            page,
+            doodles,
+            atlas,
+            shown: std::cell::Cell::new([[-1.0; 2]; 2]),
+            size,
+            width,
+            height,
+            adapter,
+        })
     }
 
     fn draw(&self, frame: &Frame, onto: &wgpu::Texture) {
         let view = |t: &wgpu::Texture| t.create_view(&Default::default());
         let (page, doodles, atlas) = (view(&self.page), view(&self.doodles), view(&self.atlas));
-        let storage = |bytes: &[u8]| self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: None, contents: bytes, usage: wgpu::BufferUsages::STORAGE });
+        let storage = |bytes: &[u8]| {
+            self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: None, contents: bytes, usage: wgpu::BufferUsages::STORAGE })
+        };
         let one = [Prim::default()];
         let prims = storage(bytemuck::cast_slice(if frame.prims.is_empty() { &one } else { &frame.prims }));
         let none = [[0.0f32; 2]];

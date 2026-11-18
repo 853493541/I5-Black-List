@@ -9,12 +9,12 @@ use crate::pyrand::PyRandom;
 
 /// _fillet: a line through corners (x, y, r), each corner rounded off r along its sides.
 pub fn fillet(corners: &[[f64; 3]]) -> Vec<Pt> {
-    let pt = |i: usize| [corners[i][0], corners[i][1]];
-    let mut out = vec![pt(0)];
-    for i in 1..corners.len() - 1 {
-        let (a, b, c) = (pt(i - 1), pt(i), pt(i + 1));
+    let pt = |c: &[f64; 3]| [c[0], c[1]];
+    let mut out = vec![pt(&corners[0])];
+    for w in corners.windows(3) {
+        let (a, b, c) = (pt(&w[0]), pt(&w[1]), pt(&w[2]));
         let (ab, cb) = (dist(a, b), dist(c, b));
-        let r = corners[i][2].min(ab / 2.0).min(cb / 2.0);
+        let r = w[1][2].min(ab / 2.0).min(cb / 2.0);
         let p0 = [b[0] + (a[0] - b[0]) / ab.max(1e-9) * r, b[1] + (a[1] - b[1]) / ab.max(1e-9) * r];
         let p1 = [b[0] + (c[0] - b[0]) / cb.max(1e-9) * r, b[1] + (c[1] - b[1]) / cb.max(1e-9) * r];
         for j in 0..14 {
@@ -22,7 +22,7 @@ pub fn fillet(corners: &[[f64; 3]]) -> Vec<Pt> {
             out.push(std::array::from_fn(|d| (1.0 - k) * (1.0 - k) * p0[d] + 2.0 * (1.0 - k) * k * b[d] + k * k * p1[d]));
         }
     }
-    out.push(pt(corners.len() - 1));
+    out.push(pt(&corners[corners.len() - 1]));
     out
 }
 

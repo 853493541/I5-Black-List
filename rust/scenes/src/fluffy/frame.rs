@@ -6,7 +6,7 @@ use std::f64::consts::PI;
 
 use super::lines::{along, glide, interp, linspace, normals, stroke, Line};
 use super::pixels::{coverage, Canvas, Shape};
-use super::sprite::{layer, place, sprite, Affine, Clip};
+use super::sprite::{layer, Affine, Clip, Sheet};
 use super::{rgb, Fluffy, CHALK, INK, MINT};
 use crate::draw::{ease_in, ease_out, win, Pt};
 use crate::prim::Frame;
@@ -82,6 +82,7 @@ impl Fluffy {
         let screen = [self.width, self.height];
         let u = self.u;
         let mut f = Frame::new();
+        let sheet = Sheet { atlas: &self.atlas, screen };
         layer(&mut f, 0, screen, 1.0);
         let a = win(t, 0.0, 0.3) * (1.0 - ease_in(win(t, 4.3, 5.0)));
         let drawn = glide(win(t, PEN.0, PEN.1));
@@ -106,7 +107,7 @@ impl Fluffy {
         for &(y, when) in &self.rings {
             let k = win(t, when, when + 0.35);
             if k > 0.0 {
-                place(&mut f, &self.atlas, self.ring.0, self.ring.1, [self.width - self.right, y], 0.0, ease_back(k, 2.4), a, screen);
+                sheet.place(&mut f, self.ring, [self.width - self.right, y], 0.0, ease_back(k, 2.4), a);
             }
         }
         layer(&mut f, 2, screen, a);
@@ -119,7 +120,7 @@ impl Fluffy {
             let twinkle = 1.0 + 0.09 * (2.7 * (t - when) + i * 1.7).sin();
             let gone = ease_in(win(t, 3.95 + 0.04 * i, 4.45 + 0.04 * i));
             let angle = 35.0 * (1.0 - ease_out(k)) + 6.0 * (t * 0.9 + i).sin() - 90.0 * gone;
-            place(&mut f, &self.atlas, id, rect, [x, y], angle, ease_back(k, 2.2) * twinkle * (1.0 - gone), a, screen);
+            sheet.place(&mut f, (id, rect), [x, y], angle, ease_back(k, 2.2) * twinkle * (1.0 - gone), a);
             let glint = (PI * win((t - when - 0.6 - i * 0.37).rem_euclid(2.3), 0.0, 0.5)).sin();
             if glint > 0.02 && t > when + 0.6 {
                 let (gx, gy) = (x + r * 0.95, y - r * 0.95);
@@ -139,7 +140,7 @@ impl Fluffy {
                 let k = win(t, when, when + 0.12);
                 let fade = 1.0 - ease_in(win(t, when + 1.7, when + 2.2));
                 if k > 0.0 && fade > 0.0 {
-                    place(&mut f, &self.atlas, self.paw.0, self.paw.1, at, 0.0, 1.3 - 0.3 * ease_out(k), a * ease_out(k) * fade * 0.92, screen);
+                    sheet.place(&mut f, self.paw, at, 0.0, 1.3 - 0.3 * ease_out(k), a * ease_out(k) * fade * 0.92);
                 }
             }
         }
@@ -154,7 +155,7 @@ impl Fluffy {
         if drop > 0.0 {
             let swing = if t > 0.5 { 4.0 * spring(t - 0.5, 1.4, 3.0) } else { 0.0 };
             let (id, rect, c) = self.tab;
-            place(&mut f, &self.atlas, id, rect, [c[0], c[1] - 60.0 * u * (1.0 - drop)], swing, 1.0, a, screen);
+            sheet.place(&mut f, (id, rect), [c[0], c[1] - 60.0 * u * (1.0 - drop)], swing, 1.0, a);
         }
         Shot { frame: f, page, doodles }
     }
@@ -162,7 +163,7 @@ impl Fluffy {
     /// _cat_pop: a cat peeking up over the frame, squashing as it lands, paws hopping onto the edge,
     /// breathing, blinking, swishing its tail; at the end it ducks back down.
     fn cat_pop(&self, f: &mut Frame, t: f64, index: usize, duck: f64, a: f64) {
-        let screen = [self.width, self.height];
+        let sheet = Sheet { atlas: &self.atlas, screen: [self.width, self.height] };
         let c = &self.cats[index];
         let (u, i, when, size) = (self.u, index as f64, c.when, c.size);
         let face = if t < when + 0.9 {
@@ -171,9 +172,13 @@ impl Fluffy {
             1
         } else {
             let flick = (t - when - 1.4 - i * 0.71).rem_euclid(3.1);
-            if flick < 0.09 || (0.17..0.26).contains(&flick) { 2 } else { 0 }
+            if flick < 0.09 || (0.17..0.26).contains(&flick) {
+                2
+            } else {
+                0
+            }
         };
-        let (head, rect) = c.faces[face];
+        let rect = c.faces[face].1;
         let rise = ease_out(win(t, when, when + 0.42)) * duck;
         if rise <= 0.0 {
             return;
@@ -181,21 +186,21 @@ impl Fluffy {
         let base = Affine::ID.translate(c.base[0], c.base[1]).rotate(c.turn);
         let clip = Some(Clip(base, [-size * 1.5, -size * 2.0, size * 3.0, size * 2.0]));
         if c.tail != 0.0 {
-            let (id, tb) = c.tail_pic;
+            let tb = c.tail_pic.1;
             let up = ease_out(win(t, when + 0.2, when + 0.62)) * duck;
             let swish = 14.0 * (2.1 * (t - when) + i).sin() * win(t, when + 0.5, when + 1.2);
             let m = base.translate(c.tail * 0.66 * size, (1.0 - up) * tb[3]).rotate(c.tail * (swish - 6.0)).scale(c.tail, 1.0);
-            sprite(f, &self.atlas, id, tb, m, a, clip, screen);
+            sheet.sprite(f, c.tail_pic, m, a, clip);
         }
         let land = if t > when + 0.42 { 0.09 * spring(t - when - 0.42, 2.0, 6.0) } else { 0.0 };
         let breath = 0.012 * (2.4 * t + i * 1.3).sin();
         let m = base.translate(0.0, (1.0 - rise) * -rect[1]).scale(1.0 + 0.6 * land, 1.0 - land + breath);
-        sprite(f, &self.atlas, head, rect, m, a, clip, screen);
-        sprite(f, &self.atlas, c.edge.0, c.edge.1, Affine::ID, a, None, screen);
-        let (paws, pb) = c.paws;
+        sheet.sprite(f, c.faces[face], m, a, clip);
+        sheet.sprite(f, c.edge, Affine::ID, a, None);
+        let pb = c.paws.1;
         let hop = ease_back(win(t, when + 0.3, when + 0.48), 2.5) * (1.0 - win(t, 3.95 + 0.06 * i, 4.05 + 0.06 * i));
         if hop > 0.0 {
-            sprite(f, &self.atlas, paws, pb, base.translate(0.0, (1.0 - hop) * pb[3]), a, clip, screen);
+            sheet.sprite(f, c.paws, base.translate(0.0, (1.0 - hop) * pb[3]), a, clip);
         }
         let burst = win(t, when + 0.25, when + 0.65);
         if 0.0 < burst && burst < 1.0 {
