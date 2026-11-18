@@ -5,6 +5,7 @@
     python tools/preview_check/check.py scenes <out.json> <rust scene_times exe> <python> <v1.0.1 tree>
     python tools/preview_check/check.py sides <python shots dir> <rust shots dir> <out dir>
     python tools/preview_check/check.py report <results dir> <out.md>
+    python tools/preview_check/check.py gate <results dir>
 
 Nothing here keeps a player name: the corpus bench keeps per frame only a hash of the names read, and the frames
 themselves are never copied, uploaded or printed. Every command runs silent (BLACKLIST_DETECT_SOUND is removed).
@@ -284,6 +285,37 @@ def report(results: Path, out: Path) -> None:
     print("\n".join(lines))
 
 
+def gate(results: Path) -> None:
+    """Fails the job unless the Rust app started, drew every picture, read every lobby as Python did and ran every scene."""
+    problems = []
+    rs = _load(results / "start-rust.json")
+    if not rs.get("median_s"):
+        problems.append("the Rust window never showed")
+    for scale in ("125", "150"):
+        index = _load(results / f"sides-{scale}" / "index.json")
+        rust = len(index.get("both", [])) + len(index.get("rust_only", []))
+        if rust < 16:
+            problems.append(f"{scale} %: only {rust} Rust pictures")
+    rb, pb = _load(results / "bench-rust.json"), _load(results / "bench-python.json")
+    corpus = int(os.environ.get("CORPUS_FRAMES", "85"))
+    if rb.get("count") != corpus:
+        problems.append(f"Rust read {rb.get('count')} of {corpus} lobbies")
+    if pb.get("count") != corpus:
+        problems.append(f"Python read {pb.get('count')} of {corpus} lobbies")
+    elif rb.get("count") == corpus:
+        differ = sum(a["names"] != b["names"] for a, b in zip(pb["frames"], rb["frames"], strict=True))
+        if differ:
+            problems.append(f"names differ on {differ} of {corpus} lobbies")
+    sc = _load(results / "scenes.json").get("rust", {})
+    for key in ["classic", "lace", "stars", "ice", "cyber", "neon", "angel", "equation", "fluffy", "claw", "lyre"]:
+        if "median" not in sc.get(key, {}):
+            problems.append(f"scene {key} did not run")
+    for problem in problems:
+        print(f"::error::{problem}")
+    print("gate:", "pass" if not problems else f"{len(problems)} problems")
+    sys.exit(1 if problems else 0)
+
+
 def main() -> None:
     args = sys.argv[1:]
     command = args[args.index("--") + 1:] if "--" in args else []
@@ -300,6 +332,8 @@ def main() -> None:
         sides(Path(head[1]), Path(head[2]), Path(head[3]))
     elif what == "report":
         report(Path(head[1]), Path(head[2]))
+    elif what == "gate":
+        gate(Path(head[1]))
     else:
         raise SystemExit(__doc__)
 

@@ -14,7 +14,48 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The OCR models as rust-preview.yml makes them: converted on Linux (paddle2onnx's Windows wheel fails to load its
+  # DLL), cached under the same key, handed over as a one-day artifact.
+  models:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PADDLE2ONNX_VERSION: "2.1.0"
+      MODEL_URL: https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cache OCR models
+        id: models-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/models
+          key: ocr-models-v5det-v5rec-v6rec-pd3.2.2-paddle3.0.0-p2o${{ env.PADDLE2ONNX_VERSION }}-op11-v1
+      - name: Convert OCR models
+        if: steps.models-cache.outputs.cache-hit != 'true'
+        working-directory: ${{ runner.temp }}
+        run: |
+          python -m pip install -q setuptools packaging paddlepaddle==3.2.2 paddle2onnx==$PADDLE2ONNX_VERSION
+          mkdir -p tarballs models
+          for model in PP-OCRv5_mobile_det PP-OCRv5_mobile_rec PP-OCRv6_medium_rec; do
+            curl -sSfL --retry 3 -o "tarballs/$model.tar" "$MODEL_URL/${model}_infer.tar"
+            tar xf "tarballs/$model.tar" -C tarballs
+            src="tarballs/${model}_infer"
+            program="$src/inference.json"; [ -f "$program" ] || program="$src/inference.pdmodel"
+            mkdir -p "models/$model"
+            python -I -c "import sys, paddle2onnx; paddle2onnx.export(*sys.argv[1:4], opset_version=11)" \
+              "$program" "$src/inference.pdiparams" "models/$model/inference.onnx"
+            cp "$src/inference.yml" "models/$model/"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ocr-models-check
+          path: ${{ runner.temp }}/models
+          retention-days: 1
+
   check:
+    needs: models
     strategy:
       fail-fast: false
       matrix:
@@ -31,8 +72,6 @@ jobs:
       OPENCV_VERSION: "4.10.0"
       OPENCV_CLANG_ARGS: -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH
       ORT_VERSION: "1.32.0"
-      PADDLE2ONNX_VERSION: "2.1.0"
-      MODEL_URL: https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0
       APP_NAME: 模仿者小工具 Rust 预览
       CHECK_RUNNER: ${{ matrix.os }}
       PYTHONIOENCODING: utf-8
@@ -103,29 +142,12 @@ jobs:
             echo 'RUSTFLAGS=-C target-feature=+crt-static'
           } | tee -a "$GITHUB_ENV"
 
-      # The preview's OCR models (rust-preview.yml's step and cache key).
-      - name: Cache OCR models
-        id: models-cache
-        uses: actions/cache@v4
+      - uses: actions/download-artifact@v4
         with:
+          name: ocr-models-check
           path: ${{ runner.temp }}/models
-          key: ocr-models-v5det-v5rec-v6rec-paddle3.0.0-p2o${{ env.PADDLE2ONNX_VERSION }}-op11-v1
-      - name: Convert OCR models
-        if: steps.models-cache.outputs.cache-hit != 'true'
-        working-directory: ${{ runner.temp }}
-        run: |
-          python -m pip install -q setuptools paddlepaddle==3.0.0 paddle2onnx==$PADDLE2ONNX_VERSION
-          mkdir -p tarballs models
-          for model in PP-OCRv5_mobile_det PP-OCRv5_mobile_rec PP-OCRv6_medium_rec; do
-            curl -sSfL --retry 3 -o "tarballs/$model.tar" "$MODEL_URL/${model}_infer.tar"
-            tar xf "tarballs/$model.tar" -C tarballs
-            src="tarballs/${model}_infer"
-            program="$src/inference.json"; [ -f "$program" ] || program="$src/inference.pdmodel"
-            mkdir -p "models/$model"
-            python -I -c "import sys, paddle2onnx; paddle2onnx.export(*sys.argv[1:4], opset_version=11)" \
-              "$program" "$src/inference.pdiparams" "models/$model/inference.onnx"
-            cp "$src/inference.yml" "models/$model/"
-          done
+      - name: Python tools for the check
+        run: python -m pip install -q psutil Pillow
 
       - uses: actions/cache@v4
         with:
@@ -141,9 +163,10 @@ jobs:
           cargo build --release -p stage --example scene_times
 
       - name: Lay out the preview folder
+        id: layout
         working-directory: .
         run: |
-          python -m pip install -q onnxruntime==$ORT_VERSION psutil Pillow
+          python -m pip install -q onnxruntime==$ORT_VERSION
           ort=$(python -c "import onnxruntime, os; print(os.path.join(os.path.dirname(onnxruntime.__file__), 'capi', 'onnxruntime.dll'))")
           app="$RUNNER_TEMP/app/$APP_NAME"
           mkdir -p "$app"
@@ -162,33 +185,38 @@ jobs:
 
       # Python v1.0.1, exactly as released, beside the checkout; its own pip packages.
       - name: Python v1.0.1
+        if: ${{ !cancelled() && steps.layout.outcome == 'success' }}
         working-directory: .
         run: |
           git fetch -q --depth=1 origin tag v1.0.1
           git worktree add -q "$RUNNER_TEMP/v101" v1.0.1
-          python -m pip install -q paddlepaddle==3.0.0 -r "$RUNNER_TEMP/v101/requirements.txt" psutil
+          python -m pip install -q paddlepaddle==3.2.2 -r "$RUNNER_TEMP/v101/requirements.txt" psutil
           echo "V101=$RUNNER_TEMP/v101" >> "$GITHUB_ENV"
           python -m pip list 2>/dev/null | grep -iE "paddle|pyside|numpy|opencv|onnx"
 
       # 1. Pictures: Rust headless at 125 / 150 % (BLACKLIST_DETECT_SCALE), Python's ui_shots at the same (QT_SCALE_FACTOR).
       - name: Rust pictures
+        if: ${{ !cancelled() && steps.layout.outcome == 'success' }}
         working-directory: ${{ runner.temp }}
         run: |
           for scale in 125 150; do
             BLACKLIST_DETECT_SCALE=$scale APPDATA="$RUNNER_TEMP/rust-shots-home" "$EXE" --shots "$OUT/rust/$scale"
           done
       - name: Python pictures
+        if: ${{ !cancelled() && steps.layout.outcome == 'success' }}
         continue-on-error: true
         working-directory: ${{ runner.temp }}/v101
         run: |
           APPDATA="$RUNNER_TEMP/py-shots-home" timeout 1200 python tools/ui_shots.py "$OUT/python" --scale 125 150
           ls "$OUT/python"/*
       - name: Rust on-game cards over the sample lobby
+        if: ${{ !cancelled() && steps.layout.outcome == 'success' }}
         continue-on-error: true
         run: |
           timeout 900 cargo run --release -p overlay --example on_game -- "$OUT/python/125-normal"
           mkdir -p "$OUT/on-game" && cp overlay/shots/on_* "$OUT/on-game/"
       - name: Side by side
+        if: ${{ !cancelled() && steps.layout.outcome == 'success' }}
         working-directory: .
         run: |
           for scale in 125 150; do
@@ -199,6 +227,7 @@ jobs:
 
       # 2. Start time and memory (the window, own APPDATA, silent), then the corpus through each app's engine.
       - name: Start time
+        if: ${{ !cancelled() && steps.layout.outcome == 'success' }}
         working-directory: .
         run: |
           python tools/preview_check/check.py start rust "$RESULTS/start-rust.json" \
@@ -207,12 +236,14 @@ jobs:
             --env "APPDATA=$RUNNER_TEMP/py-start-home" --env "PYTHONPATH=$V101" --env QT_SCALE_FACTOR=1.25 \
             -- python -m blacklist_detect
       - name: Corpus
+        if: ${{ !cancelled() && steps.layout.outcome == 'success' }}
         working-directory: .
         run: |
           git fetch -q --depth=1 origin data/lobby-corpus
           mkdir -p "$RUNNER_TEMP/corpus"
           git archive FETCH_HEAD tests/lobby_corpus | tar -x -C "$RUNNER_TEMP/corpus"
           frames="$RUNNER_TEMP/corpus/tests/lobby_corpus"
+          echo "CORPUS_FRAMES=$(ls "$frames"/*.jpg | wc -l)" >> "$GITHUB_ENV"
           echo "corpus: $(ls "$frames"/*.jpg | wc -l) frames, sha256 of the list $(cd "$frames" && sha256sum *.jpg | sha256sum | cut -c1-16)" | tee "$RESULTS/corpus.txt"
           APPDATA="$RUNNER_TEMP/rust-bench-home" python tools/preview_check/check.py bench rust "$RESULTS/bench-rust.json" \
             -- "$EXE" --bench-check "$frames"
@@ -221,6 +252,7 @@ jobs:
 
       # 3. Each scene at 1920x1080: Rust on the runner's adapter (WARP), Python's love_frames.py (QPainter).
       - name: Scenes
+        if: ${{ !cancelled() && steps.layout.outcome == 'success' }}
         working-directory: .
         run: |
           python tools/preview_check/check.py scenes "$RESULTS/scenes.json" rust/target/release/examples/scene_times.exe \
@@ -243,3 +275,7 @@ jobs:
             ${{ runner.temp }}/out/sides-150
             ${{ runner.temp }}/out/on-game
           retention-days: 14
+      - name: Gate (the app starts, every picture, the corpus as Python reads it, every scene)
+        if: ${{ !cancelled() && steps.layout.outcome == 'success' }}
+        working-directory: .
+        run: python tools/preview_check/check.py gate "$RESULTS"
