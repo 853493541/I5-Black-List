@@ -1,0 +1,89 @@
+// stub: ui-kit. The pieces of blacklist_detect/ui_kit.py the 检查 panel needs that ui/kit.slint does not have
+// yet: SegmentedControl, the ⓘ IconButton and the hotkey box. Swap for ui-kit's once it lands.
+
+import { Palette } from "../theme.slint";
+import { Icon } from "../kit.slint";
+
+// A row of joined buttons where exactly one is chosen. disabled: a key that cannot be picked (自动 in 基础模式).
+export component SegmentedControl inherits Rectangle {
+    in property <[{key: string, label: string}]> options;
+    in property <string> current;
+    in property <string> disabled;
+    in property <Palette> p;
+    in property <color> on-accent;
+    in property <string> accessible-name;
+    callback changed(string);
+    height: 32px;
+    accessible-role: tab-list;
+    accessible-label: accessible-name;
+    HorizontalLayout {
+        spacing: -1px;
+        for option[index] in options: Rectangle {
+            property <bool> chosen: option.key == current;
+            property <bool> off: option.key == disabled;
+            width: label.preferred-width + 22px;
+            border-width: 1px;
+            border-color: chosen ? p.accent : p.border;
+            border-top-left-radius: index == 0 ? 6px : 0px;
+            border-bottom-left-radius: index == 0 ? 6px : 0px;
+            border-top-right-radius: index == options.length - 1 ? 6px : 0px;
+            border-bottom-right-radius: index == options.length - 1 ? 6px : 0px;
+            background: chosen ? p.accent : touch.has-hover && !off ? p.hover : p.surface;
+            accessible-role: tab;
+            accessible-label: option.label;
+            label := Text {
+                text: option.label;
+                font-size: 14px;
+                color: chosen ? on-accent : off ? p.muted : p.text;
+            }
+            touch := TouchArea {
+                enabled: !off;
+                clicked => { if !chosen { changed(option.key); } }
+            }
+        }
+    }
+}
+
+// ⓘ: a borderless square button with the line icon, the way IconButton("info", ...) draws it.
+export component InfoButton inherits Rectangle {
+    in property <Palette> p;
+    in property <string> accessible-name;
+    callback clicked;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: touch.has-hover ? p.hover : transparent;
+    accessible-role: button;
+    accessible-label: accessible-name;
+    Icon { name: "info"; size: 18px; tone: p.muted; }
+    touch := TouchArea { clicked => { root.clicked(); } }
+}
+
+// The box that takes a hotkey as it is pressed: room for Shift+F12 and for 请按下快捷键, never cut.
+export component HotkeyBox inherits Rectangle {
+    in property <string> key;
+    in property <string> none: "无";
+    in property <bool> waiting;
+    in property <bool> enabled: true;
+    in property <Palette> p;
+    callback clicked;
+    property <string> shown: waiting ? "请按下快捷键" : key != "" ? key : none;
+    height: 32px;
+    width: max(wait-words.preferred-width + 32px, words.preferred-width + 32px, 84px);
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: waiting ? p.accent-line : p.muted.mix(p.border, 0.7);
+    background: enabled ? p.surface : p.bg;
+    accessible-role: button;
+    accessible-label: "快捷键";
+    accessible-value: shown;
+    wait-words := Text { visible: false; text: "请按下快捷键"; font-size: 14px; }
+    words := Text {
+        x: 12px;
+        y: (parent.height - self.height) / 2;
+        text: shown;
+        font-size: 14px;
+        color: enabled && key != "" && !waiting ? p.text : p.muted;
+    }
+    TouchArea { enabled: enabled; mouse-cursor: pointer; clicked => { root.clicked(); } }
+}

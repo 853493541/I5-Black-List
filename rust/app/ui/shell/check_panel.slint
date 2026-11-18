@@ -1,0 +1,154 @@
+// 检查's settings in a card under the status pill (blacklist_detect/ui_header.py CheckPanel, ui.py
+// _settings_page): 显示, 方式 with its hotkey, 直播模式 with 直播姬's state on the same row. No title.
+
+import { Palette } from "../theme.slint";
+import { SegmentedControl, InfoButton, HotkeyBox } from "parts.slint";
+
+component CheckRow inherits Rectangle {
+    in property <string> label;
+    in property <Palette> p;
+    in property <bool> info;
+    in property <bool> dim;
+    callback info-clicked;
+    height: 52px;
+    Text {
+        x: 0px;
+        y: (parent.height - self.height) / 2;
+        text: label;
+        font-size: 14px;
+        color: dim ? p.muted : p.text;
+    }
+    if info: InfoButton {
+        x: 60px;
+        y: (parent.height - self.height) / 2;
+        p: p;
+        accessible-name: label + "说明";
+        clicked => { info-clicked(); }
+    }
+    HorizontalLayout {
+        // The names' column: 直播模式, 4 px, its ⓘ and 4 px; then 12 px to the controls.
+        x: 108px;
+        y: (parent.height - 32px) / 2;
+        width: parent.width - self.x;
+        height: 32px;
+        spacing: 12px;
+        alignment: start;
+        @children
+    }
+}
+
+export component CheckCard inherits Rectangle {
+    in property <Palette> p;
+    in property <color> on-accent;
+    in property <color> green;
+    in property <bool> safe-mode: true;
+    in property <bool> auto-capture;
+    in property <string> hotkey;
+    in property <bool> hotkey-waiting;
+    // A hotkey problem, under the hotkey (rowHint, warn); "" for none.
+    in property <string> hotkey-note;
+    in property <bool> stream-on;
+    // What 直播姬 says while 直播模式 is on; ok: it shows the window (green), else red and underlined.
+    in property <string> stream-state;
+    in property <bool> stream-ok;
+    callback display-changed(bool /* safe */);
+    callback auto-changed(bool /* auto */);
+    callback hotkey-clicked;
+    callback stream-changed(bool /* on */);
+    callback display-guide;
+    callback stream-guide;
+    // The card's width: the longest row, 直播模式 with room for 直播姬's longest words (CheckPanel keeps its size).
+    width: 444px;
+    background: p.surface;
+    border-width: 1px;
+    border-color: p.border;
+    border-radius: 8px;
+    drop-shadow-blur: 16px;
+    drop-shadow-offset-y: 4px;
+    drop-shadow-color: #00000022;
+    accessible-role: groupbox;
+    accessible-label: "检查";
+    VerticalLayout {
+        padding-left: 21px;
+        padding-right: 21px;
+        padding-top: 7px;
+        padding-bottom: 7px;
+        CheckRow {
+            label: "显示";
+            p: p;
+            SegmentedControl {
+                options: [{key: "safe", label: "基础模式"}, {key: "full", label: "完整模式"}];
+                current: safe-mode ? "safe" : "full";
+                p: p;
+                on-accent: on-accent;
+                accessible-name: "显示";
+                changed(key) => { display-changed(key == "safe"); }
+            }
+            InfoButton { y: 2px; p: p; accessible-name: "显示说明"; clicked => { display-guide(); } }
+        }
+        Rectangle { height: 1px; background: p.border; }
+        CheckRow {
+            label: "方式";
+            p: p;
+            // 手动 second, right beside its hotkey. In 基础模式 it is 手动, and 自动 cannot be picked.
+            SegmentedControl {
+                options: [{key: "auto", label: "自动"}, {key: "manual", label: "手动"}];
+                current: auto-capture ? "auto" : "manual";
+                disabled: safe-mode ? "auto" : "";
+                p: p;
+                on-accent: on-accent;
+                accessible-name: "方式";
+                changed(key) => { auto-changed(key == "auto"); }
+            }
+            HotkeyBox {
+                key: hotkey;
+                waiting: hotkey-waiting;
+                enabled: !auto-capture;
+                p: p;
+                clicked => { hotkey-clicked(); }
+            }
+        }
+        // Under the hotkey it is about, underlined as every warning is.
+        if hotkey-note != "": HorizontalLayout {
+            padding-left: 108px;
+            Text { text: hotkey-note; wrap: word-wrap; font-size: 12px; color: p.red; }
+        }
+        if hotkey-note != "": Rectangle { height: 8px; }
+        Rectangle { height: 1px; background: p.border; }
+        CheckRow {
+            label: "直播模式";
+            p: p;
+            info: true;
+            info-clicked => { stream-guide(); }
+            SegmentedControl {
+                options: [{key: "off", label: "关闭"}, {key: "on", label: "开启"}];
+                current: stream-on ? "on" : "off";
+                p: p;
+                on-accent: on-accent;
+                accessible-name: "直播模式";
+                changed(key) => { stream-changed(key == "on"); }
+            }
+            // Its room is kept when it says nothing, so the card keeps its size.
+            Rectangle {
+                horizontal-stretch: 1;
+                min-width: 183px;
+                status := Text {
+                    x: 0px;
+                    width: parent.width;
+                    visible: stream-on && stream-state != "";
+                    text: stream-state;
+                    overflow: elide;
+                    font-size: 12px;
+                    color: stream-ok ? green : p.red;
+                }
+                if status.visible && !stream-ok: Rectangle {
+                    x: 0px;
+                    y: status.y + status.height - 2px;
+                    width: min(status.preferred-width, parent.width);
+                    height: 1px;
+                    background: p.red;
+                }
+            }
+        }
+    }
+}
