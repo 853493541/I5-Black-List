@@ -9,6 +9,21 @@
 #[cfg(test)]
 mod tests;
 
+/// ui_shots' 嘉宾 for the pictures: 心动小鹿 (昵称 小鹿) and 心动星星.
+#[cfg(test)]
+pub fn tests_seed_likes() -> Vec<data::store::Like> {
+    [("心动小鹿", "小鹿"), ("心动星星", "")]
+        .iter()
+        .map(|(name, nickname)| data::store::Like {
+            name: (*name).into(),
+            nickname: (*nickname).into(),
+            reason: String::new(),
+            added_at: String::new(),
+            scenes: Default::default(),
+        })
+        .collect()
+}
+
 use std::collections::{HashMap, HashSet};
 
 use chrono::{DateTime, FixedOffset, Timelike};

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use chrono::DateTime;
-use data::store::{Like, Store};
+use data::store::Store;
 use slint::{ComponentHandle, Model};
 
 use super::*;
@@ -14,15 +14,7 @@ fn at(stamp: &str) -> DateTime<FixedOffset> {
 /// ui_shots' normal data: the list, two 嘉宾 (one with a 昵称), the player's name and one lobby of SEATS.
 fn seeded() -> Store {
     let mut store = crate::list::render::seeded("normal");
-    for (name, nickname) in [("心动小鹿", "小鹿"), ("心动星星", "")] {
-        store.likes.push(Like {
-            name: name.into(),
-            nickname: nickname.into(),
-            reason: String::new(),
-            added_at: String::new(),
-            scenes: Default::default(),
-        });
-    }
+    store.likes = tests_seed_likes();
     store.settings.player_name = "柠檬汽水".into();
     store
 }

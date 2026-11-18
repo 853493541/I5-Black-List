@@ -242,7 +242,9 @@ mod tests {
     #[test]
     fn the_main_window_shows_each_page_and_opens_the_questions() {
         crate::shots::init();
-        let store = Rc::new(RefCell::new(crate::list::render::seeded("normal")));
+        let mut seeded = crate::list::render::seeded("normal");
+        seeded.likes = crate::history::tests_seed_likes();
+        let store = Rc::new(RefCell::new(seeded));
         let ui = MainUi::new(store.clone(), "1.2.0").unwrap();
         let dir = std::env::var_os("BLACKLIST_SHOTS").map(std::path::PathBuf::from).map(|d| d.join("main"));
         let mut pictures = Vec::new();

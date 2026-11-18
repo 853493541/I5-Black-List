@@ -94,7 +94,10 @@ component SeatTile inherits Rectangle {
         width: parent.width - 12px;
         height: parent.height - 6px;
         border-radius: Tokens.radius;
-        background: touch.has-hover ? hover : wash;
+        // A seat with no wash is a white tile with a hairline, as the Python app's seat frames.
+        background: touch.has-hover ? hover : wash == transparent ? p.surface : wash;
+        border-width: wash == transparent ? 1px : 0px;
+        border-color: p.border;
         HorizontalLayout {
             padding-left: 12px;
             padding-right: 12px;
@@ -161,7 +164,7 @@ export component HistoryPage inherits Rectangle {
         x: 168px + Tokens.gap;
         y: 13px;
         width: parent.width - self.x;
-        height: head-h + 1px + ceil(HistoryData.seats.length / 2) * row-h + 8px;
+        height: head-h + 1px + ceil(HistoryData.seats.length / 2) * row-h + 12px;
         background: p.surface;
         border-radius: Tokens.card-radius;
         border-width: 1px;
