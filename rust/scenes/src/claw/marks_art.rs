@@ -111,9 +111,8 @@ pub fn role(side: f64, scale: f64, icon: &std::path::Path) -> Result<(Pic, Pic, 
     // Averaged down to the pixels it shows at.
     let mut a = Gray::new(n, n);
     let mut sum = vec![[0f32; 3]; n * n];
-    for i in 0..m * m {
+    for (i, &c) in core.v.iter().take(m * m).enumerate() {
         let (x, y) = ((i % m) / fine, (i / m) / fine);
-        let c = core.v[i];
         a.v[y * n + x] += c;
         let b = body(i);
         for ch in 0..3 {

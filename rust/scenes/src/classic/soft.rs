@@ -86,8 +86,8 @@ fn gradient(a: &Grid) -> (Grid, Grid) {
 /// light.picture: RGBA bytes, premultiplied, from straight color per pixel and alpha.
 pub fn picture(w: usize, h: usize, color: impl Fn(usize) -> [f32; 3], alpha: &Grid) -> Vec<u8> {
     let mut out = Vec::with_capacity(w * h * 4);
-    for i in 0..w * h {
-        let a = alpha.v[i].clamp(0.0, 1.0);
+    for (i, a) in alpha.v.iter().take(w * h).enumerate() {
+        let a = a.clamp(0.0, 1.0);
         let c = color(i);
         for ch in c {
             out.push((ch.clamp(0.0, 1.0) * a * 255.0 + 0.5) as u8);

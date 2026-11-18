@@ -9,7 +9,7 @@ use super::Neon;
 /// PSNR in dB over RGB between two RGBA pictures of one size.
 pub fn psnr(a: &[u8], b: &[u8]) -> f64 {
     let (mut sq, mut n) = (0f64, 0f64);
-    for (pa, pb) in a.chunks_exact(4).zip(b.chunks_exact(4)) {
+    for (pa, pb) in a.as_chunks::<4>().0.iter().zip(b.as_chunks::<4>().0.iter()) {
         for c in 0..3 {
             let d = f64::from(pa[c]) - f64::from(pb[c]);
             sq += d * d;
