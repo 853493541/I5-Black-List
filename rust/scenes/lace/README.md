@@ -12,10 +12,11 @@ caps cut flat as Qt's are, clips, reflected gradients, layers, a smoothed atlas)
 `check.rs` (PSNR and the comparison pictures).
 
 Pictures (1920x1080 over the sample lobby, made-up names):
-- `side_t<t>.png`: Python left, Rust right, half size, t = 0.5, 1.5, 3.0 and 4.2 s (fading out, from the layers).
-- `crop_t<t>.png`: full size, Python left, Rust right: a swag and its knots, the curls beside the button, the left roses.
+- `side_t<t>.jpg`: Python left, Rust right, half size, t = 0.5, 1.5, 3.0 and 4.2 s (fading out, from the layers).
+- `crop_t1.5.jpg`: full size, Python left, Rust right: a swag and its knots, the curls beside the button, the left roses.
 
-Remake them (from the root, then from rust/):
+Remake them (from the root, then from rust/; the bin writes PNGs, committed as JPEG quality 90 to keep
+this folder small; the full-size Python frames stay out of git and the test needs them written first):
 
     PYTHONPATH=. python rust/scenes/lace/py_frames.py
     cargo run --release -p scenes --bin lace_frames
