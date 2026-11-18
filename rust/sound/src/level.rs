@@ -41,7 +41,7 @@ fn is_key(key: &str) -> bool {
 /// The part from start_s, length_s long (at most CLIP_S), within the sound: (begin, end) in samples.
 fn span(total: usize, start_s: f64, length_s: f64) -> (usize, usize) {
     let begin = ((start_s * f64::from(RATE)).round_ties_even().max(0.0) as usize).min(total);
-    let len = (length_s.min(CLIP_S).max(0.0) * f64::from(RATE)).round_ties_even() as usize;
+    let len = (length_s.clamp(0.0, CLIP_S) * f64::from(RATE)).round_ties_even() as usize;
     (begin, (begin + len).min(total))
 }
 
@@ -90,7 +90,8 @@ fn rms(clip: &[f64]) -> f64 {
 /// clip at about TARGET_RMS_DBFS, the moments that would pass PEAK_DBFS turned down on their own.
 pub fn level(mut clip: Vec<f64>) -> Result<Vec<f64>, ImportError> {
     let mut now = rms(&clip);
-    if !(now >= db(QUIET)) {
+    // Python's `rms < floor` is false for NaN (an empty clip), which then fails on; here it is no sound.
+    if now.is_nan() || now < db(QUIET) {
         return Err(ImportError::Player("选的这段没有声音"));
     }
     let (target, peak) = (db(TARGET_RMS_DBFS), db(PEAK_DBFS));
