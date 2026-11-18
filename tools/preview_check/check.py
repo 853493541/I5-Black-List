@@ -48,6 +48,31 @@ def _norm(text: str) -> str:
     return "".join(c for c in text if not unicodedata.category(c)[0] in "PZS" and not c.isspace())
 
 
+def crosscheck(private: Path, out: Path) -> None:
+    """engine_bench's Paddle reads of the first 3 frames against Rust's and v1.0.1's, by hash, seat by seat."""
+    result: dict = {}
+    try:
+        paddle = json.loads((private / "eb" / "paddle.json").read_text(encoding="utf-8"))
+        rust = json.loads((private / "rust.json").read_text(encoding="utf-8"))
+        v101 = json.loads((private / "python.json").read_text(encoding="utf-8"))
+        rows = []
+        for f, read in enumerate(paddle[:3]):
+            ref = [n["text"] for n in read["names"]]
+            for label, other in (("rust", rust[f]), ("v101", v101[f])):
+                same = sum(a == b for a, b in zip(ref, other, strict=False))
+                rows.append({"frame": f, "vs": label, "seats": max(len(ref), len(other)), "same": same})
+        result = {"rows": rows}
+        report = private / "eb" / "report.json"
+        if report.exists():
+            data = json.loads(report.read_text(encoding="utf-8"))
+            result["engine_bench"] = {k: {kk: v.get(kk) for kk in ("verdict", "identical", "total")}
+                                      for k, v in data.get("engines", data).items() if isinstance(v, dict)}
+    except (OSError, ValueError, KeyError, IndexError) as error:
+        result = {"error": f"{type(error).__name__}: {error}"[:300]}
+    out.write_text(json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(result)
+
+
 def pick(private: Path, out_list: Path, out_json: Path, count: int = 30, seed: int = 20261118) -> None:
     """The made-up 黑名单: `count` seats v1.0.1 read, chosen with a fixed seed. The names stay on the runner
     (out_list is in the private folder); out_json keeps only which lobby and seat each came from."""
@@ -407,6 +432,18 @@ def report(results: Path, out: Path) -> None:
     ob = _load(results / "bench-python-onnx.json")
     if ob:
         lines += _names_rows("current Python on ONNX Runtime, same models (the engine Rust ports)", ob, rb)
+    v101 = results / "v101-engine.txt"
+    if v101.exists():
+        lines += ["", "## What v1.0.1 read with on this runner", "", "```",
+                  *v101.read_text(encoding="utf-8").splitlines()[:30], "```", "",
+                  "Both apps get the 85 frames in file-name order, whole frames (each finds the lobby itself), and list "
+                  "seats in seat-index order (CheckResult.names), not reading order."]
+    cc = _load(results / "crosscheck.json")
+    if cc:
+        lines += ["", "Cross-check, tools/engine_bench.py (Paddle read path, same Paddle models) on the first 3 frames: "
+                  + ("; ".join(f"frame {r['frame']} vs {r['vs']}: {r['same']}/{r['seats']} seats same" for r in cc.get("rows", []))
+                     or cc.get("error", "no result"))
+                  + (f"; engine_bench's own verdicts: {cc['engine_bench']}" if cc.get("engine_bench") else "")]
     lines += _seat_breakdown(pb, rb, _load(results / "picked.json"), _load(results / "bench-python-list.json"),
                              _load(results / "bench-rust-list.json"))
     sc = _load(results / "scenes.json")
@@ -503,6 +540,8 @@ def main() -> None:
         scenes(Path(head[1]), head[2], head[3], Path(head[4]))
     elif what == "sides":
         sides(Path(head[1]), Path(head[2]), Path(head[3]))
+    elif what == "crosscheck":
+        crosscheck(Path(head[1]), Path(head[2]))
     elif what == "pick":
         pick(Path(head[1]), Path(head[2]), Path(head[3]))
     elif what == "report":

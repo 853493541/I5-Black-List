@@ -48,6 +48,23 @@ jobs:
               "$program" "$src/inference.pdiparams" "models/$model/inference.onnx"
             cp "$src/inference.yml" "models/$model/"
           done
+      # The same three models in Paddle's own format, for v1.0.1 (it reads with Paddle): the very weights the ONNX
+      # files above were converted from, so both apps read with the same models.
+      - name: Paddle models
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir -p paddle-tar paddle-models
+          for model in PP-OCRv5_mobile_det PP-OCRv5_mobile_rec PP-OCRv6_medium_rec; do
+            curl -sSfL --retry 3 -o "paddle-tar/$model.tar" "$MODEL_URL/${model}_infer.tar"
+            tar xf "paddle-tar/$model.tar" -C paddle-tar
+            mv "paddle-tar/${model}_infer" "paddle-models/$model"
+          done
+          ls paddle-models/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paddle-models-check
+          path: ${{ runner.temp }}/paddle-models
+          retention-days: 1
       - uses: actions/upload-artifact@v4
         with:
           name: ocr-models-check
@@ -146,6 +163,10 @@ jobs:
         with:
           name: ocr-models-check
           path: ${{ runner.temp }}/models
+      - uses: actions/download-artifact@v4
+        with:
+          name: paddle-models-check
+          path: ${{ runner.temp }}/paddle-models
       - name: Python tools for the check
         run: python -m pip install -q psutil Pillow
 
@@ -249,7 +270,7 @@ jobs:
           export CHECK_PRIVATE="$RUNNER_TEMP/private"
           APPDATA="$RUNNER_TEMP/rust-bench-home" python tools/preview_check/check.py bench rust "$RESULTS/bench-rust.json" \
             -- "$EXE" --bench-check "$frames"
-          APPDATA="$RUNNER_TEMP/py-bench-home" PYTHONPATH="$V101" timeout 3600 python tools/preview_check/check.py bench python \
+          APPDATA="$RUNNER_TEMP/py-bench-home" PYTHONPATH="$V101" BLACKLIST_DETECT_MODEL_DIR="$RUNNER_TEMP/paddle-models" timeout 3600 python tools/preview_check/check.py bench python \
             "$RESULTS/bench-python.json" -- python tools/preview_check/py_bench.py "$frames"
           # The engine the Rust OCR ports: this checkout's Python on ONNX Runtime with the very same models.
           APPDATA="$RUNNER_TEMP/py-onnx-home" PYTHONPATH="$GITHUB_WORKSPACE" BLACKLIST_DETECT_ENGINE=onnxruntime \
@@ -261,9 +282,24 @@ jobs:
             "$RUNNER_TEMP/private/list.txt" "$RESULTS/picked.json"
           APPDATA="$RUNNER_TEMP/rust-list-home" python tools/preview_check/check.py bench rust-list "$RESULTS/bench-rust-list.json" \
             -- "$EXE" --bench-check "$frames" "$RUNNER_TEMP/private/list.txt"
-          APPDATA="$RUNNER_TEMP/py-list-home" PYTHONPATH="$V101" timeout 3600 python tools/preview_check/check.py bench \
+          APPDATA="$RUNNER_TEMP/py-list-home" PYTHONPATH="$V101" BLACKLIST_DETECT_MODEL_DIR="$RUNNER_TEMP/paddle-models" timeout 3600 python tools/preview_check/check.py bench \
             python-list "$RESULTS/bench-python-list.json" -- python tools/preview_check/py_bench.py "$frames" \
             "$RUNNER_TEMP/private/list.txt"
+          # What v1.0.1 read with: package versions and its own log's model / thread lines.
+          {
+            python -m pip list 2>/dev/null | grep -iE "^(paddlepaddle|paddleocr|paddlex|onnxruntime|numpy|opencv)" || true
+            echo "--- v1.0.1 log (model, thread and load lines) ---"
+            cat "$RUNNER_TEMP"/py-bench-home/BlackListDetect/logs/*.log 2>/dev/null \
+              | grep -iE "model|PP-OCR|paddle|thread|did not load|engine|mkldnn|device" | head -40 || true
+          } | tee "$RESULTS/v101-engine.txt"
+          # Cross-check: tools/engine_bench.py (this checkout's Paddle read path, the same Paddle models) on 3 frames,
+          # compared with Rust by hash. Its own output names players, so it stays in the private folder.
+          mkdir -p "$RUNNER_TEMP/three"
+          ls "$frames"/*.jpg | sort | head -3 | while read -r f; do cp "$f" "$RUNNER_TEMP/three/"; done
+          APPDATA="$RUNNER_TEMP/eb-home" PYTHONPATH="$GITHUB_WORKSPACE" BLACKLIST_DETECT_MODEL_DIR="$RUNNER_TEMP/paddle-models" \
+            timeout 1200 python tools/engine_bench.py "$RUNNER_TEMP/three" "$RUNNER_TEMP/private/eb" --engines app-onnxruntime \
+            --repeat 1 --onnx-models "$RUNNER_TEMP/models" > "$RUNNER_TEMP/private/eb.log" 2>&1 || echo "engine_bench exit $?"
+          python tools/preview_check/check.py crosscheck "$RUNNER_TEMP/private" "$RESULTS/crosscheck.json"
 
       # 3. Each scene at 1920x1080: Rust on the runner's adapter (WARP), Python's love_frames.py (QPainter).
       - name: Scenes
