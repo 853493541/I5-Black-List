@@ -182,3 +182,9 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      # Last, so it ends the log: which OCR parity tests ran against which OpenCV, and the release sizes.
+      - name: Recap
+        if: always()
+        run: |
+          grep -hE 'IPP in use|skipped|^test .*(ipp|fill_poly|byte_for_byte)|test result' "$RUNNER_TEMP/ocr.log" || true
+          cat "$RUNNER_TEMP/app/sizes.md" 2>/dev/null || true
