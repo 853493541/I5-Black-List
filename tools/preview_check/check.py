@@ -222,9 +222,29 @@ def sides(py_dir: Path, rust_dir: Path, out: Path) -> None:
             x += img.width + 24
         canvas.save(out / f"{name}.png", optimize=True)
     listing = {"both": sorted(rust.keys() & python.keys()), "python_only": sorted(python.keys() - rust.keys()),
-               "rust_only": sorted(rust.keys() - python.keys())}
+               "rust_only": sorted(rust.keys() - python.keys()), "diff": {}}
+    for name in listing["both"]:
+        listing["diff"][name] = _difference(Image.open(python[name]).convert("RGB"), Image.open(rust[name]).convert("RGB"))
     (out / "index.json").write_text(json.dumps(listing, ensure_ascii=False, indent=1), encoding="utf-8")
     print(listing)
+
+
+def _difference(left, right) -> dict:
+    """Numbers for a Python / Rust pair (the pictures are not looked at by eye on CI): whether the sizes match, the mean
+    difference per channel (0-255) and the share of pixels differing by more than 24/255 in any channel, the Rust picture
+    scaled to the Python one's size when they differ."""
+    from PIL import ImageChops
+
+    same = left.size == right.size
+    if not same:
+        right = right.resize(left.size)
+    diff = ImageChops.difference(left, right)
+    channels = diff.split()
+    mean = sum(sum(i * n for i, n in enumerate(c.histogram())) for c in channels) / (3 * left.size[0] * left.size[1])
+    worst = ImageChops.lighter(ImageChops.lighter(channels[0], channels[1]), channels[2])
+    over = sum(worst.histogram()[25:]) / (left.size[0] * left.size[1])
+    return {"size": f"{left.size[0]}x{left.size[1]}" + ("" if same else f" vs {right.size[0]}x{right.size[1]}"),
+            "same_size": same, "mean": round(mean, 1), "over24": round(over * 100, 1)}
 
 
 def _load(path: Path) -> dict:
@@ -274,15 +294,22 @@ def report(results: Path, out: Path) -> None:
     for key in ["classic", "lace", "stars", "ice", "cyber", "neon", "angel", "equation", "fluffy", "claw", "lyre"]:
         r, p = sc.get("rust", {}).get(key, {}), sc.get("python", {}).get(key, {})
         rt = r.get("skipped") or f"{r.get('median')} / {r.get('p95')} / {r.get('worst')}" if r else "n/a"
+        if "p95" in r:
+            rt += " (within 20 ms)" if r["p95"] <= BUDGET_MS else " (over 20 ms on WARP)"
         pt = p.get("skipped") or f"{p.get('median')} / {p.get('p90')} / {p.get('worst')}" if p else "n/a"
         lines.append(f"| {key} | {rt} | {pt} |")
     for scale in ("125", "150"):
         index = _load(results / f"sides-{scale}" / "index.json")
         if index:
             lines += ["", f"## Pictures at {scale} %", "",
-                      f"- side by side (Python left, Rust right): {len(index['both'])}",
+                      f"- side by side (Python left, Rust right): {len(index['both'])}; checked by numbers on the runner, "
+                      "not by eye (high = mean difference over 20 or more than 30 % of pixels off by over 24/255)",
                       f"- Python only: {', '.join(index['python_only']) or 'none'}",
-                      f"- Rust only: {', '.join(index['rust_only']) or 'none'}"]
+                      f"- Rust only: {', '.join(index['rust_only']) or 'none'}", "",
+                      "| Picture | Size (Python vs Rust) | Mean diff /255 | Pixels off >24 | |", "|---|---|---|---|---|"]
+            for name, d in sorted(index.get("diff", {}).items()):
+                high = d["mean"] > 20 or d["over24"] > 30
+                lines.append(f"| {name} | {d['size']} | {d['mean']} | {d['over24']} % | {'**high**' if high else ''} |")
     lines += ["", "## What this runner cannot test", "",
               "- No graphics chip: scenes run on WARP (software); the overlay's real frame time is not measured here.",
               f"- Windows Server ({runner}), not Windows 10 Home 22H2; no real 125 % monitor (scale is set per process: "
