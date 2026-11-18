@@ -15,6 +15,15 @@ flate2 = "1"
 serde_json = { version = "1", features = ["preserve_order"] }
 sha2 = "0.10"
 zip = { version = "2", default-features = false, features = ["deflate"] }
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+unicode-normalization = "0.1"
+unicode-general-category = "1"
+caseless = "0.2"
+
+[dev-dependencies]
+proptest = "1"
+tempfile = "3"
 
 [lints]
 workspace = true

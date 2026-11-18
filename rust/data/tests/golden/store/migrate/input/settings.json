@@ -1,0 +1,8 @@
+{"hotkey": "Ctrl+Alt+F11", "effect_hotkey": "Ctrl+S", "auto_capture": true,
+ "panel_pos": [10, "20"], "window_size": [800, 700], "theme": "紫色", "appearance": "dark", "player_name": "心动星星…",
+ "custom_tags": ["演戏", "其他", "a,b"], "hidden_tags": ["挂机", "nope"], "column_order": [1, 0, 2, 3],
+ "column_widths": [100, "150", 300, 2001], "sound_volume": 47, "love_scene": "off", "love_music": "off",
+ "scene_sounds": {"champagne": {"volume": 80, "file": "angel-1.wav", "name": "歌.mp3", "start": 1, "length": 2.5},
+                  "ice": {"volume": 3}, "lace": {"volume": 100}},
+ "quick_scene": "champagne", "stream_mode": "key", "consented": ["auto", "full", "x"], "safe_mode": false,
+ "welcomed": true, "disclaimer_accepted": true}

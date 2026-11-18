@@ -1,0 +1,102 @@
+{
+  "scans": [
+    {
+      "at": "2026-11-18T09:30:05+00:00",
+      "elapsed": 1.0,
+      "names": [
+        {
+          "seat": 1,
+          "name": "示例玩家1",
+          "unclear": false
+        },
+        {
+          "seat": 2,
+          "name": "示例玩家2",
+          "unclear": false
+        },
+        {
+          "seat": 3,
+          "name": "示例玩家3",
+          "unclear": false
+        },
+        {
+          "seat": 4,
+          "name": "示例玩家4",
+          "unclear": false
+        },
+        {
+          "seat": 5,
+          "name": "心动小鹿改名",
+          "unclear": false
+        },
+        {
+          "seat": 6,
+          "name": "示例玩家6",
+          "unclear": false
+        },
+        {
+          "seat": 7,
+          "name": "示例玩家7",
+          "unclear": false
+        },
+        {
+          "seat": 8,
+          "name": "示例玩家8",
+          "unclear": false
+        },
+        {
+          "seat": 9,
+          "name": "示例玩家9",
+          "unclear": false
+        },
+        {
+          "seat": 10,
+          "name": "示例玩家10",
+          "unclear": false
+        },
+        {
+          "seat": 11,
+          "name": "示例玩家11",
+          "unclear": false
+        },
+        {
+          "seat": 12,
+          "name": "示例玩家12",
+          "unclear": false
+        }
+      ]
+    },
+    {
+      "at": "2026-11-17T20:00:00+00:00",
+      "elapsed": 1.234,
+      "names": [
+        {
+          "seat": 1,
+          "name": "心动小鹿",
+          "unclear": false
+        },
+        {
+          "seat": 2,
+          "name": "示例坏人",
+          "unclear": false
+        },
+        {
+          "seat": 3,
+          "name": "",
+          "unclear": true
+        }
+      ]
+    },
+    {
+      "at": "2026-11-16T19:00:00+00:00",
+      "elapsed": null,
+      "names": [
+        {
+          "seat": 4,
+          "name": "心动星星",
+          "unclear": false
+        }
+      ]
+    }
+  ]
+}

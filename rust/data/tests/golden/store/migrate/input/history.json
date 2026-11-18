@@ -1,0 +1,7 @@
+{"scans": [
+ {"at": "2026-11-17T20:00:00+00:00", "elapsed": 1.234, "names": [
+  {"seat": 1, "name": "心动小鹿"}, {"seat": 2, "name": "示例坏人", "unclear": false}, {"seat": 3, "name": "", "unclear": true}]},
+ {"at": "2026-11-17T19:00:00+00:00", "elapsed": 2, "names": [
+  {"seat": 1, "name": "心动小鹿"}, {"seat": 2, "name": "示例坏人"}]},
+ {"at": "2026-11-16T19:00:00+00:00", "elapsed": null, "names": [{"seat": "4", "name": "心动星星"}]}
+]}

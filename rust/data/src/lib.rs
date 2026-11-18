@@ -4,3 +4,4 @@
 pub mod import;
 pub mod logs;
 pub mod update;
+pub mod store;
