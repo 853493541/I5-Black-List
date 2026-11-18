@@ -16,3 +16,17 @@ rust/ocr opens inference.ort when the model folder has one, else inference.onnx 
 
 Gate per variant: tools/size/ort_load_test.py (all three models open and one lobby reads) and
 tools/rust_golden_ocr_parity.py, Python on the stock DLL against Rust on the variant, 85 corpus frames + the fixture.
+
+ORT-format models (what the minimal build needs), checked with the stock 1.32 onnxruntime (Linux, 4 threads, 85 corpus
+frames + the fixture, full reads): 2308/2308 lines with identical texts and boxes, but scores move by up to 6.2e-4 on 3
+frames (gate 1e-4): the converter fixes the graph without the NCHWc layout the stock DLL chooses at run time, so the
+convolutions run on other kernels. Baking NCHWc into the file is not portable (its block size follows the CPU).
+
+tract 0.23.10 (pure Rust), measured as an alternative only (tools/size/ort_tract, inputs recorded by ort_tract_dump.py
+from the app's check on the stock onnxruntime, 86 images, 372 network runs, Linux, 4 cores, a plan per input shape):
+- loads: all 3 models; the det model only with concrete input shapes (its Concat does not analyse symbolically).
+- parity: worst output gap det 1.4e-4, rec 1.6e-3, v6 1.2e-4; 2 det-map pixels cross 0.3 the other way; 0 of 96,297
+  rec time steps change their best character. Not bit-identical, so scores would move past 1e-4.
+- speed: det 48.8 s vs ORT 14.5 s, rec 61.9 s vs 20.0 s, v6 213.8 s vs 43.0 s: 324 s vs 77.5 s, 4.2x slower
+  (+10.6 s making per-shape plans); with symbolic plans rec is 16x and v6 7x slower.
+- size: +21.0 MiB stripped with LTO (21.2 MiB vs 0.3 MiB without tract), 7.8 MiB gzipped: about the stock DLL's size.
