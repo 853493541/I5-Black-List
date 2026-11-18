@@ -34,7 +34,7 @@ pub fn noise(width: usize, height: usize, scale: f64, octaves: u32, seed: u32) -
     for octave in 0..octaves {
         let cell = (scale / f64::from(1u32 << octave)).max(2.0);
         let (gw, gh) = ((width as f64 / cell) as usize + 3, (height as f64 / cell) as usize + 3);
-        let grid: Vec<f32> = (0..gw * gh).map(|_| rnd.random32()).collect();
+        let grid: Vec<f32> = (0..gw * gh).map(|_| rnd.random_f32()).collect();
         let along = |i: usize| {
             let f = i as f32 / cell as f32;
             let i0 = f as usize;

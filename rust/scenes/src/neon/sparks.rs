@@ -66,22 +66,22 @@ pub fn shower(at: Pt, aim: f64, count: usize, u: f64, seed: u32, width: f64, hei
     let mut rng = Rng::new(seed);
     let embers = count / 6;
     let n = count + embers;
-    let fast = rng.uniform(150.0, 460.0, count);
+    let fast = rng.uniforms(150.0, 460.0, count);
     let boost: Vec<f64> = (0..count).map(|_| 1.0 + 0.25 * rng.exponential()).collect();
     let mut speed: Vec<f64> = fast.iter().zip(&boost).map(|(a, b)| a * b).collect();
-    speed.extend(rng.uniform(40.0, 150.0, embers));
+    speed.extend(rng.uniforms(40.0, 150.0, embers));
     let angle: Vec<f64> = (0..n).map(|_| aim + 0.75 * rng.normal()).collect();
     let mut vel: Vec<[f64; 2]> = (0..n).map(|i| [angle[i].cos() * speed[i] * u, angle[i].sin() * speed[i] * u]).collect();
     let mut pos: Vec<[f64; 2]> = (0..n).map(|_| [at[0] + 2.0 * u * rng.normal(), at[1] + 2.0 * u * rng.normal()]).collect();
-    let mut life = rng.uniform(0.45, 1.1, count);
-    life.extend(rng.uniform(0.8, 1.2, embers));
+    let mut life = rng.uniforms(0.45, 1.1, count);
+    life.extend(rng.uniforms(0.8, 1.2, embers));
     for (l, s) in life.iter_mut().zip(&speed) {
         *l *= 1.15 - 0.3 * (s / 600.0).clamp(0.0, 1.0);
     }
-    let delay = rng.uniform(0.0, 0.05, n);
-    let mut size = rng.uniform(0.8, 1.35, count);
-    size.extend(rng.uniform(0.5, 0.8, embers));
-    let bounce = rng.uniform(0.25, 0.55, n);
+    let delay = rng.uniforms(0.0, 0.05, n);
+    let mut size = rng.uniforms(0.8, 1.35, count);
+    size.extend(rng.uniforms(0.5, 0.8, embers));
+    let bounce = rng.uniforms(0.25, 0.55, n);
     let (floor, left, right) = (height - 25.0 * u, 6.0 * u, width - 6.0 * u);
     let (gravity, slow) = (1500.0 * u * STEP, (-2.4 * STEP).exp());
     let steps = (life.iter().copied().fold(0.0, f64::max) / STEP) as usize + 3;

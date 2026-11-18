@@ -83,7 +83,7 @@ pub fn noise(w: usize, h: usize, scale: f64, octaves: u32, seed: u32) -> Plane {
     for octave in 0..octaves {
         let cell = (scale / 2f64.powi(octave as i32)).max(2.0);
         let (gw, gh) = ((w as f64 / cell) as usize + 3, (h as f64 / cell) as usize + 3);
-        let grid: Vec<f64> = (0..gw * gh).map(|_| f64::from(rng.float())).collect();
+        let grid: Vec<f64> = (0..gw * gh).map(|_| f64::from(rng.random_f32())).collect();
         let at = |i: usize| {
             let f = i as f32 / cell as f32;
             let i0 = f as usize;
