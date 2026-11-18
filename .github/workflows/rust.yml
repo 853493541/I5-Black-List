@@ -2,8 +2,8 @@ name: rust
 
 # The Rust rewrite (rust/): build, test and lint the whole workspace. The Windows job is where the
 # Windows-only code (rust/win: capture, hotkeys, single instance, autostart) actually runs, and where the OCR is
-# linked to the official OpenCV 4.10 Windows build (with Intel IPP, the same pixels as the Python app's opencv
-# wheel): the IPP tests of rust/ocr run there on golden data that tools/rust_golden_ipp.py makes from made-up names.
+# linked statically to OpenCV 4.10 built with Intel IPP (the same pixels as the Python app's opencv wheel): the
+# IPP tests of rust/ocr run there on golden data that tools/rust_golden_ipp.py makes from made-up names.
 on:
   push:
     branches: ["feature/rust*"]
@@ -42,31 +42,49 @@ jobs:
           sudo apt-get install -y -q libopencv-dev clang libclang-dev mesa-vulkan-drivers libvulkan1 \
             libfontconfig1-dev libxkbcommon-dev
 
-      # The official build: a 7-Zip self-extractor holding build/include and build/x64/vc16/{lib,bin}/opencv_world4100.*
+      # OpenCV 4.10 built static, with Intel IPP (ippicv + ippiw, the same IPP opencv-python 4.10 uses) and the static C
+      # runtime (/MT), so the exe linked with +crt-static imports only system DLLs (build/make_rust_release.py checks).
+      # The official Windows pack ships only opencv_world4100.dll and its import library, so it is built here, cached.
       - name: Cache OpenCV (Windows)
         if: runner.os == 'Windows'
         id: opencv-cache
         uses: actions/cache@v4
         with:
-          path: C:\opencv
-          key: opencv-${{ env.OPENCV_VERSION }}-windows-official
-      - name: Install OpenCV (Windows)
+          path: C:\opencv-static
+          key: opencv-${{ env.OPENCV_VERSION }}-static-ipp-mt-v1
+      - uses: ilammy/msvc-dev-cmd@v1
         if: runner.os == 'Windows' && steps.opencv-cache.outputs.cache-hit != 'true'
+      - name: Build OpenCV static (Windows)
+        if: runner.os == 'Windows' && steps.opencv-cache.outputs.cache-hit != 'true'
+        working-directory: ${{ runner.temp }}
         run: |
-          curl -sSfL -o "$RUNNER_TEMP/opencv.exe" \
-            "https://github.com/opencv/opencv/releases/download/${OPENCV_VERSION}/opencv-${OPENCV_VERSION}-windows.exe"
-          "$RUNNER_TEMP/opencv.exe" -o"C:\\" -y
-          ls -la /c/opencv/build/x64/vc16/lib /c/opencv/build/x64/vc16/bin
+          python -m pip install -q ninja
+          curl -sSfL -o opencv.tar.gz "https://github.com/opencv/opencv/archive/refs/tags/${OPENCV_VERSION}.tar.gz"
+          tar xzf opencv.tar.gz
+          cmake -S "opencv-${OPENCV_VERSION}" -B cvbuild -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=C:/opencv-static -DBUILD_SHARED_LIBS=OFF -DBUILD_WITH_STATIC_CRT=ON \
+            -DBUILD_LIST=core,imgproc,imgcodecs -DWITH_IPP=ON -DBUILD_IPP_IW=ON \
+            -DWITH_ITT=OFF -DWITH_OPENCL=OFF -DWITH_EIGEN=OFF -DWITH_LAPACK=OFF -DWITH_PROTOBUF=OFF -DWITH_ADE=OFF \
+            -DWITH_TIFF=OFF -DWITH_WEBP=OFF -DWITH_OPENJPEG=OFF -DWITH_JASPER=OFF -DWITH_OPENEXR=OFF -DWITH_AVIF=OFF \
+            -DWITH_FFMPEG=OFF -DWITH_DSHOW=OFF -DWITH_MSMF=OFF -DWITH_DIRECTX=OFF -DWITH_WIN32UI=OFF \
+            -DBUILD_PNG=ON -DBUILD_JPEG=ON -DBUILD_ZLIB=ON \
+            -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_opencv_apps=OFF \
+            -DBUILD_JAVA=OFF -DBUILD_opencv_python3=OFF -DBUILD_opencv_python2=OFF > cmake.log
+          grep -iE 'IPP|Parallel framework|CPU/HW|Linker flags \(Release\)|C\+\+ flags \(Release\)' cmake.log
+          cmake --build cvbuild --target install
+          find /c/opencv-static -name '*.lib' | xargs ls -la
       - name: Point the opencv crate at it (Windows)
         if: runner.os == 'Windows'
         run: |
+          libdir=$(dirname "$(find /c/opencv-static -name 'opencv_core*.lib' | head -1)")
+          libs=$(ls "$libdir" | sed -n 's/\.lib$//p' | paste -sd, -)
           {
-            echo 'OPENCV_LINK_LIBS=opencv_world4100'
-            echo 'OPENCV_LINK_PATHS=C:\opencv\build\x64\vc16\lib'
-            echo 'OPENCV_INCLUDE_PATHS=C:\opencv\build\include'
+            echo "OPENCV_LINK_LIBS=$libs"
+            echo "OPENCV_LINK_PATHS=$(cygpath -w "$libdir")"
+            echo 'OPENCV_INCLUDE_PATHS=C:\opencv-static\include'
             echo 'LIBCLANG_PATH=C:\Program Files\LLVM\bin'
-          } >> "$GITHUB_ENV"
-          echo 'C:\opencv\build\x64\vc16\bin' >> "$GITHUB_PATH"
+            echo 'RUSTFLAGS=-C target-feature=+crt-static'
+          } | tee -a "$GITHUB_ENV"
 
       # Golden data from the Python side (opencv-python 4.10 with IPP), and onnxruntime.dll for ort's load-dynamic.
       - name: Python reference and golden data
@@ -110,17 +128,34 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           cargo build --release -p app
+          cargo build --release -p ocr --examples
           mkdir -p "$RUNNER_TEMP/app"
-          cp target/release/*.exe "$RUNNER_TEMP/app/"
+          cp target/release/*.exe target/release/examples/*.exe "$RUNNER_TEMP/app/"
           size() { stat -c %s "$2" | awk -v f="$1" '{ printf "| %s | %d | %.1f |\n", f, $1, $1 / 1048576 }'; }
           {
             echo '### Release sizes'
             echo '| File | Bytes | MiB |'
             echo '|---|---|---|'
-            for exe in target/release/*.exe; do size "$(basename "$exe")" "$exe"; done
-            size opencv_world4100.dll /c/opencv/build/x64/vc16/bin/opencv_world4100.dll
+            for exe in "$RUNNER_TEMP"/app/*.exe; do size "$(basename "$exe")" "$exe"; done
             size onnxruntime.dll "$REC_ORT_LIB"
           } | tee "$RUNNER_TEMP/app/sizes.md" >> "$GITHUB_STEP_SUMMARY"
+      # The exe may import only DLLs a clean Windows 10 has (build/make_rust_release.py: SYSTEM_DLLS).
+      - name: Import tables (Windows)
+        if: runner.os == 'Windows'
+        working-directory: .
+        run: |
+          PYTHONPATH=. APPDATA="$RUNNER_TEMP/appdata" python - "$RUNNER_TEMP"/app/*.exe <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, "build")
+          from make_rust_release import foreign_imports, pe_imports
+          bad = 0
+          for exe in map(Path, sys.argv[1:]):
+              foreign = foreign_imports(exe)
+              print(f"- {exe.name}: imports {', '.join(pe_imports(exe.read_bytes()) or [])}; not a system DLL: {foreign or 'none'}")
+              bad += bool(foreign)
+          sys.exit(bad)
+          PY
       - uses: actions/upload-artifact@v4
         if: runner.os == 'Windows'
         with:
