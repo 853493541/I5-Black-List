@@ -1,0 +1,626 @@
+{
+ "frame": 21,
+ "width": 1920,
+ "height": 1080,
+ "lines": [
+  {
+   "text": "美团淘宝闪购码:",
+   "confidence": 0.9587440490722656,
+   "box": [
+    1.5,
+    12.0,
+    402.0,
+    69.0
+   ]
+  },
+  {
+   "text": "662233",
+   "confidence": 0.9999735951423645,
+   "box": [
+    430.5,
+    9.0,
+    633.0,
+    63.0
+   ]
+  },
+  {
+   "text": "干饭口羊口羊",
+   "confidence": 0.9728574752807617,
+   "box": [
+    1498.5,
+    39.0,
+    1741.5,
+    96.0
+   ]
+  },
+  {
+   "text": "Biibili",
+   "confidence": 0.8007622361183167,
+   "box": [
+    1737.0,
+    33.0,
+    1891.5,
+    102.0
+   ]
+  },
+  {
+   "text": "推演成功",
+   "confidence": 0.9851504564285278,
+   "box": [
+    775.5,
+    93.0,
+    1140.0,
+    202.5
+   ]
+  },
+  {
+   "text": "模仿者狂欢（12人狂欢）",
+   "confidence": 0.98392254114151,
+   "box": [
+    733.5,
+    207.0,
+    1161.0,
+    255.0
+   ]
+  },
+  {
+   "text": "漠仿者狂欢（12人",
+   "confidence": 0.9573994874954224,
+   "box": [
+    12.0,
+    318.0,
+    259.5,
+    349.5
+   ]
+  },
+  {
+   "text": "4",
+   "confidence": 0.04407969117164612,
+   "box": [
+    1242.0,
+    313.5,
+    1293.0,
+    361.5
+   ]
+  },
+  {
+   "text": "芽芽衣儿",
+   "confidence": 0.9987571239471436,
+   "box": [
+    276.0,
+    471.0,
+    420.0,
+    514.5
+   ]
+  },
+  {
+   "text": "绵朵咩",
+   "confidence": 0.9266114234924316,
+   "box": [
+    538.5,
+    472.5,
+    646.5,
+    513.0
+   ]
+  },
+  {
+   "text": "NiceFai",
+   "confidence": 0.9777262806892395,
+   "box": [
+    1011.0,
+    475.5,
+    1134.0,
+    508.5
+   ]
+  },
+  {
+   "text": "豆豆困困哒",
+   "confidence": 0.8308278918266296,
+   "box": [
+    1242.0,
+    475.5,
+    1413.0,
+    508.5
+   ]
+  },
+  {
+   "text": "晴不眠ovo",
+   "confidence": 0.932680606842041,
+   "box": [
+    1489.5,
+    471.0,
+    1654.5,
+    513.0
+   ]
+  },
+  {
+   "text": "取消匹配",
+   "confidence": 0.9843220710754395,
+   "box": [
+    72.0,
+    523.5,
+    189.0,
+    555.0
+   ]
+  },
+  {
+   "text": "返回匹配",
+   "confidence": 0.9978618025779724,
+   "box": [
+    345.0,
+    523.5,
+    460.5,
+    555.0
+   ]
+  },
+  {
+   "text": "脆脆鲨66号",
+   "confidence": 0.9990373253822327,
+   "box": [
+    258.0,
+    735.0,
+    433.5,
+    778.5
+   ]
+  },
+  {
+   "text": "Hopingfor",
+   "confidence": 0.9920527935028076,
+   "box": [
+    510.0,
+    739.5,
+    670.5,
+    780.0
+   ]
+  },
+  {
+   "text": "善良的村..",
+   "confidence": 0.8277618288993835,
+   "box": [
+    741.0,
+    739.5,
+    907.5,
+    778.5
+   ]
+  },
+  {
+   "text": "梅川酷叉酱",
+   "confidence": 0.9946039319038391,
+   "box": [
+    994.5,
+    739.5,
+    1168.5,
+    778.5
+   ]
+  },
+  {
+   "text": "神明嘎嘎.",
+   "confidence": 0.9944404363632202,
+   "box": [
+    1230.0,
+    741.0,
+    1380.0,
+    778.5
+   ]
+  },
+  {
+   "text": "准备宗件还原",
+   "confidence": 0.890173614025116,
+   "box": [
+    858.0,
+    871.5,
+    1069.5,
+    915.0
+   ]
+  },
+  {
+   "text": "深冬观雪·祝安东尼奥纪金图安康",
+   "confidence": 0.7760835289955139,
+   "box": [
+    664.5,
+    933.0,
+    1177.5,
+    982.5
+   ]
+  },
+  {
+   "text": "汽修二班小司司：【表情】得意",
+   "confidence": 0.9796968698501587,
+   "box": [
+    657.0,
+    984.0,
+    1144.5,
+    1026.0
+   ]
+  },
+  {
+   "text": "魏策：祝安东尼奥纪念日安康",
+   "confidence": 0.9744200110435486,
+   "box": [
+    658.5,
+    1033.5,
+    1108.5,
+    1071.0
+   ]
+  }
+ ],
+ "anchor": {
+  "found": false,
+  "reason": "没找到「推演成功」大厅",
+  "countdown_seconds": null,
+  "ready_count": null,
+  "scale": 0.0,
+  "name_boxes": [],
+  "button_box": null,
+  "title_box": null,
+  "mode_box": null,
+  "countdown_box": null
+ },
+ "contains_title": true,
+ "ready_strip": null,
+ "game_screen": null,
+ "texts": [
+  {
+   "text": "美团淘宝闪购码:",
+   "normalize_text": "美团淘宝闪购码:",
+   "split_ellipsis": [
+    "美团淘宝闪购码:",
+    false
+   ],
+   "with_game_ellipsis": "美团淘宝闪购码:",
+   "strip_noise": "美团淘宝闪购码",
+   "fold": "美团淘宝闪购码",
+   "clean_stored_name": "美团淘宝闪购码",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "662233",
+   "normalize_text": "662233",
+   "split_ellipsis": [
+    "662233",
+    false
+   ],
+   "with_game_ellipsis": "662233",
+   "strip_noise": "662233",
+   "fold": "662233",
+   "clean_stored_name": "662233",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "干饭口羊口羊",
+   "normalize_text": "干饭口羊口羊",
+   "split_ellipsis": [
+    "干饭口羊口羊",
+    false
+   ],
+   "with_game_ellipsis": "干饭口羊口羊",
+   "strip_noise": "干饭口羊口羊",
+   "fold": "干饭口羊口羊",
+   "clean_stored_name": "干饭口羊口羊",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "Biibili",
+   "normalize_text": "Biibili",
+   "split_ellipsis": [
+    "Biibili",
+    false
+   ],
+   "with_game_ellipsis": "Biibili",
+   "strip_noise": "Biibili",
+   "fold": "biibili",
+   "clean_stored_name": "Biibili",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "推演成功",
+   "normalize_text": "推演成功",
+   "split_ellipsis": [
+    "推演成功",
+    false
+   ],
+   "with_game_ellipsis": "推演成功",
+   "strip_noise": "推演成功",
+   "fold": "推演成功",
+   "clean_stored_name": "推演成功",
+   "is_lobby_chrome": true,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "模仿者狂欢（12人狂欢）",
+   "normalize_text": "模仿者狂欢(12人狂欢)",
+   "split_ellipsis": [
+    "模仿者狂欢(12人狂欢)",
+    false
+   ],
+   "with_game_ellipsis": "模仿者狂欢(12人狂欢)",
+   "strip_noise": "模仿者狂欢12人狂欢",
+   "fold": "模仿者狂欢12人狂欢",
+   "clean_stored_name": "模仿者狂欢12人狂欢",
+   "is_lobby_chrome": true,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "漠仿者狂欢（12人",
+   "normalize_text": "漠仿者狂欢(12人",
+   "split_ellipsis": [
+    "漠仿者狂欢(12人",
+    false
+   ],
+   "with_game_ellipsis": "漠仿者狂欢(12人",
+   "strip_noise": "漠仿者狂欢12人",
+   "fold": "漠仿者狂欢12人",
+   "clean_stored_name": "漠仿者狂欢12人",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "4",
+   "normalize_text": "4",
+   "split_ellipsis": [
+    "4",
+    false
+   ],
+   "with_game_ellipsis": "4",
+   "strip_noise": "4",
+   "fold": "4",
+   "clean_stored_name": "4",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "芽芽衣儿",
+   "normalize_text": "芽芽衣儿",
+   "split_ellipsis": [
+    "芽芽衣儿",
+    false
+   ],
+   "with_game_ellipsis": "芽芽衣儿",
+   "strip_noise": "芽芽衣儿",
+   "fold": "芽芽衣儿",
+   "clean_stored_name": "芽芽衣儿",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "绵朵咩",
+   "normalize_text": "绵朵咩",
+   "split_ellipsis": [
+    "绵朵咩",
+    false
+   ],
+   "with_game_ellipsis": "绵朵咩",
+   "strip_noise": "绵朵咩",
+   "fold": "绵朵咩",
+   "clean_stored_name": "绵朵咩",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "NiceFai",
+   "normalize_text": "NiceFai",
+   "split_ellipsis": [
+    "NiceFai",
+    false
+   ],
+   "with_game_ellipsis": "NiceFai",
+   "strip_noise": "NiceFai",
+   "fold": "nicefai",
+   "clean_stored_name": "NiceFai",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "豆豆困困哒",
+   "normalize_text": "豆豆困困哒",
+   "split_ellipsis": [
+    "豆豆困困哒",
+    false
+   ],
+   "with_game_ellipsis": "豆豆困困哒",
+   "strip_noise": "豆豆困困哒",
+   "fold": "豆豆困困哒",
+   "clean_stored_name": "豆豆困困哒",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "晴不眠ovo",
+   "normalize_text": "晴不眠ovo",
+   "split_ellipsis": [
+    "晴不眠ovo",
+    false
+   ],
+   "with_game_ellipsis": "晴不眠ovo",
+   "strip_noise": "晴不眠ovo",
+   "fold": "晴不眠ovo",
+   "clean_stored_name": "晴不眠ovo",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "取消匹配",
+   "normalize_text": "取消匹配",
+   "split_ellipsis": [
+    "取消匹配",
+    false
+   ],
+   "with_game_ellipsis": "取消匹配",
+   "strip_noise": "取消匹配",
+   "fold": "取消匹配",
+   "clean_stored_name": "取消匹配",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "返回匹配",
+   "normalize_text": "返回匹配",
+   "split_ellipsis": [
+    "返回匹配",
+    false
+   ],
+   "with_game_ellipsis": "返回匹配",
+   "strip_noise": "返回匹配",
+   "fold": "返回匹配",
+   "clean_stored_name": "返回匹配",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "脆脆鲨66号",
+   "normalize_text": "脆脆鲨66号",
+   "split_ellipsis": [
+    "脆脆鲨66号",
+    false
+   ],
+   "with_game_ellipsis": "脆脆鲨66号",
+   "strip_noise": "脆脆鲨66号",
+   "fold": "脆脆鲨66号",
+   "clean_stored_name": "脆脆鲨66号",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "Hopingfor",
+   "normalize_text": "Hopingfor",
+   "split_ellipsis": [
+    "Hopingfor",
+    false
+   ],
+   "with_game_ellipsis": "Hopingfor",
+   "strip_noise": "Hopingfor",
+   "fold": "hopingfor",
+   "clean_stored_name": "Hopingfor",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "善良的村..",
+   "normalize_text": "善良的村..",
+   "split_ellipsis": [
+    "善良的村",
+    true
+   ],
+   "with_game_ellipsis": "善良的村...",
+   "strip_noise": "善良的村",
+   "fold": "善良的村",
+   "clean_stored_name": "善良的村",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "梅川酷叉酱",
+   "normalize_text": "梅川酷叉酱",
+   "split_ellipsis": [
+    "梅川酷叉酱",
+    false
+   ],
+   "with_game_ellipsis": "梅川酷叉酱",
+   "strip_noise": "梅川酷叉酱",
+   "fold": "梅川酷叉酱",
+   "clean_stored_name": "梅川酷叉酱",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "神明嘎嘎.",
+   "normalize_text": "神明嘎嘎.",
+   "split_ellipsis": [
+    "神明嘎嘎",
+    true
+   ],
+   "with_game_ellipsis": "神明嘎嘎...",
+   "strip_noise": "神明嘎嘎",
+   "fold": "神明嘎嘎",
+   "clean_stored_name": "神明嘎嘎",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "准备宗件还原",
+   "normalize_text": "准备宗件还原",
+   "split_ellipsis": [
+    "准备宗件还原",
+    false
+   ],
+   "with_game_ellipsis": "准备宗件还原",
+   "strip_noise": "准备宗件还原",
+   "fold": "准备宗件还原",
+   "clean_stored_name": "准备宗件还原",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "深冬观雪·祝安东尼奥纪金图安康",
+   "normalize_text": "深冬观雪·祝安东尼奥纪金图安康",
+   "split_ellipsis": [
+    "深冬观雪·祝安东尼奥纪金图安康",
+    false
+   ],
+   "with_game_ellipsis": "深冬观雪·祝安东尼奥纪金图安康",
+   "strip_noise": "深冬观雪祝安东尼奥纪金图安康",
+   "fold": "深冬观雪祝安东尼奥纪金图安康",
+   "clean_stored_name": "深冬观雪祝安东尼奥纪金图安康",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "汽修二班小司司：【表情】得意",
+   "normalize_text": "汽修二班小司司:【表情】得意",
+   "split_ellipsis": [
+    "汽修二班小司司:【表情】得意",
+    false
+   ],
+   "with_game_ellipsis": "汽修二班小司司:【表情】得意",
+   "strip_noise": "汽修二班小司司表情得意",
+   "fold": "汽修二班小司司表情得意",
+   "clean_stored_name": "汽修二班小司司表情得意",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "魏策：祝安东尼奥纪念日安康",
+   "normalize_text": "魏策:祝安东尼奥纪念日安康",
+   "split_ellipsis": [
+    "魏策:祝安东尼奥纪念日安康",
+    false
+   ],
+   "with_game_ellipsis": "魏策:祝安东尼奥纪念日安康",
+   "strip_noise": "魏策祝安东尼奥纪念日安康",
+   "fold": "魏策祝安东尼奥纪念日安康",
+   "clean_stored_name": "魏策祝安东尼奥纪念日安康",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  }
+ ],
+ "seats": [],
+ "entries": []
+}

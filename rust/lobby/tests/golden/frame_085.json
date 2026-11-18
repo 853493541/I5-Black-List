@@ -1,0 +1,301 @@
+{
+ "frame": 85,
+ "width": 1920,
+ "height": 1080,
+ "lines": [
+  {
+   "text": "美团淘宝闪购码：6",
+   "confidence": 0.9426314234733582,
+   "box": [
+    1.5,
+    12.0,
+    453.0,
+    69.0
+   ]
+  },
+  {
+   "text": "662233",
+   "confidence": 0.9999370574951172,
+   "box": [
+    427.5,
+    13.5,
+    631.5,
+    63.0
+   ]
+  },
+  {
+   "text": "干饭口羊口羊biibil",
+   "confidence": 0.8347663283348083,
+   "box": [
+    1495.5,
+    31.5,
+    1890.0,
+    100.5
+   ]
+  },
+  {
+   "text": "推演成功",
+   "confidence": 0.9925040006637573,
+   "box": [
+    778.5,
+    90.0,
+    1138.5,
+    199.5
+   ]
+  },
+  {
+   "text": "自由假面",
+   "confidence": 0.9897732138633728,
+   "box": [
+    873.0,
+    205.5,
+    1048.5,
+    255.0
+   ]
+  },
+  {
+   "text": "但的“灵感”",
+   "confidence": 0.848729133605957,
+   "box": [
+    1606.5,
+    220.5,
+    1774.5,
+    253.5
+   ]
+  },
+  {
+   "text": "倒计时20秒",
+   "confidence": 0.9955335259437561,
+   "box": [
+    834.0,
+    255.0,
+    1083.0,
+    303.0
+   ]
+  },
+  {
+   "text": "自由假面匹配中",
+   "confidence": 0.9122061729431152,
+   "box": [
+    13.5,
+    285.0,
+    238.5,
+    322.5
+   ]
+  },
+  {
+   "text": "准备就绪：0/12",
+   "confidence": 0.9922637939453125,
+   "box": [
+    835.5,
+    792.0,
+    1084.5,
+    837.0
+   ]
+  },
+  {
+   "text": "准备案件还原",
+   "confidence": 0.9640851020812988,
+   "box": [
+    853.5,
+    870.0,
+    1066.5,
+    916.5
+   ]
+  },
+  {
+   "text": "地奕口椰蓉酥YR：单练有吗",
+   "confidence": 0.9872146844863892,
+   "box": [
+    622.5,
+    1035.0,
+    1038.0,
+    1066.5
+   ]
+  }
+ ],
+ "anchor": {
+  "found": false,
+  "reason": "没找到「推演成功」大厅",
+  "countdown_seconds": null,
+  "ready_count": 0,
+  "scale": 0.0,
+  "name_boxes": [],
+  "button_box": null,
+  "title_box": null,
+  "mode_box": null,
+  "countdown_box": null
+ },
+ "contains_title": true,
+ "ready_strip": null,
+ "game_screen": null,
+ "texts": [
+  {
+   "text": "美团淘宝闪购码：6",
+   "normalize_text": "美团淘宝闪购码:6",
+   "split_ellipsis": [
+    "美团淘宝闪购码:6",
+    false
+   ],
+   "with_game_ellipsis": "美团淘宝闪购码:6",
+   "strip_noise": "美团淘宝闪购码6",
+   "fold": "美团淘宝闪购码6",
+   "clean_stored_name": "美团淘宝闪购码6",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "662233",
+   "normalize_text": "662233",
+   "split_ellipsis": [
+    "662233",
+    false
+   ],
+   "with_game_ellipsis": "662233",
+   "strip_noise": "662233",
+   "fold": "662233",
+   "clean_stored_name": "662233",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "干饭口羊口羊biibil",
+   "normalize_text": "干饭口羊口羊biibil",
+   "split_ellipsis": [
+    "干饭口羊口羊biibil",
+    false
+   ],
+   "with_game_ellipsis": "干饭口羊口羊biibil",
+   "strip_noise": "干饭口羊口羊biibil",
+   "fold": "干饭口羊口羊biibil",
+   "clean_stored_name": "干饭口羊口羊biibil",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "推演成功",
+   "normalize_text": "推演成功",
+   "split_ellipsis": [
+    "推演成功",
+    false
+   ],
+   "with_game_ellipsis": "推演成功",
+   "strip_noise": "推演成功",
+   "fold": "推演成功",
+   "clean_stored_name": "推演成功",
+   "is_lobby_chrome": true,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "自由假面",
+   "normalize_text": "自由假面",
+   "split_ellipsis": [
+    "自由假面",
+    false
+   ],
+   "with_game_ellipsis": "自由假面",
+   "strip_noise": "自由假面",
+   "fold": "自由假面",
+   "clean_stored_name": "自由假面",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "但的“灵感”",
+   "normalize_text": "但的“灵感”",
+   "split_ellipsis": [
+    "但的“灵感”",
+    false
+   ],
+   "with_game_ellipsis": "但的“灵感”",
+   "strip_noise": "但的灵感",
+   "fold": "但的灵感",
+   "clean_stored_name": "但的灵感",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "倒计时20秒",
+   "normalize_text": "倒计时20秒",
+   "split_ellipsis": [
+    "倒计时20秒",
+    false
+   ],
+   "with_game_ellipsis": "倒计时20秒",
+   "strip_noise": "倒计时20秒",
+   "fold": "倒计时20秒",
+   "clean_stored_name": "倒计时20秒",
+   "is_lobby_chrome": true,
+   "countdown_in": 20,
+   "ready_in": null
+  },
+  {
+   "text": "自由假面匹配中",
+   "normalize_text": "自由假面匹配中",
+   "split_ellipsis": [
+    "自由假面匹配中",
+    false
+   ],
+   "with_game_ellipsis": "自由假面匹配中",
+   "strip_noise": "自由假面匹配中",
+   "fold": "自由假面匹配中",
+   "clean_stored_name": "自由假面匹配中",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "准备就绪：0/12",
+   "normalize_text": "准备就绪:0/12",
+   "split_ellipsis": [
+    "准备就绪:0/12",
+    false
+   ],
+   "with_game_ellipsis": "准备就绪:0/12",
+   "strip_noise": "准备就绪012",
+   "fold": "准备就绪012",
+   "clean_stored_name": "准备就绪012",
+   "is_lobby_chrome": true,
+   "countdown_in": null,
+   "ready_in": 0
+  },
+  {
+   "text": "准备案件还原",
+   "normalize_text": "准备案件还原",
+   "split_ellipsis": [
+    "准备案件还原",
+    false
+   ],
+   "with_game_ellipsis": "准备案件还原",
+   "strip_noise": "准备案件还原",
+   "fold": "准备案件还原",
+   "clean_stored_name": "准备案件还原",
+   "is_lobby_chrome": true,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "地奕口椰蓉酥YR：单练有吗",
+   "normalize_text": "地奕口椰蓉酥YR:单练有吗",
+   "split_ellipsis": [
+    "地奕口椰蓉酥YR:单练有吗",
+    false
+   ],
+   "with_game_ellipsis": "地奕口椰蓉酥YR:单练有吗",
+   "strip_noise": "地奕口椰蓉酥YR单练有吗",
+   "fold": "地奕口椰蓉酥yr单练有吗",
+   "clean_stored_name": "地奕口椰蓉酥YR单练有吗",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  }
+ ],
+ "seats": [],
+ "entries": []
+}

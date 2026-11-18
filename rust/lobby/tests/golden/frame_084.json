@@ -1,0 +1,276 @@
+{
+ "frame": 84,
+ "width": 1920,
+ "height": 1080,
+ "lines": [
+  {
+   "text": "美团淘宝闪购码：662233",
+   "confidence": 0.9972823262214661,
+   "box": [
+    0.0,
+    7.5,
+    634.5,
+    69.0
+   ]
+  },
+  {
+   "text": "干饭口羊口羊bilibli",
+   "confidence": 0.794015645980835,
+   "box": [
+    1498.5,
+    36.0,
+    1888.5,
+    97.5
+   ]
+  },
+  {
+   "text": "推演成功",
+   "confidence": 0.9946808815002441,
+   "box": [
+    778.5,
+    88.5,
+    1144.5,
+    202.5
+   ]
+  },
+  {
+   "text": "自由假面",
+   "confidence": 0.9876365065574646,
+   "box": [
+    873.0,
+    204.0,
+    1048.5,
+    253.5
+   ]
+  },
+  {
+   "text": "倒计时19秒",
+   "confidence": 0.9959068298339844,
+   "box": [
+    834.0,
+    255.0,
+    1084.5,
+    303.0
+   ]
+  },
+  {
+   "text": "准备就绪：0/12",
+   "confidence": 0.9856855869293213,
+   "box": [
+    835.5,
+    790.5,
+    1084.5,
+    837.0
+   ]
+  },
+  {
+   "text": "准备案件还原",
+   "confidence": 0.9521655440330505,
+   "box": [
+    852.0,
+    870.0,
+    1066.5,
+    916.5
+   ]
+  },
+  {
+   "text": "山爆txz",
+   "confidence": 0.6966397762298584,
+   "box": [
+    690.0,
+    942.0,
+    859.5,
+    979.5
+   ]
+  },
+  {
+   "text": "有时候很菜",
+   "confidence": 0.9949345588684082,
+   "box": [
+    658.5,
+    978.0,
+    835.5,
+    1017.0
+   ]
+  },
+  {
+   "text": "6",
+   "confidence": 0.16734722256660461,
+   "box": [
+    51.0,
+    997.5,
+    94.5,
+    1032.0
+   ]
+  }
+ ],
+ "anchor": {
+  "found": false,
+  "reason": "没找到「推演成功」大厅",
+  "countdown_seconds": null,
+  "ready_count": 0,
+  "scale": 0.0,
+  "name_boxes": [],
+  "button_box": null,
+  "title_box": null,
+  "mode_box": null,
+  "countdown_box": null
+ },
+ "contains_title": true,
+ "ready_strip": null,
+ "game_screen": null,
+ "texts": [
+  {
+   "text": "美团淘宝闪购码：662233",
+   "normalize_text": "美团淘宝闪购码:662233",
+   "split_ellipsis": [
+    "美团淘宝闪购码:662233",
+    false
+   ],
+   "with_game_ellipsis": "美团淘宝闪购码:662233",
+   "strip_noise": "美团淘宝闪购码662233",
+   "fold": "美团淘宝闪购码662233",
+   "clean_stored_name": "美团淘宝闪购码662233",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "干饭口羊口羊bilibli",
+   "normalize_text": "干饭口羊口羊bilibli",
+   "split_ellipsis": [
+    "干饭口羊口羊bilibli",
+    false
+   ],
+   "with_game_ellipsis": "干饭口羊口羊bilibli",
+   "strip_noise": "干饭口羊口羊bilibli",
+   "fold": "干饭口羊口羊bilibli",
+   "clean_stored_name": "干饭口羊口羊bilibli",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "推演成功",
+   "normalize_text": "推演成功",
+   "split_ellipsis": [
+    "推演成功",
+    false
+   ],
+   "with_game_ellipsis": "推演成功",
+   "strip_noise": "推演成功",
+   "fold": "推演成功",
+   "clean_stored_name": "推演成功",
+   "is_lobby_chrome": true,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "自由假面",
+   "normalize_text": "自由假面",
+   "split_ellipsis": [
+    "自由假面",
+    false
+   ],
+   "with_game_ellipsis": "自由假面",
+   "strip_noise": "自由假面",
+   "fold": "自由假面",
+   "clean_stored_name": "自由假面",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "倒计时19秒",
+   "normalize_text": "倒计时19秒",
+   "split_ellipsis": [
+    "倒计时19秒",
+    false
+   ],
+   "with_game_ellipsis": "倒计时19秒",
+   "strip_noise": "倒计时19秒",
+   "fold": "倒计时19秒",
+   "clean_stored_name": "倒计时19秒",
+   "is_lobby_chrome": true,
+   "countdown_in": 19,
+   "ready_in": null
+  },
+  {
+   "text": "准备就绪：0/12",
+   "normalize_text": "准备就绪:0/12",
+   "split_ellipsis": [
+    "准备就绪:0/12",
+    false
+   ],
+   "with_game_ellipsis": "准备就绪:0/12",
+   "strip_noise": "准备就绪012",
+   "fold": "准备就绪012",
+   "clean_stored_name": "准备就绪012",
+   "is_lobby_chrome": true,
+   "countdown_in": null,
+   "ready_in": 0
+  },
+  {
+   "text": "准备案件还原",
+   "normalize_text": "准备案件还原",
+   "split_ellipsis": [
+    "准备案件还原",
+    false
+   ],
+   "with_game_ellipsis": "准备案件还原",
+   "strip_noise": "准备案件还原",
+   "fold": "准备案件还原",
+   "clean_stored_name": "准备案件还原",
+   "is_lobby_chrome": true,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "山爆txz",
+   "normalize_text": "山爆txz",
+   "split_ellipsis": [
+    "山爆txz",
+    false
+   ],
+   "with_game_ellipsis": "山爆txz",
+   "strip_noise": "山爆txz",
+   "fold": "山爆txz",
+   "clean_stored_name": "山爆txz",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "有时候很菜",
+   "normalize_text": "有时候很菜",
+   "split_ellipsis": [
+    "有时候很菜",
+    false
+   ],
+   "with_game_ellipsis": "有时候很菜",
+   "strip_noise": "有时候很菜",
+   "fold": "有时候很菜",
+   "clean_stored_name": "有时候很菜",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  },
+  {
+   "text": "6",
+   "normalize_text": "6",
+   "split_ellipsis": [
+    "6",
+    false
+   ],
+   "with_game_ellipsis": "6",
+   "strip_noise": "6",
+   "fold": "6",
+   "clean_stored_name": "6",
+   "is_lobby_chrome": false,
+   "countdown_in": null,
+   "ready_in": null
+  }
+ ],
+ "seats": [],
+ "entries": []
+}
