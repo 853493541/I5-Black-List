@@ -65,6 +65,8 @@ impl Keys for SystemKeys {
 
 pub struct Runner {
     pub flow: Flow,
+    /// A newer release the last look found, for 发现新版本 to offer.
+    pub offer: Option<data::update::Release>,
     pub store: Rc<RefCell<Store>>,
     pub log: AppLog,
     pub root: PathBuf,
@@ -103,6 +105,7 @@ impl Runner {
         let mode = life::mode_of(&store.borrow().settings);
         Runner {
             flow: Flow::new(mode, parts.ports),
+            offer: None,
             store,
             log,
             root,
@@ -164,6 +167,15 @@ impl Runner {
         self.flow.ports.scenes.tick();
         self.flow.ports.overlay.tick();
         self.flow.ports.notice.tick();
+        match self.update_check.poll() {
+            Some(Ok(Some(release))) => {
+                self.log.info(&format!("Update: {} is out.", release.version));
+                self.offer = Some(release);
+            }
+            Some(Ok(None)) => self.log.info("Update: this is the newest."),
+            Some(Err(error)) => self.log.warn(&format!("Update: {}", error.message())),
+            None => {}
+        }
         let mut asks = Vec::new();
         while let Ok(action) = self.tray_actions.try_recv() {
             match life::on_tray(action) {

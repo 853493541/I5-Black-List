@@ -165,7 +165,7 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
         ports: parts.ports,
         worker: Worker::start(Box::new(RealScreen), Box::new(parts.checker)),
         keys,
-        update_check: Box::new(app::wiring::stubs::Quiet), // stub: updater (data::update has no HTTP client yet)
+        update_check: Box::new(app::wiring::updates::NetUpdate::online(VERSION, root.clone())),
         tray: parts.tray,
         tray_actions: parts.tray_actions,
         installed: install.is_some(),

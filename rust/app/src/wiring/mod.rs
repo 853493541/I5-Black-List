@@ -12,6 +12,7 @@ pub mod runner;
 pub mod scenes;
 pub mod startup;
 pub mod stubs;
+pub mod updates;
 pub mod watch;
 pub mod worker;
 
