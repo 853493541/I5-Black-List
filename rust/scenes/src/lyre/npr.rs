@@ -43,9 +43,9 @@ fn seed_state(seed: u64) -> [u64; 4] {
         }
     }
     for &e in entropy.iter().skip(4) {
-        for dst in 0..4 {
+        for slot in pool.iter_mut() {
             let h = hashmix(e);
-            pool[dst] = mix(pool[dst], h);
+            *slot = mix(*slot, h);
         }
     }
     let mut hash_b = INIT_B;

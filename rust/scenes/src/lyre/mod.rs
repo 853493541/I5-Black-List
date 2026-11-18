@@ -254,3 +254,6 @@ pub fn flight(t: f64) -> (f64, f64, f64, f64) {
     let stretch = dip(t - STRUMS[1].0, 0.45, 0.8);
     (1.0, REST - 12.0 * squash - 16.0 * stretch, REST_REACH, squash)
 }
+
+#[cfg(test)]
+mod tests;

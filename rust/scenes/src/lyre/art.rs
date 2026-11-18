@@ -47,6 +47,8 @@ pub struct Art {
     pub open_run: Vec<bool>,
     pub strands: Vec<Line>,
     pub band: Laid,
+    /// The current's squares as Python cuts them: (left, top, right, bottom) and the route's points near each.
+    pub tiles: Vec<([f64; 4], Vec<usize>)>,
     pub border: Laid,
     pub strand_pics: Vec<Laid>,
     pub curls: Vec<Laid>,
@@ -127,7 +129,7 @@ impl Art {
         let open_run = route.iter().map(|p| !(p[1] > g.height - 60.0 * u && p[0] > gl - 50.0 * u && p[0] < gl + gw + 50.0 * u)).collect();
         let mut art = Art {
             g, scale, store: Vec::new(), lyre_at, pt, route, run, nrm, open_run, strands: Vec::new(),
-            band: Laid { id: 0, rect: [0.0; 4] }, border: Laid { id: 0, rect: [0.0; 4] }, strand_pics: Vec::new(), curls: Vec::new(),
+            band: Laid { id: 0, rect: [0.0; 4] }, tiles: Vec::new(), border: Laid { id: 0, rect: [0.0; 4] }, strand_pics: Vec::new(), curls: Vec::new(),
             stalks: Laid { id: 0, rect: [0.0; 4] }, glint: 0, lyre: 0, aura: 0, string: 0, cecilia: Vec::new(), bud: Vec::new(),
             hero: Vec::new(), hero_at: Vec::new(), updraft: Vec::new(), updraft_at: Vec::new(), released: Vec::new(),
             released_leaf: [0, 0], released_leaf_phase: matched(0.7, 1.6, 0.6), feather: Vec::new(), leaf: Vec::new(),
@@ -147,6 +149,7 @@ impl Art {
         let band = bared(wind::band(&g, lyre_at, scale), &g, scale);
         art.band = art.lay(band);
         let border = bared(wind::border(&g, &art.route, &art.run, &art.nrm, scale), &g, scale);
+        art.tiles = border_tiles(&art, &border.pic);
         art.border = art.lay(border);
         for k in 0..3 {
             let p = wind::strokes_image(&art.strands[k..=k], scale, d);
@@ -206,4 +209,38 @@ impl Art {
         let _ = CX;
         Ok(art)
     }
+}
+
+/// _border's squares: each strip cut in 128-pixel squares from its corner, the empty left out, and the points
+/// of the current within 90 points of each (to show it as the current is drawn).
+fn border_tiles(art: &Art, pic: &Pic) -> Vec<([f64; 4], Vec<usize>)> {
+    let (g, scale, u) = (art.g, art.scale, art.g.u);
+    let deep = (124.0 * u * scale).ceil() / scale;
+    let room = (40.0 * u * scale).ceil() / scale;
+    let cut = (room * scale).round_ties_even() as usize;
+    let mut out = Vec::new();
+    for (sx, sy, sw, sh) in [(0.0, 0.0, g.width, deep), (0.0, g.height - deep, g.width, deep), (0.0, deep, deep, g.height - 2.0 * deep), (g.width - deep, deep, deep, g.height - 2.0 * deep)] {
+        let w = ((sw + 2.0 * room) * scale).ceil() as usize - 2 * cut;
+        let h = ((sh + 2.0 * room) * scale).ceil() as usize - 2 * cut;
+        let (ox, oy) = ((sx * scale).round() as usize, (sy * scale).round() as usize);
+        for y in (0..h).step_by(128) {
+            for x in (0..w).step_by(128) {
+                let (tw, th) = (128.min(w - x), 128.min(h - y));
+                let any = (0..th).any(|j| (0..tw).any(|i| pic.px.get((oy + y + j) * pic.w + ox + x + i).is_some_and(|p| p[3] > 0)));
+                if !any {
+                    continue;
+                }
+                let rect = [sx + x as f64 / scale, sy + y as f64 / scale, sx + (x + tw) as f64 / scale, sy + (y + th) as f64 / scale];
+                let m = 90.0 * u;
+                let mut near: Vec<usize> = (0..art.route.len())
+                    .filter(|&i| { let [px, py] = art.route[i]; px > rect[0] - m && px < rect[2] + m && py > rect[1] - m && py < rect[3] + m })
+                    .collect();
+                if near.is_empty() {
+                    near.push(0);
+                }
+                out.push((rect, near));
+            }
+        }
+    }
+    out
 }

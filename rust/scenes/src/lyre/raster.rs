@@ -141,8 +141,28 @@ pub fn stroke(lines: &[Vec<Pt>], width: f64, cap: Cap) -> Shape {
             }
             let (nx, ny) = (-uy * hw, ux * hw);
             polys.push(positive(vec![[a[0] + nx, a[1] + ny], [b[0] + nx, b[1] + ny], [b[0] - nx, b[1] - ny], [a[0] - nx, a[1] - ny]]));
-            if i > 0 || cap == Cap::Round {
-                polys.push(ellipse(pts[i][0], pts[i][1], hw, hw, segs));
+            if i == 0 && cap == Cap::Round {
+                polys.push(ellipse(pts[0][0], pts[0][1], hw, hw, segs));
+            }
+            if i > 0 {
+                // Qt's round join: the pie between the two segments' edges on the outer side of the turn.
+                let (p0, p1) = (pts[i - 1], pts[i]);
+                let (ex, ey) = (p1[0] - p0[0], p1[1] - p0[1]);
+                let el = ex.hypot(ey);
+                let (a0, a1) = ((ex / el).atan2(-ey / el), ux.atan2(-uy));
+                let turn = ex * uy - ey * ux;
+                let (from, mut sweep) = if turn > 0.0 { (a0 + std::f64::consts::PI, a1 - a0) } else { (a0, a1 - a0) };
+                sweep = (sweep + std::f64::consts::PI).rem_euclid(std::f64::consts::TAU) - std::f64::consts::PI;
+                if sweep.abs() > 1e-6 {
+                    let n = ((sweep.abs() / std::f64::consts::TAU * segs as f64).ceil() as usize).max(1);
+                    let c = pts[i];
+                    let mut pie = vec![c];
+                    pie.extend((0..=n).map(|k| {
+                        let a = from + sweep * k as f64 / n as f64;
+                        [c[0] + hw * a.cos(), c[1] + hw * a.sin()]
+                    }));
+                    polys.push(positive(pie));
+                }
             }
         }
         if cap == Cap::Round {

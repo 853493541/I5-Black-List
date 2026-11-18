@@ -63,6 +63,7 @@ impl P<'_> {
         }
     }
     /// _place: centred on (x, y), turned and squashed, px pixels a point.
+    #[allow(clippy::too_many_arguments)]
     fn place(&mut self, id: usize, x: f64, y: f64, a: f64, sx: f64, sy: f64, alpha: f64, px: f64) {
         if alpha <= 0.01 {
             return;
@@ -71,6 +72,7 @@ impl P<'_> {
         let m = mul(mul(mul(tr(x, y), rot(a)), sc(sx / px, sy / px)), tr(-(p.w as f64) / 2.0, -(p.h as f64) / 2.0));
         self.pic(id, m, alpha, 0);
     }
+    #[allow(clippy::too_many_arguments)]
     fn tumble(&mut self, pair: [usize; 2], x: f64, y: f64, a: f64, flip: f64, alpha: f64, px: f64) {
         if flip.abs() >= 0.04 {
             self.place(if flip > 0.0 { pair[0] } else { pair[1] }, x, y, a, 1.0, flip, alpha, px);
@@ -84,6 +86,7 @@ impl P<'_> {
         let p = &self.art.store[id];
         self.pic(id, mul(base, tr(-(p.w as f64) / 2.0, -(p.h as f64))), alpha, 0);
     }
+    #[allow(clippy::too_many_arguments)]
     fn sat_at(&mut self, id: usize, x: f64, y: f64, a: f64, sx: f64, sy: f64, alpha: f64, px: f64) {
         self.sat(id, mul(mul(tr(x, y), rot(a)), sc(sx / px, sy / px)), alpha);
     }
@@ -129,6 +132,46 @@ fn along(points: &[[f64; 2]], wide: f64, cap: Cap, dy: f64, w: usize, h: usize) 
     out
 }
 
+/// The current part drawn, square by square as lyre.py shows it: a square whose nearby points are all drawn
+/// shows whole, one whose first is not yet drawn shows nothing, the rest through the drawn stretches.
+fn tile_clip(art: &Art, n: usize, w: usize, h: usize) -> Map {
+    let mut out = Map::new(w, h, 0.0);
+    for (rect, near) in &art.tiles {
+        if near[0] > n {
+            continue;
+        }
+        let (x0, y0) = (rect[0].round() as usize, rect[1].round() as usize);
+        let (x1, y1) = ((rect[2].round() as usize).min(w), (rect[3].round() as usize).min(h));
+        let mut fill = |m: &dyn Fn(usize, usize) -> f32| {
+            for y in y0..y1 {
+                for x in x0..x1 {
+                    let v = m(x, y);
+                    let o = &mut out.v[y * w + x];
+                    *o = o.max(v);
+                }
+            }
+        };
+        if near[near.len() - 1] <= n {
+            fill(&|_, _| 1.0);
+            continue;
+        }
+        let drawn: Vec<usize> = near.iter().copied().filter(|&i| i <= n).collect();
+        let mut runs: Vec<Vec<usize>> = Vec::new();
+        for i in drawn {
+            match runs.last_mut() {
+                Some(r) if r[r.len() - 1] + 1 == i => r.push(i),
+                _ => runs.push(vec![i]),
+            }
+        }
+        for r in runs.into_iter().filter(|r| r.len() > 1) {
+            let pts: Vec<[f64; 2]> = r.iter().map(|&i| art.route[i]).collect();
+            let c = along(&pts, 160.0 * art.g.u, Cap::Flat, 0.0, w, h);
+            fill(&|x, y| c.v[y * w + x]);
+        }
+    }
+    out
+}
+
 pub fn paint(art: &Art, t: f64) -> Frame {
     let mut p = P { art, f: Frame::default() };
     let g = art.g;
@@ -147,7 +190,7 @@ pub fn paint(art: &Art, t: f64) -> Frame {
         p.laid(art.border, ID, a_border, 0);
     } else if reveal > 0.0 {
         let n = art.run.partition_point(|&s| s < reveal * art.run[art.run.len() - 1]);
-        p.f.clips[0] = Some(along(&art.route[..=n.min(art.route.len() - 1)], 160.0 * u, Cap::Flat, 0.0, w, h));
+        p.f.clips[0] = Some(tile_clip(art, n, w, h));
         p.laid(art.border, ID, a_border, 1);
         let [hx, hy] = art.route[n.min(art.route.len() - 1)];
         p.dot(hx, hy, 18.0 * u, MINT, 0.7 * (PI * reveal).sin() + 0.2);

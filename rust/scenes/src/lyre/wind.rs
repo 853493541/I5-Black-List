@@ -214,6 +214,7 @@ pub fn strokes_image(lines: &[Line], scale: f64, d: f64) -> Placed {
 }
 
 /// _band: the green air from every edge inward, a meadow glow behind the lyre (scale 1 pixel a point).
+#[allow(clippy::needless_range_loop)]
 pub fn band(g: &Geo, lyre: Pt, scale: f64) -> Placed {
     let (width, height, u) = (g.width, g.height, g.u);
     let (w, h) = ((width * scale).ceil() as usize, (height * scale).ceil() as usize);
