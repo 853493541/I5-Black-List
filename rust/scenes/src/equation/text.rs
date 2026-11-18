@@ -60,7 +60,19 @@ impl Fonts {
     pub fn advance(&self, han: bool, px: f64, text: &str) -> f64 {
         let font = self.pick(han);
         let scale = self.scale(han, px);
-        text.chars().map(|ch| f64::from(((font.h_advance_unscaled(font.glyph_id(ch)) as i64 * scale + 32) / 64) as i32 >> 10) / 64.0).sum()
+        let ids: Vec<GlyphId> = text.chars().map(|ch| font.glyph_id(ch)).collect();
+        let pen: i64 = ids.iter().map(|&id| Self::step(font, scale, id)).sum::<i64>() + ids.windows(2).map(|w| Self::kern(font, scale, w[0], w[1])).sum::<i64>();
+        pen as f64 / 64.0
+    }
+
+    /// A glyph's advance in 1/64 px: FreeType's 16.16 linear advance, cut as Qt cuts it.
+    fn step(font: &FontVec, scale: i64, id: GlyphId) -> i64 {
+        ((font.h_advance_unscaled(id) as i64 * scale + 32) / 64) >> 10
+    }
+
+    /// The kerning HarfBuzz puts between two glyphs, in 1/64 px.
+    fn kern(font: &FontVec, scale: i64, a: GlyphId, b: GlyphId) -> i64 {
+        (f64::from(font.kern_unscaled(a, b)) * scale as f64 / 65536.0).round() as i64
     }
 
     /// QFontMetricsF::descent.
@@ -124,7 +136,7 @@ impl Shape {
                 }
             }
         }
-        let n = 8;
+        let n = 32;
         let mut last = a;
         for i in 1..=n {
             let p = quad_at(a, c, b, f64::from(i) / f64::from(n));
@@ -180,8 +192,13 @@ impl Shape {
         // Outline points on the 1/64 grid, as FreeType scales them.
         let fix = |v: f32| ((f64::from(v) * scale as f64 / 65536.0).round()) / 64.0;
         let mut pen = 0i64;
+        let mut before: Option<GlyphId> = None;
         for ch in text.chars() {
             let id: GlyphId = font.glyph_id(ch);
+            if let Some(a) = before {
+                pen += Fonts::kern(font, scale, a, id);
+            }
+            before = Some(id);
             let x = at[0] + pen as f64 / 64.0;
             let map = |p: ab_glyph::Point| [x + fix(p.x), at[1] - fix(p.y)];
             if let Some(Outline { curves, .. }) = font.outline(id) {
@@ -199,7 +216,7 @@ impl Shape {
                     }
                 }
             }
-            pen += ((font.h_advance_unscaled(id) as i64 * scale + 32) / 64) >> 10;
+            pen += Fonts::step(font, scale, id);
         }
         pen as f64 / 64.0
     }

@@ -102,6 +102,8 @@ pub struct Style {
     pub end: f64,
     pub tint: &'static str,
     pub mark: &'static str,
+    /// The baseline ends at `at` instead of starting there.
+    pub ends: bool,
 }
 
 /// _lit: letters already set as shapes, lit in chalk, with the dust they crumble into.
@@ -130,7 +132,7 @@ pub fn lit(fonts_px: f64, ink: &Shape, accent: &Shape, style: Style, atlas: &mut
 }
 
 /// _formula: an equation set px high, its baseline starting at `at` (ending there, if `ends`).
-pub fn formula(fonts: &Fonts, items: &[Item], px: f64, at: Pt, ends: bool, style: Style, atlas: &mut Atlas, rnd: &mut PyRandom) -> Formula {
+pub fn formula(fonts: &Fonts, items: &[Item], px: f64, at: Pt, style: Style, atlas: &mut Atlas, rnd: &mut PyRandom) -> Formula {
     let (mut ink, mut accent) = (Shape::default(), Shape::default());
     let small = px * 0.62;
     let mut x = 0.0;
@@ -184,7 +186,7 @@ pub fn formula(fonts: &Fonts, items: &[Item], px: f64, at: Pt, ends: bool, style
         }
         script = next_script;
     }
-    let at = if ends { [at[0] - x, at[1]] } else { at };
+    let at = if style.ends { [at[0] - x, at[1]] } else { at };
     ink.translate(at[0], at[1]);
     accent.translate(at[0], at[1]);
     let mut f = lit(px, &ink, &accent, style, atlas, rnd);

@@ -67,11 +67,13 @@ impl Equation {
         Self::new(width, height, gap, fonts)
     }
 
+    // 6.28 is the Python scene's own literal, kept so the numbers match.
+    #[allow(clippy::approx_constant)]
     pub fn new(width: f64, height: f64, gap: Rect, fonts: &Fonts) -> Self {
         let u = (width / DESIGN[0]).min(height / DESIGN[1]);
         let mut rnd = PyRandom::new(23);
         let mut atlas = Atlas::new(2048);
-        let st = |start, end, tint| Style { start, end, tint, mark: PINK };
+        let st = |start, end, tint| Style { start, end, tint, mark: PINK, ends: false };
         let px = 23.0 * u;
         let t_ = || it("t");
         let lower = [
@@ -79,9 +81,9 @@ impl Equation {
             Item::T(" − 5 cos 2".into(), false), Item::T(t_(), true), Item::T(" − 2 cos 3".into(), false), Item::T(t_(), true),
             Item::T(" − cos 4".into(), false), Item::T(t_(), true),
         ];
-        let lower = formula(fonts, &lower, px, [width - 22.0 * u, 66.0 * u], true, st(0.8, 1.65, CHALK), &mut atlas, &mut rnd);
+        let lower = formula(fonts, &lower, px, [width - 22.0 * u, 66.0 * u], Style { ends: true, ..st(0.8, 1.65, CHALK) }, &mut atlas, &mut rnd);
         let upper = [Item::T(it("x") + "(", false), Item::T(t_(), true), Item::T(") = 16 sin".into(), false), Item::Sup("3".into()), Item::T(t_(), true)];
-        let upper = formula(fonts, &upper, px, [lower.left, 35.0 * u], false, st(0.45, 0.95, CHALK), &mut atlas, &mut rnd);
+        let upper = formula(fonts, &upper, px, [lower.left, 35.0 * u], st(0.45, 0.95, CHALK), &mut atlas, &mut rnd);
         let line = brace(lower.left - px * 0.22, 35.0 * u - px * 0.86, 66.0 * u + px * 0.3, px);
         let brace = lit(px, &line, &Shape::default(), st(0.3, 0.5, CHALK), &mut atlas, &mut rnd);
         let heart_at = [width * 0.873, height * 0.177];
@@ -109,7 +111,7 @@ impl Equation {
             ),
         ]
         .into_iter()
-        .map(|(items, px, at, style)| formula(fonts, &items, px, at, false, style, &mut atlas, &mut rnd))
+        .map(|(items, px, at, style)| formula(fonts, &items, px, at, style, &mut atlas, &mut rnd))
         .collect::<Vec<_>>();
         let mut formulas = vec![brace, upper, lower];
         formulas.append(&mut more);

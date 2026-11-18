@@ -296,10 +296,13 @@ impl Heart {
     }
 }
 
+/// A figure in one cell: its glow and where it goes, its letters and where they go.
+type Figure = (char, Tile, [f64; 4], Tile, [f64; 4]);
+
 /// t = 0.00 … 6.28: each figure's glow and letters set once for each of the four cells it can sit in.
 pub struct Readout {
     pub name: super::formula::Formula,
-    cells: Vec<Vec<(char, Tile, [f64; 4], Tile, [f64; 4])>>,
+    cells: Vec<Vec<Figure>>,
 }
 
 impl Readout {
@@ -310,7 +313,7 @@ impl Readout {
         let left = at[0] - (step * 3.0 + dot);
         let prefix = fonts.advance(false, px, &it("t")) + fonts.advance(false, px, " = ");
         let items = [Item::T(it("t"), true), Item::T(" = ".into(), false)];
-        let name = formula(fonts, &items, px, [left - prefix, at[1]], false, Style { start: 0.45, end: 0.72, tint: CHALK, mark: PINK }, atlas, rnd);
+        let name = formula(fonts, &items, px, [left - prefix, at[1]], Style { start: 0.45, end: 0.72, tint: CHALK, mark: PINK, ends: false }, atlas, rnd);
         let starts = [left, left + step, left + step + dot, left + 2.0 * step + dot];
         let cells = starts
             .iter()
@@ -323,7 +326,7 @@ impl Readout {
         Self { name, cells }
     }
 
-    fn figure(fonts: &Fonts, atlas: &mut Atlas, px: f64, ch: char, x: f64, wide: f64, base: f64) -> (char, Tile, [f64; 4], Tile, [f64; 4]) {
+    fn figure(fonts: &Fonts, atlas: &mut Atlas, px: f64, ch: char, x: f64, wide: f64, base: f64) -> Figure {
         let mut path = Shape::default();
         path.add_text(fonts, false, px, [0.0, 0.0], &ch.to_string());
         let r = path.rect();

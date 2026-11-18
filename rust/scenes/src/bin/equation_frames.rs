@@ -32,6 +32,7 @@ fn main() -> Result<(), String> {
         let (mean, over8, over32, psnr) = compare(&ours, &theirs);
         println!("t={t:.1}: mean |diff| {mean:.2}/255, pixels off by >8: {over8:.2}%, >32: {over32:.3}%, PSNR {psnr:.1} dB");
         side_by_side(&theirs, &ours).save(dir.join(format!("side_t{t:.1}.png"))).map_err(|e| e.to_string())?;
+        crops(&theirs, &ours).save(dir.join(format!("crop_t{t:.1}.png"))).map_err(|e| e.to_string())?;
     }
     let (mut spent, mut built) = (Vec::new(), Vec::new());
     let mut t = 0.0;
@@ -68,6 +69,18 @@ fn compare(a: &RgbaImage, b: &RgbaImage) -> (f64, f64, f64, f64) {
     let n = f64::from(a.width() * a.height());
     let mse = sq / (n * 3.0);
     (sum / (n * 3.0), over8 as f64 * 100.0 / n, over32 as f64 * 100.0 / n, 10.0 * (255.0f64.powi(2) / mse.max(1e-9)).log10())
+}
+
+/// Full-size crops, Python left, Rust right: the heart and its equations (top), the equations
+/// down the left side (bottom).
+fn crops(left: &RgbaImage, right: &RgbaImage) -> RgbaImage {
+    let mut out = RgbaImage::new(1240, 860);
+    for (i, img) in [left, right].into_iter().enumerate() {
+        let x = i as i64 * 620;
+        image::imageops::replace(&mut out, &*image::imageops::crop_imm(img, 1300, 0, 620, 420), x, 0);
+        image::imageops::replace(&mut out, &*image::imageops::crop_imm(img, 0, 440, 620, 420), x, 440);
+    }
+    out
 }
 
 fn side_by_side(left: &RgbaImage, right: &RgbaImage) -> RgbaImage {
