@@ -145,7 +145,7 @@ export component GuestsPage inherits Rectangle {
             y: 1px;
             width: parent.width - 2px;
             height: head-h;
-            background: p.accent-wash;
+            background: p.hover;
             for title[i] in titles: Rectangle {
                 x: i == 0 ? 0 : cols[0] + (i > 1 ? cols[1] : 0) + (i > 2 ? cols[2] : 0) + (i > 3 ? cols[3] : 0);
                 width: cols[i];
@@ -220,7 +220,7 @@ export component GuestsPage inherits Rectangle {
                         width: cols[1] - 24px;
                         text: row.nickname;
                         font-size: 14px;
-                        color: g.rose;
+                        color: p.text;
                         overflow: elide;
                     }
                     SceneCell {
@@ -245,7 +245,7 @@ export component GuestsPage inherits Rectangle {
                         width: cols[4] - 24px;
                         text: row.met;
                         font-size: 14px;
-                        color: row.kind == 0 ? p.text : p.muted;
+                        color: p.text;
                         overflow: elide;
                     }
                     Rectangle { y: parent.height - 1px; height: 1px; background: p.border; }
@@ -318,8 +318,8 @@ export component GuestsPage inherits Rectangle {
 
     // The empty states: an empty list (场景管理 and 添加嘉宾 under it), or a search that found no one.
     if !show-table: VerticalLayout {
-        y: 56px;
-        height: parent.height - 56px - 24px;
+        y: 16px;
+        height: parent.height - 16px - 24px;
         alignment: center;
         spacing: 18px;
         HorizontalLayout { alignment: center; GuestIcon { name: empty-icon; size: 32px; tone: p.muted; } }

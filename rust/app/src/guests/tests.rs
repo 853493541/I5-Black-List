@@ -179,7 +179,9 @@ fn every_state_renders() {
     let list = case(&all["cases"][1]);
     let named = case(&all["cases"][2]);
     let empty = case(&all["cases"][0]);
+    let shots = shots_lists();
     let pages = [
+        ("rust-shots-list", Page::build(&lists(&shots), "", now()), false),
         ("rust-list", Page::build(&lists(&list), "", now()), false),
         ("rust-named", Page::build(&lists(&named), "", now()), false),
         ("rust-search", Page::build(&lists(&list), "星星", now()), false),
@@ -193,5 +195,39 @@ fn every_state_renders() {
         // Not one flat colour: the page drew something.
         let first = &picture[..3];
         assert!(picture.chunks(3).any(|pixel| pixel != first), "{name} is blank");
+    }
+}
+
+/// tools/ui_shots.py's normal data (_seed), for the pictures beside the Python page's.
+fn shots_lists() -> Case {
+    let like = |name: &str, nickname: &str, reason: &str, keys: &[&str], random: bool| Like {
+        name: name.into(),
+        nickname: nickname.into(),
+        reason: reason.into(),
+        added_at: String::new(),
+        scenes: Scenes::of(&keys.iter().map(|k| k.to_string()).collect::<Vec<_>>(), random),
+    };
+    let seats = ["小林同学", "白日梦想家", "路过的猫", "一只团子", "夏天的风", "心动小鹿", "晚风吹过", "摸鱼大师", "示例坏人", "心动星星", "柠檬汽水", "棉花糖"];
+    Case {
+        likes: vec![
+            like("心动小鹿", "小鹿", "声音好听", &["fluffy", "stars"], false),
+            like("心动星星", "", "", &[], true),
+            like("一起开黑的朋友", "", "每次都带我赢", &["cyber"], false),
+        ],
+        combos: vec![
+            Combo { names: vec!["心动小鹿".into(), "心动星星".into()], scenes: Scenes::of(&["angel".into()], false) },
+            Combo { names: vec!["心动星星".into(), "一起开黑的朋友".into()], scenes: Scenes::default() },
+        ],
+        me: Scenes::of(&["lace".into()], false),
+        player_name: "测试主播".into(),
+        scans: vec![Scan {
+            at: golden()["now"].as_str().unwrap().into(),
+            elapsed: Value::Null,
+            names: seats
+                .iter()
+                .enumerate()
+                .map(|(i, n)| Seat { seat: i as i64 + 1, name: n.to_string(), unclear: *n == "摸鱼大师" })
+                .collect(),
+        }],
     }
 }
