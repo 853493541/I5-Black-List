@@ -167,8 +167,15 @@ def main() -> None:
     text = "毛茸茸保护协会"
     metrics = QFontMetricsF(font)
     words_box = QRectF(-tab.width() / 2, -tab.height() / 2, tab.width() + 7 * u, tab.height())
-    wide = metrics.horizontalAdvance(text)
-    base = QPointF(words_box.center().x() - wide / 2, words_box.center().y() - (metrics.ascent() + metrics.descent()) / 2 + metrics.ascent())
+    # Where drawText puts the words: the box QPainter lays them out in, its baseline an ascent down.
+    from PySide6.QtGui import QImage, QPainter
+
+    image = QImage(8, 8, QImage.Format_ARGB32_Premultiplied)
+    q = QPainter(image)
+    q.setFont(font)
+    laid = q.boundingRect(words_box, Qt.AlignCenter, text)
+    q.end()
+    base = QPointF(laid.left(), laid.top() + metrics.ascent())
     words = QPainterPath()
     words.addText(base, font, text)
     item("tab.words", words, u, True, "#2b6268", 1.0)
