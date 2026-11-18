@@ -41,6 +41,11 @@ pub use marks::{Mode, Moment, Style};
 /// None when there is nothing to show (no 准备案件还原 found). `area` is the free part of the game's screen in
 /// device pixels, `ratio` the screen's scale.
 pub fn render(result: &CheckResult, extras: Extras, area: [i32; 4], style: &Style) -> Option<Frame> {
+    render_without(result, extras, area, style, &[])
+}
+
+/// As `render`, leaving out the marks named in `left_out` ("hit_card": 直播画面 never shows 黑名单's names).
+pub fn render_without(result: &CheckResult, extras: Extras, area: [i32; 4], style: &Style, left_out: &[&str]) -> Option<Frame> {
     let ratio = style.ratio;
     let button = result.button_box?;
     let logical = Rect {
@@ -49,7 +54,8 @@ pub fn render(result: &CheckResult, extras: Extras, area: [i32; 4], style: &Styl
         w: py((area[2] - area[0]) as f32 / ratio),
         h: py((area[3] - area[1]) as f32 / ratio),
     };
-    let marks = layout::plan(button, result, extras, logical, style);
+    let mut marks = layout::plan(button, result, extras, logical, style);
+    marks.retain(|mark| !left_out.contains(&mark.what));
     let (at, canvas) = layout::compose(&marks, ratio)?;
     Some(Frame { x: (at.x as f32 * ratio).round() as i32, y: (at.y as f32 * ratio).round() as i32, pixmap: canvas.pixmap })
 }

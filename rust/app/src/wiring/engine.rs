@@ -106,6 +106,21 @@ fn mat(frame: &Frame) -> Result<opencv::core::Mat, CheckError> {
     pipeline::rgb_frame(frame.width as i32, frame.height as i32, &frame.rgb).map_err(failed)
 }
 
+impl PipelineChecker {
+    /// The pipeline's own answer, its timings included, against no lists (环境测试).
+    pub fn read_plain(&mut self, frames: &[Frame]) -> Result<pipeline::CheckResult, CheckError> {
+        let mats = frames.iter().map(mat).collect::<Result<Vec<_>, _>>()?;
+        self.checker()?.check(&mats, &[], &[], None).map_err(failed)
+    }
+
+    /// The next check searches for the lobby again, as a first check does.
+    pub fn forget_spot(&mut self) {
+        if let Some(loaded) = self.loaded.as_mut() {
+            loaded.spot = None;
+        }
+    }
+}
+
 impl Checker for PipelineChecker {
     fn check(&mut self, frame: &Frame) -> Result<CheckResult, CheckError> {
         self.check_frames(std::slice::from_ref(frame))

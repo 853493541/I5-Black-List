@@ -5,7 +5,7 @@ use overlay::cards::{like_card, Person};
 use overlay::layout::{plan, Placed};
 use overlay::paint::RectF;
 use overlay::text::Face;
-use overlay::{look_for, render, CheckResult, Extras, Look, MarkHook, Moment, Rect, Seat, SeatKind, Style};
+use overlay::{look_for, render, render_without, CheckResult, Extras, Look, MarkHook, Moment, Rect, Seat, SeatKind, Style};
 use std::sync::Arc;
 
 const SCREEN: Rect = Rect { x: 0, y: 0, w: 1920, h: 1040 };
@@ -151,4 +151,17 @@ fn a_scene_draws_its_own_marks_through_the_hook() {
     assert_eq!(like.at.h, 82 + 30);
     // No plain card face and no knot: the top-left corner stays clear.
     assert_eq!(like.canvas.pixmap.pixel(1, 40).unwrap().alpha(), 0);
+}
+
+#[test]
+fn the_stream_picture_leaves_out_the_card_with_the_names() {
+    let Some(face) = face() else { return };
+    let look = look_for("lace");
+    let style = Style { look: &look, face: Some(&face), at: Moment::default(), ratio: 1.0 };
+    let r = result(vec![bad("示例坏人")], BUTTON);
+    let all = render(&r, Extras::default(), [0, 0, 1920, 1080], &style).unwrap();
+    let stream = render_without(&r, Extras::default(), [0, 0, 1920, 1080], &style, &["hit_card"]).unwrap();
+    assert!(stream.pixmap.width() < all.pixmap.width() || stream.pixmap.height() < all.pixmap.height());
+    let same = render_without(&r, Extras::default(), [0, 0, 1920, 1080], &style, &[]).unwrap();
+    assert_eq!(same.pixmap.data(), all.pixmap.data());
 }

@@ -77,7 +77,8 @@ mod tests {
         let store = data::store::Store::open(Some(root.clone()), data::store::Clock::default());
         let account = Account { home: "/home/xiaolu".into(), user: "xiaolu".into(), short: String::new() };
         let path = export_into(&root, &store, "v9.9.9", "", &dir.path().join("desk"), &account).unwrap();
-        let text = std::fs::read_to_string(path).unwrap();
+        // Windows writes the export with CRLF line ends, as Python's text mode does.
+        let text = std::fs::read_to_string(path).unwrap().replace("\r\n", "\n");
         assert!(text.starts_with("==== 电脑和设置 ====\n模仿者小工具 v9.9.9\n"));
         assert!(text.contains("==== app.log ====\nchecked at ~/x"));
         assert!(!text.contains("xiaolu"));
