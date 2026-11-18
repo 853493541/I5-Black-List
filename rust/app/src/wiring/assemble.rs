@@ -20,6 +20,7 @@ pub struct Assembled {
     pub before_check: Box<dyn Fn(&Store)>,
     pub tray: Box<dyn Tray>,
     pub tray_actions: Receiver<TrayAction>,
+    pub placed: Receiver<super::stubs::Rect>,
 }
 
 /// The app's pictures and tunes: the release's blacklist_detect\assets, else beside the exe, else the source's.
@@ -44,7 +45,9 @@ pub fn assemble(store: &Rc<RefCell<Store>>, install: Option<&Path>, log: &AppLog
     let library = engine::ort_library(install);
     let dirs = pipeline::ModelDirs::find(&model_roots(install));
     log.info(&format!("OCR: runtime {}, models {}", library.display(), if dirs.is_some() { "found" } else { "missing" }));
-    let checker = PipelineChecker::new(library, dirs, common::paths::ocr_threads(), lists);
+    let mut checker = PipelineChecker::new(library, dirs, common::paths::ocr_threads(), lists);
+    let (placed_sender, placed) = channel();
+    checker.placed = Some(placed_sender);
     let mut player = Sound::system(assets_dir(install), sounds);
     player.0.set_muted(store.borrow().settings.sound_muted);
     let (sender, tray_actions) = channel::<TrayAction>();
@@ -55,7 +58,7 @@ pub fn assemble(store: &Rc<RefCell<Store>>, install: Option<&Path>, log: &AppLog
         player: Box::new(player),
         records: Box::new(StoreRecords::new(store.clone(), seed)),
     };
-    Assembled { ports, checker, before_check: Box::new(copy), tray: tray(sender, log), tray_actions }
+    Assembled { ports, checker, before_check: Box::new(copy), tray: tray(sender, log), tray_actions, placed }
 }
 
 #[cfg(windows)]

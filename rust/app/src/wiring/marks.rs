@@ -57,12 +57,31 @@ mod windows {
         window: Option<overlay::window::Overlay>,
         look: overlay::Look,
         fading: Option<Instant>,
+        /// The game's rect the marks were laid out for, a point inside the game, and the window found there.
+        tracked: Option<([i32; 4], (i32, i32), [i64; 4])>,
         pub errors: Vec<String>,
+    }
+
+    /// The game's window at a point (game_area.window_rect_at, the innermost one).
+    fn window_at((x, y): (i32, i32)) -> Option<[i64; 4]> {
+        pipeline::game_area::window_rect_at(x, y, &pipeline::game_area::window_order(), true)
+    }
+
+    impl ScreenMarks {
+        fn window(&mut self) -> Option<&mut overlay::window::Overlay> {
+            if self.window.is_none() {
+                match overlay::window::Overlay::new() {
+                    Ok(window) => self.window = Some(window),
+                    Err(error) => self.errors.push(format!("Overlay: no window: {error}")),
+                }
+            }
+            self.window.as_mut()
+        }
     }
 
     impl Default for ScreenMarks {
         fn default() -> Self {
-            ScreenMarks { window: None, look: overlay::rose(), fading: None, errors: Vec::new() }
+            ScreenMarks { window: None, look: overlay::rose(), fading: None, tracked: None, errors: Vec::new() }
         }
     }
 
@@ -76,19 +95,41 @@ mod windows {
                 self.hide();
                 return;
             }
-            if self.window.is_none() {
-                match overlay::window::Overlay::new() {
-                    Ok(window) => self.window = Some(window),
-                    Err(error) => return self.errors.push(format!("Overlay: no window: {error}")),
-                }
-            }
-            let Some(window) = self.window.as_mut() else { return };
             let game = ltrb(result.game_box.unwrap_or(game_rect));
+            let button = result.button_box.unwrap_or(game_rect);
+            let inside = (button.x + button.w / 2, button.y + button.h / 2);
+            self.tracked = window_at(inside).map(|found| (game, inside, found));
+            let Some(window) = self.window() else { return };
             // 我's 场景 with nobody listed: the rose ring and badge alone.
             let extras = overlay::Extras { checking: None, mine: look == Look::Liked && result.likes.is_empty() };
             match window.show_faded(game, &overlay_result(result), &self.look, extras, 0) {
                 Ok(shown) => self.fading = shown.then(Instant::now),
                 Err(error) => self.errors.push(format!("Overlay: not shown: {error}")),
+            }
+        }
+
+        fn checking(&mut self, button: Rect) {
+            let Some(window) = self.window() else { return };
+            let at = ltrb(button);
+            if let Err(error) = window.show_checking(at, at, "检查中") {
+                self.errors.push(format!("Overlay: 检查中 not shown: {error}"));
+            }
+            self.fading = None;
+        }
+
+        fn follow(&mut self) {
+            let Some((game, inside, before)) = self.tracked else { return };
+            let Some(now) = window_at(inside) else { return };
+            let (dx, dy) = ((now[0] - before[0]) as i32, (now[1] - before[1]) as i32);
+            if (dx, dy) == (0, 0) {
+                return;
+            }
+            let moved = [game[0] + dx, game[1] + dy, game[2] + dx, game[3] + dy];
+            self.tracked = Some((moved, (inside.0 + dx, inside.1 + dy), now));
+            if let Some(window) = self.window.as_mut() {
+                if let Err(error) = window.follow(moved) {
+                    self.errors.push(format!("Overlay: not moved: {error}"));
+                }
             }
         }
 
@@ -105,6 +146,7 @@ mod windows {
 
         fn hide(&mut self) {
             self.fading = None;
+            self.tracked = None;
             if let Some(window) = self.window.as_mut() {
                 window.hide();
             }

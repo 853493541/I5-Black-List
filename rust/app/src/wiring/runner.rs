@@ -75,6 +75,7 @@ pub struct Runner {
     keys: Box<dyn Keys>,
     update_check: Box<dyn UpdateCheck>,
     before_check: Option<BeforeCheck>,
+    placed: Option<Receiver<super::stubs::Rect>>,
     tray: Box<dyn Tray>,
     tray_actions: Receiver<TrayAction>,
     started_at: Instant,
@@ -98,6 +99,8 @@ pub struct Parts {
     pub installed: bool,
     /// Copies what the worker reads from the store (the lists, the scenes' sounds) before each check.
     pub before_check: Option<BeforeCheck>,
+    /// The button's box from a check that found the lobby (the checker's `placed`).
+    pub placed: Option<Receiver<super::stubs::Rect>>,
 }
 
 impl Runner {
@@ -114,6 +117,7 @@ impl Runner {
             keys: parts.keys,
             update_check: parts.update_check,
             before_check: parts.before_check,
+            placed: parts.placed,
             tray: parts.tray,
             tray_actions: parts.tray_actions,
             started_at: Instant::now(),
@@ -146,6 +150,9 @@ impl Runner {
     pub fn pump(&mut self) -> Vec<Do> {
         let now = self.now_ms();
         let seconds = now as f64 / 1000.0;
+        while let Some(button) = self.placed.as_ref().and_then(|placed| placed.try_recv().ok()) {
+            self.flow.lobby_placed(button);
+        }
         while let Ok(done) = self.worker.results.try_recv() {
             let next = self.flow.done(done, seconds);
             self.request(next);

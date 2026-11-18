@@ -175,6 +175,7 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
         tray_actions: parts.tray_actions,
         installed: install.is_some(),
         before_check: Some(parts.before_check),
+        placed: Some(parts.placed),
     };
     let runner = Rc::new(RefCell::new(Runner::new(root, log, claim, store.clone(), parts)));
 
