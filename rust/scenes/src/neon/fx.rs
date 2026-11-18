@@ -367,3 +367,27 @@ pub fn spire(f: &mut Frame, age: f64, tip: Pt, lights: [usize; 3], u: f64, seed:
     }
     f.plus = false;
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn bolt_as_python() {
+        let mut r = crate::pyrand::PyRandom::new(1);
+        let pts = super::bolt_points([0.0, 0.0], [100.0, 300.0], &mut r, 0.09, 6);
+        println!("{} {} {} {}", pts.len(), pts[5][0], pts[5][1], pts[33][0]);
+        let b = super::bolt_shapes([10.0, -30.0], [90.0, 170.0], 1, 1.174, &[[249.0, 313.0, 1555.0, 594.0]]);
+        println!("{:?} {} {:?} {} {}", b.iter().map(|x| x.branches.len()).collect::<Vec<_>>(), b[1].main[7][0], b[1].box_, b[1].light.w, b[1].light.h);
+    }
+}
+
+#[cfg(test)]
+mod light_tests {
+    #[test]
+    fn bolt_light_as_python() {
+        let b = super::bolt_shapes([10.0, -30.0], [90.0, 170.0], 1, 1.174, &[[249.0, 313.0, 1555.0, 594.0]]);
+        let l = &b[1].light;
+        let mut sum = [0f64; 4];
+        for p in &l.px { for c in 0..4 { sum[c] += f64::from(p[c]); } }
+        println!("{:?} {:?}", sum.map(|s| s / l.px.len() as f64), &l.px[57 * l.w + 40..57 * l.w + 48]);
+    }
+}
