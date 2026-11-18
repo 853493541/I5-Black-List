@@ -10,6 +10,11 @@ on:
   pull_request:
     paths: ["rust/data/**", "build/make_rust_release.py", "tools/rust_golden_switchover.py", ".github/workflows/rust-switchover.yml"]
 
+# Many branches push at once: a newer push to a branch cancels its older run instead of queueing behind it.
+concurrency:
+  group: rust-switchover-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   switchover:
     strategy:
@@ -20,6 +25,9 @@ jobs:
     timeout-minutes: 30
     env:
       CARGO_TERM_COLOR: always
+      # Images with Visual Studio 18 (MSVC 14.52) ship an STL that rejects the runner's older libclang, which the
+      # opencv crate parses headers with ("STL1000: expected Clang 22"); harmless elsewhere.
+      OPENCV_CLANG_ARGS: -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH
       PYTHONUTF8: "1"
       PYTHONIOENCODING: utf-8
     steps:
