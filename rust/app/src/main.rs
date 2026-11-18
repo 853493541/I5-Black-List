@@ -4,18 +4,17 @@
 // deny, not forbid: the code Slint generates from ui/ allows unsafe in its own items.
 #![deny(unsafe_code)]
 
-use app::wiring::flow::Ports;
 use app::wiring::life::{self, Close, Do};
-use app::wiring::records::StoreRecords;
 use app::wiring::runner::{Keys, Parts, Runner};
 use app::wiring::startup::{self, Options, Outcome, Started, VERSION};
-use app::wiring::engine::{self, PipelineChecker, SharedLists};
-use app::wiring::stubs::{Quiet, Tray, TrayAction};
+use app::wiring::assemble::assemble;
 use app::wiring::worker::{RealScreen, Worker};
 use std::cell::RefCell;
 use std::process::ExitCode;
 use std::rc::Rc;
 use std::time::Duration;
+
+mod cli;
 
 // The UI areas, each its own package's; the shell's MainWindow takes their pages.
 // stub: shell (the pages are put into MainWindow by the next wiring round)
@@ -46,6 +45,15 @@ fn main() -> ExitCode {
         }
         return ExitCode::SUCCESS;
     }
+    match cli::parse(&args) {
+        Err(cli::UsageError) => {
+            eprintln!("{}", cli::usage("blacklist-detect"));
+            return ExitCode::from(cli::USAGE_CODE as u8);
+        }
+        Ok(cli::Command::Check { image }) => return check_image(&image),
+        Ok(cli::Command::DownloadModels) => return download_models(),
+        Ok(cli::Command::Window { .. }) => {}
+    }
     let options = Options::parse(&args);
     let started = match startup::start(&options) {
         Ok(Outcome::Run(started)) => started,
@@ -70,6 +78,46 @@ fn main() -> ExitCode {
             eprintln!("{error}");
             ExitCode::FAILURE
         }
+    }
+}
+
+/// `check <image>`: the lobby in one picture, read against the player's 黑名单 (__main__._check_cli).
+fn check_image(image: &str) -> ExitCode {
+    let store = data::store::Store::open(None, data::store::Clock::default());
+    let blacklist = app::wiring::engine::Lists::of(&store).blacklist;
+    let install = startup::install_root();
+    let result = match app::wiring::engine::check_image(std::path::Path::new(image), &blacklist, install.as_deref()) {
+        Ok(result) => result,
+        Err(error) => {
+            eprintln!("{error}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let check = cli::Check {
+        message: result.message.clone(),
+        seats: result
+            .names
+            .iter()
+            .map(|slot| (slot.index, cli::SeatState::of(slot.unclear, slot.truncated), slot.confidence, slot.raw.clone()))
+            .collect(),
+        hits: result.hits.iter().map(|hit| hit.line.clone()).collect(),
+        header_found: result.header_found,
+    };
+    for line in check.lines() {
+        println!("{line}");
+    }
+    ExitCode::from(check.exit_code() as u8)
+}
+
+/// `download-models`: the models ship in the release, so this only says whether they are here.
+fn download_models() -> ExitCode {
+    let install = startup::install_root();
+    if pipeline::ModelDirs::find(&startup::model_roots(install.as_deref())).is_some() {
+        println!("{}", cli::DOWNLOAD_OK);
+        ExitCode::SUCCESS
+    } else {
+        eprintln!("{}", pipeline::Unavailable);
+        ExitCode::FAILURE
     }
 }
 
@@ -105,32 +153,21 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
         log.warn("No OCR models: checks will say 检查失败 until they are installed.");
     }
     let keys = keys(&store, &log);
-    let lists = SharedLists::default();
-    engine::share(&store, &lists);
-    let library = engine::ort_library(install.as_deref());
-    let dirs = pipeline::ModelDirs::find(&startup::model_roots(install.as_deref()));
-    let checker = PipelineChecker::new(library, dirs, common::paths::ocr_threads(), lists.clone());
     let first_run = store.first_run();
     let store = Rc::new(RefCell::new(store));
-    // stub: tray (the icon and its menu send TrayAction on this channel)
-    let (_tray_sender, tray_actions) = std::sync::mpsc::channel::<TrayAction>();
-    let tray = Quiet;
-    let tray_visible = tray.visible();
-    let ports = Ports {
-        overlay: Box::new(Quiet),    // stub: overlay
-        notice: Box::new(Quiet),     // stub: notice
-        scenes: Box::new(Quiet),     // stub: stage
-        player: Box::new(Quiet),     // stub: sound (allow_sound is the real app's alone)
-        records: Box::new(StoreRecords::new(store.clone(), seed())),
-    };
+    let parts = assemble(&store, install.as_deref(), &log, seed());
+    let tray_visible = parts.tray.visible();
+    // The real app's run is the only one that makes a sound (ui_music.allow_sound).
+    sound::allow_sound();
     let parts = Parts {
-        ports,
-        worker: Worker::start(Box::new(RealScreen), Box::new(checker)),
+        ports: parts.ports,
+        worker: Worker::start(Box::new(RealScreen), Box::new(parts.checker)),
         keys,
-        update_check: Box::new(Quiet), // stub: updater
-        tray: Box::new(tray),
-        tray_actions,
+        update_check: Box::new(app::wiring::stubs::Quiet), // stub: updater (data::update has no HTTP client yet)
+        tray: parts.tray,
+        tray_actions: parts.tray_actions,
         installed: install.is_some(),
+        before_check: Some(parts.before_check),
     };
     let runner = Rc::new(RefCell::new(Runner::new(root, log, claim, store.clone(), parts)));
 

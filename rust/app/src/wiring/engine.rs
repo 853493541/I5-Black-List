@@ -190,6 +190,25 @@ pub fn convert(found: &pipeline::CheckResult, lists: &Lists, origin: (i32, i32))
     }
 }
 
+/// `check <image>` (pipeline.check_image): one picture read against the 黑名单, without the window. Err: the
+/// message for stderr.
+pub fn check_image(image: &Path, blacklist: &[lobby::Entry], install: Option<&Path>) -> Result<pipeline::CheckResult, String> {
+    use opencv::prelude::*;
+    // Read by Rust and decoded from memory: imread takes no path with Chinese in it on Windows.
+    let bytes = std::fs::read(image).map_err(|e| format!("读不了这张图片：{}：{e}", image.display()))?;
+    let bytes = opencv::core::Vector::<u8>::from_slice(&bytes);
+    let bgr = opencv::imgcodecs::imdecode(&bytes, opencv::imgcodecs::IMREAD_COLOR).map_err(|e| e.to_string())?;
+    if bgr.empty() {
+        return Err(format!("读不了这张图片：{}", image.display()));
+    }
+    let mut rgb = opencv::core::Mat::default();
+    opencv::imgproc::cvt_color_def(&bgr, &mut rgb, opencv::imgproc::COLOR_BGR2RGB).map_err(|e| e.to_string())?;
+    let dirs = pipeline::ModelDirs::find(&super::startup::model_roots(install)).ok_or_else(|| unavailable().message)?;
+    let env = pipeline::runtime(&ort_library(install)).map_err(|e| e.to_string())?;
+    let mut checker = pipeline::Checker::new(env, &dirs, common::paths::ocr_threads()).map_err(|e| e.to_string())?;
+    checker.check(&[rgb], blacklist, &[], None).map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 #[path = "engine_tests.rs"]
 mod tests;

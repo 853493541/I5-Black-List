@@ -72,6 +72,7 @@ pub struct Runner {
     worker: Worker,
     keys: Box<dyn Keys>,
     update_check: Box<dyn UpdateCheck>,
+    before_check: Option<BeforeCheck>,
     tray: Box<dyn Tray>,
     tray_actions: Receiver<TrayAction>,
     started_at: Instant,
@@ -80,6 +81,9 @@ pub struct Runner {
     /// The single-instance mutex, held for the life of the app.
     _claim: Option<Box<dyn std::any::Any>>,
 }
+
+/// Copies what the worker reads from the store, before a check.
+pub type BeforeCheck = Box<dyn Fn(&Store)>;
 
 /// The parts the runner is given (the real ones in main.rs, fakes in tests).
 pub struct Parts {
@@ -90,6 +94,8 @@ pub struct Parts {
     pub tray: Box<dyn Tray>,
     pub tray_actions: Receiver<TrayAction>,
     pub installed: bool,
+    /// Copies what the worker reads from the store (the lists, the scenes' sounds) before each check.
+    pub before_check: Option<BeforeCheck>,
 }
 
 impl Runner {
@@ -104,6 +110,7 @@ impl Runner {
             worker: parts.worker,
             keys: parts.keys,
             update_check: parts.update_check,
+            before_check: parts.before_check,
             tray: parts.tray,
             tray_actions: parts.tray_actions,
             started_at: Instant::now(),
@@ -118,6 +125,9 @@ impl Runner {
     }
 
     fn request(&self, job: Option<Job>) {
+        if let (Some(Job::Check), Some(copy)) = (job, &self.before_check) {
+            copy(&self.store.borrow());
+        }
         if let Some(job) = job {
             self.worker.request(job);
         }
@@ -151,6 +161,8 @@ impl Runner {
         if let Some(look) = self.updates.tick(now) {
             self.look_for_update(look);
         }
+        self.flow.ports.scenes.tick();
+        self.flow.ports.overlay.tick();
         let mut asks = Vec::new();
         while let Ok(action) = self.tray_actions.try_recv() {
             match life::on_tray(action) {
