@@ -1,5 +1,5 @@
-//! The interfaces the wiring builds against, each with a stand-in so the exe builds and runs before the package
-//! that owns it lands. Every stand-in is marked `// stub: <package>`; the master swaps in the real one.
+//! The interfaces the wiring builds against; the real parts are in `engine`, `marks`, `scenes` and `parts`, and
+//! `Quiet` stands in where a part cannot run (off Windows, or when it failed to start).
 
 use win::frame::Frame;
 
@@ -41,6 +41,28 @@ pub struct CheckResult {
     /// The game's picture on the screen.
     pub game_box: Option<Rect>,
     pub message: String,
+    /// Every seat as the marks show it, on the virtual desktop.
+    pub seats: Vec<SeatMark>,
+    /// The 嘉宾 in this lobby, in seat order, each once, as the check matched them (a 黑名单 seat is no 嘉宾's).
+    pub likes: Vec<String>,
+}
+
+/// What a seat is marked as.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum MarkKind {
+    /// A 黑名单 player, with the entry's tags.
+    Blacklist { tags: Vec<String> },
+    Guest,
+    #[default]
+    None,
+}
+
+/// One seat for the marks: the name on its card (the entry's name, a 嘉宾's 昵称), where it is, how marked.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct SeatMark {
+    pub name: String,
+    pub rect: Rect,
+    pub kind: MarkKind,
 }
 
 /// Why a check could not run. `models`: the OCR models could not load (OcrUnavailable). `plain`: the message is
@@ -52,9 +74,20 @@ pub struct CheckError {
     pub plain: bool,
 }
 
-/// stub: pipeline. Reads one copy of the screen.
+/// Reads the copies of the screen (pipeline, in `engine`).
 pub trait Checker: Send {
     fn check(&mut self, frame: &Frame) -> Result<CheckResult, CheckError>;
+    /// Each screen in turn: the first with a lobby wins, else the last answer (pipeline.check_frames).
+    fn check_frames(&mut self, frames: &[Frame]) -> Result<CheckResult, CheckError> {
+        let mut last = Ok(CheckResult { message: "没有找到大厅".into(), ..CheckResult::default() });
+        for frame in frames {
+            last = self.check(frame);
+            if matches!(&last, Ok(result) if result.header_found) {
+                break;
+            }
+        }
+        last
+    }
     /// Whether 推演成功 is on the top band (watch.glance_title).
     fn glance(&mut self, band: &Frame) -> Result<bool, CheckError>;
 }
@@ -79,8 +112,12 @@ pub enum Target {
     Stream,
 }
 
-/// stub: overlay. The marks over the game.
+/// The marks over the game (the overlay crate, in `marks`).
 pub trait Overlay {
+    /// The scene that greets the lobby about to be shown ("" for none): its look dresses the 嘉宾 marks.
+    fn dress(&mut self, _scene: &str) {}
+    /// One turn of the window's timer.
+    fn tick(&mut self) {}
     fn show(&mut self, game_rect: Rect, result: &CheckResult, look: Look, target: Target);
     fn hide(&mut self);
 }
@@ -89,20 +126,24 @@ pub trait Overlay {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Stage {
     pub game: Rect,
+    /// 准备案件还原 and its marks, left bare.
+    pub button: Rect,
     pub target: Target,
 }
 
-/// stub: stage. The 嘉宾 scenes.
+/// The 嘉宾 scenes (the stage crate, in `scenes`).
 pub trait ScenePlayer {
     fn play(&mut self, scene_key: &str, stage: Stage);
     fn stop(&mut self);
+    /// One turn of the window's timer: the next frame of a scene that plays.
+    fn tick(&mut self) {}
     /// The flower border plays where a screen copy sees it: a glance then cannot tell anything.
     fn covers_screen(&self) -> bool {
         false
     }
 }
 
-/// stub: sound. Silent until `allow_sound` is called, which only the real app does (ui_music.allow_sound).
+/// The sound (the sound crate, in `sound`). Silent until `allow_sound` is called, which only the real app does (ui_music.allow_sound).
 pub trait Player {
     fn play_tune(&mut self, scene_key: &str);
     fn play_alert(&mut self);
@@ -120,7 +161,7 @@ pub enum NoticeKind {
     Result { hits: usize, unclear: usize },
 }
 
-/// stub: notice.
+/// The corner message (app/src/notices).
 pub trait Notice {
     fn show(&mut self, kind: NoticeKind);
     fn hide(&mut self);
@@ -135,7 +176,7 @@ pub enum TrayAction {
     Quit,
 }
 
-/// stub: tray. Whether the icon is up; a real tray sends `TrayAction`s on the channel it was given.
+/// The tray (win::tray). Whether the icon is up; a real tray sends `TrayAction`s on the channel it was given.
 pub trait Tray {
     fn visible(&self) -> bool;
 }
@@ -151,12 +192,12 @@ pub enum LiveHime {
     Ok,
 }
 
-/// stub: livehime.
+/// 直播姬's state (win::livehime).
 pub trait LiveHimeWatch {
     fn state(&mut self) -> LiveHime;
 }
 
-/// stub: updater. One look for a new version, answered later through the runner.
+/// The updater (data::update). One look for a new version, answered later through the runner.
 pub trait UpdateCheck {
     /// Starts a look; false when one is already running.
     fn check(&mut self) -> bool;
@@ -164,19 +205,7 @@ pub trait UpdateCheck {
 
 // ---- the stand-ins -------------------------------------------------------------------------------
 
-/// stub: pipeline. Never finds a lobby, so the exe runs end to end without models.
-pub struct NoChecker;
-
-impl Checker for NoChecker {
-    fn check(&mut self, _frame: &Frame) -> Result<CheckResult, CheckError> {
-        Ok(CheckResult { message: "没有找到大厅".into(), ..CheckResult::default() })
-    }
-    fn glance(&mut self, _band: &Frame) -> Result<bool, CheckError> {
-        Ok(false)
-    }
-}
-
-/// stub: overlay, notice, stage, sound, tray, livehime, updater. Each does nothing.
+/// Nothing at all: off Windows, and where a part could not start. Each does nothing.
 #[derive(Default)]
 pub struct Quiet;
 

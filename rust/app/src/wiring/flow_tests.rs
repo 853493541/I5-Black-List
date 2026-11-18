@@ -116,6 +116,15 @@ fn lobby(names: &[&str], hits: &[usize]) -> CheckResult {
         button_box: Some(Rect { x: 100, y: 100, w: 800, h: 450 }),
         game_box: Some(Rect { x: 0, y: 0, w: 1920, h: 1080 }),
         message: String::new(),
+        seats: Vec::new(),
+        // The pipeline matches the 嘉宾: here, 心动小鹿 at a seat that is no 黑名单 player's.
+        likes: names
+            .iter()
+            .enumerate()
+            .filter(|&(index, name)| *name == "心动小鹿" && !hits.contains(&index))
+            .map(|(_, name)| name.to_string())
+            .take(1)
+            .collect(),
     }
 }
 
@@ -141,7 +150,7 @@ impl Rig {
             notice: Box::new(Fake(calls.clone())),
             scenes: Box::new(Fake(calls.clone())),
             player: Box::new(Fake(calls.clone())),
-            records: Box::new(StoreRecords(store.clone())),
+            records: Box::new(StoreRecords::new(store.clone(), 0)),
         };
         let frame = sample();
         let size = (frame.width, frame.height);

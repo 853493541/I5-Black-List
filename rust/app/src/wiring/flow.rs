@@ -57,6 +57,8 @@ pub trait Records {
     fn likes_in(&self, result: &CheckResult) -> Vec<String>;
     /// The scene for this lobby (_choice_for).
     fn greeting(&self, likes: &[String], blacklisted: bool) -> Greeting;
+    /// The lobby is gone: the next one draws its own scene from a choice of several (LoveBorder.draw_again).
+    fn new_lobby(&mut self) {}
 }
 
 /// What the main window's status line says.
@@ -324,13 +326,14 @@ impl Flow {
             self.hide_marks();
             return;
         };
+        self.ports.overlay.dress(&greeting.scene);
         self.ports.overlay.show(game, result, look, target);
         self.panel_shown = true;
         if !result.hits.is_empty() {
             self.ports.player.play_alert();
         }
         if fresh {
-            self.ports.scenes.play(&greeting.scene, Stage { game: result.game_box.unwrap_or(game), target });
+            self.ports.scenes.play(&greeting.scene, Stage { game: result.game_box.unwrap_or(game), button: game, target });
             self.played = Some(greeting);
         }
         self.say(format!("Check {} shown: {look:?}.", self.check_number));
@@ -340,6 +343,7 @@ impl Flow {
     pub fn hide_marks(&mut self) {
         self.ports.overlay.hide();
         self.ports.scenes.stop();
+        self.ports.records.new_lobby();
         self.played = None;
         self.panel_shown = false;
     }

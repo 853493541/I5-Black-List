@@ -52,14 +52,7 @@ pub fn run(job: Job, screen: &mut dyn Screen, checker: &mut dyn Checker) -> Done
 
 /// Each screen in turn: the first with a lobby wins, else the last answer (pipeline.check_frames).
 pub fn check_frames(frames: &[Frame], checker: &mut dyn Checker) -> Result<CheckResult, CheckError> {
-    let mut last = Ok(CheckResult { message: "没有找到大厅".into(), ..CheckResult::default() });
-    for frame in frames {
-        last = checker.check(frame);
-        if matches!(&last, Ok(result) if result.header_found) {
-            break;
-        }
-    }
-    last
+    checker.check_frames(frames)
 }
 
 /// The thread: jobs in, results out. The window's timer drains `results`.

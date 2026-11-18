@@ -6,23 +6,38 @@ use data::import::guests::{lobby_scene, Choice};
 use data::import::model as pick;
 use data::store::scans::Seat;
 use data::store::Store;
+use stage::pick::Picker;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-/// The store, shared with the window that edits it.
-pub struct StoreRecords(pub Rc<RefCell<Store>>);
+/// The store, shared with the window that edits it, and the draw of a scene from a choice of several.
+pub struct StoreRecords {
+    pub store: Rc<RefCell<Store>>,
+    picker: RefCell<Picker>,
+}
+
+impl StoreRecords {
+    pub fn new(store: Rc<RefCell<Store>>, seed: u32) -> Self {
+        StoreRecords { store, picker: RefCell::new(Picker::new(seed)) }
+    }
+}
 
 fn scenes(from: &data::store::sounds::Scenes) -> pick::Scenes {
     pick::Scenes { keys: from.keys.clone(), random: from.random }
 }
 
-/// The scene a choice plays. A choice of several is resolved by the scene player's own draw; until then the first.
-pub fn scene_of(choice: &Choice) -> String {
-    match choice {
-        Choice::One(key) => key.clone(),
-        // stub: stage (love_scenes.choose draws one of these at random)
-        Choice::Many(keys) => keys.first().cloned().unwrap_or_default(),
+/// The scene a choice plays (love_scenes.choose): one of several is drawn, never the last one heard again when
+/// another is there, and stays drawn for this lobby; "" for none.
+pub fn scene_of(choice: &Choice, picker: &mut Picker) -> String {
+    picker.choice = match choice {
+        Choice::One(key) => stage::pick::Choice::One(key.clone()),
+        Choice::Many(keys) => stage::pick::Choice::Some(keys.clone()),
+    };
+    let scene = picker.pick();
+    if !scene.is_empty() {
+        picker.heard(&scene);
     }
+    scene
 }
 
 impl Records for StoreRecords {
@@ -36,37 +51,16 @@ impl Records for StoreRecords {
                 unclear: slot.unclear,
             })
             .collect();
-        self.0.borrow_mut().add_scan(&seats, elapsed);
+        self.store.borrow_mut().add_scan(&seats, elapsed);
     }
 
+    /// The check matched them already (pipeline.likes_in): they are not matched again here.
     fn likes_in(&self, result: &CheckResult) -> Vec<String> {
-        let store = self.0.borrow();
-        let likes: Vec<lobby::Entry> = store
-            .likes
-            .iter()
-            .map(|like| lobby::Entry { name: like.name.clone(), nickname: like.nickname.clone(), ..lobby::Entry::default() })
-            .collect();
-        let warned: Vec<usize> = result.hits.iter().map(|hit| hit.index).collect();
-        let mut found: Vec<String> = Vec::new();
-        for slot in result.names.iter().filter(|slot| !warned.contains(&slot.index)) {
-            let label = lobby::NameLabel {
-                raw: slot.raw.clone(),
-                visible: slot.visible.clone(),
-                truncated: slot.truncated,
-                unclear: slot.unclear,
-            };
-            for hit in lobby::match_label(&label, &likes) {
-                let name = &likes[hit.index].name;
-                if !found.contains(name) {
-                    found.push(name.clone());
-                }
-            }
-        }
-        found
+        result.likes.clone()
     }
 
     fn greeting(&self, likes: &[String], blacklisted: bool) -> Greeting {
-        let store = self.0.borrow();
+        let store = self.store.borrow();
         let all: Vec<pick::Entry> = store
             .likes
             .iter()
@@ -84,6 +78,14 @@ impl Records for StoreRecords {
         if who.is_empty() {
             return Greeting::default();
         }
-        Greeting { who, scene: scene_of(&choice) }
+        let scene = scene_of(&choice, &mut self.picker.borrow_mut());
+        if scene.is_empty() {
+            return Greeting::default();
+        }
+        Greeting { who, scene }
+    }
+
+    fn new_lobby(&mut self) {
+        self.picker.get_mut().draw_again();
     }
 }

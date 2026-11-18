@@ -9,7 +9,8 @@ use app::wiring::life::{self, Close, Do};
 use app::wiring::records::StoreRecords;
 use app::wiring::runner::{Keys, Parts, Runner};
 use app::wiring::startup::{self, Options, Outcome, Started, VERSION};
-use app::wiring::stubs::{NoChecker, Quiet, Tray, TrayAction};
+use app::wiring::engine::{self, PipelineChecker, SharedLists};
+use app::wiring::stubs::{Quiet, Tray, TrayAction};
 use app::wiring::worker::{RealScreen, Worker};
 use std::cell::RefCell;
 use std::process::ExitCode;
@@ -82,6 +83,11 @@ fn wgc_answers(windows: &[String]) -> Vec<String> {
     win::wgc::answer_lines(windows, &|_| None)
 }
 
+/// A seed for the draws of the run (love_scenes' random): the clock's.
+fn seed() -> u32 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |since| since.subsec_nanos() ^ since.as_secs() as u32)
+}
+
 /// The 检查 and 场景 hotkeys of 设置, registered on the window's thread.
 #[cfg(windows)]
 fn keys(store: &data::store::Store, log: &startup::AppLog) -> Box<dyn Keys> {
@@ -99,6 +105,11 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
         log.warn("No OCR models: checks will say 检查失败 until they are installed.");
     }
     let keys = keys(&store, &log);
+    let lists = SharedLists::default();
+    engine::share(&store, &lists);
+    let library = engine::ort_library(install.as_deref());
+    let dirs = pipeline::ModelDirs::find(&startup::model_roots(install.as_deref()));
+    let checker = PipelineChecker::new(library, dirs, common::paths::ocr_threads(), lists.clone());
     let first_run = store.first_run();
     let store = Rc::new(RefCell::new(store));
     // stub: tray (the icon and its menu send TrayAction on this channel)
@@ -110,12 +121,11 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
         notice: Box::new(Quiet),     // stub: notice
         scenes: Box::new(Quiet),     // stub: stage
         player: Box::new(Quiet),     // stub: sound (allow_sound is the real app's alone)
-        records: Box::new(StoreRecords(store.clone())),
+        records: Box::new(StoreRecords::new(store.clone(), seed())),
     };
     let parts = Parts {
         ports,
-        // stub: pipeline (the real Checker reads the lobby with the ocr and lobby crates)
-        worker: Worker::start(Box::new(RealScreen), Box::new(NoChecker)),
+        worker: Worker::start(Box::new(RealScreen), Box::new(checker)),
         keys,
         update_check: Box::new(Quiet), // stub: updater
         tray: Box::new(tray),

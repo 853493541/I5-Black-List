@@ -28,6 +28,11 @@ data = { path = "../data" }
 lobby = { path = "../lobby" }
 win = { path = "../win" }
 common = { path = "../common" }
+pipeline = { path = "../pipeline" }
+overlay = { path = "../overlay" }
+stage = { path = "../stage" }
+sound = { path = "../sound" }
+opencv = { version = "0.102", default-features = false, features = ["imgproc", "imgcodecs"] }
 caseless = "0.2"
 pinyin = "0.10"
 unicode-normalization = "0.1"
