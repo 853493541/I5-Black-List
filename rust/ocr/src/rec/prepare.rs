@@ -10,8 +10,11 @@ use super::Result;
 
 /// The bytes of a Mat, row after row.
 pub fn bytes(mat: &Mat) -> Result<Vec<u8>> {
-    let owned = if mat.is_continuous() { mat.try_clone()? } else { mat.try_clone()? };
-    Ok(owned.data_bytes()?.to_vec())
+    if mat.is_continuous() {
+        Ok(mat.data_bytes()?.to_vec())
+    } else {
+        Ok(mat.try_clone()?.data_bytes()?.to_vec())
+    }
 }
 
 /// A Mat of the given type holding `data`, row after row.

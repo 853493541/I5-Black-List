@@ -20,6 +20,7 @@ import json
 import os
 from pathlib import Path
 
+import cv2
 import numpy as np
 from PIL import Image
 
@@ -65,6 +66,12 @@ def main() -> None:
         plain = [ocr_engine.prepare_name_line_plain(crop) for crop in crops]
         final = engine.read_names(crops)
         primary, alternate, mobile = reads(v6, prepared), reads(v6, plain), reads(v5, prepared)
+        # opencv-python resizes INTER_CUBIC through Intel IPP; an OpenCV built without IPP (Ubuntu's libopencv) gives
+        # other pixels at non-integer scales. The same reads without IPP show the port is exact apart from that.
+        cv2.ipp.setUseIPP(False)
+        plain_noipp = [ocr_engine.prepare_name_line_plain(crop) for crop in crops]
+        alternate_noipp, final_noipp = reads(v6, plain_noipp), engine.read_names(crops)
+        cv2.ipp.setUseIPP(True)
         strips = []
         for slot, crop in enumerate(crops):
             name = f"{path.stem}_{slot:02d}.png"
@@ -75,6 +82,8 @@ def main() -> None:
                 "plain_shape": list(plain[slot].shape), "plain_sha": checksum(plain[slot]),
                 "v6": primary[slot], "v6_plain": alternate[slot], "v5": mobile[slot],
                 "final": {"text": final[slot][0], "score": final[slot][1]},
+                "noipp": {"plain_sha": checksum(plain_noipp[slot]), "v6_plain": alternate_noipp[slot],
+                          "final": {"text": final_noipp[slot][0], "score": final_noipp[slot][1]}},
             })
         frames.append({"frame": path.name, "strips": strips})
         total += len(strips)
