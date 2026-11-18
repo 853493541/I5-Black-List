@@ -99,10 +99,12 @@ mod windows {
             let button = result.button_box.unwrap_or(game_rect);
             let inside = (button.x + button.w / 2, button.y + button.h / 2);
             self.tracked = window_at(inside).map(|found| (game, inside, found));
+            // Dressed before the window is borrowed (self.window() takes self mutably).
+            let dress = self.look.clone();
             let Some(window) = self.window() else { return };
             // 我's 场景 with nobody listed: the rose ring and badge alone.
             let extras = overlay::Extras { checking: None, mine: look == Look::Liked && result.likes.is_empty() };
-            match window.show_faded(game, &overlay_result(result), &self.look, extras, 0) {
+            match window.show_faded(game, &overlay_result(result), &dress, extras, 0) {
                 Ok(shown) => self.fading = shown.then(Instant::now),
                 Err(error) => self.errors.push(format!("Overlay: not shown: {error}")),
             }
