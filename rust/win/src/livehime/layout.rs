@@ -6,6 +6,8 @@
 //! is on, when the two-canvas mode (预览 and 直播 apart) turns on or off, when 同步至直播 is pressed, and when a
 //! source is added to or removed from a scene.
 
+#![forbid(unsafe_code)]
+
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};

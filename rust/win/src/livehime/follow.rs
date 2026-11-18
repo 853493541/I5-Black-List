@@ -5,6 +5,8 @@
 //! be known (no scene file, the game's window not open, a turned or stretched capture), the fit 直播姬 gives a new
 //! capture stays: as big as fits, centered.
 
+#![forbid(unsafe_code)]
+
 use super::layout::Placement;
 use crate::frame::round_half_even;
 

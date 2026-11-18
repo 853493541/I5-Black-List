@@ -8,6 +8,8 @@
 //!   there, never who: the 黑名单 card with the names is never copied.
 //! - [`record_seat`]: how a seat on 记录 is shown, with the name kept apart for 复制名字.
 
+#![forbid(unsafe_code)]
+
 /// First character, then a star for every character after it, and always at least one star; "" stays "".
 pub fn masked_name(name: &str) -> String {
     let mut chars = name.chars();

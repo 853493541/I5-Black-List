@@ -6,7 +6,7 @@
 //! stream shows. The log grows by megabytes and is never cut, so it is read from the end, then only what was
 //! added since.
 //!
-//! The parts here are platform-free; [`windows`] finds the windows themselves (Windows only), [`layout`] is
+//! The parts here are platform-free; [`desktop`] finds the windows themselves (Windows only), [`layout`] is
 //! where 直播姬 puts each capture on its canvas, [`follow`] where 直播画面 draws the game, and [`mask`] what 直播模式
 //! hides from viewers.
 
@@ -15,7 +15,7 @@ pub mod layout;
 mod log_lines;
 pub mod mask;
 #[cfg(windows)]
-pub mod windows;
+pub mod desktop;
 
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};

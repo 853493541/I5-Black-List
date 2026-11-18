@@ -1,6 +1,8 @@
 //! The lines of 直播姬's log that say what its canvas is (livehime_layout._read and its patterns, matched by hand
 //! as Python's `re` matches them).
 
+#![forbid(unsafe_code)]
+
 use super::layout::Studio;
 
 /// Python's str.splitlines(): every line break Python knows, no empty line after a last break.
