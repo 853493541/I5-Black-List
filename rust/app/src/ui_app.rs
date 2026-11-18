@@ -179,7 +179,7 @@ impl MainUi {
     }
 
     /// Opens a dialog over the window; its answer comes back on the bus.
-    fn open(&self, dialog: Dialog) {
+    pub(crate) fn open(&self, dialog: Dialog) {
         let shown: Result<Box<dyn std::any::Any>, slint::PlatformError> = match dialog {
             Dialog::Confirm { heading, body, confirm, yes } => (|| {
                 let ask = ConfirmDialog::new()?;

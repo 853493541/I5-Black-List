@@ -26,6 +26,7 @@ mod history;
 mod kit;
 mod list;
 mod notices;
+mod preview_check;
 #[allow(dead_code)]
 mod settings;
 mod shell;
@@ -51,6 +52,12 @@ fn main() -> ExitCode {
             println!("{line}");
         }
         return ExitCode::SUCCESS;
+    }
+    // The preview check's hooks (preview_check.rs): no window, no sound.
+    match (args.first().map(String::as_str), args.get(1)) {
+        (Some("--shots"), Some(dir)) => return hook(preview_check::shots(std::path::Path::new(dir)).map(|n| println!("{n} pictures"))),
+        (Some("--bench-check"), Some(dir)) => return hook(preview_check::bench(std::path::Path::new(dir))),
+        _ => {}
     }
     match cli::parse(&args) {
         Err(cli::UsageError) => {
@@ -80,6 +87,16 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     }
     match run(*started, &options) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("{error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn hook(done: Result<(), Box<dyn std::error::Error>>) -> ExitCode {
+    match done {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("{error}");
@@ -166,7 +183,10 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
     parts.ports.notice = Box::new(corner_port::CornerPort::new());
     let tray_visible = parts.tray.visible();
     // The real app's run is the only one that makes a sound (ui_music.allow_sound).
-    sound::allow_sound();
+    // BLACKLIST_DETECT_SILENT keeps a run of the window quiet (the preview check on CI).
+    if std::env::var_os("BLACKLIST_DETECT_SILENT").is_none() {
+        sound::allow_sound();
+    }
     let parts = Parts {
         ports: parts.ports,
         worker: Worker::start(Box::new(RealScreen), Box::new(parts.checker)),
