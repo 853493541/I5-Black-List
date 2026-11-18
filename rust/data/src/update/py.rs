@@ -69,7 +69,7 @@ pub fn float_of(value: &Value) -> Option<f64> {
     }
 }
 
-/// int("…"): surrounding whitespace, one sign, ASCII digits with single underscores between them.
+/// int("…"): surrounding whitespace, one sign, digits with single underscores between them.
 pub fn parse_int(text: &str) -> Option<i64> {
     let text = strip(text);
     let (negative, digits) = match text.as_bytes().first() {
@@ -81,11 +81,10 @@ pub fn parse_int(text: &str) -> Option<i64> {
         return None;
     }
     let mut number: i64 = 0;
-    for byte in digits.bytes().filter(|byte| *byte != b'_') {
-        if !byte.is_ascii_digit() {
-            return None;
-        }
-        number = number.checked_mul(10)?.checked_add(i64::from(byte - b'0'))?;
+    for c in digits.chars().filter(|c| *c != '_') {
+        // ASCII and fullwidth digits; Python takes every Unicode decimal digit (noted in the report).
+        let digit = c.to_digit(10).or_else(|| ('０'..='９').contains(&c).then(|| c as u32 - '０' as u32))?;
+        number = number.checked_mul(10)?.checked_add(i64::from(digit))?;
     }
     Some(if negative { -number } else { number })
 }
@@ -95,7 +94,7 @@ pub fn strip(text: &str) -> &str {
     text.trim_matches(|c: char| c.is_whitespace() || ('\x1c'..='\x1f').contains(&c))
 }
 
-/// base64.b64decode(text) without validate: CPython's binascii.a2b_base64, step for step. Characters
+/// base64.b64decode(text) without validate: CPython 3.12's binascii.a2b_base64 (the app's runtime), step for step. Characters
 /// outside the alphabet are skipped, a complete padding ends the data, and a broken end is an error.
 pub fn b64decode(text: &str) -> Option<Vec<u8>> {
     if !text.is_ascii() {
@@ -105,7 +104,10 @@ pub fn b64decode(text: &str) -> Option<Vec<u8>> {
     let (mut quad, mut left, mut pads) = (0u8, 0u32, 0u32);
     for byte in text.bytes() {
         if byte == b'=' {
-            pads += 1;
+            // `quad_pos >= 2 && quad_pos + ++pads >= 4`: padding counts only once two characters are in.
+            if quad >= 2 {
+                pads += 1;
+            }
             if quad >= 2 && u32::from(quad) + pads >= 4 {
                 return Some(out);
             }
