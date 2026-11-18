@@ -60,8 +60,9 @@ export component SceneManagerDialog inherits Window {
                         Field { width: 116px; height: 32px; text <=> root.hotkey; p: p; t: t; }
                     }
                     Text { text: "按快捷键，在当前窗口播放勾选的场景"; font-size: 12px; color: p.muted; }
-                    // NOTE_LINES (2) lines kept for a note, so the dialog keeps its size as one comes and goes.
-                    Text {
+                    // NOTE_LINES (2) lines kept for a note, so the dialog keeps its size as one comes and goes: under
+                    // the hint while there is one, at the column's foot while there is none (as Qt lays the room out).
+                    if note != "": Text {
                         height: max(2 * 17px, self.preferred-height);
                         text: note;
                         font-size: 12px;
@@ -84,6 +85,7 @@ export component SceneManagerDialog inherits Window {
                             ticked => { root.give-hotkey(item.key); }
                         }
                     }
+                    if note == "": Rectangle { height: 2 * 17px + 4px; }
                 }
                 VerticalLayout {
                     width: 448px;
