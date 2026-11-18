@@ -358,12 +358,17 @@ mod tests {
         assert!(s.paint(2.0).prims.len() > 40);
     }
 
-    /// Every frame Python drew (py_frames.py) is matched to at least 53 dB PSNR; skipped without a
+    /// Every frame Python drew (py_frames.py, run first; skipped when its frames are missing) is matched to at least 53 dB PSNR; skipped without a
     /// Vulkan, Metal or DX12 adapter.
     #[test]
     fn matches_the_python_frames() {
         use crate::lace::{check, gpu::Renderer};
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        // The Python frames are not in git: py_frames.py writes them (skipped until it has).
+        if !dir.join("classic/py_t0.5.png").exists() {
+            eprintln!("no classic/py_t*.png: run rust/scenes/classic/py_frames.py first");
+            return;
+        }
         let lobby = check::load(&dir.join("spike/lobby_1920.png")).unwrap();
         let Ok(mut gpu) = Renderer::new(1920, 1080, lobby.as_raw()) else { return };
         let img = image::open(dir.join("classic/title_mask.png")).unwrap().to_luma8();

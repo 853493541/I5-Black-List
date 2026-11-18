@@ -14,10 +14,11 @@ The title's words are the one thing it does not draw: `TitleMask` is the words a
 rasterizer) in the same face: Noto Serif SC, Source Han Serif SC or SimSun, bold, 7 pt letter spacing.
 
 Pictures (1920x1080 over the sample lobby, made-up names):
-- `side_t<t>.png`: Python left, Rust right, half size, t = 0.5, 1.5, 2.0 (the sheen), 3.0 and 4.0 s (fading).
-- `crop_t<t>.png`: full size, Python left, Rust right: the title, the top left corner, the frame's ends by the button.
+- `side_t<t>.jpg`: Python left, Rust right, half size, t = 0.5, 1.5, 2.0 (the sheen), 3.0 and 4.0 s (fading).
+- `crop_t2.0.jpg`: full size, Python left, Rust right: the title, the top left corner, the frame's ends by the button.
 
-Remake them (from the root, then from rust/):
+Remake them (from the root, then from rust/; the bin writes PNGs, committed as JPEG quality 90 to keep
+this folder small; the full-size Python frames stay out of git and the test needs them written first):
 
     PYTHONPATH=. python rust/scenes/classic/py_frames.py
     cargo run --release -p scenes --bin classic_frames
