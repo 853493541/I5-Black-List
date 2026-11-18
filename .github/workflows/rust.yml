@@ -62,6 +62,10 @@ jobs:
           key: opencv-${{ env.OPENCV_VERSION }}-static-ipp-mt-v1
       - uses: ilammy/msvc-dev-cmd@v1
         if: runner.os == 'Windows' && steps.opencv-cache.outputs.cache-hit != 'true'
+      # With the VS environment set, rustc runs the first link.exe on PATH, and bash puts Git's coreutils link first.
+      - name: Drop Git's link (Windows)
+        if: runner.os == 'Windows'
+        run: rm -f /usr/bin/link.exe /usr/bin/link
       - name: Build OpenCV static (Windows)
         if: runner.os == 'Windows' && steps.opencv-cache.outputs.cache-hit != 'true'
         working-directory: ${{ runner.temp }}
