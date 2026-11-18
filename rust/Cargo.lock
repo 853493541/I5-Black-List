@@ -743,6 +743,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "common"
+version = "0.1.0"
+dependencies = [
+ "caseless",
+ "num_cpus",
+ "serde_json",
+ "unicode-general-category",
+ "unicode-normalization",
+]
+
+[[package]]
 name = "concurrent-queue"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -969,8 +980,8 @@ name = "data"
 version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
- "caseless",
  "chrono",
+ "common",
  "ed25519-dalek",
  "flate2",
  "proptest",
@@ -979,7 +990,6 @@ dependencies = [
  "sha2",
  "tempfile",
  "unicode-general-category",
- "unicode-normalization",
  "zip",
 ]
 
@@ -2682,12 +2692,11 @@ checksum = "4744e383959f0db86ede514b809b1c53251889093803c05267acc7d4e7030d70"
 name = "lobby"
 version = "0.1.0"
 dependencies = [
- "caseless",
+ "common",
  "proptest",
  "serde",
  "serde_json",
  "unicode-general-category",
- "unicode-normalization",
 ]
 
 [[package]]
@@ -3400,7 +3409,7 @@ name = "ocr"
 version = "0.1.0"
 dependencies = [
  "clipper-sys",
- "num_cpus",
+ "common",
  "opencv",
  "ort",
  "png 0.17.16",
@@ -5890,6 +5899,7 @@ dependencies = [
 name = "win"
 version = "0.1.0"
 dependencies = [
+ "common",
  "proptest",
  "sha1",
  "windows 0.61.3",
