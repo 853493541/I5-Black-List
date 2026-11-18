@@ -141,7 +141,7 @@ fn the_preview_has_its_own_key_folder_and_name() {
     assert_eq!(folder_name(false), common::paths::FOLDER_NAME);
     assert_ne!(folder_name(true), common::paths::FOLDER_NAME);
     assert_eq!(shown_version("0.1.0", false), "0.1.0");
-    assert_eq!(format!("模仿者小工具 {}", shown_version("0.1.0", true)), format!("{NAME} 0.1.0"));
+    assert_eq!(format!("模仿者小工具 {}", shown_version("0.1.0", true)), format!("{NAME} (0.1.0)"));
 }
 
 #[test]

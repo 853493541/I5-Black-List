@@ -7,7 +7,7 @@ release, draft, tag or update offer, never signed with the release key, never pu
 
 | | Normal | Preview |
 |---|---|---|
-| Name (window title, tray tooltip, log) | 模仿者小工具 | 模仿者小工具 Rust 预览 |
+| Name (window title, tray tooltip, log) | 模仿者小工具 | 模仿者小工具 Rust 预览 11月 v1 |
 | Data folder | `%APPDATA%\BlackListDetect` | `%APPDATA%\BlackListDetect-RustPreview` (`common::paths::use_folder_name`) |
 | Single-instance key | `BlackListDetect-<sha1>` | the same with `-RustPreview` |
 | 开机启动 | refreshes the Run entry | never reads or writes it |
@@ -34,12 +34,12 @@ On push to `feature/rust` or `feature/rust-preview`, or by hand (workflow_dispat
    converted with paddle2onnx 2.1.0 at opset 11 (paddlepaddle 3.2.2: paddle2onnx 2.1.0 refuses 3.0.0) in a Linux job
    (its Windows wheel fails to load its DLL), cached, handed to the Windows job as a one-day artifact. Checked here:
    the debug preview exe reads all 12 seats of the sample lobby whole with them.
-3. Folder `模仿者小工具 Rust 预览\`: the exe, `onnxruntime.dll` (1.32, from the pip wheel), `models\`, `assets\`,
+3. Folder `模仿者小工具 Rust 预览 11月 v1\`: the exe, `onnxruntime.dll` (1.32, from the pip wheel), `models\`, `assets\`,
    `使用说明.txt` (`rust/app/preview/使用说明.txt`, written as UTF-8 with BOM and CRLF).
 4. Smoke: a temp `%APPDATA%` with a made-up v1.0.1 list; `--quit-after-start` must log every start-up step ok, the
    models found and the copy, leave the old list unchanged; `check blacklist_detect/assets/sample-lobby.jpg` must find
    the lobby and read at least 8 of 12 seats whole. Both outputs go to the run summary.
-5. Upload as artifact `rust-preview-<sha>`, kept 14 days.
+5. Upload as artifact `模仿者小工具 Rust 预览 11月 v1` (the name the user gave this preview: "Nov v1"), kept 14 days.
 
 ## What only a real PC shows
 
