@@ -1,0 +1,8 @@
+{"likes": [
+ {"name": "心动小鹿", "nickname": "  小  鹿 ", "reason": "好人", "added_at": "2026-02-01T00:00:00+00:00", "theme": "champagne"},
+ {"name": "心动星星", "added_at": "2026-02-02T00:00:00+00:00", "theme": ""},
+ {"name": "心动星星", "added_at": "dup"},
+ {"name": "示例嘉宾", "scenes": ["ice", "stars", "ice"], "no_scene": true}
+],
+"combos": [{"names": ["心动小鹿", "心动星星"], "scenes": ["lace"]}, {"names": ["心动小鹿", "心动小鹿"]}],
+"me": {"scenes": ["neon"], "random": false}}

@@ -1,0 +1,33 @@
+{
+  "likes": [
+    {
+      "name": "心动小鹿改名",
+      "nickname": "鹿",
+      "reason": "更好",
+      "added_at": "2026-11-18T09:30:05+00:00",
+      "scenes": [],
+      "random": true,
+      "no_scene": false
+    },
+    {
+      "name": "新的嘉宾",
+      "nickname": "昵 称",
+      "reason": "好人",
+      "added_at": "2026-11-18T09:30:05+00:00",
+      "scenes": [
+        "lyre",
+        "angel"
+      ],
+      "random": false,
+      "no_scene": false
+    }
+  ],
+  "combos": [],
+  "me": {
+    "scenes": [
+      "classic"
+    ],
+    "random": true,
+    "no_scene": false
+  }
+}

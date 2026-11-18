@@ -1,0 +1,116 @@
+{
+  "hotkey": "Ctrl+F9",
+  "auto_capture": true,
+  "auto_resume": false,
+  "save_debug_frames": false,
+  "panel_pos": [
+    10,
+    20
+  ],
+  "window_size": [
+    900,
+    700
+  ],
+  "window_geometry": "",
+  "theme": "绿色",
+  "appearance": "dark",
+  "player_name": "心动星星",
+  "custom_tags": [
+    "ab",
+    "场",
+    "外",
+    "新标签",
+    "演员"
+  ],
+  "hidden_tags": [
+    "炸房"
+  ],
+  "column_order": [
+    1,
+    0,
+    2,
+    3
+  ],
+  "column_widths": [
+    200,
+    176,
+    340,
+    120
+  ],
+  "names_hidden": true,
+  "env_checked": "",
+  "welcomed": true,
+  "close_to_tray": true,
+  "safe_mode": false,
+  "sound_muted": true,
+  "scene_sounds": {
+    "angel": {
+      "volume": 35,
+      "file": "angel-2.wav",
+      "name": "",
+      "length": 1.25,
+      "songs": [
+        {
+          "file": "angel-1.wav",
+          "name": "歌.mp3",
+          "start": 1.0,
+          "length": 2.5
+        },
+        {
+          "file": "angel-2.wav",
+          "name": "",
+          "length": 1.25
+        }
+      ],
+      "chosen": "angel-2.wav"
+    },
+    "ice": {
+      "volume": 1,
+      "songs": [
+        {
+          "file": "ice-1.wav",
+          "name": "",
+          "length": 0.75
+        }
+      ],
+      "chosen": ""
+    },
+    "classic": {
+      "volume": 45
+    },
+    "lace": {
+      "volume": 45
+    },
+    "stars": {
+      "volume": 35
+    },
+    "cyber": {
+      "volume": 45
+    },
+    "neon": {
+      "volume": 45
+    },
+    "equation": {
+      "volume": 45
+    },
+    "fluffy": {
+      "volume": 45
+    },
+    "claw": {
+      "volume": 45
+    },
+    "lyre": {
+      "volume": 45
+    }
+  },
+  "scene_songs": true,
+  "quick_scene": "angel",
+  "effect_hotkey": "Alt+F12",
+  "stream_mode": "on",
+  "consented": [
+    "full",
+    "auto"
+  ],
+  "disclaimer_accepted": true,
+  "stream_guided": false
+}

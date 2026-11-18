@@ -1,0 +1,19 @@
+{
+  "likes": [
+    {
+      "name": "心动小鹿",
+      "nickname": "",
+      "reason": "",
+      "added_at": "2026-11-18T09:30:05+00:00",
+      "scenes": [],
+      "random": true,
+      "no_scene": false
+    }
+  ],
+  "combos": [],
+  "me": {
+    "scenes": [],
+    "random": false,
+    "no_scene": true
+  }
+}

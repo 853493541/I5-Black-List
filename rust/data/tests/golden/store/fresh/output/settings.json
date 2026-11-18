@@ -1,0 +1,48 @@
+{
+  "hotkey": "Ctrl+F9",
+  "auto_capture": false,
+  "auto_resume": false,
+  "save_debug_frames": false,
+  "panel_pos": null,
+  "window_size": null,
+  "window_geometry": "",
+  "theme": "绿色",
+  "appearance": "light",
+  "player_name": "",
+  "custom_tags": [
+    "新标签"
+  ],
+  "hidden_tags": [
+    "炸房"
+  ],
+  "column_order": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "column_widths": [
+    200,
+    176,
+    340,
+    120
+  ],
+  "names_hidden": true,
+  "env_checked": "",
+  "welcomed": false,
+  "close_to_tray": true,
+  "safe_mode": true,
+  "sound_muted": false,
+  "scene_sounds": {
+    "stars": {
+      "volume": 35
+    }
+  },
+  "scene_songs": true,
+  "quick_scene": "classic",
+  "effect_hotkey": "Alt+F12",
+  "stream_mode": "",
+  "consented": [],
+  "disclaimer_accepted": false,
+  "stream_guided": false
+}
