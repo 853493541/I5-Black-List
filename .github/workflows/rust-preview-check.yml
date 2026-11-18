@@ -1,0 +1,245 @@
+name: rust-preview-check
+
+# The Rust preview beside the Python v1.0.1 app on GitHub's Windows runners, standing in for the player's PC
+# (docs/dev/preview-check.md): pictures of every page and dialog at 125 % and 150 %, start time, memory, the lobby
+# corpus read by both, and each scene's frame time. Artifacts only: nothing here tags, releases or touches main / 1.x.
+# The corpus frames are read on the runner and never uploaded; the report keeps counts and hashes, no names.
+on:
+  push:
+    branches: ["feature/rust", "feature/rust-preview-check"]  # TEMP: own branch while the check is built
+  workflow_dispatch:
+
+concurrency:
+  group: rust-preview-check-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        # No Windows 10 runner exists: Server 2022 is the closest, 2025 the newest.
+        os: [windows-2022, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 150
+    defaults:
+      run:
+        working-directory: rust
+        shell: bash
+    env:
+      CARGO_TERM_COLOR: always
+      OPENCV_VERSION: "4.10.0"
+      OPENCV_CLANG_ARGS: -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH
+      ORT_VERSION: "1.32.0"
+      PADDLE2ONNX_VERSION: "2.1.0"
+      MODEL_URL: https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0
+      APP_NAME: 模仿者小工具 Rust 预览
+      CHECK_RUNNER: ${{ matrix.os }}
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Chinese text: the user's locale (new processes) and Microsoft YaHei, installed when the image lacks it.
+      - name: Chinese locale and fonts
+        shell: pwsh
+        run: |
+          Set-Culture zh-CN
+          Set-WinUILanguageOverride -Language zh-CN -ErrorAction SilentlyContinue
+          if (-not (Test-Path C:\Windows\Fonts\msyh.ttc)) {
+            Add-WindowsCapability -Online -Name "Language.Fonts.Hans~~~und-HANS~0.0.1.0" -ErrorAction SilentlyContinue | Out-Null
+          }
+          $yahei = if (Test-Path C:\Windows\Fonts\msyh.ttc) { "Microsoft YaHei present" } else { "Microsoft YaHei MISSING" }
+          $fonts = "$yahei; culture $((Get-Culture).Name); system locale $((Get-WinSystemLocale).Name) (a system locale change needs a restart, so it is not changed)"
+          "CHECK_FONTS=$fonts" >> $env:GITHUB_ENV
+          Write-Output $fonts
+          Get-CimInstance Win32_VideoController | Select-Object Name, CurrentHorizontalResolution, CurrentVerticalResolution | Format-List
+          Get-CimInstance Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors | Format-List
+
+      # OpenCV 4.10 static with IPP and /MT, as in rust.yml and rust-preview.yml (per image: each has its own MSVC).
+      - name: Cache OpenCV
+        id: opencv-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: C:\opencv-static
+          key: opencv-${{ env.OPENCV_VERSION }}-static-ipp-mt-${{ matrix.os }}-v1
+      - name: Build OpenCV static
+        if: steps.opencv-cache.outputs.cache-hit != 'true'
+        working-directory: ${{ runner.temp }}
+        shell: cmd
+        run: |
+          for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do call "%%i\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
+          python -m pip install -q ninja || exit /b 1
+          curl -sSfL -o opencv.tar.gz "https://github.com/opencv/opencv/archive/refs/tags/%OPENCV_VERSION%.tar.gz" || exit /b 1
+          tar xzf opencv.tar.gz || exit /b 1
+          cmake -S "opencv-%OPENCV_VERSION%" -B cvbuild -G Ninja -DCMAKE_BUILD_TYPE=Release ^
+            -DCMAKE_INSTALL_PREFIX=C:/opencv-static -DBUILD_SHARED_LIBS=OFF -DBUILD_WITH_STATIC_CRT=ON ^
+            -DBUILD_LIST=core,imgproc,imgcodecs -DWITH_IPP=ON -DBUILD_IPP_IW=ON ^
+            -DWITH_ITT=OFF -DWITH_OPENCL=OFF -DWITH_EIGEN=OFF -DWITH_LAPACK=OFF -DWITH_PROTOBUF=OFF -DWITH_ADE=OFF ^
+            -DWITH_TIFF=OFF -DWITH_WEBP=OFF -DWITH_OPENJPEG=OFF -DWITH_JASPER=OFF -DWITH_OPENEXR=OFF -DWITH_AVIF=OFF ^
+            -DWITH_FFMPEG=OFF -DWITH_DSHOW=OFF -DWITH_MSMF=OFF -DWITH_DIRECTX=OFF -DWITH_WIN32UI=OFF ^
+            -DBUILD_PNG=ON -DBUILD_JPEG=ON -DBUILD_ZLIB=ON ^
+            -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_opencv_apps=OFF ^
+            -DBUILD_JAVA=OFF -DBUILD_opencv_python3=OFF -DBUILD_opencv_python2=OFF > cmake.log || (type cmake.log & exit /b 1)
+          cmake --build cvbuild --target install || exit /b 1
+      - uses: actions/cache/save@v4
+        if: steps.opencv-cache.outputs.cache-hit != 'true'
+        with:
+          path: C:\opencv-static
+          key: opencv-${{ env.OPENCV_VERSION }}-static-ipp-mt-${{ matrix.os }}-v1
+      - name: Point the opencv crate at it
+        run: |
+          libdir=$(dirname "$(find /c/opencv-static -name 'opencv_core*.lib' | head -1)")
+          libs=$(ls "$libdir" | sed -n 's/\.lib$//p' | paste -sd, -)
+          {
+            echo "OPENCV_LINK_LIBS=$libs"
+            echo "OPENCV_LINK_PATHS=$(cygpath -w "$libdir")"
+            echo 'OPENCV_INCLUDE_PATHS=C:\opencv-static\include'
+            echo 'LIBCLANG_PATH=C:\Program Files\LLVM\bin'
+            echo 'RUSTFLAGS=-C target-feature=+crt-static'
+          } | tee -a "$GITHUB_ENV"
+
+      # The preview's OCR models (rust-preview.yml's step and cache key).
+      - name: Cache OCR models
+        id: models-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/models
+          key: ocr-models-v5det-v5rec-v6rec-paddle3.0.0-p2o${{ env.PADDLE2ONNX_VERSION }}-op11-v1
+      - name: Convert OCR models
+        if: steps.models-cache.outputs.cache-hit != 'true'
+        working-directory: ${{ runner.temp }}
+        run: |
+          python -m pip install -q setuptools paddlepaddle==3.0.0 paddle2onnx==$PADDLE2ONNX_VERSION
+          mkdir -p tarballs models
+          for model in PP-OCRv5_mobile_det PP-OCRv5_mobile_rec PP-OCRv6_medium_rec; do
+            curl -sSfL --retry 3 -o "tarballs/$model.tar" "$MODEL_URL/${model}_infer.tar"
+            tar xf "tarballs/$model.tar" -C tarballs
+            src="tarballs/${model}_infer"
+            program="$src/inference.json"; [ -f "$program" ] || program="$src/inference.pdmodel"
+            mkdir -p "models/$model"
+            python -I -c "import sys, paddle2onnx; paddle2onnx.export(*sys.argv[1:4], opset_version=11)" \
+              "$program" "$src/inference.pdiparams" "models/$model/inference.onnx"
+            cp "$src/inference.yml" "models/$model/"
+          done
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: rust-preview-check-${{ matrix.os }}-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: rust-preview-check-${{ matrix.os }}-
+      - name: Build
+        run: |
+          cargo build --release -p app --bin blacklist-detect --features preview
+          cargo build --release -p stage --example scene_times
+
+      - name: Lay out the preview folder
+        working-directory: .
+        run: |
+          python -m pip install -q onnxruntime==$ORT_VERSION psutil Pillow
+          ort=$(python -c "import onnxruntime, os; print(os.path.join(os.path.dirname(onnxruntime.__file__), 'capi', 'onnxruntime.dll'))")
+          app="$RUNNER_TEMP/app/$APP_NAME"
+          mkdir -p "$app"
+          cp rust/target/release/blacklist-detect.exe "$app/$APP_NAME.exe"
+          cp "$ort" "$app/onnxruntime.dll"
+          cp -r "$RUNNER_TEMP/models" "$app/models"
+          cp -r blacklist_detect/assets "$app/assets"
+          out="$RUNNER_TEMP/out"
+          mkdir -p "$out/results"
+          {
+            echo "EXE=$app/$APP_NAME.exe"
+            echo "OUT=$out"
+            echo "RESULTS=$out/results"
+            echo "SHORT_SHA=${GITHUB_SHA::7}"
+          } >> "$GITHUB_ENV"
+
+      # Python v1.0.1, exactly as released, beside the checkout; its own pip packages.
+      - name: Python v1.0.1
+        working-directory: .
+        run: |
+          git fetch -q --depth=1 origin tag v1.0.1
+          git worktree add -q "$RUNNER_TEMP/v101" v1.0.1
+          python -m pip install -q paddlepaddle==3.0.0 -r "$RUNNER_TEMP/v101/requirements.txt" psutil
+          echo "V101=$RUNNER_TEMP/v101" >> "$GITHUB_ENV"
+          python -m pip list 2>/dev/null | grep -iE "paddle|pyside|numpy|opencv|onnx"
+
+      # 1. Pictures: Rust headless at 125 / 150 % (BLACKLIST_DETECT_SCALE), Python's ui_shots at the same (QT_SCALE_FACTOR).
+      - name: Rust pictures
+        working-directory: ${{ runner.temp }}
+        run: |
+          for scale in 125 150; do
+            BLACKLIST_DETECT_SCALE=$scale APPDATA="$RUNNER_TEMP/rust-shots-home" "$EXE" --shots "$OUT/rust/$scale"
+          done
+      - name: Python pictures
+        continue-on-error: true
+        working-directory: ${{ runner.temp }}/v101
+        run: |
+          APPDATA="$RUNNER_TEMP/py-shots-home" timeout 1200 python tools/ui_shots.py "$OUT/python" --scale 125 150
+          ls "$OUT/python"/*
+      - name: Rust on-game cards over the sample lobby
+        continue-on-error: true
+        run: |
+          timeout 900 cargo run --release -p overlay --example on_game -- "$OUT/python/125-normal"
+          mkdir -p "$OUT/on-game" && cp overlay/shots/on_* "$OUT/on-game/"
+      - name: Side by side
+        working-directory: .
+        run: |
+          for scale in 125 150; do
+            python tools/preview_check/check.py sides "$OUT/python/$scale-normal" "$OUT/rust/$scale" "$OUT/sides-$scale"
+          done
+          mkdir -p "$RESULTS/sides-125" "$RESULTS/sides-150"
+          cp "$OUT/sides-125/index.json" "$RESULTS/sides-125/"; cp "$OUT/sides-150/index.json" "$RESULTS/sides-150/"
+
+      # 2. Start time and memory (the window, own APPDATA, silent), then the corpus through each app's engine.
+      - name: Start time
+        working-directory: .
+        run: |
+          python tools/preview_check/check.py start rust "$RESULTS/start-rust.json" \
+            --env "APPDATA=$RUNNER_TEMP/rust-start-home" --env SLINT_SCALE_FACTOR=1.25 -- "$EXE"
+          python tools/preview_check/check.py start python "$RESULTS/start-python.json" \
+            --env "APPDATA=$RUNNER_TEMP/py-start-home" --env "PYTHONPATH=$V101" --env QT_SCALE_FACTOR=1.25 \
+            -- python -m blacklist_detect
+      - name: Corpus
+        working-directory: .
+        run: |
+          git fetch -q --depth=1 origin data/lobby-corpus
+          mkdir -p "$RUNNER_TEMP/corpus"
+          git archive FETCH_HEAD tests/lobby_corpus | tar -x -C "$RUNNER_TEMP/corpus"
+          frames="$RUNNER_TEMP/corpus/tests/lobby_corpus"
+          echo "corpus: $(ls "$frames"/*.jpg | wc -l) frames, sha256 of the list $(cd "$frames" && sha256sum *.jpg | sha256sum | cut -c1-16)" | tee "$RESULTS/corpus.txt"
+          APPDATA="$RUNNER_TEMP/rust-bench-home" python tools/preview_check/check.py bench rust "$RESULTS/bench-rust.json" \
+            -- "$EXE" --bench-check "$frames"
+          APPDATA="$RUNNER_TEMP/py-bench-home" PYTHONPATH="$V101" timeout 3600 python tools/preview_check/check.py bench python \
+            "$RESULTS/bench-python.json" -- python tools/preview_check/py_bench.py "$frames"
+
+      # 3. Each scene at 1920x1080: Rust on the runner's adapter (WARP), Python's love_frames.py (QPainter).
+      - name: Scenes
+        working-directory: .
+        run: |
+          python tools/preview_check/check.py scenes "$RESULTS/scenes.json" rust/target/release/examples/scene_times.exe \
+            python "$V101"
+
+      - name: Report
+        if: always()
+        working-directory: .
+        run: |
+          python tools/preview_check/check.py report "$RESULTS" "$OUT/report.md"
+          cat "$OUT/report.md" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: preview-check-${{ matrix.os }}-${{ env.SHORT_SHA }}
+          path: |
+            ${{ runner.temp }}/out/report.md
+            ${{ runner.temp }}/out/results
+            ${{ runner.temp }}/out/sides-125
+            ${{ runner.temp }}/out/sides-150
+            ${{ runner.temp }}/out/on-game
+          retention-days: 14
