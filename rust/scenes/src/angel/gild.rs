@@ -7,7 +7,6 @@ use super::lines::{point_at, Line, Rect, DRAW};
 use super::px::{blur, glow, metal, picture, pyround, rgb, shift, Grid, Pic};
 
 pub struct Area {
-    pub rect: Rect,
     pub gold: Pic,
     pub bloom: Pic,
     /// When each pixel of gold and of bloom is reached; f32::MAX for never.
@@ -154,5 +153,5 @@ pub fn area(rect: Rect, lines: &[Line], scale: f64, u: f64) -> Area {
     let bloom = glow(small.w, small.h, |i| honey.map(|c| (b1.v[i] * 0.9 + b2.v[i] * 0.55 + b3.v[i] * 0.3) * c * 0.85));
     let gold_t = times(rect, &near, scale, u, 3.5);
     let bloom_t = times(rect, &near, half, u, 20.0);
-    Area { rect, gold, bloom, gold_t, bloom_t, scale }
+    Area { gold, bloom, gold_t, bloom_t, scale }
 }
