@@ -8,6 +8,7 @@
 #![deny(unsafe_code)]
 
 mod headless;
+mod stream;
 
 use std::path::PathBuf;
 
