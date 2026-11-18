@@ -1,7 +1,7 @@
 """Read lobbies with Paddle and with other engines running the same models, and compare every name.
 
-    python tools/engine_bench.py <folder of lobby images> <out dir> [--engines onnxruntime openvino]
-                                 [--threads N] [--repeat 3] [--sizes]
+    python tools/engine_bench.py <folder of lobby images> <out dir> [--engines onnxruntime openvino app-onnxruntime]
+                                 [--threads N] [--repeat 3] [--sizes] [--reference paddle.json] [--onnx-models DIR]
 
 The reference is the app's own check (pipeline.check_rgb on an OcrEngine): the same lobby search, the
 same name crops, the same preparation of each strip and the same CTC decoding with the model's own
@@ -9,6 +9,10 @@ dictionary. A challenger changes only the step that runs the network: inside eac
 (detection, line recognition, PP-OCRv6 name recognition) the Paddle runner is swapped for one that
 runs the same weights converted to ONNX (paddle2onnx). Everything before and after it is PaddleX's
 own code, so a difference in a name can only come from the engine.
+
+app-onnxruntime is the app's own switch (BLACKLIST_DETECT_ENGINE=onnxruntime): PaddleX builds the
+predictors on its ONNX Runtime runner, with no paddlepaddle needed. Where Paddle is not installed, give
+it --reference (paddle.json from a run where it was) and --onnx-models (the onnx_models folder that run made).
 
 Pass rule: an engine passes only if every name on every image is identical to Paddle's. One
 difference is a fail.
@@ -24,6 +28,7 @@ import contextlib
 import difflib
 import json
 import os
+import shutil
 import statistics
 import subprocess
 import sys
@@ -38,6 +43,8 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 IMAGE_SUFFIXES = (".png", ".jpg", ".jpeg", ".bmp", ".webp")
 CHALLENGERS = ("onnxruntime", "openvino")
+# The app's own ONNX Runtime mode (BLACKLIST_DETECT_ENGINE=onnxruntime): PaddleX's runner, no Paddle needed.
+APP_ONNX = "app-onnxruntime"
 PASS_RULE = "An engine passes only if every name on every image is identical to Paddle's. One difference = fail."
 # The Windows wheels each engine adds, for the size table (Python 3.12, win_amd64, without dependencies).
 WHEELS = {
@@ -245,43 +252,77 @@ def read_image(engine, path: Path, repeat: int) -> Read:  # noqa: ANN001
     return Read(path.name, bool(result.header_found), names, seconds)
 
 
-def bench(images: list[Path], out: Path, engines: list[str], threads: int, repeat: int) -> dict:
+def onnx_model_folders(paddle_engine, out: Path) -> Path:  # noqa: ANN001
+    """The app's models as ONNX Runtime opens them through PaddleX: inference.onnx beside each inference.yml."""
+    root = out / "onnx_models"
+    for name, predictor in predictors(paddle_engine).items():
+        model_dir = Path(predictor.model_dir)
+        onnx_path, _info = to_onnx(model_dir, out / "onnx")
+        folder = root / name
+        folder.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(onnx_path, folder / "inference.onnx")
+        shutil.copyfile(model_dir / "inference.yml", folder / "inference.yml")
+    return root
+
+
+def app_engine(backend: str, model_root: Path):  # noqa: ANN201
+    """An OcrEngine as the app makes it for this backend, its models read from model_root."""
+    from blacklist_detect.ocr_engine import OcrEngine
+
+    before = os.environ.get("BLACKLIST_DETECT_MODEL_DIR")
+    os.environ["BLACKLIST_DETECT_MODEL_DIR"] = str(model_root)
+    try:
+        engine = OcrEngine(backend=backend)
+        engine.warmup()
+    finally:
+        if before is None:
+            os.environ.pop("BLACKLIST_DETECT_MODEL_DIR", None)
+        else:
+            os.environ["BLACKLIST_DETECT_MODEL_DIR"] = before
+    return engine
+
+
+def load_reads(path: Path) -> list[Read]:
+    return [Read(r["image"], r["found"], [Name(**n) for n in r["names"]], r.get("seconds", [])) for r in json.loads(path.read_text("utf-8"))]
+
+
+def bench(images: list[Path], out: Path, engines: list[str], threads: int, repeat: int,
+          reference_file: Path | None = None, onnx_models: Path | None = None) -> dict:
     os.environ["PADDLE_PDX_CPU_NUM_THREADS"] = str(threads)
     from blacklist_detect.ocr_engine import OcrEngine
 
-    engine = OcrEngine()
-    engine.warmup()
-    originals = {name: predictor.runner for name, predictor in predictors(engine).items()}
     report: dict = {"rule": PASS_RULE, "threads": threads, "repeat": repeat, "images": [p.name for p in images], "engines": {}}
     report["versions"] = versions()
-
-    reference = [read_image(engine, path, repeat) for path in images]
-    (out / "paddle.json").write_text(json.dumps([asdict(r) for r in reference], ensure_ascii=False, indent=1), "utf-8")
+    engine = None
+    if reference_file is None or any(kind in CHALLENGERS for kind in engines) or (APP_ONNX in engines and onnx_models is None):
+        engine = OcrEngine(backend="paddle")
+        engine.warmup()
+    if reference_file is not None:
+        wanted = {p.name for p in images}
+        reference = [r for r in load_reads(reference_file) if r.image in wanted]
+        report["reference"] = str(reference_file)
+    else:
+        reference = [read_image(engine, path, repeat) for path in images]
+        (out / "paddle.json").write_text(json.dumps([asdict(r) for r in reference], ensure_ascii=False, indent=1), "utf-8")
     report["engines"]["paddle"] = {"seconds_per_lobby": median_seconds(reference), "lobbies_found": sum(r.found for r in reference)}
 
     for kind in engines:
         entry: dict = {"models": {}}
         report["engines"][kind] = entry
         try:
-            for name, predictor in predictors(engine).items():
-                model_dir = Path(predictor.model_dir)
-                onnx_path, info = to_onnx(model_dir, out / "onnx")
-                if kind == "openvino":
-                    info["reads_paddle_folder"] = openvino_reads_paddle(model_dir) or "yes"
-                    predictor.runner = OpenVinoRunner(onnx_path, threads)
-                else:
-                    predictor.runner = OnnxRuntimeRunner(onnx_path, threads)
-                entry["models"][name] = info
-            engine.warmup()
-            reads = [read_image(engine, path, repeat) for path in images]
+            if kind == APP_ONNX:
+                root = onnx_models or onnx_model_folders(engine, out)
+                entry["models"] = {"folder": str(root)}
+                reader = app_engine("onnxruntime", root)
+                reads = [read_image(reader, path, repeat) for path in images]
+            else:
+                reads = swapped_reads(engine, kind, images, out, threads, repeat, entry)
         except Exception as exc:  # noqa: BLE001
             entry.update(verdict="FAIL", error=f"{type(exc).__name__}: {exc}"[:600])
             continue
-        finally:
-            for name, predictor in predictors(engine).items():
-                predictor.runner = originals[name]
         (out / f"{kind}.json").write_text(json.dumps([asdict(r) for r in reads], ensure_ascii=False, indent=1), "utf-8")
         same, total, differences = compare(reference, reads)
+        by_image = {r.image: r for r in reads}
         entry.update(
             verdict=verdict(same, total),
             identical=same,
@@ -289,10 +330,30 @@ def bench(images: list[Path], out: Path, engines: list[str], threads: int, repea
             differences=[asdict(d) for d in differences],
             seconds_per_lobby=median_seconds(reads),
             lobbies_found=sum(r.found for r in reads),
-            confidence=[[[n.text, ref.confidence, n.confidence] for ref, n in zip(r0.names, r1.names, strict=False)]
-                        for r0, r1 in zip(reference, reads, strict=False)],
+            confidence=[[[n.text, want.confidence, n.confidence] for want, n in zip(r0.names, by_image[r0.image].names, strict=False)]
+                        for r0 in reference if r0.image in by_image],
         )
     return report
+
+
+def swapped_reads(engine, kind: str, images: list[Path], out: Path, threads: int, repeat: int, entry: dict) -> list[Read]:  # noqa: ANN001
+    """Reads by the Paddle engine with its three runners swapped for this engine's, put back after."""
+    originals = {name: predictor.runner for name, predictor in predictors(engine).items()}
+    try:
+        for name, predictor in predictors(engine).items():
+            model_dir = Path(predictor.model_dir)
+            onnx_path, info = to_onnx(model_dir, out / "onnx")
+            if kind == "openvino":
+                info["reads_paddle_folder"] = openvino_reads_paddle(model_dir) or "yes"
+                predictor.runner = OpenVinoRunner(onnx_path, threads)
+            else:
+                predictor.runner = OnnxRuntimeRunner(onnx_path, threads)
+            entry["models"][name] = info
+        engine.warmup()
+        return [read_image(engine, path, repeat) for path in images]
+    finally:
+        for name, predictor in predictors(engine).items():
+            predictor.runner = originals[name]
 
 
 def median_seconds(reads: list[Read]) -> float | None:
@@ -368,9 +429,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("images", type=Path, help="a lobby image, or a folder of them (searched recursively)")
     parser.add_argument("out", type=Path)
-    parser.add_argument("--engines", nargs="+", choices=CHALLENGERS, default=list(CHALLENGERS))
+    parser.add_argument("--engines", nargs="+", choices=[*CHALLENGERS, APP_ONNX], default=[*CHALLENGERS, APP_ONNX])
     parser.add_argument("--threads", type=int, default=os.cpu_count() or 4)
     parser.add_argument("--repeat", type=int, default=3, help="reads per lobby for the time")
+    parser.add_argument("--reference", type=Path, help="Paddle's reads (paddle.json of an earlier run) instead of reading with Paddle")
+    parser.add_argument("--onnx-models", type=Path, help=f"model folders with inference.onnx for {APP_ONNX} (made from the Paddle ones if left out)")
     parser.add_argument("--sizes", action="store_true", help="also download the Windows wheels and add up their sizes")
     args = parser.parse_args(argv)
 
@@ -383,7 +446,7 @@ def main(argv: list[str] | None = None) -> int:
     os.environ.setdefault("PADDLE_PDX_MODEL_SOURCE", "bos")
     sys.path.insert(0, str(ROOT))
 
-    report = bench(images, args.out, args.engines, args.threads, args.repeat)
+    report = bench(images, args.out, args.engines, args.threads, args.repeat, args.reference, args.onnx_models)
     if args.sizes:
         report["sizes"] = wheel_sizes(args.out / "wheels")
     (args.out / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=1), "utf-8")

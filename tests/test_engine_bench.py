@@ -15,6 +15,7 @@ from tools.engine_bench import (
     Read,
     char_edits,
     compare,
+    load_reads,
     lobby_images,
     main,
     summary,
@@ -60,6 +61,16 @@ def test_missing_names_images_and_lobbies_count_as_differences():
     assert [(d.image, d.slot) for d in differences] == [("a.png", 1), ("b.png", 0), ("c.png", 0)]
     assert differences[1].edits == ["image not read"]
     assert differences[2].edits[0] == "lobby found: paddle False, other True"
+
+
+def test_saved_reads_load_back(tmp_path):
+    import json
+    from dataclasses import asdict
+
+    saved = [Read("a.png", True, [Name("心动小鹿", 0.98)], [0.5, 0.6]), read("b.png", found=False)]
+    path = tmp_path / "paddle.json"
+    path.write_text(json.dumps([asdict(r) for r in saved], ensure_ascii=False), "utf-8")
+    assert load_reads(path) == saved
 
 
 def test_nothing_compared_is_not_a_pass():
@@ -139,3 +150,4 @@ def test_reference_lobby_reads_the_same_on_every_engine(tmp_path, capsys, monkey
     text = capsys.readouterr().out
     assert "onnxruntime: PASS, names identical 12/12" in text
     assert "openvino: PASS, names identical 12/12" in text
+    assert "app-onnxruntime: PASS, names identical 12/12" in text

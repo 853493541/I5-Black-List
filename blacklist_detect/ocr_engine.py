@@ -87,6 +87,55 @@ def inference_device() -> str:
     return "cpu"
 
 
+ENGINES = ("paddle", "onnxruntime")
+
+
+def ocr_backend() -> str:
+    """What runs the models: Paddle (the default), or ONNX Runtime when BLACKLIST_DETECT_ENGINE says so.
+
+    ONNX Runtime runs the same models converted with paddle2onnx (an inference.onnx beside each
+    model's inference.yml) through PaddleX's own pre- and post-processing, with no paddlepaddle
+    installed. tools/engine_bench.py checks that it reads every name exactly as Paddle does."""
+    value = os.environ.get("BLACKLIST_DETECT_ENGINE", "").strip().lower()
+    return value if value in ENGINES else "paddle"
+
+
+def engine_kwargs(backend: str) -> dict:
+    """The engine arguments PaddleOCR takes for this backend; none for Paddle, which keeps its defaults."""
+    if backend != "onnxruntime":
+        return {}
+    config: dict = {}
+    threads = os.environ.get("PADDLE_PDX_CPU_NUM_THREADS", "")
+    if threads.isdigit() and int(threads) > 0:
+        config["intra_op_num_threads"] = int(threads)
+    return {"engine": "onnxruntime", "engine_config": config, "device": "cpu"}
+
+
+def flush_denormals() -> bool:
+    """Have every ONNX Runtime session PaddleX makes treat denormal numbers as zero. PP-OCRv6_medium_rec's
+    activations go denormal, and computed exactly they made a check five times slower (3.6 s against
+    0.7 s); the names read the same either way. PaddleX's runner offers no setting for it."""
+    try:
+        from paddlex.inference.models.runners.onnxruntime_runner import ONNXRuntimeRunner
+    except ImportError:
+        return False
+    build = getattr(ONNXRuntimeRunner, "_build_session_options", None)
+    if build is None:
+        log.warning("PaddleX's ONNX Runtime runner changed: denormals are not flushed, reading is slower")
+        return False
+    if getattr(build, "flushes_denormals", False):
+        return True
+
+    def flushing(self):  # noqa: ANN001, ANN202
+        options = build(self)
+        options.add_session_config_entry("session.set_denormal_as_zero", "1")
+        return options
+
+    flushing.flushes_denormals = True
+    ONNXRuntimeRunner._build_session_options = flushing
+    return True
+
+
 class OcrUnavailable(RuntimeError):
     """The local Chinese model could not be loaded."""
 
@@ -221,7 +270,8 @@ def _find_model_dir(root: Path, kind: str) -> Path | None:
 
 
 class OcrEngine:
-    def __init__(self) -> None:
+    def __init__(self, backend: str | None = None) -> None:
+        self.backend = backend if backend in ENGINES else ocr_backend()
         self._ocr = None
         self._name_rec = None
         # Where the last lobby was, or None. See pipeline._at_spot.
@@ -420,8 +470,10 @@ class OcrEngine:
             "text_detection_model_name": "PP-OCRv5_mobile_det",
             "text_recognition_model_name": "PP-OCRv5_mobile_rec",
             "text_recognition_batch_size": 16,
-            "device": inference_device(),
         }
+        kwargs.update(engine_kwargs(self.backend) or {"device": inference_device()})
+        if self.backend == "onnxruntime":
+            flush_denormals()
         det, rec = model_dirs()
         if det and rec:
             kwargs["text_detection_model_dir"] = str(paddle_safe_dir(det))
@@ -449,10 +501,9 @@ class OcrEngine:
             log.warning("PaddleOCR TextRecognition could not be imported", exc_info=True)
             raise OcrUnavailable("识别功能没装好，重新解压一遍安装包") from exc
         try:
-            name_kwargs: dict = {
-                "model_name": "PP-OCRv6_medium_rec",
-                "device": inference_device(),
-            }
+            name_kwargs: dict = {"model_name": "PP-OCRv6_medium_rec", **(engine_kwargs(self.backend) or {"device": inference_device()})}
+            if self.backend == "onnxruntime":
+                flush_denormals()
             local_rec = bundled_model("PP-OCRv6_medium_rec")
             if local_rec is not None:
                 name_kwargs["model_dir"] = str(paddle_safe_dir(local_rec))
