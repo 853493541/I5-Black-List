@@ -47,3 +47,34 @@ fn frames_match_python() {
         assert!(psnr >= floor, "t={t}: {psnr:.1} dB under {floor}");
     }
 }
+
+/// PSNR of a picture against Python's (its PNG straight, premultiplied here), over RGBA; sizes must match.
+fn psnr_vs(ours: &super::img::Pic, name: &str) -> f64 {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("lyre/mark_{name}.png"));
+    let theirs = image::open(path).expect("python mark").to_rgba8();
+    assert_eq!((theirs.width() as usize, theirs.height() as usize), (ours.w, ours.h), "{name}");
+    let mut sq = 0f64;
+    for (a, b) in ours.px.iter().zip(theirs.pixels()) {
+        let alpha = f64::from(b[3]) / 255.0;
+        for c in 0..4 {
+            let want = if c == 3 { f64::from(b[3]) } else { (f64::from(b[c]) * alpha).round() };
+            sq += (f64::from(a[c]) - want).powi(2);
+        }
+    }
+    10.0 * (255.0f64.powi(2) / (sq / (ours.px.len() * 4) as f64).max(1e-9)).log10()
+}
+
+#[test]
+fn marks_match_python() {
+    use super::marks::{badge_art, card_art, lead, ring_art};
+    let found = [
+        ("card", psnr_vs(&card_art([100.0, 200.0, 150.0, 40.0], 1.0), "card")),
+        ("ring", psnr_vs(&ring_art([500.0, 600.0, 300.0, 64.0], 1.0).1, "ring")),
+        ("badge", psnr_vs(&badge_art(64.0, 64.0, 1.0), "badge")),
+        ("lead0", psnr_vs(&lead(18.0, 0), "lead0")),
+        ("lead1", psnr_vs(&lead(18.0, 1), "lead1")),
+    ];
+    for (name, psnr) in found {
+        assert!(psnr >= 42.0, "{name}: {psnr:.1} dB");
+    }
+}

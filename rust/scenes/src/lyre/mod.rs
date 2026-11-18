@@ -11,6 +11,7 @@ pub mod birds;
 pub mod gpu;
 pub mod img;
 pub mod lyre_art;
+pub mod marks;
 pub mod npr;
 pub mod paint;
 pub mod raster;

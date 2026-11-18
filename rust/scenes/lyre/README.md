@@ -43,12 +43,13 @@ is 0.04 ms of it. llvmpipe shades every pixel on the CPU, so this says nothing a
 
 ## Marks and the overlay
 
-lyre.py brings its own marks instead of an entry in ui_overlay.LOOKS. Ported: `LOOK` (the colors the
-overlay reads: glow, rim, band, card, edge, ink, flowers, disc, heart, deep, deep_glow),
-`MARKS_ANIMATED` and `CARD_TOP`. Not ported yet: `ring(cover, t)`, `badge(box, t)`, `card(rect, t)` and
-`lead(size, index)` (the deep-jade card, the wind ribbon round the button, the lyre badge, the
-feather / maple before each name); they reuse `lit`/`relief`, `lyre_image` (at angle 0, no halo) and
-`feather` / `maple`, so they are a small step from here.
+lyre.py brings its own marks instead of an entry in ui_overlay.LOOKS. All ported: `LOOK` (the colors the
+overlay reads: glow, rim, band, card, edge, ink, flowers, disc, heart, deep, deep_glow), `MARKS_ANIMATED`,
+`CARD_TOP`, and in `../src/lyre/marks.rs` the pictures `card_art` (deep-jade glass, mint edge), `ring_art`
+(the wind ribbon round the button) with `ring_shimmer` (its opacity and the soft dots running round it at
+t), `badge_art` (the lyre on a jade disc) and `lead` (feather / maple before each name, three pixels a
+point). Against Python's own pictures (`py_marks.py` writes `mark_*.png`; `tests.rs` holds a 42 dB floor),
+PSNR over premultiplied RGBA: card 43.7, ring 48.9, badge 48.4, lead feather 51.7, lead maple 50.5 dB.
 
 How the overlay should hand the seats over: per frame, in screen points, the button's cover rect (ring),
 the badge box, and each seat's name rect (card behind it, lead icon of the name height before it, index
