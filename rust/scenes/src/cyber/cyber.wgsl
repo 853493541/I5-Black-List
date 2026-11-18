@@ -23,6 +23,7 @@ struct Prim {
 @group(0) @binding(6) var wash: texture_2d<f32>;
 @group(0) @binding(7) var layer_a: texture_2d<f32>;
 @group(0) @binding(8) var layer_b: texture_2d<f32>;
+@group(0) @binding(9) var text: texture_2d<f32>;
 
 struct Out {
     @builtin(position) pos: vec4<f32>,
@@ -116,6 +117,7 @@ fn sample(tex: u32, uv: vec2<f32>) -> vec4<f32> {
         case 1u: { return textureSampleLevel(atlas, smooth_px, uv / vec2<f32>(textureDimensions(atlas)), 0.0); }
         case 2u: { return textureSampleLevel(wash, smooth_px, uv / vec2<f32>(textureDimensions(wash)), 0.0); }
         case 3u: { return textureSampleLevel(layer_a, smooth_px, uv / vec2<f32>(textureDimensions(layer_a)), 0.0); }
+        case 5u: { return textureSampleLevel(text, smooth_px, uv / vec2<f32>(textureDimensions(text)), 0.0); }
         default: { return textureSampleLevel(layer_b, smooth_px, uv / vec2<f32>(textureDimensions(layer_b)), 0.0); }
     }
 }

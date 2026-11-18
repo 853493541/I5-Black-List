@@ -3,6 +3,9 @@
 
 use bytemuck::{Pod, Zeroable};
 
+use std::collections::HashMap;
+
+use super::gfx::Atlas;
 use crate::draw::{hex, Pt};
 
 pub const RECT: u32 = 0;
@@ -17,6 +20,8 @@ pub const LOBBY: u32 = 0;
 pub const ATLAS: u32 = 1;
 pub const WASH: u32 = 2;
 pub const LAYER: [u32; 2] = [3, 4];
+/// The frame's lettering, rasterized on the CPU and uploaded with the frame.
+pub const TEXT: u32 = 5;
 /// Render targets: the screen, then the textures above that can be drawn into.
 pub const SCREEN: u32 = 0;
 
@@ -64,6 +69,8 @@ pub struct Canvas {
     blend: Blend,
     target: u32,
     clear: bool,
+    pub text_atlas: Atlas,
+    pub text_cache: HashMap<String, (Src, [f64; 4])>,
 }
 
 const NO_CLIP: [f64; 4] = [-1e6, -1e6, 1e6, 1e6];
@@ -90,7 +97,7 @@ impl Default for Canvas {
 
 impl Canvas {
     pub fn new() -> Self {
-        Self { prims: Vec::new(), points: Vec::new(), runs: Vec::new(), opacity: 1.0, clip: NO_CLIP, blend: Blend::Over, target: SCREEN, clear: true }
+        Self { prims: Vec::new(), points: Vec::new(), runs: Vec::new(), opacity: 1.0, clip: NO_CLIP, blend: Blend::Over, target: SCREEN, clear: true, text_atlas: Atlas::new(1024, 512), text_cache: HashMap::new() }
     }
 
     /// Draw from here into target, cleared first if clear.

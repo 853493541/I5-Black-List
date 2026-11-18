@@ -25,6 +25,16 @@ impl Atlas {
         Self { w, h, px: vec![0; w * h * 4], x: 0, y: 0, row: 0 }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.x == 0 && self.y == 0
+    }
+
+    /// A coverage mask as white light of that coverage.
+    pub fn add_mask(&mut self, cover: &[f32], w: usize, h: usize) -> Src {
+        let px = cover.iter().flat_map(|&v| [(v * 255.0).round() as u8; 4]).collect();
+        self.add(&Pic { w, h, px })
+    }
+
     /// Where pic now sits, in texels.
     pub fn add(&mut self, pic: &Pic) -> Src {
         let (pw, ph) = (pic.w + 2, pic.h + 2);
@@ -97,7 +107,7 @@ impl Renderer {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: None, source: wgpu::ShaderSource::Wgsl(include_str!("cyber.wgsl").into()) });
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
-            entries: &(0..9u32)
+            entries: &(0..10u32)
                 .map(|binding| wgpu::BindGroupLayoutEntry {
                     binding,
                     visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
@@ -141,6 +151,7 @@ impl Renderer {
         upload(&atlas_tex, &atlas.px, atlas.w as u32);
         let mut textures = vec![lobby_tex, atlas_tex];
         textures.extend((0..3).map(|_| texture(&device, width, height, drawn)));
+        textures.push(texture(&device, 1024, 512, read));
         let target = texture(&device, width, height, wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC);
         let blank = texture(&device, 1, 1, read).create_view(&Default::default());
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor { mag_filter: wgpu::FilterMode::Linear, min_filter: wgpu::FilterMode::Linear, ..Default::default() });
@@ -152,6 +163,10 @@ impl Renderer {
 
     /// Draws canvas: the screen is left in the target to read; the wash and layers stay as drawn.
     pub fn render(&self, canvas: &Canvas) {
+        if !canvas.text_atlas.is_empty() {
+            let tex = &self.textures[5];
+            self.queue.write_texture(tex.as_image_copy(), &canvas.text_atlas.px, wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(1024 * 4), rows_per_image: None }, tex.size());
+        }
         let storage = |bytes: &[u8]| self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: None, contents: bytes, usage: wgpu::BufferUsages::STORAGE });
         let one = [Prim::default()];
         let prims = storage(bytemuck::cast_slice(if canvas.prims.is_empty() { &one } else { &canvas.prims }));

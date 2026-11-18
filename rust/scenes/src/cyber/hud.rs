@@ -5,6 +5,7 @@ use std::f64::consts::{PI, TAU};
 
 use super::canvas::{col, Blend, Canvas, Paint, Src, ATLAS};
 use super::light::{glow, noise, rgb, round_even, smooth, Pic};
+use super::text::{Face, Type};
 use super::{CYAN, MAGENTA, VIOLET};
 use crate::draw::{ease_in_out, ease_out, hex, win, Pt};
 
@@ -55,7 +56,7 @@ impl Rail {
     }
 
     /// A tick scale sliding to a reading, fading toward its ends in steps; a spine and a caret.
-    pub fn paint(&self, c: &mut Canvas, t: f64, stay: f64) {
+    pub fn paint(&self, c: &mut Canvas, t: f64, stay: f64, ty: &Type) {
         let on = ease_out(win(t, 1.0, 1.5)) * stay;
         if on <= 0.01 {
             return;
@@ -86,6 +87,10 @@ impl Rail {
                 let paint = col(CYAN, if major { 0.85 } else { 0.4 });
                 let reach = if major { 10.0 } else { 5.0 } * u;
                 sq_line(c, [self.x, y], [self.x + self.side * reach, y], if major { 1.2 } else { 0.8 } * u, &paint);
+                if major {
+                    let x = self.x + self.side * 13.0 * u - if self.side < 0.0 { 26.0 * u } else { 0.0 };
+                    ty.draw(c, Face::Rail, [x, y + 3.0 * u], &format!("{:03}", (count - i) * 5), CYAN, 0.7);
+                }
             }
         }
         c.restore(saved);

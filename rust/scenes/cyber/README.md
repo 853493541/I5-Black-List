@@ -28,19 +28,22 @@ Remake (from the root, then from rust/):
 | t | mean abs diff | pixels off by > 8 | > 32 | PSNR |
 |---|---|---|---|---|
 | 0.5 s | 0.15/255 | 0.02 % | 0.001 % | 53.9 dB |
-| 1.5 s | 1.97/255 | 12.1 % | 0.90 % | 31.7 dB |
-| 3.0 s | 2.05/255 | 12.8 % | 1.32 % | 31.2 dB |
+| 1.5 s | 1.85/255 | 12.0 % | 0.74 % | 33.6 dB |
+| 3.0 s | 1.92/255 | 12.8 % | 1.18 % | 33.0 dB |
 
 By part (Python with panels, rails and beam left out): night, frame, lightning and sparks reach 55.7 dB
 at 0.5 s, 46.9 dB at 1.4 s, 38.4-39.1 dB at 1.5-3.0 s.
 
 Gaps:
-- Lettering is not drawn: the panels' titles, labels, readouts, typed hex lines, LOCK and the rails'
-  numbers (no font rasterizer in the crate; Consolas is not on Linux either). This is most of what is
-  left at 1.5 and 3.0 s.
+- Lettering (`text.rs`): glyph outlines through ab_glyph at FreeType's scaled points, Qt's advances
+  and letter spacing, filled with exact pixel areas (equation::text's Shape) into a per-frame text
+  texture. Consolas and Microsoft YaHei on Windows; here DejaVu Sans Mono and WenQuanYi Zen Hei, as Qt
+  falls back. The rails' numbers are set at their slid place, where Python slides a baked picture
+  (smoothed between pixels).
 - Qt's Plus with an opacity blends toward the clamped sum, `d + a * min(s, 1 - d)`; a fixed GPU blend
   gives `min(d + a * s, 1)`, so the strikes' surge on the tubes' glow is up to ~10/255 brighter near the
-  tubes (1.5-3.0 s). Needs a copy of the screen to read, or a different order of draws.
+  tubes and the struck panel (1.5-3.0 s). This is most of what is left: the top corners carry 60-70 %
+  of the squared error at 1.5 s. Needs a copy of the screen to read, or a different order of draws.
 - The normal and exponential ziggurat tables are worked out, not copied: values off by ~1e-12, the same
   draws kept.
 - Wash, panel and tube layers are redrawn each frame where Python bakes them once (same pixels).
