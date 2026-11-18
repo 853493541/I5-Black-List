@@ -180,6 +180,15 @@ impl<'a> Frame<'a> {
         self.push(IMAGE, u32::from(smooth), bb, s, [1.0, 1.0, 1.0, alpha as f32]);
     }
 
+    /// A screen-sized wash (draw.Wash): picture `id` over the whole frame, rubbed out over the gap.
+    pub fn wash(&mut self, id: usize, w: f64, h: f64, alpha: f64) {
+        let n = self.prims.len();
+        self.lay(id, [0.0, 0.0, w, h], true, alpha);
+        if let Some(p) = self.prims.get_mut(n) {
+            p.kind[1] |= 2;
+        }
+    }
+
     /// An upright picture over rect.
     pub fn lay(&mut self, id: usize, rect: [f64; 4], smooth: bool, alpha: f64) {
         self.image(id, rect, None, [0.0, 0.0], 0.0, smooth, alpha);

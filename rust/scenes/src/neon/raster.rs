@@ -219,7 +219,7 @@ impl Shape {
         }
     }
 
-    fn bounds(&self) -> [f64; 4] {
+    pub fn bounds(&self) -> [f64; 4] {
         match self {
             Shape::Rect(x, y, w, h) => [*x, *y, x + w, y + h],
             Shape::Poly(pts) => pts.iter().fold([f64::MAX, f64::MAX, f64::MIN, f64::MIN], |b, p| [b[0].min(p[0]), b[1].min(p[1]), b[2].max(p[0]), b[3].max(p[1])]),

@@ -43,8 +43,8 @@ fn upload(device: &wgpu::Device, queue: &wgpu::Queue, w: u32, h: u32, bytes: &[u
 
 impl Renderer {
     /// A renderer for frames of width x height (width a multiple of 64) over `lobby` (RGBA bytes of
-    /// that size), with the scene's pictures in `atlas`.
-    pub fn new(width: u32, height: u32, lobby: &[u8], atlas: &Atlas) -> Result<Self, String> {
+    /// that size), with the scene's pictures in `atlas` and the bare gap (x, y, w, h) a wash leaves.
+    pub fn new(width: u32, height: u32, lobby: &[u8], atlas: &Atlas, gap: [f64; 4]) -> Result<Self, String> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor { backends: wgpu::Backends::all(), ..Default::default() });
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default())).map_err(|e| e.to_string())?;
         let info = adapter.get_info();
@@ -87,7 +87,7 @@ impl Renderer {
         let lobby = upload(&device, &queue, width, height, lobby);
         let atlas = upload(&device, &queue, atlas.w, atlas.h, &atlas.bytes);
         let target = texture(&device, width, height, wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC);
-        let dims = [width as f32, height as f32, 0.0, 0.0];
+        let dims = [width as f32, height as f32, 0.0, 0.0, gap[0] as f32, gap[1] as f32, gap[2] as f32, gap[3] as f32];
         let size = device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: None, contents: bytemuck::cast_slice(&dims), usage: wgpu::BufferUsages::UNIFORM });
         let adapter = format!("{} ({:?}, {:?})", info.name, info.device_type, info.backend);
         Ok(Self { device, queue, over, plus, target, lobby, atlas, size, width, height, adapter })

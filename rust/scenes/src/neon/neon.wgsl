@@ -16,7 +16,12 @@ struct Prim {
 @group(0) @binding(1) var<storage, read> points: array<vec2<f32>>;
 @group(0) @binding(2) var lobby: texture_2d<f32>;
 @group(0) @binding(3) var atlas: texture_2d<f32>;
-@group(0) @binding(4) var<uniform> size: vec4<f32>;
+struct Uni {
+    size: vec4<f32>,
+    gap: vec4<f32>,
+};
+
+@group(0) @binding(4) var<uniform> uni: Uni;
 
 struct Out {
     @builtin(position) pos: vec4<f32>,
@@ -29,7 +34,7 @@ fn vs(@builtin(vertex_index) v: u32, @builtin(instance_index) i: u32) -> Out {
     let corner = array<vec2<f32>, 6>(vec2(0.0, 0.0), vec2(1.0, 0.0), vec2(0.0, 1.0), vec2(1.0, 0.0), vec2(1.0, 1.0), vec2(0.0, 1.0))[v];
     let p = mix(b.xy, b.zw, corner);
     var out: Out;
-    out.pos = vec4(p.x / size.x * 2.0 - 1.0, 1.0 - p.y / size.y * 2.0, 0.0, 1.0);
+    out.pos = vec4(p.x / uni.size.x * 2.0 - 1.0, 1.0 - p.y / uni.size.y * 2.0, 0.0, 1.0);
     out.index = i;
     return out;
 }
@@ -124,7 +129,7 @@ fn picture(pr: Prim, p: vec2<f32>) -> vec4<f32> {
     let hi = lo + vec2<i32>(src) - 1;
     let t = uv * src;
     var c: vec4<f32>;
-    if pr.kind.y == 1u {
+    if (pr.kind.y & 1u) != 0u {
         let f = t - 0.5;
         let i = vec2<i32>(floor(f)) + lo;
         let k = f - floor(f);
@@ -134,7 +139,23 @@ fn picture(pr: Prim, p: vec2<f32>) -> vec4<f32> {
     } else {
         c = texel(vec2<i32>(floor(t)) + lo, lo, hi);
     }
-    return c * pr.color.a * cover;
+    var keep = 1.0;
+    if (pr.kind.y & 2u) != 0u {
+        // The Wash's hole: 12 rounded rects rubbed out over the gap, each taking 62/255 of what is left.
+        for (var s = 0; s < 12; s++) {
+            let grow = 40.0 * (1.0 - f32(s) / 11.0);
+            let r = uni.gap + vec4(-grow, -grow, 2.0 * grow, 2.0 * grow);
+            keep *= 1.0 - 62.0 / 255.0 * rounded_rect(p, r, 14.0 + grow);
+        }
+    }
+    return c * pr.color.a * cover * keep;
+}
+
+fn rounded_rect(p: vec2<f32>, r: vec4<f32>, radius: f32) -> f32 {
+    let c = r.xy + r.zw * 0.5;
+    let q = abs(p - c) - r.zw * 0.5 + radius;
+    let d = length(max(q, vec2(0.0))) + min(max(q.x, q.y), 0.0) - radius;
+    return clamp(0.5 - d, 0.0, 1.0);
 }
 
 @fragment
