@@ -14,6 +14,8 @@ pub mod light;
 pub mod npr;
 mod pics;
 mod sparks;
+mod text;
+mod chrome;
 #[cfg(test)]
 mod tests;
 
@@ -27,6 +29,7 @@ use sparks::{heats, shower, spark_shower, Heat, Shower};
 use holo::{Holo, Kind};
 use hud::{beam, beam_at, beam_picture, cone_picture, sweep_picture, Rail};
 use panels::{Mesh, Radar};
+use text::Type;
 
 pub const DURATION: f64 = 5.0;
 pub const DESIGN: (f64, f64) = (1635.0, 848.0);
@@ -68,6 +71,7 @@ pub struct Cyber {
     rails: [Rail; 2],
     beam: (Src, f64, f64),
     title: [f64; 4],
+    ty: Type,
 }
 
 /// _lay: a round glow laid on at x, y, r its radius, at alpha (the painter's whole opacity).
@@ -130,11 +134,12 @@ impl Cyber {
         let (cone_rect, emitter) = Mesh::cone_rect(right, u);
         let cone = atlas.add(&cone_picture(cone_rect, emitter, u));
         let mesh = Mesh::new(right, u, cone, dots(&mut atlas, 0.6));
-        let holos = [Holo::new(left, u, Kind::Radar(radar), 0.45, 1, &mut atlas), Holo::new(right, u, Kind::Mesh(mesh), 0.7, 2, &mut atlas)];
+        let ty = Type::new(u);
+        let holos = [Holo::new(left, u, Kind::Radar(radar), 0.45, 1, &mut atlas, &ty), Holo::new(right, u, Kind::Mesh(mesh), 0.7, 2, &mut atlas, &ty)];
         let rails = [Rail::new(88.0 * u, height * 0.34, height * 0.79, -1.0, u), Rail::new(width - 88.0 * u, height * 0.34, height * 0.79, 1.0, u)];
         let (pic, behind, ahead) = beam_picture(height * 0.285, u);
         let beam = (atlas.add(&pic), behind, ahead);
-        Self { width, height, gap, u, outer, inner, panels, pics, atlas, strikes, heats, holos, rails, beam, title }
+        Self { width, height, gap, u, outer, inner, panels, pics, atlas, strikes, heats, holos, rails, beam, title, ty }
     }
 
     pub fn atlas(&self) -> &Atlas {
@@ -175,7 +180,7 @@ impl Cyber {
         c.opacity = life;
         frame::neon_frame(&mut c, self, t, bright);
         for rail in &self.rails {
-            rail.paint(&mut c, t, 1.0 - leave);
+            rail.paint(&mut c, t, 1.0 - leave, &self.ty);
         }
         let at = beam_at(t, w, self.beam.1);
         for (index, holo) in self.holos.iter().enumerate() {
@@ -187,7 +192,7 @@ impl Cyber {
                 }
             }
             let surge = struck.iter().map(|&when| strike_light(t - when)).fold(f64::MIN, f64::max);
-            holo.paint(&mut c, t, index, tear, surge, at.map(|a| a.0));
+            holo.paint(&mut c, t, index, tear, surge, at.map(|a| a.0), &self.ty);
         }
         beam(&mut c, at, self.beam, h * 0.285, self.title, self.u);
         for (when, start, end, _panel, shapes, _shower) in &self.strikes {

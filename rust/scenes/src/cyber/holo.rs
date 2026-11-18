@@ -4,10 +4,11 @@
 
 use std::f64::consts::PI;
 
-use super::canvas::{col, Blend, Canvas, Src, ATLAS, LAYER, SCREEN, STROKE, RING};
+use super::canvas::{col, Blend, Canvas, Src, ATLAS, LAYER, PICTURE, RING, SCREEN, STROKE, TEXT};
 use super::gfx::Atlas;
 use super::light::{bloom, round_even, stroke, Plane};
 use super::panels::{Mesh, Radar};
+use super::text::Type;
 use super::CYAN;
 use crate::draw::{ease_in, ease_in_out, ease_out, hex, win, Pt};
 use crate::pyrand::PyRandom;
@@ -40,6 +41,29 @@ fn mask_of(c: &Canvas, w: usize, h: usize, origin: Pt, k: f64) -> Plane {
         }
         let rgb = [0, 1, 2].map(|i| (f64::from(p.colors[0][i]) / a * 255.0).round());
         let gray = ((rgb[0] * 11.0 + rgb[1] * 16.0 + rgb[2] * 5.0) / 32.0).floor() / 255.0;
+        if p.kind[0] == PICTURE && p.kind[3] == TEXT {
+            // Lettering: its coverage made half size, over what is there in its gray.
+            let (d, s) = (p.s0, p.s1);
+            let gray = f64::from(p.colors[0][0] * 11.0 + p.colors[0][1] * 16.0 + p.colors[0][2] * 5.0) / 32.0;
+            let mut cover = vec![0f64; w * h];
+            let atlas = &c.text_atlas;
+            for ty in 0..s[3] as usize {
+                for tx in 0..s[2] as usize {
+                    let v = f64::from(atlas.px[((s[1] as usize + ty) * atlas.w + s[0] as usize + tx) * 4 + 3]) / 255.0;
+                    let (mx, my) = ((f64::from(d[0]) + tx as f64 + 0.5 - origin[0]) * k, (f64::from(d[1]) + ty as f64 + 0.5 - origin[1]) * k);
+                    if mx >= 0.0 && my >= 0.0 && (mx as usize) < w && (my as usize) < h {
+                        cover[my as usize * w + mx as usize] += v * k * k;
+                    }
+                }
+            }
+            for (m, cv) in m.v.iter_mut().zip(cover) {
+                let cv = cv.min(1.0);
+                if cv > 0.0 {
+                    *m = ((f64::from(*m) * (1.0 - cv * a) + gray * cv) * 255.0).round() as f32 / 255.0;
+                }
+            }
+            continue;
+        }
         let pts: Vec<Pt> = match p.kind[0] {
             STROKE => {
                 let (o, n) = (p.s0[0] as usize, p.s0[1] as usize);
@@ -70,27 +94,27 @@ fn level(age: f64, t: f64, seed: f64) -> f64 {
 }
 
 impl Holo {
-    pub fn new(b: [f64; 4], u: f64, kind: Kind, appear: f64, seed: u32, atlas: &mut Atlas) -> Self {
+    pub fn new(b: [f64; 4], u: f64, kind: Kind, appear: f64, seed: u32, atlas: &mut Atlas, ty: &Type) -> Self {
         let pad = 16.0 * u;
         let area = [b[0] - pad, b[1] - pad, b[2] + 2.0 * pad, b[3] + 2.0 * pad];
         let mut holo = Self { b, area, kind, appear, seed, light: [0.0; 4], u };
         let mut c = Canvas::new();
-        holo.still(&mut c, false);
+        holo.still(&mut c, false, ty);
         let (w, h) = (round_even(area[2] * 0.5) as usize, round_even(area[3] * 0.5) as usize);
         let m = mask_of(&c, w, h, [area[0], area[1]], 0.5);
         holo.light = atlas.add(&bloom(&m, CYAN, &[(1.5, 0.55), (5.0, 0.45)], 0.0));
         holo
     }
 
-    fn still(&self, c: &mut Canvas, lit: bool) {
+    fn still(&self, c: &mut Canvas, lit: bool, ty: &Type) {
         match &self.kind {
-            Kind::Radar(r) => r.still(c, self.u),
-            Kind::Mesh(m) => m.still(c, self.u, lit),
+            Kind::Radar(r) => r.still(c, self.u, ty),
+            Kind::Mesh(m) => m.still(c, self.u, lit, ty),
         }
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn paint(&self, c: &mut Canvas, t: f64, index: usize, tear: f64, surge: f64, beam: Option<f64>) {
+    pub fn paint(&self, c: &mut Canvas, t: f64, index: usize, tear: f64, surge: f64, beam: Option<f64>, ty: &Type) {
         let age = t - self.appear;
         let end = FOLD + 0.12 * f64::from(self.seed);
         if age <= 0.0 || t > end + 0.62 {
@@ -111,10 +135,10 @@ impl Holo {
             c.draw_into(layer, true);
             c.opacity = 1.0;
             c.lay(ATLAS, self.light, a, 1.0);
-            self.still(c, true);
+            self.still(c, true, ty);
             match &self.kind {
-                Kind::Radar(r) => r.moving(c, age, u),
-                Kind::Mesh(m) => m.moving(c, age, u),
+                Kind::Radar(r) => r.moving(c, age, u, ty),
+                Kind::Mesh(m) => m.moving(c, age, u, ty),
             }
             c.draw_into(SCREEN, false);
             c.restore(saved);

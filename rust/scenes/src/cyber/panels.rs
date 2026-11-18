@@ -4,61 +4,17 @@
 use std::f64::consts::{PI, TAU};
 
 use super::canvas::{col, Canvas, Paint, Src, ATLAS};
+use super::chrome::{chrome, ease_back};
 use super::hud::{arc, dashed, sq_line};
+use super::text::{Face, Type};
 use super::{lay_dot, CYAN, MAGENTA};
-use crate::draw::{ease_in_out, ease_out, hex, mix, win, Pt};
-use crate::pyrand::PyRandom;
 
-fn ease_back(k: f64, s: f64) -> f64 {
-    let k = k.clamp(0.0, 1.0);
-    1.0 + (s + 1.0) * (k - 1.0).powi(3) + s * (k - 1.0).powi(2)
-}
+const ICE: &str = "#e9fdff";
+use crate::draw::{ease_in_out, ease_out, mix, win, Pt};
+use crate::pyrand::PyRandom;
 
 fn solid(color: [f32; 3], alpha: f64) -> Paint {
     Paint::Solid(color, alpha)
-}
-
-/// A panel's edge: a faint pane with two corners cut, a fine outline, bright corner brackets, the
-/// title bar's rules and ticks along its foot.
-pub fn chrome(c: &mut Canvas, b: [f64; 4], u: f64, mirror: bool) {
-    let k = 14.0 * u;
-    let (l, t, r, bt) = (b[0], b[1], b[0] + b[2], b[1] + b[3]);
-    let corners: Vec<Pt> = if mirror {
-        vec![[l, t], [r - k, t], [r, t + k], [r, bt], [l + k, bt], [l, bt - k]]
-    } else {
-        vec![[l + k, t], [r, t], [r, bt - k], [r - k, bt], [l, bt], [l, t + k]]
-    };
-    let cy = hex(CYAN);
-    c.poly(&corners, &Paint::Linear([l, t], [l, bt], vec![(0.0, cy, 0.07), (1.0, cy, 0.025)]));
-    let mut ring = corners.clone();
-    ring.push(corners[0]);
-    c.stroke(&ring, 0.9 * u, &col(CYAN, 0.32), false);
-    let n = corners.len();
-    for i in 0..n {
-        let corner = corners[i];
-        let mut path = Vec::new();
-        for (j, other) in [corners[(i + n - 1) % n], corners[(i + 1) % n]].into_iter().enumerate() {
-            let d = (other[0] - corner[0]).hypot(other[1] - corner[1]);
-            let d = if d == 0.0 { 1.0 } else { d };
-            let reach = (26.0 * u).min(d * 0.45) / d;
-            let end = [corner[0] + (other[0] - corner[0]) * reach, corner[1] + (other[1] - corner[1]) * reach];
-            if j == 0 {
-                path.extend([end, corner]);
-            } else {
-                path.push(end);
-            }
-        }
-        c.stroke(&path, 2.0 * u, &col(CYAN, 0.95), false);
-    }
-    let y = t + 23.0 * u;
-    sq_line(c, [l + 14.0 * u, y], [r - 14.0 * u, y], 0.8 * u, &col(CYAN, 0.4));
-    c.line([l + 14.0 * u, y], [l + 70.0 * u, y], 2.2 * u, &col(CYAN, 0.95), false);
-    c.line([r - 40.0 * u, y], [r - 14.0 * u, y], 2.2 * u, &col(MAGENTA, 0.95), false);
-    let start = if mirror { r - 150.0 * u } else { l + 40.0 * u };
-    for i in 0..14 {
-        let x = start + f64::from(i) * 8.0 * u;
-        sq_line(c, [x, bt - 5.0 * u], [x, bt - if i % 4 == 0 { 9.0 } else { 7.0 } * u], u, &col(CYAN, 0.6));
-    }
 }
 
 pub struct Radar {
@@ -94,9 +50,8 @@ impl Radar {
         (((b[3] - 48.0 * u) / 2.0 * 4.0).round() as usize).max(16)
     }
 
-    pub fn still(&self, c: &mut Canvas, u: f64) {
-        let _ = self.x0;
-        chrome(c, self.b, u, false);
+    pub fn still(&self, c: &mut Canvas, u: f64, ty: &Type) {
+        chrome(c, self.b, u, ty, "嘉宾 · TARGET SCAN", "SYS.07", false);
         let (cx, cy, rr) = (self.c[0], self.c[1], self.rr);
         c.circle(cx, cy, rr, &col(CYAN, 0.06));
         c.ring(cx, cy, rr, rr, 1.4 * u, &col(CYAN, 0.95));
@@ -112,7 +67,8 @@ impl Radar {
             let paint = col(CYAN, if major { 0.9 } else { 0.45 });
             sq_line(c, [cx + a.cos() * r0, cy + a.sin() * r0], [cx + a.cos() * r1, cy + a.sin() * r1], if major { 1.3 } else { 0.8 } * u, &paint);
         }
-        for &y in &self.rows {
+        for (i, (label, &y)) in ["PWR", "SIG", "SYNC", "FLUX", "LINK"].iter().zip(&self.rows).enumerate() {
+            ty.draw(c, Face::Small, [self.x0, y + 3.5 * u], label, if i == 4 { MAGENTA } else { CYAN }, 0.85);
             c.line([self.bar.0, y], [self.bar.1, y], 4.0 * u, &col(CYAN, 0.16), false);
         }
         let w = self.wave;
@@ -123,7 +79,7 @@ impl Radar {
         }
     }
 
-    pub fn moving(&self, c: &mut Canvas, age: f64, u: f64) {
+    pub fn moving(&self, c: &mut Canvas, age: f64, u: f64, ty: &Type) {
         let (cx, cy, rr) = (self.c[0], self.c[1], self.rr);
         let theta = -PI / 2.0 + age * RATE;
         let (s, co) = theta.sin_cos();
@@ -156,6 +112,9 @@ impl Radar {
                     let (bx, by) = (x + sx * size, y + sy * size);
                     c.stroke(&[[bx, by - sy * arm], [bx, by], [bx - sx * arm, by]], 1.4 * u, &col(MAGENTA, 0.95 * win(found, 0.0, 0.1)), false);
                 }
+                if k > 0.6 {
+                    ty.draw(c, Face::Small, [x + size + 3.0 * u, y - size + 2.0 * u], "LOCK", MAGENTA, (k - 0.6) / 0.4);
+                }
             }
         }
         let grow = ease_out(win(age, 0.35, 1.0));
@@ -168,6 +127,7 @@ impl Radar {
             let end = self.bar.0 + (self.bar.1 - self.bar.0) * v;
             dashed(c, [self.bar.0, y], [end, y], 4.0 * u, (1.15, 0.38), &solid(mix(tint, "#ffffff", 0.15), 0.95));
             sq_line(c, [end, y - 4.5 * u], [end, y + 4.5 * u], 1.3 * u, &col("#ffffff", 0.95));
+            ty.draw(c, Face::Small, [self.bar.1 + 9.0 * u, y + 3.5 * u], &format!("{:4.1}", v * 100.0), ICE, 0.85);
         }
         let w = self.wave;
         let points: Vec<Pt> = (0..73)
@@ -340,8 +300,8 @@ impl Mesh {
         Self { b, center, emitter, cone_rect, cone, dots, grid, hexes, blinkers, meter, ico: Solid::icosahedron(), oct: Solid::octahedron() }
     }
 
-    pub fn still(&self, c: &mut Canvas, u: f64, lit: bool) {
-        chrome(c, self.b, u, true);
+    pub fn still(&self, c: &mut Canvas, u: f64, lit: bool, ty: &Type) {
+        chrome(c, self.b, u, ty, "HOLO MESH · ICO-20", "LIVE", true);
         let saved = c.save();
         c.clip_to(self.grid);
         for &(at, alpha) in &self.hexes {
@@ -357,6 +317,7 @@ impl Mesh {
             c.ring(self.emitter[0], self.emitter[1], 46.0 * u * k, 7.0 * u * k, 1.1 * u, &col(CYAN, alpha));
         }
         let m = self.meter;
+        ty.draw(c, Face::Small, [m[0], m[1] - 6.0 * u], "OUTPUT", CYAN, 0.6);
         sq_line(c, [m[0], m[1] + m[3] + 2.0 * u], [m[0] + m[2], m[1] + m[3] + 2.0 * u], 0.8 * u, &col(CYAN, 0.3));
     }
 
@@ -367,7 +328,7 @@ impl Mesh {
         c.stroke(&pts, u, &col("#ff9be9", if near { 0.9 } else { 0.4 }), false);
     }
 
-    pub fn moving(&self, c: &mut Canvas, age: f64, u: f64) {
+    pub fn moving(&self, c: &mut Canvas, age: f64, u: f64, ty: &Type) {
         let grow = ease_out(win(age, 0.3, 0.9));
         for &(at, rate, phase) in &self.blinkers {
             let k = (age * rate + phase).sin().max(0.0).powi(4) * grow;
@@ -399,6 +360,17 @@ impl Mesh {
                 lay_dot(c, self.dots[1], dot, 13.0 * u, 0.95);
                 c.opacity = 1.0;
             }
+        }
+        for i in 0..5u32 {
+            let typed = ((age - 0.35 - f64::from(i) * 0.07) * 70.0) as i64;
+            if typed <= 0 {
+                continue;
+            }
+            let mut rnd = PyRandom::new(((age * 6.0 + f64::from(i) * 0.53) as u32) * 97 + i);
+            let words: Vec<String> = (0..3).map(|_| format!("{:04X}", rnd.below(65536))).collect();
+            let text: String = words.join(" ").chars().take(typed as usize).collect();
+            let y = self.b[1] + 44.0 * u + f64::from(i) * 15.0 * u;
+            ty.draw(c, Face::Small, [self.b[0] + 22.0 * u, y], &text, if i == 2 { MAGENTA } else { CYAN }, 0.8);
         }
         let m = self.meter;
         let step = m[2] / 16.0;
