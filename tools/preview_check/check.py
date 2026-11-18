@@ -81,6 +81,7 @@ def bench(name: str, out: Path, command: list[str]) -> None:
             "ms": float(parts[0]),
             "header": parts[1] == "1",
             "names": hashlib.sha256("\t".join(names).encode()).hexdigest()[:16],
+            "seats": [hashlib.sha256(n.encode()).hexdigest()[:8] for n in names],
             "read": sum(1 for n in names if n.strip()),
         })
         if len(frames) == 10:
@@ -247,6 +248,34 @@ def _difference(left, right) -> dict:
             "same_size": same, "mean": round(mean, 1), "over24": round(over * 100, 1)}
 
 
+def _same(a: dict, b: dict) -> tuple[int, int, int, int]:
+    """Frames with identical names, frames compared, seats identical, seats compared."""
+    af, bf = a.get("frames", []), b.get("frames", [])
+    if not af or len(af) != len(bf):
+        return 0, 0, 0, 0
+    frames = sum(x["names"] == y["names"] for x, y in zip(af, bf, strict=True))
+    seats = total = 0
+    for x, y in zip(af, bf, strict=True):
+        xs, ys = x.get("seats", []), y.get("seats", [])
+        total += max(len(xs), len(ys))
+        seats += sum(p == q for p, q in zip(xs, ys, strict=False))
+    return frames, len(af), seats, total
+
+
+def _names_rows(label: str, base: dict, rust: dict) -> list[str]:
+    frames, count, seats, total = _same(base, rust)
+    if not count:
+        return [f"| Names vs {label} | not comparable ({len(base.get('frames', []))} vs {len(rust.get('frames', []))} frames) | |"]
+    head = sum(x["header"] == y["header"] for x, y in zip(base["frames"], rust["frames"], strict=True))
+    rows = [f"| Names identical per lobby, vs {label} | {frames} of {count} | seats identical {seats} of {total}; "
+            f"lobby found the same {head} of {count} |"]
+    diff = [i for i, (x, y) in enumerate(zip(base["frames"], rust["frames"], strict=True)) if x["names"] != y["names"]]
+    if diff:
+        shown = ", ".join(f"{i}:{base['frames'][i]['read']}/{rust['frames'][i]['read']}" for i in diff[:20])
+        rows.append(f"| Lobbies that differ (index: seats read other/Rust) | {shown}{' ...' if len(diff) > 20 else ''} | |")
+    return rows
+
+
 def _load(path: Path) -> dict:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -275,17 +304,10 @@ def report(results: Path, out: Path) -> None:
               f"{cell(rb.get('median_ms'))} / {cell(round(rb['mean_ms'], 1) if rb.get('mean_ms') else None, ' ms')} |",
               f"| CPU time, whole corpus (wall) | {cell(pb.get('cpu_s'), ' s')} ({cell(pb.get('wall_s'), ' s')}) | "
               f"{cell(rb.get('cpu_s'), ' s')} ({cell(rb.get('wall_s'), ' s')}) |"]
-    pf, rf = pb.get("frames", []), rb.get("frames", [])
-    if pf and rf and len(pf) == len(rf):
-        same = sum(a["names"] == b["names"] for a, b in zip(pf, rf, strict=True))
-        head = sum(a["header"] == b["header"] for a, b in zip(pf, rf, strict=True))
-        lines.append(f"| Names identical per frame | {same} of {len(pf)} | (lobby found the same: {head} of {len(pf)}) |")
-        diff = [i for i, (a, b) in enumerate(zip(pf, rf, strict=True)) if a["names"] != b["names"]]
-        if diff:
-            shown = ", ".join(str(i) + ":" + str(pf[i]["read"]) + "/" + str(rf[i]["read"]) for i in diff[:30])
-            lines.append(f"| Frames that differ (index in name order: seats read Python/Rust) | {shown} | |")
-    else:
-        lines.append(f"| Names identical per frame | not comparable ({len(pf)} vs {len(rf)} frames) | |")
+    lines += _names_rows("Python v1.0.1 (paddle)", pb, rb)
+    ob = _load(results / "bench-python-onnx.json")
+    if ob:
+        lines += _names_rows("current Python on ONNX Runtime, same models (the engine Rust ports)", ob, rb)
     sc = _load(results / "scenes.json")
     lines += ["", f"## Scene frame time at 1920x1080 (budget {BUDGET_MS:.0f} ms)", "",
               f"Rust adapter: `{sc.get('adapter')}`. The runner has no GPU: WARP (Direct3D 12 in software) stands in, so these "
@@ -339,10 +361,15 @@ def gate(results: Path) -> None:
         problems.append(f"Rust read {rb.get('count')} of {corpus} lobbies")
     if pb.get("count") != corpus:
         problems.append(f"Python read {pb.get('count')} of {corpus} lobbies")
+    # Identical names are asked of the engine Rust ports (current Python on ONNX Runtime, same models); v1.0.1 runs
+    # Paddle with the models PaddleOCR downloads, so its names are reported beside, not gated.
+    ob = _load(results / "bench-python-onnx.json")
+    if ob.get("count") != corpus:
+        problems.append(f"Python on ONNX Runtime read {ob.get('count')} of {corpus} lobbies")
     elif rb.get("count") == corpus:
-        differ = sum(a["names"] != b["names"] for a, b in zip(pb["frames"], rb["frames"], strict=True))
-        if differ:
-            problems.append(f"names differ on {differ} of {corpus} lobbies")
+        frames, count, _, _ = _same(ob, rb)
+        if frames != count:
+            problems.append(f"names differ from Python on ONNX Runtime on {count - frames} of {corpus} lobbies")
     sc = _load(results / "scenes.json").get("rust", {})
     for key in ["classic", "lace", "stars", "ice", "cyber", "neon", "angel", "equation", "fluffy", "claw", "lyre"]:
         if "median" not in sc.get(key, {}):

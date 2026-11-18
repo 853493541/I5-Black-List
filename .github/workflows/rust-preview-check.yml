@@ -250,6 +250,10 @@ jobs:
             -- "$EXE" --bench-check "$frames"
           APPDATA="$RUNNER_TEMP/py-bench-home" PYTHONPATH="$V101" timeout 3600 python tools/preview_check/check.py bench python \
             "$RESULTS/bench-python.json" -- python tools/preview_check/py_bench.py "$frames"
+          # The engine the Rust OCR ports: this checkout's Python on ONNX Runtime with the very same models.
+          APPDATA="$RUNNER_TEMP/py-onnx-home" PYTHONPATH="$GITHUB_WORKSPACE" BLACKLIST_DETECT_ENGINE=onnxruntime \
+            BLACKLIST_DETECT_MODEL_DIR="$RUNNER_TEMP/models" timeout 3600 python tools/preview_check/check.py bench python-onnx \
+            "$RESULTS/bench-python-onnx.json" -- python tools/preview_check/py_bench.py "$frames"
 
       # 3. Each scene at 1920x1080: Rust on the runner's adapter (WARP), Python's love_frames.py (QPainter).
       - name: Scenes
