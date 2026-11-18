@@ -13,13 +13,21 @@ fn golden() -> Value {
 fn choice(v: &Value) -> Choice {
     match v {
         Value::String(s) => Choice::One(s.clone()),
-        Value::Array(list) => Choice::Some(list.iter().map(|k| k.as_str().unwrap().to_string()).collect()),
+        Value::Array(list) => Choice::Some(
+            list.iter()
+                .map(|k| k.as_str().unwrap().to_string())
+                .collect(),
+        ),
         _ => panic!("choice {v}"),
     }
 }
 
 fn floats(v: &Value) -> Vec<f64> {
-    v.as_array().unwrap().iter().map(|x| x.as_f64().unwrap()).collect()
+    v.as_array()
+        .unwrap()
+        .iter()
+        .map(|x| x.as_f64().unwrap())
+        .collect()
 }
 
 fn close(a: &[f64], b: &[f64], what: &str) {
@@ -40,7 +48,10 @@ fn scenes_their_lengths_and_replacements() {
         assert_eq!(s["duration"].as_f64().unwrap(), duration(key), "{key}");
     }
     // Module-level warm (made ahead) is lyre's; claw and lyre both make theirs before playing.
-    assert!(scenes.iter().filter(|s| s["warm"] == true).all(|s| WARMED.contains(&s["key"].as_str().unwrap())));
+    assert!(scenes
+        .iter()
+        .filter(|s| s["warm"] == true)
+        .all(|s| WARMED.contains(&s["key"].as_str().unwrap())));
     let replaced = g["replaced"].as_object().unwrap();
     assert_eq!(replaced.len(), REPLACED.len());
     for (old, new) in REPLACED {
@@ -59,7 +70,12 @@ fn choose_matches_python_draw_for_draw() {
         let c = choice(&case["choice"]);
         let last = case["last"].as_str().unwrap();
         let ours: Vec<String> = (0..6).map(|_| choose(&c, last, &mut rng)).collect();
-        let theirs: Vec<&str> = case["picks"].as_array().unwrap().iter().map(|p| p.as_str().unwrap()).collect();
+        let theirs: Vec<&str> = case["picks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|p| p.as_str().unwrap())
+            .collect();
         assert_eq!(ours, theirs, "{case}");
     }
     assert_eq!(cases.len(), 240);
@@ -86,7 +102,12 @@ fn picker_matches_love_border() {
                 other => panic!("op {other}"),
             }
         }
-        let theirs: Vec<&str> = run["picks"].as_array().unwrap().iter().map(|p| p.as_str().unwrap()).collect();
+        let theirs: Vec<&str> = run["picks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|p| p.as_str().unwrap())
+            .collect();
         assert_eq!(got, theirs, "{run}");
     }
 }
@@ -100,18 +121,38 @@ fn stage_geometry_matches_python() {
             [f[0] as i32, f[1] as i32, f[2] as i32, f[3] as i32]
         };
         let badge = floats(&case["badge"]);
-        let seats: Vec<[f64; 4]> = case["seats"].as_array().unwrap().iter().map(|s| floats(s).try_into().unwrap()).collect();
-        let place = Placement { area: int4(&case["area"]), keep_clear: int4(&case["keep"]), badge: Some([badge[0] as i32, badge[1] as i32]), seats };
+        let seats: Vec<[f64; 4]> = case["seats"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|s| floats(s).try_into().unwrap())
+            .collect();
+        let place = Placement {
+            area: int4(&case["area"]),
+            keep_clear: int4(&case["keep"]),
+            badge: Some([badge[0] as i32, badge[1] as i32]),
+            seats,
+        };
         let stage = place.stage();
         close(&stage.gap, &floats(&case["gap"]), "gap");
         close(&[stage.unit()], &[case["unit"].as_f64().unwrap()], "unit");
         close(&stage.heart(), &floats(&case["heart"]), "heart");
         let names: Vec<f64> = stage.names().concat();
-        let theirs: Vec<f64> = case["names"].as_array().unwrap().iter().flat_map(floats).collect();
+        let theirs: Vec<f64> = case["names"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(floats)
+            .collect();
         close(&names, &theirs, "names");
         let bare = stage::geom::Stage::new(stage.width, stage.height, stage.gap);
         close(&bare.heart(), &floats(&case["bare_heart"]), "bare heart");
-        let theirs: Vec<f64> = case["bare_names"].as_array().unwrap().iter().flat_map(floats).collect();
+        let theirs: Vec<f64> = case["bare_names"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .flat_map(floats)
+            .collect();
         close(&bare.names().concat(), &theirs, "layout names");
     }
     for s in g["samples"].as_array().unwrap() {
@@ -119,6 +160,10 @@ fn stage_geometry_matches_python() {
         let stage = sample_stage(size[0], size[1]);
         close(&stage.gap, &floats(&s["gap"]), "sample gap");
         close(&stage.badge.unwrap(), &floats(&s["badge"]), "sample badge");
-        close(&[stage.unit()], &[s["unit"].as_f64().unwrap()], "sample unit");
+        close(
+            &[stage.unit()],
+            &[s["unit"].as_f64().unwrap()],
+            "sample unit",
+        );
     }
 }

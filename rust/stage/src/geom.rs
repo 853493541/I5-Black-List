@@ -23,7 +23,13 @@ pub struct Stage {
 
 impl Stage {
     pub fn new(width: f64, height: f64, gap: Rect) -> Self {
-        Self { width, height, gap, badge: None, seats: Vec::new() }
+        Self {
+            width,
+            height,
+            gap,
+            badge: None,
+            seats: Vec::new(),
+        }
     }
 
     pub fn unit(&self) -> f64 {
@@ -37,7 +43,12 @@ impl Stage {
             return self.seats.clone();
         }
         let (w, h) = (self.width, self.height);
-        lobby::NAME_BOXES.iter().map(|&[left, top, right, bottom]| [left * w, top * h, (right - left) * w, (bottom - top) * h]).collect()
+        lobby::NAME_BOXES
+            .iter()
+            .map(|&[left, top, right, bottom]| {
+                [left * w, top * h, (right - left) * w, (bottom - top) * h]
+            })
+            .collect()
     }
 
     /// The heart badge, or where it would be: just right of the gap's middle.
@@ -70,14 +81,25 @@ impl Placement {
         let [ax, ay, aw, ah] = self.area;
         let [kx, ky, kw, _] = self.keep_clear;
         let (left, top) = (f64::from(kx - ax), f64::from(ky - ay));
-        let gap = [left - 28.0, top - 30.0, f64::from(kw) + 56.0, f64::from(ah) - top + 30.0];
+        let gap = [
+            left - 28.0,
+            top - 30.0,
+            f64::from(kw) + 56.0,
+            f64::from(ah) - top + 30.0,
+        ];
         let (ox, oy) = (f64::from(ax), f64::from(ay));
         Stage {
             width: f64::from(aw),
             height: f64::from(ah),
             gap,
-            badge: self.badge.map(|[x, y]| [f64::from(x) - ox, f64::from(y) - oy]),
-            seats: self.seats.iter().map(|&[x, y, w, h]| [x - ox, y - oy, w, h]).collect(),
+            badge: self
+                .badge
+                .map(|[x, y]| [f64::from(x) - ox, f64::from(y) - oy]),
+            seats: self
+                .seats
+                .iter()
+                .map(|&[x, y, w, h]| [x - ox, y - oy, w, h])
+                .collect(),
         }
     }
 }
@@ -86,8 +108,19 @@ impl Placement {
 pub fn sample_stage(width: f64, height: f64) -> Stage {
     let s = width / DESIGN[0];
     let keep = [549.0 * s, 749.0 * s, 556.0 * s, 94.0 * s];
-    let gap = [keep[0] - 28.0 * s, keep[1] - 30.0 * s, keep[2] + 56.0 * s, height - keep[1] + 30.0 * s];
-    Stage { width, height, gap, badge: Some([1052.0 * s, 796.0 * s]), seats: Vec::new() }
+    let gap = [
+        keep[0] - 28.0 * s,
+        keep[1] - 30.0 * s,
+        keep[2] + 56.0 * s,
+        height - keep[1] + 30.0 * s,
+    ];
+    Stage {
+        width,
+        height,
+        gap,
+        badge: Some([1052.0 * s, 796.0 * s]),
+        seats: Vec::new(),
+    }
 }
 
 #[cfg(test)]

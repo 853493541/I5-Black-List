@@ -68,7 +68,12 @@ pub struct Player {
 
 impl Player {
     pub fn new(seed: u32) -> Self {
-        Self { picker: Picker::new(seed), scene: "classic".into(), stage: Stage::new(0.0, 0.0, [0.0; 4]), state: State::Idle }
+        Self {
+            picker: Picker::new(seed),
+            scene: "classic".into(),
+            stage: Stage::new(0.0, 0.0, [0.0; 4]),
+            state: State::Idle,
+        }
     }
 
     /// Cover the game's screen and play, leaving the button and its marks bare. ready: for a scene in
@@ -118,14 +123,20 @@ impl Player {
             State::Idle => Tick::Idle,
             State::Warming if warmed => {
                 self.state = State::Playing { since: now };
-                Tick::Frame { t: 0.0, started: true }
+                Tick::Frame {
+                    t: 0.0,
+                    started: true,
+                }
             }
             State::Warming => Tick::Waiting,
             State::Playing { since } if now - since >= duration(&self.scene) => {
                 self.state = State::Idle;
                 Tick::Stopped
             }
-            State::Playing { since } => Tick::Frame { t: now - since, started: false },
+            State::Playing { since } => Tick::Frame {
+                t: now - since,
+                started: false,
+            },
         }
     }
 
@@ -144,7 +155,11 @@ mod tests {
     use crate::pick::Choice;
 
     fn place() -> Placement {
-        Placement { area: [0, 0, 1920, 1080], keep_clear: [812, 970, 300, 90], ..Default::default() }
+        Placement {
+            area: [0, 0, 1920, 1080],
+            keep_clear: [812, 970, 300, 90],
+            ..Default::default()
+        }
     }
 
     #[test]
@@ -152,7 +167,13 @@ mod tests {
         let mut p = Player::new(1);
         p.picker.choice = Choice::One("stars".into());
         assert_eq!(p.play(10.0, &place(), false), Play::Started);
-        assert_eq!(p.tick(10.033, false), Tick::Frame { t: 10.033 - 10.0, started: false });
+        assert_eq!(
+            p.tick(10.033, false),
+            Tick::Frame {
+                t: 10.033 - 10.0,
+                started: false
+            }
+        );
         assert!(matches!(p.tick(14.99, false), Tick::Frame { .. }));
         assert_eq!(p.tick(15.0, false), Tick::Stopped);
         assert_eq!(p.tick(15.033, false), Tick::Idle);
@@ -174,7 +195,13 @@ mod tests {
         assert_eq!(p.play(0.0, &place(), false), Play::Waiting);
         assert_eq!(p.tick(0.033, false), Tick::Waiting);
         assert_eq!(p.elapsed(0.5), 0.0);
-        assert_eq!(p.tick(0.5, true), Tick::Frame { t: 0.0, started: true });
+        assert_eq!(
+            p.tick(0.5, true),
+            Tick::Frame {
+                t: 0.0,
+                started: true
+            }
+        );
         assert_eq!(p.elapsed(1.0), 0.5);
         assert!(!p.stop(), "it showed, so it is not dropped");
         assert_eq!(p.play(2.0, &place(), false), Play::Waiting);

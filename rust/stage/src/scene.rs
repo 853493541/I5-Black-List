@@ -74,7 +74,11 @@ mod tests {
         let direct = Stars::sample(1920.0, 1080.0).paint(1.5);
         let via = scene.frame(1.5);
         assert_eq!(via.prims.len(), direct.prims.len());
-        assert!(via.prims.iter().zip(&direct.prims).all(|(a, b)| bytemuck::bytes_of(a) == bytemuck::bytes_of(b)));
+        assert!(via
+            .prims
+            .iter()
+            .zip(&direct.prims)
+            .all(|(a, b)| bytemuck::bytes_of(a) == bytemuck::bytes_of(b)));
         assert!(scene.still().is_some());
         assert!(make("ice", &stage).is_none());
     }

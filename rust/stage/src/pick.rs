@@ -32,7 +32,10 @@ pub fn known(key: &str) -> bool {
 
 /// A saved 嘉宾场景 choice as this version has it: a scene that was replaced is its replacement.
 pub fn shown(choice: &str) -> &str {
-    REPLACED.iter().find(|&&(old, _)| old == choice).map_or(choice, |&(_, new)| new)
+    REPLACED
+        .iter()
+        .find(|&&(old, _)| old == choice)
+        .map_or(choice, |&(_, new)| new)
 }
 
 /// A 嘉宾场景 choice: Python's str (a key, "random" or "off") or tuple of keys.
@@ -90,7 +93,12 @@ pub struct Picker {
 
 impl Picker {
     pub fn new(seed: u32) -> Self {
-        Self { choice: Choice::random(), last: String::new(), picked: None, rng: PyRandom::new(seed) }
+        Self {
+            choice: Choice::random(),
+            last: String::new(),
+            picked: None,
+            rng: PyRandom::new(seed),
+        }
     }
 
     /// The scene this lobby's play plays ("" for none), settled now so the 嘉宾 marks can be dressed
