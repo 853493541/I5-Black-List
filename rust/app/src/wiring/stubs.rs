@@ -205,6 +205,10 @@ pub trait LiveHimeWatch {
 pub trait UpdateCheck {
     /// Starts a look; false when one is already running.
     fn check(&mut self) -> bool;
+    /// The answer of the look that ran, once.
+    fn poll(&mut self) -> Option<super::updates::Found> {
+        None
+    }
 }
 
 // ---- the stand-ins -------------------------------------------------------------------------------

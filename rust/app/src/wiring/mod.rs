@@ -7,11 +7,13 @@ pub mod flow;
 pub mod life;
 pub mod marks;
 pub mod parts;
+pub mod quick;
 pub mod records;
 pub mod runner;
 pub mod scenes;
 pub mod startup;
 pub mod stubs;
+pub mod updates;
 pub mod watch;
 pub mod worker;
 
