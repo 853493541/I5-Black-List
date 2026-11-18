@@ -16,6 +16,7 @@ mod stream;
 mod settings;
 mod shell;
 mod notices;
+mod kit;
 
 use std::path::PathBuf;
 
