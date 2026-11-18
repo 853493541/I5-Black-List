@@ -39,7 +39,7 @@ pub fn jolt(age: f64, u: f64) -> Pt {
 /// One set of three slashes, the top one first: each rips down in GROW with a hot point leading it,
 /// holds, then frays away.
 pub fn strike(c: &Claw, p: &mut Frame, age: f64) {
-    if age < 0.0 || age > 0.07 + GROW + HOLD + FRAY {
+    if !(0.0..=0.07 + GROW + HOLD + FRAY).contains(&age) {
         return;
     }
     let (u, length) = (c.u, LENGTH * c.u);
@@ -108,7 +108,7 @@ pub fn puff(p: &mut Frame, age: f64, centre: Pt, puff: &[[f64; 4]], u: f64) {
 /// 演说家遇袭 top right, as the game shows it: up from below, the newspaper tossed up wobbling, the
 /// words coming into focus over the dark band; held; then it rises a little and is gone.
 pub fn notice(c: &Claw, p: &mut Frame, age: f64, right_middle: Pt) {
-    if age < 0.0 || age > NOTICE_HOLD + NOTICE_OUT {
+    if !(0.0..=NOTICE_HOLD + NOTICE_OUT).contains(&age) {
         return;
     }
     let (u, n, tex) = (c.u, &c.notice, c.tex.notice);

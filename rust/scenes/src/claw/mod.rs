@@ -14,8 +14,11 @@ pub mod glyphs;
 pub mod gpu;
 pub mod light;
 pub mod marks;
+pub mod marks_art;
 pub mod rng;
 mod strike;
+#[cfg(test)]
+mod parity;
 
 use art::{Notice, Slash, LENGTH, SOFT, THICK};
 use frame::Frame;
@@ -267,4 +270,22 @@ impl Claw {
 /// How thick the fog is: rolling in, then clearing.
 fn fog_level(t: f64) -> f64 {
     ease_out(win(t, FOG_IN.0, FOG_IN.1)) * (1.0 - ease_in_out(win(t, FOG_OUT.0, FOG_OUT.1)))
+}
+
+/// The sample stage's twelve name boxes at 1920x1080 (love_scenes.sample_stage(1920, 1080).names()).
+pub fn seats_1920() -> [[f64; 4]; 12] {
+    [
+        [203.52, 525.96, 275.52, 43.2],
+        [502.08, 528.12, 247.104, 39.96],
+        [772.224, 521.64, 230.4, 48.6],
+        [1025.856, 524.88, 241.92, 45.36],
+        [1307.52, 524.88, 232.32, 47.52],
+        [1570.56, 525.96, 232.32, 44.28],
+        [232.32, 839.16, 248.64, 43.2],
+        [504.0, 835.92, 241.344, 48.6],
+        [775.68, 835.92, 236.16, 47.52],
+        [1040.64, 834.84, 236.16, 45.36],
+        [1301.76, 839.16, 241.92, 42.12],
+        [1566.72, 838.08, 272.64, 43.2],
+    ]
 }

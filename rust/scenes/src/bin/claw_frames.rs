@@ -12,26 +12,12 @@ use std::time::Instant;
 use image::RgbaImage;
 use scenes::claw::frame::Frame;
 use scenes::claw::gpu::Renderer;
+use scenes::claw::marks::{Marks, Sizes};
 use scenes::claw::{Claw, DURATION};
 
 const W: u32 = 1920;
 const H: u32 = 1080;
 const TIMES: [f64; 7] = [0.5, 1.5, 3.0, 3.1, 3.4, 4.0, 5.3];
-/// The sample stage's twelve name boxes at 1920x1080 (love_scenes.sample_stage(1920, 1080).names()).
-pub const SEATS: [[f64; 4]; 12] = [
-    [203.52, 525.96, 275.52, 43.2],
-    [502.08, 528.12, 247.104, 39.96],
-    [772.224, 521.64, 230.4, 48.6],
-    [1025.856, 524.88, 241.92, 45.36],
-    [1307.52, 524.88, 232.32, 47.52],
-    [1570.56, 525.96, 232.32, 44.28],
-    [232.32, 839.16, 248.64, 43.2],
-    [504.0, 835.92, 241.344, 48.6],
-    [775.68, 835.92, 236.16, 47.52],
-    [1040.64, 834.84, 236.16, 45.36],
-    [1301.76, 839.16, 241.92, 42.12],
-    [1566.72, 838.08, 272.64, 43.2],
-];
 
 fn main() -> Result<(), String> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -42,7 +28,7 @@ fn main() -> Result<(), String> {
     println!("adapter: {}", gpu.adapter);
     let (w, h) = (f64::from(W), f64::from(H));
     let start = Instant::now();
-    let mut scene = Claw::new(w, h, Claw::sample_gap(w, h), &SEATS, &assets)?;
+    let mut scene = Claw::new(w, h, Claw::sample_gap(w, h), &scenes::claw::seats_1920(), &assets)?;
     println!("pictures made in {:.0} ms", start.elapsed().as_secs_f64() * 1000.0);
     scene.upload(&mut gpu);
     let backdrop = gpu.add(W as usize, H as usize, lobby.as_raw());
@@ -66,6 +52,7 @@ fn main() -> Result<(), String> {
         side_by_side(&theirs, &ours).save(dir.join(format!("side_t{t:.1}.png"))).map_err(|e| e.to_string())?;
         crop(&theirs, &ours, 560, 300, 800, 380).save(dir.join(format!("crop_t{t:.1}.png"))).map_err(|e| e.to_string())?;
     }
+    marks(&dir, &assets)?;
     let mut spent = Vec::new();
     let mut t = 0.0;
     while t <= DURATION {
@@ -77,6 +64,32 @@ fn main() -> Result<(), String> {
     spent.sort_by(f64::total_cmp);
     println!("frame (build + draw + wait): median {:.1} ms, worst {:.1} ms at {W}x{H}", spent[spent.len() / 2], spent[spent.len() - 1]);
     Ok(())
+}
+
+/// The marks over a dark ground beside claw/py_marks.png (the boxes py_frames.py draws them in).
+fn marks(dir: &Path, assets: &Path) -> Result<(), String> {
+    let (w, h) = (512u32, 320u32);
+    let mut gpu = Renderer::new(w, h)?;
+    let mut m = Marks::new(&Sizes { cover_h: 80.0, badge: 60.0, card: [260.0, 140.0], lead: 24.0 }, 1.0, assets)?;
+    m.upload(&mut gpu);
+    let mut f = Frame::default();
+    f.rect([0.0, 0.0, f64::from(w), f64::from(h)], &scenes::prim::solid("#30343c", 1.0));
+    m.ring(&mut f, [40.0, 40.0, 300.0, 80.0], 2.0);
+    m.badge(&mut f, [380.0, 50.0, 60.0, 60.0], 2.0);
+    m.card(&mut f, [40.0, 150.0, 260.0, 140.0], 2.0);
+    for i in 0..2 {
+        m.lead(&mut f, [330.0 + 40.0 * i as f64, 200.0], i);
+    }
+    gpu.render(None, &f);
+    let full = RgbaImage::from_raw(w, h, gpu.read()).ok_or("short read")?;
+    let ours = image::imageops::crop_imm(&full, 0, 0, 480, 320).to_image();
+    let theirs = image::open(dir.join("py_marks.png")).map_err(|e| e.to_string())?.to_rgba8();
+    let (mean, over8, over32, psnr) = compare(&ours, &theirs);
+    println!("marks: {mean:.2}/255, >8: {over8:.2} %, >32: {over32:.3} %, PSNR {psnr:.1} dB");
+    let mut out = RgbaImage::new(960, 320);
+    image::imageops::replace(&mut out, &theirs, 0, 0);
+    image::imageops::replace(&mut out, &ours, 480, 0);
+    out.save(dir.join("side_marks.png")).map_err(|e| e.to_string())
 }
 
 /// Mean absolute difference per channel, the share of pixels off by more than 8 and 32 on any
