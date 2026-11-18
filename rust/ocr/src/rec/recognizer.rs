@@ -16,12 +16,7 @@ use super::prepare::bytes;
 use super::{ctc, Read, Result};
 
 /// Threads like paths.ocr_threads: one per physical core, 2 to 8, unless PADDLE_PDX_CPU_NUM_THREADS sets a count.
-pub fn ocr_threads() -> usize {
-    match std::env::var("PADDLE_PDX_CPU_NUM_THREADS").ok().and_then(|v| v.parse::<usize>().ok()) {
-        Some(count) if count > 0 => count,
-        _ => num_cpus::get_physical().clamp(2, 8),
-    }
-}
+pub use common::paths::ocr_threads;
 
 #[derive(Deserialize)]
 struct Config {
