@@ -32,7 +32,7 @@ pub fn bottom_text_band(rgb: &Mat) -> Result<Mat> {
     let need = 4.max((cols as f64 * 0.03) as usize);
     let active: Vec<bool> = data
         .chunks_exact(cols * 3)
-        .map(|row| row.chunks_exact(3).filter(|px| px[0].max(px[1]).max(px[2]) >= 150).count() > need)
+        .map(|row| row.as_chunks::<3>().0.iter().filter(|px| px[0].max(px[1]).max(px[2]) >= 150).count() > need)
         .collect();
     let mut groups: Vec<(usize, usize)> = Vec::new();
     let mut start = None;

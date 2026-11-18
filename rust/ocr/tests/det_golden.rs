@@ -34,7 +34,7 @@ fn read_bgr(path: &Path) -> Mat {
     let info = reader.next_frame(&mut buf).unwrap();
     assert_eq!(info.color_type, png::ColorType::Rgb, "{}", path.display());
     let mut bgr = buf[..info.buffer_size()].to_vec();
-    bgr.chunks_exact_mut(3).for_each(|px| px.swap(0, 2));
+    bgr.as_chunks_mut::<3>().0.iter_mut().for_each(|px| px.swap(0, 2));
     let flat = Mat::new_rows_cols_with_data(info.height as i32, (info.width * 3) as i32, &bgr).unwrap();
     flat.reshape(3, info.height as i32).unwrap().try_clone().unwrap()
 }

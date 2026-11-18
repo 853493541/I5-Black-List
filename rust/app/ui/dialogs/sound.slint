@@ -1,0 +1,201 @@
+// The sound views: ui_sound_trim.py's Waveform and SoundTrimDialog (选择片段), and ui_soundwave.py's SoundWave,
+// the bars that rise and fall after a ▶ while a sound plays. They draw what src/dialogs/trim.rs works out.
+
+import { Palette } from "../theme.slint";
+import { Stage, Tones, DialogCard, DialogBody, DialogFooter, DialogButton, Spread } from "frame.slint";
+
+// The whole sound as a 560 x 104 strip: the window over the part picked, the sound one bar per pixel, the
+// playhead. Times are in seconds; peaks are each column's loudest sample, 0 to 1.
+export component Waveform inherits Rectangle {
+    in property <[float]> peaks;
+    in property <float> duration;
+    in property <float> start;
+    in property <float> length;
+    in property <float> playhead;
+    // Where 试听 is in the part; below 0 while it is not playing.
+    in property <float> trial: -1;
+    in property <bool> dark;
+    in property <Palette> p;
+    in property <Tones> t;
+    // A press, a drag and a let-go, at x px from the strip's left.
+    callback pressed(length);
+    callback dragged(length);
+    callback released(length);
+    property <length> inset: 8px;
+    property <length> wide: self.width - 2 * inset;
+    property <length> left: inset + (duration > 0 ? wide * start / duration : 0px);
+    property <length> right: inset + (duration > 0 ? wide * (start + length) / duration : 0px);
+    property <color> within: dark ? root.p.accent-wash : #eef3f9;
+    property <color> beyond: dark ? root.t.surface-alt : #d1dce7;
+    property <color> faint: dark ? #4a515c : #97a5b4;
+    property <length> middle: self.height / 2;
+    property <length> column: peaks.length > 0 ? wide / peaks.length : 1px;
+    width: 560px;
+    height: 104px;
+    border-radius: 8px;
+    border-width: 1px;
+    border-color: root.p.border;
+    background: beyond;
+    clip: true;
+    Rectangle { x: left; y: 0; width: right - left; height: parent.height; background: within; }
+    for loud[i] in peaks: Rectangle {
+        x: inset + i * column;
+        y: middle - max(0.5px, loud * (middle - 10px));
+        width: column;
+        height: 2 * max(0.5px, loud * (middle - 10px));
+        background: left <= self.x + column / 2 && self.x + column / 2 <= right ? root.p.accent-line : faint;
+    }
+    for edge in [left, right]: Rectangle {
+        x: edge - 1px;
+        width: 2px;
+        background: root.p.accent-line;
+    }
+    for edge in [left, right]: Rectangle {
+        x: edge - 3.5px;
+        y: middle - 13px;
+        width: 7px;
+        height: 26px;
+        border-radius: 3.5px;
+        border-width: 1.5px;
+        border-color: root.p.accent-line;
+        background: root.p.surface;
+    }
+    if trial >= 0: Rectangle {
+        x: inset + (duration > 0 ? wide * min(trial, start + length) / duration : 0px) - 0.75px;
+        width: 1.5px;
+        background: root.p.accent-line;
+    }
+    Rectangle {
+        x: inset + (duration > 0 ? wide * min(max(playhead, 0), duration) / duration : 0px) - 0.75px;
+        width: 1.5px;
+        background: root.p.text;
+    }
+    touch := TouchArea {
+        pointer-event(event) => {
+            if event.kind == PointerEventKind.down && event.button == PointerEventButton.left {
+                root.pressed(self.mouse-x);
+            } else if event.kind == PointerEventKind.up && event.button == PointerEventButton.left {
+                root.released(self.mouse-x);
+            }
+        }
+        moved => { if self.pressed { root.dragged(self.mouse-x); } }
+    }
+}
+
+// 选择片段: the part of a sound longer than five seconds that a 场景 plays.
+export component SoundTrimDialog inherits Stage {
+    in property <string> file-name;
+    in property <[float]> peaks;
+    in property <float> duration;
+    in property <float> start;
+    in property <float> length;
+    in property <float> playhead;
+    in property <float> trial: -1;
+    in property <bool> running;
+    in property <bool> previewing;
+    in property <bool> muted;
+    in property <string> why;
+    in property <string> where;
+    in property <string> cut-label: "截取刚听到的 5 秒";
+    in property <string> nudge-label: "微调 0.1 秒";
+    out property <length> card-height: card.preferred-height;
+    out property <length> card-width: card.width;
+    callback closed();
+    callback pressed(length);
+    callback dragged(length);
+    callback released(length);
+    callback toggle-song();
+    callback cut();
+    callback nudge(int);
+    callback toggle-preview();
+    callback ok();
+    title: "选择片段";
+    card := DialogCard {
+        width: 608px;
+        height: self.preferred-height;
+        x: (root.width - self.width) / 2;
+        y: max(0px, (root.height - self.height) / 2);
+        title: "选择片段";
+        p: root.p;
+        close => { root.closed(); }
+        DialogBody {
+            Text { text: file-name; font-size: 14px; font-weight: 600; color: root.p.text; overflow: elide; }
+            Waveform {
+                peaks: peaks;
+                duration: duration;
+                start: start;
+                length: length;
+                playhead: playhead;
+                trial: trial;
+                dark: root.dark;
+                p: root.p;
+                t: root.t;
+                pressed(x) => { root.pressed(x); }
+                dragged(x) => { root.dragged(x); }
+                released(x) => { root.released(x); }
+            }
+            HorizontalLayout {
+                spacing: 12px;
+                DialogButton {
+                    label: running ? "暂停" : "播放";
+                    glyph: running ? "pause" : "play";
+                    enabled: !muted;
+                    p: root.p;
+                    t: root.t;
+                    clicked => { root.toggle-song(); }
+                }
+                DialogButton { label: cut-label; p: root.p; t: root.t; clicked => { root.cut(); } }
+                Text { text: why; font-size: 12px; color: root.p.red; vertical-alignment: center; }
+                Spread { }
+                Text { text: where; font-size: 12px; color: root.p.muted; vertical-alignment: center; }
+            }
+            HorizontalLayout {
+                spacing: 8px;
+                DialogButton { glyph: "back"; p: root.p; t: root.t; clicked => { root.nudge(-1); } }
+                DialogButton { glyph: "play"; p: root.p; t: root.t; clicked => { root.nudge(1); } }
+                Text { text: nudge-label; font-size: 12px; color: root.p.muted; vertical-alignment: center; }
+                Spread { }
+                DialogButton {
+                    label: previewing ? "停止" : "试听";
+                    glyph: previewing ? "stop" : "play";
+                    enabled: !muted;
+                    p: root.p;
+                    t: root.t;
+                    clicked => { root.toggle-preview(); }
+                }
+            }
+        }
+        DialogFooter {
+            p: root.p;
+            Spread { }
+            DialogButton { label: "确定"; kind: "primary"; p: root.p; t: root.t; clicked => { root.ok(); } }
+        }
+    }
+}
+
+// Five bars in the accent, each levels[i] (0.2 to 1) of the 18 px room, while a sound plays.
+export component SoundWave inherits Rectangle {
+    in property <[float]> levels;
+    in property <Palette> p;
+    property <length> bar: 3.6px;
+    property <length> gap: (30px - 5 * bar) / 4;
+    width: 30px;
+    height: 18px;
+    for level[i] in levels: Rectangle {
+        x: i * (bar + gap);
+        y: (parent.height - self.height) / 2;
+        width: bar;
+        height: max(bar, level * parent.height);
+        border-radius: bar / 2;
+        background: root.p.accent;
+    }
+}
+
+// SoundWave alone on a card-coloured ground, for its pictures and tests.
+export component SoundWaveView inherits Stage {
+    in property <[float]> levels: [0.4, 0.9, 0.6, 1.0, 0.3];
+    preferred-width: 46px;
+    preferred-height: 34px;
+    background: root.p.surface;
+    SoundWave { levels: levels; p: root.p; }
+}

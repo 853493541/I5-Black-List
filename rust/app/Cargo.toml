@@ -27,8 +27,13 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 data = { path = "../data" }
 lobby = { path = "../lobby" }
 win = { path = "../win" }
+common = { path = "../common" }
+caseless = "0.2"
+pinyin = "0.10"
+unicode-normalization = "0.1"
 
 [dev-dependencies]
+serde_json = "1"
 tempfile = "3"
 image = { version = "0.25", default-features = false, features = ["jpeg"] }
 

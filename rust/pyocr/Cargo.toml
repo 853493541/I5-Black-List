@@ -1,0 +1,22 @@
+[package]
+name = "pyocr"
+version = "0.1.0"
+edition.workspace = true
+description = "The ocr crate's reader for Python, so tools/engine_bench.py can prove it reads as blacklist_detect/onnx_ocr.py"
+
+[lib]
+name = "pyocr"
+crate-type = ["cdylib", "rlib"]
+# An extension module links against the interpreter that loads it: there is nothing to link a test binary to.
+test = false
+doctest = false
+
+[dependencies]
+ocr = { path = "../ocr" }
+numpy = "0.26"
+opencv = { version = "0.102", default-features = false, features = ["imgproc", "imgcodecs"] }
+ort = { version = "=2.0.0-rc.15", default-features = false, features = ["load-dynamic", "ndarray", "std"] }
+pyo3 = { version = "0.26", features = ["extension-module", "abi3-py39", "generate-import-lib"] }
+
+[lints]
+workspace = true

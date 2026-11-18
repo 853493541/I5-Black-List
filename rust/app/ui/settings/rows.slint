@@ -1,0 +1,104 @@
+// The parts of 设置: a catalog row on the left, and one setting's row on the right (ui_kit.SettingsCatalog and
+// SettingsRow). What each row says and holds comes from Rust (src/settings/rows.rs), so it is the Python wording.
+
+import { Palette } from "../theme.slint";
+import { ChoiceBox, Icon } from "../kit.slint";
+
+// A section of the catalog: 常规, 帮助 or 关于.
+export struct SectionData {
+    key: string,
+    title: string,
+    icon: string,
+}
+
+// One setting. kind: "choice" (a dropdown, its default first), "button" or "danger" (the red 清空).
+export struct RowData {
+    section: string,
+    first: bool,
+    key: string,
+    name: string,
+    description: string,
+    kind: string,
+    choices: [string],
+    value: string,
+    label: string,
+    note: string,
+    enabled: bool,
+}
+
+// stub: ui-kit. kit.slint's PlainButton with a clicked callback, until ui-kit gives it one.
+export component ActionButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> danger;
+    in property <bool> enabled: true;
+    in property <Palette> p;
+    callback clicked;
+    height: 32px;
+    width: words.preferred-width + 28px;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: danger ? p.danger : touch.has-hover && enabled ? p.accent-line : p.border;
+    background: touch.has-hover && enabled ? p.hover : p.surface;
+    accessible-role: button;
+    accessible-label: label;
+    words := Text { text: label; font-size: 14px; color: !enabled ? p.muted : danger ? p.danger : p.text; }
+    touch := TouchArea { enabled: enabled; clicked => { root.clicked(); } }
+}
+
+export component CatalogRow inherits Rectangle {
+    in property <string> label;
+    in property <string> icon;
+    in property <bool> chosen;
+    in property <Palette> p;
+    callback clicked;
+    height: 36px;
+    border-radius: 6px;
+    background: chosen ? p.selected : touch.has-hover ? p.hover : transparent;
+    accessible-role: list-item;
+    accessible-label: label;
+    Icon { x: 12px; y: 9px; name: icon; size: 18px; tone: chosen ? p.text : p.muted; }
+    Text { x: 40px; y: (parent.height - self.height) / 2; text: label; font-size: 14px; color: p.text; }
+    touch := TouchArea { clicked => { root.clicked(); } }
+}
+
+// The name (and its gray line where the name alone does not say it) on the left, the control on the right.
+export component SettingRow inherits Rectangle {
+    in property <RowData> data;
+    in property <Palette> p;
+    callback chosen(string, string);
+    callback pressed(string);
+    min-height: 56px;
+    HorizontalLayout {
+        padding-top: 12px;
+        padding-bottom: 12px;
+        spacing: 12px;
+        VerticalLayout {
+            alignment: center;
+            spacing: 0px;
+            Text { text: data.name; font-size: 14px; color: p.text; }
+            if data.description != "": Text { text: data.description; font-size: 12px; color: p.muted; }
+        }
+        if data.note != "": Text {
+            vertical-alignment: center;
+            horizontal-alignment: right;
+            text: data.note;
+            font-size: 12px;
+            color: p.muted;
+            overflow: elide;
+        }
+        if data.kind == "choice": ChoiceBox {
+            choices: data.choices;
+            value: data.value;
+            enabled: data.enabled;
+            p: p;
+            chosen(v) => { root.chosen(data.key, v); }
+        }
+        if data.kind != "choice": ActionButton {
+            label: data.label;
+            danger: data.kind == "danger";
+            enabled: data.enabled;
+            p: p;
+            clicked => { root.pressed(data.key); }
+        }
+    }
+}

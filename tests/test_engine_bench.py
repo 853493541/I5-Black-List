@@ -151,3 +151,53 @@ def test_reference_lobby_reads_the_same_on_every_engine(tmp_path, capsys, monkey
     assert "onnxruntime: PASS, names identical 12/12" in text
     assert "openvino: PASS, names identical 12/12" in text
     assert "app-onnxruntime: PASS, names identical 12/12" in text
+
+
+def _rust_models() -> Path | None:
+    """The ONNX model folders the Rust reader reads (BLACKLIST_DETECT_MODEL_DIR), when it and they are here."""
+    root = Path(os.environ.get("BLACKLIST_DETECT_MODEL_DIR", "missing"))
+    needed = ("pyocr", "onnxruntime", "cv2")
+    folders = ("PP-OCRv5_mobile_det", "PP-OCRv5_mobile_rec", "PP-OCRv6_medium_rec")
+    if all(importlib.util.find_spec(name) for name in needed) and all((root / f / "inference.onnx").exists() for f in folders):
+        return root
+    return None
+
+
+def test_rust_is_an_engine_choice(tmp_path, monkeypatch):
+    from tools import engine_bench
+
+    monkeypatch.setenv("ORT_DYLIB_PATH", str(tmp_path / "onnxruntime.dll"))
+    assert engine_bench.RUST == "rust"
+    assert engine_bench.ort_library() == tmp_path / "onnxruntime.dll"
+    with pytest.raises(SystemExit):
+        main([str(FIXTURE), str(tmp_path), "--engines", "rust-nope"])
+
+
+@pytest.mark.skipif(_rust_models() is None, reason="the Rust reader (rust/pyocr), ONNX Runtime or the ONNX models are not here")
+def test_rust_reads_the_reference_lobby_as_the_python_onnx_reader(tmp_path, capsys, monkeypatch):
+    import json
+    from dataclasses import asdict
+
+    from blacklist_detect.onnx_ocr import OnnxOcr
+    from blacklist_detect.pipeline import load_rgb
+    from tools.engine_bench import app_engine, read_image, rust_engine
+
+    models = _rust_models()
+    for name in ("APPDATA", "PADDLE_PDX_CPU_NUM_THREADS", "PADDLE_PDX_MODEL_SOURCE"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("APPDATA", str(tmp_path / "data"))
+    # The full read of the frame: every line's text, box and score as OnnxOcr.predict gives them.
+    bgr = load_rgb(FIXTURE)[:, :, ::-1].copy()
+    want = OnnxOcr(models / "PP-OCRv5_mobile_det", models / "PP-OCRv5_mobile_rec").predict(bgr)[0]
+    have = rust_engine(models)._ensure().predict(bgr)[0]
+    assert have["rec_texts"] == want["rec_texts"] and len(want["rec_texts"]) > 12
+    assert [list(b) for b in have["rec_boxes"]] == [list(b) for b in want["rec_boxes"]]
+    assert np.allclose(have["rec_scores"], want["rec_scores"], rtol=0, atol=1e-4)
+    # The app's check through the tool, the Python ONNX reader's names as the reference.
+    reference = tmp_path / "python-onnx.json"
+    reference.write_text(json.dumps([asdict(read_image(app_engine("onnxruntime", models), FIXTURE, 1))], ensure_ascii=False), "utf-8")
+    args = [str(FIXTURE), str(tmp_path / "out"), "--engines", "rust", "--reference", str(reference), "--onnx-models", str(models)]
+    assert main([*args, "--repeat", "1"]) == 0
+    text = capsys.readouterr().out
+    assert "rust: PASS, names identical 12/12" in text
+    assert "within 0.0001" in text

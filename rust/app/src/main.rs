@@ -16,11 +16,35 @@ use std::process::ExitCode;
 use std::rc::Rc;
 use std::time::Duration;
 
+// The UI areas, each its own package's; the shell's MainWindow takes their pages.
+// stub: shell (the pages are put into MainWindow by the next wiring round)
+mod dialogs;
+mod guestedit;
+mod guests;
+#[allow(dead_code)]
+mod kit;
+mod list;
+mod notices;
+#[allow(dead_code)]
+mod settings;
+mod shell;
+mod stream;
+
 slint::include_modules!();
 
 fn main() -> ExitCode {
+    // The OCR's own thread count (paths.ocr_threads); the one this copy was started with is only logged.
+    let inherited = std::env::var("OMP_NUM_THREADS").ok();
+    std::env::set_var("OMP_NUM_THREADS", common::paths::ocr_threads().to_string());
     // v1.0.1's launcher starts runtime\模仿者小工具.exe as "-m blacklist_detect [args]" (rust-switchover.md).
     let args = data::update::switchover::app_args(std::env::args().skip(1));
+    if args.first().map(String::as_str) == Some("--wgc") {
+        // diagnose.ask_in_child: whether Windows lets another process copy these windows.
+        for line in wgc_answers(&args[1..]) {
+            println!("{line}");
+        }
+        return ExitCode::SUCCESS;
+    }
     let options = Options::parse(&args);
     let started = match startup::start(&options) {
         Ok(Outcome::Run(started)) => started,
@@ -30,6 +54,10 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+    if let Some(threads) = &inherited {
+        started.log.info(&format!("Started with OMP_NUM_THREADS={threads} from the program that started it; dropped."));
+    }
+    started.log.info(&format!("OCR threads: {}", common::paths::ocr_threads()));
     if options.quit_after_start {
         started.log.info("Start-up done; quitting (--quit-after-start).");
         startup::finish(&started, 0);
@@ -42,6 +70,16 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+#[cfg(windows)]
+fn wgc_answers(windows: &[String]) -> Vec<String> {
+    win::wgc::answer_lines(windows, &win::wgc::capture::answer)
+}
+
+#[cfg(not(windows))]
+fn wgc_answers(windows: &[String]) -> Vec<String> {
+    win::wgc::answer_lines(windows, &|_| None)
 }
 
 /// The 检查 and 场景 hotkeys of 设置, registered on the window's thread.

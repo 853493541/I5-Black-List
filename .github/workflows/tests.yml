@@ -1,8 +1,36 @@
 name: tests
 
+# The Python app's suite: only for pushes that touch the Python app, its tests or tools (not the Rust work).
 on:
   push:
+    paths:
+      - "blacklist_detect/**"
+      - "tests/**"
+      - "tools/**"
+      - "!tools/rust_*"
+      - "build/**"
+      - "!build/make_rust_release.py"
+      - "*.py"
+      - "requirements*.txt"
+      - "pyproject.toml"
+      - ".github/workflows/tests.yml"
   pull_request:
+    paths:
+      - "blacklist_detect/**"
+      - "tests/**"
+      - "tools/**"
+      - "!tools/rust_*"
+      - "build/**"
+      - "!build/make_rust_release.py"
+      - "*.py"
+      - "requirements*.txt"
+      - "pyproject.toml"
+      - ".github/workflows/tests.yml"
+
+# Many branches push at once: a newer push to a branch cancels its older run instead of queueing behind it.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:

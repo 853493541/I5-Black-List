@@ -1,0 +1,39 @@
+name: rust-stage
+
+# The stage crate alone (rust/stage), so its Windows window is proven on WARP even while the whole
+# workspace's build waits on OpenCV on the runners. The master may fold this into rust.yml.
+on:
+  push:
+    branches: ["feature/rust-stage"]
+
+# Many branches push at once: a newer push to a branch cancels its older run instead of queueing behind it.
+concurrency:
+  group: rust-stage-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  stage:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: rust
+    env:
+      CARGO_TERM_COLOR: always
+      # Images with Visual Studio 18 (MSVC 14.52) ship an STL that rejects the runner's older libclang, which the
+      # opencv crate parses headers with ("STL1000: expected Clang 22"); harmless elsewhere.
+      OPENCV_CLANG_ARGS: -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH
+      RUST_BACKTRACE: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Test
+        run: cargo test -p stage -- --nocapture --test-threads=1
+      - name: Clippy
+        run: cargo clippy -p stage --all-targets -- -D warnings

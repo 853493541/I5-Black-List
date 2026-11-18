@@ -8,6 +8,7 @@ wgpu = "25"
 pollster = "0.4"
 bytemuck = { version = "1", features = ["derive"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
+ab_glyph = "0.2"
 
 [lints]
 workspace = true
