@@ -8,6 +8,7 @@
 #![deny(unsafe_code)]
 
 mod dialogs;
+mod guestedit;
 mod headless;
 
 use std::path::PathBuf;

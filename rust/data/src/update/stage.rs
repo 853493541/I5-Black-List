@@ -19,8 +19,7 @@ pub const TRIES: &str = "update.tries";
 pub const MAX_TRIES: i64 = 2;
 pub const TRIES_FORGET_S: f64 = 600.0;
 /// names.LAUNCHERS and names.PROCESSES: what an update may put in the folder besides the app.
-pub const LAUNCHERS: [&str; 2] = ["模仿者小工具.exe", "黑名单检测.exe"];
-pub const PROCESSES: [&str; 2] = ["模仿者小工具.exe", "I5黑名单.exe"];
+pub use common::names::{LAUNCHERS, PROCESSES};
 const ALLOWED_DIR: &str = "blacklist_detect";
 
 /// PurePosixPath(name).parts: "/" for a leading slash, then the parts, without empty ones and ".".
