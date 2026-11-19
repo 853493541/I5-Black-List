@@ -38,6 +38,8 @@ user32.SendMessageTimeoutW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WP
 FOLDER = "BlackListDetect-RustPreview"
 # The title bar's own buttons and what would end the run or close the window under test.
 SKIP = {"退出", "清空数据", "最小化", "关闭", "Minimize", "Maximize", "Restore", "Close", "还原", "最大化"}
+# In the 检查 panel, which any click outside it folds away: tested on their own, the panel opened first.
+PANEL = {"显示说明", "直播模式说明", "快捷键"}
 SEGMENTS = {"基础模式", "完整模式", "自动", "手动", "关闭", "开启"}
 GW_HWNDNEXT, GA_ROOT = 2, 2
 WS_EX = {0x8: "TOPMOST", 0x20: "TRANSPARENT", 0x80: "TOOLWINDOW", 0x80000: "LAYERED", 0x8000000: "NOACTIVATE",
@@ -349,7 +351,7 @@ def click_pages(app: App) -> None:
 def click_buttons(app: App, page: str = "") -> None:
     buttons = []
     for control, _depth in auto.WalkControl(app.main, maxDepth=30):
-        if control.ControlTypeName == "ButtonControl" and control.Name not in SKIP:
+        if control.ControlTypeName == "ButtonControl" and control.Name not in SKIP | PANEL:
             r = control.BoundingRectangle
             if r.width() > 2 and r.height() > 2:
                 buttons.append((control.Name, center(control)))
@@ -382,11 +384,12 @@ def click_buttons(app: App, page: str = "") -> None:
                f"under the click: {where}")
 
 
-def open_dialog(app: App) -> None:
+def open_dialog(app: App, name: str = "显示说明") -> None:
+    app.front()
     app.open_panel()
-    info = app.main.ButtonControl(Name="显示说明", searchDepth=30)
+    info = app.main.ButtonControl(Name=name, searchDepth=30)
     if not info.Exists(3, 0.5):
-        record("dialog 显示说明", False, "UIAutomation does not see the button")
+        record(f"dialog {name}", False, "UIAutomation does not see the button")
         return
     windows = set(own_windows(app.proc.pid))
     click(*center(info))
@@ -395,14 +398,14 @@ def open_dialog(app: App) -> None:
         new = [h for h in own_windows(app.proc.pid) if h not in windows]
         time.sleep(0.3)
     if not new:
-        record("dialog 显示说明 opens", False, "no new window within 5 s")
+        record(f"dialog {name} opens", False, "no new window within 5 s")
         return
-    record("dialog 显示说明 opens", True, window_info(new[0]))
+    record(f"dialog {name} opens", True, window_info(new[0]))
     user32.PostMessageW(new[0], 0x0010, 0, 0)
     end = time.time() + 5
     while time.time() < end and user32.IsWindowVisible(new[0]):
         time.sleep(0.3)
-    record("dialog 显示说明 closes", not user32.IsWindowVisible(new[0]), "")
+    record(f"dialog {name} closes", not user32.IsWindowVisible(new[0]), "")
 
 
 def press_hotkey(app: App) -> None:
@@ -493,6 +496,7 @@ def main() -> int:
         change_segment(app, "基础模式", "safe_mode", True)
         app.snapshot("after-segments")
         open_dialog(app)
+        open_dialog(app, "直播模式说明")
         app.front()
         click_buttons(app)
         click_pages(app)
