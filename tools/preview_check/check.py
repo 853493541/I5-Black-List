@@ -340,6 +340,40 @@ def _aligned(a: dict, b: dict) -> bool:
     return [f.get("file") for f in a.get("frames", [])] == [f.get("file") for f in b.get("frames", [])]
 
 
+def _lobbies(base: dict, rust: dict, base_list: dict, rust_list: dict) -> dict:
+    """The gate's three rules, lobby by lobby: names and 黑名单 marks identical where both apps find the lobby, and no
+    lobby the other app finds missed by Rust. Lobbies only Rust finds are listed (seats read, marks), not failed."""
+    bf, rf = base.get("frames", []), rust.get("frames", [])
+    blf, rlf = base_list.get("frames", []), rust_list.get("frames", [])
+    out = {"shared": 0, "names_differ": [], "missed": [], "marks_differ": [], "rust_only": []}
+    if not bf or len(bf) != len(rf) or not _aligned(base, rust):
+        out["error"] = "not comparable"
+        return out
+    lists = len(blf) == len(bf) and len(rlf) == len(rf)
+    for i, (b, r) in enumerate(zip(bf, rf, strict=True)):
+        rmarks = sorted(rlf[i].get("hits", [])) if lists else []
+        if b["header"] and r["header"]:
+            out["shared"] += 1
+            if b["names"] != r["names"]:
+                out["names_differ"].append(i)
+            if lists and sorted(blf[i].get("hits", [])) != rmarks:
+                out["marks_differ"].append(i)
+        elif b["header"]:
+            out["missed"].append(i)
+        elif r["header"]:
+            out["rust_only"].append({"lobby": i, "seats": r["read"], "marks": len(rmarks)})
+    return out
+
+
+def _lobby_rows(label: str, check: dict) -> list[str]:
+    if check.get("error"):
+        return [f"| Gate vs {label} | {check['error']} | |"]
+    only = ", ".join(f"#{x['lobby']} ({x['seats']} seats, {x['marks']} marked)" for x in check["rust_only"]) or "none"
+    return [f"| Gate vs {label}: lobbies both find / names differ / marks differ / missed by Rust | "
+            f"{check['shared']} / {len(check['names_differ'])} / {len(check['marks_differ'])} / {len(check['missed'])} | |",
+            f"| Lobbies only Rust finds (seats read, 黑名单 seats marked; reported, not failed) | {only} | |"]
+
+
 def _same(a: dict, b: dict) -> tuple[int, int, int, int]:
     """Frames with identical names, frames compared, seats identical, seats compared."""
     af, bf = a.get("frames", []), b.get("frames", [])
@@ -471,6 +505,10 @@ def report(results: Path, out: Path) -> None:
                   + ("; ".join(f"frame {r['frame']} vs {r['vs']}: {r['same']}/{r['seats']} seats same" for r in cc.get("rows", []))
                      or cc.get("error", "no result"))
                   + (f"; engine_bench's own verdicts: {cc['engine_bench']}" if cc.get("engine_bench") else "")]
+    pl, rl = _load(results / "bench-python-list.json"), _load(results / "bench-rust-list.json")
+    lines += ["", "## Gate, lobby by lobby", "", "| | | |", "|---|---|---|",
+              *_lobby_rows("v1.0.1 (names; marks on the made-up 黑名单)", _lobbies(pb, rb, pl, rl)),
+              *_lobby_rows("Python on ONNX Runtime (names)", _lobbies(ob, rb, {}, {}))]
     lines += _seat_breakdown(pb, rb, _load(results / "picked.json"), _load(results / "bench-python-list.json"),
                              _load(results / "bench-rust-list.json"))
     sc = _load(results / "scenes.json")
@@ -542,9 +580,18 @@ def gate(results: Path) -> None:
     elif rb.get("count") == corpus and not _aligned(ob, rb):
         problems.append("Rust and Python on ONNX Runtime read the frames in different orders")
     elif rb.get("count") == corpus:
-        frames, count, _, _ = _same(ob, rb)
-        if frames != count:
-            problems.append(f"names differ from Python on ONNX Runtime on {count - frames} of {corpus} lobbies")
+        # Names identical on every lobby both find; none the other finds missed; 黑名单 marks identical on shared lobbies.
+        # A lobby only Rust finds (a faint header the two-model reader catches) is reported, not failed.
+        pl, rl = _load(results / "bench-python-list.json"), _load(results / "bench-rust-list.json")
+        for label, check in (("Python on ONNX Runtime", _lobbies(ob, rb, {}, {})), ("v1.0.1", _lobbies(pb, rb, pl, rl))):
+            if check.get("error"):
+                problems.append(f"{label}: {check['error']}")
+                continue
+            for key, what in (("names_differ", "names differ"), ("marks_differ", "黑名单 marks differ"),
+                              ("missed", "lobby missed by Rust")):
+                if check[key]:
+                    problems.append(f"{label}: {what} on lobbies {check[key]}")
+            print(f"{label}: shared {check['shared']}, only Rust {check['rust_only']}")
     sc = _load(results / "scenes.json").get("rust", {})
     for key in ["classic", "lace", "stars", "ice", "cyber", "neon", "angel", "equation", "fluffy", "claw", "lyre"]:
         if "median" not in sc.get(key, {}):
