@@ -50,7 +50,9 @@ pub fn assemble(store: &Rc<RefCell<Store>>, install: Option<&Path>, log: &AppLog
         let (library, dirs) = (library.clone(), dirs.clone());
         Box::new(move || PipelineChecker::new(library.clone(), dirs.clone(), common::paths::ocr_threads(), SharedLists::default()))
     };
+    let unzip = dirs.is_none() && super::startup::unzip_first(install);
     let mut checker = PipelineChecker::new(library, dirs, common::paths::ocr_threads(), lists);
+    checker.unzip = unzip;
     let (placed_sender, placed) = channel();
     checker.placed = Some(placed_sender);
     let mut player = Sound::system(assets_dir(install), sounds);

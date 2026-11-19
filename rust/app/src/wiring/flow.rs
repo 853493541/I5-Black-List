@@ -87,7 +87,9 @@ pub struct Problem {
 impl Problem {
     pub fn of(error: &CheckError) -> Problem {
         // 识别还没准备好 and 读不到屏幕 name their step already; 检查失败 says which.
-        let label = if error.models {
+        let label = if error.step == "unzip" {
+            error.message.clone()
+        } else if error.models {
             "识别还没准备好".to_string()
         } else if error.capture {
             "读不到屏幕".to_string()
