@@ -14,7 +14,9 @@ use windows::Win32::Graphics::Gdi::{
     MONITOR_DEFAULTTONEAREST,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
-use windows::Win32::UI::HiDpi::{GetDpiForMonitor, SetThreadDpiAwarenessContext, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, MDT_EFFECTIVE_DPI};
+use windows::Win32::UI::HiDpi::{
+    GetDpiForMonitor, SetThreadDpiAwarenessContext, DPI_AWARENESS_CONTEXT, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, MDT_EFFECTIVE_DPI,
+};
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, GetWindowLongPtrW, RegisterClassExW, SetWindowPos, ShowWindow, UpdateLayeredWindow,
     GWL_EXSTYLE, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SW_HIDE, SW_SHOWNOACTIVATE, ULW_ALPHA, WINDOW_EX_STYLE,
@@ -35,6 +37,31 @@ unsafe extern "system" fn proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPA
     unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
 }
 
+/// Device pixels on every monitor for as long as it lives, and the thread's own DPI awareness back when dropped: the
+/// marks are made and placed in each monitor's own pixels, and the app's UI thread (Slint's windows) keeps its own.
+pub struct DeviceDpi(DPI_AWARENESS_CONTEXT);
+
+impl DeviceDpi {
+    pub fn new() -> DeviceDpi {
+        DeviceDpi(unsafe { SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) })
+    }
+}
+
+impl Default for DeviceDpi {
+    fn default() -> Self {
+        DeviceDpi::new()
+    }
+}
+
+impl Drop for DeviceDpi {
+    fn drop(&mut self) {
+        // A null context: the set failed, and nothing was changed.
+        if !self.0 .0.is_null() {
+            unsafe { SetThreadDpiAwarenessContext(self.0) };
+        }
+    }
+}
+
 /// One layered window. Destroyed when dropped.
 pub struct LayeredWindow {
     hwnd: HWND,
@@ -43,9 +70,9 @@ pub struct LayeredWindow {
 impl LayeredWindow {
     pub fn new() -> Result<LayeredWindow> {
         static CLASS_ONCE: Once = Once::new();
+        // Device pixels on every monitor: the marks are drawn at each monitor's own scale, never stretched.
+        let _dpi = DeviceDpi::new();
         unsafe {
-            // Device pixels on every monitor: the marks are drawn at each monitor's own scale, never stretched.
-            SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
             let instance = GetModuleHandleW(None)?;
             CLASS_ONCE.call_once(|| {
                 let class = WNDCLASSEXW {
@@ -74,6 +101,7 @@ impl LayeredWindow {
     /// Show `pixmap` (premultiplied RGBA) with its top-left at (x, y) device pixels, at `opacity` 0..=255.
     pub fn update(&self, x: i32, y: i32, pixmap: &Pixmap, opacity: u8) -> Result<()> {
         let (w, h) = (pixmap.width() as i32, pixmap.height() as i32);
+        let _dpi = DeviceDpi::new();
         unsafe {
             let screen = GetDC(None);
             let memory = CreateCompatibleDC(Some(screen));
@@ -125,6 +153,7 @@ impl LayeredWindow {
 
     /// Move without redrawing (the game window moved).
     pub fn move_to(&self, x: i32, y: i32) -> Result<()> {
+        let _dpi = DeviceDpi::new();
         unsafe { SetWindowPos(self.hwnd, Some(HWND_TOPMOST), x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE) }
     }
 
@@ -152,6 +181,7 @@ pub fn to_bgra(rgba: &[u8], out: &mut [u8]) {
 
 /// The monitor under `rect` (device pixels): its work area and its scale (1.5 at 150 %).
 pub fn monitor(rect: [i32; 4]) -> ([i32; 4], f32) {
+    let _dpi = DeviceDpi::new();
     unsafe {
         let r = RECT { left: rect[0], top: rect[1], right: rect[2], bottom: rect[3] };
         let handle = MonitorFromRect(&r, MONITOR_DEFAULTTONEAREST);
