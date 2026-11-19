@@ -590,14 +590,15 @@ def eye(app: App) -> None:
     if not button.Exists(2, 0.3):
         record("eye 隐藏名字", False, "UIAutomation does not see the eye")
         return
-    where = app.under(*center(button))
-    click(*center(button))
+    x, y = center(button)
+    where = app.under(x, y)
+    click(x, y)
     time.sleep(1)
     after = app.settings().get("names_hidden", False)
     renamed = app.main.ButtonControl(Name="隐藏名字" if before else "显示名字", searchDepth=30).Exists(1, 0.3)
     record("eye 隐藏名字", after != before, f"names_hidden {before} -> {after}; button renamed {renamed}; under the click: {where}")
     if after != before:
-        click(*center(button))  # back as it was
+        click(x, y)  # back as it was (the old element is gone: the button was renamed)
         time.sleep(0.6)
 
 
@@ -662,6 +663,14 @@ def bare(app: App) -> None:
            f"new windows {[window_info(h) for h in card]}, log line {logged}, log after: {app.log_text()[start:].strip()[-200:]!r}")
 
 
+def guarded(step, app: App, *args) -> None:
+    """One step; an exception in it is a FAIL in the table, and the next steps still run."""
+    try:
+        step(app, *args)
+    except Exception as error:  # noqa: BLE001 - the report must still be written
+        record(f"{step.__name__} crashed", False, repr(error)[:300])
+
+
 def main() -> int:
     exe, home, out = sys.argv[1], Path(sys.argv[2]), Path(sys.argv[3])
     home.mkdir(parents=True, exist_ok=True)
@@ -689,18 +698,18 @@ def main() -> int:
         change_segment(app, "手动", "auto_capture", False)
         change_segment(app, "基础模式", "safe_mode", True)
         app.snapshot("after-segments")
-        open_dialog(app)
-        open_dialog(app, "直播模式说明")
+        guarded(open_dialog, app)
+        guarded(open_dialog, app, "直播模式说明")
         app.front()
-        click_buttons(app)
-        click_pages(app)
-        export_logs(app)
-        settings_sections(app)
-        eye(app)
-        row_menus(app)
+        guarded(click_buttons, app)
+        guarded(click_pages, app)
+        guarded(export_logs, app)
+        guarded(settings_sections, app)
+        guarded(eye, app)
+        guarded(row_menus, app)
         app.front()
-        press_hotkey(app)
-        capture_hotkey(app)
+        guarded(press_hotkey, app)
+        guarded(capture_hotkey, app)
         evidence(app, "at the end")
         app.snapshot("end")
     finally:
