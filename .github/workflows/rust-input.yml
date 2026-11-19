@@ -109,9 +109,49 @@ jobs:
           python -m pip install -q uiautomation==2.0.20 pillow
           python -I rust/app/input_test/drive.py "$GITHUB_WORKSPACE/rust/target/release/blacklist-detect.exe" \
             "$RUNNER_TEMP/input-home" "$RUNNER_TEMP/input-report"
+      - name: Bare checks (what the shipped-v1 job checks, on this build)
+        if: always()
+        working-directory: .
+        run: |
+          python -I rust/app/input_test/drive.py "$GITHUB_WORKSPACE/rust/target/release/blacklist-detect.exe" \
+            "$RUNNER_TEMP/bare-home" "$RUNNER_TEMP/input-report/bare" --bare
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: input-report
           path: ${{ runner.temp }}/input-report
+          retention-days: 14
+
+  # The Nov v1 preview exactly as the player got it (run 44365969758): no build, no UIAutomation, so the bare checks
+  # only. Before the fix it fails the hotkey; it stays here as the red reference and does not fail the workflow.
+  shipped-v1:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    continue-on-error: true
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: 14457038965
+          run-id: 44365969758
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/v1
+      - name: Bare checks on the shipped exe
+        shell: bash
+        run: |
+          python -m pip install -q uiautomation==2.0.20 pillow
+          exe=$(find "$RUNNER_TEMP/v1" -name '*.exe' | head -1)
+          echo "exe: $exe"
+          python -I rust/app/input_test/drive.py "$exe" "$RUNNER_TEMP/v1-home" "$RUNNER_TEMP/v1-report" --bare
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shipped-v1-report
+          path: ${{ runner.temp }}/v1-report
           retention-days: 14

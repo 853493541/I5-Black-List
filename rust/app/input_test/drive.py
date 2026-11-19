@@ -4,9 +4,11 @@ dialog, and presses the 检查 hotkey. Each step is asserted through settings.js
 picture of the window; the evidence (windows under each click, styles, z-order, whether the UI thread answers) goes
 to a report. Silent: BLACKLIST_DETECT_SILENT=1.
 
-    python drive.py <exe> <empty folder for APPDATA> <report folder>
+    python drive.py <exe> <empty folder for APPDATA> <report folder> [--bare]
 
-The exe must be built with the `a11y` feature, so UIAutomation sees its controls.
+The exe must be built with the `a11y` feature, so UIAutomation sees its controls. --bare is for an exe as shipped
+(no UIAutomation tree): only whether clicks on a grid over the window reach it, whether its thread answers, and
+whether the hotkey starts a check (the log line, or a corner card opening).
 """
 
 import ctypes
@@ -356,6 +358,32 @@ def capture_hotkey(app: App) -> None:
     record("new hotkey Alt+2 starts a check", ok, f"log after the press: {app.log_text()[start:].strip()[-300:]!r}")
 
 
+def bare(app: App) -> None:
+    rect = wintypes.RECT()
+    user32.GetWindowRect(app.hwnd, ctypes.byref(rect))
+    missed = []
+    for i in range(1, 6):
+        for j in range(1, 5):
+            x = rect.left + (rect.right - rect.left) * i // 6
+            y = rect.top + 40 + (rect.bottom - rect.top - 40) * j // 5
+            where = app.under(x, y)
+            if where != "main window":
+                missed.append(f"({x},{y}) {where}")
+    record("clicks on a 5x4 grid reach the main window", not missed, "; ".join(missed[:4]) or "all 20 points")
+    hung = bool(user32.IsHungAppWindow(app.hwnd))
+    record("the window's thread answers", answers(app.hwnd) and not hung, f"IsHungAppWindow {hung}")
+    windows = set(own_windows(app.proc.pid))
+    start = len(app.log_text())
+    send(key(0x12), key(0x31), key(0x31, True), key(0x12, True))  # Alt+1
+    end, card = time.time() + 10, []
+    while time.time() < end and not card and "Hotkey: 检查" not in app.log_text()[start:]:
+        card = [h for h in own_windows(app.proc.pid) if h not in windows]
+        time.sleep(0.5)
+    logged = "Hotkey: 检查" in app.log_text()[start:]
+    record("hotkey Alt+1 starts a check", bool(card) or logged,
+           f"new windows {[window_info(h) for h in card]}, log line {logged}, log after: {app.log_text()[start:].strip()[-200:]!r}")
+
+
 def main() -> int:
     exe, home, out = sys.argv[1], Path(sys.argv[2]), Path(sys.argv[3])
     home.mkdir(parents=True, exist_ok=True)
@@ -370,6 +398,10 @@ def main() -> int:
         user32.SetForegroundWindow(app.hwnd)
         app.snapshot("start")
         evidence(app, "after start")
+        if "--bare" in sys.argv[4:]:
+            bare(app)
+            evidence(app, "at the end")
+            return finish(app)
         keys = app.log_text()
         notes.append("hotkey lines in the log: " + repr([ln for ln in keys.splitlines() if "otkey" in ln]))
         # 显示 first (完整模式 lets 方式 pick 自动), then 方式 both ways, then 显示 back.
