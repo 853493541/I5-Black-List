@@ -131,6 +131,7 @@ jobs:
         working-directory: .
         run: |
           git fetch -q --depth=1 origin feature/rust-preview-check
+          mkdir -p rust/app/examples
           git show FETCH_HEAD:rust/app/examples/bench_check.rs > rust/app/examples/bench_check.rs
           echo "commit $(git rev-parse --short HEAD); release profile:"; sed -n '/^\[profile.release\]/,/^$/p' rust/Cargo.toml
       - uses: actions/cache@v4
