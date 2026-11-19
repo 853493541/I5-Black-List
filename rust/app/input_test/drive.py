@@ -37,7 +37,7 @@ user32.SendMessageTimeoutW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WP
 
 FOLDER = "BlackListDetect-RustPreview"
 # The title bar's own buttons and what would end the run or close the window under test.
-SKIP = {"退出", "清空数据", "最小化", "关闭", "Minimize", "Maximize", "Restore", "Close", "还原", "最大化"}
+SKIP = {"退出", "清空数据", "导出", "最小化", "关闭", "Minimize", "Maximize", "Restore", "Close", "还原", "最大化"}
 # In the 检查 panel, which any click outside it folds away: tested on their own, the panel opened first.
 PANEL = {"显示说明", "直播模式说明", "快捷键"}
 SEGMENTS = {"基础模式", "完整模式", "自动", "手动", "关闭", "开启"}
@@ -431,6 +431,52 @@ def press_hotkey(app: App) -> None:
     record("hotkey Alt+1 starts a check", ok, f"log after the press: {tail[-300:]!r}")
 
 
+def open_settings(app: App, section: str) -> bool:
+    """设置, then one section of its catalog (常规, 帮助, 关于)."""
+    app.front()
+    tab = app.main.TabItemControl(Name="设置", searchDepth=30)
+    if not tab.Exists(2, 0.3):
+        return False
+    click(*center(tab))
+    time.sleep(0.8)
+    row = app.main.ListItemControl(Name=section, searchDepth=30)
+    if not row.Exists(2, 0.3):
+        return False
+    click(*center(row))
+    time.sleep(0.8)
+    return True
+
+
+def export_logs(app: App) -> None:
+    """设置 › 帮助 › 导出日志 › 导出: the user named it as dead. A zip must land on the Desktop."""
+    if not open_settings(app, "帮助"):
+        record("导出 (导出日志) writes the logs", False, "设置 › 帮助 not reachable")
+        return
+    button = app.main.ButtonControl(Name="导出", searchDepth=30)
+    if not button.Exists(2, 0.3):
+        record("导出 (导出日志) writes the logs", False, "UIAutomation does not see 导出")
+        return
+    start = len(app.log_text())
+    where = app.under(*center(button))
+    click(*center(button))
+    app.wait_log("Logs ", start, 15)
+    said = app.log_text()[start:]
+    line = next((ln for ln in said.splitlines() if "Logs exported: " in ln), "")
+    path = Path(line.split("Logs exported: ", 1)[1].strip()) if line else None
+    ok = path is not None and path.exists() and path.stat().st_size > 0
+    record("导出 (导出日志) writes the logs", ok, f"file {path} exists {ok}; under the click: {where}; log {said.strip()[-200:]!r}")
+
+
+def settings_sections(app: App) -> None:
+    """Every section of 设置 and every button in it (清空数据 left out; 导出 has its own check)."""
+    for section in ("常规", "帮助", "关于"):
+        if not open_settings(app, section):
+            record(f"设置 › {section}", False, "not reachable")
+            continue
+        record(f"设置 › {section}", True, "shown")
+        click_buttons(app, f"设置/{section}")
+
+
 def capture_hotkey(app: App) -> None:
     """The hotkey box takes a new key as it is pressed (MainWindow._take_hotkey), and the new key starts a check."""
     app.front()
@@ -514,6 +560,8 @@ def main() -> int:
         app.front()
         click_buttons(app)
         click_pages(app)
+        export_logs(app)
+        settings_sections(app)
         app.front()
         press_hotkey(app)
         capture_hotkey(app)
