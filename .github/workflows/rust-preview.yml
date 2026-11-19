@@ -220,3 +220,54 @@ jobs:
           path: ${{ runner.temp }}/preview
           retention-days: 14
           compression-level: 9
+
+  # Every outcome of a hotkey check is visible (rust/app/input_test/check_visible.py), on this run's preview as the
+  # player unzips it: 1920x1080, a whole lobby frame full-screen, Notepad in front, Alt+1; then no models, a junk
+  # onnxruntime.dll, and only an older one on PATH (as Windows ML's in System32). Its own job: the preview job stays
+  # the preview worker's.
+  check-visible:
+    needs: preview
+    runs-on: windows-2022
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    env:
+      # The preview job's APP_NAME (the artifact's name and the folder in it).
+      APP_NAME: 模仿者小工具 Rust 预览 11月 v1
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}
+          path: ${{ runner.temp }}/preview
+      - name: Screen 1920x1080, 125 % asked
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          Set-DisplayResolution -Width 1920 -Height 1080 -Force
+          # 125 %: takes effect only after signing in again, which a runner cannot; the script reports what it got.
+          reg add "HKCU\Control Panel\Desktop" /v LogPixels /t REG_DWORD /d 120 /f
+          reg add "HKCU\Control Panel\Desktop" /v Win8DpiScaling /t REG_DWORD /d 1 /f
+          Add-Type -AssemblyName System.Windows.Forms
+          [System.Windows.Forms.Screen]::AllScreens | Format-List | Out-String | Write-Output
+      - name: An older ONNX Runtime (1.16.3), as Windows ships one
+        run: |
+          python -m pip install -q pillow pefile
+          python -m pip download -q onnxruntime==1.16.3 --no-deps --only-binary=:all: --platform win_amd64 \
+            --python-version 3.11 -d "$RUNNER_TEMP/old-ort"
+          python -c "import zipfile, glob, sys; z = zipfile.ZipFile(glob.glob(sys.argv[1] + '/*.whl')[0]); open(sys.argv[1] + '/onnxruntime.dll', 'wb').write(z.read('onnxruntime/capi/onnxruntime.dll'))" "$RUNNER_TEMP/old-ort"
+      - name: Check visible
+        run: |
+          python -I rust/app/input_test/check_visible.py "$RUNNER_TEMP/preview/$APP_NAME" "$APP_NAME" \
+            "$RUNNER_TEMP/visible-work" "$RUNNER_TEMP/visible-report" "$RUNNER_TEMP/old-ort/onnxruntime.dll"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: check-visible-report
+          path: ${{ runner.temp }}/visible-report
+          retention-days: 14
