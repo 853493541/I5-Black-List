@@ -136,6 +136,10 @@ jobs:
         run: |
           python -I rust/app/input_test/drive.py "$GITHUB_WORKSPACE/rust/target/release/blacklist-detect.exe" \
             "$RUNNER_TEMP/bare-home" "$RUNNER_TEMP/input-report/bare" --bare
+      - name: Failures (the last lines of the log)
+        if: always()
+        working-directory: .
+        run: find "$RUNNER_TEMP/input-report" -name failures.txt -exec cat {} \;
       - uses: actions/upload-artifact@v4
         if: always()
         with:

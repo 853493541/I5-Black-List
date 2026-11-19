@@ -96,6 +96,32 @@ def click(x: int, y: int) -> None:
     send(mouse(0x0002), mouse(0x0004))  # LEFTDOWN, LEFTUP
 
 
+def right_click(x: int, y: int) -> None:
+    move(x, y)
+    time.sleep(0.05)
+    send(mouse(0x0008), mouse(0x0010))  # RIGHTDOWN, RIGHTUP
+
+
+def clipboard() -> str:
+    """The clipboard's text (CF_UNICODETEXT), "" when none."""
+    kernel32 = ctypes.windll.kernel32
+    kernel32.GlobalLock.restype = ctypes.c_void_p
+    user32.GetClipboardData.restype = ctypes.c_void_p
+    if not user32.OpenClipboard(None):
+        return ""
+    try:
+        handle = user32.GetClipboardData(13)
+        pointer = kernel32.GlobalLock(ctypes.c_void_p(handle)) if handle else None
+        if not pointer:
+            return ""
+        try:
+            return ctypes.wstring_at(pointer)
+        finally:
+            kernel32.GlobalUnlock(ctypes.c_void_p(handle))
+    finally:
+        user32.CloseClipboard()
+
+
 def window_info(hwnd: int) -> str:
     title = ctypes.create_unicode_buffer(256)
     user32.GetWindowTextW(hwnd, title, 256)
@@ -179,7 +205,7 @@ class App:
         old = home / "BlackListDetect"
         old.mkdir(parents=True, exist_ok=True)
         (old / "blacklist.json").write_text(
-            json.dumps({"entries": [{"name": "示例坏人", "reason": "", "tags": []}]}, ensure_ascii=False), encoding="utf-8")
+            json.dumps({"entries": [{"name": "示例坏人", "reason": "", "tags": ["挂机"]}]}, ensure_ascii=False), encoding="utf-8")
         # One made-up check in 记录, so its day, time and seat rows are there to click.
         seats = [{"seat": i + 1, "name": name, "unclear": False} for i, name in enumerate(["示例坏人", "心动小鹿", "心动星星"])]
         (old / "history.json").write_text(json.dumps(
@@ -192,6 +218,12 @@ class App:
     def log_text(self) -> str:
         try:
             return self.log.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return ""
+
+    def list_file(self) -> str:
+        try:
+            return (self.data / "blacklist.json").read_text(encoding="utf-8")
         except OSError:
             return ""
 
@@ -467,6 +499,53 @@ def export_logs(app: App) -> None:
     record("导出 (导出日志) writes the logs", ok, f"file {path} exists {ok}; under the click: {where}; log {said.strip()[-200:]!r}")
 
 
+def open_tab(app: App, name: str) -> bool:
+    app.front()
+    tab = app.main.TabItemControl(Name=name, searchDepth=30)
+    if not tab.Exists(2, 0.3):
+        return False
+    click(*center(tab))
+    time.sleep(0.8)
+    return True
+
+
+def menu_item(app: App, kind: str, target: str, item: str, check) -> None:
+    """Right-click the row named `target` (a list item or a button), click `item` in its menu, and ask `check`
+    whether it did what it says. `check(before)` gets the state taken just before the click."""
+    app.front()
+    row = app.main.ListItemControl(Name=target, searchDepth=30) if kind == "row" else app.main.ButtonControl(Name=target, searchDepth=30)
+    if not row.Exists(2, 0.3):
+        record(f"menu {target} › {item}", False, f"no {kind} named {target!r}")
+        return
+    right_click(*center(row))
+    time.sleep(0.8)
+    entry = app.main.ButtonControl(Name=item, searchDepth=30)
+    if not entry.Exists(2, 0.3):
+        record(f"menu {target} › {item}", False, "the menu or its item is not there")
+        send(key(0x1B), key(0x1B, True))
+        return
+    before = {"windows": set(own_windows(app.proc.pid)), "log": len(app.log_text()), "list": app.list_file()}
+    click(*center(entry))
+    time.sleep(1.2)
+    ok, detail = check(before)
+    app.close_extra(before["windows"])
+    send(key(0x1B), key(0x1B, True))
+    record(f"menu {target} › {item}", ok, detail)
+
+
+def row_menus(app: App) -> None:
+    """黑名单: the row's and the tag's right-click menus, every item (删除 last: it takes the row)."""
+    if not open_tab(app, "黑名单"):
+        record("黑名单 row menus", False, "tab not reachable")
+        return
+    opened = lambda before: (bool(set(own_windows(app.proc.pid)) - before["windows"]), "a dialog opened")
+    copied = lambda before: (clipboard() == "示例坏人", f"clipboard {clipboard()!r}")
+    menu_item(app, "row", "示例坏人", "编辑", opened)
+    menu_item(app, "row", "示例坏人", "复制名字", copied)
+    menu_item(app, "button", "挂机", "删除", lambda before: ("挂机" not in app.list_file(), f"blacklist.json: {app.list_file()[:120]!r}"))
+    menu_item(app, "row", "示例坏人", "删除", lambda before: ("示例坏人" not in app.list_file(), f"blacklist.json: {app.list_file()[:120]!r}"))
+
+
 def settings_sections(app: App) -> None:
     """Every section of 设置 and every button in it (清空数据 left out; 导出 has its own check)."""
     for section in ("常规", "帮助", "关于"):
@@ -562,6 +641,7 @@ def main() -> int:
         click_pages(app)
         export_logs(app)
         settings_sections(app)
+        row_menus(app)
         app.front()
         press_hotkey(app)
         capture_hotkey(app)
@@ -586,6 +666,10 @@ def finish(app: App) -> int:
         with open(summary, "a", encoding="utf-8") as f:
             f.write(report + "\n")
     failed = [name for name, ok, _ in results if not ok]
+    # The failures alone, for the last lines of the job's log (the report's own host may be out of reach).
+    with open(app.out / "failures.txt", "a", encoding="utf-8") as f:
+        f.writelines(f"FAIL {name}: {detail[:300]}\n" for name, ok, detail in results if not ok)
+        f.write(f"{len(results) - len(failed)} passed, {len(failed)} failed\n")
     print(f"{len(results) - len(failed)} passed, {len(failed)} failed: {failed}")
     return 1 if failed or not results else 0
 
