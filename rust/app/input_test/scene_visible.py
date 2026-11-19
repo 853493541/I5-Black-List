@@ -35,6 +35,7 @@ user32.SendMessageTimeoutW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WP
 user32.WindowFromPoint.argtypes = [wintypes.POINT]
 user32.WindowFromPoint.restype = wintypes.HWND
 user32.GetForegroundWindow.restype = wintypes.HWND
+user32.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
 STAGE_CLASS = "BlacklistDetectStage"
 
 
@@ -121,11 +122,32 @@ def bring_main(app, lobby) -> int:
     """The main window restored, in front of the lobby (which stops being topmost), in the screen's bottom-right."""
     hwnd = main_window(app.proc.pid)
     lobby.tk.attributes("-topmost", False)
-    user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+    user32.ShowWindow(hwnd, 1)  # SW_SHOWNORMAL: shows it when hidden to the tray, restores it when minimised
+    user32.PostMessageW(hwnd, 0x0112, 0xF120, 0)  # WM_SYSCOMMAND SC_RESTORE, as the taskbar sends it
+    lobby.pump(0.8)
     width, height = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
     user32.SetWindowPos(hwnd, -1, width - 960, height - 640, 0, 0, 0x0001 | 0x0040)  # TOPMOST, NOSIZE | SHOWWINDOW
     lobby.pump(0.8)
+    rect = wintypes.RECT()
+    user32.GetWindowRect(hwnd, ctypes.byref(rect))
+    print(f"  main window: iconic {bool(user32.IsIconic(hwnd))}, visible {bool(user32.IsWindowVisible(hwnd))}, "
+          f"at ({rect.left},{rect.top})-({rect.right},{rect.bottom})")
     return hwnd
+
+
+def z_order(count: int = 8) -> str:
+    """The visible top-level windows from the top, by class (the stage over the lobby, or not)."""
+    found: list[str] = []
+
+    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    def each(hwnd, _):
+        if user32.IsWindowVisible(hwnd) and len(found) < count:
+            topmost = bool(user32.GetWindowLongW(hwnd, -20) & 0x8)  # GWL_EXSTYLE, WS_EX_TOPMOST
+            found.append(f"{class_name(hwnd)}{' (topmost)' if topmost else ''}")
+        return True
+
+    user32.EnumWindows(each, 0)
+    return " > ".join(found)
 
 
 class GUITHREADINFO(ctypes.Structure):
@@ -181,6 +203,10 @@ def run(exe: Path, work: Path, report: Path) -> None:
     app = SceneApp(exe, work / "scene")
     try:
         cv.record("starts, hotkeys registered", cv.started(app, lobby), cv.tail(app)[-200:])
+        # The game is not topmost on a player's PC: the lobby stays in front but under the stage and the marks.
+        lobby.tk.attributes("-topmost", False)
+        lobby.tk.lift()
+        lobby.pump(0.5)
         start = cv.press(app, lobby, notepad)
         shown = app.wait(r"Check 1 shown: [^\n]*", 240, lobby, start)
         cv.record("the check shows the lobby with a 嘉宾", bool(shown) and "Liked" in shown.group(0),
@@ -191,6 +217,7 @@ def run(exe: Path, work: Path, report: Path) -> None:
         if playing is None:
             return
         lobby.pump(0.6)
+        print(f"  z-order mid-scene: {z_order()}")
         mid = ImageGrab.grab(all_screens=True)
         mid.save(report / "scene-mid.png")
         width, height = mid.size
