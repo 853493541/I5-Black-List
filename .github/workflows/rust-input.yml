@@ -89,6 +89,11 @@ jobs:
           restore-keys: |
             rust-input-
             rust-preview-
+      - name: Unit tests (hotkeys, the panel's redraw, the taken-key note)
+        run: |
+          cargo test -p win global_hotkey
+          cargo test -p app --features preview --lib key_note
+          cargo test -p app --features preview --bin blacklist-detect ui_wiring
       - name: Build (preview, with UIAutomation)
         run: cargo build --release -p app --bin blacklist-detect --features preview,a11y
       - name: Screen
