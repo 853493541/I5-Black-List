@@ -146,6 +146,10 @@ pub trait ScenePlayer {
     fn stop(&mut self);
     /// One turn of the window's timer: the next frame of a scene that plays.
     fn tick(&mut self) {}
+    /// What happened since the last call (the adapter, the window's path, frame times, failures), for the log.
+    fn notes(&mut self) -> Vec<String> {
+        Vec::new()
+    }
     /// The flower border plays where a screen copy sees it: a glance then cannot tell anything.
     fn covers_screen(&self) -> bool {
         false
