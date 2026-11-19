@@ -210,6 +210,17 @@ impl MainUi {
         true
     }
 
+    /// A toast at the foot of 嘉宾 (ui._say) that goes after a few seconds.
+    fn say_guests(&self, text: &str) {
+        self.window.global::<crate::GuestsBridge>().set_notice(text.into());
+        let window = self.window.as_weak();
+        slint::Timer::single_shot(std::time::Duration::from_millis(2500), move || {
+            if let Some(window) = window.upgrade() {
+                window.global::<crate::GuestsBridge>().set_notice("".into());
+            }
+        });
+    }
+
     /// 导出's note, shown at once when it changed.
     pub fn set_export_note(&self, note: &str) {
         if *self.export_note.borrow() != note {
@@ -311,15 +322,24 @@ impl MainUi {
                 return Some(false);
             }
             UiEvent::Guests(crate::guests::GuestAction::Say(text)) => {
-                // ui._say on 嘉宾 (添加组合 with fewer than two 嘉宾): a toast that goes after a few seconds.
-                self.window.global::<crate::GuestsBridge>().set_notice(text.as_str().into());
-                let window = self.window.as_weak();
-                slint::Timer::single_shot(std::time::Duration::from_millis(2500), move || {
-                    if let Some(window) = window.upgrade() {
-                        window.global::<crate::GuestsBridge>().set_notice("".into());
-                    }
-                });
+                // ui._say on 嘉宾 (添加组合 with fewer than two 嘉宾).
+                self.say_guests(text);
                 return Some(false);
+            }
+            UiEvent::Guests(action) => {
+                // 删除, 删除组合, 复制名字, 置顶, a dragged row, 复制名单 (ui_likes.py): the store, then the toast.
+                let done = crate::guests::effect(&mut store, action)?.ok()?;
+                drop(store);
+                if let Some(text) = &done.copy {
+                    #[cfg(windows)]
+                    let _ = win::clipboard::set_text(text);
+                    #[cfg(not(windows))]
+                    let _ = text;
+                }
+                if !done.say.is_empty() {
+                    self.say_guests(&done.say);
+                }
+                return Some(done.changed);
             }
             UiEvent::Shell(ShellAction::BeginHotkey) => {
                 self.hotkey_waiting.set(true);

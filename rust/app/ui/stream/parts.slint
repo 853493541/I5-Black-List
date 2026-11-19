@@ -20,6 +20,9 @@ export component Segments inherits Rectangle {
     height: 32px;
     HorizontalLayout {
         for choice[index] in choices: Rectangle {
+            // UIAutomation (and screen readers) see each choice as a tab named by its words (关闭 / 开启).
+            accessible-role: tab;
+            accessible-label: choice.label;
             property <bool> on: choice.key == current;
             width: words.preferred-width + 20px;
             border-width: 1px;
@@ -44,6 +47,10 @@ export component Segments inherits Rectangle {
 
 // ui_kit.IconButton: a line icon in a square button with no frame until hovered.
 export component IconButton inherits Rectangle {
+    // UIAutomation (and screen readers) see it as a button named by its icon unless one is given.
+    in property <string> accessible-name;
+    accessible-role: button;
+    accessible-label: accessible-name != "" ? accessible-name : icon;
     in property <string> icon;
     in property <Palette> p;
     callback clicked;
