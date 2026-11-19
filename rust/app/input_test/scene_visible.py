@@ -6,7 +6,8 @@ On a Windows runner at 1920x1080, as check_visible.py: the sample lobby (made-up
 full-screen, Notepad in front, Alt+1 by SendInput. likes.json is seeded with 心动小鹿 on 玫瑰花边 (lace), 我 on 不放.
 Asserted:
   plays       the log says the scene plays ("Scene lace: playing via ...") after "Check 1 shown"
-  on screen   a copy of the desktop mid-scene differs from the copy after it, over the game (the scene's pixels)
+  on screen   a copy of the desktop mid-scene differs from the copy after it, over the game (the scene's pixels; the
+              lace is a border, so a share over 0.5 %)
   lasts       no glance or check stops it early: still on screen 2 s in (the glance runs every 0.4 s)
   click-through  the point under the scene belongs to the lobby window, not the stage's
   gone        after the scene: no visible BlacklistDetectStage window, and the desktop is back to the marks alone
@@ -46,7 +47,7 @@ class SceneApp(cv.App):
         shutil.rmtree(home, ignore_errors=True)
         self.data = home / cv.FOLDER
         self.data.mkdir(parents=True)
-        settings = {"disclaimer_accepted": True, "consented": ["full"], "safe_mode": False, "auto_capture": True,
+        settings = {"disclaimer_accepted": True, "consented": ["full"], "safe_mode": False, "auto_capture": False,
                     "hotkey": "Alt+1"}
         (self.data / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
         likes = {"likes": [{"name": "心动小鹿", "nickname": "", "reason": "", "added_at": "2026-11-19 08:00:00",
@@ -97,16 +98,11 @@ def click(x: int, y: int) -> None:
 
 
 def main_window(pid: int) -> int:
-    best, area = 0, 0
+    """The app's main window, by its title (the marks over the game are a bigger window of the same app)."""
     for hwnd in cv.windows_of(pid):
-        if class_name(hwnd) == STAGE_CLASS:
-            continue
-        rect = wintypes.RECT()
-        user32.GetWindowRect(hwnd, ctypes.byref(rect))
-        size = (rect.right - rect.left) * (rect.bottom - rect.top)
-        if size > area:
-            best, area = hwnd, size
-    return best
+        if cv.title(hwnd).startswith("模仿者小工具"):
+            return hwnd
+    return 0
 
 
 def answers(hwnd: int) -> bool:
@@ -132,19 +128,25 @@ def bring_main(app, lobby) -> int:
 
 
 def clicks_work(hwnd: int, lobby, when: str, report: Path) -> None:
-    """Five SendInput clicks across the header: at least one changes what the window shows, and it answers."""
+    """SendInput clicks on a 3x3 grid over the window (the title bar's corner left alone): at least one changes what
+    it shows (a page, a press), and its thread answers."""
     rect = wintypes.RECT()
     user32.GetWindowRect(hwnd, ctypes.byref(rect))
-    changed = 0
-    for i in range(1, 6):
-        before = grab(hwnd)
-        click(rect.left + (rect.right - rect.left) * i // 6, rect.top + 56)
-        lobby.pump(0.35)
-        after = grab(hwnd)
-        changed += ImageChops.difference(before.convert("RGB"), after.convert("RGB")).getbbox() is not None
+    changed, points = 0, []
+    for i in range(1, 4):
+        for j in range(1, 4):
+            x = rect.left + (rect.right - rect.left) * i // 5
+            y = rect.top + 60 + (rect.bottom - rect.top - 60) * j // 4
+            before = grab(hwnd)
+            click(x, y)
+            lobby.pump(0.3)
+            moved = ImageChops.difference(before.convert("RGB"), grab(hwnd).convert("RGB")).getbbox() is not None
+            changed += moved
+            points.append(f"({x},{y}){'*' if moved else ''}")
     grab(hwnd).save(report / f"main-{when}.png")
     cv.record(f"clicks on the main window work {when}", changed > 0 and answers(hwnd),
-              f"{changed} of 5 clicks changed it; answers {answers(hwnd)}; IsHungAppWindow {bool(user32.IsHungAppWindow(hwnd))}")
+              f"{changed} of 9 clicks changed {cv.title(hwnd)!r}: {' '.join(points)}; answers {answers(hwnd)}; "
+              f"IsHungAppWindow {bool(user32.IsHungAppWindow(hwnd))}")
 
 
 def run(exe: Path, work: Path, report: Path) -> None:
@@ -190,7 +192,8 @@ def run(exe: Path, work: Path, report: Path) -> None:
         # The main window came forward mid-scene: compare the lobby's left half, away from it.
         half = (0, 0, width // 2, height)
         share = changed_share(mid.crop(half), after.crop(half))
-        cv.record("on screen: the desktop mid-scene differs from after it", share > 0.02, f"{share:.1%} of the pixels")
+        cv.record("on screen: the desktop mid-scene differs from after it", share > 0.005,
+                  f"{share:.1%} of the pixels (玫瑰花边 is a border)")
         notes = re.findall(r"Scene [^\n]*", app.text()[start:])
         print("  log:\n    " + "\n    ".join(notes[-8:]))
         clicks_work(hwnd, lobby, "after the scene", report)
