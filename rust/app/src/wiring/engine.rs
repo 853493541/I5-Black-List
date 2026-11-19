@@ -75,16 +75,18 @@ pub struct PipelineChecker {
     /// Hears the button's box as soon as a check finds the lobby, before it reads the names.
     pub placed: Option<std::sync::mpsc::Sender<Rect>>,
     loaded: Option<pipeline::Checker>,
+    /// No models because the zip was not unpacked (startup::unzip_first): checks say 请先把压缩包全部解压，再运行.
+    pub unzip: bool,
 }
 
 impl PipelineChecker {
     pub fn new(library: PathBuf, models: Option<pipeline::ModelDirs>, threads: usize, lists: SharedLists) -> Self {
-        PipelineChecker { library, models, threads, lists, origin: desktop_origin, placed: None, loaded: None }
+        PipelineChecker { library, models, threads, lists, origin: desktop_origin, placed: None, loaded: None, unzip: false }
     }
 
     fn checker(&mut self) -> Result<&mut pipeline::Checker, CheckError> {
         if self.loaded.is_none() {
-            let dirs = self.models.as_ref().ok_or_else(no_models)?;
+            let dirs = self.models.as_ref().ok_or_else(|| no_models_for(self.unzip))?;
             // ONNX Runtime's loader panics on a dll that will not load (a missing VC++ runtime, another version):
             // that is 识别还没准备好 too, with the reason in the log.
             let library = self.library.clone();
@@ -126,6 +128,15 @@ fn unavailable() -> CheckError {
 /// No models folder at start (startup found none).
 pub fn no_models() -> CheckError {
     because("no OCR models folder".into())
+}
+
+/// No models, and the zip looks not unpacked: the pill says what to do.
+pub fn no_models_for(unzip: bool) -> CheckError {
+    if unzip {
+        CheckError { message: "请先把压缩包全部解压，再运行".into(), step: "unzip", ..no_models() }
+    } else {
+        no_models()
+    }
 }
 
 /// OcrUnavailable, with why underneath for the log.

@@ -203,7 +203,8 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
     let runner = Rc::new(RefCell::new(Runner::new(root, log, claim, store.clone(), parts)));
     if models.is_none() {
         // As v1.0.1's warm-up says at start: the pill shows it before the first press, not only after it.
-        runner.borrow_mut().flow.report_problem(&app::wiring::engine::no_models());
+        let unzip = startup::unzip_first(install.as_deref());
+        runner.borrow_mut().flow.report_problem(&app::wiring::engine::no_models_for(unzip));
     }
 
     let ui = Rc::new(ui_app::MainUi::new(store.clone(), &app::preview::shown_version(VERSION, app::preview::ON))?);
@@ -256,7 +257,7 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
             } else if ui_wiring::handle(&mut pumped.borrow_mut(), &event) {
                 redraw |= ui_wiring::changes_pages(&event);
             } else {
-                pumped.borrow().log.info(&format!("UI: {event:?}"));
+                pumped.borrow().log.info(&ui_events::log_line(&event));
             }
         }
         if redraw {

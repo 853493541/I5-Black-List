@@ -1,4 +1,4 @@
-"""Every outcome of a hotkey check is visible, on the preview as the player unzips it (the fix/rust-check-visible case).
+r"""Every outcome of a hotkey check is visible, on the preview as the player unzips it (the fix/rust-check-visible case).
 
     python -I check_visible.py <preview folder> <exe name> <work folder> <report folder> <old onnxruntime.dll>
 
@@ -8,6 +8,8 @@ Asserted through the app's log ("Check 1 (hotkey): 12 seats read", "Header: <the
   no models    the pill says 识别还没准备好 at start and after a press
   junk dll     识别还没准备好, and the next press checks again (a crash in the check left every later press "busy")
   ours gone    with only an older onnxruntime.dll on PATH (Windows ML ships one in System32): 识别还没准备好, never theirs
+  in the zip   the exe alone in %TEMP%\Temp1_<zip>.zip\ (opened from inside the zip): 请先把压缩包全部解压，再运行
+Every case runs a copy in a folder with spaces and Chinese in its path, from another working folder.
 Silent (BLACKLIST_DETECT_SILENT=1); each case in an APPDATA of its own.
 """
 
@@ -183,6 +185,9 @@ def normal(exe: Path, work: Path, old_dir: Path, lobby: Lobby, notepad: subproce
     app = App(exe, work / "normal", path_first=old_dir)
     try:
         record("normal: starts, hotkeys registered", started(app, lobby), tail(app)[-200:])
+        models = re.search(r"Start-up: (exe [^\n]*|models [^\n]*)", app.text())
+        record("normal: models ok from a nested folder with spaces and Chinese", "Start-up: models ok" in app.text(),
+               "; ".join(re.findall(r"Start-up: (?:exe|models)[^\n]*", app.text()))[-400:] if models else tail(app)[-300:])
         start = press(app, lobby, notepad)
         ImageGrab.grab(all_screens=True).save(report / "normal-pressed.png")
         done = app.wait(r"Check 1 \(hotkey\)[^\n]*", 180, lobby, start)
@@ -234,7 +239,11 @@ def dll_imports(dll: Path) -> str:
 
 
 def main() -> int:
-    preview, exe_name, work, report, old_dll = (Path(arg) for arg in sys.argv[1:6])
+    unpacked, exe_name, work, report, old_dll = (Path(arg) for arg in sys.argv[1:6])
+    # The player's unzip: a folder with spaces and Chinese, nested; the app is started from another working folder.
+    preview = work / "解压 后的 文件夹" / f"{exe_name} 副本"
+    shutil.rmtree(preview, ignore_errors=True)
+    shutil.copytree(unpacked, preview)
     exe = preview / f"{exe_name}.exe"
     report.mkdir(parents=True, exist_ok=True)
     work.mkdir(parents=True, exist_ok=True)
@@ -255,6 +264,19 @@ def main() -> int:
             unready("no models", exe, work, lobby, notepad, report, at_start=True)
         finally:
             (preview / "models-gone").rename(models)
+        inside = Path(os.environ["TEMP"]) / f"Temp1_{exe_name}.zip" / exe_name
+        shutil.rmtree(inside.parent, ignore_errors=True)
+        inside.mkdir(parents=True)
+        shutil.copy(exe, inside / exe.name)  # Explorer copies only the exe it runs out of a zip
+        app = App(inside / exe.name, work / "in-zip")
+        try:
+            record("in the zip: starts", started(app, lobby), tail(app)[-200:])
+            shown = app.wait(r"Header: 请先把压缩包全部解压，再运行", 10, lobby) is not None
+            record("in the zip: pill 请先把压缩包全部解压，再运行", shown and "the zip looks not unpacked" in app.text(),
+                   "; ".join(re.findall(r"(?:Start-up|Header): [^\n]*", app.text()))[-400:])
+        finally:
+            app.stop()
+            shutil.rmtree(inside.parent, ignore_errors=True)
         shutil.move(ours, work / "ours.dll")
         try:
             (preview / "onnxruntime.dll").write_bytes(b"MZ not a real dll")
