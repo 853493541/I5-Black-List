@@ -138,7 +138,12 @@ jobs:
           restore-keys: rust-ab-${{ matrix.name }}-
       - name: Build
         run: |
-          if [ -n "${{ matrix.opt }}" ]; then export CARGO_PROFILE_RELEASE_OPT_LEVEL=${{ matrix.opt }}; echo "opt-level overridden to $CARGO_PROFILE_RELEASE_OPT_LEVEL"; fi
+          # v3-o3 as rust-preview.yml builds it (test only): v1's release profile on v3's code.
+          if [ -n "${{ matrix.opt }}" ]; then
+            export CARGO_PROFILE_RELEASE_OPT_LEVEL=${{ matrix.opt }} CARGO_PROFILE_RELEASE_LTO=false
+            export CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16 CARGO_PROFILE_RELEASE_DEBUG=false
+            echo "profile overridden: opt-level 3, no LTO, 16 codegen units"
+          fi
           cargo build --release -p app --example bench_check --features preview
       - uses: actions/download-artifact@v4
         with:
