@@ -259,6 +259,9 @@ export component GuestsPage inherits Rectangle {
                         background: p.accent-line;
                     }
                     touch := TouchArea {
+                        // UIAutomation (and screen readers) see the row as a list item named by the 嘉宾 (or 组合).
+                        accessible-role: list-item;
+                        accessible-label: row.name;
                         mouse-cursor: pointer;
                         pointer-event(event) => {
                             if (event.kind == PointerEventKind.down && event.button == PointerEventButton.left) {
