@@ -176,8 +176,8 @@ impl MainUi {
             }
         });
         ui_dialogs::set_host(self.window.window());
-        ui_dialogs::place(card.window());
         if card.show().is_ok() {
+            ui_dialogs::place(card.window());
             self.dialogs.borrow_mut().push(Box::new(card));
         }
     }
@@ -384,8 +384,8 @@ impl MainUi {
                         let _ = ask.hide();
                     }
                 });
-                ui_dialogs::place(ask.window());
                 ask.show()?;
+                ui_dialogs::place(ask.window());
                 Ok(Box::new(ask) as Box<dyn std::any::Any>)
             })(),
             Dialog::Disclaimer => (|| {
@@ -404,8 +404,8 @@ impl MainUi {
                         let _ = card.hide();
                     }
                 });
-                ui_dialogs::place(card.window());
                 card.show()?;
+                ui_dialogs::place(card.window());
                 Ok(Box::new(card) as Box<dyn std::any::Any>)
             })(),
             other => {

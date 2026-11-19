@@ -45,8 +45,10 @@ pub struct Opened {
 }
 
 fn opened<C: ComponentHandle + 'static>(ui: C, about: About) -> Result<Opened, PlatformError> {
-    place(ui.window());
+    // After show: placing first made the native window before `no-frame` applied, so it kept its caption and border
+    // (CI run 44490460111, style 0x16cf0000).
     ui.show()?;
+    place(ui.window());
     let weak = ui.as_weak();
     let close = Box::new(move || {
         if let Some(ui) = weak.upgrade() {
