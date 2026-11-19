@@ -117,7 +117,6 @@ fn autostart(runner: &mut Runner, on: bool) {
     runner.log.info(&format!("Autostart {on}: only on Windows."));
 }
 
-// 导出日志: the file on the Desktop, shown in Explorer.
 thread_local! {
     /// 导出's last word for its row in 设置 (ui._say): "" until it was pressed.
     static EXPORT_NOTE: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) };
@@ -136,6 +135,7 @@ pub fn export_words(written: &std::io::Result<std::path::PathBuf>) -> String {
     }
 }
 
+/// 导出日志: the file on the Desktop, shown in Explorer.
 fn export_logs(runner: &mut Runner) {
     use app::wiring::export;
     let account = export::account();
