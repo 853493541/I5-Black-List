@@ -172,6 +172,11 @@ def run(case: str, exe: Path, work: Path, report: Path, root: Lobby, notepad, li
     lobby = Windowed(root) if windowed else root
     if windowed:
         root.tk.withdraw()
+    else:
+        # The case before ended with the lobby closed: each case starts with it up.
+        root.tk.deiconify()
+        root.tk.attributes("-topmost", True)
+        root.pump(1.0)
     app = start(exe, work / case, likes)
     try:
         ok = app.wait(r"Hotkeys registered", 30, root) is not None
@@ -218,8 +223,15 @@ def run(case: str, exe: Path, work: Path, report: Path, root: Lobby, notepad, li
         record(f"{case}: next check, marks up again", marks_up(app.proc.pid), errors_since(app, start_at)[-200:])
 
         # 4. Lobby gone, marks down, then the main window's tabs by real clicks.
+        start_at = len(app.text())
+        if likes:
+            played = app.wait(r"Scene [^\n]*(playing via|not played)[^\n]*", 20, root, start_at - 2000)
+            print(f"  check 2 scene: {played.group(0) if played else 'no scene line'}")
+            root.pump(8.0)  # the scene plays to its end with the lobby still up
         lobby.tk.withdraw()
-        wait_down(app, root, 10)
+        went = wait_down(app, root, 10)
+        record(f"{case}: marks down after check 2{' and its scene' if likes else ''}", went is not None,
+               f"after {went:.1f} s" if went is not None else f"still up after 10 s; log: {errors_since(app, start_at) or tail(app, start_at)[-400:]}")
         main_hwnd = next((h for h in windows_of(app.proc.pid) if class_of(h) != MARKS and title(h).startswith("模仿者小工具")), None)
         if main_hwnd is None:
             for h in windows_of(app.proc.pid):
