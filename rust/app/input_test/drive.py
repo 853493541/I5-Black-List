@@ -289,13 +289,20 @@ class App:
 
     def open_panel(self) -> bool:
         """The 检查 panel under the header's pill (手动检查 / 自动检查中), where 显示 and 方式 are."""
-        if self.main.TabItemControl(Name="完整模式", searchDepth=30).Exists(0.5, 0.2):
+        shown = lambda wait: self.main.TabItemControl(Name="完整模式", searchDepth=30).Exists(wait, 0.3)
+        if shown(2):
             return True
-        for control, _depth in auto.WalkControl(self.main, maxDepth=30):
-            if control.ControlTypeName == "ButtonControl" and control.Name.startswith(("手动检查", "自动检查")):
-                click(*center(control))
-                return self.main.TabItemControl(Name="完整模式", searchDepth=30).Exists(3, 0.3)
-        notes.append("no 检查 pill seen")
+        # The pill opens and folds the panel: click it, and once more if the panel is still not there (a click
+        # that landed while the tree was being built folded a panel that was open).
+        for _ in range(2):
+            pill = next((c for c, _d in auto.WalkControl(self.main, maxDepth=30)
+                         if c.ControlTypeName == "ButtonControl" and c.Name.startswith(("手动检查", "自动检查"))), None)
+            if pill is None:
+                notes.append("no 检查 pill seen")
+                return False
+            click(*center(pill))
+            if shown(3):
+                return True
         return False
 
     def segment(self, group: str, label: str):
