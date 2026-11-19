@@ -14,6 +14,7 @@ use data::store::settings::Settings;
 use data::store::text::parse_hotkey;
 use slint::{ComponentHandle, ModelRc, SharedString, VecModel};
 
+use app::wiring::flow::Problem;
 use crate::{MainWindow, ShellTab};
 
 /// The window's smallest and first size, in logical pixels (MainWindow.setMinimumSize(900, 560)).
@@ -83,6 +84,8 @@ pub struct ShellModel {
     pub tone: Tone,
     /// The hotkey after the words: only while 手动检查 waits for it (MainWindow._set_result, kind "idle").
     pub status_key: String,
+    /// The plain reason under a problem (ui.py _watch_tip): kept with the pill, said in the log; v1.0.1 draws none.
+    pub status_tip: String,
     pub has_update: bool,
     pub player_name: String,
     pub safe_mode: bool,
@@ -112,6 +115,7 @@ impl ShellModel {
             status_text,
             tone,
             status_key,
+            status_tip: String::new(),
             has_update: false,
             player_name: settings.player_name.trim().to_string(),
             safe_mode: settings.safe_mode,
@@ -123,6 +127,19 @@ impl ShellModel {
             stream: None,
             dark: settings.appearance == "dark",
             version: String::new(),
+        }
+    }
+}
+
+impl ShellModel {
+    /// A check's problem over the pill (MainWindow._report_problem: _set_result(label, "hit", "error", tip)); with
+    /// none the pill stays 手动检查 or 自动检查中 (_clear_problem → _sync_watch_idle).
+    pub fn show_problem(&mut self, problem: Option<&Problem>) {
+        if let Some(problem) = problem {
+            self.status_text = problem.label.to_string();
+            self.tone = Tone::Hit;
+            self.status_key = String::new();
+            self.status_tip = problem.tip.clone();
         }
     }
 }
@@ -242,9 +259,7 @@ pub fn apply(window: &MainWindow, model: &ShellModel) {
     window.set_page(model.page as i32);
     window.set_dark(model.dark);
     window.set_version(model.version.as_str().into());
-    window.set_status_text(model.status_text.as_str().into());
-    window.set_status_tone(model.tone.name().into());
-    window.set_status_key(model.status_key.as_str().into());
+    apply_status(window, model);
     window.set_has_update(model.has_update);
     window.set_player_name(model.player_name.as_str().into());
     window.set_player_initial(initial(&model.player_name).into());
@@ -258,6 +273,13 @@ pub fn apply(window: &MainWindow, model: &ShellModel) {
     window.set_stream_state(words.into());
     window.set_stream_ok(ok);
     window.set_font_family(font_family().into());
+}
+
+/// Only the pill: a check's problem comes and goes between refreshes.
+pub fn apply_status(window: &MainWindow, model: &ShellModel) {
+    window.set_status_text(model.status_text.as_str().into());
+    window.set_status_tone(model.tone.name().into());
+    window.set_status_key(model.status_key.as_str().into());
 }
 
 fn count(n: usize) -> i32 {

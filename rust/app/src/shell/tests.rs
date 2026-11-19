@@ -116,3 +116,27 @@ fn a_key_in_the_hotkey_box_is_read_as_python_reads_it() {
     assert_eq!(pressed_key(&char::from(Key::Alt).to_string()), Pressed::Modifier);
     assert_eq!(pressed_key(" "), Pressed::Key(None));
 }
+
+#[test]
+fn a_check_problem_turns_the_pill_red_and_clearing_it_brings_back_the_idle_words() {
+    use app::wiring::flow::Problem;
+    use app::wiring::stubs::CheckError;
+    let settings = Settings { hotkey: "F8".into(), ..Settings::default() };
+    let errors = [
+        (CheckError { message: "OSError".into(), ..CheckError::default() }, "检查失败", "检查失败，等会儿再试"),
+        (CheckError { message: "识别功能没装好".into(), models: true, plain: true, ..CheckError::default() }, "识别还没准备好", "识别功能没装好"),
+        (CheckError { message: "截图失败，再试一次".into(), plain: true, capture: true, ..CheckError::default() }, "读不到屏幕", "截图失败，再试一次"),
+    ];
+    for (error, label, tip) in errors {
+        let mut model = ShellModel::from_settings(&settings);
+        model.show_problem(Some(&Problem::of(&error)));
+        assert_eq!((model.status_text.as_str(), model.tone, model.status_key.as_str(), model.status_tip.as_str()), (label, Tone::Hit, "", tip));
+    }
+    let mut model = ShellModel::from_settings(&settings);
+    model.show_problem(None);
+    assert_eq!((model.status_text.as_str(), model.tone, model.status_key.as_str()), ("手动检查", Tone::WatchOff, "F8"));
+    let auto = Settings { auto_capture: true, ..settings };
+    let mut model = ShellModel::from_settings(&auto);
+    model.show_problem(None);
+    assert_eq!((model.status_text.as_str(), model.tone), ("自动检查中", Tone::WatchOn));
+}

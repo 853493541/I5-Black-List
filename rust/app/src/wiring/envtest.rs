@@ -116,7 +116,7 @@ mod tests {
         struct Blind;
         impl Screen for Blind {
             fn displays(&mut self) -> Result<Vec<Frame>, super::super::stubs::CheckError> {
-                Err(super::super::stubs::CheckError { message: "没有权限".into(), models: false, plain: true })
+                Err(super::super::stubs::CheckError { message: "没有权限".into(), plain: true, ..Default::default() })
             }
             fn top_band(&mut self) -> Result<Frame, super::super::stubs::CheckError> {
                 self.displays().map(|mut frames| frames.remove(0))

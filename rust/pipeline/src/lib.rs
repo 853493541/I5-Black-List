@@ -56,6 +56,7 @@ pub fn runtime(library: &std::path::Path) -> Result<&'static ort::environment::E
     if let Some(env) = ENV.get() {
         return Ok(env);
     }
-    let env = ocr::init_runtime(library).map_err(|_| Unavailable)?;
+    // Unavailable, with ONNX Runtime's own words kept for the log.
+    let env = ocr::init_runtime(library).map_err(|error| -> Error { format!("{Unavailable} ({error})").into() })?;
     Ok(ENV.get_or_init(|| env))
 }

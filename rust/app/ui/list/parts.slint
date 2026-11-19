@@ -102,6 +102,10 @@ export component Button inherits Rectangle {
 
 // IconButton: a line icon on a square that lights up under the pointer.
 export component IconButton inherits Rectangle {
+    // UIAutomation (and screen readers) see it as a button: its icon's name unless one is given.
+    in property <string> accessible-name;
+    accessible-role: button;
+    accessible-label: accessible-name != "" ? accessible-name : icon;
     in property <string> icon;
     in property <Palette> p;
     callback clicked();

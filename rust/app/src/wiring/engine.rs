@@ -71,9 +71,24 @@ impl PipelineChecker {
 
     fn checker(&mut self) -> Result<&mut pipeline::Checker, CheckError> {
         if self.loaded.is_none() {
-            let dirs = self.models.as_ref().ok_or_else(unavailable)?;
-            let env = pipeline::runtime(&self.library).map_err(|_| unavailable())?;
-            let made = pipeline::Checker::new(env, dirs, self.threads).map_err(|_| unavailable())?;
+            let dirs = self.models.as_ref().ok_or_else(no_models)?;
+            // ONNX Runtime's loader panics on a dll that will not load (a missing VC++ runtime, another version):
+            // that is 识别还没准备好 too, with the reason in the log.
+            let library = self.library.clone();
+            let (threads, dirs) = (self.threads, dirs.clone());
+            let loaded = std::panic::catch_unwind(move || -> Result<pipeline::Checker, String> {
+                let env = pipeline::runtime(&library)
+                    .map_err(|error| format!("ONNX Runtime from {}: {}", library.display(), source_text(&*error)))?;
+                pipeline::Checker::new(env, &dirs, threads).map_err(|error| format!("the OCR models: {error}"))
+            });
+            let made = match loaded {
+                Ok(Ok(made)) => made,
+                Ok(Err(reason)) => return Err(because(reason)),
+                Err(panic) => {
+                    let text = super::worker::panic_text(&*panic);
+                    return Err(because(format!("ONNX Runtime from {} panicked: {text}", self.library.display())));
+                }
+            };
             self.loaded = Some(made);
         }
         self.loaded.as_mut().ok_or_else(unavailable)
@@ -92,14 +107,35 @@ fn desktop_origin() -> (i32, i32) {
 
 /// OcrUnavailable: the models or the runtime would not load.
 fn unavailable() -> CheckError {
-    CheckError { message: pipeline::Unavailable.to_string(), models: true, plain: true }
+    CheckError { message: pipeline::Unavailable.to_string(), models: true, plain: true, ..CheckError::default() }
+}
+
+/// No models folder at start (startup found none).
+pub fn no_models() -> CheckError {
+    because("no OCR models folder".into())
+}
+
+/// OcrUnavailable, with why underneath for the log.
+fn because(detail: String) -> CheckError {
+    CheckError { detail, ..unavailable() }
+}
+
+/// An error and the errors under it, for the log.
+fn source_text(error: &(dyn std::error::Error + 'static)) -> String {
+    let mut text = error.to_string();
+    let mut under = error.source();
+    while let Some(cause) = under {
+        text.push_str(&format!(": {cause}"));
+        under = cause.source();
+    }
+    text
 }
 
 fn failed(error: pipeline::Error) -> CheckError {
     if error.downcast_ref::<pipeline::Unavailable>().is_some() {
         return unavailable();
     }
-    CheckError { message: error.to_string(), models: false, plain: false }
+    CheckError { message: error.to_string(), ..CheckError::default() }
 }
 
 fn mat(frame: &Frame) -> Result<opencv::core::Mat, CheckError> {

@@ -73,6 +73,35 @@ pub enum Status {
     Shown(Look),
 }
 
+/// What went wrong, for the header pill (_report_problem): 识别还没准备好, 读不到屏幕 or 检查失败, with the plain reason
+/// as its tip. It stays until a glance or a check works again (_clear_problem).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Problem {
+    pub label: &'static str,
+    pub tip: String,
+    /// The error as it came, said in the log once per new one.
+    pub raw: String,
+}
+
+impl Problem {
+    pub fn of(error: &CheckError) -> Problem {
+        let label = if error.models {
+            "识别还没准备好"
+        } else if error.capture {
+            "读不到屏幕"
+        } else {
+            "检查失败"
+        };
+        let raw = match (error.message.trim(), error.detail.trim()) {
+            ("", "") => label.to_string(),
+            (message, "") => message.to_string(),
+            ("", detail) => detail.to_string(),
+            (message, detail) => format!("{message} ({detail})"),
+        };
+        Problem { label, tip: plain_error(error, "检查失败，等会儿再试"), raw }
+    }
+}
+
 /// The parts the flow drives.
 pub struct Ports {
     pub overlay: Box<dyn Overlay>,
@@ -87,6 +116,8 @@ pub struct Flow {
     pub ports: Ports,
     pub watch: LobbyWatch,
     pub status: Status,
+    /// What the header pill says went wrong, until checks work again.
+    pub problem: Option<Problem>,
     /// What happened, in the log's words.
     pub log: Vec<String>,
     pub check_number: u32,
@@ -111,6 +142,7 @@ impl Flow {
             ports,
             watch: LobbyWatch::default(),
             status: Status::Idle,
+            problem: None,
             log: Vec::new(),
             check_number: 0,
             busy: false,
@@ -142,6 +174,22 @@ impl Flow {
 
     fn say(&mut self, line: impl Into<String>) {
         self.log.push(line.into());
+    }
+
+    /// Say what went wrong in the header (_report_problem). A check that silently stops is worse than an error.
+    pub fn report_problem(&mut self, error: &CheckError) {
+        let problem = Problem::of(error);
+        if self.problem.as_ref().map(|shown| &shown.raw) != Some(&problem.raw) {
+            self.say(format!("{}: {}", problem.label, problem.raw));
+        }
+        self.problem = Some(problem);
+    }
+
+    /// Checks work again: the pill goes back to 手动检查 or 自动检查中 (_clear_problem).
+    fn clear_problem(&mut self) {
+        if self.problem.take().is_some() {
+            self.say("Checks work again.");
+        }
     }
 
     /// The 检查 hotkey, or 立即检查 in the tray (check_now).
@@ -214,6 +262,7 @@ impl Flow {
             Err(error) => {
                 // Do not reload a missing model or retry a dead screen copy every 0.4 seconds.
                 self.glance_pause_until = now + if error.models { 15.0 } else { 5.0 };
+                self.report_problem(&error);
                 self.status = Status::Failed(error.message);
                 return None;
             }
@@ -222,6 +271,7 @@ impl Flow {
         if matches!(self.status, Status::Failed(_)) {
             self.status = Status::Idle;
         }
+        self.clear_problem();
         if !present {
             if self.ports.scenes.covers_screen() {
                 return None;
@@ -276,6 +326,7 @@ impl Flow {
                 }
                 let manual = std::mem::take(&mut self.manual);
                 self.say(format!("Check {} ({how}) failed: {}", self.check_number, error.message));
+                self.report_problem(&error);
                 self.status = Status::Failed(error.message.clone());
                 if self.mode.auto {
                     self.watch.retry_after(now);
@@ -311,6 +362,7 @@ impl Flow {
             return None;
         }
         self.manual = false;
+        self.clear_problem();
         self.say(format!("Check {} ({how}): {} seats read, {} 黑名单.", self.check_number, result.names.len(), result.hits.len()));
         if self.mode.auto {
             self.watch.hold();
