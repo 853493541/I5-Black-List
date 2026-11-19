@@ -45,6 +45,7 @@ pub struct Opened {
 }
 
 fn opened<C: ComponentHandle + 'static>(ui: C, about: About) -> Result<Opened, PlatformError> {
+    place(ui.window());
     ui.show()?;
     let weak = ui.as_weak();
     let close = Box::new(move || {
@@ -53,6 +54,52 @@ fn opened<C: ComponentHandle + 'static>(ui: C, about: About) -> Result<Opened, P
         }
     });
     Ok(Opened { about, close, frame: None, _keep: Box::new(ui) })
+}
+
+/// A dialog with a frame of its own, shown where the system puts it.
+fn opened_framed<C: ComponentHandle + 'static>(ui: C, about: About) -> Result<Opened, PlatformError> {
+    ui.show()?;
+    let weak = ui.as_weak();
+    let close = Box::new(move || {
+        if let Some(ui) = weak.upgrade() {
+            let _ = ui.hide();
+        }
+    });
+    Ok(Opened { about, close, frame: None, _keep: Box::new(ui) })
+}
+
+thread_local! {
+    /// The main window's client area on the desktop (x, y, width, height), where the dialogs lie (ui_kit.Modal).
+    static HOST: std::cell::Cell<Option<(i32, i32, u32, u32)>> = const { std::cell::Cell::new(None) };
+}
+
+/// Notes where the main window's client area is now, for the dialogs opened next.
+pub fn set_host(main: &slint::Window) {
+    HOST.with(|host| host.set(client_area(main)));
+}
+
+/// ui_kit.Modal's geometry: the frameless dialog covers the main window's client area exactly, its backdrop standing in
+/// for the dimming. Without a known main window it keeps its own size and place.
+pub fn place(dialog: &slint::Window) {
+    if let Some((x, y, width, height)) = HOST.with(std::cell::Cell::get) {
+        dialog.set_position(slint::PhysicalPosition::new(x, y));
+        dialog.set_size(slint::PhysicalSize::new(width, height));
+    }
+}
+
+#[cfg(windows)]
+fn client_area(window: &slint::Window) -> Option<(i32, i32, u32, u32)> {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    let handle = window.window_handle();
+    let RawWindowHandle::Win32(handle) = handle.window_handle().ok()?.as_raw() else { return None };
+    let (left, top, right, bottom) = win::livehime::desktop::client_rect_of(handle.hwnd.get())?;
+    Some((left as i32, top as i32, (right - left).max(1) as u32, (bottom - top).max(1) as u32))
+}
+
+#[cfg(not(windows))]
+fn client_area(window: &slint::Window) -> Option<(i32, i32, u32, u32)> {
+    let (position, size) = (window.position(), window.size());
+    Some((position.x, position.y, size.width, size.height))
 }
 
 /// The dialog's preview picture, set by the scene playing in it.
@@ -308,9 +355,10 @@ pub fn display_guide(bus: &Bus) -> Result<Opened, PlatformError> {
 }
 
 /// 直播模式 › ⓘ.
+// Keeps its own frame and size (no backdrop of its own): shown as it is, not laid over the main window.
 pub fn stream_guide(bus: &Bus, dark: bool) -> Result<Opened, PlatformError> {
     let ui = StreamGuideDialog::new()?;
     ui.set_dark(dark);
     ui.on_done(send(bus, DialogAction::Closed));
-    opened(ui, About::Info)
+    opened_framed(ui, About::Info)
 }

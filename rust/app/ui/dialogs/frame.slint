@@ -25,6 +25,8 @@ export global DialogTones {
 // The window a dialog opens in: the dimmed app behind, the card in the middle.
 export component Stage inherits Window {
     in property <bool> dark;
+    // ui_kit.Modal: frameless, laid over the main window's client area by the app (ui_dialogs::place).
+    no-frame: true;
     out property <Palette> p: dark ? Dark.palette : Light.palette;
     out property <Tones> t: dark ? DialogTones.dark : DialogTones.light;
     preferred-width: 900px;

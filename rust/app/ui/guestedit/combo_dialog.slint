@@ -7,6 +7,8 @@ import { Palette, Light, Dark, Tones, GuestTones, GuestSceneItem, ComboPersonIte
 
 export component ComboDialog inherits Window {
     in property <bool> dark;
+    // ui_kit.Modal: frameless, laid over the main window\'s client area by the app (ui_dialogs::place).
+    no-frame: true;
     // 编辑组合: its title, 保存 and 删除; else 添加组合 and 添加.
     in property <bool> editing;
     in property <[ComboPersonItem]> people;
