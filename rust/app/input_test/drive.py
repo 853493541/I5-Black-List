@@ -40,6 +40,8 @@ FOLDER = "BlackListDetect-RustPreview"
 SKIP = {"退出", "清空数据", "导出", "最小化", "关闭", "Minimize", "Maximize", "Restore", "Close", "还原", "最大化"}
 # In the 检查 panel, which any click outside it folds away: tested on their own, the panel opened first.
 PANEL = {"显示说明", "直播模式说明", "快捷键"}
+# Clicks that do nothing by design (v1.0.1 the same): a 记录 seat on neither list.
+NO_EFFECT = {"心动星星"}
 SEGMENTS = {"基础模式", "完整模式", "自动", "手动", "关闭", "开启"}
 GW_HWNDNEXT, GA_ROOT = 2, 2
 WS_EX = {0x8: "TOPMOST", 0x20: "TRANSPARENT", 0x80: "TOOLWINDOW", 0x80000: "LAYERED", 0x8000000: "NOACTIVATE",
@@ -206,6 +208,9 @@ class App:
         old.mkdir(parents=True, exist_ok=True)
         (old / "blacklist.json").write_text(
             json.dumps({"entries": [{"name": "示例坏人", "reason": "", "tags": ["挂机"]}]}, ensure_ascii=False), encoding="utf-8")
+        # 心动小鹿 a 嘉宾, so its seat in 记录 opens the 嘉宾 dialog; 心动星星 stays on neither list (its click does nothing).
+        (old / "likes.json").write_text(json.dumps({"likes": [{"name": "心动小鹿", "nickname": "", "reason": ""}], "combos": []},
+                                                   ensure_ascii=False), encoding="utf-8")
         # One made-up check in 记录, so its day, time and seat rows are there to click.
         seats = [{"seat": i + 1, "name": name, "unclear": False} for i, name in enumerate(["示例坏人", "心动小鹿", "心动星星"])]
         (old / "history.json").write_text(json.dumps(
@@ -398,7 +403,7 @@ def click_pages(app: App) -> None:
 def click_buttons(app: App, page: str = "") -> None:
     buttons = []
     for control, _depth in auto.WalkControl(app.main, maxDepth=30):
-        if control.ControlTypeName == "ButtonControl" and control.Name not in SKIP | PANEL:
+        if control.ControlTypeName == "ButtonControl" and control.Name not in SKIP | PANEL | NO_EFFECT:
             r = control.BoundingRectangle
             if r.width() > 2 and r.height() > 2 and not control.IsOffscreen:
                 buttons.append((control.Name, center(control)))
