@@ -236,6 +236,18 @@ impl Overlay {
         self.area
     }
 
+    /// Handles this window's own messages without waiting, and no other window's: the app's event loop keeps the rest
+    /// (a thread-wide PeekMessage there dispatched the main window's clicks out from under it).
+    pub fn pump_own(&self) {
+        let mut msg = MSG::default();
+        unsafe {
+            while PeekMessageW(&mut msg, Some(self.hwnd), 0, 0, PM_REMOVE).as_bool() {
+                let _ = TranslateMessage(&msg);
+                DispatchMessageW(&msg);
+            }
+        }
+    }
+
     /// The frame as read_back gives it, in GDI's BGRA order (to compare with `capture`).
     pub fn read_back_bgra(&self, gpu: &Gpu, frame: &Frame) -> Vec<u8> {
         let mut px = self.read_back(gpu, frame);
@@ -275,7 +287,8 @@ impl Drop for Overlay {
     }
 }
 
-/// Handles this thread's window messages without waiting (call once a tick).
+/// Handles this thread's window messages without waiting (call once a tick). Only where nothing else runs a message
+/// loop on the thread (tests): in the app it would take the UI's own messages away from its event loop.
 pub fn pump() {
     let mut msg = MSG::default();
     unsafe {
@@ -283,5 +296,31 @@ pub fn pump() {
             let _ = TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::paint::Adapter;
+    use windows::Win32::UI::WindowsAndMessaging::{PostMessageW, PM_NOREMOVE, WM_USER};
+
+    /// A scene's window takes its own messages and leaves every other window's in the queue for the app's loop.
+    #[test]
+    fn the_stage_pumps_only_its_own_messages() {
+        let Ok(gpu) = Gpu::new(Adapter::Software) else { return };
+        let area = [0, 0, 64, 36];
+        let overlay = Overlay::open(&gpu, area, Some(Path::Layered)).expect("stage window");
+        let other = Backdrop::show(area, &[0u8; 64 * 36 * 4]).expect("another window");
+        unsafe {
+            PostMessageW(Some(other.hwnd), WM_USER, WPARAM(0), LPARAM(0)).expect("post");
+            PostMessageW(Some(overlay.hwnd), WM_USER, WPARAM(0), LPARAM(0)).expect("post");
+        }
+        overlay.pump_own();
+        let mut msg = MSG::default();
+        let theirs = unsafe { PeekMessageW(&mut msg, Some(other.hwnd), WM_USER, WM_USER, PM_NOREMOVE) }.as_bool();
+        assert!(theirs, "the other window's message was taken");
+        let ours = unsafe { PeekMessageW(&mut msg, Some(overlay.hwnd), WM_USER, WM_USER, PM_NOREMOVE) }.as_bool();
+        assert!(!ours, "the stage's own message is still queued");
     }
 }

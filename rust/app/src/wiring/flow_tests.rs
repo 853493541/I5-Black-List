@@ -7,7 +7,7 @@ use super::stubs::*;
 use super::worker::{run, Screen};
 use data::store::sounds::Scenes;
 use data::store::{Clock, Store};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::rc::Rc;
 use win::frame::Frame;
@@ -43,11 +43,20 @@ impl Notice for Fake {
     }
 }
 
-impl ScenePlayer for Fake {
+/// The scenes: noted when played, and covering the screen until stopped, as StageScenes does.
+struct FakeScenes(Calls, Rc<Cell<bool>>);
+
+impl ScenePlayer for FakeScenes {
     fn play(&mut self, key: &str, stage: Stage) {
-        self.note(format!("scene {key} {:?}", stage.target));
+        self.0.borrow_mut().push(format!("scene {key} {:?}", stage.target));
+        self.1.set(stage.target == Target::Screen);
     }
-    fn stop(&mut self) {}
+    fn stop(&mut self) {
+        self.1.set(false);
+    }
+    fn covers_screen(&self) -> bool {
+        self.1.get()
+    }
 }
 
 impl Player for Fake {
@@ -101,6 +110,8 @@ struct Rig {
     store: Rc<RefCell<Store>>,
     screen: SampleScreen,
     checker: Scripted,
+    /// A scene is over the game (FakeScenes).
+    playing: Rc<Cell<bool>>,
     _dir: tempfile::TempDir,
 }
 
@@ -148,17 +159,18 @@ impl Rig {
         store.set_me(&Scenes { keys: Vec::new(), random: false }).unwrap();
         let store = Rc::new(RefCell::new(store));
         let calls: Calls = Rc::default();
+        let playing: Rc<Cell<bool>> = Rc::default();
         let ports = Ports {
             overlay: Box::new(Fake(calls.clone())),
             notice: Box::new(Fake(calls.clone())),
-            scenes: Box::new(Fake(calls.clone())),
+            scenes: Box::new(FakeScenes(calls.clone(), playing.clone())),
             player: Box::new(Fake(calls.clone())),
             records: Box::new(StoreRecords::new(store.clone(), 0)),
         };
         let frame = sample();
         let size = (frame.width, frame.height);
         let checker = Scripted { checks: checks.into(), glances: VecDeque::new(), size };
-        Rig { flow: Flow::new(mode, ports), calls, store, screen: SampleScreen(frame), checker, _dir: dir }
+        Rig { flow: Flow::new(mode, ports), calls, store, screen: SampleScreen(frame), checker, playing, _dir: dir }
     }
 
     /// Does a job and every job it leads to, the way the worker thread would.
@@ -207,6 +219,26 @@ fn blacklist_and_guest_show_both_cards_and_the_guest_still_greets() {
     let mut rig = Rig::new(full(), vec![Ok(lobby(&["示例坏人", "心动小鹿"], &[0]))]);
     rig.press(0.0);
     assert_eq!(rig.calls(), ["tune stars", "overlay Both Screen 1", "alert", "scene stars Screen"]);
+}
+
+/// P0-2: a hotkey check that finds a 嘉宾 plays its scene, and the 400 ms glance waits while it plays
+/// (ui._border_on_screen): the scene covers 推演成功, so a glance would take the marks down or start a check that
+/// stops the scene. Once it has ended the glance comes back.
+#[test]
+fn a_guests_scene_from_a_hotkey_check_is_not_cut_short_by_the_glance() {
+    let mode = Mode { auto: true, ..full() };
+    let mut rig = Rig::new(mode, vec![Ok(lobby(&["心动星星", "心动小鹿"], &[]))]);
+    rig.press(0.0);
+    assert_eq!(rig.calls(), ["tune stars", "overlay Liked Screen 0", "scene stars Screen"]);
+    assert!(rig.playing.get(), "the scene plays");
+    for tick in 1..=12 {
+        assert_eq!(rig.flow.tick(f64::from(tick) * 0.4), None, "a glance at {:.1} s, mid-scene", f64::from(tick) * 0.4);
+    }
+    assert!(rig.playing.get(), "the scene was cut short");
+    assert!(rig.calls().is_empty(), "nothing taken down mid-scene");
+    // The scene ends on its own: the glance watches the lobby again.
+    rig.playing.set(false);
+    assert_eq!(rig.flow.tick(6.0), Some(Job::Glance));
 }
 
 #[test]

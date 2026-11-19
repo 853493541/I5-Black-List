@@ -119,7 +119,7 @@ export component SceneManagerDialog inherits Window {
                             }
                             Text { text: volume + "%"; font-size: 14px; color: p.text; vertical-alignment: center; }
                             Rectangle { }
-                            DialogButton { label: sounding ? "⏸ 暂停" : "▶ 播放"; kind: "primary"; p: p; t: t; clicked => { root.play(); } }
+                            DialogButton { label: sounding ? "⏸ 暂停" : "▶ 播放"; accessible-name: sounding ? "暂停" : "播放"; kind: "primary"; p: p; t: t; clicked => { root.play(); } }
                         }
                     }
                     for song[index] in songs: HorizontalLayout {

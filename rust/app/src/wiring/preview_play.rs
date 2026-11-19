@@ -184,13 +184,14 @@ mod tests {
         scenes::equation::text::Fonts::load().is_ok()
     }
 
-    /// Waits (up to 20 s) for a warmed scene's thread.
+    /// Waits for a warmed scene's thread: up to two minutes, as a software chip (WARP) can take that long.
     fn wait(preview: &mut ScenePreview) -> bool {
-        for _ in 0..800 {
+        let since = Instant::now();
+        while since.elapsed().as_secs() < 120 {
             if preview.ready() {
                 return true;
             }
-            std::thread::sleep(std::time::Duration::from_millis(25));
+            std::thread::sleep(std::time::Duration::from_millis(50));
         }
         false
     }
@@ -254,22 +255,34 @@ mod tests {
 mod warm_tests {
     use super::*;
 
-    /// 竖琴清风 takes seconds to make (3.3 s on llvmpipe): the click answers at once and frames follow when it is done.
+    /// 竖琴清风 takes seconds to make (3.3 s on llvmpipe, longer on WARP): the click answers at once, and frames
+    /// follow once its thread is done. Only the click is timed (the UI thread's wait), with the GPU already open as
+    /// it is after the dialog's first scene; how long the making takes depends on the chip and is only waited for.
+    /// What is checked is that the click returns with the scene still being made, not a tight time.
     #[test]
     fn a_warmed_scene_answers_at_once_and_plays_when_made() {
         let mut preview = ScenePreview::new(lobby(Path::new("no-such-lobby.jpg")));
-        let asked = Instant::now();
-        let Ok(said) = preview.start("lyre") else { return };
-        assert!(asked.elapsed().as_secs_f64() < 0.5, "the click waited {:?}: {said}", asked.elapsed());
-        assert_eq!(preview.key(), Some("lyre"));
-        assert!(preview.frame().is_none() || preview.ready());
-        for _ in 0..800 {
-            if preview.ready() {
-                break;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(25));
+        // The GPU opens with the first scene (seconds on WARP); the click under test comes after.
+        if preview.start("stars").is_err() {
+            return;
         }
-        assert!(preview.frame().is_some(), "lyre never played");
+        let asked = Instant::now();
+        let said = preview.start("lyre").expect("lyre starts");
+        let waited = asked.elapsed();
+        // The click hands the making to its thread and returns: when it is back, the scene is still being made
+        // (nothing plays until a later tick picks it up), however busy the machine is.
+        assert!(preview.warming.is_some() && preview.playing.is_none(), "the click made the scene itself: {said}");
+        assert!(said.contains("made on a thread"), "{said}");
+        // A loose bound for a shared CI runner (0.6 s seen on llvmpipe with every test running); the making alone
+        // takes seconds there.
+        assert!(waited.as_secs_f64() < 2.0, "the click waited {waited:?}: {said}");
+        assert_eq!(preview.key(), Some("lyre"));
+        // Made on its thread whenever the chip gets there: polled up to two minutes.
+        let made = Instant::now();
+        while !preview.ready() && made.elapsed().as_secs() < 120 {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        assert!(preview.frame().is_some(), "lyre not made in {:?}", made.elapsed());
         assert!(preview.notes.iter().any(|note| note.contains("lyre: playing, made on a thread")), "{:?}", preview.notes);
     }
 }
