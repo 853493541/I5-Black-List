@@ -12,6 +12,8 @@ use app::wiring::worker::{RealScreen, Worker};
 use std::cell::RefCell;
 use std::process::ExitCode;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 mod cli;
@@ -159,6 +161,9 @@ fn keys(_store: &data::store::Store, _log: &startup::AppLog) -> Box<dyn Keys> {
 
 fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Error>> {
     let Started { root, log, store, models, claim, install } = started;
+    // 调试截图 (ui._save_debug): the worker keeps each check's capture while 设置 has it on.
+    let debug_frames = Arc::new(AtomicBool::new(store.settings.save_debug_frames));
+    let debug_screen = app::wiring::debug::DebugCapture { inner: RealScreen, dir: root.join("debug"), on: debug_frames.clone() };
     if models.is_none() {
         log.warn("No OCR models: checks will say 检查失败 until they are installed.");
     }
@@ -177,7 +182,7 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
     }
     let parts = Parts {
         ports: parts.ports,
-        worker: Worker::start(Box::new(RealScreen), Box::new(parts.checker)),
+        worker: Worker::start(Box::new(debug_screen), Box::new(parts.checker)),
         keys,
         // The preview never looks for updates: it gets Quiet, and NetUpdate is not even made.
         update_check: if app::preview::ON {
@@ -260,6 +265,7 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
         } else {
             ui_wiring::rekey(&mut pumped.borrow_mut(), &mut hotkeys);
         }
+        debug_frames.store(pumped.borrow().store.borrow().settings.save_debug_frames, Ordering::Relaxed);
         pages.set_hotkey_note(&pumped.borrow().hotkey_note());
         updates.pump(&mut pumped.borrow_mut());
         let asks = pumped.borrow_mut().pump();
