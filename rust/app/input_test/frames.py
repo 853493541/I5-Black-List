@@ -4,7 +4,7 @@ the main window's client area; the Rust ones must be the same, with no native ti
     python -I rust/app/input_test/frames.py <exe> <home> <out>
 
 Starts the exe as drive.py does (a data folder of its own), checks 使用声明 at the first start and 显示说明 from the
-header panel: no WS_CAPTION, no WS_THICKFRAME, no WS_BORDER, and the window's rectangle on the main window's client
+header panel: no non-client area (client rectangle = window rectangle), and the window's rectangle on the main window's client
 area. Each window is saved as a PNG in <out>; the main window's own style is recorded for comparison with v1.0.1.
 Exit code: the number of failed checks.
 """
@@ -20,7 +20,6 @@ import drive  # noqa: E402
 from drive import App, center, click, own_windows, record, user32, window_info  # noqa: E402
 from PIL import ImageGrab  # noqa: E402
 
-WS_CAPTION, WS_THICKFRAME, WS_BORDER = 0x00C00000, 0x00040000, 0x00800000
 FAILED: list[str] = []
 
 
@@ -50,12 +49,14 @@ def shoot(hwnd: int, out: Path, name: str) -> None:
 
 
 def frameless_over_main(app: App, hwnd: int, name: str) -> None:
-    style = user32.GetWindowLongPtrW(hwnd, -16) & 0xFFFFFFFF
-    native = [flag for bit, flag in ((WS_CAPTION, "WS_CAPTION"), (WS_THICKFRAME, "WS_THICKFRAME"), (WS_BORDER, "WS_BORDER"))
-              if style & bit == bit]
-    check(f"{name}: no native frame", not native, f"{', '.join(native) or 'none'}; {window_info(hwnd)}")
-    main, own = client_rect(app.hwnd), window_rect(hwnd)
-    off = max(abs(a - b) for a, b in zip(main, own))
+    # winit keeps WS_CAPTION on an undecorated window (Aero snap) and drops the frame in WM_NCCALCSIZE
+    # (winit 0.30 platform_impl/windows/window_state.rs adjust_rect), so the style bits do not tell: a frameless
+    # window has no non-client area, its client rectangle is its whole window rectangle.
+    client, own = client_rect(hwnd), window_rect(hwnd)
+    off = max(abs(a - b) for a, b in zip(client, own, strict=True))
+    check(f"{name}: no native frame", off == 0, f"client {client}, window {own}; {window_info(hwnd)}")
+    main = client_rect(app.hwnd)
+    off = max(abs(a - b) for a, b in zip(main, own, strict=True))
     check(f"{name}: lies over the main window's client area", off <= 2, f"main client {main}, dialog {own}")
     shoot(hwnd, app.out, name)
 
@@ -146,7 +147,8 @@ def main() -> int:
         shoot(app.hwnd, out, "main")
         # The player's build has no accessibility (the `a11y` feature, rust/app/Cargo.toml): UIAutomation sees no
         # controls in it, so without a11y only what window handles tell is checked (frame, place, on screen).
-        a11y = any(c.Name for c, _d in drive.auto.WalkControl(app.main, maxDepth=4))
+        # The window's own title and the native title bar's buttons show without a11y too: look for the 嘉宾 tab.
+        a11y = any(c.Name == "嘉宾" for c, _d in drive.auto.WalkControl(app.main, maxDepth=30))
         record("UIAutomation sees the controls (an a11y build)", True, str(a11y))
         others = [h for h in own_windows(app.proc.pid) if h != app.hwnd and "使用声明" in window_info(h)]
         check("使用声明 opens at the first start", bool(others), f"windows: {[window_info(h) for h in own_windows(app.proc.pid)]}")
