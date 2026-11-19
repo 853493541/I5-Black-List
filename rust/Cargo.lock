@@ -257,6 +257,7 @@ dependencies = [
  "stage",
  "tempfile",
  "unicode-normalization",
+ "wgpu 25.0.2",
  "win",
 ]
 

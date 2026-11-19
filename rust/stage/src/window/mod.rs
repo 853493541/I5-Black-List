@@ -77,6 +77,12 @@ pub fn display_ids() -> Vec<(u32, u32)> {
     ids
 }
 
+/// The primary monitor's size in desktop pixels.
+pub fn screen_size() -> (i32, i32) {
+    use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
+    unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) }
+}
+
 /// An opaque picture in a window of its own (a test's stand-in for the game).
 pub struct Backdrop {
     hwnd: HWND,
