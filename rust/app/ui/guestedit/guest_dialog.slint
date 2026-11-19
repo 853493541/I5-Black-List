@@ -6,6 +6,8 @@ import { Palette, Light, Dark, Tones, GuestTones, GuestSceneItem, ScenePane, Sce
 
 export component GuestDialog inherits Window {
     in property <bool> dark;
+    // ui_kit.Modal: frameless, laid over the main window\'s client area by the app (ui_dialogs::place).
+    no-frame: true;
     // 编辑嘉宾: its title, 保存 and 删除; else 添加嘉宾 and 添加.
     in property <bool> editing;
     in-out property <string> name;

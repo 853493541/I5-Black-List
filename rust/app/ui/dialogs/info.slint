@@ -6,6 +6,8 @@ import { Stage, Tones, DialogCard, DialogBody, DialogFooter, DialogButton, Sprea
 
 // 使用声明. Before first use it asks (同意并继续 or 不同意, which closes the app); from 设置 it only shows.
 export component DisclaimerDialog inherits Stage {
+    // Here as well as on Stage: set only on Stage, the window came up with its frame (CI run 44500120089).
+    no-frame: true;
     in property <bool> asking: true;
     in property <[string]> points: [
         "玩家自制的免费工具，和网易、第五人格官方无关。",
@@ -59,6 +61,8 @@ component Step inherits HorizontalLayout {
 
 // Shown once on a new PC: what to set up, how a check starts, and what it shows.
 export component GuideDialog inherits Stage {
+    // Here as well as on Stage: set only on Stage, the window came up with its frame (CI run 44500120089).
+    no-frame: true;
     // How a check starts in the mode the app is in, such as 在「推演成功」大厅按 Alt+1 检查.
     in property <string> how: "在「推演成功」大厅按快捷键检查";
     in property <string> app-name: "模仿者小工具";
@@ -122,6 +126,8 @@ component GuideRow inherits HorizontalLayout {
 
 // 显示 (基础模式 and 完整模式 side by side) or 直播模式 (what viewers see, how to add it in 直播姬).
 export component PictureGuideDialog inherits Stage {
+    // Here as well as on Stage: set only on Stage, the window came up with its frame (CI run 44500120089).
+    no-frame: true;
     in property <string> which: "display";
     out property <length> card-height: card.preferred-height;
     out property <length> card-width: card.width;
@@ -204,6 +210,8 @@ component FlowBar inherits Rectangle {
 
 // 环境测试's report: how long a check takes here, as two bars split by step, then why, and a way to send it.
 export component FlowReportDialog inherits Stage {
+    // Here as well as on Stage: set only on Stage, the window came up with its frame (CI run 44500120089).
+    no-frame: true;
     in property <string> headline;
     in property <[FlowBarData]> bars;
     in property <string> facts;
