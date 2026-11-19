@@ -209,7 +209,8 @@ class App:
         # One made-up check in 记录, so its day, time and seat rows are there to click.
         seats = [{"seat": i + 1, "name": name, "unclear": False} for i, name in enumerate(["示例坏人", "心动小鹿", "心动星星"])]
         (old / "history.json").write_text(json.dumps(
-            {"scans": [{"at": "2026-11-18T20:30:00+08:00", "elapsed": 1.2, "names": seats}]}, ensure_ascii=False), encoding="utf-8")
+            {"scans": [{"at": "2026-11-18T20:30:00+08:00", "elapsed": 1.2, "names": seats},
+                       {"at": "2026-11-18T19:00:00+08:00", "elapsed": 1.1, "names": seats}]}, ensure_ascii=False), encoding="utf-8")
         self.proc = subprocess.Popen([exe], env=env, cwd=str(home))
         self.log = self.data / "logs" / "app.log"
         self.main = None
@@ -402,7 +403,9 @@ def click_buttons(app: App, page: str = "") -> None:
             if r.width() > 2 and r.height() > 2 and not control.IsOffscreen:
                 buttons.append((control.Name, center(control)))
     # The 检查 pill last: it folds the panel away, and the panel's buttons with it.
-    buttons.sort(key=lambda item: item[0].startswith(("手动检查", "自动检查")))
+    # A menu (more) or the tag already chosen (全部) last but one: an open menu eats the next click, and 全部 changes
+    # nothing until another tag was picked.
+    buttons.sort(key=lambda item: 2 if item[0].startswith(("手动检查", "自动检查")) else 1 if item[0] in ("more", "全部") else 0)
     notes.append(f"buttons seen by UIAutomation on {page or 'the start page'}: {[name for name, _ in buttons]}")
     if not buttons:
         record("main-window buttons", False, "UIAutomation sees no button")
@@ -481,7 +484,7 @@ def open_settings(app: App, section: str) -> bool:
 
 def export_logs(app: App) -> None:
     """设置 › 帮助 › 导出日志 › 导出: the user named it as dead. A zip must land on the Desktop."""
-    if not open_settings(app, "帮助"):
+    if not (open_settings(app, "帮助") or open_settings(app, "帮助")):
         record("导出 (导出日志) writes the logs", False, "设置 › 帮助 not reachable")
         return
     button = app.main.ButtonControl(Name="导出", searchDepth=30)

@@ -198,6 +198,17 @@ impl MainUi {
         let mut left = Vec::new();
         let mut changed = false;
         for event in events {
+            if let UiEvent::History(seat @ HistoryAction::Seat { .. }) = &event {
+                // 记录's seats: the entry's or 嘉宾's dialog, or nothing for a seat on neither list (never the runner).
+                let dialog = {
+                    let store = self.store.borrow();
+                    crate::ui_events::seat_dialog(seat, store.entries.iter().map(|e| e.name.as_str()), store.likes.iter().map(|l| l.name.as_str()))
+                };
+                if let Some(dialog) = dialog {
+                    self.open(dialog);
+                }
+                continue;
+            }
             let store = self.store.clone();
             let questions = move |yes: &Yes| question(&store.borrow(), yes);
             if let Some(dialog) = dialog_for(&event, &questions) {

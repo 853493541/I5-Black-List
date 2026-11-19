@@ -265,7 +265,12 @@ impl Runner {
 
     /// 检查更新 in 设置: a look now.
     pub fn check_updates_now(&mut self) {
-        self.look_for_update(UpdateLook::Install);
+        if self.update_check.check() {
+            self.log.info(&format!("Update: looking ({:?}).", UpdateLook::Install));
+        } else {
+            // The preview has no updater: say so rather than nothing (the real-input test counts silence as dead).
+            self.log.info("Update: not looked for: this build looks for no updates.");
+        }
     }
 
     /// 更新: download the release offered and stage it; false when there is none, or no release folder to stage in.

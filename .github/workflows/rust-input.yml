@@ -112,6 +112,7 @@ jobs:
           cargo test -p app --features preview --lib key_note
           cargo test -p app --features preview --bin blacklist-detect ui_wiring
           cargo test -p app --features preview --bin blacklist-detect a_key_in_the_hotkey_box
+          cargo test -p app --features preview --bin blacklist-detect a_seat_in_the_records
           cargo test -p app --features preview --lib no_check_before_the_disclaimer
           cargo test -p app --features preview --lib debug_frames
       - name: Clippy (app, every target, warnings are errors)
