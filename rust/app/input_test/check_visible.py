@@ -5,7 +5,7 @@ r"""Every outcome of a hotkey check is visible, on the preview as the player unz
 On a Windows runner, set to 1920x1080 before: a whole 16:9 lobby frame full-screen, Notepad in front, Alt+1 by SendInput.
 Asserted through the app's log ("Check 1 (hotkey): 12 seats read", "Header: <the pill's words>") and history.json:
   normal       the check reads 12 seats and writes a 记录 entry; an older onnxruntime.dll first on PATH changes nothing
-  no models    the pill says 识别还没准备好 at start and after a press
+  no models    unpacked without its models folder: 请先把压缩包全部解压，再运行 at start and after a press
   junk dll     识别还没准备好, and the next press checks again (a crash in the check left every later press "busy")
   ours gone    with only an older onnxruntime.dll on PATH (Windows ML ships one in System32): 识别还没准备好, never theirs
   in the zip   the exe alone in %TEMP%\Temp1_<zip>.zip\ (opened from inside the zip): 请先把压缩包全部解压，再运行
@@ -117,7 +117,8 @@ class App:
         self.data = home / FOLDER
         self.data.mkdir(parents=True)
         # 使用声明 agreed, 完整模式 (the player's), the default hotkey.
-        settings = {"disclaimer_accepted": True, "safe_mode": False, "auto_capture": False, "hotkey": "Alt+1"}
+        settings = {"disclaimer_accepted": True, "consented": ["full"], "safe_mode": False, "auto_capture": False,
+                    "hotkey": "Alt+1"}
         (self.data / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
         env = dict(os.environ, APPDATA=str(home), LOCALAPPDATA=str(home), USERPROFILE=str(home),
                    BLACKLIST_DETECT_SILENT="1")
@@ -193,6 +194,8 @@ def normal(exe: Path, work: Path, old_dir: Path, lobby: Lobby, notepad: subproce
         done = app.wait(r"Check 1 \(hotkey\)[^\n]*", 180, lobby, start)
         line = done.group(0) if done else ""
         record("normal: the hotkey check reads 12 seats", "12 seats read" in line, line or tail(app, start))
+        shown = app.wait(r"Check 1 shown: [^\n]*", 10, lobby, start)
+        print(f"  INFO normal (完整模式, not gating): {shown.group(0) if shown else 'no shown line'}")
         record("normal: 记录 written", app.wait(r"Check 1: 记录 added\.", 10, lobby, start) is not None, tail(app, start)[-200:])
         history = app.data / "history.json"
         entries = json.loads(history.read_text(encoding="utf-8")) if history.exists() else None
@@ -206,16 +209,17 @@ def normal(exe: Path, work: Path, old_dir: Path, lobby: Lobby, notepad: subproce
 
 
 def unready(name: str, exe: Path, work: Path, lobby: Lobby, notepad: subprocess.Popen, report: Path,
-            path_first: Path | None = None, at_start: bool = False) -> str:
+            path_first: Path | None = None, at_start: bool = False, words: str = "识别还没准备好",
+            step: str = "OCR load") -> str:
     app = App(exe, work / name.replace(" ", "-"), path_first)
     try:
         record(f"{name}: starts", started(app, lobby), tail(app)[-200:])
         if at_start:
-            shown = app.wait(r"Header: 识别还没准备好", 10, lobby) is not None
-            record(f"{name}: pill 识别还没准备好 before any press", shown, tail(app)[-300:])
+            shown = app.wait(f"Header: {words}", 10, lobby) is not None
+            record(f"{name}: pill {words} before any press", shown, tail(app)[-300:])
         start = press(app, lobby, notepad)
-        failed = app.wait(r"识别还没准备好 \(step: OCR load\)[^\n]*", 60, lobby)
-        record(f"{name}: pill 识别还没准备好 after the press", failed is not None and "Header: 识别还没准备好" in app.text(),
+        failed = app.wait(f"{words} \\(step: {step}\\)[^\\n]*", 60, lobby)
+        record(f"{name}: pill {words} after the press", failed is not None and f"Header: {words}" in app.text(),
                tail(app, start))
         app.wait(r"Check 1 \(second look\) failed", 30, lobby, start)
         start = press(app, lobby, notepad)
@@ -228,7 +232,7 @@ def unready(name: str, exe: Path, work: Path, lobby: Lobby, notepad: subprocess.
         app.stop()
 
 
-def older_ort(folder: Path) -> Path:
+def older_ort(folder: Path) -> Path | None:
     """An onnxruntime.dll older than ours, from the first pip wheel (newest first) that ships one of its own."""
     import zipfile
     folder.mkdir(parents=True, exist_ok=True)
@@ -244,7 +248,7 @@ def older_ort(folder: Path) -> Path:
                     (folder / "onnxruntime.dll").write_bytes(archive.read(name))
                     print(f"Older ONNX Runtime: {version} ({name})")
                     return folder / "onnxruntime.dll"
-    raise SystemExit("no older onnxruntime.dll found in the wheels tried")
+    return None
 
 
 def dll_imports(dll: Path) -> str:
@@ -271,9 +275,13 @@ def main() -> int:
     print(f"Screen {user32.GetSystemMetrics(0)}x{user32.GetSystemMetrics(1)}, system DPI {dpi} ({dpi * 100 // 96} %)")
     ours = preview / "onnxruntime.dll"
     print(f"Our onnxruntime.dll imports: {dll_imports(ours)}")
-    old_dir = work / "old-ort"
-    old_dir.mkdir(exist_ok=True)
-    shutil.copy(old_dll, old_dir / "onnxruntime.dll")
+    old_dir: Path | None = None
+    if old_dll is None:
+        print("SKIPPED  older onnxruntime.dll on PATH: no older wheel with its own dll could be downloaded")
+    else:
+        old_dir = work / "old-ort"
+        old_dir.mkdir(exist_ok=True)
+        shutil.copy(old_dll, old_dir / "onnxruntime.dll")
     lobby = Lobby()
     notepad = subprocess.Popen(["notepad.exe"])
     try:
@@ -281,7 +289,8 @@ def main() -> int:
         models = preview / "models"
         models.rename(preview / "models-gone")
         try:
-            unready("no models", exe, work, lobby, notepad, report, at_start=True)
+            unready("no models", exe, work, lobby, notepad, report, at_start=True, words="请先把压缩包全部解压，再运行",
+                    step="unzip")
         finally:
             (preview / "models-gone").rename(models)
         inside = Path(os.environ["TEMP"]) / f"Temp1_{exe_name}.zip" / exe_name
@@ -303,6 +312,8 @@ def main() -> int:
             unready("junk dll", exe, work, lobby, notepad, report)
             (preview / "onnxruntime.dll").unlink()
             log = unready("ours gone", exe, work, lobby, notepad, report, path_first=old_dir)
+            if old_dir is None:
+                print("SKIPPED  ours gone with an older dll on PATH: none downloaded; the case ran without one")
             record("ours gone: the path looked at is ours, never a search by name",
                    f"ONNX Runtime from {preview}" in log or f"ONNX Runtime from {preview.resolve()}" in log,
                    next((line for line in log.splitlines() if "ONNX Runtime from" in line), "no such line")[-300:])
