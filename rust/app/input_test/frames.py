@@ -60,53 +60,104 @@ def frameless_over_main(app: App, hwnd: int, name: str) -> None:
     shoot(hwnd, app.out, name)
 
 
+def buttons_in_view(hwnd: int, name: str, labels: list[str]) -> None:
+    """The dialog's buttons lie inside its window and on the screen (CLAUDE.md: buttons in view at 672 px)."""
+    control = drive.auto.ControlFromHandle(hwnd)
+    left, top, right, bottom = window_rect(hwnd)
+    screen = (0, 0, user32.GetSystemMetrics(78) or 1 << 15, user32.GetSystemMetrics(79) or 1 << 15)
+    for label in labels:
+        button = control.ButtonControl(Name=label, searchDepth=30)
+        if not button.Exists(3, 0.5):
+            check(f"{name}: {label} seen", False, "UIAutomation does not see it")
+            continue
+        r = button.BoundingRectangle
+        inside = left <= r.left and r.right <= right and top <= r.top and r.bottom <= bottom
+        on_screen = r.bottom <= screen[3] and r.right <= screen[2] and r.top >= 0 and r.left >= 0
+        check(f"{name}: {label} in view", inside and on_screen,
+              f"button ({r.left},{r.top},{r.right},{r.bottom}), window ({left},{top},{right},{bottom}), screen {screen[2:]}")
+
+
 def new_window(app: App, before: set[int], wait: float = 5.0) -> int:
     end = time.time() + wait
     while time.time() < end:
         new = [h for h in own_windows(app.proc.pid) if h not in before and h != app.hwnd]
         if new:
-            time.sleep(0.5)  # placed and drawn
+            time.sleep(0.8)  # placed and drawn
             return new[0]
         time.sleep(0.3)
     return 0
 
 
+def open_by_button(app: App, label: str, name: str, buttons: list[str]) -> None:
+    """Clicks `label` in the main window; the window it opens must be frameless over the main window."""
+    button = app.main.ButtonControl(Name=label, searchDepth=30)
+    if not button.Exists(3, 0.5):
+        check(f"{name}: {label} button", False, "UIAutomation does not see it")
+        return
+    before = set(own_windows(app.proc.pid))
+    click(*center(button))
+    dialog = new_window(app, before)
+    check(f"{name} opens", bool(dialog), "no new window within 5 s")
+    if dialog:
+        frameless_over_main(app, dialog, name)
+        buttons_in_view(dialog, name, buttons)
+        user32.PostMessageW(dialog, 0x0010, 0, 0)
+        time.sleep(0.8)
+
+
+def agree(app: App, dialog: int) -> None:
+    """同意并继续 on the 使用声明 at the first start (drive.agree waited 1 s; the laid-over window needs longer)."""
+    button = drive.auto.ControlFromHandle(dialog).ButtonControl(Name="同意并继续", searchDepth=30)
+    if not button.Exists(8, 0.5):
+        names = [c.Name for c, _d in drive.auto.WalkControl(drive.auto.ControlFromHandle(dialog), maxDepth=30) if c.Name][:30]
+        check("使用声明: 同意并继续 seen", False, f"names under the window: {names}")
+        return
+    user32.SetForegroundWindow(dialog)
+    time.sleep(0.4)
+    click(*center(button))
+    end, agreed = time.time() + 5, None
+    while time.time() < end and agreed is not True:
+        agreed = app.settings().get("disclaimer_accepted")
+        time.sleep(0.3)
+    check("使用声明: 同意并继续 is saved", agreed is True, f"disclaimer_accepted={agreed!r}")
+
+
 def main() -> int:
     exe, home, out = sys.argv[1], Path(sys.argv[2]), Path(sys.argv[3])
+    # --record-only: an older build for comparison; its frames are written down, not checked.
+    record_only = "--record-only" in sys.argv[4:]
     home.mkdir(parents=True, exist_ok=True)
     out.mkdir(parents=True, exist_ok=True)
     app = App(exe, home, out)
     try:
         if not app.find_main():
             check("main window shows", False, "not found within 60 s")
-            return len(FAILED)
+            return 0 if record_only else len(FAILED)
         time.sleep(3)
         record("main window style (v1.0.1's main window has a native frame)", True, window_info(app.hwnd))
         shoot(app.hwnd, out, "main")
-        others = [h for h in own_windows(app.proc.pid) if h != app.hwnd]
-        disclaimer = next((h for h in others if "使用声明" in drive.window_info(h)), others[0] if others else 0)
-        check("使用声明 opens at the first start", bool(disclaimer), f"other windows: {[window_info(h) for h in others]}")
-        if disclaimer:
-            frameless_over_main(app, disclaimer, "使用声明")
-        drive.agree(app)
+        others = [h for h in own_windows(app.proc.pid) if h != app.hwnd and "使用声明" in window_info(h)]
+        check("使用声明 opens at the first start", bool(others), f"windows: {[window_info(h) for h in own_windows(app.proc.pid)]}")
+        if others:
+            frameless_over_main(app, others[0], "使用声明")
+            buttons_in_view(others[0], "使用声明", ["同意并继续", "不同意"])
+            agree(app, others[0])
         user32.SetForegroundWindow(app.hwnd)
         time.sleep(0.5)
         app.front()
-        app.open_panel()
-        button = app.main.ButtonControl(Name="显示说明", searchDepth=30)
-        if button.Exists(3, 0.5):
-            before = set(own_windows(app.proc.pid))
-            click(*center(button))
-            dialog = new_window(app, before)
-            check("显示说明 opens", bool(dialog), "no new window within 5 s")
-            if dialog:
-                frameless_over_main(app, dialog, "显示说明")
-                user32.PostMessageW(dialog, 0x0010, 0, 0)
+        if app.open_panel():
+            open_by_button(app, "显示说明", "显示说明", ["知道了"])
         else:
-            check("显示说明 button", False, "UIAutomation does not see it")
+            check("显示说明: 检查 panel opens", False, "the panel under the 检查 pill did not open")
+        if drive.open_tab(app, "嘉宾"):
+            open_by_button(app, "添加嘉宾", "添加嘉宾", [])
+            open_by_button(app, "场景管理", "场景管理", [])
+        else:
+            check("嘉宾 tab", False, "could not open it")
+        # 设置 is a page of the main window (tab 设置), not a window of its own: nothing to check there.
     finally:
         app.proc.kill()
-    return len(FAILED)
+    return 0 if record_only else len(FAILED)
 
 
 if __name__ == "__main__":

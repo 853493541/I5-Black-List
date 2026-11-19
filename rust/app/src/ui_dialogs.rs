@@ -80,13 +80,34 @@ pub fn set_host(main: &slint::Window) {
     HOST.with(|host| host.set(client_area(main)));
 }
 
-/// ui_kit.Modal's geometry: the frameless dialog covers the main window's client area exactly, its backdrop standing in
-/// for the dimming. Without a known main window it keeps its own size and place.
+/// ui_kit.Modal's geometry: the frameless dialog covers the main window's client area, its backdrop standing in for
+/// the dimming; a card bigger than a small main window keeps its own size, centred on it, so its buttons stay in view
+/// (ui_kit.py: "the dimming grows around it"). Without a known main window it keeps its own size and place.
 pub fn place(dialog: &slint::Window) {
-    if let Some((x, y, width, height)) = HOST.with(std::cell::Cell::get) {
-        dialog.set_position(slint::PhysicalPosition::new(x, y));
-        dialog.set_size(slint::PhysicalSize::new(width, height));
+    let Some((x, y, width, height)) = HOST.with(std::cell::Cell::get) else { return };
+    let own = dialog.size();
+    let (w, h) = (width.max(own.width), height.max(own.height));
+    let (left, top) = (x - (w - width) as i32 / 2, y - (h - height) as i32 / 2);
+    if !frameless_at(dialog, left, top, w, h) {
+        dialog.set_position(slint::PhysicalPosition::new(left, top));
+        dialog.set_size(slint::PhysicalSize::new(w, h));
     }
+}
+
+/// `no-frame` alone left the native caption and border on (CI run 44490460111, style 0x16cf0000): the style is taken
+/// off the window itself, as win::float does for the cards.
+#[cfg(windows)]
+fn frameless_at(dialog: &slint::Window, x: i32, y: i32, width: u32, height: u32) -> bool {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    let handle = dialog.window_handle();
+    let Ok(raw) = handle.window_handle() else { return false };
+    let RawWindowHandle::Win32(raw) = raw.as_raw() else { return false };
+    win::float::frameless_at(raw.hwnd.get(), x, y, width as i32, height as i32)
+}
+
+#[cfg(not(windows))]
+fn frameless_at(_dialog: &slint::Window, _x: i32, _y: i32, _width: u32, _height: u32) -> bool {
+    false
 }
 
 #[cfg(windows)]

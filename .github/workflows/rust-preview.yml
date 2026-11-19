@@ -390,8 +390,9 @@ jobs:
           path: ${{ runner.temp }}/visible-report
           retention-days: 14
 
-  # The windows' frames (rust/app/input_test/frames.py), on this run's preview: 使用声明 and 显示说明 are frameless and
-  # lie over the main window's client area, as v1.0.1's ui_kit.Modal; each window is saved as a PNG.
+  # The windows' frames (rust/app/input_test/frames.py), on this run's preview: 使用声明, 显示说明, 添加嘉宾 and 场景管理
+  # are frameless, lie over the main window's client area and keep their buttons in view, as v1.0.1's ui_kit.Modal;
+  # each window is saved as a PNG. The Nov v1 preview (run 44365969758) is recorded beside it for comparison.
   frames:
     needs: preview
     runs-on: windows-2022
@@ -417,6 +418,20 @@ jobs:
         run: |
           python -I rust/app/input_test/frames.py "$RUNNER_TEMP/preview/$APP_NAME/$APP_NAME.exe" \
             "$RUNNER_TEMP/frames-home" "$RUNNER_TEMP/frames-out" | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/download-artifact@v4
+        if: always()
+        with:
+          artifact-ids: 14457038965
+          run-id: 44365969758
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/nov-v1
+      - name: Frames of the Nov v1 preview (recorded, not checked)
+        if: always()
+        run: |
+          exe=$(find "$RUNNER_TEMP/nov-v1" -name '*.exe' | head -1)
+          echo "### Nov v1 preview, for comparison" >> "$GITHUB_STEP_SUMMARY"
+          python -I rust/app/input_test/frames.py "$exe" "$RUNNER_TEMP/nov-v1-home" "$RUNNER_TEMP/frames-out/nov-v1" \
+            --record-only | tee -a "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

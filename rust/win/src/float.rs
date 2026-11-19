@@ -5,10 +5,24 @@
 use windows::Win32::Foundation::{HWND, RECT};
 use windows::Win32::UI::HiDpi::GetDpiForSystem;
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, SystemParametersInfoW, GWL_EXSTYLE, HWND_TOPMOST,
-    SPI_GETWORKAREA, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, WS_EX_NOACTIVATE,
-    WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
+    GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, SystemParametersInfoW, GWL_EXSTYLE, GWL_STYLE, HWND_TOPMOST,
+    SPI_GETWORKAREA, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS,
+    WS_BORDER, WS_CAPTION, WS_DLGFRAME, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_MAXIMIZEBOX, WS_MINIMIZEBOX,
+    WS_SYSMENU, WS_THICKFRAME,
 };
+
+/// ui_kit.Modal's window: no caption, border or resize frame (Qt.FramelessWindowHint), at (x, y) and `width` x `height`
+/// desktop pixels. The frame change is applied with SWP_FRAMECHANGED, so the client area is the whole window.
+pub fn frameless_at(hwnd: isize, x: i32, y: i32, width: i32, height: i32) -> bool {
+    let hwnd = HWND(hwnd as *mut core::ffi::c_void);
+    let frame = (WS_CAPTION | WS_THICKFRAME | WS_BORDER | WS_DLGFRAME | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX).0 as isize;
+    // SAFETY: reads and sets the style of a window handle the caller owns, then moves it.
+    unsafe {
+        let style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+        SetWindowLongPtrW(hwnd, GWL_STYLE, style & !frame);
+        SetWindowPos(hwnd, None, x, y, width, height, SWP_FRAMECHANGED | SWP_NOZORDER | SWP_NOACTIVATE).is_ok()
+    }
+}
 
 /// Makes the window `hwnd` topmost, never activated, and a tool window (no taskbar button).
 pub fn float_window(hwnd: isize) -> bool {
