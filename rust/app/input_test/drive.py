@@ -689,6 +689,71 @@ def clear_cancelled(app: App) -> None:
     record("清空数据 › 取消 keeps the data", bool(asked) and kept and app.proc.poll() is None, f"{how}; lists kept {kept}")
 
 
+TRAY_CALLBACK = 0x8000 + 1  # WM_APP + 1 (win/src/tray/shell.rs CALLBACK)
+
+
+def tray_window(app: App) -> int:
+    found = []
+    proc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+    def each(hwnd, _):
+        klass = ctypes.create_unicode_buffer(64)
+        user32.GetClassNameW(hwnd, klass, 64)
+        owner = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
+        if klass.value == "BlacklistDetectTray" and owner.value == app.proc.pid:
+            found.append(hwnd)
+        return True
+
+    user32.EnumWindows(proc(each), 0)
+    return found[0] if found else 0
+
+
+def tray_menu_item(app: App, tray: int, item: str) -> bool:
+    """The tray's right-click menu (TrackPopupMenuEx), then `item` in it, clicked where it is."""
+    user32.PostMessageW(tray, TRAY_CALLBACK, 200 | (200 << 16), 0x007B)  # WM_CONTEXTMENU at (200, 200)
+    entry = auto.MenuItemControl(Name=item, searchDepth=4)
+    if not entry.Exists(3, 0.3):
+        send(key(0x1B), key(0x1B, True))
+        return False
+    click(*center(entry))
+    return True
+
+
+def tray(app: App) -> None:
+    """The tray: a click on the icon and the menu's 显示主窗口 each bring the hidden window back."""
+    icon = tray_window(app)
+    if not icon:
+        record("tray", False, "no tray window (BlacklistDetectTray)")
+        return
+    user32.ShowWindow(app.hwnd, 0)  # SW_HIDE: as when the window goes to the tray
+    time.sleep(0.5)
+    user32.PostMessageW(icon, TRAY_CALLBACK, 0, 0x0400)  # NIN_SELECT: a click on the icon
+    end = time.time() + 5
+    while time.time() < end and not user32.IsWindowVisible(app.hwnd):
+        time.sleep(0.3)
+    record("tray icon click shows the window", bool(user32.IsWindowVisible(app.hwnd)), "")
+    user32.ShowWindow(app.hwnd, 0)
+    time.sleep(0.5)
+    picked = tray_menu_item(app, icon, "显示主窗口")
+    end = time.time() + 5
+    while time.time() < end and not user32.IsWindowVisible(app.hwnd):
+        time.sleep(0.3)
+    record("tray menu › 显示主窗口", picked and bool(user32.IsWindowVisible(app.hwnd)), f"menu item found {picked}")
+    app.front()
+
+
+def tray_quit(app: App) -> None:
+    """The tray menu's 退出, last of all: the app ends."""
+    icon = tray_window(app)
+    picked = bool(icon) and tray_menu_item(app, icon, "退出")
+    try:
+        app.proc.wait(10)
+    except subprocess.TimeoutExpired:
+        pass
+    record("tray menu › 退出 ends the app", picked and app.proc.poll() is not None, f"menu item found {picked}")
+
+
 def settings_sections(app: App) -> None:
     """Every section of 设置 and every button in it (清空数据 left out; 导出 has its own check)."""
     for section in ("常规", "帮助", "关于"):
@@ -800,8 +865,10 @@ def main() -> int:
         app.front()
         guarded(press_hotkey, app)
         guarded(capture_hotkey, app)
+        guarded(tray, app)
         evidence(app, "at the end")
         app.snapshot("end")
+        guarded(tray_quit, app)
     finally:
         if app.proc.poll() is None:
             app.proc.kill()
