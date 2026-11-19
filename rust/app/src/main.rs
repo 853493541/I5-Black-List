@@ -290,6 +290,9 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
                 Do::ShowWindow | Do::ShowSettings => {
                     if let Some(window) = shown.upgrade() {
                         let _ = window.show();
+                        // show() leaves a minimised window minimised: the tray's 显示 brought nothing back.
+                        let back = bring_back(&window);
+                        pumped.borrow().log.info(&format!("Window: shown ({back})."));
                         pumped.borrow_mut().window_returned();
                     }
                 }
@@ -304,4 +307,21 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
     timer.stop();
     runner.borrow_mut().quit(0);
     Ok(())
+}
+
+/// The main window restored when minimised and in front (win::float::bring_back); says what it found.
+#[cfg(windows)]
+fn bring_back(window: &MainWindow) -> String {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    let Ok(handle) = window.window().window_handle().window_handle() else { return "no handle".into() };
+    let RawWindowHandle::Win32(handle) = handle.as_raw() else { return "not a Win32 window".into() };
+    let hwnd = handle.hwnd.get();
+    let was = win::float::minimised(hwnd);
+    let up = win::float::bring_back(hwnd);
+    format!("was minimised {was}, restored {up}")
+}
+
+#[cfg(not(windows))]
+fn bring_back(_window: &MainWindow) -> String {
+    "only on Windows".into()
 }

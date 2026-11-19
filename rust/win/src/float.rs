@@ -22,6 +22,28 @@ pub fn float_window(hwnd: isize) -> bool {
     }
 }
 
+/// Brings the app's own window back from the taskbar or the tray (the tray's 显示, a second launch): restored when
+/// minimised, shown when hidden, in front. Slint's show() leaves a minimised window minimised, so 显示 did nothing.
+/// True when it is on screen and not minimised afterwards.
+pub fn bring_back(hwnd: isize) -> bool {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        IsIconic, IsWindowVisible, SetForegroundWindow, ShowWindow, SW_RESTORE, SW_SHOW,
+    };
+    let hwnd = HWND(hwnd as *mut core::ffi::c_void);
+    // SAFETY: shows and raises a window handle the caller owns.
+    unsafe {
+        let _ = ShowWindow(hwnd, if IsIconic(hwnd).as_bool() { SW_RESTORE } else { SW_SHOW });
+        let _ = SetForegroundWindow(hwnd);
+        IsWindowVisible(hwnd).as_bool() && !IsIconic(hwnd).as_bool()
+    }
+}
+
+/// Whether the window is minimised (for the log).
+pub fn minimised(hwnd: isize) -> bool {
+    // SAFETY: reads the state of a window handle.
+    unsafe { windows::Win32::UI::WindowsAndMessaging::IsIconic(HWND(hwnd as *mut core::ffi::c_void)).as_bool() }
+}
+
 /// The primary screen's area without the taskbar, in logical pixels (x, y, width, height).
 pub fn work_area() -> Option<(i32, i32, i32, i32)> {
     let mut rect = RECT::default();
@@ -34,4 +56,32 @@ pub fn work_area() -> Option<(i32, i32, i32, i32)> {
     let dpi = unsafe { GetDpiForSystem() }.max(96) as f64;
     let logical = |v: i32| (f64::from(v) * 96.0 / dpi).round() as i32;
     Some((logical(rect.left), logical(rect.top), logical(rect.right - rect.left), logical(rect.bottom - rect.top)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use windows::core::w;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        CreateWindowExW, DestroyWindow, IsIconic, ShowWindow, SW_MINIMIZE, WINDOW_EX_STYLE, WS_OVERLAPPEDWINDOW,
+    };
+
+    /// The tray's 显示 on a window the player minimised to go back to the game: it comes back, not left minimised.
+    #[test]
+    fn a_minimised_window_is_brought_back() {
+        // SAFETY: a plain window of the system's STATIC class, made, minimised and destroyed here.
+        let hwnd = unsafe {
+            CreateWindowExW(WINDOW_EX_STYLE(0), w!("STATIC"), w!("bring back"), WS_OVERLAPPEDWINDOW, 100, 100, 320, 200, None, None, None, None)
+        }
+        .expect("a window");
+        unsafe {
+            let _ = ShowWindow(hwnd, SW_MINIMIZE);
+        }
+        assert!(minimised(hwnd.0 as isize), "minimised first");
+        assert!(bring_back(hwnd.0 as isize), "not brought back");
+        assert!(!unsafe { IsIconic(hwnd) }.as_bool());
+        // A window already up stays up.
+        assert!(bring_back(hwnd.0 as isize));
+        let _ = unsafe { DestroyWindow(hwnd) };
+    }
 }
