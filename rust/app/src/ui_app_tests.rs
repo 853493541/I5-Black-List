@@ -31,7 +31,8 @@ fn the_main_window_shows_each_page_and_opens_the_questions() {
     assert_eq!(ui.dialogs.borrow().len(), 1, "清空黑名单 asks first");
     assert_eq!(*ui.asking.borrow(), Some(Yes::ClearList));
     ui.bus.send(UiEvent::Shell(ShellAction::BeginHotkey));
-    assert_eq!(ui.pump(), vec![UiEvent::Shell(ShellAction::BeginHotkey)], "the runner's own");
+    assert!(ui.pump().is_empty(), "the hotkey box handles it");
+    assert!(ui.hotkey_waiting.get(), "the hotkey box waits for a key");
     let root = store.borrow().root.clone();
     let _ = std::fs::remove_dir_all(root);
 }

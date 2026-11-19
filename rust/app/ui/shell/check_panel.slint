@@ -55,6 +55,7 @@ export component CheckCard inherits Rectangle {
     callback display-changed(bool /* safe */);
     callback auto-changed(bool /* auto */);
     callback hotkey-clicked;
+    callback hotkey-key(string, bool, bool, bool, bool);
     callback stream-changed(bool /* on */);
     callback display-guide;
     callback stream-guide;
@@ -107,6 +108,7 @@ export component CheckCard inherits Rectangle {
                 enabled: !auto-capture;
                 p: p;
                 clicked => { hotkey-clicked(); }
+                key-pressed(text, ctrl, alt, shift, win) => { hotkey-key(text, ctrl, alt, shift, win); }
             }
         }
         // Under the hotkey it is about, underlined as every warning is.

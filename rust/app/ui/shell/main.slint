@@ -76,6 +76,7 @@ export component MainWindow inherits Window {
     callback display-changed(bool);
     callback auto-changed(bool);
     callback hotkey-clicked;
+    callback hotkey-key(string, bool, bool, bool, bool);
     callback stream-changed(bool);
     callback display-guide;
     callback stream-guide;
@@ -224,6 +225,7 @@ export component MainWindow inherits Window {
         display-changed(safe) => { display-changed(safe); }
         auto-changed(on) => { auto-changed(on); }
         hotkey-clicked => { hotkey-clicked(); }
+        hotkey-key(text, ctrl, alt, shift, win) => { hotkey-key(text, ctrl, alt, shift, win); }
         stream-changed(on) => { stream-changed(on); }
         display-guide => { display-guide(); }
         stream-guide => { stream-guide(); }

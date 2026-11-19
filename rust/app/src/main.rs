@@ -170,8 +170,11 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
     let screen_marks = std::mem::replace(&mut parts.ports.overlay, Box::new(app::wiring::stubs::Quiet));
     parts.ports.overlay = Box::new(stream_marks::WithStream::new(screen_marks, store.clone()));
     let tray_visible = parts.tray.visible();
-    // The real app's run is the only one that makes a sound (ui_music.allow_sound).
-    sound::allow_sound();
+    // The real app's run is the only one that makes a sound (ui_music.allow_sound); BLACKLIST_DETECT_SILENT=1 keeps a
+    // test run of the exe quiet.
+    if std::env::var("BLACKLIST_DETECT_SILENT").as_deref() != Ok("1") {
+        sound::allow_sound();
+    }
     let parts = Parts {
         ports: parts.ports,
         worker: Worker::start(Box::new(RealScreen), Box::new(parts.checker)),
@@ -230,14 +233,30 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
         (settings.hotkey.clone(), settings.effect_hotkey.clone())
     };
     timer.start(slint::TimerMode::Repeated, Duration::from_millis(50), move || {
+        let mut redraw = false;
         for event in pages.pump() {
             if event == ui_events::UiEvent::Shell(shell::ShellAction::OpenUpdate) {
                 updates.open(&mut pumped.borrow_mut());
-            } else if !ui_wiring::handle(&mut pumped.borrow_mut(), &event) {
+            } else if ui_wiring::handle(&mut pumped.borrow_mut(), &event) {
+                redraw |= ui_wiring::changes_pages(&event);
+            } else {
                 pumped.borrow().log.info(&format!("UI: {event:?}"));
             }
         }
-        ui_wiring::rekey(&mut pumped.borrow_mut(), &mut hotkeys);
+        if redraw {
+            pages.refresh();
+        }
+        if pages.hotkey_waiting() {
+            // The box waits for a key: both hotkeys let go of theirs, so either key reaches it (_begin_hotkey); the
+            // empty pair makes rekey register them again once it is done.
+            if hotkeys != Default::default() {
+                pumped.borrow_mut().set_keys(Box::new(app::wiring::runner::NoKeys));
+                hotkeys = Default::default();
+            }
+        } else {
+            ui_wiring::rekey(&mut pumped.borrow_mut(), &mut hotkeys);
+        }
+        pages.set_hotkey_note(&pumped.borrow().hotkey_note());
         updates.pump(&mut pumped.borrow_mut());
         let asks = pumped.borrow_mut().pump();
         for ask in asks {

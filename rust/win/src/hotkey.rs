@@ -161,6 +161,29 @@ pub fn two_keys(text: &str) -> String {
     }
 }
 
+/// A key pressed in the hotkey box (MainWindow._take_hotkey): the hotkey it makes, as 设置 spells it, or the note that
+/// says what is wrong with it. `key` is A-Z, 0-9 or F1-F12 (anything else: None); `other` is the 场景 hotkey, which
+/// 检查 never shares.
+pub fn take_key(key: Option<&str>, modifiers: &[Modifier], other: &str) -> Result<String, &'static str> {
+    let Some(key) = key else { return Err("用字母、数字或 F1–F12") };
+    if modifiers.len() > 1 {
+        // Two keys at most: short to press mid-game, and short to read.
+        return Err("最多两个键，比如 Alt+1");
+    }
+    if key.chars().count() == 1 && matches!(modifiers, [] | [Modifier::Shift]) {
+        // Typing it anywhere would press it.
+        return Err("加上 Ctrl 或 Alt，比如 Alt+1");
+    }
+    if everyday(modifiers, key) {
+        return Err("这是常用的键，换一个");
+    }
+    let Some(spec) = parse_hotkey(&joined(modifiers, key)) else { return Err("这个键用不了，换一个") };
+    if parse_hotkey(other).is_some_and(|other| other.display == spec.display) {
+        return Err("场景已在用这个键，换一个");
+    }
+    Ok(spec.display)
+}
+
 #[cfg(test)]
 #[path = "hotkey_tests.rs"]
 mod tests;

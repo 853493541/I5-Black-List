@@ -59,6 +59,16 @@ pub fn handle(runner: &mut Runner, event: &UiEvent) -> bool {
     }
 }
 
+/// Whether the pages show what `event` changed, so they are drawn again from the store after it is handled: 显示,
+/// 方式 and 直播模式 only send their choice, and the panel shows the store's value.
+pub fn changes_pages(event: &UiEvent) -> bool {
+    matches!(
+        event,
+        UiEvent::Shell(ShellAction::SetSafeMode(_) | ShellAction::SetAutoCapture(_) | ShellAction::SetStreamMode(_))
+            | UiEvent::Stream(StreamAction::SetStreamMode(_))
+    )
+}
+
 fn replace<T: PartialEq>(slot: &mut T, value: T) -> bool {
     let changed = *slot != value;
     *slot = value;
@@ -147,4 +157,24 @@ pub fn restart_after(runner: &mut Runner, ms: u64) {
             let _ = slint::quit_event_loop();
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_check_panel_choices_redraw_the_pages() {
+        // 显示, 方式 and 直播模式 only send the choice: without a redraw the panel kept showing the old one.
+        for event in [
+            UiEvent::Shell(ShellAction::SetSafeMode(false)),
+            UiEvent::Shell(ShellAction::SetAutoCapture(true)),
+            UiEvent::Shell(ShellAction::SetStreamMode(true)),
+            UiEvent::Stream(StreamAction::SetStreamMode(false)),
+        ] {
+            assert!(changes_pages(&event), "{event:?}");
+        }
+        assert!(!changes_pages(&UiEvent::Shell(ShellAction::BeginHotkey)));
+        assert!(!changes_pages(&UiEvent::Settings(SettingsAction::ExportLogs)));
+    }
 }

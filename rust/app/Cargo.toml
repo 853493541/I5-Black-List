@@ -18,6 +18,8 @@ path = "src/bin/settings_mock.rs"
 default = []
 # The Rust preview (docs/dev/preview.md): its own name, data folder and single-instance key; no updater, no sweep.
 preview = []
+# UIAutomation sees the controls (AccessKit): the real-input test (.github/workflows/rust-input.yml) builds with it.
+a11y = ["slint/accessibility"]
 
 [dependencies]
 slint = { version = "1.14", default-features = false, features = [

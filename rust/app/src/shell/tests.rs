@@ -104,3 +104,15 @@ fn panel_fits_the_smallest_window() {
     assert_eq!(at(150), [0xff, 0xff, 0xff]);
     assert_ne!(at(300), [0xff, 0xff, 0xff]);
 }
+
+#[test]
+fn a_key_in_the_hotkey_box_is_read_as_python_reads_it() {
+    use slint::platform::Key;
+    assert_eq!(pressed_key("a"), Pressed::Key(Some("A".into())));
+    assert_eq!(pressed_key("1"), Pressed::Key(Some("1".into())));
+    assert_eq!(pressed_key(&char::from(Key::F12).to_string()), Pressed::Key(Some("F12".into())));
+    assert_eq!(pressed_key(&char::from(Key::Escape).to_string()), Pressed::Escape);
+    assert_eq!(pressed_key("\u{1b}"), Pressed::Escape);
+    assert_eq!(pressed_key(&char::from(Key::Alt).to_string()), Pressed::Modifier);
+    assert_eq!(pressed_key(" "), Pressed::Key(None));
+}
