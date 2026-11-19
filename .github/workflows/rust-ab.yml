@@ -5,6 +5,11 @@ name: rust-ab
 # profile, beside the models that build ships; tools/preview_check/ab.py then runs them interleaved, round after round.
 # Artifacts and the job summary only: nothing here tags, releases or touches main / 1.x. Frames and names stay on the runner.
 on:
+  # A push that changes this file runs it with the defaults below (GitHub only lists a workflow for dispatch once it
+  # has run); later runs start by hand.
+  push:
+    branches: ["feature/rust-preview-check"]
+    paths: [".github/workflows/rust-ab.yml"]
   workflow_dispatch:
     inputs:
       v3_ref:
@@ -89,8 +94,8 @@ jobs:
         working-directory: .
         run: |
           case "${{ matrix.ref }}" in
-            v3) ref="${{ inputs.v3_ref }}" ;;
-            v3o3) ref="${{ inputs.v3o3_ref }}"; [ -n "$ref" ] || ref="${{ inputs.v3_ref }}" ;;
+            v3) ref="${{ inputs.v3_ref || 'cbf8762efe6e9cf7081d723a853b3dfddb31bccb' }}" ;;
+            v3o3) ref="${{ inputs.v3o3_ref || inputs.v3_ref || 'cbf8762efe6e9cf7081d723a853b3dfddb31bccb' }}" ;;
             *) ref="${{ matrix.ref }}" ;;
           esac
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
@@ -204,7 +209,7 @@ jobs:
       - name: A/B
         run: |
           python tools/preview_check/ab.py "$RUNNER_TEMP/corpus/tests/lobby_corpus" "$RUNNER_TEMP/builds" \
-            "$RUNNER_TEMP/ab-${{ matrix.os }}.json" "${{ inputs.rounds }}" v1 v2 v3 v3-o3
+            "$RUNNER_TEMP/ab-${{ matrix.os }}.json" "${{ inputs.rounds || '5' }}" v1 v2 v3 v3-o3
       - uses: actions/upload-artifact@v4
         if: always()
         with:
