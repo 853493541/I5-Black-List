@@ -43,7 +43,7 @@ PANEL = {"显示说明", "直播模式说明", "快捷键"}
 # The 检查 pill: its idle words, or a failed check's problem in their place (shell::show_problem).
 PILL = ("手动检查", "自动检查", "识别还没准备好", "读不到屏幕", "检查失败")
 # Clicks that do nothing by design (v1.0.1 the same): a 记录 seat on neither list.
-NO_EFFECT = {"标签", "原因"}  # 黑名单 columns that do not sort (v1.0.1 the same)
+NO_EFFECT = {"标签", "原因", "20:30"}  # columns that do not sort; 记录's newest check, already the one shown
 SEGMENTS = {"基础模式", "完整模式", "自动", "手动", "关闭", "开启"}
 GW_HWNDNEXT, GA_ROOT = 2, 2
 WS_EX = {0x8: "TOPMOST", 0x20: "TRANSPARENT", 0x80: "TOOLWINDOW", 0x80000: "LAYERED", 0x8000000: "NOACTIVATE",
