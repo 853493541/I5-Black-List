@@ -34,6 +34,7 @@ user32.SendMessageTimeoutW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WP
                                        wintypes.UINT, ctypes.POINTER(ctypes.c_size_t)]
 user32.WindowFromPoint.argtypes = [wintypes.POINT]
 user32.WindowFromPoint.restype = wintypes.HWND
+user32.GetForegroundWindow.restype = wintypes.HWND
 STAGE_CLASS = "BlacklistDetectStage"
 
 
@@ -127,6 +128,28 @@ def bring_main(app, lobby) -> int:
     return hwnd
 
 
+class GUITHREADINFO(ctypes.Structure):
+    _fields_ = [("cbSize", wintypes.DWORD), ("flags", wintypes.DWORD), ("hwndActive", wintypes.HWND),
+                ("hwndFocus", wintypes.HWND), ("hwndCapture", wintypes.HWND), ("hwndMenuOwner", wintypes.HWND),
+                ("hwndMoveSize", wintypes.HWND), ("hwndCaret", wintypes.HWND), ("rcCaret", wintypes.RECT)]
+
+
+def named(hwnd) -> str:
+    return f"{class_name(hwnd or 0)!r}/{cv.title(hwnd or 0)!r}" if hwnd else "none"
+
+
+def thread_state(hwnd: int) -> str:
+    """What the main window's UI thread holds: capture, focus, active, menu or move mode; enabled; the foreground."""
+    info = GUITHREADINFO(cbSize=ctypes.sizeof(GUITHREADINFO))
+    tid = user32.GetWindowThreadProcessId(hwnd, None)
+    got = user32.GetGUIThreadInfo(tid, ctypes.byref(info))
+    flags = {0x1: "caret", 0x2: "in-move-size", 0x4: "in-menu-mode", 0x8: "system-menu", 0x10: "popup-menu"}
+    shown = [name for bit, name in flags.items() if info.flags & bit]
+    return (f"thread info {bool(got)}: capture {named(info.hwndCapture)}, focus {named(info.hwndFocus)}, "
+            f"active {named(info.hwndActive)}, menu owner {named(info.hwndMenuOwner)}, flags {shown or 'none'}; "
+            f"main enabled {bool(user32.IsWindowEnabled(hwnd))}; foreground {named(user32.GetForegroundWindow())}")
+
+
 def clicks_work(hwnd: int, lobby, when: str, report: Path) -> None:
     """SendInput clicks on a 3x3 grid over the window (the title bar's corner left alone): at least one changes what
     it shows (a page, a press), and its thread answers."""
@@ -138,12 +161,15 @@ def clicks_work(hwnd: int, lobby, when: str, report: Path) -> None:
             x = rect.left + (rect.right - rect.left) * i // 5
             y = rect.top + 60 + (rect.bottom - rect.top - 60) * j // 4
             before = grab(hwnd)
+            target = under(x, y)
             click(x, y)
             lobby.pump(0.3)
             moved = ImageChops.difference(before.convert("RGB"), grab(hwnd).convert("RGB")).getbbox() is not None
             changed += moved
-            points.append(f"({x},{y}){'*' if moved else ''}")
+            mine = target == hwnd or user32.IsChild(hwnd, target)
+            points.append(f"({x},{y}){'*' if moved else ''}{'' if mine else ' over ' + named(target)}")
     grab(hwnd).save(report / f"main-{when}.png")
+    print(f"  {when}: {thread_state(hwnd)}")
     cv.record(f"clicks on the main window work {when}", changed > 0 and answers(hwnd),
               f"{changed} of 9 clicks changed {cv.title(hwnd)!r}: {' '.join(points)}; answers {answers(hwnd)}; "
               f"IsHungAppWindow {bool(user32.IsHungAppWindow(hwnd))}")
