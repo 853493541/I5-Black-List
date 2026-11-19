@@ -283,24 +283,32 @@ def evidence(app: App, title: str) -> None:
 
 def agree(app: App) -> None:
     """A new data folder: 使用声明 opens over the window at start, and 同意并继续 lets checks run."""
-    button = None
+    button, dialog = None, 0
     for hwnd in own_windows(app.proc.pid):
         if hwnd == app.hwnd:
             continue
         found = auto.ControlFromHandle(hwnd).ButtonControl(Name="同意并继续", searchDepth=30)
         if found.Exists(1, 0.3):
-            button = found
+            button, dialog = found, hwnd
             break
     if button is None:
         seen = [window_info(h) for h in own_windows(app.proc.pid) if h != app.hwnd]
         record("使用声明 opens at the first start", False, f"no window with 同意并继续; the app's other windows: {seen}")
         return
-    click(*center(button))
+    x, y = center(button)
+    where_before = app.under(x, y)  # a 使用声明 behind the main window is one the player cannot answer
+    user32.SetForegroundWindow(dialog)
+    time.sleep(0.4)
+    where = app.under(x, y)
+    start = len(app.log_text())
+    click(x, y)
     end, agreed = time.time() + 5, None
     while time.time() < end and agreed is not True:
         agreed = app.settings().get("disclaimer_accepted")
         time.sleep(0.3)
-    record("使用声明 opens at the first start and 同意并继续 is saved", agreed is True, f"disclaimer_accepted={agreed!r}")
+    record("使用声明 opens at the first start and 同意并继续 is saved", agreed is True,
+           f"disclaimer_accepted={agreed!r}; under the button at first: {where_before}; after raising it: {where}; "
+           f"log: {app.log_text()[start:].strip()[-200:]!r}")
 
 
 def change_segment(app: App, label: str, key_name: str, wanted) -> None:
