@@ -41,7 +41,7 @@ pub fn scene_of(choice: &Choice, picker: &mut Picker) -> String {
 }
 
 impl Records for StoreRecords {
-    fn add_scan(&mut self, result: &CheckResult, elapsed: Option<f64>) {
+    fn add_scan(&mut self, result: &CheckResult, elapsed: Option<f64>) -> &'static str {
         let seats: Vec<Seat> = result
             .names
             .iter()
@@ -51,7 +51,7 @@ impl Records for StoreRecords {
                 unclear: slot.unclear,
             })
             .collect();
-        self.store.borrow_mut().add_scan(&seats, elapsed);
+        self.store.borrow_mut().add_scan(&seats, elapsed)
     }
 
     /// The check matched them already (pipeline.likes_in): they are not matched again here.

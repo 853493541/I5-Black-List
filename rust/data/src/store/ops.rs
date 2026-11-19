@@ -327,8 +327,8 @@ impl Store {
     pub fn add_scan(&mut self, names: &[Seat], elapsed: Option<f64>) -> &'static str {
         let names: Vec<Seat> = names.iter().map(|s| Seat { name: cut(&s.name, MAX_NAME), ..s.clone() }).collect();
         let result = scans::add(&mut self.scans, &names, elapsed, self.clock.local());
-        if result != "skipped" {
-            self.save_scans();
+        if result != "skipped" && !self.save_scans() {
+            return "unsaved";
         }
         result
     }

@@ -29,13 +29,13 @@ impl Screen for RealScreen {
 
 #[cfg(windows)]
 fn capture_failed(error: win::capture::CaptureError) -> CheckError {
-    CheckError { message: "截图失败，再试一次".into(), plain: true, capture: true, detail: format!("{error:?}"), ..CheckError::default() }
+    CheckError { message: "截图失败，再试一次".into(), plain: true, capture: true, detail: format!("{error:?}"), step: "capture", ..CheckError::default() }
 }
 
 #[cfg(not(windows))]
 impl Screen for RealScreen {
     fn displays(&mut self) -> Result<Vec<Frame>, CheckError> {
-        Err(CheckError { message: "这台电脑不能截图".into(), plain: true, capture: true, ..CheckError::default() })
+        Err(CheckError { message: "这台电脑不能截图".into(), plain: true, capture: true, step: "capture", ..CheckError::default() })
     }
     fn top_band(&mut self) -> Result<Frame, CheckError> {
         self.displays().map(|_| Frame { width: 0, height: 0, rgb: Vec::new() })
@@ -47,7 +47,7 @@ impl Screen for RealScreen {
 pub fn run(job: Job, screen: &mut dyn Screen, checker: &mut dyn Checker) -> Done {
     let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run_job(job, &mut *screen, &mut *checker)));
     ran.unwrap_or_else(|panic| {
-        let error = CheckError { message: "检查失败".into(), detail: format!("panic: {}", panic_text(&*panic)), ..CheckError::default() };
+        let error = CheckError { message: "检查失败".into(), detail: format!("panic: {}", panic_text(&*panic)), step: "crash", ..CheckError::default() };
         match job {
             Job::Glance => Done::Glanced(Err(error)),
             Job::Check => Done::Checked(Err(error)),
@@ -105,7 +105,7 @@ impl Worker {
     }
 
     pub fn request(&self, job: Job) {
-        let error = || CheckError { message: "检查失败".into(), detail: "the check thread did not start".into(), ..CheckError::default() };
+        let error = || CheckError { message: "检查失败".into(), detail: "the check thread did not start".into(), step: "worker", ..CheckError::default() };
         if let Some(outbox) = &self.no_thread {
             let _ = outbox.send(match job {
                 Job::Glance => Done::Glanced(Err(error())),
