@@ -69,9 +69,15 @@ jobs:
       OPENCV_VERSION: "4.10.0"
       OPENCV_CLANG_ARGS: -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH
       ORT_VERSION: "1.32.0"
-      APP_NAME: 模仿者小工具 Rust 预览 11月 v3
     steps:
       - uses: actions/checkout@v5
+      # The build's name, from its one source: build_label! in rust/app/src/preview.rs (e.g. "11月 v3.2").
+      - name: Build name
+        working-directory: .
+        run: |
+          label=$(sed -n 's/^macro_rules! build_label { () => { "\(.*\)" }; }$/\1/p' rust/app/src/preview.rs)
+          [ -n "$label" ] || { echo "::error::no build_label! in preview.rs"; exit 1; }
+          echo "APP_NAME=模仿者小工具 Rust 预览 $label" | tee -a "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-python@v5
         with:
@@ -170,7 +176,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/pdb"
           cp rust/target/release/blacklist_detect.pdb "$RUNNER_TEMP/pdb/$APP_NAME.pdb"
           # Notepad-friendly: UTF-8 with a BOM and CRLF line ends.
-          { printf '\xef\xbb\xbf'; sed 's/$/\r/' rust/app/preview/使用说明.txt; } > "$out/使用说明.txt"
+          { printf '\xef\xbb\xbf'; sed -e "s/{NAME}/$APP_NAME/g" -e 's/$/\r/' rust/app/preview/使用说明.txt; } > "$out/使用说明.txt"
           echo "PREVIEW_DIR=$out" >> "$GITHUB_ENV"
           echo "SHORT_SHA=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
           du -sh "$out"; ls -la "$out"
@@ -315,6 +321,6 @@ jobs:
           [ "$read" -eq 12 ] || { cat "$RUNNER_TEMP/o3-check.txt"; exit 1; }
       - uses: actions/upload-artifact@v4
         with:
-          name: v3-o3
+          name: ${{ env.APP_NAME }} o3 (test only)
           path: ${{ runner.temp }}/o3
           retention-days: 14

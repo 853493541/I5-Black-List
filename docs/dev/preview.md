@@ -7,7 +7,7 @@ release, draft, tag or update offer, never signed with the release key, never pu
 
 | | Normal | Preview |
 |---|---|---|
-| Name (window title, tray tooltip, log) | 模仿者小工具 | 模仿者小工具 Rust 预览 11月 v3 |
+| Name (window title, tray tooltip, log) | 模仿者小工具 | 模仿者小工具 Rust 预览 <build> |
 | Data folder | `%APPDATA%\BlackListDetect` | `%APPDATA%\BlackListDetect-RustPreview` (`common::paths::use_folder_name`) |
 | Single-instance key | `BlackListDetect-<sha1>` | the same with `-RustPreview` |
 | 开机启动 | refreshes the Run entry | never reads or writes it |
@@ -34,7 +34,7 @@ On push to `feature/rust` or `feature/rust-preview`, or by hand (workflow_dispat
    converted with paddle2onnx 2.1.0 at opset 11 (paddlepaddle 3.2.2: paddle2onnx 2.1.0 refuses 3.0.0) in a Linux job
    (its Windows wheel fails to load its DLL), cached, handed to the Windows job as a one-day artifact. Checked here:
    the debug preview exe reads all 12 seats of the sample lobby whole with them.
-3. Folder `模仿者小工具 Rust 预览 11月 v3\`: the exe (release profile: opt z, hot crates at 3, fat LTO), `onnxruntime.dll`
+3. Folder `模仿者小工具 Rust 预览 <build>\`: the exe (release profile: opt z, hot crates at 3, fat LTO), `onnxruntime.dll`
    (1.32, from the pip wheel), `models\` with all three (v3 brought PP-OCRv5_mobile_rec back: it reads the lobby words and
    the countdown, v6 the names; the one-reader path of v2 cost more CPU per check), `assets\` laid out as `tools/size/sound_compress.py --stage` does, from the committed `rust/assets/sounds/*.ogg`
    (Vorbis q6; the script's --stage re-encodes first, so it is not run),
@@ -42,7 +42,7 @@ On push to `feature/rust` or `feature/rust-preview`, or by hand (workflow_dispat
 4. Smoke: a temp `%APPDATA%` with a made-up v1.0.1 list; `--quit-after-start` must log every start-up step ok, the
    models found and the copy, leave the old list unchanged; `check blacklist_detect/assets/sample-lobby.jpg` must find
    the lobby and read at least 8 of 12 seats whole. Both outputs go to the run summary.
-5. Upload as artifact `模仿者小工具 Rust 预览 11月 v3` (the name the user gave this preview: "Nov v3"), kept 14 days. The exe's
+5. Upload as artifact `模仿者小工具 Rust 预览 <build>` (`<build>` is `preview::BUILD`, e.g. 11月 v3.2: a new number for every build sent to the user, never reused; the workflow reads it from `build_label!` in rust/app/src/preview.rs and fills `{NAME}` in 使用说明.txt), kept 14 days. The exe's
    .pdb is its own artifact (`... pdb`), never in the player's zip. A Sizes step writes a table per part to the summary.
 6. Test only: `v3-o3`, the same folder with the exe at v1's release profile (opt-level 3, no LTO), for CPU comparisons;
    never for players.
