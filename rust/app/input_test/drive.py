@@ -36,7 +36,9 @@ user32.SendMessageTimeoutW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WP
                                        wintypes.UINT, ctypes.POINTER(ctypes.c_size_t)]
 
 FOLDER = "BlackListDetect-RustPreview"
-SKIP = {"退出", "清空数据", "最小化", "关闭"}  # would end the run or close the window under test
+# The title bar's own buttons and what would end the run or close the window under test.
+SKIP = {"退出", "清空数据", "最小化", "关闭", "Minimize", "Maximize", "Restore", "Close", "还原", "最大化"}
+SEGMENTS = {"基础模式", "完整模式", "自动", "手动", "关闭", "开启"}
 GW_HWNDNEXT, GA_ROOT = 2, 2
 WS_EX = {0x8: "TOPMOST", 0x20: "TRANSPARENT", 0x80: "TOOLWINDOW", 0x80000: "LAYERED", 0x8000000: "NOACTIVATE",
          0x200000: "NOREDIRECTIONBITMAP"}
@@ -224,7 +226,25 @@ class App:
             time.sleep(1)
         return len(extra)
 
+    def front(self) -> None:
+        """The main window restored and in front (a click may have hidden or minimized it)."""
+        user32.ShowWindow(self.hwnd, 9)  # SW_RESTORE
+        user32.SetForegroundWindow(self.hwnd)
+        time.sleep(0.3)
+
+    def open_panel(self) -> bool:
+        """The 检查 panel under the header's pill (手动检查 / 自动检查中), where 显示 and 方式 are."""
+        if self.main.TabItemControl(Name="完整模式", searchDepth=30).Exists(0.5, 0.2):
+            return True
+        for control, _depth in auto.WalkControl(self.main, maxDepth=30):
+            if control.ControlTypeName == "ButtonControl" and control.Name.startswith(("手动检查", "自动检查")):
+                click(*center(control))
+                return self.main.TabItemControl(Name="完整模式", searchDepth=30).Exists(3, 0.3)
+        notes.append("no 检查 pill seen")
+        return False
+
     def segment(self, group: str, label: str):
+        self.open_panel()
         panel = self.main
         control = panel.TabItemControl(Name=label, searchDepth=30)
         return control if control.Exists(3, 0.5) else None
@@ -273,17 +293,37 @@ def change_segment(app: App, label: str, key_name: str, wanted) -> None:
            f"window redrawn: {shown}; under the click: {where}")
 
 
-def click_buttons(app: App) -> None:
+def click_pages(app: App) -> None:
+    """Each page tab of the header in turn, and every button on it."""
+    tabs = [c.Name for c, _ in auto.WalkControl(app.main, maxDepth=30)
+            if c.ControlTypeName == "TabItemControl" and c.Name not in SEGMENTS and c.Name]
+    notes.append(f"page tabs seen by UIAutomation: {tabs}")
+    for name in dict.fromkeys(tabs):
+        app.front()
+        tab = app.main.TabItemControl(Name=name, searchDepth=30)
+        if not tab.Exists(2, 0.3):
+            record(f"tab {name!r}", False, "gone")
+            continue
+        before = grab(app.hwnd)
+        click(*center(tab))
+        time.sleep(1)
+        record(f"tab {name!r}", differs(before, grab(app.hwnd)), "page shown")
+        app.snapshot(f"page-{len(results)}")
+        click_buttons(app, name)
+
+
+def click_buttons(app: App, page: str = "") -> None:
     buttons = []
     for control, _depth in auto.WalkControl(app.main, maxDepth=30):
         if control.ControlTypeName == "ButtonControl" and control.Name not in SKIP:
             r = control.BoundingRectangle
             if r.width() > 2 and r.height() > 2:
                 buttons.append((control.Name, center(control)))
-    notes.append(f"buttons seen by UIAutomation: {[name for name, _ in buttons]}")
+    notes.append(f"buttons seen by UIAutomation on {page or 'the start page'}: {[name for name, _ in buttons]}")
     if not buttons:
         record("main-window buttons", False, "UIAutomation sees no button")
     for name, (x, y) in buttons:
+        app.front()
         windows = set(own_windows(app.proc.pid))
         where = app.under(x, y)
         start = len(app.log_text())
@@ -302,11 +342,12 @@ def click_buttons(app: App) -> None:
         # "UI: <event>" is what main.rs logs for an event nothing handles: a stub, not an effect.
         handled = [line for line in logged.splitlines() if " UI: " not in line and not line.startswith("UI: ")]
         ok = shown or opened > 0 or bool(handled)
-        record(f"button {name!r}", ok, f"redrawn {shown}, windows opened {opened}, log {logged[-120:]!r}; "
+        record(f"{page or 'start'}: button {name!r}", ok, f"redrawn {shown}, windows opened {opened}, log {logged[-120:]!r}; "
                f"under the click: {where}")
 
 
 def open_dialog(app: App) -> None:
+    app.open_panel()
     info = app.main.ButtonControl(Name="显示说明", searchDepth=30)
     if not info.Exists(3, 0.5):
         record("dialog 显示说明", False, "UIAutomation does not see the button")
@@ -338,6 +379,8 @@ def press_hotkey(app: App) -> None:
 
 def capture_hotkey(app: App) -> None:
     """The hotkey box takes a new key as it is pressed (MainWindow._take_hotkey), and the new key starts a check."""
+    app.front()
+    app.open_panel()
     box = app.main.ButtonControl(Name="快捷键", searchDepth=30)
     if not box.Exists(3, 0.5):
         record("hotkey box takes Alt+2", False, "UIAutomation does not see the box")
@@ -412,7 +455,10 @@ def main() -> int:
         change_segment(app, "基础模式", "safe_mode", True)
         app.snapshot("after-segments")
         open_dialog(app)
+        app.front()
         click_buttons(app)
+        click_pages(app)
+        app.front()
         press_hotkey(app)
         capture_hotkey(app)
         evidence(app, "at the end")
