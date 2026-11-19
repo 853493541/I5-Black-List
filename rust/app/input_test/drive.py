@@ -16,6 +16,7 @@ import json
 import os
 import subprocess
 import sys
+import re
 import time
 from ctypes import wintypes
 from pathlib import Path
@@ -427,7 +428,9 @@ def click_buttons(app: App, page: str = "") -> None:
     # The 检查 pill last: it folds the panel away, and the panel's buttons with it.
     # A menu (more) or the tag already chosen (全部) last but one: an open menu eats the next click, and 全部 changes
     # nothing until another tag was picked.
-    buttons.sort(key=lambda item: 2 if item[0].startswith(PILL) else 1 if item[0] in ("more", "全部") else 0)
+    # A day row in 记录 folds its times: clicked before them, it would leave their saved places empty.
+    day = re.compile(r"^(今天|昨天|前天|\d+月\d+日)$")
+    buttons.sort(key=lambda item: 2 if item[0].startswith(PILL) else 1 if item[0] in ("more", "全部") or day.match(item[0]) else 0)
     notes.append(f"buttons seen by UIAutomation on {page or 'the start page'}: {[name for name, _ in buttons]}")
     if not buttons:
         record("main-window buttons", False, "UIAutomation sees no button")
