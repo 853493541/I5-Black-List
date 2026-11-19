@@ -508,6 +508,19 @@ def export_logs(app: App) -> None:
     path = Path(line.split("Logs exported: ", 1)[1].strip()) if line else None
     text = path.read_text(encoding="utf-8", errors="replace") if path is not None and path.exists() else ""
     ok = "==== app.log ====" in text  # the file is there and holds the log
+    # The Explorer window 导出 opens (the file selected) stays over everything after: close it.
+    time.sleep(1.5)
+    proc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+    def close_explorer(hwnd, _):
+        klass = ctypes.create_unicode_buffer(64)
+        user32.GetClassNameW(hwnd, klass, 64)
+        if klass.value == "CabinetWClass" and user32.IsWindowVisible(hwnd):
+            notes.append(f"导出 opened Explorer: {window_info(hwnd)}")
+            user32.PostMessageW(hwnd, 0x0010, 0, 0)
+        return True
+
+    user32.EnumWindows(proc(close_explorer), 0)
     record("导出 (导出日志) writes the logs", ok, f"file {path} exists {ok}; under the click: {where}; log {said.strip()[-200:]!r}")
 
 
