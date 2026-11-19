@@ -260,7 +260,7 @@ jobs:
           python -m pip install -q pillow pefile
           python -m pip download -q onnxruntime==1.16.3 --no-deps --only-binary=:all: --platform win_amd64 \
             --python-version 3.11 -d "$RUNNER_TEMP/old-ort"
-          python -c "import zipfile, glob, sys; z = zipfile.ZipFile(glob.glob(sys.argv[1] + '/*.whl')[0]); open(sys.argv[1] + '/onnxruntime.dll', 'wb').write(z.read('onnxruntime/capi/onnxruntime.dll'))" "$RUNNER_TEMP/old-ort"
+          python -c "import zipfile, glob, sys; z = zipfile.ZipFile(glob.glob(sys.argv[1] + '/*.whl')[0]); name = next(n for n in z.namelist() if n.lower().endswith('/onnxruntime.dll')); print(name); open(sys.argv[1] + '/onnxruntime.dll', 'wb').write(z.read(name))" "$RUNNER_TEMP/old-ort"
       - name: Check visible
         run: |
           python -I rust/app/input_test/check_visible.py "$RUNNER_TEMP/preview/$APP_NAME" "$APP_NAME" \
