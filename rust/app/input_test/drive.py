@@ -37,9 +37,11 @@ user32.SendMessageTimeoutW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WP
 
 FOLDER = "BlackListDetect-RustPreview"
 # The title bar's own buttons and what would end the run or close the window under test.
-SKIP = {"退出", "清空数据", "最小化", "关闭", "Minimize", "Maximize", "Restore", "Close", "还原", "最大化"}
+SKIP = {"退出", "清空数据", "导出", "最小化", "关闭", "Minimize", "Maximize", "Restore", "Close", "还原", "最大化"}
 # In the 检查 panel, which any click outside it folds away: tested on their own, the panel opened first.
 PANEL = {"显示说明", "直播模式说明", "快捷键"}
+# Clicks that do nothing by design (v1.0.1 the same): a 记录 seat on neither list.
+NO_EFFECT = {"心动星星"}
 SEGMENTS = {"基础模式", "完整模式", "自动", "手动", "关闭", "开启"}
 GW_HWNDNEXT, GA_ROOT = 2, 2
 WS_EX = {0x8: "TOPMOST", 0x20: "TRANSPARENT", 0x80: "TOOLWINDOW", 0x80000: "LAYERED", 0x8000000: "NOACTIVATE",
@@ -94,6 +96,32 @@ def click(x: int, y: int) -> None:
     move(x, y)
     time.sleep(0.05)
     send(mouse(0x0002), mouse(0x0004))  # LEFTDOWN, LEFTUP
+
+
+def right_click(x: int, y: int) -> None:
+    move(x, y)
+    time.sleep(0.05)
+    send(mouse(0x0008), mouse(0x0010))  # RIGHTDOWN, RIGHTUP
+
+
+def clipboard() -> str:
+    """The clipboard's text (CF_UNICODETEXT), "" when none."""
+    kernel32 = ctypes.windll.kernel32
+    kernel32.GlobalLock.restype = ctypes.c_void_p
+    user32.GetClipboardData.restype = ctypes.c_void_p
+    if not user32.OpenClipboard(None):
+        return ""
+    try:
+        handle = user32.GetClipboardData(13)
+        pointer = kernel32.GlobalLock(ctypes.c_void_p(handle)) if handle else None
+        if not pointer:
+            return ""
+        try:
+            return ctypes.wstring_at(pointer)
+        finally:
+            kernel32.GlobalUnlock(ctypes.c_void_p(handle))
+    finally:
+        user32.CloseClipboard()
 
 
 def window_info(hwnd: int) -> str:
@@ -179,7 +207,15 @@ class App:
         old = home / "BlackListDetect"
         old.mkdir(parents=True, exist_ok=True)
         (old / "blacklist.json").write_text(
-            json.dumps({"entries": [{"name": "示例坏人", "reason": "", "tags": []}]}, ensure_ascii=False), encoding="utf-8")
+            json.dumps({"entries": [{"name": "示例坏人", "reason": "", "tags": ["挂机"]}]}, ensure_ascii=False), encoding="utf-8")
+        # 心动小鹿 a 嘉宾, so its seat in 记录 opens the 嘉宾 dialog; 心动星星 stays on neither list (its click does nothing).
+        (old / "likes.json").write_text(json.dumps({"likes": [{"name": "心动小鹿", "nickname": "", "reason": ""}], "combos": []},
+                                                   ensure_ascii=False), encoding="utf-8")
+        # One made-up check in 记录, so its day, time and seat rows are there to click.
+        seats = [{"seat": i + 1, "name": name, "unclear": False} for i, name in enumerate(["示例坏人", "心动小鹿", "心动星星"])]
+        (old / "history.json").write_text(json.dumps(
+            {"scans": [{"at": "2026-11-18T20:30:00+08:00", "elapsed": 1.2, "names": seats},
+                       {"at": "2026-11-18T19:00:00+08:00", "elapsed": 1.1, "names": seats}]}, ensure_ascii=False), encoding="utf-8")
         self.proc = subprocess.Popen([exe], env=env, cwd=str(home))
         self.log = self.data / "logs" / "app.log"
         self.main = None
@@ -188,6 +224,12 @@ class App:
     def log_text(self) -> str:
         try:
             return self.log.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return ""
+
+    def list_file(self) -> str:
+        try:
+            return (self.data / "blacklist.json").read_text(encoding="utf-8")
         except OSError:
             return ""
 
@@ -361,12 +403,17 @@ def click_pages(app: App) -> None:
 def click_buttons(app: App, page: str = "") -> None:
     buttons = []
     for control, _depth in auto.WalkControl(app.main, maxDepth=30):
-        if control.ControlTypeName == "ButtonControl" and control.Name not in SKIP | PANEL:
+        # The 检查 pill opens the panel over the page (its own checks cover it): clicked here it left the panel open,
+        # and the next page or menu could not be reached.
+        pill = control.Name.startswith(("手动检查", "自动检查"))
+        if control.ControlTypeName == "ButtonControl" and control.Name not in SKIP | PANEL | NO_EFFECT and not pill:
             r = control.BoundingRectangle
-            if r.width() > 2 and r.height() > 2:
+            if r.width() > 2 and r.height() > 2 and not control.IsOffscreen:
                 buttons.append((control.Name, center(control)))
     # The 检查 pill last: it folds the panel away, and the panel's buttons with it.
-    buttons.sort(key=lambda item: item[0].startswith(("手动检查", "自动检查")))
+    # A menu (more) or the tag already chosen (全部) last but one: an open menu eats the next click, and 全部 changes
+    # nothing until another tag was picked.
+    buttons.sort(key=lambda item: 2 if item[0].startswith(("手动检查", "自动检查")) else 1 if item[0] in ("more", "全部") else 0)
     notes.append(f"buttons seen by UIAutomation on {page or 'the start page'}: {[name for name, _ in buttons]}")
     if not buttons:
         record("main-window buttons", False, "UIAutomation sees no button")
@@ -425,6 +472,100 @@ def press_hotkey(app: App) -> None:
     tail = app.log_text()[start:].strip()
     ok = ok and "busy" not in tail and "not agreed" not in tail  # the check really started
     record("hotkey Alt+1 starts a check", ok, f"log after the press: {tail[-300:]!r}")
+
+
+def open_settings(app: App, section: str) -> bool:
+    """设置, then one section of its catalog (常规, 帮助, 关于)."""
+    app.front()
+    tab = app.main.TabItemControl(Name="设置", searchDepth=30)
+    if not tab.Exists(2, 0.3):
+        return False
+    click(*center(tab))
+    time.sleep(0.8)
+    row = app.main.ListItemControl(Name=section, searchDepth=30)
+    if not row.Exists(2, 0.3):
+        return False
+    click(*center(row))
+    time.sleep(0.8)
+    return True
+
+
+def export_logs(app: App) -> None:
+    """设置 › 帮助 › 导出日志 › 导出: the user named it as dead. A zip must land on the Desktop."""
+    if not (open_settings(app, "帮助") or open_settings(app, "帮助")):
+        record("导出 (导出日志) writes the logs", False, "设置 › 帮助 not reachable")
+        return
+    button = app.main.ButtonControl(Name="导出", searchDepth=30)
+    if not button.Exists(2, 0.3):
+        record("导出 (导出日志) writes the logs", False, "UIAutomation does not see 导出")
+        return
+    start = len(app.log_text())
+    where = app.under(*center(button))
+    click(*center(button))
+    app.wait_log("Logs ", start, 15)
+    said = app.log_text()[start:]
+    line = next((ln for ln in said.splitlines() if "Logs exported: " in ln), "")
+    path = Path(line.split("Logs exported: ", 1)[1].strip()) if line else None
+    text = path.read_text(encoding="utf-8", errors="replace") if path is not None and path.exists() else ""
+    ok = "==== app.log ====" in text  # the file is there and holds the log
+    record("导出 (导出日志) writes the logs", ok, f"file {path} exists {ok}; under the click: {where}; log {said.strip()[-200:]!r}")
+
+
+def open_tab(app: App, name: str) -> bool:
+    app.front()
+    tab = app.main.TabItemControl(Name=name, searchDepth=30)
+    if not tab.Exists(2, 0.3):
+        return False
+    click(*center(tab))
+    time.sleep(0.8)
+    return True
+
+
+def menu_item(app: App, kind: str, target: str, item: str, check) -> None:
+    """Right-click the row named `target` (a list item or a button), click `item` in its menu, and ask `check`
+    whether it did what it says. `check(before)` gets the state taken just before the click."""
+    app.front()
+    row = app.main.ListItemControl(Name=target, searchDepth=30) if kind == "row" else app.main.ButtonControl(Name=target, searchDepth=30)
+    if not row.Exists(2, 0.3):
+        record(f"menu {target} › {item}", False, f"no {kind} named {target!r}")
+        return
+    right_click(*center(row))
+    time.sleep(0.8)
+    entry = app.main.ButtonControl(Name=item, searchDepth=30)
+    if not entry.Exists(2, 0.3):
+        record(f"menu {target} › {item}", False, "the menu or its item is not there")
+        send(key(0x1B), key(0x1B, True))
+        return
+    before = {"windows": set(own_windows(app.proc.pid)), "log": len(app.log_text()), "list": app.list_file()}
+    click(*center(entry))
+    time.sleep(1.2)
+    ok, detail = check(before)
+    app.close_extra(before["windows"])
+    send(key(0x1B), key(0x1B, True))
+    record(f"menu {target} › {item}", ok, detail)
+
+
+def row_menus(app: App) -> None:
+    """黑名单: the row's and the tag's right-click menus, every item (删除 last: it takes the row)."""
+    if not open_tab(app, "黑名单"):
+        record("黑名单 row menus", False, "tab not reachable")
+        return
+    opened = lambda before: (bool(set(own_windows(app.proc.pid)) - before["windows"]), "a dialog opened")
+    copied = lambda before: (clipboard() == "示例坏人", f"clipboard {clipboard()!r}")
+    menu_item(app, "row", "示例坏人", "编辑", opened)
+    menu_item(app, "row", "示例坏人", "复制名字", copied)
+    menu_item(app, "button", "挂机", "删除", lambda before: ("挂机" not in app.list_file(), f"blacklist.json: {app.list_file()[:120]!r}"))
+    menu_item(app, "row", "示例坏人", "删除", lambda before: ("示例坏人" not in app.list_file(), f"blacklist.json: {app.list_file()[:120]!r}"))
+
+
+def settings_sections(app: App) -> None:
+    """Every section of 设置 and every button in it (清空数据 left out; 导出 has its own check)."""
+    for section in ("常规", "帮助", "关于"):
+        if not open_settings(app, section):
+            record(f"设置 › {section}", False, "not reachable")
+            continue
+        record(f"设置 › {section}", True, "shown")
+        click_buttons(app, f"设置/{section}")
 
 
 def capture_hotkey(app: App) -> None:
@@ -510,6 +651,9 @@ def main() -> int:
         app.front()
         click_buttons(app)
         click_pages(app)
+        export_logs(app)
+        settings_sections(app)
+        row_menus(app)
         app.front()
         press_hotkey(app)
         capture_hotkey(app)
@@ -534,6 +678,10 @@ def finish(app: App) -> int:
         with open(summary, "a", encoding="utf-8") as f:
             f.write(report + "\n")
     failed = [name for name, ok, _ in results if not ok]
+    # The failures alone, for the last lines of the job's log (the report's own host may be out of reach).
+    with open(app.out / "failures.txt", "a", encoding="utf-8") as f:
+        f.writelines(f"FAIL {name}: {detail[:300]}\n" for name, ok, detail in results if not ok)
+        f.write(f"{len(results) - len(failed)} passed, {len(failed)} failed\n")
     print(f"{len(results) - len(failed)} passed, {len(failed)} failed: {failed}")
     return 1 if failed or not results else 0
 

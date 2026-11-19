@@ -2,6 +2,7 @@
 //! worker thread, update timing, the tray, closing. The parts other packages build are traits in `stubs`.
 
 pub mod assemble;
+pub mod debug;
 pub mod engine;
 pub mod envtest;
 pub mod export;
