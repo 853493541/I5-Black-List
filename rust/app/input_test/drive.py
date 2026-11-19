@@ -306,6 +306,8 @@ def agree(app: App) -> None:
     while time.time() < end and agreed is not True:
         agreed = app.settings().get("disclaimer_accepted")
         time.sleep(0.3)
+    on_top = where_before.startswith("app window")
+    record("使用声明 opens over the main window", on_top, f"under its button before any raise: {where_before}")
     record("使用声明 opens at the first start and 同意并继续 is saved", agreed is True,
            f"disclaimer_accepted={agreed!r}; under the button at first: {where_before}; after raising it: {where}; "
            f"log: {app.log_text()[start:].strip()[-200:]!r}")

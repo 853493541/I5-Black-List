@@ -201,8 +201,10 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
         runner.borrow().log.info("Started with Windows; staying in the tray.");
     } else {
         window.show()?;
-        // 使用声明 first, on a data folder that has not agreed: until then no check starts.
-        ui.ask_disclaimer();
+        // 使用声明 first, on a data folder that has not agreed: until then no check starts. Asked once the event loop
+        // runs: shown before it, its window was made first and the main window covered it exactly (real-input test).
+        let asking = ui.clone();
+        slint::Timer::single_shot(Duration::from_millis(300), move || asking.ask_disclaimer());
     }
     // Never in the preview: install_root is None there, and the sweep must not touch anything outside its folder.
     if let Some(install) = install.filter(|_| !app::preview::ON) {
