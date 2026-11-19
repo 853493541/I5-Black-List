@@ -197,9 +197,15 @@ jobs:
           from pathlib import Path
           sys.path.insert(0, "build")
           from make_rust_release import foreign_imports
-          foreign = foreign_imports(Path(sys.argv[1]))
+          exe = Path(sys.argv[1])
+          foreign = foreign_imports(exe)
           print(f"- preview exe: not a system DLL: {foreign or 'none'}")
-          sys.exit(bool(foreign))
+          # PE optional header Subsystem: 2 = WINDOWS_GUI (no console window), 3 = WINDOWS_CUI.
+          data = exe.read_bytes()
+          optional = int.from_bytes(data[0x3C:0x40], "little") + 24
+          subsystem = int.from_bytes(data[optional + 68:optional + 70], "little")
+          print(f"- preview exe: subsystem {subsystem} ({'GUI, no console' if subsystem == 2 else 'console'})")
+          sys.exit(bool(foreign) or subsystem != 2)
           PY
 
       # Smoke: a %APPDATA% of its own with a made-up v1.0.1 folder; start-up must pass every step, find the models and
