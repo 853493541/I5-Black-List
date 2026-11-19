@@ -45,7 +45,7 @@ jobs:
           python -m pip install -q setuptools packaging paddlepaddle==3.2.2 paddle2onnx==$PADDLE2ONNX_VERSION
           mkdir -p tarballs models
           for model in PP-OCRv5_mobile_det PP-OCRv5_mobile_rec PP-OCRv6_medium_rec; do
-            curl -sSfL --retry 3 -o "tarballs/$model.tar" "$MODEL_URL/${model}_infer.tar"
+            curl -sSfL --retry 5 --retry-all-errors --retry-delay 10 --speed-limit 50000 --speed-time 60 -o "tarballs/$model.tar" "$MODEL_URL/${model}_infer.tar"
             tar xf "tarballs/$model.tar" -C tarballs
             src="tarballs/${model}_infer"
             program="$src/inference.json"; [ -f "$program" ] || program="$src/inference.pdmodel"
