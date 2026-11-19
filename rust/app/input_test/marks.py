@@ -87,7 +87,7 @@ def marks_up(pid: int) -> bool:
 def changed(before, after, box) -> int:
     """How many pixels in `box` differ by more than a little."""
     diff = ImageChops.difference(before.crop(box), after.crop(box)).convert("L").point(lambda v: 255 if v > 24 else 0)
-    return sum(1 for v in diff.getdata() if v)
+    return sum(diff.histogram()[1:])
 
 
 def errors_since(app: App, start: int) -> str:
@@ -176,18 +176,21 @@ def main() -> int:
         topmost("main window restored", app.proc.pid)
         window = auto.ControlFromHandle(main_hwnd) if main_hwnd else None
         for tab, sign in (("黑名单", "批量导入"), ("嘉宾", "添加嘉宾")):
-            control = window.Control(searchDepth=30, Name=tab) if window else None
+            control = window.TabItemControl(searchDepth=30, Name=tab) if window else None
             if control is None or not control.Exists(3, 0.3):
                 record(f"click after marks: {tab}", False, "UIAutomation does not see it")
                 continue
             r = control.BoundingRectangle
             x, y = (r.left + r.right) // 2, (r.top + r.bottom) // 2
             point_under = user32.WindowFromPoint(wintypes.POINT(x, y))
+            page = rect_of(main_hwnd)
+            before = ImageGrab.grab(bbox=page, all_screens=True)
             auto.Click(x, y)
             lobby.pump(1.0)
+            redrawn = ImageChops.difference(before, ImageGrab.grab(bbox=page, all_screens=True)).getbbox() is not None
             seen = window.ButtonControl(searchDepth=30, Name=sign).Exists(3, 0.3)
-            record(f"click after marks: {tab} shows its page", seen,
-                   f"under the click {point_under:#x} {class_of(point_under)!r}; {sign} seen {seen}")
+            record(f"click after marks: {tab} shows its page", seen and redrawn,
+                   f"under the click {point_under:#x} {class_of(point_under)!r}; redrawn {redrawn}; {sign} seen {seen}")
         ImageGrab.grab(all_screens=True).save(report / "after-clicks.png")
         print(f"  log tail: {tail(app)[-1500:]}")
     finally:
