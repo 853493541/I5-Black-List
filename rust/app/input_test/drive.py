@@ -296,7 +296,9 @@ def click_buttons(app: App) -> None:
         user32.SetForegroundWindow(app.hwnd)
         send(key(0x1B), key(0x1B, True))  # Esc: a panel or menu the click opened
         time.sleep(0.4)
-        ok = shown or opened > 0 or bool(logged)
+        # "UI: <event>" is what main.rs logs for an event nothing handles: a stub, not an effect.
+        handled = [line for line in logged.splitlines() if " UI: " not in line and not line.startswith("UI: ")]
+        ok = shown or opened > 0 or bool(handled)
         record(f"button {name!r}", ok, f"redrawn {shown}, windows opened {opened}, log {logged[-120:]!r}; "
                f"under the click: {where}")
 
