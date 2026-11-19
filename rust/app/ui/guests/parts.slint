@@ -52,6 +52,9 @@ export component GuestIcon inherits Rectangle {
 
 // A toolbar button: outlined, or primary (dark blue, white words) as QPushButton#primary.
 export component GuestButton inherits Rectangle {
+    // UIAutomation (and screen readers) see it as a button named by its words.
+    accessible-role: button;
+    accessible-label: label;
     in property <string> label;
     in property <bool> primary;
     in property <bool> enabled: true;
@@ -118,6 +121,9 @@ export component SceneCell inherits Rectangle {
 
 // A right-click or 更多 menu item, or the line between items when its label is "-".
 export component MenuLine inherits Rectangle {
+    // UIAutomation (and screen readers) see it as a button named by its words.
+    accessible-role: button;
+    accessible-label: label;
     in property <string> label;
     in property <string> icon;
     in property <bool> danger;

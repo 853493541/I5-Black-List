@@ -83,6 +83,9 @@ export component Pill inherits Rectangle {
 
 // QPushButton: outlined, or #primary filled with the accent.
 export component Button inherits Rectangle {
+    // UIAutomation (and screen readers) see it as a button named by its words.
+    accessible-role: button;
+    accessible-label: label;
     in property <string> label;
     in property <bool> primary;
     in property <Palette> p;
@@ -155,6 +158,9 @@ export component Field inherits Rectangle {
 
 // A menu item (QMenu with ui._mark_menu_item's icon): an icon, the words, red for 删除 / 清空.
 export component MenuItem inherits Rectangle {
+    // UIAutomation (and screen readers) see it as a button named by its words.
+    accessible-role: button;
+    accessible-label: label;
     in property <string> label;
     in property <string> icon;
     in property <bool> danger;

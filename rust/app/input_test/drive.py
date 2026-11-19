@@ -173,6 +173,11 @@ class App:
         env = dict(os.environ, APPDATA=str(home), LOCALAPPDATA=str(home), USERPROFILE=str(home),
                    BLACKLIST_DETECT_SILENT="1")
         env.pop("BLACKLIST_DETECT_SOUND", None)
+        # A v1.0.1 folder with one made-up name: the preview copies it at its first start, so the pages have rows.
+        old = home / "BlackListDetect"
+        old.mkdir(parents=True, exist_ok=True)
+        (old / "blacklist.json").write_text(
+            json.dumps({"entries": [{"name": "示例坏人", "reason": "", "tags": []}]}, ensure_ascii=False), encoding="utf-8")
         self.proc = subprocess.Popen([exe], env=env, cwd=str(home))
         self.log = self.data / "logs" / "app.log"
         self.main = None
@@ -325,7 +330,8 @@ def click_pages(app: App) -> None:
     tabs = [c.Name for c, _ in auto.WalkControl(app.main, maxDepth=30)
             if c.ControlTypeName == "TabItemControl" and c.Name not in SEGMENTS and c.Name]
     notes.append(f"page tabs seen by UIAutomation: {tabs}")
-    for name in dict.fromkeys(tabs):
+    tabs = list(dict.fromkeys(tabs))
+    for name in tabs[1:] + tabs[:1]:  # the page shown at start last, so each click changes the page
         app.front()
         tab = app.main.TabItemControl(Name=name, searchDepth=30)
         if not tab.Exists(2, 0.3):
@@ -346,6 +352,8 @@ def click_buttons(app: App, page: str = "") -> None:
             r = control.BoundingRectangle
             if r.width() > 2 and r.height() > 2:
                 buttons.append((control.Name, center(control)))
+    # The 检查 pill last: it folds the panel away, and the panel's buttons with it.
+    buttons.sort(key=lambda item: item[0].startswith(("手动检查", "自动检查")))
     notes.append(f"buttons seen by UIAutomation on {page or 'the start page'}: {[name for name, _ in buttons]}")
     if not buttons:
         record("main-window buttons", False, "UIAutomation sees no button")
