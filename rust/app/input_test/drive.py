@@ -42,6 +42,8 @@ SKIP = {"退出", "清空数据", "清空", "导出", "隐藏名字", "显示名
 PANEL = {"显示说明", "直播模式说明", "快捷键"}
 # The 检查 pill: its idle words, or a failed check's problem in their place (shell::show_problem).
 PILL = ("手动检查", "自动检查", "识别还没准备好", "读不到屏幕", "检查失败")
+# A scene's play buttons: by their words, or by their icon's name (IconButton is named by its icon).
+PLAY = ("播放", "预览", "试听", "play", "preview")
 # Clicks that do nothing by design (v1.0.1 the same): a 记录 seat on neither list.
 NO_EFFECT = {"标签", "原因", "20:30"}  # columns that do not sort; 记录's newest check, already the one shown
 SEGMENTS = {"基础模式", "完整模式", "自动", "手动", "关闭", "开启"}
@@ -219,7 +221,8 @@ class App:
         seats = [{"seat": i + 1, "name": name, "unclear": False} for i, name in enumerate(["示例坏人", "心动小鹿", "心动星星"])]
         (old / "history.json").write_text(json.dumps(
             {"scans": [{"at": "2026-11-18T20:30:00+08:00", "elapsed": 1.2, "names": seats},
-                       {"at": "2026-11-18T19:00:00+08:00", "elapsed": 1.1, "names": seats}]}, ensure_ascii=False), encoding="utf-8")
+                       {"at": "2026-11-18T19:00:00+08:00", "elapsed": 1.1,
+                        "names": seats + [{"seat": 4, "name": "测试甲", "unclear": False}]}]}, ensure_ascii=False), encoding="utf-8")
         self.proc = subprocess.Popen([exe], env=env, cwd=str(home))
         self.log = self.data / "logs" / "app.log"
         self.main = None
@@ -824,7 +827,7 @@ def preview_plays(app: App) -> None:
         return
     dialog, root = opened[0], auto.ControlFromHandle(opened[0])
     play = next((c for c, _ in auto.WalkControl(root, maxDepth=30)
-                 if c.ControlTypeName == "ButtonControl" and c.Name in ("播放", "预览", "试听")), None)
+                 if c.ControlTypeName == "ButtonControl" and c.Name in PLAY), None)
     if play is None:
         record("场景管理 › 预览 plays", False, "no 播放/预览/试听 button")
     else:
@@ -951,7 +954,7 @@ def main() -> int:
         guarded(eye, app)
         guarded(row_menus, app)
         guarded(guest_menus, app)
-        guarded(dialog_buttons, app, "嘉宾", "场景管理", {"播放", "预览", "试听"})
+        guarded(dialog_buttons, app, "嘉宾", "场景管理", set(PLAY))
         guarded(preview_plays, app)
         app.front()
         guarded(press_hotkey, app)
