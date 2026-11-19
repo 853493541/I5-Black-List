@@ -37,3 +37,23 @@ fn overlay_shows_follows_and_hides() {
     assert!(!overlay.is_shown());
     assert!(!overlay.show(game, &CheckResult::default(), &look_for("lace")).expect("nothing to show"));
 }
+
+/// Making, drawing and moving the marks leave the UI thread's DPI awareness as it was (Slint's windows keep theirs):
+/// the per-monitor context is the marks' own while they are made and placed, not the thread's from then on.
+#[test]
+fn the_marks_leave_the_threads_dpi_awareness_as_it_was() {
+    use windows::Win32::UI::HiDpi::{
+        AreDpiAwarenessContextsEqual, GetThreadDpiAwarenessContext, SetThreadDpiAwarenessContext, DPI_AWARENESS_CONTEXT_SYSTEM_AWARE,
+    };
+    let before = unsafe { SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_SYSTEM_AWARE) };
+    let same = || unsafe { AreDpiAwarenessContextsEqual(GetThreadDpiAwarenessContext(), DPI_AWARENESS_CONTEXT_SYSTEM_AWARE).as_bool() };
+    let window = LayeredWindow::new().expect("window");
+    assert!(same(), "made: the thread's awareness changed");
+    let frame = tiny_skia::Pixmap::new(8, 8).unwrap();
+    window.update(-4000, -4000, &frame, 255).expect("UpdateLayeredWindow");
+    window.move_to(-4100, -4000).expect("move");
+    let _ = overlay::window::monitor([0, 0, 10, 10]);
+    assert!(same(), "drawn and moved: the thread's awareness changed");
+    drop(window);
+    unsafe { SetThreadDpiAwarenessContext(before) };
+}
