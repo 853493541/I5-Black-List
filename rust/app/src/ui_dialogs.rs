@@ -39,6 +39,8 @@ pub enum About {
 pub struct Opened {
     pub about: About,
     pub close: Box<dyn Fn()>,
+    /// The preview's picture, on the dialogs that have one (嘉宾, 组合, 场景管理).
+    pub frame: Option<Rc<dyn Fn(slint::Image)>>,
     _keep: Box<dyn std::any::Any>,
 }
 
@@ -50,7 +52,12 @@ fn opened<C: ComponentHandle + 'static>(ui: C, about: About) -> Result<Opened, P
             let _ = ui.hide();
         }
     });
-    Ok(Opened { about, close, _keep: Box::new(ui) })
+    Ok(Opened { about, close, frame: None, _keep: Box::new(ui) })
+}
+
+/// The dialog's preview picture, set by the scene playing in it.
+fn with_frame(made: Result<Opened, PlatformError>, set: impl Fn(slint::Image) + 'static) -> Result<Opened, PlatformError> {
+    made.map(|opened| Opened { frame: Some(Rc::new(set)), ..opened })
 }
 
 fn send(bus: &Bus, action: DialogAction) -> impl Fn() + 'static {
@@ -253,14 +260,24 @@ pub fn guest(store: &Store, bus: &Bus, index: Option<usize>, me: bool) -> Result
         _ => GuestFields { name: String::new(), nickname: String::new(), reason: String::new(), scenes: Default::default(), editing: false },
     };
     let ui = edit::guest(fields, bus.sender(UiEvent::GuestEdit))?;
-    opened(ui, if me { About::Me } else { About::Guest(index) })
+    let weak = ui.as_weak();
+    with_frame(opened(ui, if me { About::Me } else { About::Guest(index) }), move |image| {
+        if let Some(ui) = weak.upgrade() {
+            ui.set_frame(image);
+        }
+    })
 }
 
 /// 添加组合 (None) or 编辑组合 (Some).
 pub fn combo(store: &Store, bus: &Bus, index: Option<usize>) -> Result<Opened, PlatformError> {
     let held = index.and_then(|index| store.combos.get(index));
     let ui = edit::combo(&people(store), held.map(|c| (c.names.as_slice(), from_store(&c.scenes))), bus.sender(UiEvent::Combo))?;
-    opened(ui, About::Combo(index))
+    let weak = ui.as_weak();
+    with_frame(opened(ui, About::Combo(index)), move |image| {
+        if let Some(ui) = weak.upgrade() {
+            ui.set_frame(image);
+        }
+    })
 }
 
 /// 场景管理.
@@ -273,7 +290,12 @@ pub fn scenes(store: &Store, bus: &Bus) -> Result<Opened, PlatformError> {
         ..ManagerState::default()
     };
     let ui = edit::scene_manager(&state, bus.sender(UiEvent::Scenes))?;
-    opened(ui, About::Scenes)
+    let weak = ui.as_weak();
+    with_frame(opened(ui, About::Scenes), move |image| {
+        if let Some(ui) = weak.upgrade() {
+            ui.set_frame(image);
+        }
+    })
 }
 
 /// 显示 › ⓘ: the two modes in pictures.

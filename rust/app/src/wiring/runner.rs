@@ -217,6 +217,9 @@ impl Runner {
             self.look_for_update(look);
         }
         self.flow.ports.scenes.tick();
+        for note in self.flow.ports.scenes.notes() {
+            self.log.info(&note);
+        }
         self.flow.ports.overlay.tick();
         self.flow.ports.notice.tick();
         if let Some(events) = &self.installing {

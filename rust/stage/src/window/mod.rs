@@ -12,6 +12,8 @@
 mod dcomp;
 mod layered;
 
+pub use layered::capture;
+
 use std::sync::Once;
 
 use scenes::prim::Frame;
@@ -47,6 +49,74 @@ pub struct Overlay {
     area: ScreenRect,
     target: Target,
     painter: Painter,
+    /// Why the paths tried before this one failed (for the log).
+    pub tried: Vec<String>,
+}
+
+/// BLACKLIST_DETECT_STAGE_PATH=layered / composition forces one path (a player's PC that shows nothing one way).
+pub fn forced_path() -> Option<Path> {
+    match std::env::var("BLACKLIST_DETECT_STAGE_PATH").ok()?.trim().to_ascii_lowercase().as_str() {
+        "layered" => Some(Path::Layered),
+        "composition" => Some(Path::Composition),
+        _ => None,
+    }
+}
+
+/// The PCI ids (vendor, device) of the DXGI adapters with a monitor: the chips the desktop is shown on.
+pub fn display_ids() -> Vec<(u32, u32)> {
+    use windows::Win32::Graphics::Dxgi::{CreateDXGIFactory1, IDXGIFactory1};
+    let Ok(factory) = (unsafe { CreateDXGIFactory1::<IDXGIFactory1>() }) else { return Vec::new() };
+    let mut ids = Vec::new();
+    for i in 0.. {
+        let Ok(adapter) = (unsafe { factory.EnumAdapters1(i) }) else { break };
+        let has_monitor = unsafe { adapter.EnumOutputs(0) }.is_ok();
+        if let (true, Ok(desc)) = (has_monitor, unsafe { adapter.GetDesc1() }) {
+            ids.push((desc.VendorId, desc.DeviceId));
+        }
+    }
+    ids
+}
+
+/// The primary monitor's size in desktop pixels.
+pub fn screen_size() -> (i32, i32) {
+    use windows::Win32::UI::WindowsAndMessaging::{GetSystemMetrics, SM_CXSCREEN, SM_CYSCREEN};
+    unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) }
+}
+
+/// An opaque picture in a window of its own (a test's stand-in for the game).
+pub struct Backdrop {
+    hwnd: HWND,
+}
+
+impl Backdrop {
+    /// bgra: area's width x height pixels, top-down.
+    pub fn show(area: ScreenRect, bgra: &[u8]) -> Result<Self, String> {
+        let hwnd = create_window(area, Path::Layered)?;
+        let backdrop = Self { hwnd };
+        let mut dib = layered::Dib::new(area[2], area[3])?;
+        let bytes = dib.bytes();
+        if bytes.len() != bgra.len() {
+            return Err(format!("{} bytes, want {}", bgra.len(), bytes.len()));
+        }
+        bytes.copy_from_slice(bgra);
+        layered::update(hwnd, area, dib.dc)?;
+        show_at(hwnd, area)?;
+        Ok(backdrop)
+    }
+}
+
+impl Drop for Backdrop {
+    fn drop(&mut self) {
+        let _ = unsafe { DestroyWindow(self.hwnd) };
+    }
+}
+
+fn show_at(hwnd: HWND, area: ScreenRect) -> Result<(), String> {
+    let [x, y, w, h] = area;
+    unsafe {
+        let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+        SetWindowPos(hwnd, Some(HWND_TOPMOST), x, y, w, h, SWP_NOACTIVATE | SWP_SHOWWINDOW).map_err(|e| e.to_string())
+    }
 }
 
 extern "system" fn proc(hwnd: HWND, msg: u32, w: WPARAM, l: LPARAM) -> LRESULT {
@@ -123,6 +193,7 @@ impl Overlay {
                         area,
                         target,
                         painter,
+                        tried: why,
                     });
                 }
                 Err(e) => {
@@ -158,20 +229,22 @@ impl Overlay {
 
     /// Shows the window, topmost, without taking focus (the first frame).
     pub fn show(&self) -> Result<(), String> {
-        let [x, y, w, h] = self.area;
-        unsafe {
-            let _ = ShowWindow(self.hwnd, SW_SHOWNOACTIVATE);
-            SetWindowPos(
-                self.hwnd,
-                Some(HWND_TOPMOST),
-                x,
-                y,
-                w,
-                h,
-                SWP_NOACTIVATE | SWP_SHOWWINDOW,
-            )
-            .map_err(|e| e.to_string())
+        show_at(self.hwnd, self.area)
+    }
+
+    pub fn area(&self) -> ScreenRect {
+        self.area
+    }
+
+    /// The frame as read_back gives it, in GDI's BGRA order (to compare with `capture`).
+    pub fn read_back_bgra(&self, gpu: &Gpu, frame: &Frame) -> Vec<u8> {
+        let mut px = self.read_back(gpu, frame);
+        if let Target::Composition(c) = &self.target {
+            if c.format == wgpu::TextureFormat::Rgba8Unorm {
+                crate::seen::swap_red_blue(&mut px);
+            }
         }
+        px
     }
 
     pub fn hide(&self) {

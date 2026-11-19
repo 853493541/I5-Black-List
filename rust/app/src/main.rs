@@ -259,6 +259,9 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
                 pumped.borrow().log.info(&format!("UI: {event:?}"));
             }
         }
+        for note in pages.notes() {
+            pumped.borrow().log.info(&note);
+        }
         if redraw {
             pages.refresh();
         }

@@ -11,6 +11,9 @@ use wgpu::util::DeviceExt;
 pub enum Adapter {
     /// The system's choice (high performance first).
     Default,
+    /// The chip the desktop is shown on (Windows: the DXGI adapter with a monitor). On a hybrid laptop the
+    /// high-performance chip has no monitor, and a swap chain made on it may present nothing over the game.
+    Display,
     /// The software one: WARP on Windows (DX12), llvmpipe / lavapipe elsewhere.
     Software,
 }
@@ -39,8 +42,11 @@ impl Gpu {
             force_fallback_adapter: which == Adapter::Software,
             compatible_surface: None,
         };
-        let adapter =
-            pollster::block_on(instance.request_adapter(&options)).map_err(|e| e.to_string())?;
+        let adapter = if which == Adapter::Display {
+            display_adapter(&instance, backends)?
+        } else {
+            pollster::block_on(instance.request_adapter(&options)).map_err(|e| e.to_string())?
+        };
         let (device, queue) =
             pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {
                 required_limits: adapter.limits(),
@@ -57,9 +63,43 @@ impl Gpu {
 
     /// The adapter's name, kind and backend, e.g. "Microsoft Basic Render Driver (Cpu, Dx12)".
     pub fn name(&self) -> String {
-        let info = self.adapter.get_info();
-        format!("{} ({:?}, {:?})", info.name, info.device_type, info.backend)
+        describe(&self.adapter.get_info())
     }
+
+    /// Whether this is the software adapter (WARP, llvmpipe).
+    pub fn is_software(&self) -> bool {
+        self.adapter.get_info().device_type == wgpu::DeviceType::Cpu
+    }
+}
+
+/// An adapter for the log: name, kind (DiscreteGpu / IntegratedGpu / Cpu), backend and PCI ids.
+pub fn describe(info: &wgpu::AdapterInfo) -> String {
+    format!("{} ({:?}, {:?}, {:04x}:{:04x})", info.name, info.device_type, info.backend, info.vendor, info.device)
+}
+
+/// Every adapter this build can use, for the log.
+pub fn adapters() -> Vec<String> {
+    let backends = if cfg!(windows) { wgpu::Backends::DX12 } else { wgpu::Backends::all() };
+    let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor { backends, ..Default::default() });
+    instance.enumerate_adapters(backends).iter().map(|a| describe(&a.get_info())).collect()
+}
+
+/// The adapter the desktop is shown on: on Windows the one whose PCI ids match a DXGI adapter with a monitor.
+fn display_adapter(instance: &wgpu::Instance, backends: wgpu::Backends) -> Result<wgpu::Adapter, String> {
+    #[cfg(windows)]
+    let shown = crate::window::display_ids();
+    #[cfg(not(windows))]
+    let shown: Vec<(u32, u32)> = Vec::new();
+    let all = instance.enumerate_adapters(backends);
+    let real = |a: &&wgpu::Adapter| a.get_info().device_type != wgpu::DeviceType::Cpu;
+    all.iter()
+        .filter(real)
+        .find(|a| {
+            let info = a.get_info();
+            shown.is_empty() || shown.contains(&(info.vendor, info.device))
+        })
+        .cloned()
+        .ok_or_else(|| format!("no hardware adapter drives a monitor (monitors on {shown:04x?})"))
 }
 
 fn texture(

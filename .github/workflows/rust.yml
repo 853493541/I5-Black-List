@@ -6,7 +6,7 @@ name: rust
 # IPP tests of rust/ocr run there on golden data that tools/rust_golden_ipp.py makes from made-up names.
 on:
   push:
-    branches: ["feature/rust*"]
+    branches: ["feature/rust*", "fix/rust-scenes-real"]
   pull_request:
     paths: ["rust/**", ".github/workflows/rust.yml", "tools/rust_golden_ipp.py"]
 
