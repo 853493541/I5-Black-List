@@ -277,7 +277,9 @@ mod windows {
             }
             let started = Instant::now();
             let drawn = draw(gpu, &mut playing.window, playing.scene.as_mut(), t);
-            stage::window::pump();
+            // Only the stage's own messages: the app's event loop dispatches the rest (a thread-wide pump took the main
+            // window's clicks away from it).
+            playing.window.pump_own();
             match drawn {
                 Ok(frame) => {
                     if playing.times.len() < TIMED {
