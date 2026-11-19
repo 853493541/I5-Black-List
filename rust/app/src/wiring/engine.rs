@@ -107,7 +107,7 @@ fn desktop_origin() -> (i32, i32) {
 
 /// OcrUnavailable: the models or the runtime would not load.
 fn unavailable() -> CheckError {
-    CheckError { message: pipeline::Unavailable.to_string(), models: true, plain: true, ..CheckError::default() }
+    CheckError { message: pipeline::Unavailable.to_string(), models: true, plain: true, step: "OCR load", ..CheckError::default() }
 }
 
 /// No models folder at start (startup found none).
@@ -135,7 +135,7 @@ fn failed(error: pipeline::Error) -> CheckError {
     if error.downcast_ref::<pipeline::Unavailable>().is_some() {
         return unavailable();
     }
-    CheckError { message: error.to_string(), ..CheckError::default() }
+    CheckError { message: error.to_string(), step: "read", ..CheckError::default() }
 }
 
 fn mat(frame: &Frame) -> Result<opencv::core::Mat, CheckError> {

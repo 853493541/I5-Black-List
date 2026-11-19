@@ -75,6 +75,8 @@ pub struct CheckError {
     pub plain: bool,
     pub capture: bool,
     pub detail: String,
+    /// The step that failed, for the pill and the log: "capture", "OCR load", "read", "crash" or "worker".
+    pub step: &'static str,
 }
 
 /// Reads the copies of the screen (pipeline, in `engine`).

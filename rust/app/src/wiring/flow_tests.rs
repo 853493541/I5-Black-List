@@ -136,7 +136,7 @@ fn no_lobby() -> CheckResult {
 }
 
 fn failed(plain: bool) -> CheckError {
-    CheckError { message: if plain { "识别模型没有找到".into() } else { "OSError: [WinError 5]".into() }, models: plain, plain, ..CheckError::default() }
+    CheckError { message: if plain { "识别模型没有找到".into() } else { "OSError: [WinError 5]".into() }, models: plain, plain, step: if plain { "OCR load" } else { "read" }, ..CheckError::default() }
 }
 
 impl Rig {
@@ -375,19 +375,19 @@ fn the_scene_hotkey_plays_over_the_last_lobby_and_ends_on_its_own() {
 // The header pill (ui.py _report_problem / _clear_problem): every failed check says so in 完整模式 too.
 
 fn capture_failed() -> CheckError {
-    CheckError { message: "截图失败，再试一次".into(), plain: true, capture: true, ..CheckError::default() }
+    CheckError { message: "截图失败，再试一次".into(), plain: true, capture: true, step: "capture", ..CheckError::default() }
 }
 
-fn label(rig: &Rig) -> Option<(&'static str, String)> {
-    rig.flow.problem.as_ref().map(|problem| (problem.label, problem.tip.clone()))
+fn label(rig: &Rig) -> Option<(&str, String)> {
+    rig.flow.problem.as_ref().map(|problem| (problem.label.as_str(), problem.tip.clone()))
 }
 
 #[test]
 fn a_failed_check_in_full_mode_puts_check_failed_in_the_pill() {
     let mut rig = Rig::new(full(), vec![Err(failed(false)), Err(failed(false))]);
     rig.press(0.0);
-    assert_eq!(label(&rig), Some(("检查失败", "检查失败，等会儿再试".to_string())), "never silent in 完整模式");
-    assert!(rig.flow.log.iter().any(|line| line == "检查失败: OSError: [WinError 5]"), "{:?}", rig.flow.log);
+    assert_eq!(label(&rig), Some(("检查失败：读名字", "检查失败，等会儿再试".to_string())), "never silent in 完整模式");
+    assert!(rig.flow.log.iter().any(|line| line == "检查失败：读名字 (step: read): OSError: [WinError 5]"), "{:?}", rig.flow.log);
 }
 
 #[test]
@@ -430,7 +430,7 @@ fn the_same_problem_is_logged_once() {
     let mut rig = Rig::new(full(), vec![Err(failed(false)), Err(failed(false)), Err(failed(false)), Err(failed(false))]);
     rig.press(0.0);
     rig.press(1.0);
-    assert_eq!(rig.flow.log.iter().filter(|line| line.starts_with("检查失败:")).count(), 1);
+    assert_eq!(rig.flow.log.iter().filter(|line| line.starts_with("检查失败：读名字 (step: read)")).count(), 1);
 }
 
 #[test]
@@ -462,7 +462,7 @@ fn a_panic_in_a_check_is_check_failed_not_silence() {
     let again = rig.flow.done(done, 0.0);
     assert_eq!(again, Some(Job::Check), "one second look");
     rig.flow.done(run(Job::Check, &mut rig.screen, &mut Panics), 0.0);
-    assert_eq!(label(&rig).map(|(label, _)| label), Some("检查失败"));
+    assert_eq!(label(&rig).map(|(label, _)| label), Some("检查失败：程序出错"));
     assert!(!rig.flow.busy(), "the next press checks again");
     assert_eq!(rig.flow.hotkey(1.0), Some(Job::Check));
 }
@@ -475,4 +475,23 @@ fn the_worker_thread_lives_through_a_panic() {
         let done = worker.results.recv_timeout(std::time::Duration::from_secs(20)).expect("an answer, not silence");
         assert!(matches!(done, Done::Checked(Err(_))), "{done:?}");
     }
+}
+
+#[test]
+fn a_read_lobby_is_written_to_the_history_and_says_so() {
+    let mut rig = Rig::new(full(), vec![Ok(lobby(&["示例坏人", "心动小鹿"], &[0]))]);
+    rig.press(0.0);
+    assert_eq!(rig.store.borrow().scans.len(), 1, "a 记录 entry after the check");
+    assert!(rig.flow.log.iter().any(|line| line == "Check 1: 记录 added."), "{:?}", rig.flow.log);
+    assert_eq!(rig.flow.problem, None);
+}
+
+#[test]
+fn a_history_that_cannot_be_written_says_so_in_the_pill() {
+    let mut rig = Rig::new(full(), vec![Ok(lobby(&["示例坏人"], &[0]))]);
+    let history = rig.store.borrow().history_path();
+    std::fs::create_dir_all(&history).unwrap(); // a folder where the file goes: the write fails
+    rig.press(0.0);
+    assert_eq!(label(&rig).map(|(label, _)| label), Some("检查失败：记录没存上"));
+    assert!(rig.flow.log.iter().any(|line| line == "Check 1: 记录 unsaved."), "{:?}", rig.flow.log);
 }
