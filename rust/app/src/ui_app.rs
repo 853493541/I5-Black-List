@@ -57,6 +57,8 @@ pub struct MainUi {
     /// The hotkey box waits for a key (BeginHotkey until a key is taken or Escape), and what is wrong with the last.
     hotkey_waiting: std::cell::Cell<bool>,
     key_note: RefCell<String>,
+    /// A check's problem, over the pill until checks work again (Flow::problem).
+    problem: RefCell<Option<app::wiring::flow::Problem>>,
 }
 
 impl MainUi {
@@ -97,6 +99,7 @@ impl MainUi {
             hotkey_note: RefCell::default(),
             hotkey_waiting: std::cell::Cell::new(false),
             key_note: RefCell::default(),
+            problem: RefCell::default(),
         };
         ui.refresh();
         Ok(ui)
@@ -113,12 +116,26 @@ impl MainUi {
         model.blacklist_count = store.entries.len();
         model.guests_count = store.likes.len();
         model.page = crate::shell::Page::from_index(self.window.get_page()).unwrap_or(model.page);
+        model.show_problem(self.problem.borrow().as_ref());
         crate::shell::apply(&self.window, &model);
         history::fill(&self.window, &store, &self.history.borrow(), now());
         self.list.refresh(&self.window, &store);
         self.guests.show(&self.window, &lists(&store), now());
         let state = SettingsState::new(&store.settings, false, cfg!(windows), &self.version);
         crate::settings::model::show_settings_main(&self.window, &state);
+    }
+
+    /// The check flow's problem, shown in the pill when it changes (the 50 ms timer hands it over every turn). Returns
+    /// the pill's words when they changed.
+    pub fn show_problem(&self, problem: Option<&app::wiring::flow::Problem>) -> Option<String> {
+        if self.problem.borrow().as_ref() == problem {
+            return None;
+        }
+        *self.problem.borrow_mut() = problem.cloned();
+        let mut model = ShellModel::from_settings(&self.store.borrow().settings);
+        model.show_problem(problem);
+        crate::shell::apply_status(&self.window, &model);
+        Some(model.status_text)
     }
 
     /// 使用声明 to agree to, over the window, when this data folder has not agreed yet (show_first_run_guide): no

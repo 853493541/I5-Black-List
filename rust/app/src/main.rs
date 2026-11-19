@@ -159,8 +159,11 @@ fn keys(_store: &data::store::Store, _log: &startup::AppLog) -> Box<dyn Keys> {
 
 fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Error>> {
     let Started { root, log, store, models, claim, install } = started;
+    // Screen pixels, not scaled ones, before any window or screen copy: at 125 % a copy made without it is cut.
+    #[cfg(windows)]
+    log.info(&format!("DPI awareness (per monitor v2) set here: {}", win::capture::set_dpi_awareness()));
     if models.is_none() {
-        log.warn("No OCR models: checks will say 检查失败 until they are installed.");
+        log.warn("No OCR models: the header says 识别还没准备好 until they are installed.");
     }
     let keys = keys(&store, &log);
     let first_run = store.first_run();
@@ -193,6 +196,10 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
         tester: Some(parts.tester),
     };
     let runner = Rc::new(RefCell::new(Runner::new(root, log, claim, store.clone(), parts)));
+    if models.is_none() {
+        // As v1.0.1's warm-up says at start: the pill shows it before the first press, not only after it.
+        runner.borrow_mut().flow.report_problem(&app::wiring::engine::no_models());
+    }
 
     let ui = Rc::new(ui_app::MainUi::new(store.clone(), &app::preview::shown_version(VERSION, app::preview::ON))?);
     let window = ui.window.clone_strong();
@@ -263,6 +270,10 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
         pages.set_hotkey_note(&pumped.borrow().hotkey_note());
         updates.pump(&mut pumped.borrow_mut());
         let asks = pumped.borrow_mut().pump();
+        // Every check's problem in the pill (识别还没准备好 / 读不到屏幕 / 检查失败), never silent.
+        if let Some(words) = pages.show_problem(pumped.borrow().flow.problem.as_ref()) {
+            pumped.borrow().log.info(&format!("Header: {words}"));
+        }
         for ask in asks {
             match ask {
                 Do::ShowWindow | Do::ShowSettings => {

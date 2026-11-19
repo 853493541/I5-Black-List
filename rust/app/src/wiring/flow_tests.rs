@@ -136,7 +136,7 @@ fn no_lobby() -> CheckResult {
 }
 
 fn failed(plain: bool) -> CheckError {
-    CheckError { message: if plain { "识别模型没有找到".into() } else { "OSError: [WinError 5]".into() }, models: plain, plain }
+    CheckError { message: if plain { "识别模型没有找到".into() } else { "OSError: [WinError 5]".into() }, models: plain, plain, ..CheckError::default() }
 }
 
 impl Rig {
@@ -370,4 +370,109 @@ fn the_scene_hotkey_plays_over_the_last_lobby_and_ends_on_its_own() {
     assert_eq!(rig.calls(), ["tune stars", "overlay Liked Screen 0", "scene stars Screen"]);
     rig.flow.tick(stage::clock::duration("stars") + 0.1);
     assert_eq!(rig.calls(), ["overlay hide"]);
+}
+
+// The header pill (ui.py _report_problem / _clear_problem): every failed check says so in 完整模式 too.
+
+fn capture_failed() -> CheckError {
+    CheckError { message: "截图失败，再试一次".into(), plain: true, capture: true, ..CheckError::default() }
+}
+
+fn label(rig: &Rig) -> Option<(&'static str, String)> {
+    rig.flow.problem.as_ref().map(|problem| (problem.label, problem.tip.clone()))
+}
+
+#[test]
+fn a_failed_check_in_full_mode_puts_check_failed_in_the_pill() {
+    let mut rig = Rig::new(full(), vec![Err(failed(false)), Err(failed(false))]);
+    rig.press(0.0);
+    assert_eq!(label(&rig), Some(("检查失败", "检查失败，等会儿再试".to_string())), "never silent in 完整模式");
+    assert!(rig.flow.log.iter().any(|line| line == "检查失败: OSError: [WinError 5]"), "{:?}", rig.flow.log);
+}
+
+#[test]
+fn missing_models_say_recognition_is_not_ready() {
+    let mut rig = Rig::new(full(), vec![Err(failed(true)), Err(failed(true))]);
+    rig.press(0.0);
+    assert_eq!(label(&rig), Some(("识别还没准备好", "识别模型没有找到".to_string())));
+}
+
+#[test]
+fn a_failed_screen_copy_says_the_screen_cannot_be_read() {
+    let mut rig = Rig::new(full(), vec![Err(capture_failed()), Err(capture_failed())]);
+    rig.press(0.0);
+    assert_eq!(label(&rig), Some(("读不到屏幕", "截图失败，再试一次".to_string())));
+}
+
+#[test]
+fn a_failed_glance_says_so_and_a_good_one_clears_it() {
+    let mut rig = Rig::new(Mode { auto: true, ..full() }, vec![]);
+    rig.flow.tick(0.0);
+    rig.flow.done(Done::Glanced(Err(capture_failed())), 0.0);
+    assert_eq!(label(&rig).map(|(label, _)| label), Some("读不到屏幕"));
+    rig.flow.tick(5.0);
+    rig.flow.done(Done::Glanced(Ok(false)), 5.0);
+    assert_eq!(rig.flow.problem, None, "back to 自动检查中");
+    assert!(rig.flow.log.iter().any(|line| line == "Checks work again."));
+}
+
+#[test]
+fn a_check_that_reads_the_lobby_clears_the_problem() {
+    let mut rig = Rig::new(full(), vec![Err(failed(false)), Err(failed(false)), Ok(lobby(&["示例坏人"], &[0]))]);
+    rig.press(0.0);
+    assert!(rig.flow.problem.is_some());
+    rig.press(1.0);
+    assert_eq!(rig.flow.problem, None, "back to 手动检查");
+}
+
+#[test]
+fn the_same_problem_is_logged_once() {
+    let mut rig = Rig::new(full(), vec![Err(failed(false)), Err(failed(false)), Err(failed(false)), Err(failed(false))]);
+    rig.press(0.0);
+    rig.press(1.0);
+    assert_eq!(rig.flow.log.iter().filter(|line| line.starts_with("检查失败:")).count(), 1);
+}
+
+#[test]
+fn no_lobby_leaves_the_pill_as_it_was_and_shows_the_corner_message() {
+    let mut rig = Rig::new(full(), vec![Ok(no_lobby()), Ok(no_lobby())]);
+    rig.press(0.0);
+    assert_eq!(rig.flow.problem, None);
+    assert!(rig.calls().iter().any(|call| *call == "notice Missing"), "没有找到大厅 in 完整模式 too");
+}
+
+struct Panics;
+
+impl Checker for Panics {
+    fn check(&mut self, _frame: &Frame) -> Result<CheckResult, CheckError> {
+        panic!("onnxruntime.dll would not load")
+    }
+    fn glance(&mut self, _band: &Frame) -> Result<bool, CheckError> {
+        panic!("onnxruntime.dll would not load")
+    }
+}
+
+#[test]
+fn a_panic_in_a_check_is_check_failed_not_silence() {
+    let mut rig = Rig::new(full(), vec![]);
+    let done = run(Job::Check, &mut rig.screen, &mut Panics);
+    let Done::Checked(Err(error)) = &done else { panic!("{done:?}") };
+    assert_eq!(error.detail, "panic: onnxruntime.dll would not load");
+    assert_eq!(rig.flow.hotkey(0.0), Some(Job::Check));
+    let again = rig.flow.done(done, 0.0);
+    assert_eq!(again, Some(Job::Check), "one second look");
+    rig.flow.done(run(Job::Check, &mut rig.screen, &mut Panics), 0.0);
+    assert_eq!(label(&rig).map(|(label, _)| label), Some("检查失败"));
+    assert!(!rig.flow.busy(), "the next press checks again");
+    assert_eq!(rig.flow.hotkey(1.0), Some(Job::Check));
+}
+
+#[test]
+fn the_worker_thread_lives_through_a_panic() {
+    let worker = super::worker::Worker::start(Box::new(SampleScreen(sample())), Box::new(Panics));
+    for _ in 0..2 {
+        worker.request(Job::Check);
+        let done = worker.results.recv_timeout(std::time::Duration::from_secs(20)).expect("an answer, not silence");
+        assert!(matches!(done, Done::Checked(Err(_))), "{done:?}");
+    }
 }

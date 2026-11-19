@@ -28,6 +28,7 @@ pub fn demo_model() -> ShellModel {
         status_text: "读不到游戏画面".into(),
         tone: Tone::Hit,
         status_key: String::new(),
+        status_tip: String::new(),
         has_update: false,
         player_name: "测试主播".into(),
         safe_mode: false,

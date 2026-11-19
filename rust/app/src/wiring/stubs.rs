@@ -67,11 +67,14 @@ pub struct SeatMark {
 
 /// Why a check could not run. `models`: the OCR models could not load (OcrUnavailable). `plain`: the message is
 /// the app's own, in plain Chinese, fit to show (OcrUnavailable, CaptureUnavailable); anything else is only logged.
+/// `capture`: the screen copy failed (CaptureUnavailable). `detail`: the cause underneath, for the log only.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CheckError {
     pub message: String,
     pub models: bool,
     pub plain: bool,
+    pub capture: bool,
+    pub detail: String,
 }
 
 /// Reads the copies of the screen (pipeline, in `engine`).
