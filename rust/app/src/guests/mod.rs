@@ -51,6 +51,52 @@ pub enum GuestAction {
     ClearList,
 }
 
+/// What a 嘉宾 action did to the store (ui_likes.py): whether the lists changed, the toast, and text for the clipboard.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Done {
+    pub changed: bool,
+    pub say: String,
+    pub copy: Option<String>,
+}
+
+/// The 嘉宾 actions that change the store or the clipboard without a dialog: 删除, 删除组合, 复制名字, 置顶, a row
+/// dragged, 复制名单. None for the rest (the dialogs, Say) and for an index that is no longer there.
+pub fn effect(store: &mut data::store::Store, action: &GuestAction) -> Option<std::io::Result<Done>> {
+    let shown = |like: &data::store::Like| if like.nickname.is_empty() { like.name.clone() } else { like.nickname.clone() };
+    let moved = |changed: bool| Done { changed, ..Done::default() };
+    Some(match action {
+        GuestAction::DeleteGuest(index) => {
+            let like = store.likes.get(*index).cloned()?;
+            store.remove_like(*index).map(|()| Done { changed: true, say: format!("已删除「{}」", shown(&like)), copy: None })
+        }
+        GuestAction::DeleteCombo(number) => {
+            let mut combos = store.combos.clone();
+            if *number >= combos.len() {
+                return None;
+            }
+            let gone = combos.remove(*number);
+            store.set_combos(combos).map(|()| Done { changed: true, say: format!("已删除组合「{}」", gone.names.join(" + ")), copy: None })
+        }
+        GuestAction::CopyName(index) => {
+            let like = store.likes.get(*index)?;
+            Ok(Done { changed: false, say: format!("已复制「{}」", like.name), copy: Some(like.name.clone()) })
+        }
+        GuestAction::ToTop(index) => {
+            let last = store.likes.len().checked_sub(1)?;
+            store.move_like(*index, last).map(moved)
+        }
+        GuestAction::Move { index, to } => store.move_like(*index, *to).map(moved),
+        GuestAction::CopyList => {
+            let count = store.likes.len();
+            if count == 0 {
+                return None;
+            }
+            Ok(Done { changed: false, say: format!("已复制 {count} 人"), copy: Some(model::share_likes(&store.likes)) })
+        }
+        _ => return None,
+    })
+}
+
 /// A key pressed on the list's current row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RowKey {
