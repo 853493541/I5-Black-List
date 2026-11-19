@@ -197,30 +197,28 @@ def clicks_work(hwnd: int, lobby, when: str, report: Path) -> None:
     tabs, switched = tab_clicks(hwnd, lobby)
     print(f"  INFO grid clicks {when}: {changed} of 9 changed {cv.title(hwnd)!r}: {' '.join(points)}")
     cv.record(f"clicks on the main window work {when}", switched > 0 and answers(hwnd),
-              f"{switched} of {len(tabs)} page tab clicks changed the page: {' '.join(tabs) or 'no tabs found by UIA'}; "
+              f"{switched} of {len(tabs)} page tab clicks changed the page: {' '.join(tabs)}; "
               f"grid {changed} of 9; answers {answers(hwnd)}; IsHungAppWindow {bool(user32.IsHungAppWindow(hwnd))}")
 
 
 def tab_clicks(hwnd: int, lobby) -> tuple[list[str], int]:
-    """SendInput clicks at the centre of each of the header's page tabs (found by UIA): how many changed the window."""
-    import uiautomation as auto
-
-    found = []
-    try:
-        window = auto.ControlFromHandle(hwnd)
-        found = [(c.Name, c.BoundingRectangle) for c, _ in auto.WalkControl(window, maxDepth=12)
-                 if c.ControlTypeName == "TabItemControl"]
-    except Exception as error:  # noqa: BLE001  (reported, not raised: the grid still says something)
-        return [f"UIA failed: {error}"], 0
+    """SendInput clicks on the header's page tabs at their layout places (app/ui/shell/main.slint: the header at 24,24,
+    36 px high, 记录 first): 记录 at x 44 and a later tab at x 154 (黑名单 or 嘉宾, as the badges make them wide), in
+    turn. The preview has no UIA tree, so the places come from the layout. Returns the clicks and how many changed."""
+    origin = wintypes.POINT(0, 0)
+    user32.ClientToScreen(hwnd, ctypes.byref(origin))
+    scale = (user32.GetDpiForWindow(hwnd) or 96) / 96
     tabs, switched = [], 0
-    for name, box in found[:4]:
-        x, y = (box.left + box.right) // 2, (box.top + box.bottom) // 2
+    for name, x in (("later tab", 154), ("记录", 44), ("later tab", 154)):
+        sx, sy = origin.x + round(x * scale), origin.y + round(42 * scale)
+        target = under(sx, sy)
         before = grab(hwnd)
-        click(x, y)
+        click(sx, sy)
         lobby.pump(0.5)
         moved = ImageChops.difference(before.convert("RGB"), grab(hwnd).convert("RGB")).getbbox() is not None
         switched += moved
-        tabs.append(f"{name}({x},{y}){'*' if moved else ''}")
+        mine = target == hwnd or user32.IsChild(hwnd, target)
+        tabs.append(f"{name}({sx},{sy}){'*' if moved else ''}{'' if mine else ' over ' + named(target)}")
     return tabs, switched
 
 
@@ -292,6 +290,12 @@ def run(exe: Path, work: Path, report: Path) -> None:
     app = SceneApp(exe, work / "scene")
     try:
         cv.record("starts, hotkeys registered", cv.started(app, lobby), cv.tail(app)[-200:])
+        # The baseline: the same clicks before any check or scene, so "after" is judged against this run's own window.
+        hwnd = bring_main(app, lobby)
+        clicks_work(hwnd, lobby, "before any check", report)
+        user32.SetWindowPos(hwnd, -2, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010)  # NOTOPMOST, NOSIZE | NOMOVE | NOACTIVATE
+        user32.ShowWindow(hwnd, 6)  # SW_MINIMIZE: the player goes back to the game
+        lobby.pump(0.5)
         # The game is not topmost on a player's PC: the lobby stays in front but under the stage and the marks.
         lobby.tk.attributes("-topmost", False)
         lobby.tk.lift()
