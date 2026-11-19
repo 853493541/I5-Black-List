@@ -97,7 +97,7 @@ fn guest_combo_and_scene_dialogs_answer_through_the_bus() {
     let (ui, store) = ui_with_store();
     step(&ui, UiEvent::Guests(GuestAction::AddGuest));
     assert_eq!(ui.about(), Some(About::Guest(None)));
-    assert_eq!(step(&ui, UiEvent::GuestEdit(G::Replay)), vec![UiEvent::GuestEdit(G::Replay)], "sounds are the runner's");
+    assert!(step(&ui, UiEvent::GuestEdit(G::Replay)).is_empty(), "▶ is the preview's, not the runner's");
     let save = G::Save { name: "心动小鹿".into(), nickname: "小鹿".into(), reason: String::new(), scenes: Scenes::of(&["lace"]) };
     step(&ui, UiEvent::GuestEdit(save));
     assert_eq!(store.borrow().likes.len(), 1);
@@ -120,4 +120,33 @@ fn guest_combo_and_scene_dialogs_answer_through_the_bus() {
     assert_eq!(step(&ui, UiEvent::Shell(ShellAction::OpenUpdate)), vec![UiEvent::Shell(ShellAction::OpenUpdate)]);
     let root = store.borrow().root.clone();
     let _ = std::fs::remove_dir_all(root);
+}
+
+/// Every 播放 / 预览 click in the 嘉宾, 组合 and 场景管理 dialogs plays the scene in the preview (its frames on the
+/// dialog's `frame`), and says so for the log; none is left to the runner's "UI:" line.
+#[test]
+fn every_preview_click_plays_the_scene_in_the_dialog() {
+    use crate::guestedit::{ComboAction as C, GuestAction as G, SceneAction as S};
+    use crate::guests::GuestAction;
+    let (ui, _store) = ui_with_store();
+    let opens = [GuestAction::AddGuest, GuestAction::AddCombo, GuestAction::ManageScenes];
+    let clicks: [Vec<UiEvent>; 3] = [
+        vec![UiEvent::GuestEdit(G::Play("lace".into())), UiEvent::GuestEdit(G::Replay)],
+        vec![UiEvent::Combo(C::Play("stars".into())), UiEvent::Combo(C::Replay)],
+        vec![UiEvent::Scenes(S::Show("ice".into())), UiEvent::Scenes(S::Play)],
+    ];
+    for (open, clicks) in opens.into_iter().zip(clicks) {
+        step(&ui, UiEvent::Guests(open));
+        for click in clicks {
+            assert!(step(&ui, click.clone()).is_empty(), "{click:?} went to the runner");
+            let notes = ui.notes();
+            assert_eq!(notes.len(), 1, "{click:?}: {notes:?}");
+            // No adapter at all (no Mesa, no WARP) is the one way it may not play, and it says so.
+            assert!(notes[0].contains(": playing,") || notes[0].contains("no GPU") || notes[0].contains("adapter"), "{notes:?}");
+        }
+    }
+    // A picked scene this version does not have says why.
+    step(&ui, UiEvent::Guests(GuestAction::AddGuest));
+    step(&ui, UiEvent::GuestEdit(G::Play("no-such-scene".into())));
+    assert!(ui.notes()[0].contains("not played"));
 }

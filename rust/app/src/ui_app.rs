@@ -10,6 +10,8 @@ use chrono::{DateTime, FixedOffset, Local};
 use data::store::Store;
 use slint::ComponentHandle;
 
+use app::wiring::preview_play::{self, ScenePreview};
+
 use crate::guests::model::{Lists, Page as GuestsModel};
 use crate::guests::view::GuestsView;
 use crate::history::{self, HistoryAction};
@@ -61,6 +63,10 @@ pub struct MainUi {
     key_note: RefCell<String>,
     /// A check's problem, over the pill until checks work again (Flow::problem).
     problem: RefCell<Option<app::wiring::flow::Problem>>,
+    /// The scene in the open dialog's preview, its frames on `preview_timer`, and what happened for the log.
+    preview: Rc<RefCell<ScenePreview>>,
+    preview_timer: slint::Timer,
+    notes: RefCell<Vec<String>>,
 }
 
 impl MainUi {
@@ -103,6 +109,11 @@ impl MainUi {
             hotkey_waiting: std::cell::Cell::new(false),
             key_note: RefCell::default(),
             problem: RefCell::default(),
+            preview: Rc::new(RefCell::new(ScenePreview::new(preview_play::lobby(
+                &app::wiring::assemble::assets_dir(app::wiring::startup::install_root().as_deref()).join("sample-lobby.jpg"),
+            )))),
+            preview_timer: slint::Timer::default(),
+            notes: RefCell::default(),
         };
         ui.refresh();
         Ok(ui)
@@ -390,6 +401,8 @@ impl MainUi {
     }
 
     fn close_current(&self) {
+        self.preview_timer.stop();
+        self.preview.borrow_mut().stop();
         if let Some(opened) = self.current.borrow_mut().take() {
             (opened.close)();
         }
@@ -400,11 +413,57 @@ impl MainUi {
         self.current.borrow().as_ref().map(|opened| opened.about.clone())
     }
 
+    /// What happened that the log should keep (each preview click's outcome), taken once.
+    pub fn notes(&self) -> Vec<String> {
+        std::mem::take(&mut self.notes.borrow_mut())
+    }
+
+    /// A 播放 / 预览 click in the open dialog: the scene plays in its preview. None for any other event.
+    fn preview_click(&self, event: &UiEvent) -> Option<String> {
+        use crate::guestedit::{ComboAction as C, GuestAction as G, SceneAction as S};
+        let mut preview = self.preview.borrow_mut();
+        let (what, played) = match event {
+            UiEvent::GuestEdit(G::Play(key)) | UiEvent::Combo(C::Play(key)) | UiEvent::Scenes(S::Show(key)) => {
+                (key.clone(), preview.start(crate::guestedit::shown(key)))
+            }
+            UiEvent::GuestEdit(G::Replay) | UiEvent::Combo(C::Replay) => ("replay".into(), preview.restart()),
+            UiEvent::Scenes(S::Play) => {
+                let key = preview.key().map(str::to_string).unwrap_or_else(|| self.store.borrow().settings.quick_scene.clone());
+                (format!("{key} (▶ 播放, silent: its 配乐 is not wired yet)"), preview.start(crate::guestedit::shown(&key)))
+            }
+            _ => return None,
+        };
+        drop(preview);
+        let set = self.current.borrow().as_ref().and_then(|opened| opened.frame.clone());
+        match (&played, set) {
+            (Ok(_), Some(set)) => {
+                let preview = self.preview.clone();
+                self.preview_timer.start(slint::TimerMode::Repeated, std::time::Duration::from_millis(33), move || {
+                    if let Some(rgba) = preview.borrow_mut().frame() {
+                        let buffer = slint::SharedPixelBuffer::<slint::Rgba8Pixel>::clone_from_slice(
+                            &rgba,
+                            preview_play::WIDTH,
+                            preview_play::HEIGHT,
+                        );
+                        set(slint::Image::from_rgba8(buffer));
+                    }
+                });
+                Some(format!("Preview {what}: playing, {}", played.unwrap_or_default()))
+            }
+            (Ok(_), None) => Some(format!("Preview {what}: not played: this dialog has no preview")),
+            (Err(error), _) => Some(format!("Preview {what}: not played: {error}")),
+        }
+    }
+
     /// A dialog's answer: Some(changed) when done here, None for the runner (sounds, hotkeys) or not an answer.
     fn answer(&self, event: &UiEvent) -> Option<bool> {
         use crate::dialogs::DialogAction as D;
         use crate::guestedit::{ComboAction as C, GuestAction as G, SceneAction as S};
         let about = self.about()?;
+        if let Some(note) = self.preview_click(event) {
+            self.notes.borrow_mut().push(note);
+            return Some(false);
+        }
         let saved = |result: std::io::Result<()>| {
             if let Err(error) = result {
                 eprintln!("save: {error}");

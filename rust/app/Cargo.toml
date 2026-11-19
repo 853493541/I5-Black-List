@@ -40,6 +40,8 @@ common = { path = "../common" }
 pipeline = { path = "../pipeline" }
 overlay = { path = "../overlay" }
 stage = { path = "../stage" }
+wgpu = { version = "25", default-features = false, features = ["wgsl"] }
+image = { version = "0.25", default-features = false, features = ["jpeg"] }
 scenes = { path = "../scenes" }
 sound = { path = "../sound" }
 opencv = { version = "0.102", default-features = false, features = ["imgproc", "imgcodecs"] }
@@ -50,7 +52,6 @@ unicode-normalization = "0.1"
 [dev-dependencies]
 serde_json = "1"
 tempfile = "3"
-image = { version = "0.25", default-features = false, features = ["jpeg"] }
 
 [build-dependencies]
 slint-build = "1.14"
