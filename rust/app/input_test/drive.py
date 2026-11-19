@@ -403,7 +403,10 @@ def click_pages(app: App) -> None:
 def click_buttons(app: App, page: str = "") -> None:
     buttons = []
     for control, _depth in auto.WalkControl(app.main, maxDepth=30):
-        if control.ControlTypeName == "ButtonControl" and control.Name not in SKIP | PANEL | NO_EFFECT:
+        # The 检查 pill opens the panel over the page (its own checks cover it): clicked here it left the panel open,
+        # and the next page or menu could not be reached.
+        pill = control.Name.startswith(("手动检查", "自动检查"))
+        if control.ControlTypeName == "ButtonControl" and control.Name not in SKIP | PANEL | NO_EFFECT and not pill:
             r = control.BoundingRectangle
             if r.width() > 2 and r.height() > 2 and not control.IsOffscreen:
                 buttons.append((control.Name, center(control)))
