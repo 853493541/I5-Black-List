@@ -28,75 +28,80 @@ export component GuestDialog inherits Window {
     // Where the card's foot ends, for the fit check: its buttons must be in view.
     out property <length> buttons-bottom: card.y + card.height;
     // The size it lays itself out at, for the renderer and the fit check.
-    out property <length> natural-width: self.preferred-width;
-    out property <length> natural-height: self.preferred-height;
+    out property <length> natural-width: card.preferred-width + 2 * 22px;
+    out property <length> natural-height: card.preferred-height + 2 * 22px;
+    preferred-width: self.natural-width;
+    preferred-height: self.natural-height;
     property <Palette> p: dark ? Dark.palette : Light.palette;
     property <GuestTones> t: dark ? Tones.dark : Tones.light;
     title: editing ? "编辑嘉宾" : "添加嘉宾";
     background: #b9b9b9;
     default-font-family: "Microsoft YaHei";
-    VerticalLayout {
-        padding: 22px;
-        card := DialogCard {
-            title: root.title;
-            p: p;
-            close => { root.dismiss(); }
-            HorizontalLayout {
-                padding-left: 24px;
-                padding-right: 24px;
-                padding-bottom: 24px;
-                spacing: 24px;
-                VerticalLayout {
-                    width: 448px;
+    // The card at its own size in the middle (ui_kit.Modal), the room round it for its shadow, as the other
+    // dialogs (dialogs/frame.slint Stage) draw theirs; never stretched to the window.
+    card := DialogCard {
+        width: self.preferred-width;
+        height: self.preferred-height;
+        x: max(0px, (root.width - self.width) / 2);
+        y: max(0px, (root.height - self.height) / 2);
+        title: root.title;
+        p: p;
+        close => { root.dismiss(); }
+        HorizontalLayout {
+            padding-left: 24px;
+            padding-right: 24px;
+            padding-bottom: 24px;
+            spacing: 24px;
+            VerticalLayout {
+                width: 448px;
+                spacing: 12px;
+                alignment: start;
+                HorizontalLayout {
                     spacing: 12px;
-                    alignment: start;
-                    HorizontalLayout {
-                        spacing: 12px;
-                        VerticalLayout {
-                            horizontal-stretch: 3;
-                            spacing: 6px;
-                            FieldLabel { text: "名字"; p: p; }
-                            Field { height: 34px; text <=> root.name; p: p; t: t; }
-                            if name-error != "": Text {
-                                text: name-error;
-                                font-size: 12px;
-                                color: p.red;
-                            }
-                        }
-                        VerticalLayout {
-                            horizontal-stretch: 2;
-                            spacing: 6px;
-                            alignment: start;
-                            FieldLabel { text: "昵称"; p: p; }
-                            Field { height: 34px; text <=> root.nickname; placeholder: "遇到时显示的名字"; p: p; t: t; }
+                    VerticalLayout {
+                        horizontal-stretch: 3;
+                        spacing: 6px;
+                        FieldLabel { text: "名字"; p: p; }
+                        Field { height: 34px; text <=> root.name; p: p; t: t; }
+                        if name-error != "": Text {
+                            text: name-error;
+                            font-size: 12px;
+                            color: p.red;
                         }
                     }
                     VerticalLayout {
+                        horizontal-stretch: 2;
                         spacing: 6px;
-                        FieldLabel { text: "原因"; p: p; }
-                        // REASON_LINES (3) lines of the body font and the box's own padding.
-                        Field { height: 3 * 21px + 18px; multiline: true; text <=> root.reason; p: p; t: t; }
+                        alignment: start;
+                        FieldLabel { text: "昵称"; p: p; }
+                        Field { height: 34px; text <=> root.nickname; placeholder: "遇到时显示的名字"; p: p; t: t; }
                     }
-                    ScenePreview { width: 448px; frame: frame; p: p; play: true; replay => { root.replay(); } }
                 }
-                ScenePane {
-                    scenes: scenes;
-                    selected: selected;
-                    playing: playing;
-                    rows: rows;
-                    p: p;
-                    t: t;
-                    play-toggled => { root.play-toggled(); }
-                    picked(key) => { root.picked(key); }
-                    ticked(key) => { root.ticked(key); }
+                VerticalLayout {
+                    spacing: 6px;
+                    FieldLabel { text: "原因"; p: p; }
+                    // REASON_LINES (3) lines of the body font and the box's own padding.
+                    Field { height: 3 * 21px + 18px; multiline: true; text <=> root.reason; p: p; t: t; }
                 }
+                ScenePreview { width: 448px; frame: frame; p: p; play: true; replay => { root.replay(); } }
             }
-            DialogFooter {
+            ScenePane {
+                scenes: scenes;
+                selected: selected;
+                playing: playing;
+                rows: rows;
                 p: p;
-                if editing: DialogButton { label: "删除"; kind: "danger"; p: p; t: t; clicked => { root.remove(); } }
-                Rectangle { }
-                DialogButton { label: editing ? "保存" : "添加"; kind: "primary"; p: p; t: t; clicked => { root.save(); } }
+                t: t;
+                play-toggled => { root.play-toggled(); }
+                picked(key) => { root.picked(key); }
+                ticked(key) => { root.ticked(key); }
             }
+        }
+        DialogFooter {
+            p: p;
+            if editing: DialogButton { label: "删除"; kind: "danger"; p: p; t: t; clicked => { root.remove(); } }
+            Rectangle { }
+            DialogButton { label: editing ? "保存" : "添加"; kind: "primary"; p: p; t: t; clicked => { root.save(); } }
         }
     }
 }

@@ -26,79 +26,84 @@ export component ComboDialog inherits Window {
     callback dismiss();
     out property <length> buttons-bottom: card.y + card.height;
     // The size it lays itself out at, for the renderer and the fit check.
-    out property <length> natural-width: self.preferred-width;
-    out property <length> natural-height: self.preferred-height;
+    out property <length> natural-width: card.preferred-width + 2 * 22px;
+    out property <length> natural-height: card.preferred-height + 2 * 22px;
+    preferred-width: self.natural-width;
+    preferred-height: self.natural-height;
     property <Palette> p: dark ? Dark.palette : Light.palette;
     property <GuestTones> t: dark ? Tones.dark : Tones.light;
     title: editing ? "编辑组合" : "添加组合";
     background: #b9b9b9;
     default-font-family: "Microsoft YaHei";
-    VerticalLayout {
-        padding: 22px;
-        card := DialogCard {
-            title: root.title;
-            p: p;
-            close => { root.dismiss(); }
-            HorizontalLayout {
-                padding-left: 24px;
-                padding-right: 24px;
-                padding-bottom: 24px;
-                spacing: 24px;
+    // The card at its own size in the middle (ui_kit.Modal), the room round it for its shadow, as the other
+    // dialogs (dialogs/frame.slint Stage) draw theirs; never stretched to the window.
+    card := DialogCard {
+        width: self.preferred-width;
+        height: self.preferred-height;
+        x: max(0px, (root.width - self.width) / 2);
+        y: max(0px, (root.height - self.height) / 2);
+        title: root.title;
+        p: p;
+        close => { root.dismiss(); }
+        HorizontalLayout {
+            padding-left: 24px;
+            padding-right: 24px;
+            padding-bottom: 24px;
+            spacing: 24px;
+            VerticalLayout {
+                width: 424px;
+                spacing: 12px;
                 VerticalLayout {
-                    width: 424px;
-                    spacing: 12px;
-                    VerticalLayout {
-                        spacing: 6px;
+                    spacing: 6px;
+                    vertical-stretch: 1;
+                    FieldLabel { text: "已添加的嘉宾"; p: p; }
+                    Rectangle {
                         vertical-stretch: 1;
-                        FieldLabel { text: "已添加的嘉宾"; p: p; }
-                        Rectangle {
-                            vertical-stretch: 1;
-                            // MIN_ROWS (3) rows at the least, in its 4 px padding.
-                            min-height: 3 * 32px + 8px;
-                            background: p.surface;
-                            border-width: 1px;
-                            border-color: p.border;
-                            border-radius: 8px;
-                            HorizontalLayout {
-                                padding: 4px;
-                                box := Flickable {
-                                    content-height: people.length * 32px;
-                                    for person[index] in people: TickBox {
-                                        y: index * 32px;
-                                        width: box.width;
-                                        label: person.name;
-                                        on: person.ticked;
-                                        struck: person.gone;
-                                        p: p;
-                                        t: t;
-                                        toggled => { root.person-toggled(index); }
-                                    }
+                        // MIN_ROWS (3) rows at the least, in its 4 px padding.
+                        min-height: 3 * 32px + 8px;
+                        background: p.surface;
+                        border-width: 1px;
+                        border-color: p.border;
+                        border-radius: 8px;
+                        HorizontalLayout {
+                            padding: 4px;
+                            box := Flickable {
+                                content-height: people.length * 32px;
+                                for person[index] in people: TickBox {
+                                    y: index * 32px;
+                                    width: box.width;
+                                    label: person.name;
+                                    on: person.ticked;
+                                    struck: person.gone;
+                                    p: p;
+                                    t: t;
+                                    toggled => { root.person-toggled(index); }
                                 }
-                                ThinBar { view: box.height; whole: box.content-height; at: box.content-y; p: p; }
                             }
+                            ThinBar { view: box.height; whole: box.content-height; at: box.content-y; p: p; }
                         }
-                        if people-error != "": Text { text: people-error; font-size: 12px; color: p.red; }
                     }
-                    ScenePreview { width: 424px; frame: frame; p: p; play: true; replay => { root.replay(); } }
+                    if people-error != "": Text { text: people-error; font-size: 12px; color: p.red; }
                 }
-                ScenePane {
-                    scenes: scenes;
-                    selected: selected;
-                    playing: playing;
-                    rows: rows;
-                    p: p;
-                    t: t;
-                    play-toggled => { root.play-toggled(); }
-                    picked(key) => { root.picked(key); }
-                    ticked(key) => { root.ticked(key); }
-                }
+                ScenePreview { width: 424px; frame: frame; p: p; play: true; replay => { root.replay(); } }
             }
-            DialogFooter {
+            ScenePane {
+                scenes: scenes;
+                selected: selected;
+                playing: playing;
+                rows: rows;
                 p: p;
-                if editing: DialogButton { label: "删除"; kind: "danger"; p: p; t: t; clicked => { root.remove(); } }
-                Rectangle { }
-                DialogButton { label: editing ? "保存" : "添加"; kind: "primary"; p: p; t: t; clicked => { root.save(); } }
+                t: t;
+                play-toggled => { root.play-toggled(); }
+                picked(key) => { root.picked(key); }
+                ticked(key) => { root.ticked(key); }
             }
+        }
+        DialogFooter {
+            p: p;
+            if editing: DialogButton { label: "删除"; kind: "danger"; p: p; t: t; clicked => { root.remove(); } }
+            Rectangle { }
+            DialogButton { label: editing ? "保存" : "添加"; kind: "primary"; p: p; t: t; clicked => { root.save(); } }
         }
     }
 }

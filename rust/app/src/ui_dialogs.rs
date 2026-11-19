@@ -14,7 +14,7 @@ use slint::{ComponentHandle, PlatformError};
 use crate::dialogs::{models, DialogAction};
 use crate::guestedit::dialogs::{self as edit, GuestFields, ManagerState, Person};
 use crate::ui_events::{Bus, UiEvent};
-use crate::{AddNameDialog, BatchAddDialog, PictureGuideDialog, StreamGuideDialog, TagSuggestDialog};
+use crate::{AddNameDialog, BatchAddDialog, PictureGuideDialog, TagSuggestDialog};
 
 /// The width 添加's tag chips wrap in (as the dialogs' own pictures use).
 const NAME_TAG_ROOM: f32 = 392.0;
@@ -285,10 +285,12 @@ pub fn display_guide(bus: &Bus) -> Result<Opened, PlatformError> {
     opened(ui, About::Info)
 }
 
-/// 直播模式 › ⓘ.
+/// 直播模式 › ⓘ: ui_dialogs.StreamGuideDialog is a PictureGuideDialog of one page, so it is the same card as 显示's.
 pub fn stream_guide(bus: &Bus, dark: bool) -> Result<Opened, PlatformError> {
-    let ui = StreamGuideDialog::new()?;
+    let ui = PictureGuideDialog::new()?;
+    ui.set_which("stream".into());
     ui.set_dark(dark);
     ui.on_done(send(bus, DialogAction::Closed));
+    ui.on_closed(send(bus, DialogAction::Closed));
     opened(ui, About::Info)
 }

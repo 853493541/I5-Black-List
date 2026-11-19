@@ -31,124 +31,129 @@ export component SceneManagerDialog inherits Window {
     // The card's foot, for the fit check (it has no buttons; the last scene must be in view).
     out property <length> buttons-bottom: card.y + card.height;
     // The size it lays itself out at, for the renderer and the fit check.
-    out property <length> natural-width: self.preferred-width;
-    out property <length> natural-height: self.preferred-height;
+    out property <length> natural-width: card.preferred-width + 2 * 22px;
+    out property <length> natural-height: card.preferred-height + 2 * 22px;
+    preferred-width: self.natural-width;
+    preferred-height: self.natural-height;
     property <Palette> p: dark ? Dark.palette : Light.palette;
     property <GuestTones> t: dark ? Tones.dark : Tones.light;
     title: "场景管理";
     background: #b9b9b9;
     default-font-family: "Microsoft YaHei";
-    VerticalLayout {
-        padding: 22px;
-        card := DialogCard {
-            title: "场景管理";
-            p: p;
-            close => { root.dismiss(); }
-            HorizontalLayout {
-                padding-left: 24px;
-                padding-right: 24px;
-                padding-bottom: 24px;
-                spacing: 20px;
-                VerticalLayout {
-                    min-width: 200px;
-                    spacing: 4px;
+    // The card at its own size in the middle (ui_kit.Modal), the room round it for its shadow, as the other
+    // dialogs (dialogs/frame.slint Stage) draw theirs; never stretched to the window.
+    card := DialogCard {
+        width: self.preferred-width;
+        height: self.preferred-height;
+        x: max(0px, (root.width - self.width) / 2);
+        y: max(0px, (root.height - self.height) / 2);
+        title: "场景管理";
+        p: p;
+        close => { root.dismiss(); }
+        HorizontalLayout {
+            padding-left: 24px;
+            padding-right: 24px;
+            padding-bottom: 24px;
+            spacing: 20px;
+            VerticalLayout {
+                min-width: 200px;
+                spacing: 4px;
+                alignment: start;
+                HorizontalLayout {
+                    spacing: 10px;
                     alignment: start;
-                    HorizontalLayout {
-                        spacing: 10px;
-                        alignment: start;
-                        Text { text: "快捷键"; font-size: 14px; color: p.text; vertical-alignment: center; }
-                        Field { width: 116px; height: 32px; text <=> root.hotkey; p: p; t: t; }
-                    }
-                    Text { text: "按快捷键，在当前窗口播放勾选的场景"; font-size: 12px; color: p.muted; }
-                    // NOTE_LINES (2) lines kept for a note, so the dialog keeps its size as one comes and goes: under
-                    // the hint while there is one, at the column's foot while there is none (as Qt lays the room out).
-                    if note != "": Text {
-                        height: max(2 * 17px, self.preferred-height);
-                        text: note;
-                        font-size: 12px;
-                        color: p.red;
-                        wrap: word-wrap;
-                    }
-                    Rectangle { height: 8px; }
-                    // Every scene in view, none scrolled away: each one added makes the column taller.
-                    Rectangle {
-                        height: scenes.length * 36px - 2px;
-                        for item[index] in scenes: SceneRow {
-                            y: index * 36px;
-                            width: parent.width;
-                            item: item;
-                            mark: "spot";
-                            selected: item.key == selected;
-                            p: p;
-                            t: t;
-                            picked => { root.picked(item.key); }
-                            ticked => { root.give-hotkey(item.key); }
-                        }
-                    }
-                    if note == "": Rectangle { height: 2 * 17px + 4px; }
+                    Text { text: "快捷键"; font-size: 14px; color: p.text; vertical-alignment: center; }
+                    Field { width: 116px; height: 32px; text <=> root.hotkey; p: p; t: t; }
                 }
-                VerticalLayout {
-                    width: 448px;
+                Text { text: "按快捷键，在当前窗口播放勾选的场景"; font-size: 12px; color: p.muted; }
+                // NOTE_LINES (2) lines kept for a note, so the dialog keeps its size as one comes and goes: under
+                // the hint while there is one, at the column's foot while there is none (as Qt lays the room out).
+                if note != "": Text {
+                    height: max(2 * 17px, self.preferred-height);
+                    text: note;
+                    font-size: 12px;
+                    color: p.red;
+                    wrap: word-wrap;
+                }
+                Rectangle { height: 8px; }
+                // Every scene in view, none scrolled away: each one added makes the column taller.
+                Rectangle {
+                    height: scenes.length * 36px - 2px;
+                    for item[index] in scenes: SceneRow {
+                        y: index * 36px;
+                        width: parent.width;
+                        item: item;
+                        mark: "spot";
+                        selected: item.key == selected;
+                        p: p;
+                        t: t;
+                        picked => { root.picked(item.key); }
+                        ticked => { root.give-hotkey(item.key); }
+                    }
+                }
+                if note == "": Rectangle { height: 2 * 17px + 4px; }
+            }
+            VerticalLayout {
+                width: 448px;
+                spacing: 16px;
+                alignment: start;
+                ScenePreview { width: 448px; frame: frame; p: p; }
+                HorizontalLayout {
                     spacing: 16px;
-                    alignment: start;
-                    ScenePreview { width: 448px; frame: frame; p: p; }
+                    Text { text: "配乐"; font-size: 14px; color: p.text; vertical-alignment: center; }
                     HorizontalLayout {
-                        spacing: 16px;
-                        Text { text: "配乐"; font-size: 14px; color: p.text; vertical-alignment: center; }
-                        HorizontalLayout {
-                            spacing: 10px;
-                            Rectangle {
-                                width: 180px;
-                                Rectangle { height: 4px; border-radius: 2px; background: p.selected; }
-                                Rectangle {
-                                    x: 0;
-                                    width: (parent.width - 18px) * volume / 100;
-                                    height: 4px;
-                                    border-radius: 2px;
-                                    background: t.field-line;
-                                }
-                                Rectangle {
-                                    x: (parent.width - 18px) * volume / 100;
-                                    width: 18px;
-                                    height: 18px;
-                                    border-radius: 9px;
-                                    background: p.accent-wash;
-                                    border-width: 1px;
-                                    border-color: p.border;
-                                }
-                            }
-                            Text { text: volume + "%"; font-size: 14px; color: p.text; vertical-alignment: center; }
-                            Rectangle { }
-                            DialogButton { label: sounding ? "⏸ 暂停" : "▶ 播放"; kind: "primary"; p: p; t: t; clicked => { root.play(); } }
-                        }
-                    }
-                    for song[index] in songs: HorizontalLayout {
                         spacing: 10px;
-                        height: 34px;
                         Rectangle {
-                            width: 16px;
-                            height: 16px;
-                            y: 9px;
-                            border-radius: 8px;
-                            border-width: 1.2px;
-                            border-color: t.field-line;
-                            if song.chosen: Rectangle { width: 8px; height: 8px; border-radius: 4px; background: p.text; }
-                            TouchArea { clicked => { root.choose-song(index); } }
+                            width: 180px;
+                            Rectangle { height: 4px; border-radius: 2px; background: p.selected; }
+                            Rectangle {
+                                x: 0;
+                                width: (parent.width - 18px) * volume / 100;
+                                height: 4px;
+                                border-radius: 2px;
+                                background: t.field-line;
+                            }
+                            Rectangle {
+                                x: (parent.width - 18px) * volume / 100;
+                                width: 18px;
+                                height: 18px;
+                                border-radius: 9px;
+                                background: p.accent-wash;
+                                border-width: 1px;
+                                border-color: p.border;
+                            }
                         }
-                        Text { text: song.name; font-size: 14px; color: p.text; vertical-alignment: center; }
-                        Rectangle {
-                            width: 18px;
-                            height: 18px;
-                            y: 8px;
-                            border-radius: 9px;
-                            border-width: 1.2px;
-                            border-color: t.field-line;
-                            Path { x: 6px; y: 5px; width: 7px; height: 8px; fill: t.field-line; commands: "M0 0 L7 4 L0 8 Z"; }
-                            TouchArea { clicked => { root.listen(index); } }
-                        }
+                        Text { text: volume + "%"; font-size: 14px; color: p.text; vertical-alignment: center; }
                         Rectangle { }
-                        if index == 0: DialogButton { label: "上传"; p: p; t: t; clicked => { root.upload(); } }
+                        DialogButton { label: sounding ? "⏸ 暂停" : "▶ 播放"; kind: "primary"; p: p; t: t; clicked => { root.play(); } }
                     }
+                }
+                for song[index] in songs: HorizontalLayout {
+                    spacing: 10px;
+                    height: 34px;
+                    Rectangle {
+                        width: 16px;
+                        height: 16px;
+                        y: 9px;
+                        border-radius: 8px;
+                        border-width: 1.2px;
+                        border-color: t.field-line;
+                        if song.chosen: Rectangle { width: 8px; height: 8px; border-radius: 4px; background: p.text; }
+                        TouchArea { clicked => { root.choose-song(index); } }
+                    }
+                    Text { text: song.name; font-size: 14px; color: p.text; vertical-alignment: center; }
+                    Rectangle {
+                        width: 18px;
+                        height: 18px;
+                        y: 8px;
+                        border-radius: 9px;
+                        border-width: 1.2px;
+                        border-color: t.field-line;
+                        Path { x: 6px; y: 5px; width: 7px; height: 8px; fill: t.field-line; commands: "M0 0 L7 4 L0 8 Z"; }
+                        TouchArea { clicked => { root.listen(index); } }
+                    }
+                    Rectangle { }
+                    if index == 0: DialogButton { label: "上传"; p: p; t: t; clicked => { root.upload(); } }
                 }
             }
         }
