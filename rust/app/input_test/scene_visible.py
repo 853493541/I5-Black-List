@@ -127,8 +127,15 @@ def bring_main(app, lobby) -> int:
     user32.PostMessageW(hwnd, 0x0112, 0xF120, 0)  # WM_SYSCOMMAND SC_RESTORE, as the taskbar sends it
     lobby.pump(0.8)
     width, height = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
-    user32.SetWindowPos(hwnd, -1, width - 960, height - 640, 0, 0, 0x0001 | 0x0040)  # TOPMOST, NOSIZE | SHOWWINDOW
-    lobby.pump(0.8)
+    # The restore posted above lands after a moment: move it once it is in, then again, and take the foreground (this
+    # script owns it through the lobby), so the clicks reach the main window and not the lobby on top.
+    for _ in range(2):
+        user32.SetWindowPos(hwnd, -1, width - 960, height - 640, 0, 0, 0x0001 | 0x0040)  # TOPMOST, NOSIZE | SHOWWINDOW
+        user32.BringWindowToTop(hwnd)
+        user32.SetForegroundWindow(hwnd)
+        lobby.pump(0.6)
+    print(f"  foreground after bring_main: {named(user32.GetForegroundWindow())}; under the header: "
+          f"{named(under(width - 960 + 100, height - 640 + 70))}")
     rect = wintypes.RECT()
     user32.GetWindowRect(hwnd, ctypes.byref(rect))
     print(f"  main window: iconic {bool(user32.IsIconic(hwnd))}, visible {bool(user32.IsWindowVisible(hwnd))}, "
