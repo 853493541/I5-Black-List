@@ -41,7 +41,7 @@ SKIP = {"退出", "清空数据", "清空", "导出", "隐藏名字", "显示名
 # In the 检查 panel, which any click outside it folds away: tested on their own, the panel opened first.
 PANEL = {"显示说明", "直播模式说明", "快捷键"}
 # The 检查 pill: its idle words, or a failed check's problem in their place (shell::show_problem).
-PILL = ("手动检查", "自动检查", "识别还没准备好", "读不到屏幕", "检查失败")
+PILL = ("手动检查", "自动检查", "识别还没准备好", "读不到屏幕", "检查失败", "请先把压缩包")  # the last: no models beside the exe (startup.rs)
 # A scene's play buttons: by their words, or by their icon's name (IconButton is named by its icon).
 PLAY = ("播放", "预览", "试听", "play", "preview")
 # Clicks that do nothing by design (v1.0.1 the same): a 记录 seat on neither list.
