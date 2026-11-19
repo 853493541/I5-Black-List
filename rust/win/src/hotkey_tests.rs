@@ -98,3 +98,15 @@ proptest! {
         prop_assert_eq!(a, b);
     }
 }
+
+#[test]
+fn a_key_taken_in_the_box_follows_the_python_rules() {
+    use Modifier::*;
+    assert_eq!(take_key(Some("1"), &[Alt], "Alt+F12"), Ok("Alt+1".to_string()));
+    assert_eq!(take_key(Some("F5"), &[], ""), Ok("F5".to_string()));
+    assert_eq!(take_key(None, &[Alt], ""), Err("用字母、数字或 F1–F12"));
+    assert_eq!(take_key(Some("1"), &[Ctrl, Alt], ""), Err("最多两个键，比如 Alt+1"));
+    assert_eq!(take_key(Some("Q"), &[Shift], ""), Err("加上 Ctrl 或 Alt，比如 Alt+1"));
+    assert_eq!(take_key(Some("C"), &[Ctrl], ""), Err("这是常用的键，换一个"));
+    assert_eq!(take_key(Some("F12"), &[Alt], "Alt+F12"), Err("场景已在用这个键，换一个"));
+}

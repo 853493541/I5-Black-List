@@ -92,8 +92,10 @@ jobs:
       - name: Unit tests (hotkeys, the panel's redraw, the taken-key note)
         run: |
           cargo test -p win global_hotkey
+          cargo test -p win a_key_taken
           cargo test -p app --features preview --lib key_note
           cargo test -p app --features preview --bin blacklist-detect ui_wiring
+          cargo test -p app --features preview --bin blacklist-detect a_key_in_the_hotkey_box
       - name: Build (preview, with UIAutomation)
         run: cargo build --release -p app --bin blacklist-detect --features preview,a11y
       - name: Screen

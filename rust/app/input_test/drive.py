@@ -333,6 +333,29 @@ def press_hotkey(app: App) -> None:
     record("hotkey Alt+1 starts a check", ok, f"log after the press: {tail[-300:]!r}")
 
 
+def capture_hotkey(app: App) -> None:
+    """The hotkey box takes a new key as it is pressed (MainWindow._take_hotkey), and the new key starts a check."""
+    box = app.main.ButtonControl(Name="快捷键", searchDepth=30)
+    if not box.Exists(3, 0.5):
+        record("hotkey box takes Alt+2", False, "UIAutomation does not see the box")
+        return
+    click(*center(box))
+    time.sleep(0.8)
+    send(key(0x12), key(0x32), key(0x32, True), key(0x12, True))  # Alt+2
+    end, saved = time.time() + 5, None
+    while time.time() < end and saved != "Alt+2":
+        saved = app.settings().get("hotkey")
+        time.sleep(0.3)
+    record("hotkey box takes Alt+2", saved == "Alt+2", f"settings.json hotkey={saved!r}")
+    if saved != "Alt+2":
+        return
+    time.sleep(1.5)  # registered again on the next turns of the window's timer
+    start = len(app.log_text())
+    send(key(0x12), key(0x32), key(0x32, True), key(0x12, True))
+    ok = app.wait_log("Hotkey: 检查", start, 10)
+    record("new hotkey Alt+2 starts a check", ok, f"log after the press: {app.log_text()[start:].strip()[-300:]!r}")
+
+
 def main() -> int:
     exe, home, out = sys.argv[1], Path(sys.argv[2]), Path(sys.argv[3])
     home.mkdir(parents=True, exist_ok=True)
@@ -358,6 +381,7 @@ def main() -> int:
         open_dialog(app)
         click_buttons(app)
         press_hotkey(app)
+        capture_hotkey(app)
         evidence(app, "at the end")
         app.snapshot("end")
     finally:

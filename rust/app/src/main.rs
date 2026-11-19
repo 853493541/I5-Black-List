@@ -246,7 +246,16 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
         if redraw {
             pages.refresh();
         }
-        ui_wiring::rekey(&mut pumped.borrow_mut(), &mut hotkeys);
+        if pages.hotkey_waiting() {
+            // The box waits for a key: both hotkeys let go of theirs, so either key reaches it (_begin_hotkey); the
+            // empty pair makes rekey register them again once it is done.
+            if hotkeys != Default::default() {
+                pumped.borrow_mut().set_keys(Box::new(app::wiring::runner::NoKeys));
+                hotkeys = Default::default();
+            }
+        } else {
+            ui_wiring::rekey(&mut pumped.borrow_mut(), &mut hotkeys);
+        }
         pages.set_hotkey_note(&pumped.borrow().hotkey_note());
         updates.pump(&mut pumped.borrow_mut());
         let asks = pumped.borrow_mut().pump();

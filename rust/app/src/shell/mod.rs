@@ -168,6 +168,36 @@ pub fn close_outcome(by_player: bool, close_to_tray: bool, tray_shown: bool) -> 
     }
 }
 
+/// A key pressed in the hotkey box, as slint gives it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Pressed {
+    /// Escape, or the box lost the focus: the wait ends, the key stays.
+    Escape,
+    /// Ctrl, Alt, Shift or Win alone: wait for the key that goes with it.
+    Modifier,
+    /// A-Z, 0-9 or F1-F12; None for any other key.
+    Key(Option<String>),
+}
+
+/// The key of a press in the hotkey box (ui._qt_key_name).
+pub fn pressed_key(text: &str) -> Pressed {
+    use slint::platform::Key;
+    let mut chars = text.chars();
+    let (Some(c), None) = (chars.next(), chars.next()) else { return Pressed::Key(None) };
+    if c == char::from(Key::Escape) {
+        return Pressed::Escape;
+    }
+    let modifiers = [Key::Shift, Key::ShiftR, Key::Control, Key::ControlR, Key::Alt, Key::AltGr, Key::Meta, Key::MetaR];
+    if modifiers.into_iter().any(|key| c == char::from(key)) {
+        return Pressed::Modifier;
+    }
+    if c.is_ascii_alphanumeric() {
+        return Pressed::Key(Some(c.to_ascii_uppercase().to_string()));
+    }
+    let f_keys = [Key::F1, Key::F2, Key::F3, Key::F4, Key::F5, Key::F6, Key::F7, Key::F8, Key::F9, Key::F10, Key::F11, Key::F12];
+    Pressed::Key(f_keys.into_iter().position(|key| c == char::from(key)).map(|n| format!("F{}", n + 1)))
+}
+
 /// What the player does in the frame, for the app to carry out.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ShellAction {
@@ -183,6 +213,8 @@ pub enum ShellAction {
     SetAutoCapture(bool),
     /// The hotkey box: wait for a key (MainWindow._begin_hotkey).
     BeginHotkey,
+    /// A key pressed in the waiting hotkey box (MainWindow._take_hotkey): its text and Ctrl, Alt, Shift, Win.
+    TakeHotkey { text: String, ctrl: bool, alt: bool, shift: bool, win: bool },
     /// 直播模式: 开启 or 关闭.
     SetStreamMode(bool),
     /// ⓘ beside 显示: the two modes in pictures.
@@ -266,6 +298,10 @@ pub fn connect(window: &MainWindow, act: impl Fn(ShellAction) + 'static) {
     window.on_auto_changed(move |on| a(ShellAction::SetAutoCapture(on)));
     let a = act.clone();
     window.on_hotkey_clicked(move || a(ShellAction::BeginHotkey));
+    let a = act.clone();
+    window.on_hotkey_key(move |text, ctrl, alt, shift, win| {
+        a(ShellAction::TakeHotkey { text: text.to_string(), ctrl, alt, shift, win })
+    });
     let a = act.clone();
     window.on_stream_changed(move |on| a(ShellAction::SetStreamMode(on)));
     let a = act.clone();

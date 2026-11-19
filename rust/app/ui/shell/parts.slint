@@ -67,6 +67,9 @@ export component HotkeyBox inherits Rectangle {
     in property <bool> enabled: true;
     in property <Palette> p;
     callback clicked;
+    // A key pressed while it waits: the key's text (slint's Key for F1-F12 and the modifiers) and Ctrl, Alt, Shift,
+    // Win; "\u{1b}" (Escape) when the box lost the focus, which ends the wait.
+    callback key-pressed(string, bool, bool, bool, bool);
     property <string> shown: waiting ? "请按下快捷键" : key != "" ? key : none;
     height: 32px;
     width: max(wait-words.preferred-width + 32px, words.preferred-width + 32px, 84px);
@@ -84,6 +87,26 @@ export component HotkeyBox inherits Rectangle {
         text: shown;
         font-size: 14px;
         color: enabled && key != "" && !waiting ? p.text : p.muted;
+    }
+    changed waiting => {
+        if waiting {
+            scope.focus();
+        }
+    }
+    scope := FocusScope {
+        enabled: root.waiting;
+        key-pressed(event) => {
+            if !root.waiting {
+                return reject;
+            }
+            root.key-pressed(event.text, event.modifiers.control, event.modifiers.alt, event.modifiers.shift, event.modifiers.meta);
+            accept
+        }
+        changed has-focus => {
+            if !self.has-focus && root.waiting {
+                root.key-pressed("\u{1b}", false, false, false, false);
+            }
+        }
     }
     TouchArea { enabled: enabled; mouse-cursor: pointer; clicked => { root.clicked(); } }
 }

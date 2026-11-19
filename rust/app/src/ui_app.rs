@@ -54,6 +54,9 @@ pub struct MainUi {
     version: String,
     /// Under the hotkey box: a key another program holds (Runner::hotkey_note).
     hotkey_note: RefCell<String>,
+    /// The hotkey box waits for a key (BeginHotkey until a key is taken or Escape), and what is wrong with the last.
+    hotkey_waiting: std::cell::Cell<bool>,
+    key_note: RefCell<String>,
 }
 
 impl MainUi {
@@ -92,6 +95,8 @@ impl MainUi {
             asking: Rc::default(),
             version: version.to_string(),
             hotkey_note: RefCell::default(),
+            hotkey_waiting: std::cell::Cell::new(false),
+            key_note: RefCell::default(),
         };
         ui.refresh();
         Ok(ui)
@@ -102,7 +107,9 @@ impl MainUi {
         let store = self.store.borrow();
         let mut model = ShellModel::from_settings(&store.settings);
         model.version = self.version.clone();
-        model.hotkey_note = self.hotkey_note.borrow().clone();
+        let key_note = self.key_note.borrow();
+        model.hotkey_note = if key_note.is_empty() { self.hotkey_note.borrow().clone() } else { key_note.clone() };
+        model.hotkey_waiting = self.hotkey_waiting.get();
         model.blacklist_count = store.entries.len();
         model.guests_count = store.likes.len();
         model.page = crate::shell::Page::from_index(self.window.get_page()).unwrap_or(model.page);
@@ -112,6 +119,36 @@ impl MainUi {
         self.guests.show(&self.window, &lists(&store), now());
         let state = SettingsState::new(&store.settings, false, cfg!(windows), &self.version);
         crate::settings::model::show_settings_main(&self.window, &state);
+    }
+
+    /// Whether the hotkey box waits for a key (the hotkeys are let go meanwhile, so the key reaches the box).
+    pub fn hotkey_waiting(&self) -> bool {
+        self.hotkey_waiting.get()
+    }
+
+    /// A key pressed in the waiting box (MainWindow._take_hotkey): a good one becomes 检查's hotkey and ends the wait;
+    /// a wrong one is said under the box, which keeps waiting.
+    fn take_hotkey(&self, store: &mut Store, pressed: crate::shell::Pressed, modifiers: &[win::hotkey::Modifier]) -> bool {
+        use crate::shell::Pressed;
+        let key = match pressed {
+            Pressed::Modifier => return false,
+            Pressed::Escape => {
+                self.hotkey_waiting.set(false);
+                self.key_note.borrow_mut().clear();
+                return true;
+            }
+            Pressed::Key(key) => key,
+        };
+        match win::hotkey::take_key(key.as_deref(), modifiers, &store.settings.effect_hotkey) {
+            Ok(display) => {
+                store.settings.hotkey = display;
+                let _ = store.save_settings();
+                self.hotkey_waiting.set(false);
+                self.key_note.borrow_mut().clear();
+            }
+            Err(note) => *self.key_note.borrow_mut() = note.to_string(),
+        }
+        true
     }
 
     /// The hotkey box's note, shown at once when it changed.
@@ -185,6 +222,16 @@ impl MainUi {
                 store.save_settings().ok()?;
             }
             UiEvent::Shell(ShellAction::PageShown(_)) => {}
+            UiEvent::Shell(ShellAction::BeginHotkey) => {
+                self.hotkey_waiting.set(true);
+                self.key_note.borrow_mut().clear();
+            }
+            UiEvent::Shell(ShellAction::TakeHotkey { text, ctrl, alt, shift, win: meta }) => {
+                use win::hotkey::Modifier;
+                let held = [(*ctrl, Modifier::Ctrl), (*alt, Modifier::Alt), (*shift, Modifier::Shift), (*meta, Modifier::Win)];
+                let modifiers: Vec<Modifier> = held.iter().filter(|(on, _)| *on).map(|(_, m)| *m).collect();
+                return Some(self.take_hotkey(&mut store, crate::shell::pressed_key(text), &modifiers));
+            }
             _ => return None,
         }
         Some(true)
