@@ -305,6 +305,12 @@ mod windows {
         fn notes(&mut self) -> Vec<String> {
             std::mem::take(&mut self.notes)
         }
+
+        /// A scene over the game, or about to be (ui._border_on_screen): it covers 推演成功, so the 400 ms glance
+        /// would read the lobby as gone, or start a check that stops the scene it is looking through.
+        fn covers_screen(&self) -> bool {
+            self.playing.is_some() || self.warming.is_some()
+        }
     }
 }
 
@@ -331,5 +337,32 @@ mod tests {
     fn a_ported_scene_is_made_and_an_unported_one_plays_nothing() {
         assert!(make("stars", &stage()).is_some_and(|scene| scene.duration() > 0.0));
         assert!(make("no-such-scene", &stage()).is_none());
+    }
+}
+
+#[cfg(all(test, windows))]
+mod windows_tests {
+    use super::super::stubs::{Rect, ScenePlayer, Stage, Target};
+    use super::StageScenes;
+
+    /// P0-2: the glance waits while a scene is over the game (ui._border_on_screen), and only then.
+    #[test]
+    fn the_stage_covers_the_screen_only_while_a_scene_plays() {
+        let mut scenes = StageScenes::default();
+        assert!(!scenes.covers_screen(), "nothing plays yet");
+        let game = Rect { x: 0, y: 0, w: 640, h: 360 };
+        let stage = Stage { game, button: Rect { x: 200, y: 250, w: 240, h: 40 }, target: Target::Screen };
+        // claw is made on a thread: covered from the play on, before its first frame.
+        scenes.play("claw", stage);
+        let notes = scenes.notes();
+        if notes.iter().any(|note| note.contains("no GPU")) {
+            return;
+        }
+        assert!(scenes.covers_screen(), "a scene is on its way: {notes:?}");
+        scenes.stop();
+        assert!(!scenes.covers_screen(), "stopped");
+        // Into 直播模式's window only: nothing over the game.
+        scenes.play("stars", Stage { target: Target::Stream, ..stage });
+        assert!(!scenes.covers_screen());
     }
 }
