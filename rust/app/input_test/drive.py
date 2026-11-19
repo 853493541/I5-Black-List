@@ -290,7 +290,8 @@ def agree(app: App) -> None:
             button = found
             break
     if button is None:
-        record("使用声明 opens at the first start", False, "no window with 同意并继续")
+        seen = [window_info(h) for h in own_windows(app.proc.pid) if h != app.hwnd]
+        record("使用声明 opens at the first start", False, f"no window with 同意并继续; the app's other windows: {seen}")
         return
     click(*center(button))
     end, agreed = time.time() + 5, None
