@@ -63,6 +63,8 @@ jobs:
 
   input:
     needs: models
+    # The clicks run even when the models could not be fetched; only the marks step needs them.
+    if: ${{ !cancelled() }}
     runs-on: windows-2022
     timeout-minutes: 90
     defaults:
