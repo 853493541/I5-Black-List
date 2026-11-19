@@ -59,6 +59,7 @@ class SceneApp(cv.App):
         env = dict(os.environ, APPDATA=str(home), LOCALAPPDATA=str(home), USERPROFILE=str(home),
                    BLACKLIST_DETECT_SILENT="1")
         self.log = self.data / "logs" / "app.log"
+        self.exe, self.env, self.home = exe, env, home
         self.proc = subprocess.Popen([str(exe)], env=env, cwd=str(home))
 
 
@@ -197,6 +198,55 @@ def clicks_work(hwnd: int, lobby, when: str, report: Path) -> None:
               f"IsHungAppWindow {bool(user32.IsHungAppWindow(hwnd))}")
 
 
+def key_input(vk: int, up: bool = False):
+    return cv.key(vk, up)
+
+
+def back_by(path: str, app, hwnd: int) -> str:
+    """One of the player's ways back to the minimised app."""
+    if path == "second launch":
+        # The tray's 显示 takes the same way in the app (Do::ShowWindow); a second launch reaches it from outside.
+        subprocess.Popen([str(app.exe)], env=app.env, cwd=str(app.home)).wait(30)
+        return "launched again"
+    if path == "taskbar button":
+        import uiautomation as auto
+
+        title = cv.title(hwnd)
+        bar = auto.PaneControl(ClassName="Shell_TrayWnd", searchDepth=1)
+        button = bar.ButtonControl(searchDepth=8, Compare=lambda c, d: c.Name.startswith(title[:6]))
+        if not button.Exists(5):
+            return f"no taskbar button named like {title[:6]!r}"
+        x, y = button.GetClickablePoint()[:2]
+        click(x, y)
+        return f"clicked its taskbar button at ({x},{y})"
+    keys = [key_input(0x12), key_input(0x09), key_input(0x09, True), key_input(0x12, True)]  # Alt+Tab
+    array = (cv.INPUT * len(keys))(*keys)
+    user32.SendInput(len(keys), array, ctypes.sizeof(cv.INPUT))
+    return "Alt+Tab"
+
+
+def ways_back(app, lobby, hwnd: int, report: Path) -> None:
+    """Minimised to go back to the game, then back by each way a player takes: restored, on screen, clickable."""
+    for path in ("second launch", "taskbar button", "Alt+Tab"):
+        user32.ShowWindow(hwnd, 6)  # SW_MINIMIZE
+        lobby.pump(1.0)
+        start = len(app.text())
+        done = back_by(path, app, hwnd)
+        lobby.pump(2.0)
+        rect = wintypes.RECT()
+        user32.GetWindowRect(hwnd, ctypes.byref(rect))
+        back = not user32.IsIconic(hwnd) and user32.IsWindowVisible(hwnd) and rect.left > -10000
+        said = re.findall(r"Window: shown[^\n]*", app.text()[start:])
+        detail = f"{done}; iconic {bool(user32.IsIconic(hwnd))}, rect ({rect.left},{rect.top}); log {said}"
+        if path == "Alt+Tab":
+            # Which window Alt+Tab picks depends on the runner's window order: reported, not gating.
+            print(f"  INFO back via Alt+Tab: restored {back}; {detail}")
+            continue
+        cv.record(f"back via {path}: restored on screen", back, detail)
+        if back:
+            clicks_work(hwnd, lobby, f"after coming back via {path}", report)
+
+
 def run(exe: Path, work: Path, report: Path) -> None:
     lobby = cv.Lobby()
     notepad = subprocess.Popen(["notepad.exe"])
@@ -250,6 +300,7 @@ def run(exe: Path, work: Path, report: Path) -> None:
         notes = re.findall(r"Scene [^\n]*", app.text()[start:])
         print("  log:\n    " + "\n    ".join(notes[-8:]))
         clicks_work(hwnd, lobby, "after the scene", report)
+        ways_back(app, lobby, hwnd, report)
     finally:
         (report / "scene-app.log").write_text(app.text(), encoding="utf-8")
         app.stop()
