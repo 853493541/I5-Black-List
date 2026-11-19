@@ -5,7 +5,7 @@ name: rust-preview
 # here signs, publishes or touches main / 1.x.
 on:
   push:
-    branches: ["feature/rust", "feature/rust-preview", "fix/rust-check-visible"]
+    branches: ["feature/rust", "feature/rust-preview", "fix/rust-check-visible", "fix/rust-scenes-real"]
   workflow_dispatch:
 
 concurrency:
@@ -383,6 +383,13 @@ jobs:
         run: |
           python -I rust/app/input_test/check_visible.py "$RUNNER_TEMP/preview/$APP_NAME" "$APP_NAME" \
             "$RUNNER_TEMP/visible-work" "$RUNNER_TEMP/visible-report" "$RUNNER_TEMP/old-ort"
+      # P0-2 / P0-3: a hotkey check that finds a 嘉宾 plays the 嘉宾's scene to its end over the game, click-through,
+      # and leaves no window behind (rust/app/input_test/scene_visible.py).
+      - name: Scene visible
+        if: always()
+        run: |
+          python -I rust/app/input_test/scene_visible.py "$RUNNER_TEMP/preview/$APP_NAME" "$APP_NAME" \
+            "$RUNNER_TEMP/scene-work" "$RUNNER_TEMP/visible-report/scene"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

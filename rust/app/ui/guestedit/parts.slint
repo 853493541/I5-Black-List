@@ -154,6 +154,9 @@ export component ScenePreview inherits Rectangle {
         background: go.has-hover ? #000000a0 : #00000070;
         Path { x: 11px; y: 9px; width: 12px; height: 14px; fill: #ffffff; commands: "M0 0 L12 7 L0 14 Z"; }
         go := TouchArea { clicked => { replay(); } }
+        accessible-role: button;
+        accessible-label: "播放";
+        accessible-action-default => { replay(); }
     }
 }
 
@@ -214,10 +217,15 @@ export component ScenePane inherits VerticalLayout {
 // The outlined, primary or danger button of the dialogs' foot.
 export component DialogButton inherits Rectangle {
     in property <string> label;
+    // UIAutomation (and screen readers) see it as a button named by its words, or by this when they carry a glyph.
+    in property <string> accessible-name;
     in property <string> kind: "plain";
     in property <Palette> p;
     in property <GuestTones> t;
     callback clicked();
+    accessible-role: button;
+    accessible-label: accessible-name != "" ? accessible-name : label;
+    accessible-action-default => { root.clicked(); }
     height: 34px;
     width: max(58px, words.preferred-width + 32px);
     border-radius: 6px;

@@ -219,3 +219,23 @@ fn combo_dialog_saves_those_ticked_in_order() {
     let save = ComboAction::Save { names: vec!["心动小鹿".into(), "一起开黑的朋友".into()], scenes: Scenes::any() };
     assert_eq!(*seen.borrow(), [save]);
 }
+
+/// The sweep driver (UIA) finds 场景管理's ▶ 播放, the preview's ▶ and every 嘉宾 dialog button by name: each is a
+/// button with an accessible label and a default action (rust-input found no 播放 button without them).
+#[test]
+fn the_scene_buttons_are_named_buttons_for_uiautomation() {
+    let parts = include_str!("../../ui/guestedit/parts.slint");
+    let manager = include_str!("../../ui/guestedit/scene_manager.slint");
+    let component = |name: &str| {
+        let start = parts.find(&format!("export component {name} ")).unwrap_or_else(|| panic!("{name}"));
+        let end = parts[start + 1..].find("\nexport component ").map_or(parts.len(), |at| start + 1 + at);
+        &parts[start..end]
+    };
+    for (name, label) in [("DialogButton", "accessible-label: accessible-name != \"\" ? accessible-name : label;"), ("ScenePreview", "accessible-label: \"播放\";")] {
+        let body = component(name);
+        assert!(body.contains("accessible-role: button;"), "{name} is not a button to UIA");
+        assert!(body.contains(label), "{name} has no name for UIA");
+        assert!(body.contains("accessible-action-default =>"), "{name} cannot be invoked by UIA");
+    }
+    assert!(manager.contains("accessible-name: sounding ? \"暂停\" : \"播放\";"), "场景管理's ▶ 播放 is not named 播放");
+}
