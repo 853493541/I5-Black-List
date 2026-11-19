@@ -20,6 +20,7 @@ import time
 from ctypes import wintypes
 from pathlib import Path
 
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # the runner's console is cp1252
 ctypes.windll.shcore.SetProcessDpiAwareness(2)  # per-monitor: UIA bounds and SendInput in the same physical pixels
 
 import uiautomation as auto  # noqa: E402

@@ -8,6 +8,11 @@ on:
   push:
     branches: ["feature/rust", "fix/rust-input-dead"]
   workflow_dispatch:
+    inputs:
+      app_ref:
+        description: "Build the app from this commit (the driver stays this run's), e.g. a commit before a fix"
+        required: false
+        default: ""
 
 concurrency:
   group: rust-input-${{ github.ref }}
@@ -23,6 +28,7 @@ jobs:
         shell: bash
     env:
       CARGO_TERM_COLOR: always
+      PYTHONIOENCODING: utf-8
       OPENCV_VERSION: "4.10.0"
       OPENCV_CLANG_ARGS: -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH
       # The shipped profile's fat LTO only shrinks the exe; the test build links fast.
@@ -31,6 +37,16 @@ jobs:
       CARGO_PROFILE_RELEASE_OPT_LEVEL: "1"
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: The app from an older commit (workflow_dispatch app_ref)
+        if: github.event.inputs.app_ref != ''
+        working-directory: .
+        env:
+          APP_REF: ${{ github.event.inputs.app_ref }}
+        run: |
+          git checkout "$APP_REF" -- rust ':!rust/app/input_test'
+          echo "### App built from $APP_REF (driver from $GITHUB_SHA)" >> "$GITHUB_STEP_SUMMARY"
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-python@v5
         with:
