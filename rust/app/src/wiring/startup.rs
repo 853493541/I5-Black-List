@@ -146,6 +146,11 @@ pub fn start(options: &Options) -> Result<Outcome, String> {
         // Not fatal: the window opens and says the models are missing, as the Python app does.
         None => log.warn("Start-up: models missing (checked BLACKLIST_DETECT_MODEL_DIR, blacklist_detect\\ocr, models here)"),
     }
+    // Where the pictures and tunes come from, and whether 环境测试 will find its sample lobby there.
+    let assets = super::assemble::assets_dir(install.as_deref());
+    let sample = assets.join("sample-lobby.jpg").is_file();
+    let (state, found) = if sample { ("ok", "found") } else { ("missing", "not found") };
+    log.info(&format!("Start-up: assets {state} ({}, sample lobby {found})", assets.display()));
     Ok(Outcome::Run(Box::new(Started { root, log, store, models, claim, install })))
 }
 

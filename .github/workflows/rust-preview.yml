@@ -207,7 +207,7 @@ jobs:
             cat "$log"
             echo '```'
           } | tee -a "$GITHUB_STEP_SUMMARY"
-          for step in "data folder" "logs" "single instance" "settings" "autostart" "models"; do
+          for step in "data folder" "logs" "single instance" "settings" "autostart" "models" "assets"; do
             grep -q "Start-up: $step ok" "$log" || { echo "::error::start-up step '$step' not ok"; exit 1; }
           done
           grep -q "Preview: copied " "$log" || { echo "::error::the old list was not copied"; exit 1; }
@@ -223,7 +223,10 @@ jobs:
           done
           ! ls "$PREVIEW_DIR"/*.pdb 2>/dev/null || { echo "::error::a .pdb in the player's folder"; exit 1; }
           set +e
-          "$PREVIEW_DIR/$APP_NAME.exe" check "$GITHUB_WORKSPACE/blacklist_detect/assets/sample-lobby.jpg" > check.txt 2>&1
+          # The sample lobby 环境测试 uses must ship in the folder: read the packaged one, not the checkout's.
+          [ -f "$PREVIEW_DIR/assets/sample-lobby.jpg" ] || { echo "::error::assets/sample-lobby.jpg not in the folder"; exit 1; }
+          grep -q "Start-up: assets ok" "$log" || { echo "::error::the app did not find the sample lobby"; exit 1; }
+          "$PREVIEW_DIR/$APP_NAME.exe" check "$PREVIEW_DIR/assets/sample-lobby.jpg" > check.txt 2>&1
           code=$?
           set -e
           {
@@ -237,6 +240,26 @@ jobs:
           read=$(grep -cE '^ ?[0-9]+  完整' check.txt || true)
           echo "Seats read whole: $read of 12" | tee -a "$GITHUB_STEP_SUMMARY"
           [ "$read" -eq 12 ] || { echo "::error::only $read of 12 seats read"; exit 1; }
+      # As the player has it: the zip extracted into a folder of its own name, under a path with a space and Chinese,
+      # started from another working directory. Start-up must find the models and the sample lobby; check reads 12.
+      - name: Smoke in a nested folder
+        working-directory: .
+        run: |
+          nested="/c/测试 目录/$APP_NAME/$APP_NAME"
+          mkdir -p "$(dirname "$nested")"
+          cp -r "$PREVIEW_DIR" "$nested"
+          home="$RUNNER_TEMP/nested-home"; mkdir -p "$home"
+          export APPDATA="$home" USERPROFILE="$home" HOME="$home"
+          cd /c/
+          "$nested/$APP_NAME.exe" --quit-after-start
+          log="$home/BlackListDetect-RustPreview/logs/app.log"
+          grep -E "Start-up: (models|assets)" "$log" | tee -a "$GITHUB_STEP_SUMMARY"
+          grep -q "Start-up: models ok" "$log" || { echo "::error::nested: models not found"; cat "$log"; exit 1; }
+          grep -q "Start-up: assets ok" "$log" || { echo "::error::nested: sample lobby not found"; cat "$log"; exit 1; }
+          "$nested/$APP_NAME.exe" check "$nested/assets/sample-lobby.jpg" > "$RUNNER_TEMP/nested-check.txt" 2>&1 || true
+          read=$(grep -cE '^ ?[0-9]+  完整' "$RUNNER_TEMP/nested-check.txt" || true)
+          echo "Nested folder, started from C:\\: seats read whole $read of 12" | tee -a "$GITHUB_STEP_SUMMARY"
+          [ "$read" -eq 12 ] || { cat "$RUNNER_TEMP/nested-check.txt"; exit 1; }
       - name: Sizes
         working-directory: ${{ runner.temp }}
         run: |
