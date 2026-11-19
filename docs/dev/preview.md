@@ -22,7 +22,7 @@ First run: when the preview folder holds nothing but its logs and no `preview-co
 is written, so a later run copies nothing. The log lists what was copied (`Preview: copied N files from ...`).
 `--data <folder>` skips the copy.
 
-Tests: `cargo test -p app --features preview --test preview --lib preview` (a v1.0.1 folder written by the Python store, read back
+Tests: `cargo test -p app --features preview --test preview --lib preview::tests` (a v1.0.1 folder written by the Python store, read back
 through the data crate equal item by item; old files byte-identical with unchanged mtimes; a second run copies nothing, key and folder differ from the normal build).
 
 ## The build (`.github/workflows/rust-preview.yml`)

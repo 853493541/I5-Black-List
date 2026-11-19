@@ -149,7 +149,7 @@ jobs:
       - name: Preview tests
         # And the shipped .ogg tunes decode and play as their WAVs do, on Windows.
         run: |
-          cargo test -p app --features preview --test preview --lib preview
+          cargo test -p app --features preview --test preview --lib preview::tests
           cargo test -p sound --test compressed
       - name: Build
         run: cargo build --release -p app --bin blacklist-detect --features preview
