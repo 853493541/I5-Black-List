@@ -12,6 +12,8 @@ use app::wiring::worker::{RealScreen, Worker};
 use std::cell::RefCell;
 use std::process::ExitCode;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 mod cli;
@@ -162,6 +164,9 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
     // Screen pixels, not scaled ones, before any window or screen copy: at 125 % a copy made without it is cut.
     #[cfg(windows)]
     log.info(&format!("DPI awareness (per monitor v2) set here: {}", win::capture::set_dpi_awareness()));
+    // 调试截图 (ui._save_debug): the worker keeps each check's capture while 设置 has it on.
+    let debug_frames = Arc::new(AtomicBool::new(store.settings.save_debug_frames));
+    let debug_screen = app::wiring::debug::DebugCapture { inner: RealScreen, dir: root.join("debug"), on: debug_frames.clone() };
     if models.is_none() {
         log.warn("No OCR models: the header says 识别还没准备好 until they are installed.");
     }
@@ -180,7 +185,7 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
     }
     let parts = Parts {
         ports: parts.ports,
-        worker: Worker::start(Box::new(RealScreen), Box::new(parts.checker)),
+        worker: Worker::start(Box::new(debug_screen), Box::new(parts.checker)),
         keys,
         // The preview never looks for updates: it gets Quiet, and NetUpdate is not even made.
         update_check: if app::preview::ON {
@@ -267,7 +272,9 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
         } else {
             ui_wiring::rekey(&mut pumped.borrow_mut(), &mut hotkeys);
         }
+        debug_frames.store(pumped.borrow().store.borrow().settings.save_debug_frames, Ordering::Relaxed);
         pages.set_hotkey_note(&pumped.borrow().hotkey_note());
+        pages.set_export_note(&ui_wiring::export_note());
         updates.pump(&mut pumped.borrow_mut());
         let asks = pumped.borrow_mut().pump();
         // Every check's problem in the pill (识别还没准备好 / 读不到屏幕 / 检查失败), never silent.

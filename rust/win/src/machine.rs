@@ -155,6 +155,20 @@ pub fn screens() -> Option<Vec<(f64, f64, f64)>> {
 
 /// The Desktop, wherever Windows keeps it (it may be in OneDrive); None when Windows does not say.
 pub fn desktop() -> Option<PathBuf> {
+    use windows::Win32::System::Com::CoTaskMemFree;
+    use windows::Win32::UI::Shell::{FOLDERID_Desktop, SHGetKnownFolderPath, KF_FLAG_DEFAULT};
+    // The known folder first: the registry's legacy Shell Folders value can be stale once OneDrive has moved the Desktop.
+    // SAFETY: SHGetKnownFolderPath hands back a string Windows allocated; it is read, then freed with CoTaskMemFree.
+    let known = unsafe {
+        SHGetKnownFolderPath(&FOLDERID_Desktop, KF_FLAG_DEFAULT, None).ok().and_then(|path| {
+            let text = path.to_string().ok();
+            CoTaskMemFree(Some(path.0 as *const core::ffi::c_void));
+            text
+        })
+    };
+    if let Some(path) = known.filter(|path| !path.is_empty()) {
+        return Some(PathBuf::from(path));
+    }
     let key = windows_registry::CURRENT_USER.open(r"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders").ok()?;
     key.get_string("Desktop").ok().filter(|path| !path.is_empty()).map(PathBuf::from)
 }

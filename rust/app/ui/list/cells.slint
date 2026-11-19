@@ -5,6 +5,9 @@ import { Pill, Glyph } from "parts.slint";
 export struct TagRow { tag: string, count: int }
 
 export component TagSideRow inherits Rectangle {
+    // UIAutomation (and screen readers) see it as a button: its tag (全部 for none).
+    accessible-role: button;
+    accessible-label: tag-row.tag == "" ? "全部" : tag-row.tag;
     in property <TagRow> tag-row;
     in property <bool> chosen;
     in property <Palette> p;
@@ -61,6 +64,9 @@ export component TagSideRow inherits Rectangle {
 }
 
 export component HeaderCell inherits Rectangle {
+    // UIAutomation (and screen readers) see it as a button: the column it sorts by.
+    accessible-role: button;
+    accessible-label: label;
     in property <string> label;
     in property <bool> sorted;
     in property <bool> up;
@@ -89,6 +95,8 @@ export component HeaderCell inherits Rectangle {
         height: 26px;
         border-radius: 6px;
         background: eye-touch.has-hover && !eye-locked ? p.hover : transparent;
+        accessible-role: button;
+        accessible-label: eye-off ? "显示名字" : "隐藏名字";
         Glyph { name: eye-off ? "eye-off" : "eye"; tone: p.muted; size: 18px; opacity: eye-locked ? 0.5 : 1; }
         eye-touch := TouchArea { enabled: !eye-locked; clicked => { root.eye-clicked(); } }
     }

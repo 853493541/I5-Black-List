@@ -130,8 +130,36 @@ impl Bus {
     }
 }
 
+/// A seat clicked in 记录 (ui._on_history_cell): a 黑名单 player's opens its 编辑, a 嘉宾's the 嘉宾 dialog; a seat on
+/// neither list (or the player's own, or one too unclear to read) does nothing. `entries` and `likes` are the names.
+pub fn seat_dialog<'a>(
+    action: &HistoryAction,
+    entries: impl IntoIterator<Item = &'a str>,
+    likes: impl IntoIterator<Item = &'a str>,
+) -> Option<Dialog> {
+    use crate::history::Tone;
+    let HistoryAction::Seat { name, tone, .. } = action else { return None };
+    match tone {
+        Tone::Hit => entries.into_iter().position(|entry| entry == name).map(Dialog::EditName),
+        Tone::Like => likes.into_iter().position(|like| like == name).map(|index| Dialog::Guest(Some(index))),
+        Tone::Me | Tone::Unclear | Tone::Plain => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_seat_in_the_records_opens_its_entry_or_guest() {
+        use super::{seat_dialog, Dialog};
+        use crate::history::{HistoryAction, Tone};
+        let seat = |name: &str, tone| HistoryAction::Seat { scan: 0, seat: 1, name: name.into(), tone };
+        let (entries, likes) = (["甲", "示例坏人"], ["心动小鹿"]);
+        assert_eq!(seat_dialog(&seat("示例坏人", Tone::Hit), entries, likes), Some(Dialog::EditName(1)));
+        assert_eq!(seat_dialog(&seat("心动小鹿", Tone::Like), entries, likes), Some(Dialog::Guest(Some(0))));
+        assert_eq!(seat_dialog(&seat("心动星星", Tone::Plain), entries, likes), None);
+        assert_eq!(seat_dialog(&seat("不在名单", Tone::Hit), entries, likes), None);
+    }
+
     use super::*;
 
     fn words(yes: &Yes) -> String {

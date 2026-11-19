@@ -54,6 +54,8 @@ pub struct MainUi {
     version: String,
     /// Under the hotkey box: a key another program holds (Runner::hotkey_note).
     hotkey_note: RefCell<String>,
+    /// 导出's last word, under 设置's 导出日志 row.
+    export_note: RefCell<String>,
     /// The hotkey box waits for a key (BeginHotkey until a key is taken or Escape), and what is wrong with the last.
     hotkey_waiting: std::cell::Cell<bool>,
     key_note: RefCell<String>,
@@ -97,6 +99,7 @@ impl MainUi {
             asking: Rc::default(),
             version: version.to_string(),
             hotkey_note: RefCell::default(),
+            export_note: RefCell::default(),
             hotkey_waiting: std::cell::Cell::new(false),
             key_note: RefCell::default(),
             problem: RefCell::default(),
@@ -121,7 +124,8 @@ impl MainUi {
         history::fill(&self.window, &store, &self.history.borrow(), now());
         self.list.refresh(&self.window, &store);
         self.guests.show(&self.window, &lists(&store), now());
-        let state = SettingsState::new(&store.settings, false, cfg!(windows), &self.version);
+        let mut state = SettingsState::new(&store.settings, false, cfg!(windows), &self.version);
+        state.export_note = self.export_note.borrow().clone();
         crate::settings::model::show_settings_main(&self.window, &state);
     }
 
@@ -195,6 +199,14 @@ impl MainUi {
         true
     }
 
+    /// 导出's note, shown at once when it changed.
+    pub fn set_export_note(&self, note: &str) {
+        if *self.export_note.borrow() != note {
+            *self.export_note.borrow_mut() = note.to_string();
+            self.refresh();
+        }
+    }
+
     /// The hotkey box's note, shown at once when it changed.
     pub fn set_hotkey_note(&self, note: &str) {
         if *self.hotkey_note.borrow() != note {
@@ -215,6 +227,17 @@ impl MainUi {
         let mut left = Vec::new();
         let mut changed = false;
         for event in events {
+            if let UiEvent::History(seat @ HistoryAction::Seat { .. }) = &event {
+                // 记录's seats: the entry's or 嘉宾's dialog, or nothing for a seat on neither list (never the runner).
+                let dialog = {
+                    let store = self.store.borrow();
+                    crate::ui_events::seat_dialog(seat, store.entries.iter().map(|e| e.name.as_str()), store.likes.iter().map(|l| l.name.as_str()))
+                };
+                if let Some(dialog) = dialog {
+                    self.open(dialog);
+                }
+                continue;
+            }
             let store = self.store.clone();
             let questions = move |yes: &Yes| question(&store.borrow(), yes);
             if let Some(dialog) = dialog_for(&event, &questions) {

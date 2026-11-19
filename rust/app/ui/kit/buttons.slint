@@ -59,6 +59,10 @@ export component KitButton inherits Rectangle {
 }
 
 export component IconButton inherits Rectangle {
+    // UIAutomation (and screen readers) see it as a button: its icon's name unless one is given.
+    in property <string> accessible-name;
+    accessible-role: button;
+    accessible-label: accessible-name != "" ? accessible-name : icon;
     in property <string> icon;
     in property <color> tone: p.muted;
     in property <bool> enabled: true;

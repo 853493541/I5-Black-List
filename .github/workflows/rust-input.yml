@@ -112,7 +112,12 @@ jobs:
           cargo test -p app --features preview --lib key_note
           cargo test -p app --features preview --bin blacklist-detect ui_wiring
           cargo test -p app --features preview --bin blacklist-detect a_key_in_the_hotkey_box
+          cargo test -p app --features preview --bin blacklist-detect a_seat_in_the_records
           cargo test -p app --features preview --lib no_check_before_the_disclaimer
+          cargo test -p app --features preview --lib debug_frames
+      - name: Clippy (app, every target, warnings are errors)
+        if: always()
+        run: cargo clippy -p app --all-targets --features preview,a11y -- -D warnings
       - name: Build (preview, with UIAutomation)
         run: cargo build --release -p app --bin blacklist-detect --features preview,a11y
       - name: Screen
@@ -132,6 +137,10 @@ jobs:
         run: |
           python -I rust/app/input_test/drive.py "$GITHUB_WORKSPACE/rust/target/release/blacklist-detect.exe" \
             "$RUNNER_TEMP/bare-home" "$RUNNER_TEMP/input-report/bare" --bare
+      - name: Failures (the last lines of the log)
+        if: always()
+        working-directory: .
+        run: find "$RUNNER_TEMP/input-report" -name failures.txt -exec cat {} \;
       - uses: actions/upload-artifact@v4
         if: always()
         with:

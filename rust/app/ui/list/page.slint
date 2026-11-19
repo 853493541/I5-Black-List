@@ -253,6 +253,9 @@ export component ListPage inherits Rectangle {
                                 }
                             }
                             TouchArea {
+                                // UIAutomation (and screen readers) see the row as a list item named by the player's name.
+                                accessible-role: list-item;
+                                accessible-label: row.name;
                                 mouse-cursor: pointer;
                                 moved => { hover = i; }
                                 changed has-hover => { if self.has-hover { hover = i; } else if hover == i { hover = -1; } }
