@@ -52,6 +52,8 @@ pub struct MainUi {
     /// What the yes of the question open now does.
     asking: Rc<RefCell<Option<Yes>>>,
     version: String,
+    /// Under the hotkey box: a key another program holds (Runner::hotkey_note).
+    hotkey_note: RefCell<String>,
 }
 
 impl MainUi {
@@ -89,6 +91,7 @@ impl MainUi {
             current: RefCell::default(),
             asking: Rc::default(),
             version: version.to_string(),
+            hotkey_note: RefCell::default(),
         };
         ui.refresh();
         Ok(ui)
@@ -99,6 +102,7 @@ impl MainUi {
         let store = self.store.borrow();
         let mut model = ShellModel::from_settings(&store.settings);
         model.version = self.version.clone();
+        model.hotkey_note = self.hotkey_note.borrow().clone();
         model.blacklist_count = store.entries.len();
         model.guests_count = store.likes.len();
         model.page = crate::shell::Page::from_index(self.window.get_page()).unwrap_or(model.page);
@@ -108,6 +112,14 @@ impl MainUi {
         self.guests.show(&self.window, &lists(&store), now());
         let state = SettingsState::new(&store.settings, false, cfg!(windows), &self.version);
         crate::settings::model::show_settings_main(&self.window, &state);
+    }
+
+    /// The hotkey box's note, shown at once when it changed.
+    pub fn set_hotkey_note(&self, note: &str) {
+        if *self.hotkey_note.borrow() != note {
+            *self.hotkey_note.borrow_mut() = note.to_string();
+            self.refresh();
+        }
     }
 
     /// Drains what the player did: the store-side part is done here and the dialogs opened; what is left (the

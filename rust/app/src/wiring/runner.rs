@@ -24,6 +24,18 @@ pub const SCENE_HOTKEY: i32 = 2;
 pub trait Keys {
     /// The id of one press waiting, if any.
     fn poll(&mut self) -> Option<i32>;
+    /// The keys another program holds (shown as the hotkey's note), as 设置 spells them.
+    fn taken(&self) -> Vec<String> {
+        Vec::new()
+    }
+}
+
+/// The note under the hotkey box when keys are taken: the player sees why the key does nothing ("" when none is).
+pub fn taken_note(taken: &[String]) -> String {
+    if taken.is_empty() {
+        return String::new();
+    }
+    format!("{} 被别的程序占用（比如正在运行的 v1.0.1），按了没反应：关掉它或换一个键", taken.join("、"))
 }
 
 /// No hotkeys (off Windows, or none set).
@@ -39,21 +51,28 @@ impl Keys for NoKeys {
 #[cfg(windows)]
 pub struct SystemKeys {
     _held: Vec<win::global_hotkey::Registration>,
+    taken: Vec<String>,
 }
 
 #[cfg(windows)]
 impl SystemKeys {
     /// Registers the 检查 and 场景 hotkeys; a key taken by another program is left out and said in the log.
     pub fn register(settings: &Settings, log: &AppLog) -> SystemKeys {
-        let mut held = Vec::new();
+        let (mut held, mut taken) = (Vec::new(), Vec::new());
         for (id, text) in [(CHECK_HOTKEY, &settings.hotkey), (SCENE_HOTKEY, &settings.effect_hotkey)] {
             let Some(spec) = win::hotkey::parse_hotkey(text) else { continue };
             match win::global_hotkey::Registration::register(id, &spec) {
                 Ok(registration) => held.push(registration),
-                Err(error) => log.warn(&format!("Hotkey {} not registered: {error:?}", spec.display)),
+                Err(error) => {
+                    log.warn(&format!("Hotkey {} not registered: {error:?}", spec.display));
+                    taken.push(spec.display.clone());
+                }
             }
         }
-        SystemKeys { _held: held }
+        if !held.is_empty() {
+            log.info(&format!("Hotkeys registered: {}", held.iter().map(|key| key.display()).collect::<Vec<_>>().join(", ")));
+        }
+        SystemKeys { _held: held, taken }
     }
 }
 
@@ -61,6 +80,9 @@ impl SystemKeys {
 impl Keys for SystemKeys {
     fn poll(&mut self) -> Option<i32> {
         win::global_hotkey::poll()
+    }
+    fn taken(&self) -> Vec<String> {
+        self.taken.clone()
     }
 }
 
@@ -292,6 +314,11 @@ impl Runner {
         self.keys = keys;
     }
 
+    /// The hotkey box's note: which keys another program holds ("" when every key is ours).
+    pub fn hotkey_note(&self) -> String {
+        taken_note(&self.keys.taken())
+    }
+
     /// The window is in front again.
     pub fn window_returned(&mut self) {
         if let Some(look) = self.updates.on_return(self.now_ms()) {
@@ -353,4 +380,22 @@ fn screen_rect() -> super::stubs::Rect {
 #[cfg(not(windows))]
 fn screen_rect() -> super::stubs::Rect {
     super::stubs::Rect { x: 0, y: 0, w: 1920, h: 1080 }
+}
+
+#[cfg(test)]
+mod key_note_tests {
+    use super::*;
+
+    #[test]
+    fn a_taken_key_is_named_in_the_note() {
+        assert_eq!(taken_note(&[]), "");
+        let note = taken_note(&["Alt+1".to_string(), "Alt+F12".to_string()]);
+        assert!(note.starts_with("Alt+1、Alt+F12 被别的程序占用"), "{note}");
+        assert!(note.contains("v1.0.1"), "{note}");
+    }
+
+    #[test]
+    fn keys_hold_nothing_taken_unless_they_say_so() {
+        assert!(NoKeys.taken().is_empty());
+    }
 }
