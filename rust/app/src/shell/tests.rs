@@ -123,7 +123,7 @@ fn a_check_problem_turns_the_pill_red_and_clearing_it_brings_back_the_idle_words
     use app::wiring::stubs::CheckError;
     let settings = Settings { hotkey: "F8".into(), ..Settings::default() };
     let errors = [
-        (CheckError { message: "OSError".into(), ..CheckError::default() }, "检查失败", "检查失败，等会儿再试"),
+        (CheckError { message: "OSError".into(), step: "read", ..CheckError::default() }, "检查失败：读名字", "检查失败，等会儿再试"),
         (CheckError { message: "识别功能没装好".into(), models: true, plain: true, ..CheckError::default() }, "识别还没准备好", "识别功能没装好"),
         (CheckError { message: "截图失败，再试一次".into(), plain: true, capture: true, ..CheckError::default() }, "读不到屏幕", "截图失败，再试一次"),
     ];

@@ -5,7 +5,7 @@ name: rust-preview
 # here signs, publishes or touches main / 1.x.
 on:
   push:
-    branches: ["feature/rust", "feature/rust-preview"]
+    branches: ["feature/rust", "feature/rust-preview", "fix/rust-check-visible"]
   workflow_dispatch:
 
 concurrency:

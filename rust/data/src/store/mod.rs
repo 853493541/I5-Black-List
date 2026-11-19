@@ -370,10 +370,9 @@ impl Store {
     }
 
     /// Never fails: 记录 are the least of the files, and one that cannot be saved must not cost a check its marks.
-    pub fn save_scans(&self) {
+    /// False when the file could not be written (a file left unread on purpose is no failure).
+    pub fn save_scans(&self) -> bool {
         let path = self.history_path();
-        if self.saves(&path) {
-            let _ = files::atomic_write(&path, &scans::to_value(&self.scans));
-        }
+        !self.saves(&path) || files::atomic_write(&path, &scans::to_value(&self.scans)).is_ok()
     }
 }

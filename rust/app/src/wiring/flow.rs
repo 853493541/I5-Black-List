@@ -51,8 +51,9 @@ pub struct Greeting {
 
 /// The lists, as the flow needs them.
 pub trait Records {
-    /// Save the check in 记录 (Store.add_scan).
-    fn add_scan(&mut self, result: &CheckResult, elapsed: Option<f64>);
+    /// Save the check in 记录 (Store.add_scan): "added", "filled", "refreshed", "skipped", or "unsaved" when the file
+    /// could not be written.
+    fn add_scan(&mut self, result: &CheckResult, elapsed: Option<f64>) -> &'static str;
     /// The 嘉宾 in this lobby, in seat order, each once; a 黑名单 seat is no 嘉宾's (_likes_in).
     fn likes_in(&self, result: &CheckResult) -> Vec<String>;
     /// The scene for this lobby (_choice_for).
@@ -77,7 +78,7 @@ pub enum Status {
 /// as its tip. It stays until a glance or a check works again (_clear_problem).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Problem {
-    pub label: &'static str,
+    pub label: String,
     pub tip: String,
     /// The error as it came, said in the log once per new one.
     pub raw: String,
@@ -85,15 +86,23 @@ pub struct Problem {
 
 impl Problem {
     pub fn of(error: &CheckError) -> Problem {
+        // 识别还没准备好 and 读不到屏幕 name their step already; 检查失败 says which.
         let label = if error.models {
-            "识别还没准备好"
+            "识别还没准备好".to_string()
         } else if error.capture {
-            "读不到屏幕"
+            "读不到屏幕".to_string()
         } else {
-            "检查失败"
+            match error.step {
+                "read" => "检查失败：读名字",
+                "crash" => "检查失败：程序出错",
+                "worker" => "检查失败：没能开始",
+                "record write" => "检查失败：记录没存上",
+                _ => "检查失败",
+            }
+            .to_string()
         };
         let raw = match (error.message.trim(), error.detail.trim()) {
-            ("", "") => label.to_string(),
+            ("", "") => label.clone(),
             (message, "") => message.to_string(),
             ("", detail) => detail.to_string(),
             (message, detail) => format!("{message} ({detail})"),
@@ -180,7 +189,8 @@ impl Flow {
     pub fn report_problem(&mut self, error: &CheckError) {
         let problem = Problem::of(error);
         if self.problem.as_ref().map(|shown| &shown.raw) != Some(&problem.raw) {
-            self.say(format!("{}: {}", problem.label, problem.raw));
+            let step = if error.step.is_empty() { "check" } else { error.step };
+            self.say(format!("{} (step: {step}): {}", problem.label, problem.raw));
         }
         self.problem = Some(problem);
     }
@@ -348,7 +358,7 @@ impl Flow {
                 }
             }
             let manual = std::mem::take(&mut self.manual);
-            self.say(format!("Check {} ({how}): no lobby on screen: {}", self.check_number, result.message));
+            self.say(format!("Check {} ({how}): no lobby on screen (step: anchor): {}", self.check_number, result.message));
             self.status = Status::NoLobby;
             if self.mode.auto {
                 self.watch.retry_after(now);
@@ -367,8 +377,21 @@ impl Flow {
         if self.mode.auto {
             self.watch.hold();
         }
-        if !result.names.is_empty() {
-            self.ports.records.add_scan(&result, elapsed);
+        if result.names.is_empty() {
+            self.say(format!("Check {}: no names read, nothing for 记录.", self.check_number));
+        } else {
+            let saved = self.ports.records.add_scan(&result, elapsed);
+            self.say(format!("Check {}: 记录 {saved}.", self.check_number));
+            if saved == "unsaved" {
+                let error = CheckError {
+                    message: "记录没存上".into(),
+                    plain: true,
+                    step: "record write",
+                    detail: "history file not written".into(),
+                    ..CheckError::default()
+                };
+                self.report_problem(&error);
+            }
         }
         self.show(&result);
         None
