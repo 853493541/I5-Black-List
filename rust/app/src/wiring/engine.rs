@@ -47,8 +47,21 @@ pub fn share(store: &data::store::Store, shared: &SharedLists) {
 pub fn ort_library(install: Option<&Path>) -> PathBuf {
     let name = if cfg!(windows) { "onnxruntime.dll" } else { "libonnxruntime.so" };
     let beside = std::env::current_exe().ok().and_then(|exe| exe.parent().map(Path::to_path_buf));
-    let candidates = [install.map(|root| root.join("blacklist_detect").join(name)), beside.map(|dir| dir.join(name))];
-    candidates.into_iter().flatten().find(|path| path.is_file()).unwrap_or_else(|| PathBuf::from(name))
+    let ours = install.map(|root| root.join("blacklist_detect").join(name));
+    choose_library(&[ours, beside.map(|dir| dir.join(name))], name, cfg!(windows))
+}
+
+/// The first of ours that is there. On Windows never a bare name: Windows ships an older onnxruntime.dll in System32
+/// (Windows ML), which a search by name would load; ours missing is then 识别还没准备好 naming the path looked at.
+pub fn choose_library(ours: &[Option<PathBuf>], name: &str, absolute_only: bool) -> PathBuf {
+    let ours: Vec<&PathBuf> = ours.iter().flatten().collect();
+    if let Some(found) = ours.iter().find(|path| path.is_file()) {
+        return found.to_path_buf();
+    }
+    match ours.last() {
+        Some(expected) if absolute_only => expected.to_path_buf(),
+        _ => PathBuf::from(name),
+    }
 }
 
 /// The pipeline's checker, made at the first check.

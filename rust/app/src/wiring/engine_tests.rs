@@ -79,3 +79,20 @@ fn no_models_is_said_plainly_and_paused_like_a_missing_model() {
     assert_eq!(error.message, "识别功能没装好，重新解压一遍安装包");
     assert!(checker.glance(&frame).unwrap_err().models);
 }
+
+#[test]
+fn onnx_runtime_is_ours_by_its_full_path_never_a_name_windows_would_search() {
+    let dir = tempfile::tempdir().unwrap();
+    let install = dir.path().join("blacklist_detect").join("onnxruntime.dll");
+    let beside = dir.path().join("runtime").join("onnxruntime.dll");
+    let ours = [Some(install.clone()), Some(beside.clone())];
+    // Neither there: on Windows the path looked at (System32's older Windows ML copy must not load), elsewhere the name.
+    assert_eq!(choose_library(&ours, "onnxruntime.dll", true), beside);
+    assert_eq!(choose_library(&ours, "onnxruntime.dll", false), PathBuf::from("onnxruntime.dll"));
+    std::fs::create_dir_all(beside.parent().unwrap()).unwrap();
+    std::fs::write(&beside, b"x").unwrap();
+    assert_eq!(choose_library(&ours, "onnxruntime.dll", true), beside);
+    std::fs::create_dir_all(install.parent().unwrap()).unwrap();
+    std::fs::write(&install, b"x").unwrap();
+    assert_eq!(choose_library(&ours, "onnxruntime.dll", true), install, "the release's own comes first");
+}
