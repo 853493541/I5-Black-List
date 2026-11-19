@@ -35,7 +35,7 @@ fn save(name: &str, area: [i32; 4], bgra: &[u8]) {
     let Some(dir) = std::env::var_os("STAGE_SHOTS") else { return };
     let mut rgba = bgra.to_vec();
     stage::seen::swap_red_blue(&mut rgba);
-    for p in rgba.chunks_exact_mut(4) {
+    for p in rgba.as_chunks_mut::<4>().0 {
         p[3] = 255;
     }
     let _ = std::fs::create_dir_all(&dir);

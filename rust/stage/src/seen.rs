@@ -12,7 +12,7 @@ const STEP: i32 = 24;
 /// The share of the frame's solid pixels that changed on screen; None when the frame has too few to tell.
 pub fn shown_share(before: &[u8], after: &[u8], frame: &[u8]) -> Option<f64> {
     let (mut solid, mut changed) = (0usize, 0usize);
-    for ((b, a), f) in before.chunks_exact(4).zip(after.chunks_exact(4)).zip(frame.chunks_exact(4)) {
+    for ((b, a), f) in before.as_chunks::<4>().0.iter().zip(after.as_chunks::<4>().0).zip(frame.as_chunks::<4>().0) {
         if f[3] < 200 {
             continue;
         }
@@ -31,7 +31,7 @@ pub fn shown_share(before: &[u8], after: &[u8], frame: &[u8]) -> Option<f64> {
 
 /// RGBA and BGRA swapped in place (a swap chain in Rgba8Unorm against GDI's BGRA).
 pub fn swap_red_blue(px: &mut [u8]) {
-    for p in px.chunks_exact_mut(4) {
+    for p in px.as_chunks_mut::<4>().0 {
         p.swap(0, 2);
     }
 }
