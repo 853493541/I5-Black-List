@@ -35,3 +35,13 @@ zh-CN and Microsoft YaHei is installed when missing, and the report says which.
 ## Reading the result
 
 Download `preview-check-<runner>-<sha>` from the run, open `report.md`, then look at every picture in `sides-125/`.
+
+## A/B of the builds (`.github/workflows/rust-ab.yml`)
+
+CPU per check, build against build, on the same runner. Each build is the app's own checker
+(`rust/app/examples/bench_check.rs`) laid onto that build's commit and built with its release profile, next to the
+models it ships. `tools/preview_check/ab.py` runs them interleaved, every build once per round, so a slow spell on the
+runner hits all of them. A cold pass reads 85 lobbies as first checks (spot reset); a hot pass reads one lobby 20 times
+with the spot kept, as a repeated hotkey does. The report gives the median and the min to max over rounds of CPU and
+wall time per check, plus peak memory, and checks parity against the first build by the gate's rule. Start it by hand
+with the v3 commit as input.

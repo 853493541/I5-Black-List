@@ -1,0 +1,208 @@
+name: rust-ab
+
+# CPU per check of the preview builds, side by side on the same runner (docs/dev/preview-check.md). Each build's
+# bench_check (rust/app/examples/bench_check.rs, laid onto its own commit) is built with that commit's own release
+# profile, beside the models that build ships; tools/preview_check/ab.py then runs them interleaved, round after round.
+# Artifacts and the job summary only: nothing here tags, releases or touches main / 1.x. Frames and names stay on the runner.
+on:
+  workflow_dispatch:
+    inputs:
+      v3_ref:
+        description: "Nov v3 commit"
+        required: true
+      v3o3_ref:
+        description: "Nov v3-o3 commit (empty: v3's commit at opt-level 3)"
+        required: false
+        default: ""
+      rounds:
+        description: "Rounds"
+        required: false
+        default: "5"
+
+concurrency:
+  group: rust-ab
+  cancel-in-progress: false
+
+jobs:
+  models:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PADDLE2ONNX_VERSION: "2.1.0"
+      MODEL_URL: https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cache OCR models
+        id: models-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/models
+          key: ocr-models-v5det-v5rec-v6rec-pd3.2.2-paddle3.0.0-p2o${{ env.PADDLE2ONNX_VERSION }}-op11-v1
+      - name: Convert OCR models
+        if: steps.models-cache.outputs.cache-hit != 'true'
+        working-directory: ${{ runner.temp }}
+        run: |
+          python -m pip install -q setuptools packaging paddlepaddle==3.2.2 paddle2onnx==$PADDLE2ONNX_VERSION
+          mkdir -p tarballs models
+          for model in PP-OCRv5_mobile_det PP-OCRv5_mobile_rec PP-OCRv6_medium_rec; do
+            curl -sSfL --retry 3 -o "tarballs/$model.tar" "$MODEL_URL/${model}_infer.tar"
+            tar xf "tarballs/$model.tar" -C tarballs
+            src="tarballs/${model}_infer"
+            program="$src/inference.json"; [ -f "$program" ] || program="$src/inference.pdmodel"
+            mkdir -p "models/$model"
+            python -I -c "import sys, paddle2onnx; paddle2onnx.export(*sys.argv[1:4], opset_version=11)" \
+              "$program" "$src/inference.pdiparams" "models/$model/inference.onnx"
+            cp "$src/inference.yml" "models/$model/"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ocr-models-ab
+          path: ${{ runner.temp }}/models
+          retention-days: 1
+
+  build:
+    needs: models
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: v1, ref: b2fb26494afe9eb60b7fc65e792a08a4fc9ffc2e, models: 3, opt: "" }
+          - { name: v2, ref: ca97952d1b70e0590957fa6292bd319f47b56e6c, models: 2, opt: "" }
+          - { name: v3, ref: v3, models: 3, opt: "" }
+          - { name: v3-o3, ref: v3o3, models: 3, opt: "3" }
+    runs-on: windows-2022
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: rust
+        shell: bash
+    env:
+      CARGO_TERM_COLOR: always
+      OPENCV_VERSION: "4.10.0"
+      OPENCV_CLANG_ARGS: -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH
+      ORT_VERSION: "1.32.0"
+    steps:
+      - name: Which commit
+        id: ref
+        working-directory: .
+        run: |
+          case "${{ matrix.ref }}" in
+            v3) ref="${{ inputs.v3_ref }}" ;;
+            v3o3) ref="${{ inputs.v3o3_ref }}"; [ -n "$ref" ] || ref="${{ inputs.v3_ref }}" ;;
+            *) ref="${{ matrix.ref }}" ;;
+          esac
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.ref.outputs.ref }}
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cache OpenCV
+        id: opencv-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: C:\opencv-static
+          key: opencv-${{ env.OPENCV_VERSION }}-static-ipp-mt-windows-2022-v1
+      - name: OpenCV must be cached
+        if: steps.opencv-cache.outputs.cache-hit != 'true'
+        run: echo "::error::no cached OpenCV for windows-2022; run rust-preview-check once" && exit 1
+      - name: Point the opencv crate at it
+        run: |
+          libdir=$(dirname "$(find /c/opencv-static -name 'opencv_core*.lib' | head -1)")
+          libs=$(ls "$libdir" | sed -n 's/\.lib$//p' | paste -sd, -)
+          {
+            echo "OPENCV_LINK_LIBS=$libs"
+            echo "OPENCV_LINK_PATHS=$(cygpath -w "$libdir")"
+            echo 'OPENCV_INCLUDE_PATHS=C:\opencv-static\include'
+            echo 'LIBCLANG_PATH=C:\Program Files\LLVM\bin'
+            echo 'RUSTFLAGS=-C target-feature=+crt-static'
+          } | tee -a "$GITHUB_ENV"
+      - name: Lay the bench onto this commit
+        working-directory: .
+        run: |
+          git fetch -q --depth=1 origin feature/rust-preview-check
+          git show FETCH_HEAD:rust/app/examples/bench_check.rs > rust/app/examples/bench_check.rs
+          echo "commit $(git rev-parse --short HEAD); release profile:"; sed -n '/^\[profile.release\]/,/^$/p' rust/Cargo.toml
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: rust-ab-${{ matrix.name }}-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: rust-ab-${{ matrix.name }}-
+      - name: Build
+        run: |
+          if [ -n "${{ matrix.opt }}" ]; then export CARGO_PROFILE_RELEASE_OPT_LEVEL=${{ matrix.opt }}; echo "opt-level overridden to $CARGO_PROFILE_RELEASE_OPT_LEVEL"; fi
+          cargo build --release -p app --example bench_check --features preview
+      - uses: actions/download-artifact@v4
+        with:
+          name: ocr-models-ab
+          path: ${{ runner.temp }}/models
+      - name: Lay out the folder
+        working-directory: .
+        run: |
+          python -m pip install -q onnxruntime==$ORT_VERSION
+          ort=$(python -c "import onnxruntime, os; print(os.path.join(os.path.dirname(onnxruntime.__file__), 'capi', 'onnxruntime.dll'))")
+          out="$RUNNER_TEMP/ab/${{ matrix.name }}"
+          mkdir -p "$out/models"
+          cp rust/target/release/examples/bench_check.exe "$out/"
+          cp "$ort" "$out/onnxruntime.dll"
+          cp -r "$RUNNER_TEMP/models/PP-OCRv5_mobile_det" "$RUNNER_TEMP/models/PP-OCRv6_medium_rec" "$out/models/"
+          [ "${{ matrix.models }}" = 2 ] || cp -r "$RUNNER_TEMP/models/PP-OCRv5_mobile_rec" "$out/models/"
+          echo "${{ matrix.name }}: $(git rev-parse --short HEAD), models $(ls "$out/models" | tr '\n' ' '), exe $(stat -c %s "$out/bench_check.exe") bytes" | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ab-${{ matrix.name }}
+          path: ${{ runner.temp }}/ab/${{ matrix.name }}
+          retention-days: 3
+
+  ab:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    defaults:
+      run:
+        shell: bash
+    env:
+      CHECK_RUNNER: ${{ matrix.os }}
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      BENCH_HOT: "20"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -q psutil
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: ab-*
+          path: ${{ runner.temp }}/builds
+      - name: Corpus
+        run: |
+          git fetch -q --depth=1 origin data/lobby-corpus
+          git archive --format=zip -o "$RUNNER_TEMP/corpus.zip" FETCH_HEAD tests/lobby_corpus
+          python -I -c "import sys, zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])" "$RUNNER_TEMP/corpus.zip" "$RUNNER_TEMP/corpus"
+          ls "$RUNNER_TEMP/builds"
+          for d in "$RUNNER_TEMP"/builds/ab-*; do mv "$d" "$RUNNER_TEMP/builds/${d##*/ab-}"; done
+          powershell -NoProfile -Command "Get-CimInstance Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors | Format-List"
+      - name: A/B
+        run: |
+          python tools/preview_check/ab.py "$RUNNER_TEMP/corpus/tests/lobby_corpus" "$RUNNER_TEMP/builds" \
+            "$RUNNER_TEMP/ab-${{ matrix.os }}.json" "${{ inputs.rounds }}" v1 v2 v3 v3-o3
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ab-result-${{ matrix.os }}
+          path: ${{ runner.temp }}/ab-${{ matrix.os }}.json
+          retention-days: 14
