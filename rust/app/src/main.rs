@@ -313,7 +313,8 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
 #[cfg(windows)]
 fn bring_back(window: &MainWindow) -> String {
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-    let Ok(handle) = window.window().window_handle().window_handle() else { return "no handle".into() };
+    let slint_handle = window.window().window_handle();
+    let Ok(handle) = slint_handle.window_handle() else { return "no handle".into() };
     let RawWindowHandle::Win32(handle) = handle.as_raw() else { return "not a Win32 window".into() };
     let hwnd = handle.hwnd.get();
     let was = win::float::minimised(hwnd);
