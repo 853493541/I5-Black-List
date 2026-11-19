@@ -232,7 +232,8 @@ def run(case: str, exe: Path, work: Path, report: Path, root: Lobby, notepad, li
         root.pump(1.5)
         topmost(f"{case}, main window restored", app.proc.pid)
         window = auto.ControlFromHandle(main_hwnd) if main_hwnd else None
-        for tab, sign in (("黑名单", "批量导入"), ("嘉宾", "添加嘉宾")):
+        # A page's sign: a control only that page has (嘉宾 with no one listed shows its empty state's buttons).
+        for tab, signs in (("黑名单", ("批量导入",)), ("嘉宾", ("添加嘉宾", "场景管理"))):
             control = window.TabItemControl(searchDepth=30, Name=tab) if window else None
             if control is None or not control.Exists(3, 0.3):
                 record(f"{case}: click after marks: {tab}", False, "UIAutomation does not see the tab")
@@ -245,9 +246,9 @@ def run(case: str, exe: Path, work: Path, report: Path, root: Lobby, notepad, li
             auto.Click(x, y)
             root.pump(1.0)
             redrawn = ImageChops.difference(before, ImageGrab.grab(bbox=page, all_screens=True)).getbbox() is not None
-            seen = window.ButtonControl(searchDepth=30, Name=sign).Exists(3, 0.3)
-            record(f"{case}: click after marks: {tab} shows its page", seen and redrawn,
-                   f"under the click {point_under:#x} {class_of(point_under)!r}; redrawn {redrawn}; {sign} seen {seen}")
+            seen = [sign for sign in signs if window.Control(searchDepth=30, Name=sign).Exists(2, 0.3)]
+            record(f"{case}: click after marks: {tab} shows its page", bool(seen) and redrawn,
+                   f"under the click {point_under:#x} {class_of(point_under)!r}; redrawn {redrawn}; seen {seen} of {signs}")
         ImageGrab.grab(all_screens=True).save(report / f"{case}-after-clicks.png")
         print(f"  {case} log tail: {tail(app)[-1200:]}")
     finally:
