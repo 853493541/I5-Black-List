@@ -506,7 +506,8 @@ def export_logs(app: App) -> None:
     said = app.log_text()[start:]
     line = next((ln for ln in said.splitlines() if "Logs exported: " in ln), "")
     path = Path(line.split("Logs exported: ", 1)[1].strip()) if line else None
-    ok = path is not None and path.exists() and path.stat().st_size > 0
+    text = path.read_text(encoding="utf-8", errors="replace") if path is not None and path.exists() else ""
+    ok = "==== app.log ====" in text  # the file is there and holds the log
     record("导出 (导出日志) writes the logs", ok, f"file {path} exists {ok}; under the click: {where}; log {said.strip()[-200:]!r}")
 
 

@@ -54,6 +54,8 @@ pub struct MainUi {
     version: String,
     /// Under the hotkey box: a key another program holds (Runner::hotkey_note).
     hotkey_note: RefCell<String>,
+    /// 导出's last word, under 设置's 导出日志 row.
+    export_note: RefCell<String>,
     /// The hotkey box waits for a key (BeginHotkey until a key is taken or Escape), and what is wrong with the last.
     hotkey_waiting: std::cell::Cell<bool>,
     key_note: RefCell<String>,
@@ -95,6 +97,7 @@ impl MainUi {
             asking: Rc::default(),
             version: version.to_string(),
             hotkey_note: RefCell::default(),
+            export_note: RefCell::default(),
             hotkey_waiting: std::cell::Cell::new(false),
             key_note: RefCell::default(),
         };
@@ -117,7 +120,8 @@ impl MainUi {
         history::fill(&self.window, &store, &self.history.borrow(), now());
         self.list.refresh(&self.window, &store);
         self.guests.show(&self.window, &lists(&store), now());
-        let state = SettingsState::new(&store.settings, false, cfg!(windows), &self.version);
+        let mut state = SettingsState::new(&store.settings, false, cfg!(windows), &self.version);
+        state.export_note = self.export_note.borrow().clone();
         crate::settings::model::show_settings_main(&self.window, &state);
     }
 
@@ -176,6 +180,14 @@ impl MainUi {
             Err(note) => *self.key_note.borrow_mut() = note.to_string(),
         }
         true
+    }
+
+    /// 导出's note, shown at once when it changed.
+    pub fn set_export_note(&self, note: &str) {
+        if *self.export_note.borrow() != note {
+            *self.export_note.borrow_mut() = note.to_string();
+            self.refresh();
+        }
     }
 
     /// The hotkey box's note, shown at once when it changed.

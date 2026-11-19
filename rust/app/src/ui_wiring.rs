@@ -118,17 +118,40 @@ fn autostart(runner: &mut Runner, on: bool) {
 }
 
 /// 导出日志: the file on the Desktop, shown in Explorer.
+thread_local! {
+    /// 导出's last word for its row in 设置 (ui._say): "" until it was pressed.
+    static EXPORT_NOTE: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) };
+}
+
+/// What 导出 said last, for 设置's 导出日志 row.
+pub fn export_note() -> String {
+    EXPORT_NOTE.with(|note| note.borrow().clone())
+}
+
+/// ui._export_logs's words: the file's name when it was written, else why not.
+pub fn export_words(written: &std::io::Result<std::path::PathBuf>) -> String {
+    match written {
+        Ok(path) => format!("已存到桌面：{}", path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default()),
+        Err(_) => "桌面存不了文件，日志没导出".to_string(),
+    }
+}
+
 fn export_logs(runner: &mut Runner) {
     use app::wiring::export;
     let account = export::account();
     let report = runner.flow_report.clone().unwrap_or_default();
     let written =
         export::export_into(&runner.root, &runner.store.borrow(), app::wiring::startup::VERSION, &report, &export::desktop(&account), &account);
+    EXPORT_NOTE.with(|note| *note.borrow_mut() = export_words(&written));
     match written {
         Ok(path) => {
             runner.log.info(&format!("Logs exported: {}", path.display()));
+            // explorer reads `/select,"<path>"` itself: as one quoted argument it ignored it and opened Documents.
             #[cfg(windows)]
-            let _ = std::process::Command::new("explorer").arg(format!("/select,{}", path.display())).spawn();
+            {
+                use std::os::windows::process::CommandExt;
+                let _ = std::process::Command::new("explorer").raw_arg(format!("/select,\"{}\"", path.display())).spawn();
+            }
         }
         Err(error) => runner.log.warn(&format!("Logs not exported: {error}")),
     }
@@ -176,6 +199,13 @@ pub fn restart_after(runner: &mut Runner, ms: u64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn export_says_where_the_file_went_or_why_not() {
+        let written = Ok(std::path::PathBuf::from(r"C:\Users\a\Desktop\模仿者小工具_日志_20261119-1200.txt"));
+        assert_eq!(export_words(&written), "已存到桌面：模仿者小工具_日志_20261119-1200.txt");
+        assert_eq!(export_words(&Err(std::io::Error::other("no desktop"))), "桌面存不了文件，日志没导出");
+    }
 
     #[test]
     fn the_check_panel_choices_redraw_the_pages() {

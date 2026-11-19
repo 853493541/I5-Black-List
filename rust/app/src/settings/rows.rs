@@ -86,6 +86,8 @@ pub struct SettingsState {
     /// What 检查更新 found, in gray before the button; empty for none.
     pub update_note: String,
     pub update_waiting: bool,
+    /// What 导出 did, in gray before its button (ui._say): 已存到桌面：<file>, or why not.
+    pub export_note: String,
 }
 
 impl SettingsState {
@@ -99,6 +101,7 @@ impl SettingsState {
             version: version.to_string(),
             update_note: String::new(),
             update_waiting: false,
+            export_note: String::new(),
         }
     }
 
@@ -178,7 +181,11 @@ fn row(state: &SettingsState, spec: &RowSpec, first: bool) -> Row {
         choices,
         value,
         label,
-        note: if spec.key == UPDATE { state.update_note.clone() } else { String::new() },
+        note: match spec.key {
+            UPDATE => state.update_note.clone(),
+            EXPORT_LOGS => state.export_note.clone(),
+            _ => String::new(),
+        },
         enabled: spec.key != AUTOSTART || state.autostart_available,
     }
 }

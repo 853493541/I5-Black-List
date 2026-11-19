@@ -267,6 +267,7 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
         }
         debug_frames.store(pumped.borrow().store.borrow().settings.save_debug_frames, Ordering::Relaxed);
         pages.set_hotkey_note(&pumped.borrow().hotkey_note());
+        pages.set_export_note(&ui_wiring::export_note());
         updates.pump(&mut pumped.borrow_mut());
         let asks = pumped.borrow_mut().pump();
         for ask in asks {
