@@ -1,0 +1,110 @@
+name: rust-input
+
+# Real input on the built preview (rust/app/input_test/drive.py): the exe started in an APPDATA of its own, its main
+# window's buttons clicked with SendInput where UIAutomation says they are, 显示 and 方式 changed, one dialog opened and
+# closed, and the 检查 hotkey pressed, each asserted through settings.json, the log, the windows or a picture. Code that
+# only drives pages from Rust never sees a click that does not arrive. Silent (BLACKLIST_DETECT_SILENT=1); no release.
+on:
+  push:
+    branches: ["feature/rust", "fix/rust-input-dead"]
+  workflow_dispatch:
+
+concurrency:
+  group: rust-input-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  input:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: rust
+        shell: bash
+    env:
+      CARGO_TERM_COLOR: always
+      OPENCV_VERSION: "4.10.0"
+      OPENCV_CLANG_ARGS: -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH
+      # The shipped profile's fat LTO only shrinks the exe; the test build links fast.
+      CARGO_PROFILE_RELEASE_LTO: "off"
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
+      CARGO_PROFILE_RELEASE_OPT_LEVEL: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # OpenCV 4.10 static with IPP and /MT, as in rust.yml (same cache key, so either workflow's build is reused).
+      - name: Cache OpenCV
+        id: opencv-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: C:\opencv-static
+          key: opencv-${{ env.OPENCV_VERSION }}-static-ipp-mt-v1
+      - name: Build OpenCV static
+        if: steps.opencv-cache.outputs.cache-hit != 'true'
+        working-directory: ${{ runner.temp }}
+        shell: cmd
+        run: |
+          for /f "usebackq delims=" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do call "%%i\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
+          python -m pip install -q ninja || exit /b 1
+          curl -sSfL -o opencv.tar.gz "https://github.com/opencv/opencv/archive/refs/tags/%OPENCV_VERSION%.tar.gz" || exit /b 1
+          tar xzf opencv.tar.gz || exit /b 1
+          cmake -S "opencv-%OPENCV_VERSION%" -B cvbuild -G Ninja -DCMAKE_BUILD_TYPE=Release ^
+            -DCMAKE_INSTALL_PREFIX=C:/opencv-static -DBUILD_SHARED_LIBS=OFF -DBUILD_WITH_STATIC_CRT=ON ^
+            -DBUILD_LIST=core,imgproc,imgcodecs -DWITH_IPP=ON -DBUILD_IPP_IW=ON ^
+            -DWITH_ITT=OFF -DWITH_OPENCL=OFF -DWITH_EIGEN=OFF -DWITH_LAPACK=OFF -DWITH_PROTOBUF=OFF -DWITH_ADE=OFF ^
+            -DWITH_TIFF=OFF -DWITH_WEBP=OFF -DWITH_OPENJPEG=OFF -DWITH_JASPER=OFF -DWITH_OPENEXR=OFF -DWITH_AVIF=OFF ^
+            -DWITH_FFMPEG=OFF -DWITH_DSHOW=OFF -DWITH_MSMF=OFF -DWITH_DIRECTX=OFF -DWITH_WIN32UI=OFF ^
+            -DBUILD_PNG=ON -DBUILD_JPEG=ON -DBUILD_ZLIB=ON ^
+            -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_opencv_apps=OFF ^
+            -DBUILD_JAVA=OFF -DBUILD_opencv_python3=OFF -DBUILD_opencv_python2=OFF > cmake.log || (type cmake.log & exit /b 1)
+          cmake --build cvbuild --target install || exit /b 1
+      - uses: actions/cache/save@v4
+        if: steps.opencv-cache.outputs.cache-hit != 'true'
+        with:
+          path: C:\opencv-static
+          key: opencv-${{ env.OPENCV_VERSION }}-static-ipp-mt-v1
+      - name: Point the opencv crate at it
+        run: |
+          libdir=$(dirname "$(find /c/opencv-static -name 'opencv_core*.lib' | head -1)")
+          libs=$(ls "$libdir" | sed -n 's/\.lib$//p' | paste -sd, -)
+          {
+            echo "OPENCV_LINK_LIBS=$libs"
+            echo "OPENCV_LINK_PATHS=$(cygpath -w "$libdir")"
+            echo 'OPENCV_INCLUDE_PATHS=C:\opencv-static\include'
+            echo 'LIBCLANG_PATH=C:\Program Files\LLVM\bin'
+            echo 'RUSTFLAGS=-C target-feature=+crt-static'
+          } | tee -a "$GITHUB_ENV"
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: rust-input-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            rust-input-
+            rust-preview-
+      - name: Build (preview, with UIAutomation)
+        run: cargo build --release -p app --bin blacklist-detect --features preview,a11y
+      - name: Screen
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Windows.Forms
+          [System.Windows.Forms.Screen]::AllScreens | Format-List | Out-String | Write-Output
+      - name: Real input
+        working-directory: .
+        run: |
+          python -m pip install -q uiautomation==2.0.20 pillow
+          python -I rust/app/input_test/drive.py "$GITHUB_WORKSPACE/rust/target/release/blacklist-detect.exe" \
+            "$RUNNER_TEMP/input-home" "$RUNNER_TEMP/input-report"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: input-report
+          path: ${{ runner.temp }}/input-report
+          retention-days: 14

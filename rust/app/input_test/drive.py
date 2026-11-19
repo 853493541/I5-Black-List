@@ -1,0 +1,385 @@
+"""Real input on the built app (Windows only): starts the exe in a data folder of its own, then clicks the main
+window's buttons with SendInput at the screen positions UIAutomation gives, changes 显示 and 方式, opens and closes one
+dialog, and presses the 检查 hotkey. Each step is asserted through settings.json, the app's log, its windows or a
+picture of the window; the evidence (windows under each click, styles, z-order, whether the UI thread answers) goes
+to a report. Silent: BLACKLIST_DETECT_SILENT=1.
+
+    python drive.py <exe> <empty folder for APPDATA> <report folder>
+
+The exe must be built with the `a11y` feature, so UIAutomation sees its controls.
+"""
+
+import ctypes
+import json
+import os
+import subprocess
+import sys
+import time
+from ctypes import wintypes
+from pathlib import Path
+
+ctypes.windll.shcore.SetProcessDpiAwareness(2)  # per-monitor: UIA bounds and SendInput in the same physical pixels
+
+import uiautomation as auto  # noqa: E402
+from PIL import ImageChops, ImageGrab  # noqa: E402
+
+user32 = ctypes.windll.user32
+user32.WindowFromPoint.argtypes = [wintypes.POINT]
+user32.WindowFromPoint.restype = wintypes.HWND
+user32.GetAncestor.restype = wintypes.HWND
+user32.GetWindowLongPtrW.restype = ctypes.c_ssize_t
+user32.GetWindow.restype = wintypes.HWND
+user32.SendMessageTimeoutW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM, wintypes.UINT,
+                                       wintypes.UINT, ctypes.POINTER(ctypes.c_size_t)]
+
+FOLDER = "BlackListDetect-RustPreview"
+SKIP = {"退出", "清空数据", "最小化", "关闭"}  # would end the run or close the window under test
+GW_HWNDNEXT, GA_ROOT = 2, 2
+WS_EX = {0x8: "TOPMOST", 0x20: "TRANSPARENT", 0x80: "TOOLWINDOW", 0x80000: "LAYERED", 0x8000000: "NOACTIVATE",
+         0x200000: "NOREDIRECTIONBITMAP"}
+
+results: list[tuple[str, bool, str]] = []
+notes: list[str] = []
+
+
+class MOUSEINPUT(ctypes.Structure):
+    _fields_ = [("dx", wintypes.LONG), ("dy", wintypes.LONG), ("mouseData", wintypes.DWORD),
+                ("dwFlags", wintypes.DWORD), ("time", wintypes.DWORD), ("dwExtraInfo", ctypes.c_size_t)]
+
+
+class KEYBDINPUT(ctypes.Structure):
+    _fields_ = [("wVk", wintypes.WORD), ("wScan", wintypes.WORD), ("dwFlags", wintypes.DWORD),
+                ("time", wintypes.DWORD), ("dwExtraInfo", ctypes.c_size_t)]
+
+
+class _U(ctypes.Union):
+    _fields_ = [("mi", MOUSEINPUT), ("ki", KEYBDINPUT), ("pad", ctypes.c_byte * 32)]
+
+
+class INPUT(ctypes.Structure):
+    _fields_ = [("type", wintypes.DWORD), ("u", _U)]
+
+
+def send(*inputs: INPUT) -> None:
+    array = (INPUT * len(inputs))(*inputs)
+    sent = user32.SendInput(len(inputs), array, ctypes.sizeof(INPUT))
+    if sent != len(inputs):
+        notes.append(f"SendInput sent {sent} of {len(inputs)} (error {ctypes.GetLastError()})")
+
+
+def mouse(flags: int, x: int = 0, y: int = 0) -> INPUT:
+    return INPUT(0, _U(mi=MOUSEINPUT(x, y, 0, flags, 0, 0)))
+
+
+def key(vk: int, up: bool = False) -> INPUT:
+    return INPUT(1, _U(ki=KEYBDINPUT(vk, 0, 2 if up else 0, 0, 0)))
+
+
+def move(x: int, y: int) -> None:
+    left, top = user32.GetSystemMetrics(76), user32.GetSystemMetrics(77)
+    width, height = user32.GetSystemMetrics(78), user32.GetSystemMetrics(79)
+    nx = int((x - left) * 65535 / max(width - 1, 1))
+    ny = int((y - top) * 65535 / max(height - 1, 1))
+    send(mouse(0x0001 | 0x8000 | 0x4000, nx, ny))  # MOVE | ABSOLUTE | VIRTUALDESK
+
+
+def click(x: int, y: int) -> None:
+    move(x, y)
+    time.sleep(0.05)
+    send(mouse(0x0002), mouse(0x0004))  # LEFTDOWN, LEFTUP
+
+
+def window_info(hwnd: int) -> str:
+    title = ctypes.create_unicode_buffer(256)
+    user32.GetWindowTextW(hwnd, title, 256)
+    klass = ctypes.create_unicode_buffer(256)
+    user32.GetClassNameW(hwnd, klass, 256)
+    rect = wintypes.RECT()
+    user32.GetWindowRect(hwnd, ctypes.byref(rect))
+    ex = user32.GetWindowLongPtrW(hwnd, -20)
+    style = user32.GetWindowLongPtrW(hwnd, -16)
+    flags = "|".join(name for bit, name in WS_EX.items() if ex & bit) or "-"
+    pid = wintypes.DWORD()
+    user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    visible = "visible" if user32.IsWindowVisible(hwnd) else "hidden"
+    enabled = "" if user32.IsWindowEnabled(hwnd) else " DISABLED"
+    return (f"hwnd {hwnd:#x} pid {pid.value} class {klass.value!r} title {title.value!r} "
+            f"rect ({rect.left},{rect.top},{rect.right},{rect.bottom}) style {style & 0xffffffff:#010x} "
+            f"exstyle {ex & 0xffffffff:#010x} [{flags}] {visible}{enabled}")
+
+
+def own_windows(pid: int) -> list[int]:
+    found: list[int] = []
+    proc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+    def each(hwnd, _):
+        owner = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
+        if owner.value == pid and user32.IsWindowVisible(hwnd):
+            found.append(hwnd)
+        return True
+
+    user32.EnumWindows(proc(each), 0)
+    return found
+
+
+def z_order(limit: int = 12) -> list[str]:
+    """The visible top-level windows from the top, the first ones: what lies over the main window."""
+    lines, hwnd = [], user32.GetTopWindow(None)
+    while hwnd and len(lines) < limit:
+        if user32.IsWindowVisible(hwnd):
+            lines.append(window_info(hwnd))
+        hwnd = user32.GetWindow(hwnd, GW_HWNDNEXT)
+    return lines
+
+
+def answers(hwnd: int) -> bool:
+    """Whether the window's thread handles a message within 2 s."""
+    out = ctypes.c_size_t()
+    return bool(user32.SendMessageTimeoutW(hwnd, 0, 0, 0, 0x0002, 2000, ctypes.byref(out)))  # WM_NULL, ABORTIFHUNG
+
+
+def grab(hwnd: int):
+    rect = wintypes.RECT()
+    user32.GetWindowRect(hwnd, ctypes.byref(rect))
+    return ImageGrab.grab(bbox=(rect.left, rect.top, rect.right, rect.bottom), all_screens=True)
+
+
+def differs(a, b) -> bool:
+    if a.size != b.size:
+        return True
+    return ImageChops.difference(a.convert("RGB"), b.convert("RGB")).getbbox() is not None
+
+
+def center(control) -> tuple[int, int]:
+    r = control.BoundingRectangle
+    return (r.left + r.right) // 2, (r.top + r.bottom) // 2
+
+
+def record(name: str, ok: bool, detail: str) -> None:
+    results.append((name, ok, detail))
+    print(("PASS " if ok else "FAIL ") + name + ": " + detail, flush=True)
+
+
+class App:
+    def __init__(self, exe: str, home: Path, out: Path):
+        self.home, self.out = home, out
+        self.data = home / FOLDER
+        env = dict(os.environ, APPDATA=str(home), LOCALAPPDATA=str(home), USERPROFILE=str(home),
+                   BLACKLIST_DETECT_SILENT="1")
+        env.pop("BLACKLIST_DETECT_SOUND", None)
+        self.proc = subprocess.Popen([exe], env=env, cwd=str(home))
+        self.log = self.data / "logs" / "app.log"
+        self.main = None
+        self.hwnd = 0
+
+    def log_text(self) -> str:
+        try:
+            return self.log.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return ""
+
+    def settings(self) -> dict:
+        try:
+            return json.loads((self.data / "settings.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+
+    def find_main(self, budget: float = 60) -> bool:
+        end = time.time() + budget
+        while time.time() < end:
+            if self.proc.poll() is not None:
+                notes.append(f"the app exited with {self.proc.returncode}")
+                return False
+            for hwnd in own_windows(self.proc.pid):
+                control = auto.ControlFromHandle(hwnd)
+                if control and control.Name.startswith("模仿者小工具"):
+                    self.main, self.hwnd = control, hwnd
+                    return True
+            time.sleep(1)
+        return False
+
+    def wait_log(self, text: str, start: int, budget: float) -> bool:
+        end = time.time() + budget
+        while time.time() < end:
+            if text in self.log_text()[start:]:
+                return True
+            time.sleep(0.5)
+        return False
+
+    def under(self, x: int, y: int) -> str:
+        hit = user32.WindowFromPoint(wintypes.POINT(x, y))
+        root = user32.GetAncestor(hit, GA_ROOT) if hit else 0
+        return "main window" if root == self.hwnd else "OTHER: " + (window_info(root) if root else "none")
+
+    def close_extra(self, before: set[int]) -> int:
+        """Closes the windows a click opened (a dialog), and says how many there were."""
+        extra = [h for h in own_windows(self.proc.pid) if h not in before and h != self.hwnd]
+        for hwnd in extra:
+            user32.PostMessageW(hwnd, 0x0010, 0, 0)  # WM_CLOSE
+        if extra:
+            time.sleep(1)
+        return len(extra)
+
+    def segment(self, group: str, label: str):
+        panel = self.main
+        control = panel.TabItemControl(Name=label, searchDepth=30)
+        return control if control.Exists(3, 0.5) else None
+
+    def snapshot(self, name: str) -> None:
+        try:
+            grab(self.hwnd).save(self.out / f"{name}.png")
+        except OSError as error:
+            notes.append(f"screenshot {name}: {error}")
+
+
+def evidence(app: App, title: str) -> None:
+    notes.append(f"--- {title}")
+    notes.append(f"main window: {window_info(app.hwnd)}")
+    notes.append(f"main window thread answers WM_NULL within 2 s: {answers(app.hwnd)}; "
+                 f"IsHungAppWindow: {bool(user32.IsHungAppWindow(app.hwnd))}")
+    notes.append(f"foreground: {window_info(user32.GetForegroundWindow())}")
+    for hwnd in own_windows(app.proc.pid):
+        notes.append(f"app window: {window_info(hwnd)}")
+    notes.append("z-order from the top:")
+    notes.extend("  " + line for line in z_order())
+
+
+def change_segment(app: App, label: str, key_name: str, wanted) -> None:
+    control = app.segment("", label)
+    if control is None:
+        record(f"{key_name} -> {label}", False, "UIAutomation does not see the option")
+        return
+    x, y = center(control)
+    where = app.under(x, y)
+    move(x, y)
+    time.sleep(0.4)
+    before = grab(app.hwnd)
+    click(x, y)
+    end = time.time() + 5
+    saved = None
+    while time.time() < end:
+        saved = app.settings().get(key_name)
+        if saved == wanted:
+            break
+        time.sleep(0.3)
+    time.sleep(0.5)
+    shown = differs(before, grab(app.hwnd))
+    ok = saved == wanted and shown
+    record(f"{key_name} -> {label}", ok, f"settings.json {key_name}={saved!r} (want {wanted!r}); "
+           f"window redrawn: {shown}; under the click: {where}")
+
+
+def click_buttons(app: App) -> None:
+    buttons = []
+    for control, _depth in auto.WalkControl(app.main, maxDepth=30):
+        if control.ControlTypeName == "ButtonControl" and control.Name not in SKIP:
+            r = control.BoundingRectangle
+            if r.width() > 2 and r.height() > 2:
+                buttons.append((control.Name, center(control)))
+    notes.append(f"buttons seen by UIAutomation: {[name for name, _ in buttons]}")
+    if not buttons:
+        record("main-window buttons", False, "UIAutomation sees no button")
+    for name, (x, y) in buttons:
+        windows = set(own_windows(app.proc.pid))
+        where = app.under(x, y)
+        start = len(app.log_text())
+        move(x, y)
+        time.sleep(0.4)
+        before = grab(app.hwnd)
+        click(x, y)
+        time.sleep(1.2)
+        after = grab(app.hwnd)
+        logged = app.log_text()[start:].strip()
+        opened = app.close_extra(windows)
+        shown = differs(before, after)
+        user32.SetForegroundWindow(app.hwnd)
+        send(key(0x1B), key(0x1B, True))  # Esc: a panel or menu the click opened
+        time.sleep(0.4)
+        ok = shown or opened > 0 or bool(logged)
+        record(f"button {name!r}", ok, f"redrawn {shown}, windows opened {opened}, log {logged[-120:]!r}; "
+               f"under the click: {where}")
+
+
+def open_dialog(app: App) -> None:
+    info = app.main.ButtonControl(Name="显示说明", searchDepth=30)
+    if not info.Exists(3, 0.5):
+        record("dialog 显示说明", False, "UIAutomation does not see the button")
+        return
+    windows = set(own_windows(app.proc.pid))
+    click(*center(info))
+    end, new = time.time() + 5, []
+    while time.time() < end and not new:
+        new = [h for h in own_windows(app.proc.pid) if h not in windows]
+        time.sleep(0.3)
+    if not new:
+        record("dialog 显示说明 opens", False, "no new window within 5 s")
+        return
+    record("dialog 显示说明 opens", True, window_info(new[0]))
+    user32.PostMessageW(new[0], 0x0010, 0, 0)
+    end = time.time() + 5
+    while time.time() < end and user32.IsWindowVisible(new[0]):
+        time.sleep(0.3)
+    record("dialog 显示说明 closes", not user32.IsWindowVisible(new[0]), "")
+
+
+def press_hotkey(app: App) -> None:
+    start = len(app.log_text())
+    send(key(0x12), key(0x31), key(0x31, True), key(0x12, True))  # Alt+1
+    ok = app.wait_log("Hotkey: 检查", start, 10)
+    tail = app.log_text()[start:].strip()
+    record("hotkey Alt+1 starts a check", ok, f"log after the press: {tail[-300:]!r}")
+
+
+def main() -> int:
+    exe, home, out = sys.argv[1], Path(sys.argv[2]), Path(sys.argv[3])
+    home.mkdir(parents=True, exist_ok=True)
+    out.mkdir(parents=True, exist_ok=True)
+    app = App(exe, home, out)
+    try:
+        if not app.find_main():
+            record("main window shows", False, "not found within 60 s")
+            return finish(app)
+        record("main window shows", True, window_info(app.hwnd))
+        time.sleep(3)  # start-up work on the window's thread settles
+        user32.SetForegroundWindow(app.hwnd)
+        app.snapshot("start")
+        evidence(app, "after start")
+        keys = app.log_text()
+        notes.append("hotkey lines in the log: " + repr([ln for ln in keys.splitlines() if "otkey" in ln]))
+        # 显示 first (完整模式 lets 方式 pick 自动), then 方式 both ways, then 显示 back.
+        change_segment(app, "完整模式", "safe_mode", False)
+        change_segment(app, "自动", "auto_capture", True)
+        change_segment(app, "手动", "auto_capture", False)
+        change_segment(app, "基础模式", "safe_mode", True)
+        app.snapshot("after-segments")
+        open_dialog(app)
+        click_buttons(app)
+        press_hotkey(app)
+        evidence(app, "at the end")
+        app.snapshot("end")
+    finally:
+        if app.proc.poll() is None:
+            app.proc.kill()
+    return finish(app)
+
+
+def finish(app: App) -> int:
+    lines = ["### Real input on the main window", "", "| step | result | detail |", "|---|---|---|"]
+    for name, ok, detail in results:
+        lines.append(f"| {name} | {'PASS' if ok else '**FAIL**'} | {detail.replace('|', '/')[:400]} |")
+    lines += ["", "<details><summary>evidence</summary>", "", "```", *notes, "", "--- app.log", app.log_text(), "```",
+              "", "</details>"]
+    report = "\n".join(lines)
+    (app.out / "report.md").write_text(report, encoding="utf-8")
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        with open(summary, "a", encoding="utf-8") as f:
+            f.write(report + "\n")
+    failed = [name for name, ok, _ in results if not ok]
+    print(f"{len(results) - len(failed)} passed, {len(failed)} failed: {failed}")
+    return 1 if failed or not results else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

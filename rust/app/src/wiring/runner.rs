@@ -177,9 +177,11 @@ impl Runner {
         }
         while let Some(id) = self.keys.poll() {
             if id == CHECK_HOTKEY {
+                self.log.info("Hotkey: 检查 pressed.");
                 self.check_now();
             }
             if id == SCENE_HOTKEY {
+                self.log.info("Hotkey: 场景 pressed.");
                 let scene = self.store.borrow().settings.quick_scene.clone();
                 self.flow.quick_play(&scene, screen_rect(), seconds);
             }

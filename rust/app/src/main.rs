@@ -170,8 +170,11 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
     let screen_marks = std::mem::replace(&mut parts.ports.overlay, Box::new(app::wiring::stubs::Quiet));
     parts.ports.overlay = Box::new(stream_marks::WithStream::new(screen_marks, store.clone()));
     let tray_visible = parts.tray.visible();
-    // The real app's run is the only one that makes a sound (ui_music.allow_sound).
-    sound::allow_sound();
+    // The real app's run is the only one that makes a sound (ui_music.allow_sound); BLACKLIST_DETECT_SILENT=1 keeps a
+    // test run of the exe quiet.
+    if std::env::var("BLACKLIST_DETECT_SILENT").as_deref() != Ok("1") {
+        sound::allow_sound();
+    }
     let parts = Parts {
         ports: parts.ports,
         worker: Worker::start(Box::new(RealScreen), Box::new(parts.checker)),
