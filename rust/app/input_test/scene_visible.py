@@ -10,7 +10,8 @@ Asserted:
   lasts       no glance or check stops it early: still on screen 2 s in (the glance runs every 0.4 s)
   click-through  the point under the scene belongs to the lobby window, not the stage's
   gone        after the scene: no visible BlacklistDetectStage window, and the desktop is back to the marks alone
-  main window a SendInput click on the app's main window, restored, brings it to the front
+  clicks      SendInput clicks across the main window's header, during the scene and after it, change what it shows
+              (a page, a press) and its thread answers (a thread-wide message pump in the scene took them away)
 Silent (BLACKLIST_DETECT_SILENT=1), in an APPDATA of its own.
 """
 
@@ -28,6 +29,10 @@ import check_visible as cv  # noqa: E402  (its Lobby, App, press, started and Se
 from PIL import ImageChops, ImageGrab  # noqa: E402
 
 user32 = cv.user32
+user32.SendMessageTimeoutW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM, wintypes.UINT,
+                                       wintypes.UINT, ctypes.POINTER(ctypes.c_size_t)]
+user32.WindowFromPoint.argtypes = [wintypes.POINT]
+user32.WindowFromPoint.restype = wintypes.HWND
 STAGE_CLASS = "BlacklistDetectStage"
 
 
@@ -104,6 +109,44 @@ def main_window(pid: int) -> int:
     return best
 
 
+def answers(hwnd: int) -> bool:
+    out = ctypes.c_size_t()
+    return bool(user32.SendMessageTimeoutW(hwnd, 0, 0, 0, 0x0002, 2000, ctypes.byref(out)))  # WM_NULL, ABORTIFHUNG
+
+
+def grab(hwnd: int):
+    rect = wintypes.RECT()
+    user32.GetWindowRect(hwnd, ctypes.byref(rect))
+    return ImageGrab.grab(bbox=(rect.left, rect.top, rect.right, rect.bottom), all_screens=True)
+
+
+def bring_main(app, lobby) -> int:
+    """The main window restored, in front of the lobby (which stops being topmost), in the screen's bottom-right."""
+    hwnd = main_window(app.proc.pid)
+    lobby.tk.attributes("-topmost", False)
+    user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+    width, height = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
+    user32.SetWindowPos(hwnd, -1, width - 960, height - 640, 0, 0, 0x0001 | 0x0040)  # TOPMOST, NOSIZE | SHOWWINDOW
+    lobby.pump(0.8)
+    return hwnd
+
+
+def clicks_work(hwnd: int, lobby, when: str, report: Path) -> None:
+    """Five SendInput clicks across the header: at least one changes what the window shows, and it answers."""
+    rect = wintypes.RECT()
+    user32.GetWindowRect(hwnd, ctypes.byref(rect))
+    changed = 0
+    for i in range(1, 6):
+        before = grab(hwnd)
+        click(rect.left + (rect.right - rect.left) * i // 6, rect.top + 56)
+        lobby.pump(0.35)
+        after = grab(hwnd)
+        changed += ImageChops.difference(before.convert("RGB"), after.convert("RGB")).getbbox() is not None
+    grab(hwnd).save(report / f"main-{when}.png")
+    cv.record(f"clicks on the main window work {when}", changed > 0 and answers(hwnd),
+              f"{changed} of 5 clicks changed it; answers {answers(hwnd)}; IsHungAppWindow {bool(user32.IsHungAppWindow(hwnd))}")
+
+
 def run(exe: Path, work: Path, report: Path) -> None:
     lobby = cv.Lobby()
     notepad = subprocess.Popen(["notepad.exe"])
@@ -133,6 +176,8 @@ def run(exe: Path, work: Path, report: Path) -> None:
         later.save(report / "scene-2s.png")
         cv.record("the scene is still up 2 s in (no glance or check stopped it)", bool(stage_windows(app.proc.pid)),
                   cv.tail(app, start)[-400:])
+        hwnd = bring_main(app, lobby)
+        clicks_work(hwnd, lobby, "during the scene", report)
         # The lace lasts about five seconds; the marks stay.
         deadline = time.time() + 20
         while stage_windows(app.proc.pid) and time.time() < deadline:
@@ -142,22 +187,13 @@ def run(exe: Path, work: Path, report: Path) -> None:
         after.save(report / "scene-after.png")
         cv.record("gone: no stage window after the scene", not stage_windows(app.proc.pid),
                   f"{len(stage_windows(app.proc.pid))} still visible")
-        share = changed_share(mid, after)
+        # The main window came forward mid-scene: compare the lobby's left half, away from it.
+        half = (0, 0, width // 2, height)
+        share = changed_share(mid.crop(half), after.crop(half))
         cv.record("on screen: the desktop mid-scene differs from after it", share > 0.02, f"{share:.1%} of the pixels")
         notes = re.findall(r"Scene [^\n]*", app.text()[start:])
         print("  log:\n    " + "\n    ".join(notes[-8:]))
-        hwnd = main_window(app.proc.pid)
-        user32.ShowWindow(hwnd, 9)  # SW_RESTORE
-        lobby.pump(1.0)
-        rect = wintypes.RECT()
-        user32.GetWindowRect(hwnd, ctypes.byref(rect))
-        click((rect.left + rect.right) // 2, rect.top + 12)
-        lobby.pump(1.0)
-        front = user32.GetForegroundWindow()
-        pid = wintypes.DWORD()
-        user32.GetWindowThreadProcessId(front, ctypes.byref(pid))
-        cv.record("a click on the main window works afterwards", pid.value == app.proc.pid,
-                  f"foreground: {cv.title(front)!r} (pid {pid.value}, app {app.proc.pid})")
+        clicks_work(hwnd, lobby, "after the scene", report)
     finally:
         (report / "scene-app.log").write_text(app.text(), encoding="utf-8")
         app.stop()
