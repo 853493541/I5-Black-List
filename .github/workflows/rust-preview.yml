@@ -69,7 +69,7 @@ jobs:
       OPENCV_VERSION: "4.10.0"
       OPENCV_CLANG_ARGS: -D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH
       ORT_VERSION: "1.32.0"
-      APP_NAME: 模仿者小工具 Rust 预览 11月 v2
+      APP_NAME: 模仿者小工具 Rust 预览 11月 v3
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -144,8 +144,8 @@ jobs:
       - name: Build
         run: cargo build --release -p app --bin blacklist-detect --features preview
 
-      # The folder the player unzips: the exe, ONNX Runtime from the pip wheel, two models (no PP-OCRv5_mobile_rec: the
-      # app reads with PP-OCRv6_medium_rec alone), the assets with the tunes as Vorbis .ogg, 使用说明.txt. The exe's
+      # The folder the player unzips: the exe, ONNX Runtime from the pip wheel, the three models (PP-OCRv5_mobile_rec reads
+      # the lobby words and the countdown, PP-OCRv6_medium_rec the names: cheaper per check than v6 alone), the assets with the tunes as Vorbis .ogg, 使用说明.txt. The exe's
       # .pdb goes up as an artifact of its own, never in the player's zip.
       - name: Lay out the folder
         working-directory: .
@@ -157,7 +157,8 @@ jobs:
           cp rust/target/release/blacklist-detect.exe "$out/$APP_NAME.exe"
           cp "$ort" "$out/onnxruntime.dll"
           mkdir -p "$out/models"
-          cp -r "$RUNNER_TEMP/models/PP-OCRv5_mobile_det" "$RUNNER_TEMP/models/PP-OCRv6_medium_rec" "$out/models/"
+          cp -r "$RUNNER_TEMP/models/PP-OCRv5_mobile_det" "$RUNNER_TEMP/models/PP-OCRv5_mobile_rec" \
+            "$RUNNER_TEMP/models/PP-OCRv6_medium_rec" "$out/models/"
           # sound_compress.py --stage's layout, from the committed .ogg (the ones sound's tests check): its --stage
           # re-encodes with ffmpeg first, which would ship other bytes.
           cp -r blacklist_detect/assets "$out/assets"
@@ -212,8 +213,10 @@ jobs:
           grep -q "Preview: copied " "$log" || { echo "::error::the old list was not copied"; exit 1; }
           [ "$(sha1sum "$home/BlackListDetect/blacklist.json")" = "$before" ] || { echo "::error::old list changed"; exit 1; }
           [ ! -e "$home/BlackListDetect/logs" ] || { echo "::error::the preview wrote in the old folder"; exit 1; }
-          # The size changes: two models, the tunes as .ogg only, no .pdb in the folder.
-          [ ! -e "$PREVIEW_DIR/models/PP-OCRv5_mobile_rec" ] || { echo "::error::PP-OCRv5_mobile_rec shipped"; exit 1; }
+          # The layout: all three models, the tunes as .ogg only, no .pdb in the folder.
+          for model in PP-OCRv5_mobile_det PP-OCRv5_mobile_rec PP-OCRv6_medium_rec; do
+            [ -f "$PREVIEW_DIR/models/$model/inference.onnx" ] || { echo "::error::$model missing"; exit 1; }
+          done
           ls "$PREVIEW_DIR/models" | tee -a "$GITHUB_STEP_SUMMARY"
           for tune in wedding-organ theme-ice theme-stars theme-cyber theme-neon wedding-bells wedding-canon theme-fluffy ambush lyre; do
             [ -f "$PREVIEW_DIR/assets/$tune.ogg" ] && [ ! -e "$PREVIEW_DIR/assets/$tune.wav" ] || { echo "::error::$tune is not .ogg only"; exit 1; }
@@ -265,4 +268,30 @@ jobs:
         with:
           name: ${{ env.APP_NAME }} pdb
           path: ${{ runner.temp }}/pdb
+          retention-days: 14
+
+      # Test only, never for the player: the same folder with the exe built at v1's release profile (opt-level 3, no
+      # LTO, 16 codegen units), to tell what costs CPU per check, opt "z" or the reader. Its own target folder.
+      - name: Build at opt-level 3 (v3-o3, test only)
+        env:
+          CARGO_PROFILE_RELEASE_OPT_LEVEL: "3"
+          CARGO_PROFILE_RELEASE_LTO: "false"
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
+          CARGO_PROFILE_RELEASE_DEBUG: "false"
+        run: |
+          cargo build --release -p app --bin blacklist-detect --features preview --target-dir target-o3
+          o3="$RUNNER_TEMP/o3/$APP_NAME o3"
+          mkdir -p "$RUNNER_TEMP/o3"
+          cp -r "$PREVIEW_DIR" "$o3"
+          cp target-o3/release/blacklist-detect.exe "$o3/$APP_NAME.exe"
+          home="$RUNNER_TEMP/o3-home"; mkdir -p "$home"
+          APPDATA="$home" USERPROFILE="$home" HOME="$home" "$o3/$APP_NAME.exe" check \
+            "$GITHUB_WORKSPACE/blacklist_detect/assets/sample-lobby.jpg" > "$RUNNER_TEMP/o3-check.txt" 2>&1
+          read=$(grep -cE '^ ?[0-9]+  完整' "$RUNNER_TEMP/o3-check.txt" || true)
+          echo "v3-o3: exe $(stat -c %s "$o3/$APP_NAME.exe") bytes, seats read whole $read of 12" | tee -a "$GITHUB_STEP_SUMMARY"
+          [ "$read" -eq 12 ] || { cat "$RUNNER_TEMP/o3-check.txt"; exit 1; }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v3-o3
+          path: ${{ runner.temp }}/o3
           retention-days: 14
