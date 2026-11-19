@@ -238,10 +238,16 @@ pub fn settings_line(store: &Store) -> String {
     )
 }
 
+/// The single-instance key this build answers on (the preview's own, never v1.0.1's).
+#[cfg(windows)]
+pub fn instance_key() -> String {
+    crate::preview::instance_key(&win::instance::instance_key(), crate::preview::ON)
+}
+
 /// One copy (single.claim, single.settle): Some(claim) to go on, None when another copy answered.
 #[cfg(windows)]
 fn one_copy(options: &Options, install: Option<PathBuf>, log: &AppLog) -> Option<Option<Box<dyn std::any::Any>>> {
-    let key = crate::preview::instance_key(&win::instance::instance_key(), crate::preview::ON);
+    let key = instance_key();
     let claim = win::process::claim(&key);
     let message: &[u8] = if options.background { b"" } else { b"show" };
     let mut host = win::process::SystemHost {

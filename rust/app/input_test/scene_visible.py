@@ -206,8 +206,17 @@ def back_by(path: str, app, hwnd: int) -> str:
     """One of the player's ways back to the minimised app."""
     if path == "second launch":
         # The tray's 显示 takes the same way in the app (Do::ShowWindow); a second launch reaches it from outside.
-        subprocess.Popen([str(app.exe)], env=app.env, cwd=str(app.home)).wait(30)
-        return "launched again"
+        # It asks the open copy on the pipe and leaves at once (v1.0.1 too); one still running at 10 s is a hang.
+        second = subprocess.Popen([str(app.exe)], env=app.env, cwd=str(app.home))
+        began = time.monotonic()
+        try:
+            code = second.wait(10)
+        except subprocess.TimeoutExpired:
+            second.kill()
+            code = "still running at 10 s, killed"
+        took = time.monotonic() - began
+        cv.record("a second launch leaves within 3 s", took < 3 and code == 0, f"exit {code} after {took:.1f} s")
+        return f"launched again (exit {code} after {took:.1f} s)"
     if path == "taskbar button":
         import uiautomation as auto
 
@@ -243,6 +252,10 @@ def ways_back(app, lobby, hwnd: int, report: Path) -> None:
             print(f"  INFO back via Alt+Tab: restored {back}; {detail}")
             continue
         cv.record(f"back via {path}: restored on screen", back, detail)
+        if path == "second launch":
+            front = user32.GetForegroundWindow()
+            cv.record("a second launch brings the open window to the front", bool(front) and int(front) == int(hwnd),
+                      f"foreground {front} {cv.title(front)!r}, main {hwnd}")
         if back:
             clicks_work(hwnd, lobby, f"after coming back via {path}", report)
 

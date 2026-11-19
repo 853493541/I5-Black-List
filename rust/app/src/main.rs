@@ -245,6 +245,7 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
         }
         slint::CloseRequestResponse::HideWindow
     });
+    let launches = second_launches(&runner.borrow().log);
     let timer = slint::Timer::default();
     let (pumped, shown) = (runner.clone(), window.as_weak());
     let pages = ui.clone();
@@ -284,7 +285,12 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
         pages.set_hotkey_note(&pumped.borrow().hotkey_note());
         pages.set_export_note(&ui_wiring::export_note());
         updates.pump(&mut pumped.borrow_mut());
-        let asks = pumped.borrow_mut().pump();
+        let mut asks = pumped.borrow_mut().pump();
+        for message in launches.try_iter() {
+            let ask = life::on_instance_message(&message);
+            pumped.borrow().log.info(&format!("Second launch: {:?} -> {ask:?}.", String::from_utf8_lossy(&message)));
+            asks.extend(ask);
+        }
         // Every check's problem in the pill (识别还没准备好 / 读不到屏幕 / 检查失败), never silent.
         if let Some(words) = pages.show_problem(pumped.borrow().flow.problem.as_ref()) {
             pumped.borrow().log.info(&format!("Header: {words}"));
@@ -311,6 +317,25 @@ fn run(started: Started, options: &Options) -> Result<(), Box<dyn std::error::Er
     timer.stop();
     runner.borrow_mut().quit(0);
     Ok(())
+}
+
+/// What each second launch says on the pipe (listen_for_instances): without it a second launch found no answer, waited
+/// 8 s and opened a whole second copy.
+fn second_launches(log: &startup::AppLog) -> std::sync::mpsc::Receiver<Vec<u8>> {
+    let (tx, rx) = std::sync::mpsc::channel();
+    #[cfg(windows)]
+    match win::instance::listen(&startup::instance_key(), move |message| {
+        let _ = tx.send(message);
+    }) {
+        Ok(()) => log.info("Start-up: listening for a second launch"),
+        Err(error) => log.warn(&format!("Start-up: cannot listen for a second launch: {error}")),
+    }
+    #[cfg(not(windows))]
+    {
+        drop(tx);
+        log.info("Start-up: no second-launch pipe off Windows");
+    }
+    rx
 }
 
 /// The main window restored when minimised and in front (win::float::bring_back); says what it found.

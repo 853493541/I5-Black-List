@@ -42,9 +42,92 @@ pub fn message_running_copy(message: &[u8], key: &str) -> bool {
         return false;
     }
     match std::fs::OpenOptions::new().write(true).open(pipe_path(key)) {
-        Ok(mut pipe) => pipe.write_all(message).is_ok(),
+        Ok(mut pipe) => {
+            // The open copy brings its window to the front: the launch the player just made may hand it the right.
+            #[cfg(windows)]
+            unsafe {
+                use windows::Win32::UI::WindowsAndMessaging::{AllowSetForegroundWindow, ASFW_ANY};
+                let _ = AllowSetForegroundWindow(ASFW_ANY);
+            }
+            pipe.write_all(message).is_ok()
+        }
         Err(_) => false,
     }
+}
+
+/// The longest message a second launch sends (b"show", b"quit"); anything more is cut there.
+#[cfg(windows)]
+const LONGEST: u64 = 64;
+
+/// Serve the pipe under the key on a thread of its own (Qt's QLocalServer in listen_for_instances): each second
+/// launch's whole message goes to `heard`. An error when the pipe cannot be made (another process serves it).
+#[cfg(windows)]
+pub fn listen(key: &str, heard: impl Fn(Vec<u8>) + Send + 'static) -> std::io::Result<()> {
+    let mut pipe = serve(&pipe_path(key), true)?;
+    std::thread::Builder::new().name("Instances".into()).spawn(move || {
+        loop {
+            if let Err(error) = wait_for_client(&pipe) {
+                eprintln!("Instances: the pipe stopped: {error}");
+                return;
+            }
+            // The next copy can knock while this one is read.
+            let next = serve_again(&pipe);
+            heard(read_all(pipe));
+            match next {
+                Some(next) => pipe = next,
+                None => return,
+            }
+        }
+    })?;
+    Ok(())
+}
+
+#[cfg(windows)]
+struct Pipe(std::fs::File, String);
+
+#[cfg(windows)]
+fn serve(path: &str, first: bool) -> std::io::Result<Pipe> {
+    use std::os::windows::io::FromRawHandle;
+    use windows::core::HSTRING;
+    use windows::Win32::Foundation::INVALID_HANDLE_VALUE;
+    use windows::Win32::Storage::FileSystem::{FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_INBOUND};
+    use windows::Win32::System::Pipes::{
+        CreateNamedPipeW, PIPE_READMODE_BYTE, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE, PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
+    };
+    let open = if first { PIPE_ACCESS_INBOUND | FILE_FLAG_FIRST_PIPE_INSTANCE } else { PIPE_ACCESS_INBOUND };
+    let mode = PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS;
+    let handle = unsafe { CreateNamedPipeW(&HSTRING::from(path), open, mode, PIPE_UNLIMITED_INSTANCES, 0, 512, 0, None) };
+    if handle == INVALID_HANDLE_VALUE || handle.is_invalid() {
+        return Err(std::io::Error::last_os_error());
+    }
+    Ok(Pipe(unsafe { std::fs::File::from_raw_handle(handle.0) }, path.to_string()))
+}
+
+#[cfg(windows)]
+fn serve_again(pipe: &Pipe) -> Option<Pipe> {
+    serve(&pipe.1, false).map_err(|error| eprintln!("Instances: no next pipe: {error}")).ok()
+}
+
+#[cfg(windows)]
+fn wait_for_client(pipe: &Pipe) -> std::io::Result<()> {
+    use std::os::windows::io::AsRawHandle;
+    use windows::Win32::Foundation::{ERROR_PIPE_CONNECTED, HANDLE};
+    use windows::Win32::System::Pipes::ConnectNamedPipe;
+    match unsafe { ConnectNamedPipe(HANDLE(pipe.0.as_raw_handle()), None) } {
+        Ok(()) => Ok(()),
+        // The client came between CreateNamedPipe and ConnectNamedPipe.
+        Err(error) if error.code() == ERROR_PIPE_CONNECTED.to_hresult() => Ok(()),
+        Err(error) => Err(std::io::Error::other(error)),
+    }
+}
+
+/// Up to the client closing its end (a broken pipe reads as the end).
+#[cfg(windows)]
+fn read_all(pipe: Pipe) -> Vec<u8> {
+    use std::io::Read;
+    let mut message = Vec::new();
+    let _ = (&pipe.0).take(LONGEST).read_to_end(&mut message);
+    message
 }
 
 #[cfg(test)]
@@ -73,4 +156,29 @@ mod tests {
         #[cfg(not(windows))]
         assert!(!message_running_copy(b"show", "K"));
     }
+
+    /// A second launch is answered at once, every time, and its message reaches the open copy whole.
+    #[cfg(windows)]
+    #[test]
+    fn a_second_launch_is_answered_at_once() {
+        use std::time::{Duration, Instant};
+        let key = format!("BlackListDetect-test-{}", std::process::id());
+        let (tx, rx) = std::sync::mpsc::channel();
+        listen(&key, move |message| {
+            let _ = tx.send(message);
+        })
+        .unwrap();
+        assert!(listen(&key, |_| {}).is_err(), "only one copy serves the key");
+        for message in [&b"show"[..], b"", b"quit", b"show"] {
+            let start = Instant::now();
+            let sent = (0..40).any(|_| message_running_copy(message, &key) || {
+                std::thread::sleep(Duration::from_millis(25));
+                false
+            });
+            assert!(sent, "{message:?} was not taken");
+            assert_eq!(rx.recv_timeout(Duration::from_secs(3)).unwrap(), message);
+            assert!(start.elapsed() < Duration::from_secs(3), "{:?}", start.elapsed());
+        }
+    }
 }
+
