@@ -40,8 +40,10 @@ FOLDER = "BlackListDetect-RustPreview"
 SKIP = {"退出", "清空数据", "清空", "导出", "隐藏名字", "显示名字", "名字", "最小化", "关闭", "Minimize", "Maximize", "Restore", "Close", "还原", "最大化"}
 # In the 检查 panel, which any click outside it folds away: tested on their own, the panel opened first.
 PANEL = {"显示说明", "直播模式说明", "快捷键"}
+# The 检查 pill: its idle words, or a failed check's problem in their place (shell::show_problem).
+PILL = ("手动检查", "自动检查", "识别还没准备好", "读不到屏幕", "检查失败")
 # Clicks that do nothing by design (v1.0.1 the same): a 记录 seat on neither list.
-NO_EFFECT: set[str] = set()  # (none seeded now: 心动星星 is a 嘉宾 too, so 添加组合 has the two it waits for)
+NO_EFFECT = {"标签", "原因"}  # 黑名单 columns that do not sort (v1.0.1 the same)
 SEGMENTS = {"基础模式", "完整模式", "自动", "手动", "关闭", "开启"}
 GW_HWNDNEXT, GA_ROOT = 2, 2
 WS_EX = {0x8: "TOPMOST", 0x20: "TRANSPARENT", 0x80: "TOOLWINDOW", 0x80000: "LAYERED", 0x8000000: "NOACTIVATE",
@@ -298,7 +300,7 @@ class App:
         # that landed while the tree was being built folded a panel that was open).
         for _ in range(2):
             pill = next((c for c, _d in auto.WalkControl(self.main, maxDepth=30)
-                         if c.ControlTypeName == "ButtonControl" and c.Name.startswith(("手动检查", "自动检查"))), None)
+                         if c.ControlTypeName == "ButtonControl" and c.Name.startswith(PILL)), None)
             if pill is None:
                 notes.append("no 检查 pill seen")
                 return False
@@ -414,7 +416,7 @@ def click_buttons(app: App, page: str = "") -> None:
     for control, _depth in auto.WalkControl(app.main, maxDepth=30):
         # The 检查 pill opens the panel over the page (its own checks cover it): clicked here it left the panel open,
         # and the next page or menu could not be reached.
-        pill = control.Name.startswith(("手动检查", "自动检查"))
+        pill = control.Name.startswith(PILL)
         if control.ControlTypeName == "ButtonControl" and control.Name not in SKIP | PANEL | NO_EFFECT and not pill:
             r = control.BoundingRectangle
             if r.width() > 2 and r.height() > 2 and not control.IsOffscreen:
@@ -422,7 +424,7 @@ def click_buttons(app: App, page: str = "") -> None:
     # The 检查 pill last: it folds the panel away, and the panel's buttons with it.
     # A menu (more) or the tag already chosen (全部) last but one: an open menu eats the next click, and 全部 changes
     # nothing until another tag was picked.
-    buttons.sort(key=lambda item: 2 if item[0].startswith(("手动检查", "自动检查")) else 1 if item[0] in ("more", "全部") else 0)
+    buttons.sort(key=lambda item: 2 if item[0].startswith(PILL) else 1 if item[0] in ("more", "全部") else 0)
     notes.append(f"buttons seen by UIAutomation on {page or 'the start page'}: {[name for name, _ in buttons]}")
     if not buttons:
         record("main-window buttons", False, "UIAutomation sees no button")
@@ -726,15 +728,17 @@ def tray(app: App) -> None:
     if not icon:
         record("tray", False, "no tray window (BlacklistDetectTray)")
         return
-    user32.ShowWindow(app.hwnd, 0)  # SW_HIDE: as when the window goes to the tray
+    # The window's X, as the player closes it: with 关闭时 at its default (to the tray) the app hides it itself.
+    # (ShowWindow from outside left the app thinking it was shown, so nothing brought it back.)
+    user32.PostMessageW(app.hwnd, 0x0010, 0, 0)
     time.sleep(0.5)
     user32.PostMessageW(icon, TRAY_CALLBACK, 0, 0x0400)  # NIN_SELECT: a click on the icon
     end = time.time() + 5
     while time.time() < end and not user32.IsWindowVisible(app.hwnd):
         time.sleep(0.3)
     record("tray icon click shows the window", bool(user32.IsWindowVisible(app.hwnd)), "")
-    user32.ShowWindow(app.hwnd, 0)
-    time.sleep(0.5)
+    user32.PostMessageW(app.hwnd, 0x0010, 0, 0)
+    time.sleep(0.8)
     picked = tray_menu_item(app, icon, "显示主窗口")
     end = time.time() + 5
     while time.time() < end and not user32.IsWindowVisible(app.hwnd):
