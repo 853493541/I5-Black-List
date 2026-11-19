@@ -29,7 +29,8 @@ jobs:
         with:
           components: clippy
       - name: Stage unit tests and the window on WARP
-        run: cargo test -p stage -- --nocapture --test-threads=1 --skip every_scene_reaches_the_desktop
+        # frame_time_at_1080p times WARP on a shared runner (2.0 to 2.6 s a frame from run to run); rust.yml keeps it.
+        run: cargo test -p stage -- --nocapture --test-threads=1 --skip every_scene_reaches_the_desktop --skip frame_time_at_1080p
       - name: Every scene on the desktop
         run: cargo test -p stage --test windows_desktop -- --nocapture --test-threads=1
       - name: Clippy
