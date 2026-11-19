@@ -10,8 +10,8 @@ use std::path::{Path, PathBuf};
 pub const ON: bool = cfg!(feature = "preview");
 /// The preview's name: window title, tray, log.
 /// The preview's name: window title, tray, log, folder and artifact. Each preview has its own (this is the user's
-/// "Nov v2"); the data folder and key stay the same, so a later preview keeps the data this one copied.
-pub const NAME: &str = "模仿者小工具 Rust 预览 11月 v2";
+/// "Nov v3"); the data folder and key stay the same, so a later preview keeps the data this one copied.
+pub const NAME: &str = "模仿者小工具 Rust 预览 11月 v3";
 /// Its data folder in %APPDATA%, beside v1.0.1's BlackListDetect.
 pub const FOLDER: &str = "BlackListDetect-RustPreview";
 /// What its single-instance key ends with, so it never answers for v1.0.1 or the other way round.
@@ -38,7 +38,7 @@ pub fn install() {
     }
 }
 
-/// The version as the window title ("模仿者小工具 " + this) and 关于 show it: "Rust 预览 11月 v2 (0.1.0)".
+/// The version as the window title ("模仿者小工具 " + this) and 关于 show it: "Rust 预览 11月 v3 (0.1.0)".
 pub fn shown_version(version: &str, on: bool) -> String {
     if on {
         format!("{} ({version})", NAME.trim_start_matches("模仿者小工具 "))
