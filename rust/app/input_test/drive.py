@@ -754,6 +754,53 @@ def tray_quit(app: App) -> None:
     record("tray menu › 退出 ends the app", picked and app.proc.poll() is not None, f"menu item found {picked}")
 
 
+def dialog_buttons(app: App, tab: str, opener: str, leave: set[str]) -> None:
+    """A dialog opened from a page, and every button in it: each must redraw the dialog or open a window."""
+    if not open_tab(app, tab):
+        record(f"{opener} dialog", False, "tab not reachable")
+        return
+    button = app.main.ButtonControl(Name=opener, searchDepth=30)
+    if not button.Exists(2, 0.3):
+        record(f"{opener} dialog", False, "UIAutomation does not see the button")
+        return
+    windows = set(own_windows(app.proc.pid))
+    click(*center(button))
+    time.sleep(1.2)
+    opened = [h for h in own_windows(app.proc.pid) if h not in windows]
+    record(f"{opener} dialog opens", bool(opened), window_info(opened[0]) if opened else "")
+    if not opened:
+        return
+    dialog = opened[0]
+    root = auto.ControlFromHandle(dialog)
+    names = [c.Name for c, _ in auto.WalkControl(root, maxDepth=30) if c.ControlTypeName == "ButtonControl" and c.Name]
+    notes.append(f"{opener} buttons: {names}")
+    for name in dict.fromkeys(names):
+        if name in leave or name in SKIP:
+            continue
+        control = root.ButtonControl(Name=name, searchDepth=30)
+        if not control.Exists(1, 0.3) or not user32.IsWindowVisible(dialog):
+            continue
+        user32.SetForegroundWindow(dialog)
+        x, y = center(control)
+        move(x, y)
+        time.sleep(0.3)
+        before, now = grab(dialog), set(own_windows(app.proc.pid))
+        click(x, y)
+        time.sleep(1.2)
+        new = [h for h in own_windows(app.proc.pid) if h not in now]
+        shown = user32.IsWindowVisible(dialog) and differs(before, grab(dialog))
+        closed = not user32.IsWindowVisible(dialog)
+        record(f"{opener}: button {name!r}", bool(new) or shown or closed, f"windows opened {len(new)}, redrawn {shown}, closed {closed}")
+        for hwnd in new:
+            user32.PostMessageW(hwnd, 0x0010, 0, 0)
+        time.sleep(0.5)
+        if closed:
+            break
+    if user32.IsWindowVisible(dialog):
+        user32.PostMessageW(dialog, 0x0010, 0, 0)
+        time.sleep(0.8)
+
+
 def settings_sections(app: App) -> None:
     """Every section of 设置 and every button in it (清空数据 left out; 导出 has its own check)."""
     for section in ("常规", "帮助", "关于"):
@@ -852,6 +899,9 @@ def main() -> int:
         app.snapshot("after-segments")
         guarded(open_dialog, app)
         guarded(open_dialog, app, "直播模式说明")
+        # 直播模式 on and off again (the panel's third row): settings.json stream_mode "on" / "".
+        guarded(change_segment, app, "开启", "stream_mode", "on")
+        guarded(change_segment, app, "关闭", "stream_mode", "")
         app.front()
         guarded(click_buttons, app)
         guarded(click_pages, app)
@@ -862,6 +912,7 @@ def main() -> int:
         guarded(eye, app)
         guarded(row_menus, app)
         guarded(guest_menus, app)
+        guarded(dialog_buttons, app, "嘉宾", "场景管理", {"播放", "预览", "试听"})
         app.front()
         guarded(press_hotkey, app)
         guarded(capture_hotkey, app)
