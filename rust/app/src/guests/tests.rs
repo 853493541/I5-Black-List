@@ -231,3 +231,32 @@ fn shots_lists() -> Case {
         }],
     }
 }
+
+#[test]
+fn guest_actions_change_the_store_as_v1_does() {
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("likes.json"),
+        r#"{"likes": [{"name": "甲", "nickname": "", "reason": ""}, {"name": "乙", "nickname": "小乙", "reason": ""},
+            {"name": "丙", "nickname": "", "reason": ""}], "combos": [{"names": ["甲", "乙"]}]}"#,
+    )
+    .unwrap();
+    let mut store = data::store::Store::open(Some(dir.path().to_path_buf()), data::store::Clock::default());
+    let names = |store: &data::store::Store| store.likes.iter().map(|l| l.name.clone()).collect::<Vec<_>>();
+    let copied = effect(&mut store, &GuestAction::CopyName(0)).unwrap().unwrap();
+    assert_eq!((copied.copy.as_deref(), copied.say.as_str(), copied.changed), (Some("甲"), "已复制「甲」", false));
+    assert!(effect(&mut store, &GuestAction::CopyList).unwrap().unwrap().copy.unwrap().contains("乙"));
+    assert!(effect(&mut store, &GuestAction::ToTop(0)).unwrap().unwrap().changed);
+    assert_eq!(names(&store), ["乙", "丙", "甲"]);
+    assert!(effect(&mut store, &GuestAction::Move { index: 2, to: 0 }).unwrap().unwrap().changed);
+    assert_eq!(names(&store), ["甲", "乙", "丙"]);
+    assert_eq!(effect(&mut store, &GuestAction::DeleteCombo(0)).unwrap().unwrap().say, "已删除组合「甲 + 乙」");
+    assert!(store.combos.is_empty());
+    let deleted = effect(&mut store, &GuestAction::DeleteGuest(1)).unwrap().unwrap();
+    assert_eq!(deleted.say, "已删除「小乙」");
+    assert_eq!(names(&store), ["甲", "丙"]);
+    let reopened = data::store::Store::open(Some(dir.path().to_path_buf()), data::store::Clock::default());
+    assert_eq!(names(&reopened), ["甲", "丙"], "saved to likes.json");
+    assert!(effect(&mut store, &GuestAction::DeleteGuest(9)).is_none());
+    assert!(effect(&mut store, &GuestAction::AddGuest).is_none());
+}

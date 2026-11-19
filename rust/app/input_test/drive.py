@@ -37,13 +37,15 @@ user32.SendMessageTimeoutW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WP
 
 FOLDER = "BlackListDetect-RustPreview"
 # The title bar's own buttons and what would end the run or close the window under test.
-SKIP = {"退出", "清空数据", "清空", "导出", "隐藏名字", "显示名字", "名字", "最小化", "关闭", "Minimize", "Maximize", "Restore", "Close", "还原", "最大化"}
+SKIP = {"退出", "清空数据", "清空", "导出", "隐藏名字", "显示名字", "名字", "最近遇到", "最小化", "关闭", "Minimize", "Maximize", "Restore", "Close", "还原", "最大化"}
 # In the 检查 panel, which any click outside it folds away: tested on their own, the panel opened first.
 PANEL = {"显示说明", "直播模式说明", "快捷键"}
 # The 检查 pill: its idle words, or a failed check's problem in their place (shell::show_problem).
 PILL = ("手动检查", "自动检查", "识别还没准备好", "读不到屏幕", "检查失败")
+# A scene's play buttons: by their words, or by their icon's name (IconButton is named by its icon).
+PLAY = ("播放", "预览", "试听", "play", "preview")
 # Clicks that do nothing by design (v1.0.1 the same): a 记录 seat on neither list.
-NO_EFFECT = {"标签", "原因"}  # 黑名单 columns that do not sort (v1.0.1 the same)
+NO_EFFECT = {"标签", "原因", "20:30"}  # columns that do not sort; 记录's newest check, already the one shown
 SEGMENTS = {"基础模式", "完整模式", "自动", "手动", "关闭", "开启"}
 GW_HWNDNEXT, GA_ROOT = 2, 2
 WS_EX = {0x8: "TOPMOST", 0x20: "TRANSPARENT", 0x80: "TOOLWINDOW", 0x80000: "LAYERED", 0x8000000: "NOACTIVATE",
@@ -219,7 +221,8 @@ class App:
         seats = [{"seat": i + 1, "name": name, "unclear": False} for i, name in enumerate(["示例坏人", "心动小鹿", "心动星星"])]
         (old / "history.json").write_text(json.dumps(
             {"scans": [{"at": "2026-11-18T20:30:00+08:00", "elapsed": 1.2, "names": seats},
-                       {"at": "2026-11-18T19:00:00+08:00", "elapsed": 1.1, "names": seats}]}, ensure_ascii=False), encoding="utf-8")
+                       {"at": "2026-11-18T19:00:00+08:00", "elapsed": 1.1,
+                        "names": seats + [{"seat": 4, "name": "测试甲", "unclear": False}]}]}, ensure_ascii=False), encoding="utf-8")
         self.proc = subprocess.Popen([exe], env=env, cwd=str(home))
         self.log = self.data / "logs" / "app.log"
         self.main = None
@@ -597,14 +600,15 @@ def rows_in_order(app: App) -> list[str]:
     return [name for _, name in sorted(rows)]
 
 
-def sort_names(app: App) -> None:
-    """黑名单's 名字 column sorts the rows (ascending, then descending): the order on screen must change."""
+def sort_names(app: App, column: str = "名字") -> None:
+    """A 黑名单 column sorts the rows (one way, then the other): the order on screen must change. 最近遇到: 示例坏人 was
+    met in the seeded 记录, 测试甲 never."""
     if not open_tab(app, "黑名单"):
-        record("sort 名字", False, "tab not reachable")
+        record(f"sort {column}", False, "tab not reachable")
         return
-    header = app.main.ButtonControl(Name="名字", searchDepth=30)
+    header = app.main.ButtonControl(Name=column, searchDepth=30)
     if not header.Exists(2, 0.3):
-        record("sort 名字", False, "UIAutomation does not see the column")
+        record(f"sort {column}", False, "UIAutomation does not see the column")
         return
     x, y = center(header)
     seen = [rows_in_order(app)]
@@ -612,7 +616,7 @@ def sort_names(app: App) -> None:
         click(x, y)
         time.sleep(0.8)
         seen.append(rows_in_order(app))
-    record("sort 名字", len({tuple(order) for order in seen}) > 1 and all(len(o) == 2 for o in seen), f"orders {seen}")
+    record(f"sort {column}", len({tuple(order) for order in seen}) > 1 and all(len(o) == 2 for o in seen), f"orders {seen}")
 
 
 def eye(app: App) -> None:
@@ -805,6 +809,39 @@ def dialog_buttons(app: App, tab: str, opener: str, leave: set[str]) -> None:
         time.sleep(0.8)
 
 
+def preview_plays(app: App) -> None:
+    """场景管理's 播放/预览/试听: the scene plays (its log line) and the dialog's picture moves."""
+    if not open_tab(app, "嘉宾"):
+        record("场景管理 › 预览 plays", False, "tab not reachable")
+        return
+    opener = app.main.ButtonControl(Name="场景管理", searchDepth=30)
+    if not opener.Exists(2, 0.3):
+        record("场景管理 › 预览 plays", False, "UIAutomation does not see 场景管理")
+        return
+    windows = set(own_windows(app.proc.pid))
+    click(*center(opener))
+    time.sleep(1.2)
+    opened = [h for h in own_windows(app.proc.pid) if h not in windows]
+    if not opened:
+        record("场景管理 › 预览 plays", False, "no dialog")
+        return
+    dialog, root = opened[0], auto.ControlFromHandle(opened[0])
+    play = next((c for c, _ in auto.WalkControl(root, maxDepth=30)
+                 if c.ControlTypeName == "ButtonControl" and c.Name in PLAY), None)
+    if play is None:
+        record("场景管理 › 预览 plays", False, "no 播放/预览/试听 button")
+    else:
+        user32.SetForegroundWindow(dialog)
+        start, before = len(app.log_text()), grab(dialog)
+        click(*center(play))
+        playing = app.wait_log(": playing", start, 8)
+        moved = differs(before, grab(dialog))
+        line = next((ln for ln in app.log_text()[start:].splitlines() if "Preview" in ln), "")
+        record(f"场景管理 › {play.Name} plays", playing and moved, f"log {line[-120:]!r}; dialog redrawn {moved}")
+    user32.PostMessageW(dialog, 0x0010, 0, 0)
+    time.sleep(0.8)
+
+
 def settings_sections(app: App) -> None:
     """Every section of 设置 and every button in it (清空数据 left out; 导出 has its own check)."""
     for section in ("常规", "帮助", "关于"):
@@ -913,10 +950,12 @@ def main() -> int:
         guarded(settings_sections, app)
         guarded(clear_cancelled, app)
         guarded(sort_names, app)
+        guarded(sort_names, app, "最近遇到")
         guarded(eye, app)
         guarded(row_menus, app)
         guarded(guest_menus, app)
-        guarded(dialog_buttons, app, "嘉宾", "场景管理", {"播放", "预览", "试听"})
+        guarded(dialog_buttons, app, "嘉宾", "场景管理", set(PLAY))
+        guarded(preview_plays, app)
         app.front()
         guarded(press_hotkey, app)
         guarded(capture_hotkey, app)
