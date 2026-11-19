@@ -80,6 +80,9 @@ export component Glyph inherits Rectangle {
 
 // A QPushButton of the dialogs: "plain" (outlined), "primary" (filled accent) or "danger" (red outline).
 export component DialogButton inherits Rectangle {
+    // UIAutomation (and screen readers) see it as a button named by its words.
+    accessible-role: button;
+    accessible-label: label;
     in property <string> label;
     in property <string> kind: "plain";
     in property <string> glyph;
