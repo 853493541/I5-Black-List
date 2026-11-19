@@ -51,6 +51,15 @@ pub fn lobby(path: &Path) -> Vec<u8> {
     }
 }
 
+/// Why make_on gave nothing: a key this version does not have, or one that cannot be made on this PC.
+fn not_made(key: &str) -> String {
+    if stage::scene::KEYS.contains(&key) {
+        "it cannot be made on this PC (a missing font or picture, or the graphics chip)".into()
+    } else {
+        "this version has no such scene".into()
+    }
+}
+
 impl ScenePreview {
     pub fn new(lobby: Vec<u8>) -> Self {
         Self { gpu: None, off: None, lobby, playing: None, warming: None, notes: Vec::new() }
@@ -81,7 +90,7 @@ impl ScenePreview {
             return Ok(format!("its pictures are made on a thread, on {}", self.gpu.as_ref().map(Gpu::name).unwrap_or_default()));
         }
         let made = Instant::now();
-        let scene = make_on(key, &stage, gpu).ok_or("this version has no such scene")?;
+        let scene = make_on(key, &stage, gpu).ok_or_else(|| not_made(key))?;
         let said = format!("made in {:.0} ms on {}", made.elapsed().as_secs_f64() * 1000.0, gpu.name());
         self.install(key, scene);
         Ok(said)
@@ -107,7 +116,7 @@ impl ScenePreview {
                 self.notes.push(format!("Preview {key}: playing, made on a thread in {took:.0} ms"));
                 self.install(&key, scene);
             }
-            Ok(None) => self.notes.push(format!("Preview {key}: not played: this version has no such scene")),
+            Ok(None) => self.notes.push(format!("Preview {key}: not played: {}", not_made(&key))),
             Err(TryRecvError::Disconnected) => self.notes.push(format!("Preview {key}: not played: its pictures were not made")),
         }
         self.warming = None;
@@ -170,6 +179,11 @@ impl ScenePreview {
 mod tests {
     use super::*;
 
+    /// Whether 数学公式's fonts are on this machine (CI's Linux runner has none of them).
+    fn fonts_here() -> bool {
+        scenes::equation::text::Fonts::load().is_ok()
+    }
+
     /// Waits (up to 20 s) for a warmed scene's thread.
     fn wait(preview: &mut ScenePreview) -> bool {
         for _ in 0..800 {
@@ -224,6 +238,11 @@ mod tests {
             let said = preview.start(key);
             let answered = asked.elapsed().as_secs_f64();
             eprintln!("PREVIEW {key}: {said:?}, answered in {:.0} ms", answered * 1000.0);
+            if key == "equation" && !fonts_here() {
+                // 数学公式 needs Cambria Math and KaiTi (or their stand-ins); without them it says so.
+                assert!(said.is_err_and(|why| why.contains("cannot be made on this PC")), "{key}");
+                continue;
+            }
             assert!(said.is_ok(), "{key}");
             assert!(wait(&mut preview), "{key} never ready");
             assert!(preview.frame_at(1.5).is_some(), "{key}");
