@@ -495,6 +495,20 @@ def test_the_lyre_frames_the_lobby_in_jade_and_leaves_its_middle_bare(qapp):
     assert shot.pixelColor(round(stage.width / 2), round(stage.height * 0.15)).alpha() < 12, "the title is bare"
 
 
+def test_the_lyre_s_frame_runs_on_into_the_gap_and_fades_before_the_button(qapp):
+    """竖琴清风's jade frame does not stop at the gap round the button, leaving a dark hole beside the card and the
+    badge (the player saw it cut off): it runs on into the gap, under the card and the badge, and thins away just
+    before 准备案件还原, which stays bare."""
+    stage = sample_stage()
+    shot = _frames(stage, "lyre")[4]
+    gap, y = stage.gap, round(stage.height - 28)
+    for x in (gap.left() + 40, gap.left() + 80, stage.heart().x() + 10, gap.right() - 20):
+        color = shot.pixelColor(round(x), y)
+        assert color.alpha() > 120 and color.green() > color.red(), (x, color.alpha())
+    for x in (gap.center().x(), stage.heart().x() - 60):
+        assert shot.pixelColor(round(x), y).alpha() < 12, x
+
+
 def test_the_lyre_s_birds_sit_on_its_frame_and_never_over_the_lobby(qapp, monkeypatch):
     """竖琴清风's three teal birds: one on the lyre in the top left, one flying in to the curl in the top right, one
     among the cecilias in the bottom left. At no moment is one over the names, the cards, the title or the button."""

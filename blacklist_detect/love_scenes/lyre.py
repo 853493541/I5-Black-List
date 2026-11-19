@@ -98,7 +98,8 @@ BREATH = 2.8
 
 
 def make(stage: Stage):  # noqa: ANN201
-    width, height, gap = stage.width, stage.height, stage.gap
+    width, height = stage.width, stage.height
+    button = _button(stage)
     u = stage.unit()
 
     def at(x: float, y: float, side: bool = False) -> QPointF:
@@ -125,8 +126,8 @@ def make(stage: Stage):  # noqa: ANN201
     run = _arclen(route)
     normals = _normals(route)
     strands = _strand_lines(lambda x, y: lyre_pt(x, y, still_angle), xy, u)
-    # Where light may run along the current: not where it thins away into the gap round the button.
-    open_run = ~((route[:, 1] > height - 60 * u) & (route[:, 0] > gap.left() - 50 * u) & (route[:, 0] < gap.right() + 50 * u))
+    # Where light may run along the current: on into the gap, not where it thins away beside the marks.
+    open_run = _bare(route[:, 0], route[:, 1], button, u) > 0.5 if not button.isEmpty() else np.ones(len(route), dtype=bool)
 
     # (x, y, its angle, length, seed, kept to the side's height, drift in points a second, the way the breeze takes it)
     feathers = [
@@ -200,7 +201,7 @@ def make(stage: Stage):  # noqa: ANN201
         made = _made_near(shape, want) or _pictures(shape, want, jobs)
         # Drawn from pictures made for another sharpness (直播画面 from the screen's), sized by theirs.
         scale = made.scale
-        art = made.bared(made.upto(t), gap, u)
+        art = made.bared(made.upto(t), button, u)
         px = 2 * scale  # sprite pixels per point
         leave = smooth(0.0, 1.0, win(t, 4.4, 5.0))
         fade = 1 - leave
@@ -373,7 +374,7 @@ def make(stage: Stage):  # noqa: ANN201
         the border starts the scene once they are, so its entrance plays from its first frame."""
         made = _pictures(shape, round(scale, 2), jobs)
         made.finish()
-        made.bared(made.art, gap, u)
+        made.bared(made.art, button, u)
 
     paint.warm = warm
     return paint
@@ -465,9 +466,9 @@ def _made_near(shape: tuple, scale: float) -> _Pictures | None:
 
 
 def _cut_gap(tiles: list, gap: QRectF, u: float, scale: float) -> list:
-    """Squares (where, picture, ...) with the gap bare: those near it faded as _bare has it, those in it left out,
-    the rest as they are."""
-    reach = 46 * u
+    """Squares (where, picture, ...) with the button (gap here) bare: those near it faded as _bare has it, those on it
+    left out, the rest as they are."""
+    reach = FADE[1] * u
     out = []
     for tile in tiles:
         rect, image = tile[0], tile[1]
@@ -881,11 +882,27 @@ def _tiles(color: np.ndarray, alpha: np.ndarray, scale: float, size: int = 128, 
     return out
 
 
-def _bare(xs: np.ndarray, ys: np.ndarray, gap: QRectF, u: float) -> np.ndarray:
-    """1 away from the gap round the button, fading to 0 in it."""
-    dx = np.maximum(np.maximum(gap.left() - xs, xs - gap.right()), 0)
-    dy = np.maximum(gap.top() - ys, 0)
-    return smooth(0.0, 46 * u, np.hypot(dx, dy))
+# Where the frame thins away toward the button: gone this near it, whole this far off (in points). The card and the
+# badge beside the button are windows of their own over the scene, so the frame runs on under them, fading.
+FADE = (4.0, 46.0)
+
+
+def _button(stage: Stage) -> QRectF:
+    """准备案件还原 in the gap round the button and its marks: right of the card, ending just left of the badge."""
+    gap, u = stage.gap, stage.unit()
+    if gap.isEmpty():
+        return QRectF()
+    right = min(stage.heart().x() - 40 * u, gap.right() - 28 * u)
+    left = max(gap.left() + 0.36 * gap.width(), right - 0.6 * gap.width())
+    return QRectF(left, gap.top() + 30 * u, max(right - left, 0.0), gap.height() - 30 * u)
+
+
+def _bare(xs: np.ndarray, ys: np.ndarray, button: QRectF, u: float) -> np.ndarray:
+    """1 away from the button, thinning to 0 just before it: the frame runs on into the gap round it and fades out
+    there, like mist, instead of stopping at the gap's edge."""
+    dx = np.maximum(np.maximum(button.left() - xs, xs - button.right()), 0)
+    dy = np.maximum(button.top() - ys, 0)
+    return smooth(FADE[0] * u, FADE[1] * u, np.hypot(dx, dy))
 
 
 def _grid(w: int, h: int) -> tuple[np.ndarray, np.ndarray]:
