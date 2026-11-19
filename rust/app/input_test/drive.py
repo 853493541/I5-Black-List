@@ -37,7 +37,7 @@ user32.SendMessageTimeoutW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WP
 
 FOLDER = "BlackListDetect-RustPreview"
 # The title bar's own buttons and what would end the run or close the window under test.
-SKIP = {"退出", "清空数据", "导出", "最小化", "关闭", "Minimize", "Maximize", "Restore", "Close", "还原", "最大化"}
+SKIP = {"退出", "清空数据", "导出", "隐藏名字", "显示名字", "最小化", "关闭", "Minimize", "Maximize", "Restore", "Close", "还原", "最大化"}
 # In the 检查 panel, which any click outside it folds away: tested on their own, the panel opened first.
 PANEL = {"显示说明", "直播模式说明", "快捷键"}
 # Clicks that do nothing by design (v1.0.1 the same): a 记录 seat on neither list.
@@ -567,8 +567,38 @@ def row_menus(app: App) -> None:
     copied = lambda before: (clipboard() == "示例坏人", f"clipboard {clipboard()!r}")
     menu_item(app, "row", "示例坏人", "编辑", opened)
     menu_item(app, "row", "示例坏人", "复制名字", copied)
-    menu_item(app, "button", "挂机", "删除", lambda before: ("挂机" not in app.list_file(), f"blacklist.json: {app.list_file()[:120]!r}"))
+    def tag_gone(before):
+        # 删除 a tag asks first (ui._remove_tag): answer the question, then the tag must be gone from the list.
+        for hwnd in set(own_windows(app.proc.pid)) - before["windows"]:
+            yes = auto.ControlFromHandle(hwnd).ButtonControl(Name="删除", searchDepth=30)
+            if yes.Exists(1, 0.3):
+                click(*center(yes))
+                time.sleep(1)
+        return "挂机" not in app.list_file(), f"blacklist.json: {app.list_file()[:120]!r}"
+
+    menu_item(app, "button", "挂机", "删除", tag_gone)
     menu_item(app, "row", "示例坏人", "删除", lambda before: ("示例坏人" not in app.list_file(), f"blacklist.json: {app.list_file()[:120]!r}"))
+
+
+def eye(app: App) -> None:
+    """黑名单's eye: names masked or shown, kept in settings.json (names_hidden), the button's name following."""
+    if not open_tab(app, "黑名单"):
+        record("eye 隐藏名字", False, "tab not reachable")
+        return
+    before = app.settings().get("names_hidden", False)
+    button = app.main.ButtonControl(Name="显示名字" if before else "隐藏名字", searchDepth=30)
+    if not button.Exists(2, 0.3):
+        record("eye 隐藏名字", False, "UIAutomation does not see the eye")
+        return
+    where = app.under(*center(button))
+    click(*center(button))
+    time.sleep(1)
+    after = app.settings().get("names_hidden", False)
+    renamed = app.main.ButtonControl(Name="隐藏名字" if before else "显示名字", searchDepth=30).Exists(1, 0.3)
+    record("eye 隐藏名字", after != before, f"names_hidden {before} -> {after}; button renamed {renamed}; under the click: {where}")
+    if after != before:
+        click(*center(button))  # back as it was
+        time.sleep(0.6)
 
 
 def settings_sections(app: App) -> None:
@@ -666,6 +696,7 @@ def main() -> int:
         click_pages(app)
         export_logs(app)
         settings_sections(app)
+        eye(app)
         row_menus(app)
         app.front()
         press_hotkey(app)

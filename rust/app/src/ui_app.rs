@@ -289,6 +289,27 @@ impl MainUi {
                 store.save_settings().ok()?;
             }
             UiEvent::Shell(ShellAction::PageShown(_)) => {}
+            UiEvent::List(ListAction::Copy { text, say }) => {
+                // 复制名字 / 复制名单 (ui._copy_text): the clipboard, then the toast.
+                #[cfg(windows)]
+                let copied = win::clipboard::set_text(text);
+                #[cfg(not(windows))]
+                let copied = !text.is_empty();
+                let words = if copied { say.as_str() } else { "复制失败，再试一次" };
+                self.window.global::<crate::ListData>().set_notice(words.into());
+                return Some(false);
+            }
+            UiEvent::Guests(crate::guests::GuestAction::Say(text)) => {
+                // ui._say on 嘉宾 (添加组合 with fewer than two 嘉宾): a toast that goes after a few seconds.
+                self.window.global::<crate::GuestsBridge>().set_notice(text.as_str().into());
+                let window = self.window.as_weak();
+                slint::Timer::single_shot(std::time::Duration::from_millis(2500), move || {
+                    if let Some(window) = window.upgrade() {
+                        window.global::<crate::GuestsBridge>().set_notice("".into());
+                    }
+                });
+                return Some(false);
+            }
             UiEvent::Shell(ShellAction::BeginHotkey) => {
                 self.hotkey_waiting.set(true);
                 self.key_note.borrow_mut().clear();

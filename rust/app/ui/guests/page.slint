@@ -21,6 +21,8 @@ export struct GuestRow {
 
 // Where the page's clicks go: src/guests/view.rs turns them into GuestActions.
 export global GuestsBridge {
+    // A word for the player at the foot of the page (ui._say), e.g. why 添加组合 does not open yet; "" for none.
+    in-out property <string> notice;
     callback search-edited(string);
     callback row-clicked(int);
     callback row-key(int, int);
@@ -332,6 +334,15 @@ export component GuestsPage inherits Rectangle {
             GuestButton { label: "场景管理"; p: p; clicked => { GuestsBridge.manage-scenes(); } }
             GuestButton { width: 86px; label: "添加嘉宾"; primary: true; p: p; clicked => { GuestsBridge.add-guest(); } }
         }
+    }
+    if GuestsBridge.notice != "": Rectangle {
+        x: (parent.width - self.width) / 2;
+        y: parent.height - self.height - 24px;
+        height: 40px;
+        width: notice-words.preferred-width + 32px;
+        border-radius: 8px;
+        background: dark ? #2d323b : #172033;
+        notice-words := Text { vertical-alignment: center; text: GuestsBridge.notice; font-size: 14px; color: #ffffff; }
     }
 }
 
