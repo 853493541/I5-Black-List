@@ -15,7 +15,7 @@ on:
         default: ""
 
 concurrency:
-  group: rust-input-${{ github.ref }}
+  group: rust-input-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: false
 
 jobs:
