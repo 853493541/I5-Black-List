@@ -1,6 +1,6 @@
 r"""Every outcome of a hotkey check is visible, on the preview as the player unzips it (the fix/rust-check-visible case).
 
-    python -I check_visible.py <preview folder> <exe name> <work folder> <report folder> <old onnxruntime.dll>
+    python -I check_visible.py <preview folder> <exe name> <work folder> <report folder> <folder for an older ORT>
 
 On a Windows runner, set to 1920x1080 before: a whole 16:9 lobby frame full-screen, Notepad in front, Alt+1 by SendInput.
 Asserted through the app's log ("Check 1 (hotkey): 12 seats read", "Header: <the pill's words>") and history.json:
@@ -228,6 +228,25 @@ def unready(name: str, exe: Path, work: Path, lobby: Lobby, notepad: subprocess.
         app.stop()
 
 
+def older_ort(folder: Path) -> Path:
+    """An onnxruntime.dll older than ours, from the first pip wheel (newest first) that ships one of its own."""
+    import zipfile
+    folder.mkdir(parents=True, exist_ok=True)
+    for version in ("1.22.0", "1.21.1", "1.20.1", "1.19.2", "1.18.1", "1.17.3"):
+        wheels = folder / version
+        subprocess.run([sys.executable, "-m", "pip", "download", "-q", f"onnxruntime=={version}", "--no-deps",
+                        "--only-binary=:all:", "--platform", "win_amd64", "--python-version", "3.11", "-d", str(wheels)],
+                       check=False)
+        for wheel in wheels.glob("*.whl"):
+            with zipfile.ZipFile(wheel) as archive:
+                name = next((n for n in archive.namelist() if n.lower().endswith("/onnxruntime.dll")), None)
+                if name:
+                    (folder / "onnxruntime.dll").write_bytes(archive.read(name))
+                    print(f"Older ONNX Runtime: {version} ({name})")
+                    return folder / "onnxruntime.dll"
+    raise SystemExit("no older onnxruntime.dll found in the wheels tried")
+
+
 def dll_imports(dll: Path) -> str:
     try:
         import pefile
@@ -239,7 +258,8 @@ def dll_imports(dll: Path) -> str:
 
 
 def main() -> int:
-    unpacked, exe_name, work, report, old_dll = (Path(arg) for arg in sys.argv[1:6])
+    unpacked, exe_name, work, report, old_folder = (Path(arg) for arg in sys.argv[1:6])
+    old_dll = older_ort(old_folder)
     # The player's unzip: a folder with spaces and Chinese, nested; the app is started from another working folder.
     preview = work / "解压 后的 文件夹" / f"{exe_name} 副本"
     shutil.rmtree(preview, ignore_errors=True)

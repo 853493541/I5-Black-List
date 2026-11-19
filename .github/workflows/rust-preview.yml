@@ -255,19 +255,12 @@ jobs:
           reg add "HKCU\Control Panel\Desktop" /v Win8DpiScaling /t REG_DWORD /d 1 /f
           Add-Type -AssemblyName System.Windows.Forms
           [System.Windows.Forms.Screen]::AllScreens | Format-List | Out-String | Write-Output
-      - name: An older ONNX Runtime (1.16.3), as Windows ships one
-        run: |
-          python -m pip install -q pillow pefile
-          # The official build (old pip wheels have no onnxruntime.dll of their own).
-          mkdir -p "$RUNNER_TEMP/old-ort"
-          curl -sSfL -o "$RUNNER_TEMP/old-ort/ort.zip" \
-            https://github.com/microsoft/onnxruntime/releases/download/v1.16.3/onnxruntime-win-x64-1.16.3.zip
-          unzip -q -j "$RUNNER_TEMP/old-ort/ort.zip" '*/lib/onnxruntime.dll' -d "$RUNNER_TEMP/old-ort"
-          ls -la "$RUNNER_TEMP/old-ort"
+      - name: Tools
+        run: python -m pip install -q pillow pefile
       - name: Check visible
         run: |
           python -I rust/app/input_test/check_visible.py "$RUNNER_TEMP/preview/$APP_NAME" "$APP_NAME" \
-            "$RUNNER_TEMP/visible-work" "$RUNNER_TEMP/visible-report" "$RUNNER_TEMP/old-ort/onnxruntime.dll"
+            "$RUNNER_TEMP/visible-work" "$RUNNER_TEMP/visible-report" "$RUNNER_TEMP/old-ort"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
