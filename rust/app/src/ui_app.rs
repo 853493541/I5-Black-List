@@ -415,7 +415,9 @@ impl MainUi {
 
     /// What happened that the log should keep (each preview click's outcome), taken once.
     pub fn notes(&self) -> Vec<String> {
-        std::mem::take(&mut self.notes.borrow_mut())
+        let mut notes = std::mem::take(&mut *self.notes.borrow_mut());
+        notes.append(&mut self.preview.borrow_mut().notes);
+        notes
     }
 
     /// A 播放 / 预览 click in the open dialog: the scene plays in its preview. None for any other event.
