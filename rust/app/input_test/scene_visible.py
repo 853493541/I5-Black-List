@@ -200,12 +200,41 @@ def clicks_work(hwnd: int, lobby, when: str, report: Path) -> None:
             points.append(f"({x},{y}){'*' if moved else ''}{'' if mine else ' over ' + named(target)}")
     grab(hwnd).save(report / f"main-{when}.png")
     print(f"  {when}: {thread_state(hwnd)}")
+    # A grid point can land on a row and open its dialog (编辑嘉宾): closed, so the tabs and the next way back see the
+    # main window and not the dialog.
+    closed = close_dialogs(hwnd, lobby)
     # A blind grid can land on empty space only; the header's page tabs always change the page when another is picked.
     tabs, switched = tab_clicks(hwnd, lobby)
+    closed += close_dialogs(hwnd, lobby)
+    if closed:
+        print(f"  INFO closed the app's dialogs the clicks opened: {closed}")
     print(f"  INFO grid clicks {when}: {changed} of 9 changed {cv.title(hwnd)!r}: {' '.join(points)}")
     cv.record(f"clicks on the main window work {when}", switched > 0 and answers(hwnd),
               f"{switched} of {len(tabs)} page tab clicks changed the page: {' '.join(tabs)}; "
               f"grid {changed} of 9; answers {answers(hwnd)}; IsHungAppWindow {bool(user32.IsHungAppWindow(hwnd))}")
+
+
+def close_dialogs(hwnd: int, lobby) -> list[str]:
+    """WM_CLOSE to every other visible top-level 'Window Class' window of the app (its dialogs); their titles."""
+    pid = wintypes.DWORD()
+    user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    found: list[int] = []
+
+    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    def each(other, _):
+        owner = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(other, ctypes.byref(owner))
+        if owner.value == pid.value and other != hwnd and user32.IsWindowVisible(other) and class_name(other) == "Window Class":
+            found.append(other)
+        return True
+
+    user32.EnumWindows(each, 0)
+    titles = [cv.title(other) for other in found]
+    for other in found:
+        user32.PostMessageW(other, 0x0010, 0, 0)  # WM_CLOSE
+    if found:
+        lobby.pump(0.6)
+    return titles
 
 
 def tab_clicks(hwnd: int, lobby) -> tuple[list[str], int]:
