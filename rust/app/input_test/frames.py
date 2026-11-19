@@ -77,6 +77,14 @@ def buttons_in_view(hwnd: int, name: str, labels: list[str]) -> None:
               f"button ({r.left},{r.top},{r.right},{r.bottom}), window ({left},{top},{right},{bottom}), screen {screen[2:]}")
 
 
+def on_screen(hwnd: int, name: str) -> None:
+    """The whole dialog window is on the screen, so the buttons inside it are too (no UIAutomation needed)."""
+    left, top, right, bottom = window_rect(hwnd)
+    width, height = user32.GetSystemMetrics(78), user32.GetSystemMetrics(79)
+    ok = left >= 0 and top >= 0 and right <= width and bottom <= height
+    check(f"{name}: the whole window is on the screen", ok, f"window ({left},{top},{right},{bottom}), screen {width}x{height}")
+
+
 def new_window(app: App, before: set[int], wait: float = 5.0) -> int:
     end = time.time() + wait
     while time.time() < end:
@@ -136,10 +144,18 @@ def main() -> int:
         time.sleep(3)
         record("main window style (v1.0.1's main window has a native frame)", True, window_info(app.hwnd))
         shoot(app.hwnd, out, "main")
+        # The player's build has no accessibility (the `a11y` feature, rust/app/Cargo.toml): UIAutomation sees no
+        # controls in it, so without a11y only what window handles tell is checked (frame, place, on screen).
+        a11y = any(c.Name for c, _d in drive.auto.WalkControl(app.main, maxDepth=4))
+        record("UIAutomation sees the controls (an a11y build)", True, str(a11y))
         others = [h for h in own_windows(app.proc.pid) if h != app.hwnd and "使用声明" in window_info(h)]
         check("使用声明 opens at the first start", bool(others), f"windows: {[window_info(h) for h in own_windows(app.proc.pid)]}")
         if others:
             frameless_over_main(app, others[0], "使用声明")
+            on_screen(others[0], "使用声明")
+            if not a11y:
+                record("显示说明, 添加嘉宾, 场景管理", True, "skipped: opening them needs an a11y build (rust-input.yml builds one)")
+                return 0 if record_only else len(FAILED)
             buttons_in_view(others[0], "使用声明", ["同意并继续", "不同意"])
             agree(app, others[0])
         user32.SetForegroundWindow(app.hwnd)
