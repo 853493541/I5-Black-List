@@ -52,13 +52,20 @@ jobs:
         with:
           python-version: "3.12"
 
-      # OpenCV 4.10 static with IPP and /MT, as in rust.yml (same cache key, so either workflow's build is reused).
+      # The driver's packages first, so both drive steps have them even when a build or test step before them fails.
+      - name: Driver's Python packages
+        working-directory: .
+        run: python -m pip install -q uiautomation==2.0.20 pillow
+
+      # OpenCV 4.10 static with IPP and /MT, as in rust.yml, under a key of its own: rust.yml runs on windows-latest
+      # (MSVC 14.52), and a lib built there needs STL symbols windows-2022's MSVC 14.44 lacks (LNK2019
+      # __std_find_first_not_of_trivial_pos_1, run 44483172666).
       - name: Cache OpenCV
         id: opencv-cache
         uses: actions/cache/restore@v4
         with:
           path: C:\opencv-static
-          key: opencv-${{ env.OPENCV_VERSION }}-static-ipp-mt-v1
+          key: opencv-${{ env.OPENCV_VERSION }}-static-ipp-mt-vs2022-v1
       - name: Build OpenCV static
         if: steps.opencv-cache.outputs.cache-hit != 'true'
         working-directory: ${{ runner.temp }}
@@ -82,7 +89,7 @@ jobs:
         if: steps.opencv-cache.outputs.cache-hit != 'true'
         with:
           path: C:\opencv-static
-          key: opencv-${{ env.OPENCV_VERSION }}-static-ipp-mt-v1
+          key: opencv-${{ env.OPENCV_VERSION }}-static-ipp-mt-vs2022-v1
       - name: Point the opencv crate at it
         run: |
           libdir=$(dirname "$(find /c/opencv-static -name 'opencv_core*.lib' | head -1)")
@@ -130,7 +137,6 @@ jobs:
       - name: Real input
         working-directory: .
         run: |
-          python -m pip install -q uiautomation==2.0.20 pillow
           python -I rust/app/input_test/drive.py "$GITHUB_WORKSPACE/rust/target/release/blacklist-detect.exe" \
             "$RUNNER_TEMP/input-home" "$RUNNER_TEMP/input-report"
       - name: Bare checks (what the shipped-v1 job checks, on this build)
