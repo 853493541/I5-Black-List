@@ -17,6 +17,15 @@ pub fn handle(runner: &mut Runner, event: &UiEvent) -> bool {
             let value = if *on { "on" } else { "" }.to_string();
             setting(runner, |s| replace(&mut s.stream_mode, value))
         }
+        UiEvent::Shell(ShellAction::AnswerDisclaimer(true)) => {
+            runner.log.info("使用声明 agreed to.");
+            setting(runner, |s| replace(&mut s.disclaimer_accepted, true))
+        }
+        UiEvent::Shell(ShellAction::AnswerDisclaimer(false)) => {
+            runner.log.info("使用声明 declined: closing.");
+            let _ = slint::quit_event_loop();
+            true
+        }
         UiEvent::Stream(StreamAction::EndQuickPlay) => {
             runner.flow.end_quick();
             true
@@ -64,7 +73,12 @@ pub fn handle(runner: &mut Runner, event: &UiEvent) -> bool {
 pub fn changes_pages(event: &UiEvent) -> bool {
     matches!(
         event,
-        UiEvent::Shell(ShellAction::SetSafeMode(_) | ShellAction::SetAutoCapture(_) | ShellAction::SetStreamMode(_))
+        UiEvent::Shell(
+            ShellAction::SetSafeMode(_)
+                | ShellAction::SetAutoCapture(_)
+                | ShellAction::SetStreamMode(_)
+                | ShellAction::AnswerDisclaimer(true)
+        )
             | UiEvent::Stream(StreamAction::SetStreamMode(_))
     )
 }
@@ -174,6 +188,7 @@ mod tests {
         ] {
             assert!(changes_pages(&event), "{event:?}");
         }
+        assert!(changes_pages(&UiEvent::Shell(ShellAction::AnswerDisclaimer(true))));
         assert!(!changes_pages(&UiEvent::Shell(ShellAction::BeginHotkey)));
         assert!(!changes_pages(&UiEvent::Settings(SettingsAction::ExportLogs)));
     }

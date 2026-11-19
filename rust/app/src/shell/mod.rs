@@ -217,6 +217,8 @@ pub enum ShellAction {
     TakeHotkey { text: String, ctrl: bool, alt: bool, shift: bool, win: bool },
     /// 直播模式: 开启 or 关闭.
     SetStreamMode(bool),
+    /// 使用声明 at the first start (MainWindow.show_first_run_guide): agreed to, or declined (the app closes).
+    AnswerDisclaimer(bool),
     /// ⓘ beside 显示: the two modes in pictures.
     ShowDisplayGuide,
     /// ⓘ beside 直播模式: how to set it up in 直播姬.

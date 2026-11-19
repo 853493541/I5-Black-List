@@ -284,6 +284,8 @@ fn basic_mode_with_stream_mode_draws_only_into_the_stream() {
 fn no_check_before_the_disclaimer_nor_while_one_runs() {
     let mut rig = Rig::new(Mode { disclaimer: false, ..full() }, vec![]);
     assert_eq!(rig.flow.hotkey(0.0), None);
+    assert!(rig.flow.log.iter().any(|line| line == "Hotkey: 使用声明 not agreed to yet, no check."));
+    assert!(!rig.flow.log.iter().any(|line| line.contains("busy")), "{:?}", rig.flow.log);
     rig.flow.mode.disclaimer = true;
     assert_eq!(rig.flow.hotkey(0.0), Some(Job::Check));
     assert_eq!(rig.flow.hotkey(0.1), None, "busy: the press is ignored");

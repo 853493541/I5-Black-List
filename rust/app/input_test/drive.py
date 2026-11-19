@@ -38,6 +38,8 @@ user32.SendMessageTimeoutW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WP
 FOLDER = "BlackListDetect-RustPreview"
 # The title bar's own buttons and what would end the run or close the window under test.
 SKIP = {"退出", "清空数据", "最小化", "关闭", "Minimize", "Maximize", "Restore", "Close", "还原", "最大化"}
+# In the 检查 panel, which any click outside it folds away: tested on their own, the panel opened first.
+PANEL = {"显示说明", "直播模式说明", "快捷键"}
 SEGMENTS = {"基础模式", "完整模式", "自动", "手动", "关闭", "开启"}
 GW_HWNDNEXT, GA_ROOT = 2, 2
 WS_EX = {0x8: "TOPMOST", 0x20: "TRANSPARENT", 0x80: "TOOLWINDOW", 0x80000: "LAYERED", 0x8000000: "NOACTIVATE",
@@ -173,6 +175,11 @@ class App:
         env = dict(os.environ, APPDATA=str(home), LOCALAPPDATA=str(home), USERPROFILE=str(home),
                    BLACKLIST_DETECT_SILENT="1")
         env.pop("BLACKLIST_DETECT_SOUND", None)
+        # A v1.0.1 folder with one made-up name: the preview copies it at its first start, so the pages have rows.
+        old = home / "BlackListDetect"
+        old.mkdir(parents=True, exist_ok=True)
+        (old / "blacklist.json").write_text(
+            json.dumps({"entries": [{"name": "示例坏人", "reason": "", "tags": []}]}, ensure_ascii=False), encoding="utf-8")
         self.proc = subprocess.Popen([exe], env=env, cwd=str(home))
         self.log = self.data / "logs" / "app.log"
         self.main = None
@@ -215,7 +222,13 @@ class App:
     def under(self, x: int, y: int) -> str:
         hit = user32.WindowFromPoint(wintypes.POINT(x, y))
         root = user32.GetAncestor(hit, GA_ROOT) if hit else 0
-        return "main window" if root == self.hwnd else "OTHER: " + (window_info(root) if root else "none")
+        if root == self.hwnd:
+            return "main window"
+        pid = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(root, ctypes.byref(pid))
+        if root and pid.value == self.proc.pid:
+            return "app window: " + window_info(root)
+        return "OTHER: " + (window_info(root) if root else "none")
 
     def close_extra(self, before: set[int]) -> int:
         """Closes the windows a click opened (a dialog), and says how many there were."""
@@ -268,6 +281,38 @@ def evidence(app: App, title: str) -> None:
     notes.extend("  " + line for line in z_order())
 
 
+def agree(app: App) -> None:
+    """A new data folder: 使用声明 opens over the window at start, and 同意并继续 lets checks run."""
+    button, dialog = None, 0
+    for hwnd in own_windows(app.proc.pid):
+        if hwnd == app.hwnd:
+            continue
+        found = auto.ControlFromHandle(hwnd).ButtonControl(Name="同意并继续", searchDepth=30)
+        if found.Exists(1, 0.3):
+            button, dialog = found, hwnd
+            break
+    if button is None:
+        seen = [window_info(h) for h in own_windows(app.proc.pid) if h != app.hwnd]
+        record("使用声明 opens at the first start", False, f"no window with 同意并继续; the app's other windows: {seen}")
+        return
+    x, y = center(button)
+    where_before = app.under(x, y)  # a 使用声明 behind the main window is one the player cannot answer
+    user32.SetForegroundWindow(dialog)
+    time.sleep(0.4)
+    where = app.under(x, y)
+    start = len(app.log_text())
+    click(x, y)
+    end, agreed = time.time() + 5, None
+    while time.time() < end and agreed is not True:
+        agreed = app.settings().get("disclaimer_accepted")
+        time.sleep(0.3)
+    on_top = where_before.startswith("app window")
+    record("使用声明 opens over the main window", on_top, f"under its button before any raise: {where_before}")
+    record("使用声明 opens at the first start and 同意并继续 is saved", agreed is True,
+           f"disclaimer_accepted={agreed!r}; under the button at first: {where_before}; after raising it: {where}; "
+           f"log: {app.log_text()[start:].strip()[-200:]!r}")
+
+
 def change_segment(app: App, label: str, key_name: str, wanted) -> None:
     control = app.segment("", label)
     if control is None:
@@ -298,7 +343,8 @@ def click_pages(app: App) -> None:
     tabs = [c.Name for c, _ in auto.WalkControl(app.main, maxDepth=30)
             if c.ControlTypeName == "TabItemControl" and c.Name not in SEGMENTS and c.Name]
     notes.append(f"page tabs seen by UIAutomation: {tabs}")
-    for name in dict.fromkeys(tabs):
+    tabs = list(dict.fromkeys(tabs))
+    for name in tabs[1:] + tabs[:1]:  # the page shown at start last, so each click changes the page
         app.front()
         tab = app.main.TabItemControl(Name=name, searchDepth=30)
         if not tab.Exists(2, 0.3):
@@ -315,10 +361,12 @@ def click_pages(app: App) -> None:
 def click_buttons(app: App, page: str = "") -> None:
     buttons = []
     for control, _depth in auto.WalkControl(app.main, maxDepth=30):
-        if control.ControlTypeName == "ButtonControl" and control.Name not in SKIP:
+        if control.ControlTypeName == "ButtonControl" and control.Name not in SKIP | PANEL:
             r = control.BoundingRectangle
             if r.width() > 2 and r.height() > 2:
                 buttons.append((control.Name, center(control)))
+    # The 检查 pill last: it folds the panel away, and the panel's buttons with it.
+    buttons.sort(key=lambda item: item[0].startswith(("手动检查", "自动检查")))
     notes.append(f"buttons seen by UIAutomation on {page or 'the start page'}: {[name for name, _ in buttons]}")
     if not buttons:
         record("main-window buttons", False, "UIAutomation sees no button")
@@ -346,11 +394,12 @@ def click_buttons(app: App, page: str = "") -> None:
                f"under the click: {where}")
 
 
-def open_dialog(app: App) -> None:
+def open_dialog(app: App, name: str = "显示说明") -> None:
+    app.front()
     app.open_panel()
-    info = app.main.ButtonControl(Name="显示说明", searchDepth=30)
+    info = app.main.ButtonControl(Name=name, searchDepth=30)
     if not info.Exists(3, 0.5):
-        record("dialog 显示说明", False, "UIAutomation does not see the button")
+        record(f"dialog {name}", False, "UIAutomation does not see the button")
         return
     windows = set(own_windows(app.proc.pid))
     click(*center(info))
@@ -359,21 +408,22 @@ def open_dialog(app: App) -> None:
         new = [h for h in own_windows(app.proc.pid) if h not in windows]
         time.sleep(0.3)
     if not new:
-        record("dialog 显示说明 opens", False, "no new window within 5 s")
+        record(f"dialog {name} opens", False, "no new window within 5 s")
         return
-    record("dialog 显示说明 opens", True, window_info(new[0]))
+    record(f"dialog {name} opens", True, window_info(new[0]))
     user32.PostMessageW(new[0], 0x0010, 0, 0)
     end = time.time() + 5
     while time.time() < end and user32.IsWindowVisible(new[0]):
         time.sleep(0.3)
-    record("dialog 显示说明 closes", not user32.IsWindowVisible(new[0]), "")
+    record(f"dialog {name} closes", not user32.IsWindowVisible(new[0]), "")
 
 
 def press_hotkey(app: App) -> None:
     start = len(app.log_text())
     send(key(0x12), key(0x31), key(0x31, True), key(0x12, True))  # Alt+1
-    ok = app.wait_log("Hotkey: 检查", start, 10)
+    ok = app.wait_log("Hotkey: 检查", start, 10) and app.wait_log("Hotkey: checking.", start, 2)
     tail = app.log_text()[start:].strip()
+    ok = ok and "busy" not in tail and "not agreed" not in tail  # the check really started
     record("hotkey Alt+1 starts a check", ok, f"log after the press: {tail[-300:]!r}")
 
 
@@ -411,7 +461,7 @@ def bare(app: App) -> None:
             x = rect.left + (rect.right - rect.left) * i // 6
             y = rect.top + 40 + (rect.bottom - rect.top - 40) * j // 5
             where = app.under(x, y)
-            if where != "main window":
+            if not where.startswith(("main window", "app window")):
                 missed.append(f"({x},{y}) {where}")
     record("clicks on a 5x4 grid reach the main window", not missed, "; ".join(missed[:4]) or "all 20 points")
     hung = bool(user32.IsHungAppWindow(app.hwnd))
@@ -439,6 +489,7 @@ def main() -> int:
             return finish(app)
         record("main window shows", True, window_info(app.hwnd))
         time.sleep(3)  # start-up work on the window's thread settles
+        agree(app)
         user32.SetForegroundWindow(app.hwnd)
         app.snapshot("start")
         evidence(app, "after start")
@@ -455,6 +506,7 @@ def main() -> int:
         change_segment(app, "基础模式", "safe_mode", True)
         app.snapshot("after-segments")
         open_dialog(app)
+        open_dialog(app, "直播模式说明")
         app.front()
         click_buttons(app)
         click_pages(app)

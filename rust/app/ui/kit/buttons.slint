@@ -12,6 +12,9 @@ import { Palette, Theme, Tokens, Motion } from "../theme.slint";
 import { LineIcon } from "icons.slint";
 
 export component KitButton inherits Rectangle {
+    // UIAutomation (and screen readers) see it as a button named by its words.
+    accessible-role: button;
+    accessible-label: label;
     in property <string> label;
     in property <string> kind: "plain";
     in property <bool> enabled: true;
