@@ -58,6 +58,8 @@ jobs:
 
   preview:
     needs: models
+    outputs:
+      app_name: ${{ steps.name.outputs.app_name }}
     runs-on: windows-latest
     timeout-minutes: 75
     defaults:
@@ -73,11 +75,13 @@ jobs:
       - uses: actions/checkout@v5
       # The build's name, from its one source: build_label! in rust/app/src/preview.rs (e.g. "11月 v3.2").
       - name: Build name
+        id: name
         working-directory: .
         run: |
           label=$(sed -n 's/^macro_rules! build_label { () => { "\(.*\)" }; }$/\1/p' rust/app/src/preview.rs)
           [ -n "$label" ] || { echo "::error::no build_label! in preview.rs"; exit 1; }
           echo "APP_NAME=模仿者小工具 Rust 预览 $label" | tee -a "$GITHUB_ENV"
+          echo "app_name=模仿者小工具 Rust 预览 $label" >> "$GITHUB_OUTPUT"
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-python@v5
         with:
@@ -162,6 +166,11 @@ jobs:
           mkdir -p "$out"
           cp rust/target/release/blacklist-detect.exe "$out/$APP_NAME.exe"
           cp "$ort" "$out/onnxruntime.dll"
+          # onnxruntime.dll imports the VC++ 2015-2022 runtime; a PC without that redistributable cannot load it, so the
+          # four DLLs ship app-local beside it (the runner's System32 copies, the latest redistributable).
+          for dll in MSVCP140.dll MSVCP140_1.dll VCRUNTIME140.dll VCRUNTIME140_1.dll; do
+            cp "/c/Windows/System32/$dll" "$out/$dll"
+          done
           mkdir -p "$out/models"
           cp -r "$RUNNER_TEMP/models/PP-OCRv5_mobile_det" "$RUNNER_TEMP/models/PP-OCRv5_mobile_rec" \
             "$RUNNER_TEMP/models/PP-OCRv6_medium_rec" "$out/models/"
@@ -219,7 +228,10 @@ jobs:
           grep -q "Preview: copied " "$log" || { echo "::error::the old list was not copied"; exit 1; }
           [ "$(sha1sum "$home/BlackListDetect/blacklist.json")" = "$before" ] || { echo "::error::old list changed"; exit 1; }
           [ ! -e "$home/BlackListDetect/logs" ] || { echo "::error::the preview wrote in the old folder"; exit 1; }
-          # The layout: all three models, the tunes as .ogg only, no .pdb in the folder.
+          # The layout: the VC++ runtime beside onnxruntime.dll, all three models, the tunes as .ogg only, no .pdb.
+          for dll in MSVCP140.dll MSVCP140_1.dll VCRUNTIME140.dll VCRUNTIME140_1.dll; do
+            [ -f "$PREVIEW_DIR/$dll" ] || { echo "::error::$dll missing beside the exe"; exit 1; }
+          done
           for model in PP-OCRv5_mobile_det PP-OCRv5_mobile_rec PP-OCRv6_medium_rec; do
             [ -f "$PREVIEW_DIR/models/$model/inference.onnx" ] || { echo "::error::$model missing"; exit 1; }
           done
@@ -323,4 +335,51 @@ jobs:
         with:
           name: ${{ env.APP_NAME }} o3 (test only)
           path: ${{ runner.temp }}/o3
+          retention-days: 14
+
+  # Every outcome of a hotkey check is visible (rust/app/input_test/check_visible.py), on this run's preview as the
+  # player unzips it: 1920x1080, a whole lobby frame full-screen, Notepad in front, Alt+1; then no models, a junk
+  # onnxruntime.dll, and only an older one on PATH (as Windows ML's in System32). Its own job: the preview job stays
+  # the preview worker's.
+  check-visible:
+    needs: preview
+    runs-on: windows-2022
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    env:
+      # The preview job's APP_NAME (the artifact's name and the folder in it), from build_label! in preview.rs.
+      APP_NAME: ${{ needs.preview.outputs.app_name }}
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}
+          path: ${{ runner.temp }}/preview
+      - name: Screen 1920x1080, 125 % asked
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          Set-DisplayResolution -Width 1920 -Height 1080 -Force
+          # 125 %: takes effect only after signing in again, which a runner cannot; the script reports what it got.
+          reg add "HKCU\Control Panel\Desktop" /v LogPixels /t REG_DWORD /d 120 /f
+          reg add "HKCU\Control Panel\Desktop" /v Win8DpiScaling /t REG_DWORD /d 1 /f
+          Add-Type -AssemblyName System.Windows.Forms
+          [System.Windows.Forms.Screen]::AllScreens | Format-List | Out-String | Write-Output
+      - name: Tools
+        run: python -m pip install -q pillow pefile
+      - name: Check visible
+        run: |
+          python -I rust/app/input_test/check_visible.py "$RUNNER_TEMP/preview/$APP_NAME" "$APP_NAME" \
+            "$RUNNER_TEMP/visible-work" "$RUNNER_TEMP/visible-report" "$RUNNER_TEMP/old-ort"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: check-visible-report
+          path: ${{ runner.temp }}/visible-report
           retention-days: 14

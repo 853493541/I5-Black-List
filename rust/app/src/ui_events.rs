@@ -19,6 +19,11 @@ use crate::settings::Action as SettingsAction;
 use crate::shell::ShellAction;
 use crate::stream::StreamAction;
 
+/// The log's line for an event the runner did not take: its shape, never its text (names, reasons, tags).
+pub fn log_line(event: &UiEvent) -> String {
+    format!("UI: {}", app::wiring::startup::without_text(&format!("{event:?}")))
+}
+
 /// One thing the player did, from whichever area.
 #[derive(Debug, Clone, PartialEq)]
 pub enum UiEvent {
@@ -205,4 +210,13 @@ mod tests {
         assert_eq!(bus.drain(), vec![UiEvent::List(ListAction::Undo), UiEvent::Shell(ShellAction::BeginHotkey)]);
         assert!(bus.drain().is_empty());
     }
+}
+
+#[test]
+fn a_logged_event_never_carries_a_name() {
+    use crate::history::Tone;
+    let event = UiEvent::History(HistoryAction::Seat { scan: 0, seat: 3, name: "示例坏人 \"x\"".into(), tone: Tone::Hit });
+    let line = log_line(&event);
+    assert!(!line.contains("示例坏人"), "{line}");
+    assert!(line.starts_with("UI: History(Seat { scan: 0, seat: 3, name: \"…\""), "{line}");
 }

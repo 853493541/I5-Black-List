@@ -37,11 +37,13 @@ user32.SendMessageTimeoutW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WP
 
 FOLDER = "BlackListDetect-RustPreview"
 # The title bar's own buttons and what would end the run or close the window under test.
-SKIP = {"退出", "清空数据", "导出", "最小化", "关闭", "Minimize", "Maximize", "Restore", "Close", "还原", "最大化"}
+SKIP = {"退出", "清空数据", "清空", "导出", "隐藏名字", "显示名字", "名字", "最小化", "关闭", "Minimize", "Maximize", "Restore", "Close", "还原", "最大化"}
 # In the 检查 panel, which any click outside it folds away: tested on their own, the panel opened first.
 PANEL = {"显示说明", "直播模式说明", "快捷键"}
+# The 检查 pill: its idle words, or a failed check's problem in their place (shell::show_problem).
+PILL = ("手动检查", "自动检查", "识别还没准备好", "读不到屏幕", "检查失败")
 # Clicks that do nothing by design (v1.0.1 the same): a 记录 seat on neither list.
-NO_EFFECT = {"心动星星"}
+NO_EFFECT = {"标签", "原因"}  # 黑名单 columns that do not sort (v1.0.1 the same)
 SEGMENTS = {"基础模式", "完整模式", "自动", "手动", "关闭", "开启"}
 GW_HWNDNEXT, GA_ROOT = 2, 2
 WS_EX = {0x8: "TOPMOST", 0x20: "TRANSPARENT", 0x80: "TOOLWINDOW", 0x80000: "LAYERED", 0x8000000: "NOACTIVATE",
@@ -207,9 +209,11 @@ class App:
         old = home / "BlackListDetect"
         old.mkdir(parents=True, exist_ok=True)
         (old / "blacklist.json").write_text(
-            json.dumps({"entries": [{"name": "示例坏人", "reason": "", "tags": ["挂机"]}]}, ensure_ascii=False), encoding="utf-8")
+            json.dumps({"entries": [{"name": "示例坏人", "reason": "", "tags": ["挂机"]},
+                                    {"name": "测试甲", "reason": "", "tags": []}]}, ensure_ascii=False), encoding="utf-8")
         # 心动小鹿 a 嘉宾, so its seat in 记录 opens the 嘉宾 dialog; 心动星星 stays on neither list (its click does nothing).
-        (old / "likes.json").write_text(json.dumps({"likes": [{"name": "心动小鹿", "nickname": "", "reason": ""}], "combos": []},
+        (old / "likes.json").write_text(json.dumps({"likes": [{"name": "心动小鹿", "nickname": "", "reason": ""},
+                                                             {"name": "心动星星", "nickname": "", "reason": ""}], "combos": []},
                                                    ensure_ascii=False), encoding="utf-8")
         # One made-up check in 记录, so its day, time and seat rows are there to click.
         seats = [{"seat": i + 1, "name": name, "unclear": False} for i, name in enumerate(["示例坏人", "心动小鹿", "心动星星"])]
@@ -289,13 +293,20 @@ class App:
 
     def open_panel(self) -> bool:
         """The 检查 panel under the header's pill (手动检查 / 自动检查中), where 显示 and 方式 are."""
-        if self.main.TabItemControl(Name="完整模式", searchDepth=30).Exists(0.5, 0.2):
+        shown = lambda wait: self.main.TabItemControl(Name="完整模式", searchDepth=30).Exists(wait, 0.3)
+        if shown(2):
             return True
-        for control, _depth in auto.WalkControl(self.main, maxDepth=30):
-            if control.ControlTypeName == "ButtonControl" and control.Name.startswith(("手动检查", "自动检查")):
-                click(*center(control))
-                return self.main.TabItemControl(Name="完整模式", searchDepth=30).Exists(3, 0.3)
-        notes.append("no 检查 pill seen")
+        # The pill opens and folds the panel: click it, and once more if the panel is still not there (a click
+        # that landed while the tree was being built folded a panel that was open).
+        for _ in range(2):
+            pill = next((c for c, _d in auto.WalkControl(self.main, maxDepth=30)
+                         if c.ControlTypeName == "ButtonControl" and c.Name.startswith(PILL)), None)
+            if pill is None:
+                notes.append("no 检查 pill seen")
+                return False
+            click(*center(pill))
+            if shown(3):
+                return True
         return False
 
     def segment(self, group: str, label: str):
@@ -405,7 +416,7 @@ def click_buttons(app: App, page: str = "") -> None:
     for control, _depth in auto.WalkControl(app.main, maxDepth=30):
         # The 检查 pill opens the panel over the page (its own checks cover it): clicked here it left the panel open,
         # and the next page or menu could not be reached.
-        pill = control.Name.startswith(("手动检查", "自动检查"))
+        pill = control.Name.startswith(PILL)
         if control.ControlTypeName == "ButtonControl" and control.Name not in SKIP | PANEL | NO_EFFECT and not pill:
             r = control.BoundingRectangle
             if r.width() > 2 and r.height() > 2 and not control.IsOffscreen:
@@ -413,7 +424,7 @@ def click_buttons(app: App, page: str = "") -> None:
     # The 检查 pill last: it folds the panel away, and the panel's buttons with it.
     # A menu (more) or the tag already chosen (全部) last but one: an open menu eats the next click, and 全部 changes
     # nothing until another tag was picked.
-    buttons.sort(key=lambda item: 2 if item[0].startswith(("手动检查", "自动检查")) else 1 if item[0] in ("more", "全部") else 0)
+    buttons.sort(key=lambda item: 2 if item[0].startswith(PILL) else 1 if item[0] in ("more", "全部") else 0)
     notes.append(f"buttons seen by UIAutomation on {page or 'the start page'}: {[name for name, _ in buttons]}")
     if not buttons:
         record("main-window buttons", False, "UIAutomation sees no button")
@@ -508,6 +519,19 @@ def export_logs(app: App) -> None:
     path = Path(line.split("Logs exported: ", 1)[1].strip()) if line else None
     text = path.read_text(encoding="utf-8", errors="replace") if path is not None and path.exists() else ""
     ok = "==== app.log ====" in text  # the file is there and holds the log
+    # The Explorer window 导出 opens (the file selected) stays over everything after: close it.
+    time.sleep(1.5)
+    proc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+    def close_explorer(hwnd, _):
+        klass = ctypes.create_unicode_buffer(64)
+        user32.GetClassNameW(hwnd, klass, 64)
+        if klass.value == "CabinetWClass" and user32.IsWindowVisible(hwnd):
+            notes.append(f"导出 opened Explorer: {window_info(hwnd)}")
+            user32.PostMessageW(hwnd, 0x0010, 0, 0)
+        return True
+
+    user32.EnumWindows(proc(close_explorer), 0)
     record("导出 (导出日志) writes the logs", ok, f"file {path} exists {ok}; under the click: {where}; log {said.strip()[-200:]!r}")
 
 
@@ -554,8 +578,231 @@ def row_menus(app: App) -> None:
     copied = lambda before: (clipboard() == "示例坏人", f"clipboard {clipboard()!r}")
     menu_item(app, "row", "示例坏人", "编辑", opened)
     menu_item(app, "row", "示例坏人", "复制名字", copied)
-    menu_item(app, "button", "挂机", "删除", lambda before: ("挂机" not in app.list_file(), f"blacklist.json: {app.list_file()[:120]!r}"))
+    def tag_gone(before):
+        # 删除 a tag asks first (ui._remove_tag): answer the question, then the tag must be gone from the list.
+        for hwnd in set(own_windows(app.proc.pid)) - before["windows"]:
+            yes = auto.ControlFromHandle(hwnd).ButtonControl(Name="删除", searchDepth=30)
+            if yes.Exists(1, 0.3):
+                click(*center(yes))
+                time.sleep(1)
+        return "挂机" not in app.list_file(), f"blacklist.json: {app.list_file()[:120]!r}"
+
+    menu_item(app, "button", "挂机", "删除", tag_gone)
     menu_item(app, "row", "示例坏人", "删除", lambda before: ("示例坏人" not in app.list_file(), f"blacklist.json: {app.list_file()[:120]!r}"))
+
+
+def rows_in_order(app: App) -> list[str]:
+    rows = [(c.BoundingRectangle.top, c.Name) for c, _ in auto.WalkControl(app.main, maxDepth=30)
+            if c.ControlTypeName == "ListItemControl" and c.Name in ("示例坏人", "测试甲")]
+    return [name for _, name in sorted(rows)]
+
+
+def sort_names(app: App) -> None:
+    """黑名单's 名字 column sorts the rows (ascending, then descending): the order on screen must change."""
+    if not open_tab(app, "黑名单"):
+        record("sort 名字", False, "tab not reachable")
+        return
+    header = app.main.ButtonControl(Name="名字", searchDepth=30)
+    if not header.Exists(2, 0.3):
+        record("sort 名字", False, "UIAutomation does not see the column")
+        return
+    x, y = center(header)
+    seen = [rows_in_order(app)]
+    for _ in range(2):
+        click(x, y)
+        time.sleep(0.8)
+        seen.append(rows_in_order(app))
+    record("sort 名字", len({tuple(order) for order in seen}) > 1 and all(len(o) == 2 for o in seen), f"orders {seen}")
+
+
+def eye(app: App) -> None:
+    """黑名单's eye: names masked or shown, kept in settings.json (names_hidden), the button's name following."""
+    if not open_tab(app, "黑名单"):
+        record("eye 隐藏名字", False, "tab not reachable")
+        return
+    before = app.settings().get("names_hidden", False)
+    button = app.main.ButtonControl(Name="显示名字" if before else "隐藏名字", searchDepth=30)
+    if not button.Exists(2, 0.3):
+        record("eye 隐藏名字", False, "UIAutomation does not see the eye")
+        return
+    x, y = center(button)
+    where = app.under(x, y)
+    click(x, y)
+    time.sleep(1)
+    after = app.settings().get("names_hidden", False)
+    renamed = app.main.ButtonControl(Name="隐藏名字" if before else "显示名字", searchDepth=30).Exists(1, 0.3)
+    record("eye 隐藏名字", after != before, f"names_hidden {before} -> {after}; button renamed {renamed}; under the click: {where}")
+    if after != before:
+        click(x, y)  # back as it was (the old element is gone: the button was renamed)
+        time.sleep(0.6)
+
+
+def likes_file(app: App) -> str:
+    try:
+        return (app.data / "likes.json").read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+
+def guest_menus(app: App) -> None:
+    """嘉宾: a row's right-click menu, 编辑 (its dialog) and 删除 (asked, then gone from likes.json)."""
+    if not open_tab(app, "嘉宾"):
+        record("嘉宾 row menus", False, "tab not reachable")
+        return
+    opened = lambda before: (bool(set(own_windows(app.proc.pid)) - before["windows"]), "a dialog opened")
+
+    def gone(before):
+        for hwnd in set(own_windows(app.proc.pid)) - before["windows"]:
+            yes = auto.ControlFromHandle(hwnd).ButtonControl(Name="删除", searchDepth=30)
+            if yes.Exists(1, 0.3):
+                click(*center(yes))
+                time.sleep(1)
+        return "心动星星" not in likes_file(app), f"likes.json: {likes_file(app)[:160]!r}"
+
+    menu_item(app, "row", "心动小鹿", "编辑", opened)
+    menu_item(app, "row", "心动星星", "删除", gone)
+
+
+def clear_cancelled(app: App) -> None:
+    """设置 › 关于 › 清空数据: the question opens; 取消 (or closing it) keeps every list as it was."""
+    if not open_settings(app, "关于"):
+        record("清空数据 › 取消 keeps the data", False, "设置 › 关于 not reachable")
+        return
+    button = app.main.ButtonControl(Name="清空", searchDepth=30)
+    if not button.Exists(2, 0.3):
+        record("清空数据 › 取消 keeps the data", False, "UIAutomation does not see 清空")
+        return
+    lists_before = (app.list_file(), likes_file(app))
+    windows = set(own_windows(app.proc.pid))
+    click(*center(button))
+    time.sleep(1)
+    asked = list(set(own_windows(app.proc.pid)) - windows)
+    how = "no question opened"
+    if asked:
+        cancel = auto.ControlFromHandle(asked[0]).ButtonControl(Name="取消", searchDepth=30)
+        if cancel.Exists(1, 0.3):
+            click(*center(cancel))
+            how = "取消 clicked"
+        else:
+            user32.PostMessageW(asked[0], 0x0010, 0, 0)
+            how = "closed"
+        time.sleep(1)
+    kept = (app.list_file(), likes_file(app)) == lists_before and "示例坏人" in app.list_file()
+    record("清空数据 › 取消 keeps the data", bool(asked) and kept and app.proc.poll() is None, f"{how}; lists kept {kept}")
+
+
+TRAY_CALLBACK = 0x8000 + 1  # WM_APP + 1 (win/src/tray/shell.rs CALLBACK)
+
+
+def tray_window(app: App) -> int:
+    found = []
+    proc = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+    def each(hwnd, _):
+        klass = ctypes.create_unicode_buffer(64)
+        user32.GetClassNameW(hwnd, klass, 64)
+        owner = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
+        if klass.value == "BlacklistDetectTray" and owner.value == app.proc.pid:
+            found.append(hwnd)
+        return True
+
+    user32.EnumWindows(proc(each), 0)
+    return found[0] if found else 0
+
+
+def tray_menu_item(app: App, tray: int, item: str) -> bool:
+    """The tray's right-click menu (TrackPopupMenuEx), then `item` in it, clicked where it is."""
+    user32.PostMessageW(tray, TRAY_CALLBACK, 200 | (200 << 16), 0x007B)  # WM_CONTEXTMENU at (200, 200)
+    entry = auto.MenuItemControl(Name=item, searchDepth=4)
+    if not entry.Exists(3, 0.3):
+        send(key(0x1B), key(0x1B, True))
+        return False
+    click(*center(entry))
+    return True
+
+
+def tray(app: App) -> None:
+    """The tray: a click on the icon and the menu's 显示主窗口 each bring the hidden window back."""
+    icon = tray_window(app)
+    if not icon:
+        record("tray", False, "no tray window (BlacklistDetectTray)")
+        return
+    # The window's X, as the player closes it: with 关闭时 at its default (to the tray) the app hides it itself.
+    # (ShowWindow from outside left the app thinking it was shown, so nothing brought it back.)
+    user32.PostMessageW(app.hwnd, 0x0010, 0, 0)
+    time.sleep(0.5)
+    user32.PostMessageW(icon, TRAY_CALLBACK, 0, 0x0400)  # NIN_SELECT: a click on the icon
+    end = time.time() + 5
+    while time.time() < end and not user32.IsWindowVisible(app.hwnd):
+        time.sleep(0.3)
+    record("tray icon click shows the window", bool(user32.IsWindowVisible(app.hwnd)), "")
+    user32.PostMessageW(app.hwnd, 0x0010, 0, 0)
+    time.sleep(0.8)
+    picked = tray_menu_item(app, icon, "显示主窗口")
+    end = time.time() + 5
+    while time.time() < end and not user32.IsWindowVisible(app.hwnd):
+        time.sleep(0.3)
+    record("tray menu › 显示主窗口", picked and bool(user32.IsWindowVisible(app.hwnd)), f"menu item found {picked}")
+    app.front()
+
+
+def tray_quit(app: App) -> None:
+    """The tray menu's 退出, last of all: the app ends."""
+    icon = tray_window(app)
+    picked = bool(icon) and tray_menu_item(app, icon, "退出")
+    try:
+        app.proc.wait(10)
+    except subprocess.TimeoutExpired:
+        pass
+    record("tray menu › 退出 ends the app", picked and app.proc.poll() is not None, f"menu item found {picked}")
+
+
+def dialog_buttons(app: App, tab: str, opener: str, leave: set[str]) -> None:
+    """A dialog opened from a page, and every button in it: each must redraw the dialog or open a window."""
+    if not open_tab(app, tab):
+        record(f"{opener} dialog", False, "tab not reachable")
+        return
+    button = app.main.ButtonControl(Name=opener, searchDepth=30)
+    if not button.Exists(2, 0.3):
+        record(f"{opener} dialog", False, "UIAutomation does not see the button")
+        return
+    windows = set(own_windows(app.proc.pid))
+    click(*center(button))
+    time.sleep(1.2)
+    opened = [h for h in own_windows(app.proc.pid) if h not in windows]
+    record(f"{opener} dialog opens", bool(opened), window_info(opened[0]) if opened else "")
+    if not opened:
+        return
+    dialog = opened[0]
+    root = auto.ControlFromHandle(dialog)
+    names = [c.Name for c, _ in auto.WalkControl(root, maxDepth=30) if c.ControlTypeName == "ButtonControl" and c.Name]
+    notes.append(f"{opener} buttons: {names}")
+    for name in dict.fromkeys(names):
+        if name in leave or name in SKIP:
+            continue
+        control = root.ButtonControl(Name=name, searchDepth=30)
+        if not control.Exists(1, 0.3) or not user32.IsWindowVisible(dialog):
+            continue
+        user32.SetForegroundWindow(dialog)
+        x, y = center(control)
+        move(x, y)
+        time.sleep(0.3)
+        before, now = grab(dialog), set(own_windows(app.proc.pid))
+        click(x, y)
+        time.sleep(1.2)
+        new = [h for h in own_windows(app.proc.pid) if h not in now]
+        shown = user32.IsWindowVisible(dialog) and differs(before, grab(dialog))
+        closed = not user32.IsWindowVisible(dialog)
+        record(f"{opener}: button {name!r}", bool(new) or shown or closed, f"windows opened {len(new)}, redrawn {shown}, closed {closed}")
+        for hwnd in new:
+            user32.PostMessageW(hwnd, 0x0010, 0, 0)
+        time.sleep(0.5)
+        if closed:
+            break
+    if user32.IsWindowVisible(dialog):
+        user32.PostMessageW(dialog, 0x0010, 0, 0)
+        time.sleep(0.8)
 
 
 def settings_sections(app: App) -> None:
@@ -619,6 +866,14 @@ def bare(app: App) -> None:
            f"new windows {[window_info(h) for h in card]}, log line {logged}, log after: {app.log_text()[start:].strip()[-200:]!r}")
 
 
+def guarded(step, app: App, *args) -> None:
+    """One step; an exception in it is a FAIL in the table, and the next steps still run."""
+    try:
+        step(app, *args)
+    except Exception as error:  # noqa: BLE001 - the report must still be written
+        record(f"{step.__name__} crashed", False, repr(error)[:300])
+
+
 def main() -> int:
     exe, home, out = sys.argv[1], Path(sys.argv[2]), Path(sys.argv[3])
     home.mkdir(parents=True, exist_ok=True)
@@ -646,19 +901,29 @@ def main() -> int:
         change_segment(app, "手动", "auto_capture", False)
         change_segment(app, "基础模式", "safe_mode", True)
         app.snapshot("after-segments")
-        open_dialog(app)
-        open_dialog(app, "直播模式说明")
+        guarded(open_dialog, app)
+        guarded(open_dialog, app, "直播模式说明")
+        # 直播模式 on and off again (the panel's third row): settings.json stream_mode "on" / "".
+        guarded(change_segment, app, "开启", "stream_mode", "on")
+        guarded(change_segment, app, "关闭", "stream_mode", "")
         app.front()
-        click_buttons(app)
-        click_pages(app)
-        export_logs(app)
-        settings_sections(app)
-        row_menus(app)
+        guarded(click_buttons, app)
+        guarded(click_pages, app)
+        guarded(export_logs, app)
+        guarded(settings_sections, app)
+        guarded(clear_cancelled, app)
+        guarded(sort_names, app)
+        guarded(eye, app)
+        guarded(row_menus, app)
+        guarded(guest_menus, app)
+        guarded(dialog_buttons, app, "嘉宾", "场景管理", {"播放", "预览", "试听"})
         app.front()
-        press_hotkey(app)
-        capture_hotkey(app)
+        guarded(press_hotkey, app)
+        guarded(capture_hotkey, app)
+        guarded(tray, app)
         evidence(app, "at the end")
         app.snapshot("end")
+        guarded(tray_quit, app)
     finally:
         if app.proc.poll() is None:
             app.proc.kill()

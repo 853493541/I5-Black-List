@@ -10,6 +10,7 @@
 //! - `paint`: the scenes shader drawing onto any texture (offscreen, or a swap chain's).
 //! - `window` (Windows): the topmost, click-through, see-through window the frames show in:
 //!   DirectComposition first, a layered window fed by GPU readback as the fallback.
+//! - `seen`: whether a scene's pixels reached the screen (the desktop copied before and during it).
 //!
 //! A scene package implements `Scene` (and `MakeScene`) and adds one line to `scene::make`:
 //!
@@ -26,5 +27,6 @@ pub mod paint;
 pub mod pick;
 pub mod scene;
 pub mod scene_own;
+pub mod seen;
 #[cfg(windows)]
 pub mod window;

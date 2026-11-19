@@ -109,6 +109,7 @@ jobs:
         run: |
           cargo test -p win global_hotkey
           cargo test -p win a_key_taken
+          cargo test -p win clipboard
           cargo test -p app --features preview --lib key_note
           cargo test -p app --features preview --bin blacklist-detect ui_wiring
           cargo test -p app --features preview --bin blacklist-detect a_key_in_the_hotkey_box

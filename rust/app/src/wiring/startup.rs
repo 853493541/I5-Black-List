@@ -87,9 +87,65 @@ pub enum Outcome {
     AlreadyRunning,
 }
 
-/// The folder the exe is in.
+/// The folder the exe is in, as the file system names it (links and 8.3 names resolved, no \\?\ prefix).
 pub fn exe_dir() -> Option<PathBuf> {
-    std::env::current_exe().ok()?.parent().map(Path::to_path_buf)
+    let exe = std::env::current_exe().ok()?;
+    let exe = std::fs::canonicalize(&exe).map(plain_path).unwrap_or(exe);
+    exe.parent().map(Path::to_path_buf)
+}
+
+/// A canonical Windows path without its \\?\ prefix, as a player would type it (\\?\UNC\server → \\server).
+pub fn plain_path(path: PathBuf) -> PathBuf {
+    let text = path.to_string_lossy();
+    if let Some(rest) = text.strip_prefix(r"\\?\UNC\") {
+        return PathBuf::from(format!(r"\\{rest}"));
+    }
+    if let Some(rest) = text.strip_prefix(r"\\?\") {
+        return PathBuf::from(rest);
+    }
+    path
+}
+
+/// The models are missing because the zip was not unpacked: the exe runs from inside it (Explorer copies only the exe
+/// to %TEMP%\Temp1_<name>.zip\, 7-Zip and WinRAR to 7zO… / Rar$EX…), from the temp folder, or, outside a release,
+/// from a folder with no models beside it. The pill then says 请先把压缩包全部解压，再运行.
+pub fn needs_unzip(exe_dir: &Path, install: Option<&Path>, temp: Option<&Path>) -> bool {
+    let packed = exe_dir.components().any(|part| {
+        let part = part.as_os_str().to_string_lossy().to_lowercase();
+        [".zip", ".rar", ".7z"].iter().any(|end| part.ends_with(end)) || part.starts_with("rar$ex") || part.starts_with("7zo")
+    });
+    let in_temp = temp.is_some_and(|temp| exe_dir.starts_with(temp));
+    packed || in_temp || (install.is_none() && !exe_dir.join("models").is_dir())
+}
+
+/// needs_unzip for this exe.
+pub fn unzip_first(install: Option<&Path>) -> bool {
+    let temp = std::env::temp_dir();
+    let temp = std::fs::canonicalize(&temp).map(plain_path).unwrap_or(temp);
+    exe_dir().is_some_and(|dir| needs_unzip(&dir, install, Some(&temp)))
+}
+
+/// A Debug line with every quoted text taken out ("…"): names, reasons and tags never reach the log.
+pub fn without_text(debug: &str) -> String {
+    let mut out = String::with_capacity(debug.len());
+    let (mut quoted, mut escaped) = (false, false);
+    for c in debug.chars() {
+        if quoted {
+            match (escaped, c) {
+                (true, _) => escaped = false,
+                (false, '\\') => escaped = true,
+                (false, '"') => {
+                    quoted = false;
+                    out.push_str("…\"");
+                }
+                _ => {}
+            }
+        } else {
+            out.push(c);
+            quoted = c == '"';
+        }
+    }
+    out
 }
 
 /// The release folder this exe runs from (switchover.install_root), None for a build run from source.
@@ -140,11 +196,19 @@ pub fn start(options: &Options) -> Result<Outcome, String> {
         autostart_refresh(install.as_deref());
         log.info("Start-up: autostart ok");
     }
-    let models = model_dirs(&model_roots(install.as_deref()));
+    let exe = std::env::current_exe().map(|exe| exe.display().to_string()).unwrap_or_default();
+    let here = std::env::current_dir().map(|dir| dir.display().to_string()).unwrap_or_default();
+    log.info(&format!("Start-up: exe {exe} (folder {}), working folder {here}", exe_dir().unwrap_or_default().display()));
+    let roots = model_roots(install.as_deref());
+    let models = model_dirs(&roots);
     match &models {
         Some((det, rec)) => log.info(&format!("Start-up: models ok ({}, {})", det.display(), rec.display())),
         // Not fatal: the window opens and says the models are missing, as the Python app does.
-        None => log.warn("Start-up: models missing (checked BLACKLIST_DETECT_MODEL_DIR, blacklist_detect\\ocr, models here)"),
+        None => {
+            let checked: Vec<String> = roots.iter().map(|root| root.display().to_string()).collect();
+            let unzip = if unzip_first(install.as_deref()) { "; the zip looks not unpacked" } else { "" };
+            log.warn(&format!("Start-up: models missing (checked {}){unzip}", checked.join(", ")));
+        }
     }
     // Where the pictures and tunes come from, and whether 环境测试 will find its sample lobby there.
     let assets = super::assemble::assets_dir(install.as_deref());
@@ -242,6 +306,45 @@ fn find_model_dir(root: &Path, kind: &str) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_exe_run_from_inside_the_zip_asks_to_unpack_it_first() {
+        let path = |parts: &[&str]| parts.iter().collect::<PathBuf>();
+        let temp = path(&["C:", "Users", "p", "AppData", "Local", "Temp"]);
+        let inside = temp.join("Temp1_模仿者小工具 预览.zip").join("模仿者小工具 预览");
+        assert!(needs_unzip(&inside, None, Some(&temp)));
+        assert!(needs_unzip(&inside, Some(&temp), None), "the .zip folder alone tells");
+        assert!(needs_unzip(&temp.join("7zO8A1B2C3"), Some(&temp), None));
+        assert!(needs_unzip(&temp.join("x"), Some(&temp), Some(&temp)), "anywhere in the temp folder");
+        let temp = temp.as_path();
+        let dir = tempfile::tempdir().unwrap();
+        let unpacked = dir.path().join("解压 后").join("模仿者 小工具");
+        std::fs::create_dir_all(unpacked.join("models")).unwrap();
+        assert!(!needs_unzip(&unpacked, None, Some(temp)), "unpacked, models beside the exe");
+        std::fs::remove_dir(unpacked.join("models")).unwrap();
+        assert!(needs_unzip(&unpacked, None, Some(temp)), "the exe alone: the rest of the zip is not there");
+        assert!(!needs_unzip(&unpacked, Some(dir.path()), Some(temp)), "a release keeps its models elsewhere");
+    }
+
+    #[test]
+    fn a_canonical_path_is_shown_without_its_prefix() {
+        assert_eq!(plain_path(PathBuf::from(r"\\?\C:\游戏\模仿者")), PathBuf::from(r"C:\游戏\模仿者"));
+        assert_eq!(plain_path(PathBuf::from(r"\\?\UNC\nas\share")), PathBuf::from(r"\\nas\share"));
+        assert_eq!(plain_path(PathBuf::from("/home/x")), PathBuf::from("/home/x"));
+    }
+
+    #[test]
+    fn debug_text_loses_every_quoted_text() {
+        assert_eq!(without_text(r#"Seat { name: "示例坏人 \"x\"", tags: ["炸房"], seat: 3 }"#), r#"Seat { name: "…", tags: ["…"], seat: 3 }"#);
+    }
+
+    #[test]
+    fn the_pill_says_to_unpack_the_zip_when_that_is_why_models_are_missing() {
+        let problem = crate::wiring::flow::Problem::of(&crate::wiring::engine::no_models_for(true));
+        assert_eq!((problem.label.as_str(), problem.tip.as_str()), ("请先把压缩包全部解压，再运行", "请先把压缩包全部解压，再运行"));
+        let problem = crate::wiring::flow::Problem::of(&crate::wiring::engine::no_models_for(false));
+        assert_eq!(problem.label, "识别还没准备好");
+    }
 
     #[test]
     fn options_read_the_flags() {

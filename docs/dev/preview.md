@@ -34,7 +34,8 @@ On push to `feature/rust` or `feature/rust-preview`, or by hand (workflow_dispat
    converted with paddle2onnx 2.1.0 at opset 11 (paddlepaddle 3.2.2: paddle2onnx 2.1.0 refuses 3.0.0) in a Linux job
    (its Windows wheel fails to load its DLL), cached, handed to the Windows job as a one-day artifact. Checked here:
    the debug preview exe reads all 12 seats of the sample lobby whole with them.
-3. Folder `模仿者小工具 Rust 预览 <build>\`: the exe (release profile: opt z, hot crates at 3, fat LTO), `onnxruntime.dll`
+3. Folder `模仿者小工具 Rust 预览 <build>\`: MSVCP140, MSVCP140_1, VCRUNTIME140 and VCRUNTIME140_1.dll app-local (onnxruntime.dll needs
+   the VC++ 2015-2022 runtime), the exe (release profile: opt z, hot crates at 3, fat LTO), `onnxruntime.dll`
    (1.32, from the pip wheel), `models\` with all three (v3 brought PP-OCRv5_mobile_rec back: it reads the lobby words and
    the countdown, v6 the names; the one-reader path of v2 cost more CPU per check), `assets\` laid out as `tools/size/sound_compress.py --stage` does, from the committed `rust/assets/sounds/*.ogg`
    (Vorbis q6; the script's --stage re-encodes first, so it is not run),

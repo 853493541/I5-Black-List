@@ -1,0 +1,44 @@
+name: rust-scenes-real
+
+# Every 嘉宾 scene through the real stage window over a full-screen lobby on a Windows desktop, judged on a GDI copy
+# of the screen (not the swap chain), both ways (DirectComposition, layered). WARP only: the runners have no GPU.
+on:
+  push:
+    branches: ["fix/rust-scenes-real"]
+  workflow_dispatch:
+
+concurrency:
+  group: rust-scenes-real-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop:
+    runs-on: windows-2022
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: rust
+    env:
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: "1"
+      BLACKLIST_DETECT_SILENT: "1"
+      STAGE_SHOTS: ${{ github.workspace }}/stage-shots
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Stage unit tests and the window on WARP
+        # frame_time_at_1080p times WARP on a shared runner (2.0 to 2.6 s a frame from run to run); rust.yml keeps it.
+        run: cargo test -p stage -- --nocapture --test-threads=1 --skip every_scene_reaches_the_desktop --skip frame_time_at_1080p
+      - name: Every scene on the desktop
+        run: cargo test -p stage --test windows_desktop -- --nocapture --test-threads=1
+      - name: Clippy
+        if: always()
+        run: cargo clippy -p stage --all-targets -- -D warnings
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stage-shots
+          path: stage-shots
+          if-no-files-found: ignore
