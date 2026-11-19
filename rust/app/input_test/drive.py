@@ -37,11 +37,11 @@ user32.SendMessageTimeoutW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WP
 
 FOLDER = "BlackListDetect-RustPreview"
 # The title bar's own buttons and what would end the run or close the window under test.
-SKIP = {"退出", "清空数据", "导出", "隐藏名字", "显示名字", "最小化", "关闭", "Minimize", "Maximize", "Restore", "Close", "还原", "最大化"}
+SKIP = {"退出", "清空数据", "清空", "导出", "隐藏名字", "显示名字", "名字", "最小化", "关闭", "Minimize", "Maximize", "Restore", "Close", "还原", "最大化"}
 # In the 检查 panel, which any click outside it folds away: tested on their own, the panel opened first.
 PANEL = {"显示说明", "直播模式说明", "快捷键"}
 # Clicks that do nothing by design (v1.0.1 the same): a 记录 seat on neither list.
-NO_EFFECT = {"心动星星"}
+NO_EFFECT: set[str] = set()  # (none seeded now: 心动星星 is a 嘉宾 too, so 添加组合 has the two it waits for)
 SEGMENTS = {"基础模式", "完整模式", "自动", "手动", "关闭", "开启"}
 GW_HWNDNEXT, GA_ROOT = 2, 2
 WS_EX = {0x8: "TOPMOST", 0x20: "TRANSPARENT", 0x80: "TOOLWINDOW", 0x80000: "LAYERED", 0x8000000: "NOACTIVATE",
@@ -207,9 +207,11 @@ class App:
         old = home / "BlackListDetect"
         old.mkdir(parents=True, exist_ok=True)
         (old / "blacklist.json").write_text(
-            json.dumps({"entries": [{"name": "示例坏人", "reason": "", "tags": ["挂机"]}]}, ensure_ascii=False), encoding="utf-8")
+            json.dumps({"entries": [{"name": "示例坏人", "reason": "", "tags": ["挂机"]},
+                                    {"name": "测试甲", "reason": "", "tags": []}]}, ensure_ascii=False), encoding="utf-8")
         # 心动小鹿 a 嘉宾, so its seat in 记录 opens the 嘉宾 dialog; 心动星星 stays on neither list (its click does nothing).
-        (old / "likes.json").write_text(json.dumps({"likes": [{"name": "心动小鹿", "nickname": "", "reason": ""}], "combos": []},
+        (old / "likes.json").write_text(json.dumps({"likes": [{"name": "心动小鹿", "nickname": "", "reason": ""},
+                                                             {"name": "心动星星", "nickname": "", "reason": ""}], "combos": []},
                                                    ensure_ascii=False), encoding="utf-8")
         # One made-up check in 记录, so its day, time and seat rows are there to click.
         seats = [{"seat": i + 1, "name": name, "unclear": False} for i, name in enumerate(["示例坏人", "心动小鹿", "心动星星"])]
@@ -587,6 +589,30 @@ def row_menus(app: App) -> None:
     menu_item(app, "row", "示例坏人", "删除", lambda before: ("示例坏人" not in app.list_file(), f"blacklist.json: {app.list_file()[:120]!r}"))
 
 
+def rows_in_order(app: App) -> list[str]:
+    rows = [(c.BoundingRectangle.top, c.Name) for c, _ in auto.WalkControl(app.main, maxDepth=30)
+            if c.ControlTypeName == "ListItemControl" and c.Name in ("示例坏人", "测试甲")]
+    return [name for _, name in sorted(rows)]
+
+
+def sort_names(app: App) -> None:
+    """黑名单's 名字 column sorts the rows (ascending, then descending): the order on screen must change."""
+    if not open_tab(app, "黑名单"):
+        record("sort 名字", False, "tab not reachable")
+        return
+    header = app.main.ButtonControl(Name="名字", searchDepth=30)
+    if not header.Exists(2, 0.3):
+        record("sort 名字", False, "UIAutomation does not see the column")
+        return
+    x, y = center(header)
+    seen = [rows_in_order(app)]
+    for _ in range(2):
+        click(x, y)
+        time.sleep(0.8)
+        seen.append(rows_in_order(app))
+    record("sort 名字", len({tuple(order) for order in seen}) > 1 and all(len(o) == 2 for o in seen), f"orders {seen}")
+
+
 def eye(app: App) -> None:
     """黑名单's eye: names masked or shown, kept in settings.json (names_hidden), the button's name following."""
     if not open_tab(app, "黑名单"):
@@ -607,6 +633,60 @@ def eye(app: App) -> None:
     if after != before:
         click(x, y)  # back as it was (the old element is gone: the button was renamed)
         time.sleep(0.6)
+
+
+def likes_file(app: App) -> str:
+    try:
+        return (app.data / "likes.json").read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+
+def guest_menus(app: App) -> None:
+    """嘉宾: a row's right-click menu, 编辑 (its dialog) and 删除 (asked, then gone from likes.json)."""
+    if not open_tab(app, "嘉宾"):
+        record("嘉宾 row menus", False, "tab not reachable")
+        return
+    opened = lambda before: (bool(set(own_windows(app.proc.pid)) - before["windows"]), "a dialog opened")
+
+    def gone(before):
+        for hwnd in set(own_windows(app.proc.pid)) - before["windows"]:
+            yes = auto.ControlFromHandle(hwnd).ButtonControl(Name="删除", searchDepth=30)
+            if yes.Exists(1, 0.3):
+                click(*center(yes))
+                time.sleep(1)
+        return "心动星星" not in likes_file(app), f"likes.json: {likes_file(app)[:160]!r}"
+
+    menu_item(app, "row", "心动小鹿", "编辑", opened)
+    menu_item(app, "row", "心动星星", "删除", gone)
+
+
+def clear_cancelled(app: App) -> None:
+    """设置 › 关于 › 清空数据: the question opens; 取消 (or closing it) keeps every list as it was."""
+    if not open_settings(app, "关于"):
+        record("清空数据 › 取消 keeps the data", False, "设置 › 关于 not reachable")
+        return
+    button = app.main.ButtonControl(Name="清空", searchDepth=30)
+    if not button.Exists(2, 0.3):
+        record("清空数据 › 取消 keeps the data", False, "UIAutomation does not see 清空")
+        return
+    lists_before = (app.list_file(), likes_file(app))
+    windows = set(own_windows(app.proc.pid))
+    click(*center(button))
+    time.sleep(1)
+    asked = list(set(own_windows(app.proc.pid)) - windows)
+    how = "no question opened"
+    if asked:
+        cancel = auto.ControlFromHandle(asked[0]).ButtonControl(Name="取消", searchDepth=30)
+        if cancel.Exists(1, 0.3):
+            click(*center(cancel))
+            how = "取消 clicked"
+        else:
+            user32.PostMessageW(asked[0], 0x0010, 0, 0)
+            how = "closed"
+        time.sleep(1)
+    kept = (app.list_file(), likes_file(app)) == lists_before and "示例坏人" in app.list_file()
+    record("清空数据 › 取消 keeps the data", bool(asked) and kept and app.proc.poll() is None, f"{how}; lists kept {kept}")
 
 
 def settings_sections(app: App) -> None:
@@ -712,8 +792,11 @@ def main() -> int:
         guarded(click_pages, app)
         guarded(export_logs, app)
         guarded(settings_sections, app)
+        guarded(clear_cancelled, app)
+        guarded(sort_names, app)
         guarded(eye, app)
         guarded(row_menus, app)
+        guarded(guest_menus, app)
         app.front()
         guarded(press_hotkey, app)
         guarded(capture_hotkey, app)
