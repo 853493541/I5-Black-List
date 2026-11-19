@@ -63,16 +63,32 @@ const LONGEST: u64 = 64;
 /// launch's whole message goes to `heard`. An error when the pipe cannot be made (another process serves it).
 #[cfg(windows)]
 pub fn listen(key: &str, heard: impl Fn(Vec<u8>) + Send + 'static) -> std::io::Result<()> {
-    let mut pipe = serve(&pipe_path(key), true)?;
+    let path = pipe_path(key);
+    let mut pipe = serve(&path, true)?;
     std::thread::Builder::new().name("Instances".into()).spawn(move || {
+        let mut failures = 0;
         loop {
-            if let Err(error) = wait_for_client(&pipe) {
-                eprintln!("Instances: the pipe stopped: {error}");
-                return;
-            }
-            // The next copy can knock while this one is read.
-            let next = serve_again(&pipe);
-            heard(read_all(pipe));
+            // One instance waits at a time; the next is made once a copy is in, so another can knock while it is read.
+            let next = match wait_for_client(&pipe) {
+                Ok(()) => {
+                    failures = 0;
+                    let next = serve_again(&pipe);
+                    heard(read_all(pipe));
+                    next
+                }
+                Err(error) => {
+                    // Never silent, never the end of listening: this instance goes, a new one serves.
+                    eprintln!("Instances: a launch could not connect: {error}");
+                    failures += 1;
+                    std::thread::sleep(std::time::Duration::from_millis(50 * failures.min(20)));
+                    drop(pipe);
+                    None
+                }
+            };
+            let next = next.or_else(|| {
+                std::thread::sleep(std::time::Duration::from_millis(200));
+                serve(&path, false).map_err(|error| eprintln!("Instances: listening stopped: {error}")).ok()
+            });
             match next {
                 Some(next) => pipe = next,
                 None => return,
@@ -111,12 +127,13 @@ fn serve_again(pipe: &Pipe) -> Option<Pipe> {
 #[cfg(windows)]
 fn wait_for_client(pipe: &Pipe) -> std::io::Result<()> {
     use std::os::windows::io::AsRawHandle;
-    use windows::Win32::Foundation::{ERROR_PIPE_CONNECTED, HANDLE};
+    use windows::Win32::Foundation::{ERROR_NO_DATA, ERROR_PIPE_CONNECTED, HANDLE};
     use windows::Win32::System::Pipes::ConnectNamedPipe;
     match unsafe { ConnectNamedPipe(HANDLE(pipe.0.as_raw_handle()), None) } {
         Ok(()) => Ok(()),
-        // The client came between CreateNamedPipe and ConnectNamedPipe.
-        Err(error) if error.code() == ERROR_PIPE_CONNECTED.to_hresult() => Ok(()),
+        // The client came between CreateNamedPipe and ConnectNamedPipe; with NO_DATA it has written and gone already,
+        // and what it wrote is still there to read.
+        Err(error) if [ERROR_PIPE_CONNECTED, ERROR_NO_DATA].iter().any(|code| error.code() == code.to_hresult()) => Ok(()),
         Err(error) => Err(std::io::Error::other(error)),
     }
 }

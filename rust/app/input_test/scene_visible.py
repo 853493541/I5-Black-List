@@ -193,9 +193,35 @@ def clicks_work(hwnd: int, lobby, when: str, report: Path) -> None:
             points.append(f"({x},{y}){'*' if moved else ''}{'' if mine else ' over ' + named(target)}")
     grab(hwnd).save(report / f"main-{when}.png")
     print(f"  {when}: {thread_state(hwnd)}")
-    cv.record(f"clicks on the main window work {when}", changed > 0 and answers(hwnd),
-              f"{changed} of 9 clicks changed {cv.title(hwnd)!r}: {' '.join(points)}; answers {answers(hwnd)}; "
-              f"IsHungAppWindow {bool(user32.IsHungAppWindow(hwnd))}")
+    # A blind grid can land on empty space only; the header's page tabs always change the page when another is picked.
+    tabs, switched = tab_clicks(hwnd, lobby)
+    print(f"  INFO grid clicks {when}: {changed} of 9 changed {cv.title(hwnd)!r}: {' '.join(points)}")
+    cv.record(f"clicks on the main window work {when}", switched > 0 and answers(hwnd),
+              f"{switched} of {len(tabs)} page tab clicks changed the page: {' '.join(tabs) or 'no tabs found by UIA'}; "
+              f"grid {changed} of 9; answers {answers(hwnd)}; IsHungAppWindow {bool(user32.IsHungAppWindow(hwnd))}")
+
+
+def tab_clicks(hwnd: int, lobby) -> tuple[list[str], int]:
+    """SendInput clicks at the centre of each of the header's page tabs (found by UIA): how many changed the window."""
+    import uiautomation as auto
+
+    found = []
+    try:
+        window = auto.ControlFromHandle(hwnd)
+        found = [(c.Name, c.BoundingRectangle) for c, _ in auto.WalkControl(window, maxDepth=12)
+                 if c.ControlTypeName == "TabItemControl"]
+    except Exception as error:  # noqa: BLE001  (reported, not raised: the grid still says something)
+        return [f"UIA failed: {error}"], 0
+    tabs, switched = [], 0
+    for name, box in found[:4]:
+        x, y = (box.left + box.right) // 2, (box.top + box.bottom) // 2
+        before = grab(hwnd)
+        click(x, y)
+        lobby.pump(0.5)
+        moved = ImageChops.difference(before.convert("RGB"), grab(hwnd).convert("RGB")).getbbox() is not None
+        switched += moved
+        tabs.append(f"{name}({x},{y}){'*' if moved else ''}")
+    return tabs, switched
 
 
 def key_input(vk: int, up: bool = False):
