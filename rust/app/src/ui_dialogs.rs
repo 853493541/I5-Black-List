@@ -88,6 +88,12 @@ pub fn place(dialog: &slint::Window) {
     let own = dialog.size();
     let (w, h) = (width.max(own.width), height.max(own.height));
     let (left, top) = (x - (w - width) as i32 / 2, y - (h - height) as i32 / 2);
+    // winit keeps its own flags and rebuilds the window style from them: a style changed behind its back came back
+    // with the caption and border (CI run 44495238541). Telling winit itself makes the frameless style stay.
+    {
+        use slint::winit_030::WinitWindowAccessor;
+        dialog.with_winit_window(|window| window.set_decorations(false));
+    }
     if !frameless_at(dialog, left, top, w, h) {
         dialog.set_position(slint::PhysicalPosition::new(left, top));
         dialog.set_size(slint::PhysicalSize::new(w, h));
