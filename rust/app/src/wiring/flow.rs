@@ -147,6 +147,11 @@ impl Flow {
     /// The 检查 hotkey, or 立即检查 in the tray (check_now).
     pub fn hotkey(&mut self, now: f64) -> Option<Job> {
         self.say("Hotkey: checking.");
+        if !self.mode.disclaimer {
+            // Not "busy": nothing runs, the data folder has not agreed to 使用声明 yet.
+            self.say("Hotkey: 使用声明 not agreed to yet, no check.");
+            return None;
+        }
         self.rescan = false;
         if self.start(now) {
             self.manual = true;

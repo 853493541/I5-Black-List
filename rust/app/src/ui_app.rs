@@ -121,6 +121,33 @@ impl MainUi {
         crate::settings::model::show_settings_main(&self.window, &state);
     }
 
+    /// 使用声明 to agree to, over the window, when this data folder has not agreed yet (show_first_run_guide): no
+    /// check starts before it. The answer goes to the runner as AnswerDisclaimer; closing it declines.
+    pub fn ask_disclaimer(&self) {
+        if self.store.borrow().settings.disclaimer_accepted {
+            return;
+        }
+        let Ok(card) = DisclaimerDialog::new() else { return };
+        card.set_asking(true);
+        let (bus, weak) = (self.bus.clone(), card.as_weak());
+        card.on_answered(move |yes| {
+            bus.send(UiEvent::Shell(ShellAction::AnswerDisclaimer(yes)));
+            if let Some(card) = weak.upgrade() {
+                let _ = card.hide();
+            }
+        });
+        let (bus, weak) = (self.bus.clone(), card.as_weak());
+        card.on_closed(move || {
+            bus.send(UiEvent::Shell(ShellAction::AnswerDisclaimer(false)));
+            if let Some(card) = weak.upgrade() {
+                let _ = card.hide();
+            }
+        });
+        if card.show().is_ok() {
+            self.dialogs.borrow_mut().push(Box::new(card));
+        }
+    }
+
     /// Whether the hotkey box waits for a key (the hotkeys are let go meanwhile, so the key reaches the box).
     pub fn hotkey_waiting(&self) -> bool {
         self.hotkey_waiting.get()
@@ -268,6 +295,13 @@ impl MainUi {
             Dialog::Disclaimer => (|| {
                 let card = DisclaimerDialog::new()?;
                 card.set_asking(false);
+                // 知道了 answers too: without this the button did nothing.
+                let answered = card.as_weak();
+                card.on_answered(move |_| {
+                    if let Some(card) = answered.upgrade() {
+                        let _ = card.hide();
+                    }
+                });
                 let weak = card.as_weak();
                 card.on_closed(move || {
                     if let Some(card) = weak.upgrade() {

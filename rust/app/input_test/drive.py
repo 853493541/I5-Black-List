@@ -215,7 +215,13 @@ class App:
     def under(self, x: int, y: int) -> str:
         hit = user32.WindowFromPoint(wintypes.POINT(x, y))
         root = user32.GetAncestor(hit, GA_ROOT) if hit else 0
-        return "main window" if root == self.hwnd else "OTHER: " + (window_info(root) if root else "none")
+        if root == self.hwnd:
+            return "main window"
+        pid = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(root, ctypes.byref(pid))
+        if root and pid.value == self.proc.pid:
+            return "app window: " + window_info(root)
+        return "OTHER: " + (window_info(root) if root else "none")
 
     def close_extra(self, before: set[int]) -> int:
         """Closes the windows a click opened (a dialog), and says how many there were."""
@@ -266,6 +272,27 @@ def evidence(app: App, title: str) -> None:
         notes.append(f"app window: {window_info(hwnd)}")
     notes.append("z-order from the top:")
     notes.extend("  " + line for line in z_order())
+
+
+def agree(app: App) -> None:
+    """A new data folder: 使用声明 opens over the window at start, and 同意并继续 lets checks run."""
+    button = None
+    for hwnd in own_windows(app.proc.pid):
+        if hwnd == app.hwnd:
+            continue
+        found = auto.ControlFromHandle(hwnd).ButtonControl(Name="同意并继续", searchDepth=30)
+        if found.Exists(1, 0.3):
+            button = found
+            break
+    if button is None:
+        record("使用声明 opens at the first start", False, "no window with 同意并继续")
+        return
+    click(*center(button))
+    end, agreed = time.time() + 5, None
+    while time.time() < end and agreed is not True:
+        agreed = app.settings().get("disclaimer_accepted")
+        time.sleep(0.3)
+    record("使用声明 opens at the first start and 同意并继续 is saved", agreed is True, f"disclaimer_accepted={agreed!r}")
 
 
 def change_segment(app: App, label: str, key_name: str, wanted) -> None:
@@ -372,8 +399,9 @@ def open_dialog(app: App) -> None:
 def press_hotkey(app: App) -> None:
     start = len(app.log_text())
     send(key(0x12), key(0x31), key(0x31, True), key(0x12, True))  # Alt+1
-    ok = app.wait_log("Hotkey: 检查", start, 10)
+    ok = app.wait_log("Hotkey: 检查", start, 10) and app.wait_log("Hotkey: checking.", start, 2)
     tail = app.log_text()[start:].strip()
+    ok = ok and "busy" not in tail and "not agreed" not in tail  # the check really started
     record("hotkey Alt+1 starts a check", ok, f"log after the press: {tail[-300:]!r}")
 
 
@@ -411,7 +439,7 @@ def bare(app: App) -> None:
             x = rect.left + (rect.right - rect.left) * i // 6
             y = rect.top + 40 + (rect.bottom - rect.top - 40) * j // 5
             where = app.under(x, y)
-            if where != "main window":
+            if not where.startswith(("main window", "app window")):
                 missed.append(f"({x},{y}) {where}")
     record("clicks on a 5x4 grid reach the main window", not missed, "; ".join(missed[:4]) or "all 20 points")
     hung = bool(user32.IsHungAppWindow(app.hwnd))
@@ -439,6 +467,7 @@ def main() -> int:
             return finish(app)
         record("main window shows", True, window_info(app.hwnd))
         time.sleep(3)  # start-up work on the window's thread settles
+        agree(app)
         user32.SetForegroundWindow(app.hwnd)
         app.snapshot("start")
         evidence(app, "after start")
