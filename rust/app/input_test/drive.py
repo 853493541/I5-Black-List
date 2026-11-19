@@ -180,6 +180,10 @@ class App:
         old.mkdir(parents=True, exist_ok=True)
         (old / "blacklist.json").write_text(
             json.dumps({"entries": [{"name": "示例坏人", "reason": "", "tags": []}]}, ensure_ascii=False), encoding="utf-8")
+        # One made-up check in 记录, so its day, time and seat rows are there to click.
+        seats = [{"seat": i + 1, "name": name, "unclear": False} for i, name in enumerate(["示例坏人", "心动小鹿", "心动星星"])]
+        (old / "history.json").write_text(json.dumps(
+            {"scans": [{"at": "2026-11-18T20:30:00+08:00", "elapsed": 1.2, "names": seats}]}, ensure_ascii=False), encoding="utf-8")
         self.proc = subprocess.Popen([exe], env=env, cwd=str(home))
         self.log = self.data / "logs" / "app.log"
         self.main = None
@@ -363,7 +367,7 @@ def click_buttons(app: App, page: str = "") -> None:
     for control, _depth in auto.WalkControl(app.main, maxDepth=30):
         if control.ControlTypeName == "ButtonControl" and control.Name not in SKIP | PANEL:
             r = control.BoundingRectangle
-            if r.width() > 2 and r.height() > 2:
+            if r.width() > 2 and r.height() > 2 and not control.IsOffscreen:
                 buttons.append((control.Name, center(control)))
     # The 检查 pill last: it folds the panel away, and the panel's buttons with it.
     buttons.sort(key=lambda item: item[0].startswith(("手动检查", "自动检查")))

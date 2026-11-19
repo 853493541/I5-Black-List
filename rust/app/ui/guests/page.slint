@@ -101,6 +101,8 @@ export component GuestsPage inherits Rectangle {
         if show-toolbar: GuestButton { x: parent.width - 28px - 8px - self.width; width: 86px; label: "添加嘉宾"; primary: true; p: p; clicked => { GuestsBridge.add-guest(); } }
         if show-more: Rectangle {
             x: parent.width - 28px;
+            accessible-role: button;
+            accessible-label: "更多";
             width: 28px;
             border-radius: 6px;
             background: more-touch.has-hover ? p.hover : transparent;
