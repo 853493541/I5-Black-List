@@ -3,6 +3,10 @@
 
 // deny, not forbid: the code Slint generates from ui/ allows unsafe in its own items.
 #![deny(unsafe_code)]
+// No console window beside the app (v1.0.1 opened none). Release and preview builds only: a debug build keeps its
+// console for tests. Without a console, std's prints go nowhere instead of failing; redirected (`check > file`), they
+// still reach the file. The log is logs/app.log either way.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use app::wiring::life::{self, Close, Do};
 use app::wiring::runner::{Keys, Parts, Runner};

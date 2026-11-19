@@ -175,7 +175,9 @@ impl MainUi {
                 let _ = card.hide();
             }
         });
+        ui_dialogs::set_host(self.window.window());
         if card.show().is_ok() {
+            ui_dialogs::place(card.window());
             self.dialogs.borrow_mut().push(Box::new(card));
         }
     }
@@ -358,6 +360,7 @@ impl MainUi {
 
     /// Opens a dialog over the window; its answer comes back on the bus.
     fn open(&self, dialog: Dialog) {
+        ui_dialogs::set_host(self.window.window());
         let shown: Result<Box<dyn std::any::Any>, slint::PlatformError> = match dialog {
             Dialog::Confirm { heading, body, confirm, yes } => (|| {
                 let ask = ConfirmDialog::new()?;
@@ -382,6 +385,7 @@ impl MainUi {
                     }
                 });
                 ask.show()?;
+                ui_dialogs::place(ask.window());
                 Ok(Box::new(ask) as Box<dyn std::any::Any>)
             })(),
             Dialog::Disclaimer => (|| {
@@ -401,6 +405,7 @@ impl MainUi {
                     }
                 });
                 card.show()?;
+                ui_dialogs::place(card.window());
                 Ok(Box::new(card) as Box<dyn std::any::Any>)
             })(),
             other => {

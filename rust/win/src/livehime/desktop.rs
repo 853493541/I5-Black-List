@@ -31,11 +31,16 @@ fn hwnd(value: isize) -> HWND {
 /// (left, top, right, bottom) in desktop pixels of the window a capture is set to, its client area as 直播姬
 /// captures it; None when it is not open, hidden or minimized.
 pub fn client_rect(title: &str, window_class: &str) -> Option<Rect> {
-    let found = window_of(title, window_class);
-    if found == 0 {
+    client_rect_of(window_of(title, window_class))
+}
+
+/// (left, top, right, bottom) in desktop pixels of a window's client area (the part inside its frame); None when it
+/// is not a window, hidden or minimized. The app's dialogs lie over its main window's client area with this.
+pub fn client_rect_of(window: isize) -> Option<Rect> {
+    if window == 0 {
         return None;
     }
-    let h = hwnd(found);
+    let h = hwnd(window);
     // SAFETY: reads the state and client area of a window looked up above into locals.
     unsafe {
         if !IsWindowVisible(h).as_bool() || IsIconic(h).as_bool() {

@@ -108,6 +108,31 @@ fn at_150_percent_the_frame_is_drawn_in_device_pixels() {
     assert!(opaque > 1000);
 }
 
+/// 125 % (a 1920 x 1080 monitor at 120 dpi, the player's PC): the check finds 准备案件还原 in the capture's device
+/// pixels (a full-screen 16:9 game: 549, 749, 556 x 94), and the marks' frame, laid out in logical pixels at
+/// 1.25, comes back in the same device pixels around it, never at the logical place (1.25 times too near the top left).
+#[test]
+fn at_125_percent_the_marks_sit_on_the_button_the_capture_found() {
+    let Some(face) = face() else { return };
+    let look = look_for("lace");
+    let button = [549, 749, 1105, 843];
+    let r = result(vec![seat("心动小鹿", SeatKind::Guest)], button);
+    let work = [0, 0, 1920, 1032];
+    let style = |ratio| Style { look: &look, face: Some(&face), at: Moment::default(), ratio };
+    let one = render(&r, Extras::default(), work, &style(1.0)).unwrap();
+    let scaled = render(&r, Extras::default(), work, &style(1.25)).unwrap();
+    let (w, h) = (scaled.pixmap.width() as i32, scaled.pixmap.height() as i32);
+    assert!(scaled.x <= button[0] && scaled.x + w >= button[2], "x {} w {w} around {button:?}", scaled.x);
+    assert!(scaled.y <= button[1] && scaled.y + h >= button[3], "y {} h {h} around {button:?}", scaled.y);
+    // Laid out in logical pixels and placed by 1.25: the button's place inside the frame is 1.25 times its place at
+    // 100 %, to a pixel or two of rounding, so the frame sits on the capture's button and nowhere else.
+    for (axis, at_one, at_scaled) in [("x", one.x, scaled.x), ("y", one.y, scaled.y)] {
+        let edge = if axis == "x" { button[0] } else { button[1] };
+        let expected = f64::from(edge - at_one) * 1.25;
+        assert!((f64::from(edge - at_scaled) - expected).abs() <= 3.0, "{axis}: {} inside, expected {expected}", edge - at_scaled);
+    }
+}
+
 #[test]
 fn like_card_is_as_tall_as_the_cover_with_many_names() {
     let Some(face) = face() else { return };

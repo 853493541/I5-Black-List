@@ -97,6 +97,8 @@ component PreviewTable inherits Rectangle {
 
 // 添加 / 编辑 one 黑名单 player: 名字, 标签 to click on and off, 原因. 删除 only when editing.
 export component AddNameDialog inherits Stage {
+    // Here as well as on Stage: set only on Stage, the window came up with its frame (CI run 44500120089).
+    no-frame: true;
     in property <string> heading: "添加";
     in property <bool> allow-delete;
     in-out property <string> name;
@@ -181,6 +183,8 @@ export component AddNameDialog inherits Stage {
 
 // 批量导入: paste a list, see what each person does to the list, import the ones left checked.
 export component BatchAddDialog inherits Stage {
+    // Here as well as on Stage: set only on Stage, the window came up with its frame (CI run 44500120089).
+    no-frame: true;
     in-out property <string> text;
     in property <[PreviewRow]> rows;
     in property <string> error;
@@ -266,6 +270,8 @@ component TagGroup inherits HorizontalLayout {
 
 // 确认导入, 批量导入's last step: the 标签 to add (a click cancels one), then who will be added.
 export component TagSuggestDialog inherits Stage {
+    // Here as well as on Stage: set only on Stage, the window came up with its frame (CI run 44500120089).
+    no-frame: true;
     in property <[TagLine]> new-tags;
     in property <[TagLine]> old-tags;
     in property <[PreviewRow]> people;
@@ -312,6 +318,8 @@ export component TagSuggestDialog inherits Stage {
 
 // Ask before something hard to take back; 取消 is the safe answer.
 export component ConfirmDialog inherits Stage {
+    // Here as well as on Stage: set only on Stage, the window came up with its frame (CI run 44500120089).
+    no-frame: true;
     in property <string> heading;
     in property <string> body;
     in property <string> confirm: "确定";

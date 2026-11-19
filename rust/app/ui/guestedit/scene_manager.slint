@@ -11,6 +11,8 @@ export struct SceneSongItem { name: string, chosen: bool, own: bool }
 
 export component SceneManagerDialog inherits Window {
     in property <bool> dark;
+    // ui_kit.Modal: frameless, laid over the main window\'s client area by the app (ui_dialogs::place).
+    no-frame: true;
     in-out property <string> hotkey: "Alt+F12";
     // What is wrong with a key pressed for the hotkey; its two lines of room are kept while there is none.
     in property <string> note;

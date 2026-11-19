@@ -84,6 +84,8 @@ export component Waveform inherits Rectangle {
 
 // 选择片段: the part of a sound longer than five seconds that a 场景 plays.
 export component SoundTrimDialog inherits Stage {
+    // Here as well as on Stage: set only on Stage, the window came up with its frame (CI run 44500120089).
+    no-frame: true;
     in property <string> file-name;
     in property <[float]> peaks;
     in property <float> duration;
@@ -193,6 +195,8 @@ export component SoundWave inherits Rectangle {
 
 // SoundWave alone on a card-coloured ground, for its pictures and tests.
 export component SoundWaveView inherits Stage {
+    // Here as well as on Stage: set only on Stage, the window came up with its frame (CI run 44500120089).
+    no-frame: true;
     in property <[float]> levels: [0.4, 0.9, 0.6, 1.0, 0.3];
     preferred-width: 46px;
     preferred-height: 34px;
