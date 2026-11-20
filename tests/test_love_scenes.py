@@ -502,7 +502,7 @@ def test_the_lyre_s_frame_runs_on_into_the_gap_and_fades_before_the_button(qapp)
     stage = sample_stage()
     shot = _frames(stage, "lyre")[4]
     gap, y = stage.gap, round(stage.height - 28)
-    for x in (gap.left() + 40, gap.left() + 80, stage.heart().x() + 10, gap.right() - 20):
+    for x in (gap.left() + 40, gap.left() + 80, stage.heart().x() - 25, stage.heart().x() + 10, gap.right() - 20):
         color = shot.pixelColor(round(x), y)
         assert color.alpha() > 120 and color.green() > color.red(), (x, color.alpha())
     for x in (gap.center().x(), stage.heart().x() - 60):

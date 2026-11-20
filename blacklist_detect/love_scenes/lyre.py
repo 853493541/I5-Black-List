@@ -884,7 +884,7 @@ def _tiles(color: np.ndarray, alpha: np.ndarray, scale: float, size: int = 128, 
 
 # Where the frame thins away toward the button: gone this near it, whole this far off (in points). The card and the
 # badge beside the button are windows of their own over the scene, so the frame runs on under them, fading.
-FADE = (4.0, 46.0)
+FADE = (2.0, 18.0)
 
 
 def _button(stage: Stage) -> QRectF:
